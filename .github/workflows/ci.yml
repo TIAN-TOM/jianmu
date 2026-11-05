@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: check (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['24', '26']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      # .npmrc 里的 min-release-age 从 npm 11.10.0 起才生效
+      - name: 核对 npm 版本
+        run: |
+          if ! node -e 'const [major, minor] = process.argv[1].split(".").map(Number); process.exit(major > 11 || (major === 11 && minor >= 10) ? 0 : 1)' "$(npm --version)"; then
+            npm install --global npm@11.20.0
+          fi
+          npm --version
+
+      - run: npm ci
+
+      - run: npm run check
+
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+          cache: npm
+
+      - name: 核对 npm 版本
+        run: |
+          if ! node -e 'const [major, minor] = process.argv[1].split(".").map(Number); process.exit(major > 11 || (major === 11 && minor >= 10) ? 0 : 1)' "$(npm --version)"; then
+            npm install --global npm@11.20.0
+          fi
+          npm --version
+
+      - run: npm ci
+
+      - name: 安装 Chrome for Testing
+        run: |
+          version="$(curl --fail --silent --show-error https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_STABLE)"
+          curl --fail --silent --show-error --output "$RUNNER_TEMP/chrome.zip" \
+            "https://storage.googleapis.com/chrome-for-testing-public/$version/linux64/chrome-linux64.zip"
+          unzip -q "$RUNNER_TEMP/chrome.zip" -d "$RUNNER_TEMP"
+          echo "CHROME_PATH=$RUNNER_TEMP/chrome-linux64/chrome" >> "$GITHUB_ENV"
+
+      # Ubuntu 24.04 默认限制非特权用户命名空间，Chrome 的沙箱起不来
+      - name: 放开用户命名空间
+        run: echo 0 | sudo tee /proc/sys/kernel/apparmor_restrict_unprivileged_userns
+
+      - run: npm run test:e2e

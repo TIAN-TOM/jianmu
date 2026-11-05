@@ -1,0 +1,9 @@
+node_modules/
+build/
+dist/
+e2e/artifacts/
+*.map
+*.log
+*.har
+.env*
+.DS_Store

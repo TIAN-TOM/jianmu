@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "简幕：AI 视频速览与学习助手",
+  "version": "0.0.0-构建时写入",
+  "description": "几分钟判断一个长视频值不值得看。正在重写，尚未发布。",
+  "minimum_chrome_version": "116",
+  "permissions": ["sidePanel"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "打开简幕"
+  },
+  "side_panel": {
+    "default_path": "pages/sidepanel.html"
+  }
+}

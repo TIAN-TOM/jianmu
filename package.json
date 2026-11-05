@@ -1,0 +1,32 @@
+{
+  "name": "jianmu",
+  "version": "0.1.0",
+  "private": true,
+  "description": "简幕：帮你在几分钟内判断一个 B 站或 YouTube 长视频值不值得看的 Chrome 扩展",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24.12",
+    "npm": ">=11.10.0"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.sw.json && tsc -p tsconfig.pages.json && tsc -p tsconfig.node.json",
+    "test": "node --test \"tests/unit/**/*.test.ts\" tests/structure.test.ts",
+    "build": "node scripts/build.mjs",
+    "test:build": "node --test tests/build-output.test.ts",
+    "check:public": "node scripts/check-public.mjs",
+    "check": "npm run typecheck && npm test && npm run build && npm run test:build && npm run check:public",
+    "package": "npm run build && node scripts/package.mjs",
+    "test:e2e": "npm run package && node e2e/run.mjs"
+  },
+  "dependencies": {
+    "@preact/signals": "2.11.3",
+    "preact": "10.29.8"
+  },
+  "devDependencies": {
+    "@types/chrome": "0.3.6",
+    "@types/node": "26.6.5",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  }
+}

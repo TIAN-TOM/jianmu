@@ -1,0 +1,4 @@
+background.js
+manifest.json
+pages/sidepanel.html
+pages/sidepanel.js

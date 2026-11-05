@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["es2023", "webworker"],
+    "types": ["chrome"]
+  },
+  "include": ["src/core/**/*", "src/shared/**/*", "src/platform/**/*", "src/sites/**/*", "src/background/**/*"],
+  "exclude": ["src/sites/*/page.ts"]
+}
