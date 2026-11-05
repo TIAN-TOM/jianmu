@@ -6,16 +6,18 @@
 
 ## 现在有什么
 
-仓库处在骨架阶段（架构设计第 12 节第 1 步），下表只列已有的东西。目标结构见架构设计第 5.1 节。
+核心逻辑已经移植完（架构设计第 12 节第 3 步），还没有用户能用的功能。下表只列已有的东西。目标结构见架构设计第 5.1 节。
 
 | 位置 | 做什么 |
 | --- | --- |
 | `manifest.template.json` | 清单模板，手写；版本号由构建写入 |
-| `src/core/` | 纯逻辑，不碰 `chrome.*` 和 DOM。现在只有统一视频身份 `video-ref.ts` |
-| `src/background/`、`src/pages/` | 后台入口和侧边栏占位页 |
+| `src/core/` | 纯逻辑，不碰 `chrome.*` 和 DOM：视频身份、并发、任务、清除闸门、高亮，以及 `transcript/`、`qa/`、`triage/`、`ai/` |
+| `src/shared/` | `names.ts` 存储键 |
+| `src/background/`、`src/pages/` | 后台入口、内联的提示词和侧边栏占位页 |
+| `prompts/` | 提示词模板，构建时内联进后台包 |
 | `static/` | 原样复制进构建产物 |
 | `scripts/` | `build.mjs` 构建，`package.mjs` 打包和校验，`check-public.mjs` 公开结构检查 |
-| `tests/` | `unit/` 单元测试，`structure.test.ts` 结构规则，`build-output.test.ts` 构建产物检查 |
+| `tests/` | `unit/` 单元测试，`structure.test.ts` 结构规则，`build-output.test.ts` 构建产物检查，`fixtures/golden/` 黄金样本 |
 | `e2e/` | 把打好的包装进断网的 Chrome for Testing 跑冒烟 |
 | `notes/` | 公开的设计文档，走白名单 |
 

@@ -11,7 +11,7 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.sw.json && tsc -p tsconfig.pages.json && tsc -p tsconfig.node.json",
-    "test": "node --test \"tests/unit/**/*.test.ts\" tests/structure.test.ts",
+    "test": "node --test --test-timeout=60000 \"tests/unit/**/*.test.ts\" tests/structure.test.ts",
     "build": "node scripts/build.mjs",
     "test:build": "node --test tests/build-output.test.ts",
     "check:public": "node scripts/check-public.mjs",
