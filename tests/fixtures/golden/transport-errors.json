@@ -1,0 +1,2466 @@
+{
+ "schema": 1,
+ "name": "transport-errors",
+ "title": "报错翻译：HTTP 响应到错误码和文案",
+ "cases": [
+  {
+   "id": "requestAiCompletion#1",
+   "label": "openai｜401 密钥被拒",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.example.com/v1",
+     "model": "some-model",
+     "protocol": "openai",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"invalid key\"}}",
+      "headers": {},
+      "status": 401
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": false,
+     "status": 401
+    },
+    "response": {
+     "error": "INVALID_AI_KEY",
+     "message": "服务拒绝了这个密钥，请在设置里检查密钥和地址是否匹配。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#2",
+   "label": "openai｜403",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.example.com/v1",
+     "model": "some-model",
+     "protocol": "openai",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"forbidden\"}}",
+      "headers": {},
+      "status": 403
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": false,
+     "status": 403
+    },
+    "response": {
+     "error": "INVALID_AI_KEY",
+     "message": "服务拒绝了这个密钥，请在设置里检查密钥和地址是否匹配。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#3",
+   "label": "openai｜404 模型名错",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.example.com/v1",
+     "model": "some-model",
+     "protocol": "openai",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"model not found\"}}",
+      "headers": {},
+      "status": 404
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": false,
+     "status": 404
+    },
+    "response": {
+     "error": "MODEL_OR_ENDPOINT_NOT_FOUND",
+     "message": "服务返回 404，多半是模型名写错或 API 地址不对，请到设置页核对。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#4",
+   "label": "openai｜400 参数错",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.example.com/v1",
+     "model": "some-model",
+     "protocol": "openai",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"bad request\"}}",
+      "headers": {},
+      "status": 400
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": false,
+     "status": 400
+    },
+    "response": {
+     "error": "AI_REQUEST_FAILED",
+     "message": "bad request",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#5",
+   "label": "openai｜400 工作区提示",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.example.com/v1",
+     "model": "some-model",
+     "protocol": "openai",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"API key is not scoped to a workspace\"}}",
+      "headers": {},
+      "status": 400
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": "ANTHROPIC_WORKSPACE_REQUIRED",
+     "noAutoRetry": false,
+     "status": 400
+    },
+    "response": {
+     "error": "ANTHROPIC_WORKSPACE_REQUIRED",
+     "message": "这把 Anthropic 密钥没有限定工作区，每个请求都要另带工作区 ID，本扩展不支持。请在 Claude Console 新建一把密钥，创建时选定一个工作区（例如 Default），再填到设置页。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#6",
+   "label": "openai｜429 限流",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.example.com/v1",
+     "model": "some-model",
+     "protocol": "openai",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"rate limited\"}}",
+      "headers": {},
+      "status": 429
+     }
+    }
+   ],
+   "result": {
+    "calls": 2,
+    "error": {
+     "code": null,
+     "noAutoRetry": true,
+     "status": 429
+    },
+    "response": {
+     "error": "RATE_LIMITED",
+     "message": "服务限流了，稍等一会儿再试。",
+     "noAutoRetry": true,
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#7",
+   "label": "openai｜429 带 Retry-After 秒",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.example.com/v1",
+     "model": "some-model",
+     "protocol": "openai",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"slow down\"}}",
+      "headers": {
+       "retry-after": "3"
+      },
+      "status": 429
+     }
+    }
+   ],
+   "result": {
+    "calls": 2,
+    "error": {
+     "code": null,
+     "noAutoRetry": true,
+     "status": 429
+    },
+    "response": {
+     "error": "RATE_LIMITED",
+     "message": "服务限流了，稍等一会儿再试。",
+     "noAutoRetry": true,
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#8",
+   "label": "openai｜429 Retry-After 过长",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.example.com/v1",
+     "model": "some-model",
+     "protocol": "openai",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"slow down\"}}",
+      "headers": {
+       "retry-after": "120"
+      },
+      "status": 429
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": true,
+     "status": 429
+    },
+    "response": {
+     "error": "RATE_LIMITED",
+     "message": "服务限流了，稍等一会儿再试。",
+     "noAutoRetry": true,
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#9",
+   "label": "openai｜429 额度用完",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.example.com/v1",
+     "model": "some-model",
+     "protocol": "openai",
+     "sample": {
+      "body": "{\"error\":{\"code\":\"insufficient_quota\",\"message\":\"You exceeded your current quota\"}}",
+      "headers": {},
+      "status": 429
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": true,
+     "status": 429
+    },
+    "response": {
+     "error": "RATE_LIMITED",
+     "message": "服务限流了，稍等一会儿再试。",
+     "noAutoRetry": true,
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#10",
+   "label": "openai｜500",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.example.com/v1",
+     "model": "some-model",
+     "protocol": "openai",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"internal\"}}",
+      "headers": {},
+      "status": 500
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": false,
+     "status": 500
+    },
+    "response": {
+     "error": "AI_SERVICE_ERROR",
+     "message": "AI 服务出错（HTTP 500）：internal",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#11",
+   "label": "openai｜502 HTML 错误页",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.example.com/v1",
+     "model": "some-model",
+     "protocol": "openai",
+     "sample": {
+      "body": "<html><body>Bad Gateway</body></html>",
+      "headers": {},
+      "status": 502
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": false,
+     "status": 502
+    },
+    "response": {
+     "error": "AI_SERVICE_BUSY",
+     "message": "AI 服务暂时繁忙或出错（HTTP 502），请稍后再试。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#12",
+   "label": "openai｜503 空 body",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.example.com/v1",
+     "model": "some-model",
+     "protocol": "openai",
+     "sample": {
+      "body": "",
+      "headers": {},
+      "status": 503
+     }
+    }
+   ],
+   "result": {
+    "calls": 2,
+    "error": {
+     "code": null,
+     "noAutoRetry": true,
+     "status": 503
+    },
+    "response": {
+     "error": "AI_SERVICE_BUSY",
+     "message": "AI 服务暂时繁忙或出错（HTTP 503），请稍后再试。",
+     "noAutoRetry": true,
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#13",
+   "label": "openai｜503 中转站没有这个模型",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.example.com/v1",
+     "model": "some-model",
+     "protocol": "openai",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"no available channel for model gpt-x\"}}",
+      "headers": {},
+      "status": 503
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": true,
+     "status": 503
+    },
+    "response": {
+     "error": "AI_SERVICE_ERROR",
+     "message": "AI 服务出错（HTTP 503）：no available channel for model gpt-x",
+     "noAutoRetry": true,
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#14",
+   "label": "openai｜504",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.example.com/v1",
+     "model": "some-model",
+     "protocol": "openai",
+     "sample": {
+      "body": "gateway timeout",
+      "headers": {},
+      "status": 504
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": false,
+     "status": 504
+    },
+    "response": {
+     "error": "AI_SERVICE_BUSY",
+     "message": "AI 服务暂时繁忙或出错（HTTP 504），请稍后再试。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#15",
+   "label": "openai｜529 过载",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.example.com/v1",
+     "model": "some-model",
+     "protocol": "openai",
+     "sample": {
+      "body": "{\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}",
+      "headers": {},
+      "status": 529
+     }
+    }
+   ],
+   "result": {
+    "calls": 2,
+    "error": {
+     "code": null,
+     "noAutoRetry": true,
+     "status": 529
+    },
+    "response": {
+     "error": "AI_SERVICE_BUSY",
+     "message": "AI 服务暂时繁忙或出错（HTTP 529），请稍后再试。",
+     "noAutoRetry": true,
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#16",
+   "label": "openai｜纯文本 429",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.example.com/v1",
+     "model": "some-model",
+     "protocol": "openai",
+     "sample": {
+      "body": "Too Many Requests",
+      "headers": {},
+      "status": 429
+     }
+    }
+   ],
+   "result": {
+    "calls": 2,
+    "error": {
+     "code": null,
+     "noAutoRetry": true,
+     "status": 429
+    },
+    "response": {
+     "error": "RATE_LIMITED",
+     "message": "服务限流了，稍等一会儿再试。",
+     "noAutoRetry": true,
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#17",
+   "label": "openai｜错误里回显密钥",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.example.com/v1",
+     "model": "some-model",
+     "protocol": "openai",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"failed for sk-golden-fake\"}}",
+      "headers": {},
+      "status": 500
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": false,
+     "status": 500
+    },
+    "response": {
+     "error": "AI_SERVICE_ERROR",
+     "message": "AI 服务出错（HTTP 500）：failed for [已隐藏的密钥]",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#18",
+   "label": "openai｜200 但 body 不是 JSON",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.example.com/v1",
+     "model": "some-model",
+     "protocol": "openai",
+     "sample": {
+      "body": "not json at all",
+      "headers": {},
+      "status": 200
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": "AI_RESPONSE_TRUNCATED",
+     "noAutoRetry": false,
+     "status": null
+    },
+    "response": {
+     "error": "AI_RESPONSE_TRUNCATED",
+     "message": "AI 响应不完整，请重试。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#19",
+   "label": "openai｜200 但 body 被截断",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.example.com/v1",
+     "model": "some-model",
+     "protocol": "openai",
+     "sample": {
+      "body": "{\"choices\":[{\"message\":{\"content\":\"半",
+      "headers": {},
+      "status": 200
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "result": {
+     "attempts": null,
+     "text": "半",
+     "truncated": true
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#20",
+   "label": "openai｜200 空响应",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.example.com/v1",
+     "model": "some-model",
+     "protocol": "openai",
+     "sample": {
+      "body": "{\"choices\":[{\"message\":{\"content\":\"\"},\"finish_reason\":\"stop\"}]}",
+      "headers": {},
+      "status": 200
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": "EMPTY_AI_RESPONSE",
+     "noAutoRetry": false,
+     "status": null
+    },
+    "response": {
+     "error": "EMPTY_AI_RESPONSE",
+     "message": "模型返回了空内容，请重试。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#21",
+   "label": "openai-responses｜401 密钥被拒",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.openai.com/v1",
+     "model": "gpt-6-sol",
+     "protocol": "openai-responses",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"invalid key\"}}",
+      "headers": {},
+      "status": 401
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": false,
+     "status": 401
+    },
+    "response": {
+     "error": "INVALID_AI_KEY",
+     "message": "服务拒绝了这个密钥，请在设置里检查密钥和地址是否匹配。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#22",
+   "label": "openai-responses｜403",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.openai.com/v1",
+     "model": "gpt-6-sol",
+     "protocol": "openai-responses",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"forbidden\"}}",
+      "headers": {},
+      "status": 403
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": false,
+     "status": 403
+    },
+    "response": {
+     "error": "INVALID_AI_KEY",
+     "message": "服务拒绝了这个密钥，请在设置里检查密钥和地址是否匹配。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#23",
+   "label": "openai-responses｜404 模型名错",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.openai.com/v1",
+     "model": "gpt-6-sol",
+     "protocol": "openai-responses",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"model not found\"}}",
+      "headers": {},
+      "status": 404
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": false,
+     "status": 404
+    },
+    "response": {
+     "error": "MODEL_OR_ENDPOINT_NOT_FOUND",
+     "message": "服务返回 404，多半是模型名写错或 API 地址不对，请到设置页核对。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#24",
+   "label": "openai-responses｜400 参数错",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.openai.com/v1",
+     "model": "gpt-6-sol",
+     "protocol": "openai-responses",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"bad request\"}}",
+      "headers": {},
+      "status": 400
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": false,
+     "status": 400
+    },
+    "response": {
+     "error": "AI_REQUEST_FAILED",
+     "message": "bad request",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#25",
+   "label": "openai-responses｜400 工作区提示",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.openai.com/v1",
+     "model": "gpt-6-sol",
+     "protocol": "openai-responses",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"API key is not scoped to a workspace\"}}",
+      "headers": {},
+      "status": 400
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": "ANTHROPIC_WORKSPACE_REQUIRED",
+     "noAutoRetry": false,
+     "status": 400
+    },
+    "response": {
+     "error": "ANTHROPIC_WORKSPACE_REQUIRED",
+     "message": "这把 Anthropic 密钥没有限定工作区，每个请求都要另带工作区 ID，本扩展不支持。请在 Claude Console 新建一把密钥，创建时选定一个工作区（例如 Default），再填到设置页。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#26",
+   "label": "openai-responses｜429 限流",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.openai.com/v1",
+     "model": "gpt-6-sol",
+     "protocol": "openai-responses",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"rate limited\"}}",
+      "headers": {},
+      "status": 429
+     }
+    }
+   ],
+   "result": {
+    "calls": 2,
+    "error": {
+     "code": null,
+     "noAutoRetry": true,
+     "status": 429
+    },
+    "response": {
+     "error": "RATE_LIMITED",
+     "message": "服务限流了，稍等一会儿再试。",
+     "noAutoRetry": true,
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#27",
+   "label": "openai-responses｜429 带 Retry-After 秒",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.openai.com/v1",
+     "model": "gpt-6-sol",
+     "protocol": "openai-responses",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"slow down\"}}",
+      "headers": {
+       "retry-after": "3"
+      },
+      "status": 429
+     }
+    }
+   ],
+   "result": {
+    "calls": 2,
+    "error": {
+     "code": null,
+     "noAutoRetry": true,
+     "status": 429
+    },
+    "response": {
+     "error": "RATE_LIMITED",
+     "message": "服务限流了，稍等一会儿再试。",
+     "noAutoRetry": true,
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#28",
+   "label": "openai-responses｜429 Retry-After 过长",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.openai.com/v1",
+     "model": "gpt-6-sol",
+     "protocol": "openai-responses",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"slow down\"}}",
+      "headers": {
+       "retry-after": "120"
+      },
+      "status": 429
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": true,
+     "status": 429
+    },
+    "response": {
+     "error": "RATE_LIMITED",
+     "message": "服务限流了，稍等一会儿再试。",
+     "noAutoRetry": true,
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#29",
+   "label": "openai-responses｜429 额度用完",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.openai.com/v1",
+     "model": "gpt-6-sol",
+     "protocol": "openai-responses",
+     "sample": {
+      "body": "{\"error\":{\"code\":\"insufficient_quota\",\"message\":\"You exceeded your current quota\"}}",
+      "headers": {},
+      "status": 429
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": true,
+     "status": 429
+    },
+    "response": {
+     "error": "RATE_LIMITED",
+     "message": "服务限流了，稍等一会儿再试。",
+     "noAutoRetry": true,
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#30",
+   "label": "openai-responses｜500",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.openai.com/v1",
+     "model": "gpt-6-sol",
+     "protocol": "openai-responses",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"internal\"}}",
+      "headers": {},
+      "status": 500
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": false,
+     "status": 500
+    },
+    "response": {
+     "error": "AI_SERVICE_ERROR",
+     "message": "AI 服务出错（HTTP 500）：internal",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#31",
+   "label": "openai-responses｜502 HTML 错误页",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.openai.com/v1",
+     "model": "gpt-6-sol",
+     "protocol": "openai-responses",
+     "sample": {
+      "body": "<html><body>Bad Gateway</body></html>",
+      "headers": {},
+      "status": 502
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": false,
+     "status": 502
+    },
+    "response": {
+     "error": "AI_SERVICE_BUSY",
+     "message": "AI 服务暂时繁忙或出错（HTTP 502），请稍后再试。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#32",
+   "label": "openai-responses｜503 空 body",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.openai.com/v1",
+     "model": "gpt-6-sol",
+     "protocol": "openai-responses",
+     "sample": {
+      "body": "",
+      "headers": {},
+      "status": 503
+     }
+    }
+   ],
+   "result": {
+    "calls": 2,
+    "error": {
+     "code": null,
+     "noAutoRetry": true,
+     "status": 503
+    },
+    "response": {
+     "error": "AI_SERVICE_BUSY",
+     "message": "AI 服务暂时繁忙或出错（HTTP 503），请稍后再试。",
+     "noAutoRetry": true,
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#33",
+   "label": "openai-responses｜503 中转站没有这个模型",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.openai.com/v1",
+     "model": "gpt-6-sol",
+     "protocol": "openai-responses",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"no available channel for model gpt-x\"}}",
+      "headers": {},
+      "status": 503
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": true,
+     "status": 503
+    },
+    "response": {
+     "error": "AI_SERVICE_ERROR",
+     "message": "AI 服务出错（HTTP 503）：no available channel for model gpt-x",
+     "noAutoRetry": true,
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#34",
+   "label": "openai-responses｜504",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.openai.com/v1",
+     "model": "gpt-6-sol",
+     "protocol": "openai-responses",
+     "sample": {
+      "body": "gateway timeout",
+      "headers": {},
+      "status": 504
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": false,
+     "status": 504
+    },
+    "response": {
+     "error": "AI_SERVICE_BUSY",
+     "message": "AI 服务暂时繁忙或出错（HTTP 504），请稍后再试。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#35",
+   "label": "openai-responses｜529 过载",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.openai.com/v1",
+     "model": "gpt-6-sol",
+     "protocol": "openai-responses",
+     "sample": {
+      "body": "{\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}",
+      "headers": {},
+      "status": 529
+     }
+    }
+   ],
+   "result": {
+    "calls": 2,
+    "error": {
+     "code": null,
+     "noAutoRetry": true,
+     "status": 529
+    },
+    "response": {
+     "error": "AI_SERVICE_BUSY",
+     "message": "AI 服务暂时繁忙或出错（HTTP 529），请稍后再试。",
+     "noAutoRetry": true,
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#36",
+   "label": "openai-responses｜纯文本 429",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.openai.com/v1",
+     "model": "gpt-6-sol",
+     "protocol": "openai-responses",
+     "sample": {
+      "body": "Too Many Requests",
+      "headers": {},
+      "status": 429
+     }
+    }
+   ],
+   "result": {
+    "calls": 2,
+    "error": {
+     "code": null,
+     "noAutoRetry": true,
+     "status": 429
+    },
+    "response": {
+     "error": "RATE_LIMITED",
+     "message": "服务限流了，稍等一会儿再试。",
+     "noAutoRetry": true,
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#37",
+   "label": "openai-responses｜错误里回显密钥",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.openai.com/v1",
+     "model": "gpt-6-sol",
+     "protocol": "openai-responses",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"failed for sk-golden-fake\"}}",
+      "headers": {},
+      "status": 500
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": false,
+     "status": 500
+    },
+    "response": {
+     "error": "AI_SERVICE_ERROR",
+     "message": "AI 服务出错（HTTP 500）：failed for [已隐藏的密钥]",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#38",
+   "label": "openai-responses｜200 但 body 不是 JSON",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.openai.com/v1",
+     "model": "gpt-6-sol",
+     "protocol": "openai-responses",
+     "sample": {
+      "body": "not json at all",
+      "headers": {},
+      "status": 200
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": "AI_RESPONSE_TRUNCATED",
+     "noAutoRetry": false,
+     "status": null
+    },
+    "response": {
+     "error": "AI_RESPONSE_TRUNCATED",
+     "message": "AI 响应不完整，请重试。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#39",
+   "label": "openai-responses｜200 但 body 被截断",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.openai.com/v1",
+     "model": "gpt-6-sol",
+     "protocol": "openai-responses",
+     "sample": {
+      "body": "{\"choices\":[{\"message\":{\"content\":\"半",
+      "headers": {},
+      "status": 200
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": "EMPTY_AI_RESPONSE",
+     "noAutoRetry": false,
+     "status": null
+    },
+    "response": {
+     "error": "EMPTY_AI_RESPONSE",
+     "message": "响应不是 Responses 格式，这个地址可能只支持 Chat Completions 或 Anthropic。请到设置页核对「API 协议」。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#40",
+   "label": "openai-responses｜200 空响应",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://api.openai.com/v1",
+     "model": "gpt-6-sol",
+     "protocol": "openai-responses",
+     "sample": {
+      "body": "{\"choices\":[{\"message\":{\"content\":\"\"},\"finish_reason\":\"stop\"}]}",
+      "headers": {},
+      "status": 200
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": "EMPTY_AI_RESPONSE",
+     "noAutoRetry": false,
+     "status": null
+    },
+    "response": {
+     "error": "EMPTY_AI_RESPONSE",
+     "message": "响应不是 Responses 格式，这个地址可能只支持 Chat Completions 或 Anthropic。请到设置页核对「API 协议」。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#41",
+   "label": "anthropic｜401 密钥被拒",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://gateway.example.com",
+     "model": "gateway-claude",
+     "protocol": "anthropic",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"invalid key\"}}",
+      "headers": {},
+      "status": 401
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": false,
+     "status": 401
+    },
+    "response": {
+     "error": "INVALID_AI_KEY",
+     "message": "服务拒绝了这个密钥，请在设置里检查密钥和地址是否匹配。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#42",
+   "label": "anthropic｜403",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://gateway.example.com",
+     "model": "gateway-claude",
+     "protocol": "anthropic",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"forbidden\"}}",
+      "headers": {},
+      "status": 403
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": false,
+     "status": 403
+    },
+    "response": {
+     "error": "INVALID_AI_KEY",
+     "message": "服务拒绝了这个密钥，请在设置里检查密钥和地址是否匹配。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#43",
+   "label": "anthropic｜404 模型名错",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://gateway.example.com",
+     "model": "gateway-claude",
+     "protocol": "anthropic",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"model not found\"}}",
+      "headers": {},
+      "status": 404
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": false,
+     "status": 404
+    },
+    "response": {
+     "error": "MODEL_OR_ENDPOINT_NOT_FOUND",
+     "message": "服务返回 404，多半是模型名写错或 API 地址不对，请到设置页核对。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#44",
+   "label": "anthropic｜400 参数错",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://gateway.example.com",
+     "model": "gateway-claude",
+     "protocol": "anthropic",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"bad request\"}}",
+      "headers": {},
+      "status": 400
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": false,
+     "status": 400
+    },
+    "response": {
+     "error": "AI_REQUEST_FAILED",
+     "message": "bad request",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#45",
+   "label": "anthropic｜400 工作区提示",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://gateway.example.com",
+     "model": "gateway-claude",
+     "protocol": "anthropic",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"API key is not scoped to a workspace\"}}",
+      "headers": {},
+      "status": 400
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": "ANTHROPIC_WORKSPACE_REQUIRED",
+     "noAutoRetry": false,
+     "status": 400
+    },
+    "response": {
+     "error": "ANTHROPIC_WORKSPACE_REQUIRED",
+     "message": "这把 Anthropic 密钥没有限定工作区，每个请求都要另带工作区 ID，本扩展不支持。请在 Claude Console 新建一把密钥，创建时选定一个工作区（例如 Default），再填到设置页。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#46",
+   "label": "anthropic｜429 限流",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://gateway.example.com",
+     "model": "gateway-claude",
+     "protocol": "anthropic",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"rate limited\"}}",
+      "headers": {},
+      "status": 429
+     }
+    }
+   ],
+   "result": {
+    "calls": 2,
+    "error": {
+     "code": null,
+     "noAutoRetry": true,
+     "status": 429
+    },
+    "response": {
+     "error": "RATE_LIMITED",
+     "message": "服务限流了，稍等一会儿再试。",
+     "noAutoRetry": true,
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#47",
+   "label": "anthropic｜429 带 Retry-After 秒",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://gateway.example.com",
+     "model": "gateway-claude",
+     "protocol": "anthropic",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"slow down\"}}",
+      "headers": {
+       "retry-after": "3"
+      },
+      "status": 429
+     }
+    }
+   ],
+   "result": {
+    "calls": 2,
+    "error": {
+     "code": null,
+     "noAutoRetry": true,
+     "status": 429
+    },
+    "response": {
+     "error": "RATE_LIMITED",
+     "message": "服务限流了，稍等一会儿再试。",
+     "noAutoRetry": true,
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#48",
+   "label": "anthropic｜429 Retry-After 过长",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://gateway.example.com",
+     "model": "gateway-claude",
+     "protocol": "anthropic",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"slow down\"}}",
+      "headers": {
+       "retry-after": "120"
+      },
+      "status": 429
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": true,
+     "status": 429
+    },
+    "response": {
+     "error": "RATE_LIMITED",
+     "message": "服务限流了，稍等一会儿再试。",
+     "noAutoRetry": true,
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#49",
+   "label": "anthropic｜429 额度用完",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://gateway.example.com",
+     "model": "gateway-claude",
+     "protocol": "anthropic",
+     "sample": {
+      "body": "{\"error\":{\"code\":\"insufficient_quota\",\"message\":\"You exceeded your current quota\"}}",
+      "headers": {},
+      "status": 429
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": true,
+     "status": 429
+    },
+    "response": {
+     "error": "RATE_LIMITED",
+     "message": "服务限流了，稍等一会儿再试。",
+     "noAutoRetry": true,
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#50",
+   "label": "anthropic｜500",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://gateway.example.com",
+     "model": "gateway-claude",
+     "protocol": "anthropic",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"internal\"}}",
+      "headers": {},
+      "status": 500
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": false,
+     "status": 500
+    },
+    "response": {
+     "error": "AI_SERVICE_ERROR",
+     "message": "AI 服务出错（HTTP 500）：internal",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#51",
+   "label": "anthropic｜502 HTML 错误页",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://gateway.example.com",
+     "model": "gateway-claude",
+     "protocol": "anthropic",
+     "sample": {
+      "body": "<html><body>Bad Gateway</body></html>",
+      "headers": {},
+      "status": 502
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": false,
+     "status": 502
+    },
+    "response": {
+     "error": "AI_SERVICE_BUSY",
+     "message": "AI 服务暂时繁忙或出错（HTTP 502），请稍后再试。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#52",
+   "label": "anthropic｜503 空 body",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://gateway.example.com",
+     "model": "gateway-claude",
+     "protocol": "anthropic",
+     "sample": {
+      "body": "",
+      "headers": {},
+      "status": 503
+     }
+    }
+   ],
+   "result": {
+    "calls": 2,
+    "error": {
+     "code": null,
+     "noAutoRetry": true,
+     "status": 503
+    },
+    "response": {
+     "error": "AI_SERVICE_BUSY",
+     "message": "AI 服务暂时繁忙或出错（HTTP 503），请稍后再试。",
+     "noAutoRetry": true,
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#53",
+   "label": "anthropic｜503 中转站没有这个模型",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://gateway.example.com",
+     "model": "gateway-claude",
+     "protocol": "anthropic",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"no available channel for model gpt-x\"}}",
+      "headers": {},
+      "status": 503
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": true,
+     "status": 503
+    },
+    "response": {
+     "error": "AI_SERVICE_ERROR",
+     "message": "AI 服务出错（HTTP 503）：no available channel for model gpt-x",
+     "noAutoRetry": true,
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#54",
+   "label": "anthropic｜504",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://gateway.example.com",
+     "model": "gateway-claude",
+     "protocol": "anthropic",
+     "sample": {
+      "body": "gateway timeout",
+      "headers": {},
+      "status": 504
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": false,
+     "status": 504
+    },
+    "response": {
+     "error": "AI_SERVICE_BUSY",
+     "message": "AI 服务暂时繁忙或出错（HTTP 504），请稍后再试。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#55",
+   "label": "anthropic｜529 过载",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://gateway.example.com",
+     "model": "gateway-claude",
+     "protocol": "anthropic",
+     "sample": {
+      "body": "{\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}",
+      "headers": {},
+      "status": 529
+     }
+    }
+   ],
+   "result": {
+    "calls": 2,
+    "error": {
+     "code": null,
+     "noAutoRetry": true,
+     "status": 529
+    },
+    "response": {
+     "error": "AI_SERVICE_BUSY",
+     "message": "AI 服务暂时繁忙或出错（HTTP 529），请稍后再试。",
+     "noAutoRetry": true,
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#56",
+   "label": "anthropic｜纯文本 429",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://gateway.example.com",
+     "model": "gateway-claude",
+     "protocol": "anthropic",
+     "sample": {
+      "body": "Too Many Requests",
+      "headers": {},
+      "status": 429
+     }
+    }
+   ],
+   "result": {
+    "calls": 2,
+    "error": {
+     "code": null,
+     "noAutoRetry": true,
+     "status": 429
+    },
+    "response": {
+     "error": "RATE_LIMITED",
+     "message": "服务限流了，稍等一会儿再试。",
+     "noAutoRetry": true,
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#57",
+   "label": "anthropic｜错误里回显密钥",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://gateway.example.com",
+     "model": "gateway-claude",
+     "protocol": "anthropic",
+     "sample": {
+      "body": "{\"error\":{\"message\":\"failed for sk-golden-fake\"}}",
+      "headers": {},
+      "status": 500
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": null,
+     "noAutoRetry": false,
+     "status": 500
+    },
+    "response": {
+     "error": "AI_SERVICE_ERROR",
+     "message": "AI 服务出错（HTTP 500）：failed for [已隐藏的密钥]",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#58",
+   "label": "anthropic｜200 但 body 不是 JSON",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://gateway.example.com",
+     "model": "gateway-claude",
+     "protocol": "anthropic",
+     "sample": {
+      "body": "not json at all",
+      "headers": {},
+      "status": 200
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": "AI_RESPONSE_TRUNCATED",
+     "noAutoRetry": false,
+     "status": null
+    },
+    "response": {
+     "error": "AI_RESPONSE_TRUNCATED",
+     "message": "AI 响应不完整，请重试。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#59",
+   "label": "anthropic｜200 但 body 被截断",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://gateway.example.com",
+     "model": "gateway-claude",
+     "protocol": "anthropic",
+     "sample": {
+      "body": "{\"choices\":[{\"message\":{\"content\":\"半",
+      "headers": {},
+      "status": 200
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": "EMPTY_AI_RESPONSE",
+     "noAutoRetry": false,
+     "status": null
+    },
+    "response": {
+     "error": "EMPTY_AI_RESPONSE",
+     "message": "响应看起来是 OpenAI 格式，但当前选的是 Anthropic 协议。请到设置页把「API 协议」改成 OpenAI 兼容。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "requestAiCompletion#60",
+   "label": "anthropic｜200 空响应",
+   "fn": "requestAiCompletion",
+   "args": [
+    {
+     "baseUrl": "https://gateway.example.com",
+     "model": "gateway-claude",
+     "protocol": "anthropic",
+     "sample": {
+      "body": "{\"choices\":[{\"message\":{\"content\":\"\"},\"finish_reason\":\"stop\"}]}",
+      "headers": {},
+      "status": 200
+     }
+    }
+   ],
+   "result": {
+    "calls": 1,
+    "error": {
+     "code": "EMPTY_AI_RESPONSE",
+     "noAutoRetry": false,
+     "status": null
+    },
+    "response": {
+     "error": "EMPTY_AI_RESPONSE",
+     "message": "响应看起来是 OpenAI 格式，但当前选的是 Anthropic 协议。请到设置页把「API 协议」改成 OpenAI 兼容。",
+     "success": false
+    }
+   },
+   "note": "stub fetch 按 sample 回复，sleep 不等，random 固定 0.5"
+  },
+  {
+   "id": "aiErrorResponse#1",
+   "label": "NO_AI_CONFIG",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "code": "NO_AI_CONFIG",
+     "message": "AI 还没配置好"
+    }
+   ],
+   "result": {
+    "error": "NO_AI_CONFIG",
+    "message": "AI 还没配置好",
+    "success": false
+   },
+   "note": "入参是带 code 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#2",
+   "label": "NO_AI_CONFIG｜noAutoRetry",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "code": "NO_AI_CONFIG",
+     "message": "AI 还没配置好",
+     "noAutoRetry": true
+    }
+   ],
+   "result": {
+    "error": "NO_AI_CONFIG",
+    "message": "AI 还没配置好",
+    "noAutoRetry": true,
+    "success": false
+   },
+   "note": "入参是带 code 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#3",
+   "label": "NEED_HOST_PERMISSION",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "code": "NEED_HOST_PERMISSION",
+     "message": "要先授权"
+    }
+   ],
+   "result": {
+    "error": "NEED_HOST_PERMISSION",
+    "message": "要先授权",
+    "success": false
+   },
+   "note": "入参是带 code 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#4",
+   "label": "NEED_HOST_PERMISSION｜noAutoRetry",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "code": "NEED_HOST_PERMISSION",
+     "message": "要先授权",
+     "noAutoRetry": true
+    }
+   ],
+   "result": {
+    "error": "NEED_HOST_PERMISSION",
+    "message": "要先授权",
+    "noAutoRetry": true,
+    "success": false
+   },
+   "note": "入参是带 code 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#5",
+   "label": "INVALID_BASE_URL",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "code": "INVALID_BASE_URL",
+     "message": "地址不合法"
+    }
+   ],
+   "result": {
+    "error": "INVALID_BASE_URL",
+    "message": "地址不合法",
+    "success": false
+   },
+   "note": "入参是带 code 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#6",
+   "label": "INVALID_BASE_URL｜noAutoRetry",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "code": "INVALID_BASE_URL",
+     "message": "地址不合法",
+     "noAutoRetry": true
+    }
+   ],
+   "result": {
+    "error": "INVALID_BASE_URL",
+    "message": "地址不合法",
+    "noAutoRetry": true,
+    "success": false
+   },
+   "note": "入参是带 code 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#7",
+   "label": "AI_NETWORK_ERROR",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "code": "AI_NETWORK_ERROR",
+     "message": "连不上"
+    }
+   ],
+   "result": {
+    "error": "AI_NETWORK_ERROR",
+    "message": "连不上",
+    "success": false
+   },
+   "note": "入参是带 code 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#8",
+   "label": "AI_NETWORK_ERROR｜noAutoRetry",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "code": "AI_NETWORK_ERROR",
+     "message": "连不上",
+     "noAutoRetry": true
+    }
+   ],
+   "result": {
+    "error": "AI_NETWORK_ERROR",
+    "message": "连不上",
+    "noAutoRetry": true,
+    "success": false
+   },
+   "note": "入参是带 code 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#9",
+   "label": "AI_REDIRECT_BLOCKED",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "code": "AI_REDIRECT_BLOCKED",
+     "message": "重定向"
+    }
+   ],
+   "result": {
+    "error": "AI_REDIRECT_BLOCKED",
+    "message": "重定向",
+    "success": false
+   },
+   "note": "入参是带 code 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#10",
+   "label": "AI_REDIRECT_BLOCKED｜noAutoRetry",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "code": "AI_REDIRECT_BLOCKED",
+     "message": "重定向",
+     "noAutoRetry": true
+    }
+   ],
+   "result": {
+    "error": "AI_REDIRECT_BLOCKED",
+    "message": "重定向",
+    "noAutoRetry": true,
+    "success": false
+   },
+   "note": "入参是带 code 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#11",
+   "label": "AI_HARD_TIMEOUT",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "code": "AI_HARD_TIMEOUT",
+     "message": "超时"
+    }
+   ],
+   "result": {
+    "error": "AI_HARD_TIMEOUT",
+    "message": "超时",
+    "success": false
+   },
+   "note": "入参是带 code 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#12",
+   "label": "AI_HARD_TIMEOUT｜noAutoRetry",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "code": "AI_HARD_TIMEOUT",
+     "message": "超时",
+     "noAutoRetry": true
+    }
+   ],
+   "result": {
+    "error": "AI_HARD_TIMEOUT",
+    "message": "超时",
+    "noAutoRetry": true,
+    "success": false
+   },
+   "note": "入参是带 code 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#13",
+   "label": "AI_IDLE_TIMEOUT",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "code": "AI_IDLE_TIMEOUT",
+     "message": "断流"
+    }
+   ],
+   "result": {
+    "error": "AI_IDLE_TIMEOUT",
+    "message": "断流",
+    "success": false
+   },
+   "note": "入参是带 code 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#14",
+   "label": "AI_IDLE_TIMEOUT｜noAutoRetry",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "code": "AI_IDLE_TIMEOUT",
+     "message": "断流",
+     "noAutoRetry": true
+    }
+   ],
+   "result": {
+    "error": "AI_IDLE_TIMEOUT",
+    "message": "断流",
+    "noAutoRetry": true,
+    "success": false
+   },
+   "note": "入参是带 code 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#15",
+   "label": "AI_RESPONSE_TOO_LARGE",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "code": "AI_RESPONSE_TOO_LARGE",
+     "message": "太大"
+    }
+   ],
+   "result": {
+    "error": "AI_RESPONSE_TOO_LARGE",
+    "message": "太大",
+    "success": false
+   },
+   "note": "入参是带 code 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#16",
+   "label": "AI_RESPONSE_TOO_LARGE｜noAutoRetry",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "code": "AI_RESPONSE_TOO_LARGE",
+     "message": "太大",
+     "noAutoRetry": true
+    }
+   ],
+   "result": {
+    "error": "AI_RESPONSE_TOO_LARGE",
+    "message": "太大",
+    "noAutoRetry": true,
+    "success": false
+   },
+   "note": "入参是带 code 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#17",
+   "label": "AI_RESPONSE_TRUNCATED",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "code": "AI_RESPONSE_TRUNCATED",
+     "message": "截断"
+    }
+   ],
+   "result": {
+    "error": "AI_RESPONSE_TRUNCATED",
+    "message": "截断",
+    "success": false
+   },
+   "note": "入参是带 code 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#18",
+   "label": "AI_RESPONSE_TRUNCATED｜noAutoRetry",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "code": "AI_RESPONSE_TRUNCATED",
+     "message": "截断",
+     "noAutoRetry": true
+    }
+   ],
+   "result": {
+    "error": "AI_RESPONSE_TRUNCATED",
+    "message": "截断",
+    "noAutoRetry": true,
+    "success": false
+   },
+   "note": "入参是带 code 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#19",
+   "label": "AI_REFUSED",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "code": "AI_REFUSED",
+     "message": "拒答"
+    }
+   ],
+   "result": {
+    "error": "AI_REFUSED",
+    "message": "拒答",
+    "success": false
+   },
+   "note": "入参是带 code 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#20",
+   "label": "AI_REFUSED｜noAutoRetry",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "code": "AI_REFUSED",
+     "message": "拒答",
+     "noAutoRetry": true
+    }
+   ],
+   "result": {
+    "error": "AI_REFUSED",
+    "message": "拒答",
+    "noAutoRetry": true,
+    "success": false
+   },
+   "note": "入参是带 code 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#21",
+   "label": "TASK_CANCELED",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "code": "TASK_CANCELED",
+     "message": "取消"
+    }
+   ],
+   "result": {
+    "error": "TASK_CANCELED",
+    "message": "任务已取消。",
+    "success": false
+   },
+   "note": "入参是带 code 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#22",
+   "label": "TASK_CANCELED｜noAutoRetry",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "code": "TASK_CANCELED",
+     "message": "取消",
+     "noAutoRetry": true
+    }
+   ],
+   "result": {
+    "error": "TASK_CANCELED",
+    "message": "任务已取消。",
+    "noAutoRetry": true,
+    "success": false
+   },
+   "note": "入参是带 code 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#23",
+   "label": "SOMETHING_ELSE",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "code": "SOMETHING_ELSE",
+     "message": "没见过的码"
+    }
+   ],
+   "result": {
+    "error": "SOMETHING_ELSE",
+    "message": "没见过的码",
+    "success": false
+   },
+   "note": "入参是带 code 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#24",
+   "label": "SOMETHING_ELSE｜noAutoRetry",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "code": "SOMETHING_ELSE",
+     "message": "没见过的码",
+     "noAutoRetry": true
+    }
+   ],
+   "result": {
+    "error": "SOMETHING_ELSE",
+    "message": "没见过的码",
+    "noAutoRetry": true,
+    "success": false
+   },
+   "note": "入参是带 code 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#25",
+   "label": "status 401",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "message": "x",
+     "status": 401
+    }
+   ],
+   "result": {
+    "error": "INVALID_AI_KEY",
+    "message": "服务拒绝了这个密钥，请在设置里检查密钥和地址是否匹配。",
+    "success": false
+   },
+   "note": "入参是带 status 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#26",
+   "label": "status 403",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "message": "x",
+     "status": 403
+    }
+   ],
+   "result": {
+    "error": "INVALID_AI_KEY",
+    "message": "服务拒绝了这个密钥，请在设置里检查密钥和地址是否匹配。",
+    "success": false
+   },
+   "note": "入参是带 status 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#27",
+   "label": "status 404",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "message": "x",
+     "status": 404
+    }
+   ],
+   "result": {
+    "error": "MODEL_OR_ENDPOINT_NOT_FOUND",
+    "message": "服务返回 404，多半是模型名写错或 API 地址不对，请到设置页核对。",
+    "success": false
+   },
+   "note": "入参是带 status 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#28",
+   "label": "status 429",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "message": "x",
+     "status": 429
+    }
+   ],
+   "result": {
+    "error": "RATE_LIMITED",
+    "message": "服务限流了，稍等一会儿再试。",
+    "success": false
+   },
+   "note": "入参是带 status 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#29",
+   "label": "status 500",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "message": "x",
+     "status": 500
+    }
+   ],
+   "result": {
+    "error": "AI_SERVICE_ERROR",
+    "message": "AI 服务出错（HTTP 500）：x",
+    "success": false
+   },
+   "note": "入参是带 status 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#30",
+   "label": "status 502",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "message": "可读说明",
+     "status": 502
+    }
+   ],
+   "result": {
+    "error": "AI_SERVICE_ERROR",
+    "message": "AI 服务出错（HTTP 502）：可读说明",
+    "success": false
+   },
+   "note": "入参是带 status 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#31",
+   "label": "status 503",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "message": "",
+     "status": 503
+    }
+   ],
+   "result": {
+    "error": "AI_SERVICE_BUSY",
+    "message": "AI 服务暂时繁忙或出错（HTTP 503），请稍后再试。",
+    "success": false
+   },
+   "note": "入参是带 status 的 Error"
+  },
+  {
+   "id": "aiErrorResponse#32",
+   "label": "status 529",
+   "fn": "aiErrorResponse",
+   "args": [
+    {
+     "message": "Overloaded",
+     "status": 529
+    }
+   ],
+   "result": {
+    "error": "AI_SERVICE_BUSY",
+    "message": "AI 服务暂时繁忙或出错（HTTP 529），请稍后再试。",
+    "success": false
+   },
+   "note": "入参是带 status 的 Error"
+  }
+ ]
+}
