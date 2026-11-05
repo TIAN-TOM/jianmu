@@ -1,0 +1,1331 @@
+{
+ "schema": 1,
+ "name": "notes-markdown",
+ "title": "笔记和学习稿的 Markdown 导出",
+ "cases": [
+  {
+   "id": "notesAsMarkdown#1",
+   "label": "全部一组",
+   "fn": "notesAsMarkdown",
+   "args": [
+    [
+     {
+      "createdAt": 1000,
+      "id": "note_a1",
+      "learningId": "bilibili:BV1GoLDen001:p1",
+      "ownerName": "菜园实验室",
+      "text": "竹竿间距留够 40 厘米",
+      "timestamp": "1:05",
+      "timestampSeconds": 65,
+      "videoKey": "bilibili:BV1GoLDen001:p1",
+      "videoTitle": "番茄搭架子入门"
+     },
+     {
+      "aiDraft": {
+       "text": "不该出现在导出里"
+      },
+      "createdAt": 2000,
+      "id": "note_a2",
+      "learningId": "bilibili:BV1GoLDen001:p1",
+      "ownerName": "菜园实验室",
+      "text": "第二行\n绑绳留一指宽",
+      "timestamp": "0:12",
+      "timestampSeconds": 12,
+      "videoKey": "bilibili:BV1GoLDen001:p1",
+      "videoTitle": "番茄搭架子入门"
+     },
+     {
+      "createdAt": 3000,
+      "id": "note_b1",
+      "learningId": "bilibili:BV1GoLDen002:p3",
+      "ownerName": "UP_主",
+      "text": "侧枝要[晴天]上午掐 <b>掉</b>",
+      "timestamp": "2:30",
+      "timestampSeconds": 150,
+      "videoKey": "bilibili:BV1GoLDen002:p3",
+      "videoTitle": "开花以后 | 第三集"
+     },
+     {
+      "createdAt": 500,
+      "id": "note_c1",
+      "learningId": "bilibili:BV1GoLDen003:p1",
+      "ownerName": "",
+      "text": "没有时间戳的笔记",
+      "timestampSeconds": null,
+      "videoKey": "bilibili:BV1GoLDen003:p1",
+      "videoTitle": ""
+     }
+    ]
+   ],
+   "result": "# 番茄搭架子入门\n\n菜园实验室\nhttps://www.bilibili.com/video/BV1GoLDen001\n\n- [0:00](https://www.bilibili.com/video/BV1GoLDen003) 没有时间戳的笔记\n- [0:12](https://www.bilibili.com/video/BV1GoLDen001?t=12) 第二行\n  绑绳留一指宽\n- [1:05](https://www.bilibili.com/video/BV1GoLDen001?t=65) 竹竿间距留够 40 厘米\n- [2:30](https://www.bilibili.com/video/BV1GoLDen002?p=3&t=150) 侧枝要\\[晴天\\]上午掐 \\<b\\>掉\\</b\\>\n"
+  },
+  {
+   "id": "notesAsMarkdown#2",
+   "label": "按视频分组",
+   "fn": "notesAsMarkdown",
+   "args": [
+    [
+     {
+      "createdAt": 1000,
+      "id": "note_a1",
+      "learningId": "bilibili:BV1GoLDen001:p1",
+      "ownerName": "菜园实验室",
+      "text": "竹竿间距留够 40 厘米",
+      "timestamp": "1:05",
+      "timestampSeconds": 65,
+      "videoKey": "bilibili:BV1GoLDen001:p1",
+      "videoTitle": "番茄搭架子入门"
+     },
+     {
+      "aiDraft": {
+       "text": "不该出现在导出里"
+      },
+      "createdAt": 2000,
+      "id": "note_a2",
+      "learningId": "bilibili:BV1GoLDen001:p1",
+      "ownerName": "菜园实验室",
+      "text": "第二行\n绑绳留一指宽",
+      "timestamp": "0:12",
+      "timestampSeconds": 12,
+      "videoKey": "bilibili:BV1GoLDen001:p1",
+      "videoTitle": "番茄搭架子入门"
+     },
+     {
+      "createdAt": 3000,
+      "id": "note_b1",
+      "learningId": "bilibili:BV1GoLDen002:p3",
+      "ownerName": "UP_主",
+      "text": "侧枝要[晴天]上午掐 <b>掉</b>",
+      "timestamp": "2:30",
+      "timestampSeconds": 150,
+      "videoKey": "bilibili:BV1GoLDen002:p3",
+      "videoTitle": "开花以后 | 第三集"
+     },
+     {
+      "createdAt": 500,
+      "id": "note_c1",
+      "learningId": "bilibili:BV1GoLDen003:p1",
+      "ownerName": "",
+      "text": "没有时间戳的笔记",
+      "timestampSeconds": null,
+      "videoKey": "bilibili:BV1GoLDen003:p1",
+      "videoTitle": ""
+     }
+    ],
+    {
+     "grouped": true
+    }
+   ],
+   "result": "# 开花以后 | 第三集\n\nUP\\_主 · P3\nhttps://www.bilibili.com/video/BV1GoLDen002?p=3\n\n- [2:30](https://www.bilibili.com/video/BV1GoLDen002?p=3&t=150) 侧枝要\\[晴天\\]上午掐 \\<b\\>掉\\</b\\>\n\n# 番茄搭架子入门\n\n菜园实验室\nhttps://www.bilibili.com/video/BV1GoLDen001\n\n- [0:12](https://www.bilibili.com/video/BV1GoLDen001?t=12) 第二行\n  绑绳留一指宽\n- [1:05](https://www.bilibili.com/video/BV1GoLDen001?t=65) 竹竿间距留够 40 厘米\n\n# BV1GoLDen003\n\nhttps://www.bilibili.com/video/BV1GoLDen003\n\n- [0:00](https://www.bilibili.com/video/BV1GoLDen003) 没有时间戳的笔记\n"
+  },
+  {
+   "id": "notesAsMarkdown#3",
+   "label": "空",
+   "fn": "notesAsMarkdown",
+   "args": [
+    []
+   ],
+   "result": ""
+  },
+  {
+   "id": "notesAsMarkdown#4",
+   "label": "夹坏记录",
+   "fn": "notesAsMarkdown",
+   "args": [
+    [
+     null,
+     {
+      "createdAt": 1000,
+      "id": "note_a1",
+      "learningId": "bilibili:BV1GoLDen001:p1",
+      "ownerName": "菜园实验室",
+      "text": "竹竿间距留够 40 厘米",
+      "timestamp": "1:05",
+      "timestampSeconds": 65,
+      "videoKey": "bilibili:BV1GoLDen001:p1",
+      "videoTitle": "番茄搭架子入门"
+     }
+    ]
+   ],
+   "result": "# 番茄搭架子入门\n\n菜园实验室\nhttps://www.bilibili.com/video/BV1GoLDen001\n\n- [1:05](https://www.bilibili.com/video/BV1GoLDen001?t=65) 竹竿间距留够 40 厘米\n"
+  },
+  {
+   "id": "filterNotes#1",
+   "label": "竹竿",
+   "fn": "filterNotes",
+   "args": [
+    [
+     {
+      "createdAt": 1000,
+      "id": "note_a1",
+      "learningId": "bilibili:BV1GoLDen001:p1",
+      "ownerName": "菜园实验室",
+      "text": "竹竿间距留够 40 厘米",
+      "timestamp": "1:05",
+      "timestampSeconds": 65,
+      "videoKey": "bilibili:BV1GoLDen001:p1",
+      "videoTitle": "番茄搭架子入门"
+     },
+     {
+      "aiDraft": {
+       "text": "不该出现在导出里"
+      },
+      "createdAt": 2000,
+      "id": "note_a2",
+      "learningId": "bilibili:BV1GoLDen001:p1",
+      "ownerName": "菜园实验室",
+      "text": "第二行\n绑绳留一指宽",
+      "timestamp": "0:12",
+      "timestampSeconds": 12,
+      "videoKey": "bilibili:BV1GoLDen001:p1",
+      "videoTitle": "番茄搭架子入门"
+     },
+     {
+      "createdAt": 3000,
+      "id": "note_b1",
+      "learningId": "bilibili:BV1GoLDen002:p3",
+      "ownerName": "UP_主",
+      "text": "侧枝要[晴天]上午掐 <b>掉</b>",
+      "timestamp": "2:30",
+      "timestampSeconds": 150,
+      "videoKey": "bilibili:BV1GoLDen002:p3",
+      "videoTitle": "开花以后 | 第三集"
+     },
+     {
+      "createdAt": 500,
+      "id": "note_c1",
+      "learningId": "bilibili:BV1GoLDen003:p1",
+      "ownerName": "",
+      "text": "没有时间戳的笔记",
+      "timestampSeconds": null,
+      "videoKey": "bilibili:BV1GoLDen003:p1",
+      "videoTitle": ""
+     }
+    ],
+    "竹竿"
+   ],
+   "result": [
+    {
+     "createdAt": 1000,
+     "id": "note_a1",
+     "learningId": "bilibili:BV1GoLDen001:p1",
+     "ownerName": "菜园实验室",
+     "text": "竹竿间距留够 40 厘米",
+     "timestamp": "1:05",
+     "timestampSeconds": 65,
+     "videoKey": "bilibili:BV1GoLDen001:p1",
+     "videoTitle": "番茄搭架子入门"
+    }
+   ]
+  },
+  {
+   "id": "filterNotes#2",
+   "label": "菜园",
+   "fn": "filterNotes",
+   "args": [
+    [
+     {
+      "createdAt": 1000,
+      "id": "note_a1",
+      "learningId": "bilibili:BV1GoLDen001:p1",
+      "ownerName": "菜园实验室",
+      "text": "竹竿间距留够 40 厘米",
+      "timestamp": "1:05",
+      "timestampSeconds": 65,
+      "videoKey": "bilibili:BV1GoLDen001:p1",
+      "videoTitle": "番茄搭架子入门"
+     },
+     {
+      "aiDraft": {
+       "text": "不该出现在导出里"
+      },
+      "createdAt": 2000,
+      "id": "note_a2",
+      "learningId": "bilibili:BV1GoLDen001:p1",
+      "ownerName": "菜园实验室",
+      "text": "第二行\n绑绳留一指宽",
+      "timestamp": "0:12",
+      "timestampSeconds": 12,
+      "videoKey": "bilibili:BV1GoLDen001:p1",
+      "videoTitle": "番茄搭架子入门"
+     },
+     {
+      "createdAt": 3000,
+      "id": "note_b1",
+      "learningId": "bilibili:BV1GoLDen002:p3",
+      "ownerName": "UP_主",
+      "text": "侧枝要[晴天]上午掐 <b>掉</b>",
+      "timestamp": "2:30",
+      "timestampSeconds": 150,
+      "videoKey": "bilibili:BV1GoLDen002:p3",
+      "videoTitle": "开花以后 | 第三集"
+     },
+     {
+      "createdAt": 500,
+      "id": "note_c1",
+      "learningId": "bilibili:BV1GoLDen003:p1",
+      "ownerName": "",
+      "text": "没有时间戳的笔记",
+      "timestampSeconds": null,
+      "videoKey": "bilibili:BV1GoLDen003:p1",
+      "videoTitle": ""
+     }
+    ],
+    "菜园"
+   ],
+   "result": [
+    {
+     "createdAt": 1000,
+     "id": "note_a1",
+     "learningId": "bilibili:BV1GoLDen001:p1",
+     "ownerName": "菜园实验室",
+     "text": "竹竿间距留够 40 厘米",
+     "timestamp": "1:05",
+     "timestampSeconds": 65,
+     "videoKey": "bilibili:BV1GoLDen001:p1",
+     "videoTitle": "番茄搭架子入门"
+    },
+    {
+     "aiDraft": {
+      "text": "不该出现在导出里"
+     },
+     "createdAt": 2000,
+     "id": "note_a2",
+     "learningId": "bilibili:BV1GoLDen001:p1",
+     "ownerName": "菜园实验室",
+     "text": "第二行\n绑绳留一指宽",
+     "timestamp": "0:12",
+     "timestampSeconds": 12,
+     "videoKey": "bilibili:BV1GoLDen001:p1",
+     "videoTitle": "番茄搭架子入门"
+    }
+   ]
+  },
+  {
+   "id": "filterNotes#3",
+   "label": "UP_",
+   "fn": "filterNotes",
+   "args": [
+    [
+     {
+      "createdAt": 1000,
+      "id": "note_a1",
+      "learningId": "bilibili:BV1GoLDen001:p1",
+      "ownerName": "菜园实验室",
+      "text": "竹竿间距留够 40 厘米",
+      "timestamp": "1:05",
+      "timestampSeconds": 65,
+      "videoKey": "bilibili:BV1GoLDen001:p1",
+      "videoTitle": "番茄搭架子入门"
+     },
+     {
+      "aiDraft": {
+       "text": "不该出现在导出里"
+      },
+      "createdAt": 2000,
+      "id": "note_a2",
+      "learningId": "bilibili:BV1GoLDen001:p1",
+      "ownerName": "菜园实验室",
+      "text": "第二行\n绑绳留一指宽",
+      "timestamp": "0:12",
+      "timestampSeconds": 12,
+      "videoKey": "bilibili:BV1GoLDen001:p1",
+      "videoTitle": "番茄搭架子入门"
+     },
+     {
+      "createdAt": 3000,
+      "id": "note_b1",
+      "learningId": "bilibili:BV1GoLDen002:p3",
+      "ownerName": "UP_主",
+      "text": "侧枝要[晴天]上午掐 <b>掉</b>",
+      "timestamp": "2:30",
+      "timestampSeconds": 150,
+      "videoKey": "bilibili:BV1GoLDen002:p3",
+      "videoTitle": "开花以后 | 第三集"
+     },
+     {
+      "createdAt": 500,
+      "id": "note_c1",
+      "learningId": "bilibili:BV1GoLDen003:p1",
+      "ownerName": "",
+      "text": "没有时间戳的笔记",
+      "timestampSeconds": null,
+      "videoKey": "bilibili:BV1GoLDen003:p1",
+      "videoTitle": ""
+     }
+    ],
+    "UP_"
+   ],
+   "result": [
+    {
+     "createdAt": 3000,
+     "id": "note_b1",
+     "learningId": "bilibili:BV1GoLDen002:p3",
+     "ownerName": "UP_主",
+     "text": "侧枝要[晴天]上午掐 <b>掉</b>",
+     "timestamp": "2:30",
+     "timestampSeconds": 150,
+     "videoKey": "bilibili:BV1GoLDen002:p3",
+     "videoTitle": "开花以后 | 第三集"
+    }
+   ]
+  },
+  {
+   "id": "filterNotes#4",
+   "label": "BV1GoLDen002",
+   "fn": "filterNotes",
+   "args": [
+    [
+     {
+      "createdAt": 1000,
+      "id": "note_a1",
+      "learningId": "bilibili:BV1GoLDen001:p1",
+      "ownerName": "菜园实验室",
+      "text": "竹竿间距留够 40 厘米",
+      "timestamp": "1:05",
+      "timestampSeconds": 65,
+      "videoKey": "bilibili:BV1GoLDen001:p1",
+      "videoTitle": "番茄搭架子入门"
+     },
+     {
+      "aiDraft": {
+       "text": "不该出现在导出里"
+      },
+      "createdAt": 2000,
+      "id": "note_a2",
+      "learningId": "bilibili:BV1GoLDen001:p1",
+      "ownerName": "菜园实验室",
+      "text": "第二行\n绑绳留一指宽",
+      "timestamp": "0:12",
+      "timestampSeconds": 12,
+      "videoKey": "bilibili:BV1GoLDen001:p1",
+      "videoTitle": "番茄搭架子入门"
+     },
+     {
+      "createdAt": 3000,
+      "id": "note_b1",
+      "learningId": "bilibili:BV1GoLDen002:p3",
+      "ownerName": "UP_主",
+      "text": "侧枝要[晴天]上午掐 <b>掉</b>",
+      "timestamp": "2:30",
+      "timestampSeconds": 150,
+      "videoKey": "bilibili:BV1GoLDen002:p3",
+      "videoTitle": "开花以后 | 第三集"
+     },
+     {
+      "createdAt": 500,
+      "id": "note_c1",
+      "learningId": "bilibili:BV1GoLDen003:p1",
+      "ownerName": "",
+      "text": "没有时间戳的笔记",
+      "timestampSeconds": null,
+      "videoKey": "bilibili:BV1GoLDen003:p1",
+      "videoTitle": ""
+     }
+    ],
+    "BV1GoLDen002"
+   ],
+   "result": [
+    {
+     "createdAt": 3000,
+     "id": "note_b1",
+     "learningId": "bilibili:BV1GoLDen002:p3",
+     "ownerName": "UP_主",
+     "text": "侧枝要[晴天]上午掐 <b>掉</b>",
+     "timestamp": "2:30",
+     "timestampSeconds": 150,
+     "videoKey": "bilibili:BV1GoLDen002:p3",
+     "videoTitle": "开花以后 | 第三集"
+    }
+   ]
+  },
+  {
+   "id": "filterNotes#5",
+   "label": "",
+   "fn": "filterNotes",
+   "args": [
+    [
+     {
+      "createdAt": 1000,
+      "id": "note_a1",
+      "learningId": "bilibili:BV1GoLDen001:p1",
+      "ownerName": "菜园实验室",
+      "text": "竹竿间距留够 40 厘米",
+      "timestamp": "1:05",
+      "timestampSeconds": 65,
+      "videoKey": "bilibili:BV1GoLDen001:p1",
+      "videoTitle": "番茄搭架子入门"
+     },
+     {
+      "aiDraft": {
+       "text": "不该出现在导出里"
+      },
+      "createdAt": 2000,
+      "id": "note_a2",
+      "learningId": "bilibili:BV1GoLDen001:p1",
+      "ownerName": "菜园实验室",
+      "text": "第二行\n绑绳留一指宽",
+      "timestamp": "0:12",
+      "timestampSeconds": 12,
+      "videoKey": "bilibili:BV1GoLDen001:p1",
+      "videoTitle": "番茄搭架子入门"
+     },
+     {
+      "createdAt": 3000,
+      "id": "note_b1",
+      "learningId": "bilibili:BV1GoLDen002:p3",
+      "ownerName": "UP_主",
+      "text": "侧枝要[晴天]上午掐 <b>掉</b>",
+      "timestamp": "2:30",
+      "timestampSeconds": 150,
+      "videoKey": "bilibili:BV1GoLDen002:p3",
+      "videoTitle": "开花以后 | 第三集"
+     },
+     {
+      "createdAt": 500,
+      "id": "note_c1",
+      "learningId": "bilibili:BV1GoLDen003:p1",
+      "ownerName": "",
+      "text": "没有时间戳的笔记",
+      "timestampSeconds": null,
+      "videoKey": "bilibili:BV1GoLDen003:p1",
+      "videoTitle": ""
+     }
+    ],
+    ""
+   ],
+   "result": [
+    {
+     "createdAt": 1000,
+     "id": "note_a1",
+     "learningId": "bilibili:BV1GoLDen001:p1",
+     "ownerName": "菜园实验室",
+     "text": "竹竿间距留够 40 厘米",
+     "timestamp": "1:05",
+     "timestampSeconds": 65,
+     "videoKey": "bilibili:BV1GoLDen001:p1",
+     "videoTitle": "番茄搭架子入门"
+    },
+    {
+     "aiDraft": {
+      "text": "不该出现在导出里"
+     },
+     "createdAt": 2000,
+     "id": "note_a2",
+     "learningId": "bilibili:BV1GoLDen001:p1",
+     "ownerName": "菜园实验室",
+     "text": "第二行\n绑绳留一指宽",
+     "timestamp": "0:12",
+     "timestampSeconds": 12,
+     "videoKey": "bilibili:BV1GoLDen001:p1",
+     "videoTitle": "番茄搭架子入门"
+    },
+    {
+     "createdAt": 3000,
+     "id": "note_b1",
+     "learningId": "bilibili:BV1GoLDen002:p3",
+     "ownerName": "UP_主",
+     "text": "侧枝要[晴天]上午掐 <b>掉</b>",
+     "timestamp": "2:30",
+     "timestampSeconds": 150,
+     "videoKey": "bilibili:BV1GoLDen002:p3",
+     "videoTitle": "开花以后 | 第三集"
+    },
+    {
+     "createdAt": 500,
+     "id": "note_c1",
+     "learningId": "bilibili:BV1GoLDen003:p1",
+     "ownerName": "",
+     "text": "没有时间戳的笔记",
+     "timestampSeconds": null,
+     "videoKey": "bilibili:BV1GoLDen003:p1",
+     "videoTitle": ""
+    }
+   ]
+  },
+  {
+   "id": "filterNotes#6",
+   "label": "  ",
+   "fn": "filterNotes",
+   "args": [
+    [
+     {
+      "createdAt": 1000,
+      "id": "note_a1",
+      "learningId": "bilibili:BV1GoLDen001:p1",
+      "ownerName": "菜园实验室",
+      "text": "竹竿间距留够 40 厘米",
+      "timestamp": "1:05",
+      "timestampSeconds": 65,
+      "videoKey": "bilibili:BV1GoLDen001:p1",
+      "videoTitle": "番茄搭架子入门"
+     },
+     {
+      "aiDraft": {
+       "text": "不该出现在导出里"
+      },
+      "createdAt": 2000,
+      "id": "note_a2",
+      "learningId": "bilibili:BV1GoLDen001:p1",
+      "ownerName": "菜园实验室",
+      "text": "第二行\n绑绳留一指宽",
+      "timestamp": "0:12",
+      "timestampSeconds": 12,
+      "videoKey": "bilibili:BV1GoLDen001:p1",
+      "videoTitle": "番茄搭架子入门"
+     },
+     {
+      "createdAt": 3000,
+      "id": "note_b1",
+      "learningId": "bilibili:BV1GoLDen002:p3",
+      "ownerName": "UP_主",
+      "text": "侧枝要[晴天]上午掐 <b>掉</b>",
+      "timestamp": "2:30",
+      "timestampSeconds": 150,
+      "videoKey": "bilibili:BV1GoLDen002:p3",
+      "videoTitle": "开花以后 | 第三集"
+     },
+     {
+      "createdAt": 500,
+      "id": "note_c1",
+      "learningId": "bilibili:BV1GoLDen003:p1",
+      "ownerName": "",
+      "text": "没有时间戳的笔记",
+      "timestampSeconds": null,
+      "videoKey": "bilibili:BV1GoLDen003:p1",
+      "videoTitle": ""
+     }
+    ],
+    "  "
+   ],
+   "result": [
+    {
+     "createdAt": 1000,
+     "id": "note_a1",
+     "learningId": "bilibili:BV1GoLDen001:p1",
+     "ownerName": "菜园实验室",
+     "text": "竹竿间距留够 40 厘米",
+     "timestamp": "1:05",
+     "timestampSeconds": 65,
+     "videoKey": "bilibili:BV1GoLDen001:p1",
+     "videoTitle": "番茄搭架子入门"
+    },
+    {
+     "aiDraft": {
+      "text": "不该出现在导出里"
+     },
+     "createdAt": 2000,
+     "id": "note_a2",
+     "learningId": "bilibili:BV1GoLDen001:p1",
+     "ownerName": "菜园实验室",
+     "text": "第二行\n绑绳留一指宽",
+     "timestamp": "0:12",
+     "timestampSeconds": 12,
+     "videoKey": "bilibili:BV1GoLDen001:p1",
+     "videoTitle": "番茄搭架子入门"
+    },
+    {
+     "createdAt": 3000,
+     "id": "note_b1",
+     "learningId": "bilibili:BV1GoLDen002:p3",
+     "ownerName": "UP_主",
+     "text": "侧枝要[晴天]上午掐 <b>掉</b>",
+     "timestamp": "2:30",
+     "timestampSeconds": 150,
+     "videoKey": "bilibili:BV1GoLDen002:p3",
+     "videoTitle": "开花以后 | 第三集"
+    },
+    {
+     "createdAt": 500,
+     "id": "note_c1",
+     "learningId": "bilibili:BV1GoLDen003:p1",
+     "ownerName": "",
+     "text": "没有时间戳的笔记",
+     "timestampSeconds": null,
+     "videoKey": "bilibili:BV1GoLDen003:p1",
+     "videoTitle": ""
+    }
+   ]
+  },
+  {
+   "id": "filterNotes#7",
+   "label": "没有这个词",
+   "fn": "filterNotes",
+   "args": [
+    [
+     {
+      "createdAt": 1000,
+      "id": "note_a1",
+      "learningId": "bilibili:BV1GoLDen001:p1",
+      "ownerName": "菜园实验室",
+      "text": "竹竿间距留够 40 厘米",
+      "timestamp": "1:05",
+      "timestampSeconds": 65,
+      "videoKey": "bilibili:BV1GoLDen001:p1",
+      "videoTitle": "番茄搭架子入门"
+     },
+     {
+      "aiDraft": {
+       "text": "不该出现在导出里"
+      },
+      "createdAt": 2000,
+      "id": "note_a2",
+      "learningId": "bilibili:BV1GoLDen001:p1",
+      "ownerName": "菜园实验室",
+      "text": "第二行\n绑绳留一指宽",
+      "timestamp": "0:12",
+      "timestampSeconds": 12,
+      "videoKey": "bilibili:BV1GoLDen001:p1",
+      "videoTitle": "番茄搭架子入门"
+     },
+     {
+      "createdAt": 3000,
+      "id": "note_b1",
+      "learningId": "bilibili:BV1GoLDen002:p3",
+      "ownerName": "UP_主",
+      "text": "侧枝要[晴天]上午掐 <b>掉</b>",
+      "timestamp": "2:30",
+      "timestampSeconds": 150,
+      "videoKey": "bilibili:BV1GoLDen002:p3",
+      "videoTitle": "开花以后 | 第三集"
+     },
+     {
+      "createdAt": 500,
+      "id": "note_c1",
+      "learningId": "bilibili:BV1GoLDen003:p1",
+      "ownerName": "",
+      "text": "没有时间戳的笔记",
+      "timestampSeconds": null,
+      "videoKey": "bilibili:BV1GoLDen003:p1",
+      "videoTitle": ""
+     }
+    ],
+    "没有这个词"
+   ],
+   "result": []
+  },
+  {
+   "id": "learningAsMarkdown#1",
+   "label": "概览加笔记",
+   "fn": "learningAsMarkdown",
+   "args": [
+    {
+     "analysis": {
+      "chapters": [
+       {
+        "summary": "先结构后概念。\n第二行",
+        "timestamp": "0:08",
+        "timestampSeconds": 8,
+        "title": "拆成三步"
+       },
+       {
+        "summary": "留 *一指* 宽",
+        "timestamp": "2:00",
+        "timestampSeconds": 120,
+        "title": "绑绳 | 技巧"
+       }
+      ],
+      "keyQuotes": [
+       {
+        "quote": "章前金句",
+        "timestamp": "0:02",
+        "timestampSeconds": 2
+       },
+       {
+        "quote": "心里要有一张[地图]",
+        "timestamp": "0:32",
+        "timestampSeconds": 32
+       },
+       {
+        "quote": "绑绳别太紧",
+        "timestamp": "2:10",
+        "timestampSeconds": 130
+       }
+      ],
+      "verdict": {
+       "reason": "有实操",
+       "summary": "值得跟着做一遍",
+       "value": "学会搭架子",
+       "verdict": "值得看完整视频"
+      }
+     },
+     "author": "菜园实验室",
+     "exportedAt": "2026-08-19T12:00:00.000Z",
+     "notes": [
+      {
+       "createdAt": 1000,
+       "id": "note_a1",
+       "learningId": "bilibili:BV1GoLDen001:p1",
+       "ownerName": "菜园实验室",
+       "text": "竹竿间距留够 40 厘米",
+       "timestamp": "1:05",
+       "timestampSeconds": 65,
+       "videoKey": "bilibili:BV1GoLDen001:p1",
+       "videoTitle": "番茄搭架子入门"
+      },
+      {
+       "aiDraft": {
+        "text": "不该出现在导出里"
+       },
+       "createdAt": 2000,
+       "id": "note_a2",
+       "learningId": "bilibili:BV1GoLDen001:p1",
+       "ownerName": "菜园实验室",
+       "text": "第二行\n绑绳留一指宽",
+       "timestamp": "0:12",
+       "timestampSeconds": 12,
+       "videoKey": "bilibili:BV1GoLDen001:p1",
+       "videoTitle": "番茄搭架子入门"
+      }
+     ],
+     "title": "番茄搭架子入门",
+     "videoKey": "bilibili:BV1GoLDen001:p1"
+    }
+   ],
+   "result": "---\ntitle: 番茄搭架子入门\nvideoKey: bilibili:BV1GoLDen001:p1\nauthor: 菜园实验室\nurl: \"https://www.bilibili.com/video/BV1GoLDen001\"\ncreated_at: 2026-08-19\ntags:\n  - 简幕\n---\n\n## 一句话结论\n\n**值得看完整视频**\n\n值得跟着做一遍\n\n- 核心价值：学会搭架子\n- 判断理由：有实操\n\n## 视频概览\n\n- [0:08](https://www.bilibili.com/video/BV1GoLDen001?t=8) 拆成三步\n- [2:00](https://www.bilibili.com/video/BV1GoLDen001?t=120) 绑绳 | 技巧\n\n## 章节\n\n### [0:08](https://www.bilibili.com/video/BV1GoLDen001?t=8) 拆成三步\n\n先结构后概念。\n第二行\n\n> [0:32](https://www.bilibili.com/video/BV1GoLDen001?t=32) 心里要有一张\\[地图\\]\n\n### [2:00](https://www.bilibili.com/video/BV1GoLDen001?t=120) 绑绳 | 技巧\n\n留 \\*一指\\* 宽\n\n> [2:10](https://www.bilibili.com/video/BV1GoLDen001?t=130) 绑绳别太紧\n\n## 金句\n\n- [0:02](https://www.bilibili.com/video/BV1GoLDen001?t=2) 章前金句\n\n## 我的时间戳笔记\n\n- [0:12](https://www.bilibili.com/video/BV1GoLDen001?t=12) 第二行\n  绑绳留一指宽\n- [1:05](https://www.bilibili.com/video/BV1GoLDen001?t=65) 竹竿间距留够 40 厘米\n"
+  },
+  {
+   "id": "learningAsMarkdown#2",
+   "label": "第 2 P",
+   "fn": "learningAsMarkdown",
+   "args": [
+    {
+     "analysis": {
+      "chapters": [
+       {
+        "summary": "先结构后概念。\n第二行",
+        "timestamp": "0:08",
+        "timestampSeconds": 8,
+        "title": "拆成三步"
+       },
+       {
+        "summary": "留 *一指* 宽",
+        "timestamp": "2:00",
+        "timestampSeconds": 120,
+        "title": "绑绳 | 技巧"
+       }
+      ],
+      "keyQuotes": [
+       {
+        "quote": "章前金句",
+        "timestamp": "0:02",
+        "timestampSeconds": 2
+       },
+       {
+        "quote": "心里要有一张[地图]",
+        "timestamp": "0:32",
+        "timestampSeconds": 32
+       },
+       {
+        "quote": "绑绳别太紧",
+        "timestamp": "2:10",
+        "timestampSeconds": 130
+       }
+      ],
+      "verdict": {
+       "reason": "有实操",
+       "summary": "值得跟着做一遍",
+       "value": "学会搭架子",
+       "verdict": "值得看完整视频"
+      }
+     },
+     "author": "菜园实验室",
+     "exportedAt": "2026-08-19T12:00:00.000Z",
+     "notes": [],
+     "title": "番茄搭架子入门",
+     "videoKey": "bilibili:BV1GoLDen001:p2"
+    }
+   ],
+   "result": "---\ntitle: 番茄搭架子入门\nvideoKey: bilibili:BV1GoLDen001:p2\nauthor: 菜园实验室\nurl: \"https://www.bilibili.com/video/BV1GoLDen001?p=2\"\ncreated_at: 2026-08-19\ntags:\n  - 简幕\n---\n\n## 一句话结论\n\n**值得看完整视频**\n\n值得跟着做一遍\n\n- 核心价值：学会搭架子\n- 判断理由：有实操\n\n## 视频概览\n\n- [0:08](https://www.bilibili.com/video/BV1GoLDen001?p=2&t=8) 拆成三步\n- [2:00](https://www.bilibili.com/video/BV1GoLDen001?p=2&t=120) 绑绳 | 技巧\n\n## 章节\n\n### [0:08](https://www.bilibili.com/video/BV1GoLDen001?p=2&t=8) 拆成三步\n\n先结构后概念。\n第二行\n\n> [0:32](https://www.bilibili.com/video/BV1GoLDen001?p=2&t=32) 心里要有一张\\[地图\\]\n\n### [2:00](https://www.bilibili.com/video/BV1GoLDen001?p=2&t=120) 绑绳 | 技巧\n\n留 \\*一指\\* 宽\n\n> [2:10](https://www.bilibili.com/video/BV1GoLDen001?p=2&t=130) 绑绳别太紧\n\n## 金句\n\n- [0:02](https://www.bilibili.com/video/BV1GoLDen001?p=2&t=2) 章前金句\n"
+  },
+  {
+   "id": "learningAsMarkdown#3",
+   "label": "没有结论",
+   "fn": "learningAsMarkdown",
+   "args": [
+    {
+     "analysis": {
+      "chapters": [
+       {
+        "summary": "先结构后概念。\n第二行",
+        "timestamp": "0:08",
+        "timestampSeconds": 8,
+        "title": "拆成三步"
+       },
+       {
+        "summary": "留 *一指* 宽",
+        "timestamp": "2:00",
+        "timestampSeconds": 120,
+        "title": "绑绳 | 技巧"
+       }
+      ],
+      "keyQuotes": [
+       {
+        "quote": "章前金句",
+        "timestamp": "0:02",
+        "timestampSeconds": 2
+       },
+       {
+        "quote": "心里要有一张[地图]",
+        "timestamp": "0:32",
+        "timestampSeconds": 32
+       },
+       {
+        "quote": "绑绳别太紧",
+        "timestamp": "2:10",
+        "timestampSeconds": 130
+       }
+      ],
+      "verdict": {
+       "$undefined": true
+      }
+     },
+     "author": "菜园实验室",
+     "exportedAt": "2026-08-19T12:00:00.000Z",
+     "title": "番茄搭架子入门",
+     "videoKey": "bilibili:BV1GoLDen001:p1"
+    }
+   ],
+   "result": "---\ntitle: 番茄搭架子入门\nvideoKey: bilibili:BV1GoLDen001:p1\nauthor: 菜园实验室\nurl: \"https://www.bilibili.com/video/BV1GoLDen001\"\ncreated_at: 2026-08-19\ntags:\n  - 简幕\n---\n\n## 视频概览\n\n- [0:08](https://www.bilibili.com/video/BV1GoLDen001?t=8) 拆成三步\n- [2:00](https://www.bilibili.com/video/BV1GoLDen001?t=120) 绑绳 | 技巧\n\n## 章节\n\n### [0:08](https://www.bilibili.com/video/BV1GoLDen001?t=8) 拆成三步\n\n先结构后概念。\n第二行\n\n> [0:32](https://www.bilibili.com/video/BV1GoLDen001?t=32) 心里要有一张\\[地图\\]\n\n### [2:00](https://www.bilibili.com/video/BV1GoLDen001?t=120) 绑绳 | 技巧\n\n留 \\*一指\\* 宽\n\n> [2:10](https://www.bilibili.com/video/BV1GoLDen001?t=130) 绑绳别太紧\n\n## 金句\n\n- [0:02](https://www.bilibili.com/video/BV1GoLDen001?t=2) 章前金句\n"
+  },
+  {
+   "id": "learningAsMarkdown#4",
+   "label": "官方总结写的结论",
+   "fn": "learningAsMarkdown",
+   "args": [
+    {
+     "analysis": {
+      "chapters": [
+       {
+        "summary": "先结构后概念。\n第二行",
+        "timestamp": "0:08",
+        "timestampSeconds": 8,
+        "title": "拆成三步"
+       },
+       {
+        "summary": "留 *一指* 宽",
+        "timestamp": "2:00",
+        "timestampSeconds": 120,
+        "title": "绑绳 | 技巧"
+       }
+      ],
+      "keyQuotes": [
+       {
+        "quote": "章前金句",
+        "timestamp": "0:02",
+        "timestampSeconds": 2
+       },
+       {
+        "quote": "心里要有一张[地图]",
+        "timestamp": "0:32",
+        "timestampSeconds": 32
+       },
+       {
+        "quote": "绑绳别太紧",
+        "timestamp": "2:10",
+        "timestampSeconds": 130
+       }
+      ],
+      "verdict": {
+       "reason": "有实操",
+       "source": "official",
+       "summary": "值得跟着做一遍",
+       "value": "学会搭架子",
+       "verdict": "值得看完整视频"
+      }
+     },
+     "author": "菜园实验室",
+     "exportedAt": "2026-08-19T12:00:00.000Z",
+     "title": "番茄搭架子入门",
+     "videoKey": "bilibili:BV1GoLDen001:p1"
+    }
+   ],
+   "result": "---\ntitle: 番茄搭架子入门\nvideoKey: bilibili:BV1GoLDen001:p1\nauthor: 菜园实验室\nurl: \"https://www.bilibili.com/video/BV1GoLDen001\"\ncreated_at: 2026-08-19\ntags:\n  - 简幕\n---\n\n## 一句话结论\n\n**值得看完整视频**\n\n*这条结论由你配置的 AI 模型根据 B站官方总结写成，不是根据字幕。*\n\n值得跟着做一遍\n\n- 核心价值：学会搭架子\n- 判断理由：有实操\n\n## 视频概览\n\n- [0:08](https://www.bilibili.com/video/BV1GoLDen001?t=8) 拆成三步\n- [2:00](https://www.bilibili.com/video/BV1GoLDen001?t=120) 绑绳 | 技巧\n\n## 章节\n\n### [0:08](https://www.bilibili.com/video/BV1GoLDen001?t=8) 拆成三步\n\n先结构后概念。\n第二行\n\n> [0:32](https://www.bilibili.com/video/BV1GoLDen001?t=32) 心里要有一张\\[地图\\]\n\n### [2:00](https://www.bilibili.com/video/BV1GoLDen001?t=120) 绑绳 | 技巧\n\n留 \\*一指\\* 宽\n\n> [2:10](https://www.bilibili.com/video/BV1GoLDen001?t=130) 绑绳别太紧\n\n## 金句\n\n- [0:02](https://www.bilibili.com/video/BV1GoLDen001?t=2) 章前金句\n"
+  },
+  {
+   "id": "learningAsMarkdown#5",
+   "label": "概览缺块",
+   "fn": "learningAsMarkdown",
+   "args": [
+    {
+     "analysis": {
+      "chapters": [
+       {
+        "summary": "先结构后概念。\n第二行",
+        "timestamp": "0:08",
+        "timestampSeconds": 8,
+        "title": "拆成三步"
+       },
+       {
+        "summary": "留 *一指* 宽",
+        "timestamp": "2:00",
+        "timestampSeconds": 120,
+        "title": "绑绳 | 技巧"
+       }
+      ],
+      "keyQuotes": [
+       {
+        "quote": "章前金句",
+        "timestamp": "0:02",
+        "timestampSeconds": 2
+       },
+       {
+        "quote": "心里要有一张[地图]",
+        "timestamp": "0:32",
+        "timestampSeconds": 32
+       },
+       {
+        "quote": "绑绳别太紧",
+        "timestamp": "2:10",
+        "timestampSeconds": 130
+       }
+      ],
+      "verdict": {
+       "reason": "有实操",
+       "summary": "值得跟着做一遍",
+       "value": "学会搭架子",
+       "verdict": "值得看完整视频"
+      }
+     },
+     "analysisFailures": [
+      {
+       "endSeconds": 600,
+       "reason": "服务繁忙",
+       "startSeconds": 300
+      },
+      {
+       "endSeconds": 800,
+       "startSeconds": 700
+      }
+     ],
+     "author": "菜园实验室",
+     "exportedAt": "2026-08-19T12:00:00.000Z",
+     "title": "番茄搭架子入门",
+     "videoKey": "bilibili:BV1GoLDen001:p1"
+    }
+   ],
+   "result": "---\ntitle: 番茄搭架子入门\nvideoKey: bilibili:BV1GoLDen001:p1\nauthor: 菜园实验室\nurl: \"https://www.bilibili.com/video/BV1GoLDen001\"\ncreated_at: 2026-08-19\ntags:\n  - 简幕\n---\n\n> **概览内容不完整**：以下时间段生成失败，章节和金句里没有这几段的内容。\n> - 5:00–10:00：服务繁忙\n> - 11:40–13:20\n\n## 一句话结论\n\n**值得看完整视频**\n\n值得跟着做一遍\n\n- 核心价值：学会搭架子\n- 判断理由：有实操\n\n## 视频概览\n\n- [0:08](https://www.bilibili.com/video/BV1GoLDen001?t=8) 拆成三步\n- [2:00](https://www.bilibili.com/video/BV1GoLDen001?t=120) 绑绳 | 技巧\n\n## 章节\n\n### [0:08](https://www.bilibili.com/video/BV1GoLDen001?t=8) 拆成三步\n\n先结构后概念。\n第二行\n\n> [0:32](https://www.bilibili.com/video/BV1GoLDen001?t=32) 心里要有一张\\[地图\\]\n\n### [2:00](https://www.bilibili.com/video/BV1GoLDen001?t=120) 绑绳 | 技巧\n\n留 \\*一指\\* 宽\n\n> [2:10](https://www.bilibili.com/video/BV1GoLDen001?t=130) 绑绳别太紧\n\n## 金句\n\n- [0:02](https://www.bilibili.com/video/BV1GoLDen001?t=2) 章前金句\n"
+  },
+  {
+   "id": "learningAsMarkdown#6",
+   "label": "只有官方总结",
+   "fn": "learningAsMarkdown",
+   "args": [
+    {
+     "author": "菜园实验室",
+     "exportedAt": "2026-08-19T12:00:00.000Z",
+     "officialSummary": {
+      "outline": [
+       {
+        "parts": [
+         {
+          "content": "竹竿 [长度]",
+          "timestamp": 5
+         }
+        ],
+        "timestamp": 0,
+        "title": "选材"
+       },
+       {
+        "parts": [],
+        "timestamp": 300,
+        "title": "搭建"
+       }
+      ],
+      "status": "ok",
+      "summary": "讲了怎么给番茄搭架子 <b>"
+     },
+     "title": "番茄搭架子入门",
+     "videoKey": "bilibili:BV1GoLDen001:p1"
+    }
+   ],
+   "result": "---\ntitle: 番茄搭架子入门\nvideoKey: bilibili:BV1GoLDen001:p1\nauthor: 菜园实验室\nurl: \"https://www.bilibili.com/video/BV1GoLDen001\"\ncreated_at: 2026-08-19\ntags:\n  - 简幕\n---\n\n## B站官方总结\n\n> 来源：B站官方 AI 总结，由 B站生成，不是你配置的模型。\n\n讲了怎么给番茄搭架子 \\<b\\>\n\n### [0:00](https://www.bilibili.com/video/BV1GoLDen001) 选材\n\n### [5:00](https://www.bilibili.com/video/BV1GoLDen001?t=300) 搭建\n"
+  },
+  {
+   "id": "learningAsMarkdown#7",
+   "label": "官方总结、分段和概览同时有",
+   "fn": "learningAsMarkdown",
+   "args": [
+    {
+     "analysis": {
+      "chapters": [
+       {
+        "summary": "先结构后概念。\n第二行",
+        "timestamp": "0:08",
+        "timestampSeconds": 8,
+        "title": "拆成三步"
+       },
+       {
+        "summary": "留 *一指* 宽",
+        "timestamp": "2:00",
+        "timestampSeconds": 120,
+        "title": "绑绳 | 技巧"
+       }
+      ],
+      "keyQuotes": [
+       {
+        "quote": "章前金句",
+        "timestamp": "0:02",
+        "timestampSeconds": 2
+       },
+       {
+        "quote": "心里要有一张[地图]",
+        "timestamp": "0:32",
+        "timestampSeconds": 32
+       },
+       {
+        "quote": "绑绳别太紧",
+        "timestamp": "2:10",
+        "timestampSeconds": 130
+       }
+      ],
+      "verdict": {
+       "reason": "有实操",
+       "summary": "值得跟着做一遍",
+       "value": "学会搭架子",
+       "verdict": "值得看完整视频"
+      }
+     },
+     "author": "菜园实验室",
+     "exportedAt": "2026-08-19T12:00:00.000Z",
+     "officialSummary": {
+      "outline": [
+       {
+        "parts": [
+         {
+          "content": "竹竿 [长度]",
+          "timestamp": 5
+         }
+        ],
+        "timestamp": 0,
+        "title": "选材"
+       },
+       {
+        "parts": [],
+        "timestamp": 300,
+        "title": "搭建"
+       }
+      ],
+      "status": "ok",
+      "summary": "讲了怎么给番茄搭架子 <b>"
+     },
+     "title": "番茄搭架子入门",
+     "videoKey": "bilibili:BV1GoLDen001:p1",
+     "viewPoints": [
+      {
+       "from": 0,
+       "title": "开场",
+       "to": 60
+      },
+      {
+       "from": 60,
+       "title": "",
+       "to": 120
+      }
+     ]
+    }
+   ],
+   "result": "---\ntitle: 番茄搭架子入门\nvideoKey: bilibili:BV1GoLDen001:p1\nauthor: 菜园实验室\nurl: \"https://www.bilibili.com/video/BV1GoLDen001\"\ncreated_at: 2026-08-19\ntags:\n  - 简幕\n---\n\n## B站官方总结\n\n> 来源：B站官方 AI 总结，由 B站生成，不是你配置的模型。\n\n讲了怎么给番茄搭架子 \\<b\\>\n\n### [0:00](https://www.bilibili.com/video/BV1GoLDen001) 选材\n\n### [5:00](https://www.bilibili.com/video/BV1GoLDen001?t=300) 搭建\n\n> 以下结论、章节和金句由你配置的 AI 模型根据字幕生成。\n\n## 一句话结论\n\n**值得看完整视频**\n\n值得跟着做一遍\n\n- 核心价值：学会搭架子\n- 判断理由：有实操\n\n## 视频概览\n\n- [0:08](https://www.bilibili.com/video/BV1GoLDen001?t=8) 拆成三步\n- [2:00](https://www.bilibili.com/video/BV1GoLDen001?t=120) 绑绳 | 技巧\n\n## 章节\n\n### [0:08](https://www.bilibili.com/video/BV1GoLDen001?t=8) 拆成三步\n\n先结构后概念。\n第二行\n\n> [0:32](https://www.bilibili.com/video/BV1GoLDen001?t=32) 心里要有一张\\[地图\\]\n\n### [2:00](https://www.bilibili.com/video/BV1GoLDen001?t=120) 绑绳 | 技巧\n\n留 \\*一指\\* 宽\n\n> [2:10](https://www.bilibili.com/video/BV1GoLDen001?t=130) 绑绳别太紧\n\n## 金句\n\n- [0:02](https://www.bilibili.com/video/BV1GoLDen001?t=2) 章前金句\n"
+  },
+  {
+   "id": "learningAsMarkdown#8",
+   "label": "只有 UP 主分段",
+   "fn": "learningAsMarkdown",
+   "args": [
+    {
+     "author": "菜园实验室",
+     "exportedAt": "2026-08-19T12:00:00.000Z",
+     "title": "番茄搭架子入门",
+     "videoKey": "bilibili:BV1GoLDen001:p1",
+     "viewPoints": [
+      {
+       "from": 0,
+       "title": "开场",
+       "to": 60
+      },
+      {
+       "from": 60,
+       "title": "",
+       "to": 120
+      }
+     ]
+    }
+   ],
+   "result": ""
+  },
+  {
+   "id": "learningAsMarkdown#9",
+   "label": "YAML 要转义的标题",
+   "fn": "learningAsMarkdown",
+   "args": [
+    {
+     "analysis": {
+      "chapters": [
+       {
+        "summary": "先结构后概念。\n第二行",
+        "timestamp": "0:08",
+        "timestampSeconds": 8,
+        "title": "拆成三步"
+       },
+       {
+        "summary": "留 *一指* 宽",
+        "timestamp": "2:00",
+        "timestampSeconds": 120,
+        "title": "绑绳 | 技巧"
+       }
+      ],
+      "keyQuotes": [
+       {
+        "quote": "章前金句",
+        "timestamp": "0:02",
+        "timestampSeconds": 2
+       },
+       {
+        "quote": "心里要有一张[地图]",
+        "timestamp": "0:32",
+        "timestampSeconds": 32
+       },
+       {
+        "quote": "绑绳别太紧",
+        "timestamp": "2:10",
+        "timestampSeconds": 130
+       }
+      ],
+      "verdict": {
+       "reason": "有实操",
+       "summary": "值得跟着做一遍",
+       "value": "学会搭架子",
+       "verdict": "值得看完整视频"
+      }
+     },
+     "author": "- 破折号开头",
+     "exportedAt": "2026-08-19T12:00:00.000Z",
+     "title": "冒号: 引号\"和 # 号",
+     "videoKey": "bilibili:BV1GoLDen001:p1"
+    }
+   ],
+   "result": "---\ntitle: \"冒号: 引号\\\"和 # 号\"\nvideoKey: bilibili:BV1GoLDen001:p1\nauthor: - 破折号开头\nurl: \"https://www.bilibili.com/video/BV1GoLDen001\"\ncreated_at: 2026-08-19\ntags:\n  - 简幕\n---\n\n## 一句话结论\n\n**值得看完整视频**\n\n值得跟着做一遍\n\n- 核心价值：学会搭架子\n- 判断理由：有实操\n\n## 视频概览\n\n- [0:08](https://www.bilibili.com/video/BV1GoLDen001?t=8) 拆成三步\n- [2:00](https://www.bilibili.com/video/BV1GoLDen001?t=120) 绑绳 | 技巧\n\n## 章节\n\n### [0:08](https://www.bilibili.com/video/BV1GoLDen001?t=8) 拆成三步\n\n先结构后概念。\n第二行\n\n> [0:32](https://www.bilibili.com/video/BV1GoLDen001?t=32) 心里要有一张\\[地图\\]\n\n### [2:00](https://www.bilibili.com/video/BV1GoLDen001?t=120) 绑绳 | 技巧\n\n留 \\*一指\\* 宽\n\n> [2:10](https://www.bilibili.com/video/BV1GoLDen001?t=130) 绑绳别太紧\n\n## 金句\n\n- [0:02](https://www.bilibili.com/video/BV1GoLDen001?t=2) 章前金句\n"
+  },
+  {
+   "id": "learningAsMarkdown#10",
+   "label": "没有标题和作者",
+   "fn": "learningAsMarkdown",
+   "args": [
+    {
+     "analysis": {
+      "chapters": [
+       {
+        "summary": "先结构后概念。\n第二行",
+        "timestamp": "0:08",
+        "timestampSeconds": 8,
+        "title": "拆成三步"
+       },
+       {
+        "summary": "留 *一指* 宽",
+        "timestamp": "2:00",
+        "timestampSeconds": 120,
+        "title": "绑绳 | 技巧"
+       }
+      ],
+      "keyQuotes": [
+       {
+        "quote": "章前金句",
+        "timestamp": "0:02",
+        "timestampSeconds": 2
+       },
+       {
+        "quote": "心里要有一张[地图]",
+        "timestamp": "0:32",
+        "timestampSeconds": 32
+       },
+       {
+        "quote": "绑绳别太紧",
+        "timestamp": "2:10",
+        "timestampSeconds": 130
+       }
+      ],
+      "verdict": {
+       "reason": "有实操",
+       "summary": "值得跟着做一遍",
+       "value": "学会搭架子",
+       "verdict": "值得看完整视频"
+      }
+     },
+     "author": "",
+     "exportedAt": "2026-08-19T12:00:00.000Z",
+     "title": "",
+     "videoKey": "bilibili:BV1GoLDen001:p1"
+    }
+   ],
+   "result": "---\ntitle: BV1GoLDen001\nvideoKey: bilibili:BV1GoLDen001:p1\nauthor: \"\"\nurl: \"https://www.bilibili.com/video/BV1GoLDen001\"\ncreated_at: 2026-08-19\ntags:\n  - 简幕\n---\n\n## 一句话结论\n\n**值得看完整视频**\n\n值得跟着做一遍\n\n- 核心价值：学会搭架子\n- 判断理由：有实操\n\n## 视频概览\n\n- [0:08](https://www.bilibili.com/video/BV1GoLDen001?t=8) 拆成三步\n- [2:00](https://www.bilibili.com/video/BV1GoLDen001?t=120) 绑绳 | 技巧\n\n## 章节\n\n### [0:08](https://www.bilibili.com/video/BV1GoLDen001?t=8) 拆成三步\n\n先结构后概念。\n第二行\n\n> [0:32](https://www.bilibili.com/video/BV1GoLDen001?t=32) 心里要有一张\\[地图\\]\n\n### [2:00](https://www.bilibili.com/video/BV1GoLDen001?t=120) 绑绳 | 技巧\n\n留 \\*一指\\* 宽\n\n> [2:10](https://www.bilibili.com/video/BV1GoLDen001?t=130) 绑绳别太紧\n\n## 金句\n\n- [0:02](https://www.bilibili.com/video/BV1GoLDen001?t=2) 章前金句\n"
+  },
+  {
+   "id": "learningAsMarkdown#11",
+   "label": "官方总结没有内容",
+   "fn": "learningAsMarkdown",
+   "args": [
+    {
+     "author": "菜园实验室",
+     "exportedAt": "2026-08-19T12:00:00.000Z",
+     "officialSummary": {
+      "status": "none"
+     },
+     "title": "番茄搭架子入门",
+     "videoKey": "bilibili:BV1GoLDen001:p1"
+    }
+   ],
+   "result": ""
+  },
+  {
+   "id": "learningAsMarkdown#12",
+   "label": "什么都没有",
+   "fn": "learningAsMarkdown",
+   "args": [
+    {
+     "author": "菜园实验室",
+     "exportedAt": "2026-08-19T12:00:00.000Z",
+     "title": "番茄搭架子入门",
+     "videoKey": "bilibili:BV1GoLDen001:p1"
+    }
+   ],
+   "result": ""
+  },
+  {
+   "id": "learningAsMarkdown#13",
+   "label": "只有笔记，带特殊字符",
+   "fn": "learningAsMarkdown",
+   "args": [
+    {
+     "author": "菜园实验室",
+     "exportedAt": "2026-08-19T12:00:00.000Z",
+     "notes": [
+      {
+       "createdAt": 3000,
+       "id": "note_b1",
+       "learningId": "bilibili:BV1GoLDen002:p3",
+       "ownerName": "UP_主",
+       "text": "侧枝要[晴天]上午掐 <b>掉</b>",
+       "timestamp": "2:30",
+       "timestampSeconds": 150,
+       "videoKey": "bilibili:BV1GoLDen002:p3",
+       "videoTitle": "开花以后 | 第三集"
+      },
+      {
+       "createdAt": 500,
+       "id": "note_c1",
+       "learningId": "bilibili:BV1GoLDen003:p1",
+       "ownerName": "",
+       "text": "没有时间戳的笔记",
+       "timestampSeconds": null,
+       "videoKey": "bilibili:BV1GoLDen003:p1",
+       "videoTitle": ""
+      }
+     ],
+     "title": "番茄搭架子入门",
+     "videoKey": "bilibili:BV1GoLDen001:p1"
+    }
+   ],
+   "result": "---\ntitle: 番茄搭架子入门\nvideoKey: bilibili:BV1GoLDen001:p1\nauthor: 菜园实验室\nurl: \"https://www.bilibili.com/video/BV1GoLDen001\"\ncreated_at: 2026-08-19\ntags:\n  - 简幕\n---\n\n## 我的时间戳笔记\n\n- [0:00](https://www.bilibili.com/video/BV1GoLDen003) 没有时间戳的笔记\n- [2:30](https://www.bilibili.com/video/BV1GoLDen002?p=3&t=150) 侧枝要\\[晴天\\]上午掐 \\<b\\>掉\\</b\\>\n"
+  }
+ ]
+}
