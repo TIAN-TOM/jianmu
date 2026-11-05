@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { before, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
+import { extractPromptSection } from "../src/core/ai/prompt.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BUILD = join(ROOT, "build");
@@ -40,14 +41,42 @@ test("清单不变量", () => {
   assert.equal(manifest.web_accessible_resources, undefined);
 });
 
-test("包里的源文件注释只来自 src/ 和依赖包", () => {
+test("包里的源文件注释只来自 src/、prompts/ 和依赖包", () => {
   for (const file of BUNDLES) {
-    const origins = [...readBuild(file).matchAll(/^\s*\/\/ ((?:src|tests|node_modules|\.\.)[^\s]*\.[cm]?[jt]sx?)$/gm)].map((match) => match[1] ?? "");
+    const origins = [...readBuild(file).matchAll(/^\s*\/\/ ((?:src|prompts|tests|node_modules|\.\.)[^\s]*\.(?:[cm]?[jt]sx?|md))$/gm)].map((match) => match[1] ?? "");
     assert.ok(origins.length > 0, `${file} 没有源文件注释`);
-    assert.deepEqual(origins.filter((origin) => !/^(?:src|node_modules)\//.test(origin)), [], file);
+    assert.deepEqual(origins.filter((origin) => !/^(?:src\/|node_modules\/|prompts\/[^/]+\.md$)/.test(origin)), [], file);
   }
 });
 
 test("包里没有 source map 引用", () => {
   for (const file of BUNDLES) assert.doesNotMatch(readBuild(file), /sourceMappingURL/);
+});
+
+// 服务要读的提示词和小节：概览、解释、笔记润色、问答、翻译（含两套语言规则）、结论。
+const PROMPT_SECTIONS: Readonly<Record<string, readonly string[]>> = {
+  "analysis.md": ["系统提示词", "用户提示词"],
+  "explain.md": ["系统提示词", "用户提示词"],
+  "note-cleanup.md": ["系统提示词", "用户提示词"],
+  "qa.md": ["系统提示词", "用户提示词"],
+  "translation.md": ["系统提示词", "用户提示词", "中文规则", "英文规则"],
+  "verdict.md": ["系统提示词", "用户提示词"],
+};
+
+/** 包里内联的模板全文：源文件注释下面那个字符串字面量的值。 */
+function inlinedPrompt(bundle: string, file: string): string {
+  const literal = new RegExp(`// prompts/${file.replace(".", "\\.")}\\n\\s*var \\w+ = (.+);\\n`).exec(bundle)?.[1];
+  assert.ok(literal, `${file} 没有内联进后台包`);
+  return String(vm.runInNewContext(literal));
+}
+
+test("运行时代码引用的提示词文件与小节名都存在", () => {
+  const bundle = readBuild("background.js");
+  for (const [file, headings] of Object.entries(PROMPT_SECTIONS)) {
+    const inlined = inlinedPrompt(bundle, file);
+    assert.equal(inlined, readFileSync(join(ROOT, "prompts", file), "utf8"), `${file} 内联后和源文件不一致`);
+    for (const heading of headings) {
+      assert.ok(extractPromptSection(inlined, heading).trim().length > 0, `${file}#${heading} 是空的`);
+    }
+  }
 });

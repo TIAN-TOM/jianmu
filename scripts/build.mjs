@@ -7,6 +7,20 @@ import { build, context } from "esbuild";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = join(ROOT, "build");
 
+// 提示词按文本内联：`prompt:<文件名>` 指向 prompts/ 下的模板，缺文件构建就失败。模板按 \n 解析，去掉 \r。
+/** @type {import("esbuild").Plugin} */
+const promptText = {
+  name: "prompt-text",
+  setup(plugin) {
+    plugin.onResolve({ filter: /^prompt:/ }, ({ path }) => ({ path: join(ROOT, "prompts", path.slice("prompt:".length)) }));
+    plugin.onLoad({ filter: /\.md$/ }, ({ path }) => ({
+      contents: readFileSync(path, "utf8").replaceAll("\r", ""),
+      loader: "text",
+      watchFiles: [path],
+    }));
+  },
+};
+
 /** @type {import("esbuild").BuildOptions} */
 const shared = {
   absWorkingDir: ROOT,
@@ -19,6 +33,7 @@ const shared = {
   jsx: "automatic",
   jsxImportSource: "preact",
   logLevel: "warning",
+  plugins: [promptText],
 };
 
 // 页面各打一个自包含的 ESM 包，不开代码拆分，产物清单才稳定。

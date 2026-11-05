@@ -1,14 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { VERDICT_LABELS } from "../../../../src/core/ai/verdict.ts";
 import { toMarkdown } from "../../../../src/core/triage/export.ts";
 import { GROUPS, groupItems, type TriageVerdict } from "../../../../src/core/triage/groups.ts";
 import type { OfficialRecord, TriageItem } from "../../../../src/core/triage/state.ts";
 import { videoKey, type VideoKey } from "../../../../src/core/video-ref.ts";
 
 const VIDEO_BASE = "https://video.example/";
-
-// 结论校验用的四档判断，顺序和分组一致。
-const VERDICT_LABELS = ["值得看完整视频", "看概览就够", "可以跳过", "信息不足"];
 
 const keyOf = (name: string): VideoKey =>
   videoKey({ platform: "bilibili", videoId: `BV1Sample${name.padStart(3, "0")}` });

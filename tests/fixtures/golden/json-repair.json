@@ -1,0 +1,536 @@
+{
+ "schema": 1,
+ "name": "json-repair",
+ "title": "宽容 JSON 解析和截断补齐",
+ "cases": [
+  {
+   "id": "parseLooseJson#1",
+   "label": "普通对象",
+   "fn": "parseLooseJson",
+   "args": [
+    "{\"a\":1}"
+   ],
+   "result": {
+    "a": 1
+   }
+  },
+  {
+   "id": "parseLooseJson#2",
+   "label": "普通数组",
+   "fn": "parseLooseJson",
+   "args": [
+    "[1,2,3]"
+   ],
+   "result": [
+    1,
+    2,
+    3
+   ]
+  },
+  {
+   "id": "parseLooseJson#3",
+   "label": "顶层字符串",
+   "fn": "parseLooseJson",
+   "args": [
+    "\"纯字符串\""
+   ],
+   "result": "纯字符串"
+  },
+  {
+   "id": "parseLooseJson#4",
+   "label": "顶层数字",
+   "fn": "parseLooseJson",
+   "args": [
+    "42"
+   ],
+   "result": 42
+  },
+  {
+   "id": "parseLooseJson#5",
+   "label": "顶层 null",
+   "fn": "parseLooseJson",
+   "args": [
+    "null"
+   ],
+   "result": null
+  },
+  {
+   "id": "parseLooseJson#6",
+   "label": "带语言名的围栏",
+   "fn": "parseLooseJson",
+   "args": [
+    "```json\n{\"a\":1}\n```"
+   ],
+   "result": {
+    "a": 1
+   }
+  },
+  {
+   "id": "parseLooseJson#7",
+   "label": "不带语言名的围栏",
+   "fn": "parseLooseJson",
+   "args": [
+    "```\n[1]\n```"
+   ],
+   "result": [
+    1
+   ]
+  },
+  {
+   "id": "parseLooseJson#8",
+   "label": "前后夹解释文字",
+   "fn": "parseLooseJson",
+   "args": [
+    "这是结果：\n{\"a\":1}\n以上。"
+   ],
+   "result": {
+    "a": 1
+   }
+  },
+  {
+   "id": "parseLooseJson#9",
+   "label": "对象尾逗号",
+   "fn": "parseLooseJson",
+   "args": [
+    "{\"a\":1,}"
+   ],
+   "result": {
+    "a": 1
+   }
+  },
+  {
+   "id": "parseLooseJson#10",
+   "label": "数组尾逗号",
+   "fn": "parseLooseJson",
+   "args": [
+    "[1,2,]"
+   ],
+   "result": [
+    1,
+    2
+   ]
+  },
+  {
+   "id": "parseLooseJson#11",
+   "label": "嵌套尾逗号",
+   "fn": "parseLooseJson",
+   "args": [
+    "{\"a\":[1,2,],}"
+   ],
+   "result": {
+    "a": [
+     1,
+     2
+    ]
+   }
+  },
+  {
+   "id": "parseLooseJson#12",
+   "label": "字符串里的逗号不动",
+   "fn": "parseLooseJson",
+   "args": [
+    "{\"a\":\"逗号,在字符串里,\"}"
+   ],
+   "result": {
+    "a": "逗号,在字符串里,"
+   }
+  },
+  {
+   "id": "parseLooseJson#13",
+   "label": "字符串里的括号不动",
+   "fn": "parseLooseJson",
+   "args": [
+    "{\"a\":\"含}右括号\"}"
+   ],
+   "result": {
+    "a": "含}右括号"
+   }
+  },
+  {
+   "id": "parseLooseJson#14",
+   "label": "转义引号",
+   "fn": "parseLooseJson",
+   "args": [
+    "{\"a\":\"含\\\"引号\"}"
+   ],
+   "result": {
+    "a": "含\"引号"
+   }
+  },
+  {
+   "id": "parseLooseJson#15",
+   "label": "完全不是 JSON",
+   "fn": "parseLooseJson",
+   "args": [
+    "这不是 JSON"
+   ],
+   "thrown": {
+    "$error": {
+     "name": "SyntaxError"
+    }
+   }
+  },
+  {
+   "id": "parseLooseJson#16",
+   "label": "空串",
+   "fn": "parseLooseJson",
+   "args": [
+    ""
+   ],
+   "thrown": {
+    "$error": {
+     "name": "SyntaxError"
+    }
+   }
+  },
+  {
+   "id": "parseLooseJson#17",
+   "label": "全空白",
+   "fn": "parseLooseJson",
+   "args": [
+    "   "
+   ],
+   "thrown": {
+    "$error": {
+     "name": "SyntaxError"
+    }
+   }
+  },
+  {
+   "id": "parseLooseJson#18",
+   "label": "截在键值之间",
+   "fn": "parseLooseJson",
+   "args": [
+    "{\"a\":"
+   ],
+   "thrown": {
+    "$error": {
+     "name": "SyntaxError"
+    }
+   }
+  },
+  {
+   "id": "parseLooseJson#19",
+   "label": "截在逗号后",
+   "fn": "parseLooseJson",
+   "args": [
+    "[{\"a\":1},"
+   ],
+   "result": {
+    "a": 1
+   }
+  },
+  {
+   "id": "parseLooseJson#20",
+   "label": "截在字符串中间",
+   "fn": "parseLooseJson",
+   "args": [
+    "{\"chapters\":[{\"title\":\"第一章\",\"summary\":\"还没写完"
+   ],
+   "result": {
+    "chapters": [
+     {
+      "summary": "还没写完",
+      "title": "第一章"
+     }
+    ]
+   }
+  },
+  {
+   "id": "parseLooseJson#21",
+   "label": "截在第二个元素",
+   "fn": "parseLooseJson",
+   "args": [
+    "{\"chapters\":[{\"title\":\"第一章\"},{\"title\":\"第二"
+   ],
+   "result": {
+    "chapters": [
+     {
+      "title": "第一章"
+     }
+    ]
+   }
+  },
+  {
+   "id": "parseLooseJson#22",
+   "label": "截在反斜杠",
+   "fn": "parseLooseJson",
+   "args": [
+    "{\"a\":\"末尾反斜杠\\"
+   ],
+   "result": {
+    "a": "末尾反斜杠"
+   }
+  },
+  {
+   "id": "parseLooseJson#23",
+   "label": "截在转义引号之后",
+   "fn": "parseLooseJson",
+   "args": [
+    "{\"a\":\"转义\\\"之后"
+   ],
+   "result": {
+    "a": "转义\"之后"
+   }
+  },
+  {
+   "id": "parseLooseJson#24",
+   "label": "截在字面量",
+   "fn": "parseLooseJson",
+   "args": [
+    "{\"a\":tru"
+   ],
+   "thrown": {
+    "$error": {
+     "name": "SyntaxError"
+    }
+   }
+  },
+  {
+   "id": "parseLooseJson#25",
+   "label": "截在数字",
+   "fn": "parseLooseJson",
+   "args": [
+    "{\"a\":12"
+   ],
+   "result": {
+    "a": 12
+   }
+  },
+  {
+   "id": "parseLooseJson#26",
+   "label": "截在负号",
+   "fn": "parseLooseJson",
+   "args": [
+    "{\"a\":-"
+   ],
+   "thrown": {
+    "$error": {
+     "name": "SyntaxError"
+    }
+   }
+  },
+  {
+   "id": "parseLooseJson#27",
+   "label": "截在小数点",
+   "fn": "parseLooseJson",
+   "args": [
+    "{\"a\":1."
+   ],
+   "thrown": {
+    "$error": {
+     "name": "SyntaxError"
+    }
+   }
+  },
+  {
+   "id": "parseLooseJson#28",
+   "label": "深层嵌套",
+   "fn": "parseLooseJson",
+   "args": [
+    "{\"x\":{\"y\":{\"z\":[1,{\"w\":\"深"
+   ],
+   "result": {
+    "x": {
+     "y": {
+      "z": [
+       1,
+       {
+        "w": "深"
+       }
+      ]
+     }
+    }
+   }
+  },
+  {
+   "id": "parseLooseJson#29",
+   "label": "只有开括号",
+   "fn": "parseLooseJson",
+   "args": [
+    "[[[["
+   ],
+   "result": [
+    [
+     [
+      []
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "parseLooseJson#30",
+   "label": "只有闭括号",
+   "fn": "parseLooseJson",
+   "args": [
+    "]}"
+   ],
+   "thrown": {
+    "$error": {
+     "name": "SyntaxError"
+    }
+   }
+  },
+  {
+   "id": "parseLooseJson#31",
+   "label": "两个对象粘在一起",
+   "fn": "parseLooseJson",
+   "args": [
+    "{\"a\":1}{\"b\":2}"
+   ],
+   "thrown": {
+    "$error": {
+     "name": "SyntaxError"
+    }
+   }
+  },
+  {
+   "id": "parseLooseJson#32",
+   "label": "前缀加截断数组",
+   "fn": "parseLooseJson",
+   "args": [
+    "前缀[1,2"
+   ],
+   "thrown": {
+    "$error": {
+     "name": "SyntaxError"
+    }
+   }
+  },
+  {
+   "id": "repairTruncatedJson#1",
+   "label": "字符串未收尾",
+   "fn": "repairTruncatedJson",
+   "args": [
+    "{\"a\":\"b"
+   ],
+   "result": "{\"a\":\"b\"}"
+  },
+  {
+   "id": "repairTruncatedJson#2",
+   "label": "数组里的字符串未收尾",
+   "fn": "repairTruncatedJson",
+   "args": [
+    "{\"a\":[\"b\",\"c"
+   ],
+   "result": "{\"a\":[\"b\",\"c\"]}"
+  },
+  {
+   "id": "repairTruncatedJson#3",
+   "label": "对象未收尾",
+   "fn": "repairTruncatedJson",
+   "args": [
+    "{\"a\":{\"b\":1"
+   ],
+   "result": "{\"a\":{\"b\":1}}"
+  },
+  {
+   "id": "repairTruncatedJson#4",
+   "label": "停在逗号后",
+   "fn": "repairTruncatedJson",
+   "args": [
+    "[\"a\","
+   ],
+   "result": "[\"a\"]"
+  },
+  {
+   "id": "repairTruncatedJson#5",
+   "label": "对象停在逗号后",
+   "fn": "repairTruncatedJson",
+   "args": [
+    "{\"a\":1,"
+   ],
+   "result": "{\"a\":1}"
+  },
+  {
+   "id": "repairTruncatedJson#6",
+   "label": "孤立反斜杠",
+   "fn": "repairTruncatedJson",
+   "args": [
+    "{\"a\":\"b\\"
+   ],
+   "result": "{\"a\":\"b\"}"
+  },
+  {
+   "id": "repairTruncatedJson#7",
+   "label": "字符串里的引号转义",
+   "fn": "repairTruncatedJson",
+   "args": [
+    "{\"a\":\"b\\\""
+   ],
+   "result": "{\"a\":\"b\\\"\"}"
+  },
+  {
+   "id": "repairTruncatedJson#8",
+   "label": "只有键",
+   "fn": "repairTruncatedJson",
+   "args": [
+    "{\"a\""
+   ],
+   "result": "{\"a\"}"
+  },
+  {
+   "id": "repairTruncatedJson#9",
+   "label": "只有键和冒号",
+   "fn": "repairTruncatedJson",
+   "args": [
+    "{\"a\":"
+   ],
+   "result": "{\"a\":}"
+  },
+  {
+   "id": "repairTruncatedJson#10",
+   "label": "只有开括号",
+   "fn": "repairTruncatedJson",
+   "args": [
+    "{"
+   ],
+   "result": "{}"
+  },
+  {
+   "id": "repairTruncatedJson#11",
+   "label": "空串",
+   "fn": "repairTruncatedJson",
+   "args": [
+    ""
+   ],
+   "result": ""
+  },
+  {
+   "id": "repairTruncatedJson#12",
+   "label": "中文截断",
+   "fn": "repairTruncatedJson",
+   "args": [
+    "{\"a\":\"中文截断后面"
+   ],
+   "result": "{\"a\":\"中文截断后面\"}"
+  },
+  {
+   "id": "repairTruncatedJson#13",
+   "label": "本来就完整",
+   "fn": "repairTruncatedJson",
+   "args": [
+    "[1,2,3]"
+   ],
+   "result": "[1,2,3]"
+  },
+  {
+   "id": "repairTruncatedJson#14",
+   "label": "字符串里有闭括号",
+   "fn": "repairTruncatedJson",
+   "args": [
+    "{\"a\":\"}\""
+   ],
+   "result": "{\"a\":\"}\"}"
+  },
+  {
+   "id": "repairTruncatedJson#15",
+   "label": "字符串里有开括号",
+   "fn": "repairTruncatedJson",
+   "args": [
+    "{\"a\":\"["
+   ],
+   "result": "{\"a\":\"[\"}"
+  }
+ ]
+}
