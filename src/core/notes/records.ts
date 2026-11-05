@@ -1,6 +1,7 @@
-// 笔记的记录类型，以及派生结果记下的依据和生成配置。
+// 笔记和概览的记录类型，以及派生结果记下的依据和生成配置。
 import type { FailureRange, StoredRange } from "../ai/chunking.ts";
 import { parseVideoKey, type VideoKey } from "../video-ref.ts";
+import type { LearningAnalysis } from "./markdown.ts";
 
 export type CaptionKind = "human" | "auto" | "official-ai" | "imported";
 
@@ -60,6 +61,18 @@ export interface NoteRecord {
   readonly quote?: string;
   readonly derived?: Derived;
   readonly createdAt: number;
+  readonly updatedAt: number;
+}
+
+export const OVERVIEW_RECORD_VERSION = 1;
+
+/** 一个视频的概览，不随字幕缓存过期。 */
+export interface OverviewRecord {
+  readonly schemaVersion: number;
+  readonly videoKey: VideoKey;
+  readonly snapshot: NoteSnapshot;
+  readonly analysis: LearningAnalysis;
+  readonly analysisFailures?: readonly FailureRange[];
   readonly updatedAt: number;
 }
 
