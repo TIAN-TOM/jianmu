@@ -369,6 +369,17 @@ test("升级被别的连接挡住：明确报错不挂死，对方让出来以�
   holder.close();
   assert.deepEqual(await second.getAll(), []);
   assert.equal(idb.inspect(DATABASE_NAME)?.version, 2);
+
+  // 被挡住的那次请求后来也会成功，它的连接没人持有，不能留着。
+  for (let turn = 0; turn < 100 && idb.openConnections() > 1; turn += 1) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  assert.equal(idb.openConnections(), 1, "只留下重试拿到的那条连接");
+  second.close();
+  for (let turn = 0; turn < 100 && idb.openConnections() > 0; turn += 1) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  assert.equal(idb.openConnections(), 0, "关掉驱动后一条不留");
 });
 
 test("数据库比代码新：报错不动数据，下一次还会重新打开", async () => {

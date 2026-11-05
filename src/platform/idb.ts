@@ -135,6 +135,7 @@ export function createObjectStoreDriver<T>({
   function openDatabase(): Promise<IdbDatabase> {
     if (opening) return opening;
     const current = new Promise<IdbDatabase>((resolve, reject) => {
+      let abandoned = false;
       const forget = (): void => {
         if (opening === current) opening = null;
       };
@@ -144,6 +145,11 @@ export function createObjectStoreDriver<T>({
       };
       request.onsuccess = () => {
         const db = request.result;
+        // 被挡住时已经报过错，打开请求却取消不了，迟到的连接没人持有，直接关掉。
+        if (abandoned) {
+          db.close();
+          return;
+        }
         // 浏览器异常关掉连接（存储出错、开发者工具里清了数据）后，这个连接再也开不了事务：
         // 作废缓存，下次调用重新打开，而不是一直复用到 worker 重启。
         db.onclose = forget;
@@ -161,6 +167,7 @@ export function createObjectStoreDriver<T>({
       };
       request.onblocked = () => {
         // 升级被其他连接挡住时这个请求一直不落定，明确失败，上层才能提示用户。
+        abandoned = true;
         forget();
         reject(new Error("IndexedDB 正被其他窗口占用，请稍后重试"));
       };
