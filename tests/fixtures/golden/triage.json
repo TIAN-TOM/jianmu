@@ -1,0 +1,1270 @@
+{
+ "schema": 1,
+ "name": "triage",
+ "title": "粗筛分组和清单导出",
+ "cases": [
+  {
+   "id": "groupKeyOf#1",
+   "label": "值得看完整视频",
+   "fn": "groupKeyOf",
+   "args": [
+    {
+     "summary": "s",
+     "verdict": "值得看完整视频"
+    }
+   ],
+   "result": "watch"
+  },
+  {
+   "id": "groupKeyOf#2",
+   "label": "看概览就够",
+   "fn": "groupKeyOf",
+   "args": [
+    {
+     "summary": "s",
+     "verdict": "看概览就够"
+    }
+   ],
+   "result": "overview"
+  },
+  {
+   "id": "groupKeyOf#3",
+   "label": "可以跳过",
+   "fn": "groupKeyOf",
+   "args": [
+    {
+     "summary": "s",
+     "verdict": "可以跳过"
+    }
+   ],
+   "result": "skip"
+  },
+  {
+   "id": "groupKeyOf#4",
+   "label": "信息不足",
+   "fn": "groupKeyOf",
+   "args": [
+    {
+     "summary": "s",
+     "verdict": "信息不足"
+    }
+   ],
+   "result": "unknown"
+  },
+  {
+   "id": "groupKeyOf#5",
+   "label": "自创档位",
+   "fn": "groupKeyOf",
+   "args": [
+    {
+     "summary": "s",
+     "verdict": "自创档位"
+    }
+   ],
+   "result": "unknown"
+  },
+  {
+   "id": "groupKeyOf#6",
+   "label": "",
+   "fn": "groupKeyOf",
+   "args": [
+    {
+     "summary": "s"
+    }
+   ],
+   "result": "unknown"
+  },
+  {
+   "id": "groupKeyOf#7",
+   "label": "null",
+   "fn": "groupKeyOf",
+   "args": [
+    null
+   ],
+   "result": "pending"
+  },
+  {
+   "id": "groupItems#1",
+   "label": "按判断分组",
+   "fn": "groupItems",
+   "args": [
+    [
+     {
+      "available": true,
+      "duration": 218,
+      "ownerName": "菜园",
+      "progress": 0,
+      "title": "看完整 [精华] 版",
+      "videoKey": "bilibili:BV1GoLDen001:p1"
+     },
+     {
+      "available": true,
+      "duration": 3725,
+      "ownerName": "UP_主",
+      "progress": -1,
+      "title": "没有结论",
+      "videoKey": "bilibili:BV1GoLDen002:p1"
+     },
+     {
+      "available": true,
+      "duration": 600,
+      "ownerName": "菜园实验室",
+      "progress": 90,
+      "title": "官方没有总结",
+      "videoKey": "bilibili:BV1GoLDen003:p1"
+     },
+     {
+      "available": false,
+      "duration": 600,
+      "ownerName": "菜园实验室",
+      "progress": 0,
+      "title": "失效视频",
+      "videoKey": "bilibili:BV1GoLDen004:p1"
+     },
+     {
+      "available": true,
+      "duration": 0,
+      "ownerName": "菜园实验室",
+      "progress": 0,
+      "title": "判断档位认不出",
+      "videoKey": "bilibili:BV1GoLDen005:p1"
+     }
+    ],
+    {
+     "bilibili:BV1GoLDen001:p1": {
+      "reason": "有演示",
+      "source": "official",
+      "summary": "一句话：值得看完整视频",
+      "value": "核心价值",
+      "verdict": "值得看完整视频"
+     },
+     "bilibili:BV1GoLDen002:p1": {
+      "reason": "",
+      "summary": "一句话：看概览就够",
+      "value": "核心价值",
+      "verdict": "看概览就够"
+     },
+     "bilibili:BV1GoLDen005:p1": {
+      "reason": "有演示",
+      "summary": "一句话：自创档位",
+      "value": "核心价值",
+      "verdict": "自创档位"
+     }
+    }
+   ],
+   "result": {
+    "overview": [
+     {
+      "available": true,
+      "duration": 3725,
+      "ownerName": "UP_主",
+      "progress": -1,
+      "title": "没有结论",
+      "videoKey": "bilibili:BV1GoLDen002:p1"
+     }
+    ],
+    "pending": [
+     {
+      "available": true,
+      "duration": 600,
+      "ownerName": "菜园实验室",
+      "progress": 90,
+      "title": "官方没有总结",
+      "videoKey": "bilibili:BV1GoLDen003:p1"
+     },
+     {
+      "available": false,
+      "duration": 600,
+      "ownerName": "菜园实验室",
+      "progress": 0,
+      "title": "失效视频",
+      "videoKey": "bilibili:BV1GoLDen004:p1"
+     }
+    ],
+    "skip": [],
+    "unknown": [
+     {
+      "available": true,
+      "duration": 0,
+      "ownerName": "菜园实验室",
+      "progress": 0,
+      "title": "判断档位认不出",
+      "videoKey": "bilibili:BV1GoLDen005:p1"
+     }
+    ],
+    "watch": [
+     {
+      "available": true,
+      "duration": 218,
+      "ownerName": "菜园",
+      "progress": 0,
+      "title": "看完整 [精华] 版",
+      "videoKey": "bilibili:BV1GoLDen001:p1"
+     }
+    ]
+   }
+  },
+  {
+   "id": "groupItems#2",
+   "label": "没有结论",
+   "fn": "groupItems",
+   "args": [
+    [
+     {
+      "available": true,
+      "duration": 218,
+      "ownerName": "菜园",
+      "progress": 0,
+      "title": "看完整 [精华] 版",
+      "videoKey": "bilibili:BV1GoLDen001:p1"
+     },
+     {
+      "available": true,
+      "duration": 3725,
+      "ownerName": "UP_主",
+      "progress": -1,
+      "title": "没有结论",
+      "videoKey": "bilibili:BV1GoLDen002:p1"
+     },
+     {
+      "available": true,
+      "duration": 600,
+      "ownerName": "菜园实验室",
+      "progress": 90,
+      "title": "官方没有总结",
+      "videoKey": "bilibili:BV1GoLDen003:p1"
+     },
+     {
+      "available": false,
+      "duration": 600,
+      "ownerName": "菜园实验室",
+      "progress": 0,
+      "title": "失效视频",
+      "videoKey": "bilibili:BV1GoLDen004:p1"
+     },
+     {
+      "available": true,
+      "duration": 0,
+      "ownerName": "菜园实验室",
+      "progress": 0,
+      "title": "判断档位认不出",
+      "videoKey": "bilibili:BV1GoLDen005:p1"
+     }
+    ]
+   ],
+   "result": {
+    "overview": [],
+    "pending": [
+     {
+      "available": true,
+      "duration": 218,
+      "ownerName": "菜园",
+      "progress": 0,
+      "title": "看完整 [精华] 版",
+      "videoKey": "bilibili:BV1GoLDen001:p1"
+     },
+     {
+      "available": true,
+      "duration": 3725,
+      "ownerName": "UP_主",
+      "progress": -1,
+      "title": "没有结论",
+      "videoKey": "bilibili:BV1GoLDen002:p1"
+     },
+     {
+      "available": true,
+      "duration": 600,
+      "ownerName": "菜园实验室",
+      "progress": 90,
+      "title": "官方没有总结",
+      "videoKey": "bilibili:BV1GoLDen003:p1"
+     },
+     {
+      "available": false,
+      "duration": 600,
+      "ownerName": "菜园实验室",
+      "progress": 0,
+      "title": "失效视频",
+      "videoKey": "bilibili:BV1GoLDen004:p1"
+     },
+     {
+      "available": true,
+      "duration": 0,
+      "ownerName": "菜园实验室",
+      "progress": 0,
+      "title": "判断档位认不出",
+      "videoKey": "bilibili:BV1GoLDen005:p1"
+     }
+    ],
+    "skip": [],
+    "unknown": [],
+    "watch": []
+   }
+  },
+  {
+   "id": "groupItems#3",
+   "label": "空列表",
+   "fn": "groupItems",
+   "args": [
+    [],
+    {}
+   ],
+   "result": {
+    "overview": [],
+    "pending": [],
+    "skip": [],
+    "unknown": [],
+    "watch": []
+   }
+  },
+  {
+   "id": "hasVerdict#1",
+   "label": "",
+   "fn": "hasVerdict",
+   "args": [
+    {
+     "reason": "有演示",
+     "summary": "一句话：可以跳过",
+     "value": "核心价值",
+     "verdict": "可以跳过"
+    }
+   ],
+   "result": true
+  },
+  {
+   "id": "hasVerdict#2",
+   "label": "",
+   "fn": "hasVerdict",
+   "args": [
+    {
+     "summary": ""
+    }
+   ],
+   "result": false
+  },
+  {
+   "id": "hasVerdict#3",
+   "label": "",
+   "fn": "hasVerdict",
+   "args": [
+    null
+   ],
+   "result": false
+  },
+  {
+   "id": "hasVerdict#4",
+   "label": "",
+   "fn": "hasVerdict",
+   "args": [
+    {
+     "$undefined": true
+    }
+   ],
+   "result": false
+  },
+  {
+   "id": "hasOfficialContent#1",
+   "label": "",
+   "fn": "hasOfficialContent",
+   "args": [
+    {
+     "outline": [
+      {
+       "parts": [],
+       "timestamp": 0,
+       "title": "选材"
+      }
+     ],
+     "status": "ok",
+     "summary": "甲"
+    }
+   ],
+   "result": true
+  },
+  {
+   "id": "isOfficialDone#1",
+   "label": "",
+   "fn": "isOfficialDone",
+   "args": [
+    {
+     "outline": [
+      {
+       "parts": [],
+       "timestamp": 0,
+       "title": "选材"
+      }
+     ],
+     "status": "ok",
+     "summary": "甲"
+    }
+   ],
+   "result": true
+  },
+  {
+   "id": "officialStatusText#1",
+   "label": "",
+   "fn": "officialStatusText",
+   "args": [
+    {
+     "outline": [
+      {
+       "parts": [],
+       "timestamp": 0,
+       "title": "选材"
+      }
+     ],
+     "status": "ok",
+     "summary": "甲"
+    }
+   ],
+   "result": "有官方总结"
+  },
+  {
+   "id": "hasOfficialContent#2",
+   "label": "",
+   "fn": "hasOfficialContent",
+   "args": [
+    {
+     "status": "ok"
+    }
+   ],
+   "result": false
+  },
+  {
+   "id": "isOfficialDone#2",
+   "label": "",
+   "fn": "isOfficialDone",
+   "args": [
+    {
+     "status": "ok"
+    }
+   ],
+   "result": true
+  },
+  {
+   "id": "officialStatusText#2",
+   "label": "",
+   "fn": "officialStatusText",
+   "args": [
+    {
+     "status": "ok"
+    }
+   ],
+   "result": "没有官方总结"
+  },
+  {
+   "id": "hasOfficialContent#3",
+   "label": "",
+   "fn": "hasOfficialContent",
+   "args": [
+    {
+     "status": "none"
+    }
+   ],
+   "result": false
+  },
+  {
+   "id": "isOfficialDone#3",
+   "label": "",
+   "fn": "isOfficialDone",
+   "args": [
+    {
+     "status": "none"
+    }
+   ],
+   "result": true
+  },
+  {
+   "id": "officialStatusText#3",
+   "label": "",
+   "fn": "officialStatusText",
+   "args": [
+    {
+     "status": "none"
+    }
+   ],
+   "result": "没有官方总结"
+  },
+  {
+   "id": "hasOfficialContent#4",
+   "label": "",
+   "fn": "hasOfficialContent",
+   "args": [
+    {
+     "outline": [],
+     "status": "ok",
+     "summary": ""
+    }
+   ],
+   "result": false
+  },
+  {
+   "id": "isOfficialDone#4",
+   "label": "",
+   "fn": "isOfficialDone",
+   "args": [
+    {
+     "outline": [],
+     "status": "ok",
+     "summary": ""
+    }
+   ],
+   "result": true
+  },
+  {
+   "id": "officialStatusText#4",
+   "label": "",
+   "fn": "officialStatusText",
+   "args": [
+    {
+     "outline": [],
+     "status": "ok",
+     "summary": ""
+    }
+   ],
+   "result": "没有官方总结"
+  },
+  {
+   "id": "hasOfficialContent#5",
+   "label": "",
+   "fn": "hasOfficialContent",
+   "args": [
+    null
+   ],
+   "result": false
+  },
+  {
+   "id": "isOfficialDone#5",
+   "label": "",
+   "fn": "isOfficialDone",
+   "args": [
+    null
+   ],
+   "result": false
+  },
+  {
+   "id": "officialStatusText#5",
+   "label": "",
+   "fn": "officialStatusText",
+   "args": [
+    null
+   ],
+   "result": "还没取官方总结"
+  },
+  {
+   "id": "officialStatusText#6",
+   "label": "pending",
+   "fn": "officialStatusText",
+   "args": [
+    {
+     "reason": "SOME_REASON",
+     "status": "pending"
+    }
+   ],
+   "result": "请求失败，再点开始会重试"
+  },
+  {
+   "id": "officialStatusText#7",
+   "label": "unsupported",
+   "fn": "officialStatusText",
+   "args": [
+    {
+     "reason": "SOME_REASON",
+     "status": "unsupported"
+    }
+   ],
+   "result": "B站不给这个视频做总结"
+  },
+  {
+   "id": "officialStatusText#8",
+   "label": "need-login",
+   "fn": "officialStatusText",
+   "args": [
+    {
+     "reason": "SOME_REASON",
+     "status": "need-login"
+    }
+   ],
+   "result": "要先在浏览器里登录 B站"
+  },
+  {
+   "id": "officialStatusText#9",
+   "label": "failed",
+   "fn": "officialStatusText",
+   "args": [
+    {
+     "reason": "SOME_REASON",
+     "status": "failed"
+    }
+   ],
+   "result": "请求失败，再点开始会重试（SOME_REASON）"
+  },
+  {
+   "id": "officialStatusText#10",
+   "label": "stale",
+   "fn": "officialStatusText",
+   "args": [
+    {
+     "reason": "SOME_REASON",
+     "status": "stale"
+    }
+   ],
+   "result": "请求失败，再点开始会重试"
+  },
+  {
+   "id": "officialStatusText#11",
+   "label": "失效视频",
+   "fn": "officialStatusText",
+   "args": [
+    null,
+    {
+     "available": false,
+     "duration": 600,
+     "ownerName": "菜园实验室",
+     "progress": 0,
+     "title": "失效视频",
+     "videoKey": "bilibili:BV1GoLDen004:p1"
+    }
+   ],
+   "result": "视频已失效或暂时看不了，没有去取官方总结"
+  },
+  {
+   "id": "officialTodo#1",
+   "label": "第一步要取的",
+   "fn": "officialTodo",
+   "args": [
+    [
+     {
+      "available": true,
+      "duration": 218,
+      "ownerName": "菜园",
+      "progress": 0,
+      "title": "看完整 [精华] 版",
+      "videoKey": "bilibili:BV1GoLDen001:p1"
+     },
+     {
+      "available": true,
+      "duration": 3725,
+      "ownerName": "UP_主",
+      "progress": -1,
+      "title": "没有结论",
+      "videoKey": "bilibili:BV1GoLDen002:p1"
+     },
+     {
+      "available": true,
+      "duration": 600,
+      "ownerName": "菜园实验室",
+      "progress": 90,
+      "title": "官方没有总结",
+      "videoKey": "bilibili:BV1GoLDen003:p1"
+     },
+     {
+      "available": false,
+      "duration": 600,
+      "ownerName": "菜园实验室",
+      "progress": 0,
+      "title": "失效视频",
+      "videoKey": "bilibili:BV1GoLDen004:p1"
+     },
+     {
+      "available": true,
+      "duration": 0,
+      "ownerName": "菜园实验室",
+      "progress": 0,
+      "title": "判断档位认不出",
+      "videoKey": "bilibili:BV1GoLDen005:p1"
+     }
+    ],
+    {
+     "bilibili:BV1GoLDen002:p1": {
+      "outline": [
+       {
+        "parts": [],
+        "timestamp": 0,
+        "title": "选材"
+       }
+      ],
+      "status": "ok",
+      "summary": "讲了怎么\n搭架子"
+     },
+     "bilibili:BV1GoLDen003:p1": {
+      "status": "none"
+     },
+     "bilibili:BV1GoLDen005:p1": {
+      "status": "pending"
+     }
+    }
+   ],
+   "result": [
+    {
+     "available": true,
+     "duration": 218,
+     "ownerName": "菜园",
+     "progress": 0,
+     "title": "看完整 [精华] 版",
+     "videoKey": "bilibili:BV1GoLDen001:p1"
+    },
+    {
+     "available": true,
+     "duration": 0,
+     "ownerName": "菜园实验室",
+     "progress": 0,
+     "title": "判断档位认不出",
+     "videoKey": "bilibili:BV1GoLDen005:p1"
+    }
+   ]
+  },
+  {
+   "id": "verdictTodo#1",
+   "label": "第二步要写的",
+   "fn": "verdictTodo",
+   "args": [
+    [
+     {
+      "available": true,
+      "duration": 218,
+      "ownerName": "菜园",
+      "progress": 0,
+      "title": "看完整 [精华] 版",
+      "videoKey": "bilibili:BV1GoLDen001:p1"
+     },
+     {
+      "available": true,
+      "duration": 3725,
+      "ownerName": "UP_主",
+      "progress": -1,
+      "title": "没有结论",
+      "videoKey": "bilibili:BV1GoLDen002:p1"
+     },
+     {
+      "available": true,
+      "duration": 600,
+      "ownerName": "菜园实验室",
+      "progress": 90,
+      "title": "官方没有总结",
+      "videoKey": "bilibili:BV1GoLDen003:p1"
+     },
+     {
+      "available": false,
+      "duration": 600,
+      "ownerName": "菜园实验室",
+      "progress": 0,
+      "title": "失效视频",
+      "videoKey": "bilibili:BV1GoLDen004:p1"
+     },
+     {
+      "available": true,
+      "duration": 0,
+      "ownerName": "菜园实验室",
+      "progress": 0,
+      "title": "判断档位认不出",
+      "videoKey": "bilibili:BV1GoLDen005:p1"
+     }
+    ],
+    {
+     "bilibili:BV1GoLDen002:p1": {
+      "outline": [
+       {
+        "parts": [],
+        "timestamp": 0,
+        "title": "选材"
+       }
+      ],
+      "status": "ok",
+      "summary": "讲了怎么\n搭架子"
+     },
+     "bilibili:BV1GoLDen003:p1": {
+      "status": "none"
+     },
+     "bilibili:BV1GoLDen005:p1": {
+      "status": "pending"
+     }
+    },
+    {
+     "bilibili:BV1GoLDen001:p1": {
+      "reason": "有演示",
+      "source": "official",
+      "summary": "一句话：值得看完整视频",
+      "value": "核心价值",
+      "verdict": "值得看完整视频"
+     },
+     "bilibili:BV1GoLDen002:p1": {
+      "reason": "",
+      "summary": "一句话：看概览就够",
+      "value": "核心价值",
+      "verdict": "看概览就够"
+     },
+     "bilibili:BV1GoLDen005:p1": {
+      "reason": "有演示",
+      "summary": "一句话：自创档位",
+      "value": "核心价值",
+      "verdict": "自创档位"
+     }
+    }
+   ],
+   "result": []
+  },
+  {
+   "id": "verdictTodo#2",
+   "label": "没有结论时",
+   "fn": "verdictTodo",
+   "args": [
+    [
+     {
+      "available": true,
+      "duration": 218,
+      "ownerName": "菜园",
+      "progress": 0,
+      "title": "看完整 [精华] 版",
+      "videoKey": "bilibili:BV1GoLDen001:p1"
+     },
+     {
+      "available": true,
+      "duration": 3725,
+      "ownerName": "UP_主",
+      "progress": -1,
+      "title": "没有结论",
+      "videoKey": "bilibili:BV1GoLDen002:p1"
+     },
+     {
+      "available": true,
+      "duration": 600,
+      "ownerName": "菜园实验室",
+      "progress": 90,
+      "title": "官方没有总结",
+      "videoKey": "bilibili:BV1GoLDen003:p1"
+     },
+     {
+      "available": false,
+      "duration": 600,
+      "ownerName": "菜园实验室",
+      "progress": 0,
+      "title": "失效视频",
+      "videoKey": "bilibili:BV1GoLDen004:p1"
+     },
+     {
+      "available": true,
+      "duration": 0,
+      "ownerName": "菜园实验室",
+      "progress": 0,
+      "title": "判断档位认不出",
+      "videoKey": "bilibili:BV1GoLDen005:p1"
+     }
+    ],
+    {
+     "bilibili:BV1GoLDen002:p1": {
+      "outline": [
+       {
+        "parts": [],
+        "timestamp": 0,
+        "title": "选材"
+       }
+      ],
+      "status": "ok",
+      "summary": "讲了怎么\n搭架子"
+     },
+     "bilibili:BV1GoLDen003:p1": {
+      "outline": [
+       {
+        "parts": [],
+        "timestamp": 0,
+        "title": "选材"
+       }
+      ],
+      "status": "ok",
+      "summary": "甲"
+     },
+     "bilibili:BV1GoLDen005:p1": {
+      "status": "pending"
+     }
+    },
+    {}
+   ],
+   "result": [
+    {
+     "available": true,
+     "duration": 3725,
+     "ownerName": "UP_主",
+     "progress": -1,
+     "title": "没有结论",
+     "videoKey": "bilibili:BV1GoLDen002:p1"
+    },
+    {
+     "available": true,
+     "duration": 600,
+     "ownerName": "菜园实验室",
+     "progress": 90,
+     "title": "官方没有总结",
+     "videoKey": "bilibili:BV1GoLDen003:p1"
+    }
+   ]
+  },
+  {
+   "id": "normalizeState#1",
+   "label": "",
+   "fn": "normalizeState",
+   "args": [
+    {}
+   ],
+   "result": {
+    "list": null,
+    "official": {},
+    "version": 1
+   }
+  },
+  {
+   "id": "normalizeState#2",
+   "label": "",
+   "fn": "normalizeState",
+   "args": [
+    null
+   ],
+   "result": {
+    "list": null,
+    "official": {},
+    "version": 1
+   }
+  },
+  {
+   "id": "normalizeState#3",
+   "label": "",
+   "fn": "normalizeState",
+   "args": [
+    "坏数据"
+   ],
+   "result": {
+    "list": null,
+    "official": {},
+    "version": 1
+   }
+  },
+  {
+   "id": "normalizeState#4",
+   "label": "",
+   "fn": "normalizeState",
+   "args": [
+    {
+     "items": "x",
+     "official": 5
+    }
+   ],
+   "result": {
+    "list": null,
+    "official": {},
+    "version": 1
+   }
+  },
+  {
+   "id": "normalizeState#5",
+   "label": "",
+   "fn": "normalizeState",
+   "args": [
+    {
+     "count": 1,
+     "fetchedAt": 9,
+     "items": [
+      {
+       "videoKey": "bilibili:BV1GoLDen001:p1"
+      }
+     ],
+     "official": {}
+    }
+   ],
+   "result": {
+    "list": null,
+    "official": {},
+    "version": 1
+   }
+  },
+  {
+   "id": "formatDuration#1",
+   "label": "",
+   "fn": "formatDuration",
+   "args": [
+    0
+   ],
+   "result": "0:00"
+  },
+  {
+   "id": "formatDuration#2",
+   "label": "",
+   "fn": "formatDuration",
+   "args": [
+    59
+   ],
+   "result": "0:59"
+  },
+  {
+   "id": "formatDuration#3",
+   "label": "",
+   "fn": "formatDuration",
+   "args": [
+    218
+   ],
+   "result": "3:38"
+  },
+  {
+   "id": "formatDuration#4",
+   "label": "",
+   "fn": "formatDuration",
+   "args": [
+    3725
+   ],
+   "result": "1:02:05"
+  },
+  {
+   "id": "formatDuration#5",
+   "label": "",
+   "fn": "formatDuration",
+   "args": [
+    -1
+   ],
+   "result": "0:00"
+  },
+  {
+   "id": "formatDuration#6",
+   "label": "",
+   "fn": "formatDuration",
+   "args": [
+    {
+     "$number": "NaN"
+    }
+   ],
+   "result": "0:00"
+  },
+  {
+   "id": "formatDateTime#1",
+   "label": "固定时间戳，TZ 固定 UTC",
+   "fn": "formatDateTime",
+   "args": [
+    1793000000000
+   ],
+   "result": "2026-10-26 07:33"
+  },
+  {
+   "id": "progressText#1",
+   "label": "",
+   "fn": "progressText",
+   "args": [
+    {
+     "available": true,
+     "duration": 218,
+     "ownerName": "菜园",
+     "progress": 0,
+     "title": "看完整 [精华] 版",
+     "videoKey": "bilibili:BV1GoLDen001:p1"
+    }
+   ],
+   "result": "还没看"
+  },
+  {
+   "id": "progressText#2",
+   "label": "",
+   "fn": "progressText",
+   "args": [
+    {
+     "available": true,
+     "duration": 3725,
+     "ownerName": "UP_主",
+     "progress": -1,
+     "title": "没有结论",
+     "videoKey": "bilibili:BV1GoLDen002:p1"
+    }
+   ],
+   "result": "还没看"
+  },
+  {
+   "id": "progressText#3",
+   "label": "",
+   "fn": "progressText",
+   "args": [
+    {
+     "available": true,
+     "duration": 600,
+     "ownerName": "菜园实验室",
+     "progress": 90,
+     "title": "官方没有总结",
+     "videoKey": "bilibili:BV1GoLDen003:p1"
+    }
+   ],
+   "result": "看到 1:30（15%）"
+  },
+  {
+   "id": "progressText#4",
+   "label": "",
+   "fn": "progressText",
+   "args": [
+    {
+     "available": false,
+     "duration": 600,
+     "ownerName": "菜园实验室",
+     "progress": 0,
+     "title": "失效视频",
+     "videoKey": "bilibili:BV1GoLDen004:p1"
+    }
+   ],
+   "result": "还没看"
+  },
+  {
+   "id": "progressText#5",
+   "label": "",
+   "fn": "progressText",
+   "args": [
+    {
+     "available": true,
+     "duration": 0,
+     "ownerName": "菜园实验室",
+     "progress": 0,
+     "title": "判断档位认不出",
+     "videoKey": "bilibili:BV1GoLDen005:p1"
+    }
+   ],
+   "result": "还没看"
+  },
+  {
+   "id": "verdictSourceText#1",
+   "label": "",
+   "fn": "verdictSourceText",
+   "args": [
+    {
+     "reason": "有演示",
+     "source": "official",
+     "summary": "一句话：可以跳过",
+     "value": "核心价值",
+     "verdict": "可以跳过"
+    }
+   ],
+   "result": "基于 B站官方总结"
+  },
+  {
+   "id": "verdictSourceText#2",
+   "label": "",
+   "fn": "verdictSourceText",
+   "args": [
+    {
+     "reason": "有演示",
+     "summary": "一句话：可以跳过",
+     "value": "核心价值",
+     "verdict": "可以跳过"
+    }
+   ],
+   "result": "基于概览"
+  },
+  {
+   "id": "videoUrl#1",
+   "label": "",
+   "fn": "videoUrl",
+   "args": [
+    "BV1GoLDen001"
+   ],
+   "result": "https://www.bilibili.com/video/BV1GoLDen001"
+  },
+  {
+   "id": "toMarkdown#1",
+   "label": "完整清单",
+   "fn": "toMarkdown",
+   "args": [
+    {
+     "exportedAt": 1793000000000,
+     "items": [
+      {
+       "available": true,
+       "duration": 218,
+       "ownerName": "菜园",
+       "progress": 0,
+       "title": "看完整 [精华] 版",
+       "videoKey": "bilibili:BV1GoLDen001:p1"
+      },
+      {
+       "available": true,
+       "duration": 3725,
+       "ownerName": "UP_主",
+       "progress": -1,
+       "title": "没有结论",
+       "videoKey": "bilibili:BV1GoLDen002:p1"
+      },
+      {
+       "available": true,
+       "duration": 600,
+       "ownerName": "菜园实验室",
+       "progress": 90,
+       "title": "官方没有总结",
+       "videoKey": "bilibili:BV1GoLDen003:p1"
+      },
+      {
+       "available": false,
+       "duration": 600,
+       "ownerName": "菜园实验室",
+       "progress": 0,
+       "title": "失效视频",
+       "videoKey": "bilibili:BV1GoLDen004:p1"
+      },
+      {
+       "available": true,
+       "duration": 0,
+       "ownerName": "菜园实验室",
+       "progress": 0,
+       "title": "判断档位认不出",
+       "videoKey": "bilibili:BV1GoLDen005:p1"
+      }
+     ],
+     "official": {
+      "bilibili:BV1GoLDen002:p1": {
+       "outline": [
+        {
+         "parts": [],
+         "timestamp": 0,
+         "title": "选材"
+        }
+       ],
+       "status": "ok",
+       "summary": "讲了怎么\n搭架子"
+      },
+      "bilibili:BV1GoLDen003:p1": {
+       "status": "none"
+      },
+      "bilibili:BV1GoLDen005:p1": {
+       "status": "pending"
+      }
+     },
+     "verdicts": {
+      "bilibili:BV1GoLDen001:p1": {
+       "reason": "有演示",
+       "source": "official",
+       "summary": "一句话：值得看完整视频",
+       "value": "核心价值",
+       "verdict": "值得看完整视频"
+      },
+      "bilibili:BV1GoLDen002:p1": {
+       "reason": "",
+       "summary": "一句话：看概览就够",
+       "value": "核心价值",
+       "verdict": "看概览就够"
+      },
+      "bilibili:BV1GoLDen005:p1": {
+       "reason": "有演示",
+       "summary": "一句话：自创档位",
+       "value": "核心价值",
+       "verdict": "自创档位"
+      }
+     }
+    }
+   ],
+   "result": "# 稍后再看粗筛\n\n导出于 2026-10-26 07:33，共 5 个视频。\n\n## 值得看完整视频（1）\n\n- [ ] [看完整 \\[精华\\] 版](https://www.bilibili.com/video/BV1GoLDen001) · 菜园 · 3:38\n  - 结论：一句话：值得看完整视频（基于 B站官方总结）\n  - 核心价值：核心价值\n  - 理由：有演示\n\n## 看概览就够（1）\n\n- [ ] [没有结论](https://www.bilibili.com/video/BV1GoLDen002) · UP\\_主 · 1:02:05\n  - 结论：一句话：看概览就够（基于概览）\n  - 核心价值：核心价值\n\n## 信息不足（1）\n\n- [ ] [判断档位认不出](https://www.bilibili.com/video/BV1GoLDen005) · 菜园实验室\n  - 结论：一句话：自创档位（基于概览）\n  - 核心价值：核心价值\n  - 理由：有演示\n\n## 还没判断（2）\n\n- [ ] [官方没有总结](https://www.bilibili.com/video/BV1GoLDen003) · 菜园实验室 · 10:00\n  - 没有官方总结\n- [ ] [失效视频](https://www.bilibili.com/video/BV1GoLDen004) · 菜园实验室 · 10:00\n  - 视频已失效或暂时看不了，没有去取官方总结\n"
+  },
+  {
+   "id": "toMarkdown#2",
+   "label": "空清单",
+   "fn": "toMarkdown",
+   "args": [
+    {
+     "exportedAt": 1793000000000,
+     "items": [],
+     "official": {},
+     "verdicts": {}
+    }
+   ],
+   "result": "# 稍后再看粗筛\n\n导出于 2026-10-26 07:33，共 0 个视频。\n"
+  }
+ ]
+}
