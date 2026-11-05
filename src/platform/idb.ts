@@ -178,12 +178,14 @@ export function createObjectStoreDriver<T>({
 
   // close 事件没赶上时，缓存的连接已经关了：开事务抛 InvalidStateError，作废重开一次。
   async function openTransaction(mode: "readonly" | "readwrite"): Promise<IdbTransaction> {
-    const db = await openDatabase();
+    const failed = openDatabase();
+    const db = await failed;
     try {
       return db.transaction(storeName, mode);
     } catch (error) {
       if ((error as { name?: unknown } | null)?.name !== "InvalidStateError") throw error;
-      opening = null;
+      // 只作废断掉的这条连接，并发的操作共用同一次重开。
+      if (opening === failed) opening = null;
       return (await openDatabase()).transaction(storeName, mode);
     }
   }

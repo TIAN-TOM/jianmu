@@ -352,6 +352,21 @@ test("假想第 2 版：开着的旧连接让出来，升级不被挡住，旧�
   assert.equal(idb.staleTransactions(), 0, "让出连接时就作废了缓存");
 });
 
+test("连接悄悄断了时，并发的操作共用同一次重开，不留多余的连接", async () => {
+  const idb = createMemoryIndexedDb();
+  const driver = driverOn(idb);
+  await driver.getAll();
+  idb.closeConnections({ fireOnclose: false });
+
+  await Promise.all([driver.getAll(), driver.getAll()]);
+  assert.equal(idb.openConnections(), 1, "两个操作共用一条新连接");
+  driver.close();
+  for (let turn = 0; turn < 100 && idb.openConnections() > 0; turn += 1) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  assert.equal(idb.openConnections(), 0, "关掉驱动后一条不留");
+});
+
 test("升级被别的连接挡住：明确报错不挂死，对方让出来以后能再试", async () => {
   const idb = createMemoryIndexedDb();
   const request = idb.open(DATABASE_NAME, DATABASE_VERSION);
