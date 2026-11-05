@@ -284,7 +284,8 @@ export function createJsonGetter(fetchImpl: JsonFetch, timeoutMs = FETCH_TIMEOUT
         signal: controller.signal,
       });
       rejectRedirect(response, settings?.aiBaseUrl);
-      const data = await response.json().catch(() => ({}));
+      // 错误响应的 body 可能不是 JSON，按状态码报错；2xx 读不出来就是这次失败了，不能当成空列表缓存。
+      const data = response.ok ? await response.json() : await response.json().catch(() => ({}));
       if (!response.ok) throw keyedHttpError(data, response.status, settings);
       return data;
     } finally {

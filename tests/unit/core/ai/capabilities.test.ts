@@ -387,3 +387,14 @@ test("模型能力的报错同样脱敏", async () => {
   assert.equal(error.status, 401);
   assert.equal(error.message, "invalid x-api-key [已隐藏的密钥]");
 });
+
+test("2xx 的响应体读失败时抛出，不当成空列表", async () => {
+  const send = CAPS.createJsonGetter(async () => ({
+    ok: true,
+    status: 200,
+    json: async () => {
+      throw new SyntaxError("响应体不完整");
+    },
+  }));
+  await assert.rejects(() => send({ url: "https://api.example.com/v1/models", headers: {} }, undefined), SyntaxError);
+});
