@@ -23,6 +23,7 @@ import {
   ceilingFor,
   MAX_ATTEMPTS,
   raisedBudget,
+  TOTAL_OUTPUT_TOKENS_CAP,
   waitSignal,
 } from "./policy.ts";
 import { createAiSender } from "./send.ts";
@@ -231,9 +232,12 @@ export function createAiTransport({
         capabilities,
       });
 
-      if (selfRetry && format && diagnosis.retryWithoutJsonMode) {
+      // 这次重发同样计费，前面加过码时要压到合计预算的余量以内。
+      const remaining = TOTAL_OUTPUT_TOKENS_CAP - spent;
+      if (selfRetry && format && diagnosis.retryWithoutJsonMode && remaining > 0) {
         log("[jianmu] JSON 模式返回空，脱掉 response_format 重试");
         format = null;
+        tokens = Math.min(tokens, remaining);
         continue;
       }
 

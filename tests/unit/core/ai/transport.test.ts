@@ -415,6 +415,31 @@ test("JSON 模式返回空时脱掉 response_format 重试一次", async () => {
   assert.equal(requests[1]!.response_format, undefined, "第二轮已脱掉");
 });
 
+test("加码之后脱掉 JSON 模式重发，也不超过合计预算", async () => {
+  const requests: ChatRequestBody[] = [];
+  const t = makeTransport(async (_url, init) => {
+    requests.push(bodyOf(init));
+    return requests.length === 1 ? openaiReply("", { finish_reason: "length" }) : openaiReply("");
+  });
+
+  await assert.rejects(
+    () =>
+      t.requestAiCompletion({
+        messages: MESSAGES,
+        maxTokens: 8192,
+        responseFormat: { type: "json_object" },
+      }),
+    { code: "EMPTY_AI_RESPONSE" },
+  );
+
+  const budgets = requests.map((request) => Number(request.max_tokens));
+  assert.deepEqual(budgets, [8192, 32768, 24576]);
+  assert.equal(
+    budgets.reduce((sum, budget) => sum + budget, 0),
+    TRANSPORT.TOTAL_OUTPUT_TOKENS_CAP,
+  );
+});
+
 test("输出被截断时按四倍放大预算，直到天花板", async () => {
   const requests: ChatRequestBody[] = [];
   const t = makeTransport(async (_url, init) => {
@@ -1333,6 +1358,16 @@ test("HTTP 状态映射成用户能行动的错误码", () => {
   assert.equal(aiError({ status: 404 }).error, "MODEL_OR_ENDPOINT_NOT_FOUND");
   assert.equal(aiError({ status: 429 }).error, "RATE_LIMITED");
   assert.equal(aiError({}).error, "AI_REQUEST_FAILED");
+});
+
+test("纯文本报错回显密钥时先脱敏再截断，密钥跨过截断线也不漏", async () => {
+  const failure = await sendOnce({
+    ok: false,
+    status: 400,
+    text: async () => `${"错".repeat(190)}sk-secret-123456 无效`,
+  });
+  assert.equal(failure.status, 400);
+  assert.ok(!failure.message.includes("sk-secret"), failure.message);
 });
 
 test("错误响应不是 JSON 时照样保留状态码：纯文本 429 认得出限流，401 认得出密钥被拒", async () => {

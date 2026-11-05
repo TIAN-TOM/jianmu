@@ -75,6 +75,7 @@ export function createAiSender({
       // 按正常响应解析会误报成「响应不完整」，状态码也跟着丢了。
       const data = await readBoundedAiResponse(response, resetIdleTimer, {
         lenient: !response.ok,
+        secret: settings.aiApiKey,
       });
       if (!response.ok) {
         const error: TransportError = keyedHttpError(data, response.status, settings);
@@ -136,9 +137,9 @@ export function createAiSender({
   async function readBoundedAiResponse(
     response: TransportResponse,
     onActivity: () => void,
-    { lenient = false }: { readonly lenient?: boolean } = {},
+    { lenient = false, secret }: { readonly lenient?: boolean; readonly secret?: unknown } = {},
   ): Promise<unknown> {
-    const parse = lenient ? parseErrorEnvelope : parseResponseEnvelope;
+    const parse = lenient ? (body: string) => parseErrorEnvelope(body, secret) : parseResponseEnvelope;
     const reader = response.body?.getReader?.();
     if (!reader) {
       const text = await response.text();
