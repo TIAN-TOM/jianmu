@@ -63,5 +63,5 @@ npm run test:e2e    # 端到端冒烟，用 CHROME_PATH 指定 Chrome for Testin
 
 - 提交信息用 Conventional Commits：`type` 用英文，主题行用中文动宾短语，不加句号，`scope` 可选。例如 `feat(字幕): 支持导入 VTT 文件`。
 - 主题行写改了什么，为什么和影响面放正文。提交和 PR 的说明写结果，不写过程。
-- 在功能分支上开发，不直接提交到 `main`。PR 用 squash 合并，CI 通过才合并。
+- 在功能分支上开发，不直接提交到 `main`。CI 通过以后，把分支变基到最新的 `main`，在本地用 `git merge --ff-only` 合并再推送，GitHub 会把 PR 标成已合并。不用 GitHub 的合并按钮：服务端合并会改写提交的作者或提交者身份。
 - 一个 PR 只改一件事：移植、改身份、改行为、加功能各自成 PR。移植 PR 的黄金样本必须一致，改行为的 PR 逐条写明差异。
