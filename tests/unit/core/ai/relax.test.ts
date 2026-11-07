@@ -12,10 +12,10 @@ import type {
   RelaxState,
 } from "../../../../src/core/ai/provider/index.ts";
 import * as SCHEMAS from "../../../../src/core/ai/schemas.ts";
-import { normalizeAiSettings } from "../../../helpers/ai-settings.ts";
+import { normalize } from "../../../../src/shared/settings-schema.ts";
 import { memoryStorage } from "../../../helpers/memory-storage.ts";
 
-const openaiSettings = normalizeAiSettings({
+const openaiSettings = normalize({
   presetId: "custom",
   protocol: PROTOCOLS.OPENAI,
   aiApiKey: "sk-test",
@@ -23,7 +23,7 @@ const openaiSettings = normalizeAiSettings({
   aiModel: "some-model",
 });
 
-const anthropicSettings = normalizeAiSettings({
+const anthropicSettings = normalize({
   presetId: "anthropic",
   protocol: PROTOCOLS.ANTHROPIC,
   aiApiKey: "sk-ant-test",
@@ -32,7 +32,7 @@ const anthropicSettings = normalizeAiSettings({
 });
 
 // 自定义的 Anthropic 兼容地址：继续用 2023-06-01，旧型号照常收 temperature。
-const anthropicGatewaySettings = normalizeAiSettings({
+const anthropicGatewaySettings = normalize({
   presetId: "custom",
   protocol: PROTOCOLS.ANTHROPIC,
   aiApiKey: "sk-gw-test",
@@ -40,7 +40,7 @@ const anthropicGatewaySettings = normalizeAiSettings({
   aiModel: "claude-test",
 });
 
-const responsesSettings = normalizeAiSettings({
+const responsesSettings = normalize({
   presetId: "openai",
   aiApiKey: "sk-openai",
   aiModel: "gpt-6-astra",

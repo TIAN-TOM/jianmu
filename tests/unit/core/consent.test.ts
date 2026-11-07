@@ -33,8 +33,8 @@ import {
   type NoticeItem,
   type NoticeTable,
 } from "../../../src/core/consent.ts";
+import * as SETTINGS from "../../../src/shared/settings-schema.ts";
 import { memoryStorage } from "../../helpers/memory-storage.ts";
-import * as SETTINGS from "../../helpers/settings-rules.ts";
 
 const OLD_FINGERPRINT = "0000000000000000";
 const MESSAGES = [{ role: "user", content: "你好" }];
@@ -47,7 +47,7 @@ const CONFIGURED = {
   aiBaseUrl: "https://api.example.com/v1",
   aiApiKey: "test-key",
   aiModel: "test-model",
-  ...SETTINGS.CONSENTED,
+  ...SETTINGS.DATA_CONSENT_CONFIRMED,
 };
 
 const ANTHROPIC = {
@@ -55,7 +55,7 @@ const ANTHROPIC = {
   aiApiKey: "sk-ant-test",
   aiApiKeyOrigin: "https://api.anthropic.com/",
   aiModel: "claude-sonnet-5-5",
-  ...SETTINGS.CONSENTED,
+  ...SETTINGS.DATA_CONSENT_CONFIRMED,
 };
 
 const openaiReply = (content: string, extra: Readonly<Record<string, unknown>> = {}): TransportResponse => ({

@@ -26,9 +26,10 @@ import type {
   TransportResponse,
   TransportSettingsRules,
 } from "../../../../src/core/ai/transport/index.ts";
+import { DATA_CONSENT_ERROR, DATA_CONSENT_VERSION } from "../../../../src/core/consent.ts";
+import * as SETTINGS from "../../../../src/shared/settings-schema.ts";
 import { memoryStorage } from "../../../helpers/memory-storage.ts";
 import * as RESP from "../../../helpers/responses-fixtures.ts";
-import * as SETTINGS from "../../../helpers/settings-rules.ts";
 
 const { PROTOCOLS } = PROVIDER;
 
@@ -39,7 +40,7 @@ function makeSettings(overrides: SETTINGS.SettingsInput = {}) {
     aiApiKey: "test-key",
     aiBaseUrl: "https://api.example.com/v1",
     aiModel: "test-model",
-    ...SETTINGS.CONSENTED,
+    ...SETTINGS.DATA_CONSENT_CONFIRMED,
     ...overrides,
   });
 }
@@ -369,7 +370,7 @@ test("校验放行时，发出之前的同意核对照样拦下", async () => {
   );
   await assert.rejects(
     () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }),
-    (error: TransportError) => error.code === "NO_AI_CONFIG" && error.message.includes(SETTINGS.DATA_CONSENT_ERROR),
+    (error: TransportError) => error.code === "NO_AI_CONFIG" && error.message.includes(DATA_CONSENT_ERROR),
   );
   assert.deepEqual(requests, []);
 });
@@ -460,7 +461,7 @@ test("输出被截断时按四倍放大预算，直到天花板", async () => {
 
 test("请求途中取消了数据说明的确认：已经发出的那次照常回来，加码重试不再发", async () => {
   const requests: ChatRequestBody[] = [];
-  let consent = SETTINGS.DATA_CONSENT_VERSION;
+  let consent = DATA_CONSENT_VERSION;
   const t = makeTransport(
     async (_url, init) => {
       requests.push(bodyOf(init));
@@ -473,14 +474,14 @@ test("请求途中取消了数据说明的确认：已经发出的那次照常�
 
   await assert.rejects(
     () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }),
-    (error: TransportError) => error.code === "NO_AI_CONFIG" && error.message.includes(SETTINGS.DATA_CONSENT_ERROR),
+    (error: TransportError) => error.code === "NO_AI_CONFIG" && error.message.includes(DATA_CONSENT_ERROR),
   );
   assert.equal(requests.length, 1, "只发了取消之前的那一次");
 });
 
 test("查模型能力期间取消了数据说明的确认：第一次请求也不发", async () => {
   const requests: ChatRequestBody[] = [];
-  let consent = SETTINGS.DATA_CONSENT_VERSION;
+  let consent = DATA_CONSENT_VERSION;
   const t = makeTransport(
     async (_url, init) => {
       requests.push(bodyOf(init));
@@ -504,7 +505,7 @@ test("查模型能力期间取消了数据说明的确认：第一次请求也�
 });
 
 test("发前核对读到的同意版本不是当前版本：报 NO_AI_CONFIG，不发请求", async () => {
-  for (const version of [SETTINGS.DATA_CONSENT_VERSION - 1, SETTINGS.DATA_CONSENT_VERSION + 1]) {
+  for (const version of [DATA_CONSENT_VERSION - 1, DATA_CONSENT_VERSION + 1]) {
     let reads = 0;
     let fetches = 0;
     const t = makeTransport(
@@ -523,7 +524,7 @@ test("发前核对读到的同意版本不是当前版本：报 NO_AI_CONFIG，�
 
     await assert.rejects(
       () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }),
-      (error: TransportError) => error.code === "NO_AI_CONFIG" && error.message.includes(SETTINGS.DATA_CONSENT_ERROR),
+      (error: TransportError) => error.code === "NO_AI_CONFIG" && error.message.includes(DATA_CONSENT_ERROR),
     );
     assert.equal(reads, 2, `版本 ${version}`);
     assert.equal(fetches, 0, `版本 ${version}`);
@@ -565,14 +566,14 @@ const MODEL_PAGE = (id: string): JsonResponse => ({
 
 test("后台：查模型能力途中取消了确认，后面的页和模型请求都不发", async () => {
   const urls: string[] = [];
-  let consent = SETTINGS.DATA_CONSENT_VERSION;
+  let consent = DATA_CONSENT_VERSION;
   const getSettings = async () =>
     SETTINGS.normalize({
       presetId: "anthropic",
       aiApiKey: "sk-ant-test",
       aiApiKeyOrigin: "https://api.anthropic.com/",
       aiModel: "claude-sonnet-5-5",
-      ...SETTINGS.CONSENTED,
+      ...SETTINGS.DATA_CONSENT_CONFIRMED,
       dataConsentVersion: consent,
     });
   const jsonGet = createJsonGetter(async (url) => {
@@ -2064,7 +2065,7 @@ const SETTINGS_OPENAI = SETTINGS.normalize({
   protocol: PROTOCOLS.OPENAI,
   aiBaseUrl: "https://ai.example.com/v1",
   aiApiKey: "offline-dummy-key",
-  ...SETTINGS.CONSENTED,
+  ...SETTINGS.DATA_CONSENT_CONFIRMED,
   aiModel: "offline-model",
 });
 
@@ -2111,7 +2112,7 @@ test("Anthropic 的信封被截断时同样标成截断", async () => {
     protocol: PROTOCOLS.ANTHROPIC,
     aiBaseUrl: "https://claude.example.com",
     aiApiKey: "offline-dummy-key",
-    ...SETTINGS.CONSENTED,
+    ...SETTINGS.DATA_CONSENT_CONFIRMED,
     aiModel: "claude-offline",
   });
   const envelope = { content: [{ type: "text", text: ANSWER }], stop_reason: "end_turn" };
@@ -2149,7 +2150,7 @@ function customSettings(overrides: SETTINGS.SettingsInput = {}) {
     protocol: PROTOCOLS.OPENAI,
     aiBaseUrl: "https://api.example.com/v1",
     aiApiKey: "test-key",
-    ...SETTINGS.CONSENTED,
+    ...SETTINGS.DATA_CONSENT_CONFIRMED,
     aiModel: "m-default",
     ...overrides,
   });
@@ -2211,7 +2212,7 @@ test("放宽记忆按实际模型区分：一个模型拒绝过的参数不连�
     protocol: PROTOCOLS.ANTHROPIC,
     aiBaseUrl: "https://gateway.example.com",
     aiApiKey: "sk-gw",
-    ...SETTINGS.CONSENTED,
+    ...SETTINGS.DATA_CONSENT_CONFIRMED,
     aiModel: "gw-strict-ok",
     featureModels: { analysis: "gw-rejects-disabled" },
   });
@@ -2269,7 +2270,7 @@ function anthropicKeyedSettings(aiBaseUrl: string) {
     protocol: PROTOCOLS.ANTHROPIC,
     aiBaseUrl,
     aiApiKey: KEY,
-    ...SETTINGS.CONSENTED,
+    ...SETTINGS.DATA_CONSENT_CONFIRMED,
     aiApiKeyOrigin: SETTINGS.originOf(aiBaseUrl),
     aiModel: "claude-test",
   });
@@ -2354,7 +2355,7 @@ test("模型服务在 HTTP 报错里回显密钥时，错误和给界面的提�
     protocol: PROTOCOLS.OPENAI,
     aiBaseUrl: "https://gateway.example.com/v1",
     aiApiKey: KEY,
-    ...SETTINGS.CONSENTED,
+    ...SETTINGS.DATA_CONSENT_CONFIRMED,
     aiModel: "test-model",
   });
   const transport = transportFor(settings, async () => ({
@@ -2377,7 +2378,7 @@ test("Responses 返回 200 但生成失败、报错里回显密钥时，空响�
     protocol: PROTOCOLS.RESPONSES,
     aiBaseUrl: "https://gateway.example.com/v1",
     aiApiKey: KEY,
-    ...SETTINGS.CONSENTED,
+    ...SETTINGS.DATA_CONSENT_CONFIRMED,
     aiModel: "gpt-test",
   });
   const transport = transportFor(settings, async () => ({
@@ -2398,7 +2399,7 @@ test("拒答说明里回显密钥时，报错同样脱敏", async () => {
     protocol: PROTOCOLS.RESPONSES,
     aiBaseUrl: "https://gateway.example.com/v1",
     aiApiKey: KEY,
-    ...SETTINGS.CONSENTED,
+    ...SETTINGS.DATA_CONSENT_CONFIRMED,
     aiModel: "gpt-test",
   });
   const transport = transportFor(settings, async () => RESP.asFetchResponse(RESP.refusal(`cannot use ${KEY}`)));

@@ -5,15 +5,15 @@ import * as CAPS from "../../../../src/core/ai/capabilities.ts";
 import type { JsonFetchInit, JsonResponse } from "../../../../src/core/ai/capabilities.ts";
 import { PROTOCOLS } from "../../../../src/core/ai/provider/endpoint.ts";
 import type { AiSettings, ModelsRequest, ProviderError } from "../../../../src/core/ai/provider/index.ts";
-import { normalizeAiSettings } from "../../../helpers/ai-settings.ts";
+import { normalize } from "../../../../src/shared/settings-schema.ts";
 import { memoryStorage } from "../../../helpers/memory-storage.ts";
 
-const anthropicSettings = normalizeAiSettings({
+const anthropicSettings = normalize({
   presetId: "anthropic",
   aiApiKey: "sk-ant-test",
   aiModel: "claude-opus-5-5",
 });
-const openaiSettings = normalizeAiSettings({
+const openaiSettings = normalize({
   presetId: "openai",
   aiApiKey: "sk-openai",
   aiModel: "gpt-6-astra",
@@ -39,7 +39,7 @@ const opaqueRedirect = (): JsonResponse => ({
 });
 
 function gatewaySettings(aiBaseUrl: string): AiSettings {
-  return normalizeAiSettings({
+  return normalize({
     presetId: "custom",
     protocol: PROTOCOLS.ANTHROPIC,
     aiBaseUrl,

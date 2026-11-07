@@ -10,10 +10,10 @@ import {
 import * as provider from "../../../../src/core/ai/provider/index.ts";
 import type { AiSettings, ChatRequestInput } from "../../../../src/core/ai/provider/index.ts";
 import * as SCHEMAS from "../../../../src/core/ai/schemas.ts";
-import { normalizeAiSettings } from "../../../helpers/ai-settings.ts";
+import { normalize } from "../../../../src/shared/settings-schema.ts";
 import * as RESP from "../../../helpers/responses-fixtures.ts";
 
-const openaiSettings = normalizeAiSettings({
+const openaiSettings = normalize({
   presetId: "custom",
   protocol: PROTOCOLS.OPENAI,
   aiApiKey: "sk-test",
@@ -21,7 +21,7 @@ const openaiSettings = normalizeAiSettings({
   aiModel: "some-model",
 });
 
-const anthropicSettings = normalizeAiSettings({
+const anthropicSettings = normalize({
   presetId: "anthropic",
   protocol: PROTOCOLS.ANTHROPIC,
   aiApiKey: "sk-ant-test",
@@ -30,7 +30,7 @@ const anthropicSettings = normalizeAiSettings({
 });
 
 // 自定义的 Anthropic 兼容地址：继续用 2023-06-01，旧型号照常收 temperature。
-const anthropicGatewaySettings = normalizeAiSettings({
+const anthropicGatewaySettings = normalize({
   presetId: "custom",
   protocol: PROTOCOLS.ANTHROPIC,
   aiApiKey: "sk-gw-test",
@@ -101,13 +101,13 @@ test("OpenAI 协议：从 choices 里取文本", () => {
 test("兼容服务商的请求体逐字段固定，传 schema 也只发 json_object", () => {
   const cases = [
     {
-      settings: normalizeAiSettings({ presetId: "deepseek", aiApiKey: "sk-ds", aiModel: "deepseek-v4-flash" }),
+      settings: normalize({ presetId: "deepseek", aiApiKey: "sk-ds", aiModel: "deepseek-v4-flash" }),
       url: "https://api.deepseek.com/chat/completions",
       extras: { thinking: { type: "disabled" } },
     },
     // 这五家只是 OpenAI 兼容协议的一条配置，不带任何专属参数。
     ...["gemini", "moonshot", "zhipu", "dashscope", "siliconflow"].map((presetId) => ({
-      settings: normalizeAiSettings({ presetId, aiApiKey: "sk-test", aiModel: "m" }),
+      settings: normalize({ presetId, aiApiKey: "sk-test", aiModel: "m" }),
       url: `${presetById(presetId)?.baseUrl}/chat/completions`,
       extras: {},
     })),
@@ -145,7 +145,8 @@ test("兼容服务商的请求体逐字段固定，传 schema 也只发 json_obj
 });
 
 test("thinking 字段只发给 DeepSeek", () => {
-  const deepseek = normalizeAiSettings({
+  const deepseek = normalize({
+    presetId: "deepseek",
     aiApiKey: "k",
     aiBaseUrl: "https://api.deepseek.com",
     aiModel: "deepseek-v4-flash",
@@ -155,6 +156,7 @@ test("thinking 字段只发给 DeepSeek", () => {
     messages: MESSAGES,
     maxTokens: 100,
   });
+  assert.equal(request.url, "https://api.deepseek.com/chat/completions");
   assert.deepEqual(request.body.thinking, { type: "disabled" });
 });
 
@@ -178,7 +180,7 @@ test("地址非法时 vendorExtras 不抛错", () => {
 
 test("thinking 只匹配 DeepSeek 域名本身与其子域，形近域名不注入", () => {
   const lookalike = provider.buildChatRequest({
-    settings: normalizeAiSettings({
+    settings: normalize({
       presetId: "custom",
       protocol: PROTOCOLS.OPENAI,
       aiApiKey: "k",
@@ -191,7 +193,7 @@ test("thinking 只匹配 DeepSeek 域名本身与其子域，形近域名不注�
   assert.equal("thinking" in lookalike.body, false, "形近域名的严格网关会拒绝未知参数");
 
   const apex = provider.buildChatRequest({
-    settings: normalizeAiSettings({
+    settings: normalize({
       presetId: "custom",
       protocol: PROTOCOLS.OPENAI,
       aiApiKey: "k",
@@ -206,7 +208,7 @@ test("thinking 只匹配 DeepSeek 域名本身与其子域，形近域名不注�
 
 test("OpenAI 推理系列改用 max_completion_tokens 且不带自定义 temperature", () => {
   const reasoning = provider.buildChatRequest({
-    settings: normalizeAiSettings({
+    settings: normalize({
       presetId: "custom",
       protocol: PROTOCOLS.OPENAI,
       aiApiKey: "k",
@@ -893,7 +895,7 @@ test("Anthropic 拒绝回答时认出 stop_reason 为 refusal", () => {
 // OpenAI Responses
 // ============================================================
 
-const responsesSettings = normalizeAiSettings({
+const responsesSettings = normalize({
   presetId: "openai",
   aiApiKey: "sk-openai",
   aiModel: "gpt-6-astra",

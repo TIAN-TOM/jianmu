@@ -7,7 +7,7 @@ import {
   createAiTransport,
   type TransportError,
 } from "../../../../src/core/ai/transport/index.ts";
-import * as SETTINGS from "../../../helpers/settings-rules.ts";
+import * as SETTINGS from "../../../../src/shared/settings-schema.ts";
 
 interface Sample {
   readonly status: number;
@@ -39,7 +39,7 @@ async function throughTransport({ protocol, baseUrl, model, sample }: ChainCase)
     aiApiKey: "sk-golden-fake",
     aiBaseUrl: baseUrl,
     aiModel: model,
-    ...SETTINGS.CONSENTED,
+    ...SETTINGS.DATA_CONSENT_CONFIRMED,
   });
   let calls = 0;
   const transport = createAiTransport({

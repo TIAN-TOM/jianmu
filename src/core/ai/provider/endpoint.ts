@@ -1,4 +1,5 @@
-// 三种协议的名字和对话、模型列表请求的地址。选了具体厂商时协议和地址由预设决定。
+// 三种协议的名字、预设的协议和地址，以及对话、模型列表请求的地址。选了具体厂商时协议和地址由预设决定。
+// 预设的标签、默认模型和密钥页链接在 shared/settings-schema.ts，按 id 从这张表补上，协议和地址只写这里。
 
 // 三种协议：「OpenAI 兼容」即 Chat Completions，是各家兼容服务的事实标准；
 // OpenAI 官方另用它自家较新的 Responses 接口，结构化输出和推理档位都在那边；
@@ -17,16 +18,11 @@ export interface EndpointPreset {
   readonly baseUrl: string;
 }
 
-// 第一项是默认服务商，认不出的预设都落到它。
-const DEFAULT_PRESET: EndpointPreset = {
-  id: "anthropic",
-  protocol: PROTOCOLS.ANTHROPIC,
-  baseUrl: "https://api.anthropic.com",
-};
-const CUSTOM_PRESET_ID = "custom";
+export const CUSTOM_PRESET_ID = "custom";
 
-const PRESETS: readonly EndpointPreset[] = Object.freeze([
-  DEFAULT_PRESET,
+// 第一项是默认服务商，认不出的预设都落到它。
+export const ENDPOINT_PRESETS = Object.freeze([
+  { id: "anthropic", protocol: PROTOCOLS.ANTHROPIC, baseUrl: "https://api.anthropic.com" },
   // 官方走 Responses。想用 Chat Completions 可以选「自定义」填同一个地址。
   { id: "openai", protocol: PROTOCOLS.RESPONSES, baseUrl: "https://api.openai.com/v1" },
   { id: "deepseek", protocol: PROTOCOLS.OPENAI, baseUrl: "https://api.deepseek.com" },
@@ -40,10 +36,15 @@ const PRESETS: readonly EndpointPreset[] = Object.freeze([
   { id: "siliconflow", protocol: PROTOCOLS.OPENAI, baseUrl: "https://api.siliconflow.cn/v1" },
   { id: "openrouter", protocol: PROTOCOLS.OPENAI, baseUrl: "https://openrouter.ai/api/v1" },
   { id: CUSTOM_PRESET_ID, protocol: PROTOCOLS.OPENAI, baseUrl: "" },
-]);
+] as const satisfies readonly EndpointPreset[]);
+
+export type KnownEndpointPreset = (typeof ENDPOINT_PRESETS)[number];
+export type PresetId = KnownEndpointPreset["id"];
+
+export const DEFAULT_PRESET = ENDPOINT_PRESETS[0];
 
 export const presetById = (id: unknown): EndpointPreset | null =>
-  PRESETS.find((preset) => preset.id === id) || null;
+  ENDPOINT_PRESETS.find((preset) => preset.id === id) ?? null;
 
 export type BaseUrlCheck =
   | { readonly ok: true; readonly url: string; readonly origin: string }
@@ -64,7 +65,7 @@ export function validateBaseUrl(input: unknown, protocol: Protocol = PROTOCOLS.O
   if (parsed.protocol !== "https:") {
     return {
       ok: false,
-      error: "API 地址要以 https:// 开头，本机地址（如本地 Ollama）也不能用 http://。",
+      error: "API 地址要以 https:// 开头，本机地址也不能用 http://。",
     };
   }
   // Chrome 的 match pattern 不支持 IPv6 字面量，这类地址申请不到访问权限。
@@ -91,10 +92,11 @@ export function validateBaseUrl(input: unknown, protocol: Protocol = PROTOCOLS.O
   return { ok: true, url: `${parsed.origin}${pathname}`, origin: `${parsed.origin}/` };
 }
 
+/** 来自存储或表单，形状不可信。 */
 export interface EndpointSource {
-  readonly presetId?: string | undefined;
-  readonly protocol?: string | undefined;
-  readonly aiBaseUrl?: string | undefined;
+  readonly presetId?: unknown;
+  readonly protocol?: unknown;
+  readonly aiBaseUrl?: unknown;
 }
 
 const isProtocol = (value: unknown): value is Protocol =>
