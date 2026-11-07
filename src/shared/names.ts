@@ -15,6 +15,9 @@ export const AUTO_LEDGER_KEY = "jianmu_auto_ledger";
 export const WATCH_SESSIONS_KEY = "jianmu_watch_sessions";
 export const APPEARANCE_CACHE_KEY = "jianmu_appearance";
 
+// 设置读写用的 Web Locks 锁名，不是存储键，不用登记。
+export const SETTINGS_LOCK_NAME = "jianmu_settings";
+
 export const STORAGE_KEYS = [
   SETTINGS_STORAGE_KEY,
   TRIAGE_STORAGE_KEY,
