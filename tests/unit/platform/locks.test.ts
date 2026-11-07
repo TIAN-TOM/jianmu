@@ -8,7 +8,7 @@ const LOCK = "测试用的锁";
 
 async function heldModes(): Promise<(string | undefined)[]> {
   const { held } = await navigator.locks.query();
-  return held.map((lock) => lock.mode);
+  return (held ?? []).map((lock) => lock.mode);
 }
 
 test("独占：前一个做完，后一个才开始", async () => {

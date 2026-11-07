@@ -5,5 +5,5 @@
     "types": ["chrome"]
   },
   "include": ["src/core/**/*", "src/shared/**/*", "src/platform/**/*", "src/sites/**/*", "src/background/**/*"],
-  "exclude": ["src/sites/*/page.ts"]
+  "exclude": ["src/sites/*/page.ts", "src/sites/page-types.ts"]
 }
