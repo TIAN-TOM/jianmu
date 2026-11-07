@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { AV_XOR_CODE, BV_ALPHABET } from "../src/sites/bilibili/url.ts";
 import { findStructureViolations, type SourceFile, type Violation } from "./helpers/structure-rules.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -29,6 +30,12 @@ function filesHit(files: Readonly<Record<string, string>>): string[] {
 
 test("src/ 没有违反结构规则", () => {
   assert.deepEqual(findStructureViolations(sourceFiles(join(ROOT, "src"))), []);
+});
+
+test("内容脚本、卡片、侧边栏都用共用模块，自己不再留一份换算", () => {
+  const constants = [String(AV_XOR_CODE), BV_ALPHABET];
+  const holders = sourceFiles(join(ROOT, "src")).filter(({ text }) => constants.some((value) => text.includes(value)));
+  assert.deepEqual(holders.map(({ path }) => path), ["src/sites/bilibili/url.ts"]);
 });
 
 describe("规则能拦下造好的违规", () => {

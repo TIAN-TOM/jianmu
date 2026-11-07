@@ -14,6 +14,7 @@
 | `src/core/` | 纯逻辑，不碰 `chrome.*` 和 DOM：视频身份、并发、任务、清除闸门、高亮、同意表和启用说明，以及 `transcript/`、`qa/`、`triage/`、`ai/`、`notes/` |
 | `src/shared/` | `names.ts` 存储键，`storage-plan.ts` 每份本机数据的清除和备份归属，`settings-schema.ts` 设置的结构、规整和校验 |
 | `src/platform/` | `idb.ts` IndexedDB 驱动，`storage.ts`、`locks.ts`、`permissions.ts` 是扩展存储、Web Locks 和主机权限的薄封装，`settings-store.ts` 设置读写、会话密钥、记住密钥的本机记录和设置修订号 |
+| `src/sites/` | 站点适配层：`types.ts` 是契约，`rules.ts` 是地址规则，`bilibili/` 是 B 站的地址解析 |
 | `src/background/`、`src/pages/` | 后台入口、内联的提示词、`grants.ts` 回收用不上的主机授权，侧边栏占位页 |
 | `src/background/stores/` | 字幕缓存、笔记、概览三个仓储，`write-gate.ts` 是它们共用的写入关口 |
 | `prompts/` | 提示词模板，构建时内联进后台包 |

@@ -203,14 +203,14 @@ export interface Cue { start: number; duration: number; text: string }   // 秒
 export interface VideoInfo {
   ref: VideoRef; title: string; author: string; channel?: ChannelRef;
   description: string; durationSec: number; audioLang?: string;     // 原语言怎么判定：首发待验证（第 10 步）
-  mediaVersion?: string;                                             // 不进键，只用来提示「这一 P 可能换过内容」
+  mediaVersion?: string;                                             // 不进身份键；B 站读字幕和官方总结要用，变了时提示这一 P 可能换过内容
   siteRef?: string;                                                  // 适配器自用的不透明串，别处不解析
   segments?: { index: number; title: string; durationSec: number }[];
 }
 export interface Chapter { title: string; start: number; end: number | null }                          // 秒
-export interface OutlineSection { title: string; start: number | null; points: { start: number | null; text: string }[] }
+export interface OutlineSection { title: string; timestamp: number | null; points: { timestamp: number | null; content: string }[] }   // 字段和 core 已读的、用户备份里已有的形状一致
 export interface OfficialSummary { status: "ok" | "none" | "queued" | "unsupported"; summary: string; outline: OutlineSection[]; cues: Cue[] }
-export interface WatchLaterItem extends TriageItem { cover: string; description: string; addedAt: number; paidChecked: boolean }   // paidChecked：这一条带付费标记，判断过
+export interface WatchLaterItem extends TriageItem { cover: string; description: string; addedAt: number; paidChecked: boolean }   // paidChecked：确认了付费或免费才是真；为假时读官方总结前先过 readVideoInfo
 export interface WatchLaterList { total: number; dropped: number; items: WatchLaterItem[] }
 export type SiteErrorCode = "NEED_LOGIN" | "NO_CAPTIONS" | "EMPTY_CAPTION_FILE" | "RATE_LIMITED" | "UNPLAYABLE"
   | "NOT_FOUND" | "SEGMENT_OUT_OF_RANGE" | "VIDEO_CHANGED" | "TAB_NOT_READY" | "MALFORMED" | "NETWORK" | "TIMEOUT";
@@ -312,7 +312,7 @@ export interface SitePage {                  // 内容脚本里跑
 
 - 键唯一、能反解析：`bilibili:<BV 号>:p<N>`，第 1 P 也写 `p1`；`youtube:<编号>`。所有存储键、任务键、内存键都从 `videoKey()` 取；消息里传 `VideoRef`，不传零散的视频号和分 P。
 - 不进身份：播放列表、合集、追踪参数、起播时间、语言前缀、av 号写法。
-- B 站以分 P 号为准，内部媒体编号只作 `mediaVersion` 写进记录；读到的和记录里的不同，界面提示「这一 P 可能换过内容」。
+- B 站以分 P 号为准，内部媒体编号不进身份，作 `mediaVersion` 写进记录；读到的和记录里的不同，界面提示「这一 P 可能换过内容」。
 - 频道身份 `channelKey()`：B 站是 UP 主，YouTube 是频道。按频道记住的模式用它，不用频道名。
 - 链接只从身份生成（`canonicalUrl`），存着的链接字段不信、不导出。
 

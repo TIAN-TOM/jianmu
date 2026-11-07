@@ -1,9 +1,8 @@
 // 笔记和概览的记录类型，以及派生结果记下的依据和生成配置。
 import type { FailureRange, StoredRange } from "../ai/chunking.ts";
+import type { CaptionKind } from "../transcript/sources.ts";
 import { parseVideoKey, type VideoKey } from "../video-ref.ts";
 import type { LearningAnalysis } from "./markdown.ts";
-
-export type CaptionKind = "human" | "auto" | "official-ai" | "imported";
 
 /** 一个字幕版本：真实视频、来源、语言和正文指纹。 */
 export interface TranscriptRef {
