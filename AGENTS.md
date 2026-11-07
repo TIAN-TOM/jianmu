@@ -6,15 +6,15 @@
 
 ## 现在有什么
 
-核心逻辑已经移植完，架构设计第 12 节第 4 步（身份和存储）进行中，还没有用户能用的功能。下表只列已有的东西。目标结构见架构设计第 5.1 节。
+核心逻辑、设置、同意和授权已经移植完（架构设计第 12 节第 3、5 步），第 4 步（身份和存储）还差备份，还没有用户能用的功能。下表只列已有的东西。目标结构见架构设计第 5.1 节。
 
 | 位置 | 做什么 |
 | --- | --- |
 | `manifest.template.json` | 清单模板，手写；版本号由构建写入 |
-| `src/core/` | 纯逻辑，不碰 `chrome.*` 和 DOM：视频身份、并发、任务、清除闸门、高亮，以及 `transcript/`、`qa/`、`triage/`、`ai/`、`notes/` |
-| `src/shared/` | `names.ts` 存储键，`storage-plan.ts` 每份本机数据的清除和备份归属 |
-| `src/platform/` | `idb.ts` IndexedDB 驱动 |
-| `src/background/`、`src/pages/` | 后台入口、内联的提示词和侧边栏占位页 |
+| `src/core/` | 纯逻辑，不碰 `chrome.*` 和 DOM：视频身份、并发、任务、清除闸门、高亮、同意表和启用说明，以及 `transcript/`、`qa/`、`triage/`、`ai/`、`notes/` |
+| `src/shared/` | `names.ts` 存储键，`storage-plan.ts` 每份本机数据的清除和备份归属，`settings-schema.ts` 设置的结构、规整和校验 |
+| `src/platform/` | `idb.ts` IndexedDB 驱动，`storage.ts`、`locks.ts`、`permissions.ts` 是扩展存储、Web Locks 和主机权限的薄封装，`settings-store.ts` 设置读写和会话密钥 |
+| `src/background/`、`src/pages/` | 后台入口、内联的提示词、`grants.ts` 回收用不上的主机授权，侧边栏占位页 |
 | `src/background/stores/` | 字幕缓存、笔记、概览三个仓储，`write-gate.ts` 是它们共用的写入关口 |
 | `prompts/` | 提示词模板，构建时内联进后台包 |
 | `static/` | 原样复制进构建产物 |
