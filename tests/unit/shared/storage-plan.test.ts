@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ClearScope } from "../../../src/core/clear-guard.ts";
+import { createLocks } from "../../../src/platform/locks.ts";
+import { createSettingsStore } from "../../../src/platform/settings-store.ts";
 import { STORAGE_KEYS, STORE_NAMES } from "../../../src/shared/names.ts";
 import { clearTargets, STORAGE_PLAN, type Plan } from "../../../src/shared/storage-plan.ts";
 import { memoryStorage } from "../../helpers/memory-storage.ts";
@@ -84,6 +86,17 @@ test("清除全部数据：每个仓库、storage.local 和会话存储一个不
   assert.deepEqual(targets.renew, ["jianmu_settings_revision"]);
   for (const key of targets.renew) await world.local.set({ [key]: "revision-new" });
   assert.deepEqual(world.local.data, { jianmu_settings_revision: "revision-new" });
+});
+
+test("清除全部后留下新的设置修订号", async () => {
+  const world = seeded();
+
+  await createSettingsStore({ storage: world, locks: createLocks() }).clearAll();
+
+  assert.deepEqual(Object.keys(world.local.data), ["jianmu_settings_revision"]);
+  assert.match(String(world.local.data["jianmu_settings_revision"]), /^\S{16,}$/);
+  assert.notEqual(world.local.data["jianmu_settings_revision"], "revision-old");
+  assert.deepEqual(world.session.data, {});
 });
 
 test("清除表逐项核对：每个仓库和键的放处、两种清除和备份都对得上", () => {

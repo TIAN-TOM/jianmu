@@ -1,13 +1,39 @@
 // chrome.storage 的封装。
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { extensionStorage, readItem } from "../../../src/platform/storage.ts";
+import { extensionStorage, readItem, restrictToTrustedContexts } from "../../../src/platform/storage.ts";
 import { memoryStorage } from "../../helpers/memory-storage.ts";
 
 test("readItem 取出这一项的值，没有这一项时是 undefined", async () => {
   const area = memoryStorage({ 有: { a: 1 } });
   assert.deepEqual(await readItem(area, "有"), { a: 1 });
   assert.equal(await readItem(area, "没有"), undefined);
+});
+
+test("restrictToTrustedContexts 申请只给扩展页面和后台读", async () => {
+  const requests: unknown[] = [];
+  const area = {
+    ...memoryStorage(),
+    async setAccessLevel(options: unknown) {
+      requests.push(options);
+    },
+  };
+
+  await restrictToTrustedContexts(area);
+
+  assert.deepEqual(requests, [{ accessLevel: "TRUSTED_CONTEXTS" }]);
+});
+
+test("restrictToTrustedContexts 在浏览器不支持或拒绝时抛错，不当作已经设好", async () => {
+  await assert.rejects(restrictToTrustedContexts(memoryStorage()), /不能限制/);
+
+  const refused = {
+    ...memoryStorage(),
+    async setAccessLevel() {
+      throw new Error("这个版本不支持");
+    },
+  };
+  await assert.rejects(restrictToTrustedContexts(refused), /这个版本不支持/);
 });
 
 test("extensionStorage 取的是浏览器的 local 和 session 两个存储区", (t) => {

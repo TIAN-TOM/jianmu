@@ -19,6 +19,9 @@ import { memoryStorage } from "../../helpers/memory-storage.ts";
 
 const DECLARED = [...REQUIRED_HOSTS, ...CONTENT_MATCHES];
 
+/** 这里的存储是直接摆好的，没有修订号。 */
+const NO_REVISION = "";
+
 const addressed = (aiBaseUrl: string): SettingsInput => ({
   presetId: "custom",
   protocol: "openai",
@@ -74,7 +77,7 @@ test("保存新地址后回收旧地址和只测过的地址，留下刚保存�
   });
 
   browser.grant("https://new.example.net/");
-  const saved = await store.save(addressed("https://new.example.net/v1"));
+  const saved = await store.save(addressed("https://new.example.net/v1"), NO_REVISION);
   const result = await grants.releaseUnused();
 
   assert.equal(saved.aiBaseUrl, "https://new.example.net/v1");
@@ -91,7 +94,7 @@ test("按功能另选的模型和默认模型走同一个地址，保存后这�
     granted: ["https://api.example.com/*", "https://old.example.org/*"],
   });
 
-  const saved = await store.save(await store.load());
+  const saved = await store.save(await store.load(), NO_REVISION);
   await grants.releaseUnused();
 
   assert.deepEqual(saved.featureModels, featureModels);
@@ -102,7 +105,7 @@ test("按功能另选的模型和默认模型走同一个地址，保存后这�
 test("没有用不上的授权时不调用回收", async () => {
   const { browser, store, grants } = world({ granted: ["https://api.example.com/*"] });
 
-  await store.save(await store.load());
+  await store.save(await store.load(), NO_REVISION);
   const result = await grants.releaseUnused();
 
   assert.deepEqual(browser.removeCalls, []);
@@ -313,7 +316,7 @@ test("保存 AI 设置不影响已启用站点的授权", async () => {
   });
 
   browser.grant("https://new.example.org/");
-  await store.save(addressed("https://new.example.org/v1"));
+  await store.save(addressed("https://new.example.org/v1"), NO_REVISION);
   await grants.releaseUnused();
 
   assert.deepEqual(browser.removed, ["https://api.example.com/*"]);

@@ -22,7 +22,7 @@ import {
 import * as SETTINGS from "../../../src/shared/settings-schema.ts";
 
 const HTTPS_ERROR = "API 地址要以 https:// 开头，本机地址也不能用 http://。";
-const KEY_ERROR = "请填写 API 密钥（浏览器重启、扩展更新后要重新填）。";
+const KEY_ERROR = "请填写 API 密钥（没选记住密钥时，浏览器重启、扩展更新后要重新填）。";
 const MODEL_ERROR = "请填写模型名称，或点击「拉取模型列表」进行选择。";
 const STALE_FINGERPRINT = "0000000000000000";
 const OPENAI_KEY = "sk-openai-secret";

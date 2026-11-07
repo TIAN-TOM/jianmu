@@ -171,6 +171,7 @@ export interface SettingsInput {
   readonly accentTheme?: unknown;
   readonly themeMode?: unknown;
   readonly inPageCard?: unknown;
+  readonly rememberApiKey?: unknown;
   readonly dataConsentVersion?: unknown;
   readonly dataConsentFingerprint?: unknown;
   readonly activationVersion?: unknown;
@@ -190,6 +191,8 @@ export interface NormalizedSettings extends AiSettings {
   readonly themeMode: ThemeMode;
   /** 播放页右栏的总结卡片。 */
   readonly inPageCard: boolean;
+  /** 「在这台电脑上记住密钥」。默认关，打开只走设置页的保存，见 settings-store。 */
+  readonly rememberApiKey: boolean;
   /** 用户确认过的数据说明版本和指纹，0 和空串是还没确认。 */
   readonly dataConsentVersion: number;
   readonly dataConsentFingerprint: string;
@@ -212,6 +215,7 @@ export const DEFAULTS: NormalizedSettings = Object.freeze({
   accentTheme: "ink",
   themeMode: THEME_MODES.SYSTEM,
   inPageCard: true,
+  rememberApiKey: false,
   dataConsentVersion: 0,
   dataConsentFingerprint: "",
   activationVersion: 0,
@@ -335,6 +339,8 @@ export function normalize(input: unknown = {}): NormalizedSettings {
     themeMode: isThemeMode(source.themeMode) ? source.themeMode : DEFAULTS.themeMode,
     // 只认真正的布尔值：没有这一项、或被写成了别的类型时按默认开启。
     inPageCard: typeof source.inPageCard === "boolean" ? source.inPageCard : DEFAULTS.inPageCard,
+    // 只认 true：没有这一项、或写成别的值，都按没选记住。
+    rememberApiKey: source.rememberApiKey === true,
     // 同意和启用的版本、指纹只核对形状就存下：对不对得上当前说明由校验和 activationStatus 判断，
     // 认得出确认过哪一版，才能只列之后新增的内容。
     dataConsentVersion: positiveInteger(source.dataConsentVersion),
@@ -384,7 +390,7 @@ export function validateForSave(settings: unknown): SettingsCheck {
 export function validate(settings: unknown): SettingsCheck {
   const normalized = normalize(settings);
   const errors: string[] = [];
-  if (!normalized.aiApiKey) errors.push("请填写 API 密钥（浏览器重启、扩展更新后要重新填）。");
+  if (!normalized.aiApiKey) errors.push("请填写 API 密钥（没选记住密钥时，浏览器重启、扩展更新后要重新填）。");
   if (!dataConsentGiven(normalized, DATA_CONSENT_CONFIRMED)) errors.push(DATA_CONSENT_ERROR);
   const base = validateBaseUrl(normalized.aiBaseUrl, normalized.protocol);
   if (!base.ok) errors.push(base.error);

@@ -23,7 +23,7 @@ export type StorageArea = "indexeddb" | "local" | "session" | "localStorage";
 export interface Plan {
   readonly area: StorageArea;
   readonly clearCache: "keep" | "clear";
-  // renew：清掉以后由后台写入新值。page-default：后台碰不到 localStorage，各页面收到清除广播后按默认值重写。
+  // renew：由后台换成新值，清除时最先写。page-default：后台碰不到 localStorage，各页面收到清除广播后按默认值重写。
   readonly clearAll: "clear" | "renew" | "page-default";
   readonly backup: boolean;
 }
@@ -52,7 +52,7 @@ export interface ClearTargets {
   readonly stores: readonly StoreName[];
   readonly local: readonly StorageKey[];
   readonly session: readonly StorageKey[];
-  readonly renew: readonly StorageKey[]; // 也在 local 里：先清掉，清完写入新值
+  readonly renew: readonly StorageKey[]; // 也在 local 里：清除时先换成新值，其余的键再删
 }
 
 /** 一次清除后台要动哪些仓库和键。 */
