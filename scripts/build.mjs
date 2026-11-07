@@ -1,4 +1,4 @@
-// 构建：esbuild 打包入口、复制 static/、写入清单版本号。不压缩、不带 source map，商店审核读得懂。
+// 构建：esbuild 打包入口、复制 static/、写入清单版本号。不压缩、不带 source map，方便用户和贡献者审阅发布包。
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";

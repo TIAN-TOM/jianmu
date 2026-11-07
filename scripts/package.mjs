@@ -1,6 +1,6 @@
 // 打包：从 build/ 打 dist/jianmu-<版本>.zip，打之前逐项校验，校验不过就不出包。
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { dirname, join, posix, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -44,10 +44,10 @@ function pageReferences(file, html) {
 
 /**
  * 纯校验，方便测试。
- * @param {{ files: readonly string[], read: (file: string) => string, expectedFiles: readonly string[], version: string, storeListing?: string }} input
+ * @param {{ files: readonly string[], read: (file: string) => string, expectedFiles: readonly string[], version: string }} input
  * @returns {string[]}
  */
-export function findPackageProblems({ files, read, expectedFiles, version, storeListing }) {
+export function findPackageProblems({ files, read, expectedFiles, version }) {
   const problems = [];
   const present = new Set(files);
   for (const file of files) {
@@ -80,9 +80,6 @@ export function findPackageProblems({ files, read, expectedFiles, version, store
   const expected = [...expectedFiles].sort().join("\n");
   const actual = [...files].sort().join("\n");
   if (expected !== actual) problems.push(`文件清单和 tests/fixtures/package-files.txt 不一致：\n${actual}`);
-  if (storeListing !== undefined && !storeListing.includes(`jianmu-${version}.zip`)) {
-    problems.push(`STORE-LISTING.md 里没有 jianmu-${version}.zip`);
-  }
   return problems;
 }
 
@@ -97,13 +94,11 @@ function listFiles(dir) {
 function main() {
   const { version } = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
   const expectedFiles = readFileSync(join(ROOT, "tests/fixtures/package-files.txt"), "utf8").split("\n").filter(Boolean);
-  const listingPath = join(ROOT, "STORE-LISTING.md");
   const problems = findPackageProblems({
     files: listFiles(BUILD),
     read: (file) => readFileSync(join(BUILD, file), "utf8"),
     expectedFiles,
     version,
-    ...(existsSync(listingPath) ? { storeListing: readFileSync(listingPath, "utf8") } : {}),
   });
   if (problems.length > 0) {
     console.error(`打包校验没过，共 ${problems.length} 项：`);

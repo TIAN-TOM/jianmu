@@ -10,19 +10,17 @@ const good: Record<string, string> = {
   "pages/a.js": "console.log(2);\n",
 };
 
-function problems(files: Record<string, string>, extra: { storeListing?: string } = {}): string[] {
+function problems(files: Record<string, string>): string[] {
   return findPackageProblems({
     files: Object.keys(files),
     read: (file) => files[file] ?? "",
     expectedFiles: Object.keys(good),
     version: "1.2.3",
-    ...extra,
   });
 }
 
 test("合格的包不报", () => {
   assert.deepEqual(problems(good), []);
-  assert.deepEqual(problems(good, { storeListing: "安装包：jianmu-1.2.3.zip" }), []);
 });
 
 test("拦下各类问题", () => {
@@ -43,7 +41,6 @@ test("拦下各类问题", () => {
   for (const [files, expected] of cases) {
     assert.ok(problems(files).some((problem) => expected.test(problem)), String(expected));
   }
-  assert.ok(problems(good, { storeListing: "安装包：jianmu-1.0.0.zip" }).some((problem) => /STORE-LISTING/.test(problem)));
   const { "manifest.json": _dropped, ...withoutManifest } = good;
   assert.ok(problems(withoutManifest).some((problem) => /manifest\.json 不在包的顶层/.test(problem)));
 });

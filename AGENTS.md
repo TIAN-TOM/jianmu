@@ -6,14 +6,16 @@
 
 ## 现在有什么
 
-核心逻辑已经移植完（架构设计第 12 节第 3 步），还没有用户能用的功能。下表只列已有的东西。目标结构见架构设计第 5.1 节。
+核心逻辑已经移植完，架构设计第 12 节第 4 步（身份和存储）进行中，还没有用户能用的功能。下表只列已有的东西。目标结构见架构设计第 5.1 节。
 
 | 位置 | 做什么 |
 | --- | --- |
 | `manifest.template.json` | 清单模板，手写；版本号由构建写入 |
-| `src/core/` | 纯逻辑，不碰 `chrome.*` 和 DOM：视频身份、并发、任务、清除闸门、高亮，以及 `transcript/`、`qa/`、`triage/`、`ai/` |
-| `src/shared/` | `names.ts` 存储键 |
+| `src/core/` | 纯逻辑，不碰 `chrome.*` 和 DOM：视频身份、并发、任务、清除闸门、高亮，以及 `transcript/`、`qa/`、`triage/`、`ai/`、`notes/` |
+| `src/shared/` | `names.ts` 存储键，`storage-plan.ts` 每份本机数据的清除和备份归属 |
+| `src/platform/` | `idb.ts` IndexedDB 驱动 |
 | `src/background/`、`src/pages/` | 后台入口、内联的提示词和侧边栏占位页 |
+| `src/background/stores/` | 字幕缓存、笔记、概览三个仓储，`write-gate.ts` 是它们共用的写入关口 |
 | `prompts/` | 提示词模板，构建时内联进后台包 |
 | `static/` | 原样复制进构建产物 |
 | `scripts/` | `build.mjs` 构建，`package.mjs` 打包和校验，`check-public.mjs` 公开结构检查 |
@@ -46,7 +48,7 @@ npm run test:e2e    # 端到端冒烟，用 CHROME_PATH 指定 Chrome for Testin
 - 新增或升级依赖，在 PR 里写明是什么、为什么要。`.npmrc` 开了 `ignore-scripts`，`npm run` 不跑 pre、post 脚本，别依赖它们。
 - 读写设置一律经 settings store 的锁，不直接写整份设置，否则密钥可能落盘。
 - 删掉的设置项不留界面也不留存储；改设置结构时，旧值要么安全忽略，要么迁移，并补测试。
-- 发给模型的数据类别、用途、接收方、发送的触发方式或范围有实质变化，同步改设置页的数据说明、首次启用说明、同意表、`PRIVACY.md`、`STORE-LISTING.md`；超出原同意范围的升版，开发期间也一样。规则见 PRD 第 9.2 节，版本号见方案第 7.3 节。
+- 发给模型的数据类别、用途、接收方、发送的触发方式或范围有实质变化，同步改设置页的数据说明、首次启用说明、同意表、`PRIVACY.md`、README；超出原同意范围的升版，开发期间也一样。规则见 PRD 第 9.2 节，版本号见方案第 7.3 节。
 - 端到端的模拟服务器建好以后，扩展新增对外请求时要给它补一条路由，否则测试会把它当意外请求判失败。
 - GPL、AGPL 许可的同类项目只借思路，不用代码。
 

@@ -7,7 +7,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const TOP_LEVEL = new Set([
   ".gitattributes", ".github", ".gitignore", ".node-version", ".npmrc",
-  "AGENTS.md", "CHANGELOG.md", "LICENSE", "PRIVACY.md", "README.md", "SECURITY.md", "STORE-LISTING.md",
+  "AGENTS.md", "CHANGELOG.md", "LICENSE", "PRIVACY.md", "README.md", "SECURITY.md",
   "e2e", "manifest.template.json", "notes", "package-lock.json", "package.json", "prompts", "scripts",
   "src", "static", "tests",
   "tsconfig.base.json", "tsconfig.node.json", "tsconfig.pages.json", "tsconfig.sw.json",
