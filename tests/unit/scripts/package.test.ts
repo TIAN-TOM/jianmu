@@ -21,6 +21,7 @@ function problems(files: Record<string, string>): string[] {
 
 test("合格的包不报", () => {
   assert.deepEqual(problems(good), []);
+  assert.deepEqual(problems({ ...good, "background.js": 'const tip = "不读 Cookie 内容";\n' }), [], "文案里的大写 Cookie 不算读取");
 });
 
 test("拦下各类问题", () => {
@@ -34,6 +35,16 @@ test("拦下各类问题", () => {
     [{ ...good, "background.js": "importScripts('https://example.com/a.js');\n" }, /远程脚本/],
     [{ ...good, "background.js": "a();\r\nb();\r\n" }, /CRLF/],
     [{ ...good, "pages/a.html": '<script src="./missing.js"></script>' }, /missing\.js 不在包里/],
+    [{ ...good, "background.js": "const c = document.cookie;\n" }, /读 Cookie/],
+    [{ ...good, "background.js": "chrome.cookies.getAll({});\n" }, /读 Cookie/],
+    [{ ...good, "background.js": "const c = document?.cookie;\n" }, /读 Cookie/],
+    [{ ...good, "background.js": 'const c = document["cookie"];\n' }, /读 Cookie/],
+    [{ ...good, "background.js": "cookieStore.getAll();\n" }, /读 Cookie/],
+    [{ ...good, "background.js": "chrome?.cookies.getAll({});\n" }, /读 Cookie/],
+    [{ ...good, "background.js": 'const c = document?.["cookie"];\n' }, /读 Cookie/],
+    [{ ...good, "background.js": "const { cookie } = document;\n" }, /读 Cookie/],
+    [{ ...good, "background.js": "const doc = document; doc.cookie;\n" }, /读 Cookie/],
+    [{ ...good, "background.js": 'Reflect.get(document, "cookie");\n' }, /读 Cookie/],
     [{ ...good, "manifest.json": JSON.stringify({ version: "9.9.9", background: { service_worker: "background.js" } }) }, /清单版本/],
     [{ ...good, "manifest.json": JSON.stringify({ version: "1.2.3", background: { service_worker: "gone.js" } }) }, /gone\.js 不在包里/],
     [{ ...good, "extra.js": "" }, /文件清单/],

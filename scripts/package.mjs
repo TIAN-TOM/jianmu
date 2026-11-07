@@ -14,6 +14,8 @@ const FORBIDDEN_CODE = [
   [/\bimportScripts\(\s*["'`]https?:/, "远程脚本地址"],
   [/\bimport\(\s*["'`]https?:/, "远程脚本地址"],
   [/<script[^>]+src=["']https?:/, "远程脚本地址"],
+  // 只认小写：给用户看的文案里写 Cookie 是说明，不是读取。
+  [/\bcookies?\b|\bcookieStore\b/, "读 Cookie 的代码"],
 ];
 
 /** @param {Record<string, any>} manifest @returns {string[]} */
