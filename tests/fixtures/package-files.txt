@@ -1,3 +1,4 @@
+LICENSE.txt
 background.js
 manifest.json
 pages/sidepanel.html

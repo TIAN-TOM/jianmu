@@ -80,3 +80,13 @@ test("运行时代码引用的提示词文件与小节名都存在", () => {
     }
   }
 });
+
+test("包里带项目和打进包的依赖的许可声明", () => {
+  const licenses = readBuild("LICENSE.txt");
+  assert.ok(licenses.startsWith("MIT License"), "项目自己的许可在最前面");
+  for (const holder of ["TIAN-TOM", "k1234567", "Zara Zhang"]) assert.ok(licenses.includes(holder), `缺 ${holder}`);
+  for (const name of ["preact", "@preact/signals", "@preact/signals-core"]) {
+    assert.ok(licenses.includes(`\n${name}\n`), `缺 ${name} 的许可`);
+  }
+  assert.ok(!licenses.includes("\r"));
+});

@@ -49,11 +49,23 @@ function writeManifest() {
   writeFileSync(join(OUT, "manifest.json"), `${JSON.stringify({ ...manifest, version }, null, 2)}\n`);
 }
 
+// 打进包的依赖：它们的许可证要随包提供，换依赖时这里跟着改。
+const BUNDLED_PACKAGES = ["preact", "@preact/signals", "@preact/signals-core"];
+
+function writeLicenses() {
+  const sections = [
+    readFileSync(join(ROOT, "LICENSE"), "utf8"),
+    ...BUNDLED_PACKAGES.map((name) => `${name}\n\n${readFileSync(join(ROOT, "node_modules", name, "LICENSE"), "utf8")}`),
+  ];
+  writeFileSync(join(OUT, "LICENSE.txt"), sections.map((text) => text.trim().replaceAll("\r\n", "\n")).join("\n\n---\n\n") + "\n");
+}
+
 function prepareOutput() {
   rmSync(OUT, { recursive: true, force: true });
   mkdirSync(OUT, { recursive: true });
   if (existsSync(join(ROOT, "static"))) cpSync(join(ROOT, "static"), OUT, { recursive: true });
   writeManifest();
+  writeLicenses();
 }
 
 prepareOutput();

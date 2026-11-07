@@ -6,8 +6,8 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BUILD = join(ROOT, "build");
-const ALLOWED_EXTENSIONS = new Set([".css", ".html", ".js", ".json", ".png"]);
-const TEXT_EXTENSIONS = new Set([".css", ".html", ".js", ".json"]);
+const ALLOWED_EXTENSIONS = new Set([".css", ".html", ".js", ".json", ".png", ".txt"]);
+const TEXT_EXTENSIONS = new Set([".css", ".html", ".js", ".json", ".txt"]);
 const FORBIDDEN_CODE = [
   [/\beval\(/, "eval("],
   [/\bnew Function\b/, "new Function"],
