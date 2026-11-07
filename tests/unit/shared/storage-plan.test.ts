@@ -26,6 +26,7 @@ const ROWS: readonly (readonly [string, Plan])[] = [
   ["jianmu_auto_ledger", { area: "session", clearCache: "keep", clearAll: "clear", backup: false }],
   ["jianmu_settings_revision", { area: "local", clearCache: "keep", clearAll: "renew", backup: false }],
   ["jianmu_appearance", { area: "localStorage", clearCache: "keep", clearAll: "page-default", backup: false }],
+  ["jianmu_site_backoff", { area: "session", clearCache: "keep", clearAll: "keep", backup: false }],
 ];
 
 function seeded() {
@@ -86,6 +87,15 @@ test("清除全部数据：每个仓库、storage.local 和会话存储一个不
   assert.deepEqual(targets.renew, ["jianmu_settings_revision"]);
   for (const key of targets.renew) await world.local.set({ [key]: "revision-new" });
   assert.deepEqual(world.local.data, { jianmu_settings_revision: "revision-new" });
+});
+
+test("清除全部数据留着退避状态：两种清除都不碰它", () => {
+  for (const scope of ["cache", "all"] as const) {
+    const targets = clearTargets(scope);
+    assert.equal(targets.session.includes("jianmu_site_backoff"), false, scope);
+    assert.equal(targets.local.includes("jianmu_site_backoff"), false, scope);
+    assert.equal(targets.renew.includes("jianmu_site_backoff"), false, scope);
+  }
 });
 
 test("清除全部后留下新的设置修订号", async () => {

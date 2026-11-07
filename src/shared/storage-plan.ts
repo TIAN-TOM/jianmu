@@ -10,6 +10,7 @@ import {
   RELAX_STORAGE_KEY,
   SETTINGS_REVISION_KEY,
   SETTINGS_STORAGE_KEY,
+  SITE_BACKOFF_KEY,
   STORAGE_KEYS,
   STORE_NAMES,
   TRIAGE_STORAGE_KEY,
@@ -24,7 +25,8 @@ export interface Plan {
   readonly area: StorageArea;
   readonly clearCache: "keep" | "clear";
   // renew：由后台换成新值，清除时最先写。page-default：后台碰不到 localStorage，各页面收到清除广播后按默认值重写。
-  readonly clearAll: "clear" | "renew" | "page-default";
+  // keep：不是用户资料，清除全部数据也留着。
+  readonly clearAll: "clear" | "renew" | "page-default" | "keep";
   readonly backup: boolean;
 }
 
@@ -46,6 +48,7 @@ export const STORAGE_PLAN = {
   [AUTO_LEDGER_KEY]: { area: "session", clearCache: "keep", clearAll: "clear", backup: false },
   [SETTINGS_REVISION_KEY]: { area: "local", clearCache: "keep", clearAll: "renew", backup: false },
   [APPEARANCE_CACHE_KEY]: { area: "localStorage", clearCache: "keep", clearAll: "page-default", backup: false },
+  [SITE_BACKOFF_KEY]: { area: "session", clearCache: "keep", clearAll: "keep", backup: false },
 } as const satisfies Record<StoreName | StorageKey, Plan>;
 
 export interface ClearTargets {
@@ -58,7 +61,7 @@ export interface ClearTargets {
 /** 一次清除后台要动哪些仓库和键。 */
 export function clearTargets(scope: ClearScope): ClearTargets {
   const cleared = (plan: Plan): boolean =>
-    scope === "cache" ? plan.clearCache === "clear" : plan.clearAll !== "page-default";
+    scope === "cache" ? plan.clearCache === "clear" : plan.clearAll === "clear" || plan.clearAll === "renew";
   const keysIn = (area: StorageArea): StorageKey[] =>
     STORAGE_KEYS.filter((key) => STORAGE_PLAN[key].area === area && cleared(STORAGE_PLAN[key]));
   return {
