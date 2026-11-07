@@ -3,11 +3,23 @@
 import { presetById, resolveEndpoint, validateBaseUrl, type BaseUrlCheck } from "../../src/core/ai/provider/endpoint.ts";
 import type { AiSettings } from "../../src/core/ai/provider/index.ts";
 import type { TransportSettingsRules } from "../../src/core/ai/transport/index.ts";
+import {
+  DATA_CONSENT_ERROR,
+  DATA_CONSENT_FINGERPRINT,
+  DATA_CONSENT_VERSION,
+  dataConsentGiven,
+} from "../../src/core/consent.ts";
+
+export { DATA_CONSENT_ERROR, DATA_CONSENT_FINGERPRINT, DATA_CONSENT_VERSION };
 
 export const CUSTOM_PRESET_ID = "custom";
-export const DATA_CONSENT_VERSION = 2;
-export const DATA_CONSENT_ERROR = "请先在设置页「AI 服务」一节读一下数据说明，勾选「我已了解」。";
 export const AI_TIMEOUT_SECONDS = 120;
+
+/** 确认过当前数据说明的设置字段。 */
+export const CONSENTED = {
+  dataConsentVersion: DATA_CONSENT_VERSION,
+  dataConsentFingerprint: DATA_CONSENT_FINGERPRINT,
+} as const;
 
 // 预设的默认模型，只有这两家写了。
 const DEFAULT_MODELS: Readonly<Record<string, string>> = {
@@ -27,6 +39,7 @@ export interface SettingsInput {
   readonly featureModels?: Readonly<Record<string, unknown>> | undefined;
   readonly featureModelsOwner?: string | undefined;
   readonly dataConsentVersion?: number | undefined;
+  readonly dataConsentFingerprint?: string | undefined;
 }
 
 export interface NormalizedSettings extends AiSettings {
@@ -35,6 +48,7 @@ export interface NormalizedSettings extends AiSettings {
   readonly featureModels: Readonly<Record<string, string>>;
   readonly featureModelsOwner: string;
   readonly dataConsentVersion: number;
+  readonly dataConsentFingerprint: string;
 }
 
 export function originOf(baseUrl: string): string | null {
@@ -102,6 +116,7 @@ export function normalize(input: SettingsInput = {}): NormalizedSettings {
       Number.isInteger(source.dataConsentVersion) && (source.dataConsentVersion as number) > 0
         ? (source.dataConsentVersion as number)
         : 0,
+    dataConsentFingerprint: typeof source.dataConsentFingerprint === "string" ? source.dataConsentFingerprint : "",
   };
 }
 
@@ -113,7 +128,7 @@ export function validate(settings: SettingsInput): {
   const normalized = normalize(settings);
   const errors: string[] = [];
   if (!normalized.aiApiKey) errors.push("请填写 API 密钥（浏览器重启、扩展更新后要重新填）。");
-  if (normalized.dataConsentVersion !== DATA_CONSENT_VERSION) errors.push(DATA_CONSENT_ERROR);
+  if (!dataConsentGiven(normalized, CONSENTED)) errors.push(DATA_CONSENT_ERROR);
   const base = validateBaseUrl(normalized.aiBaseUrl, normalized.protocol);
   if (!base.ok) errors.push(base.error);
   if (!normalized.aiModel) errors.push("请填写模型名称，或点击「拉取模型列表」进行选择。");
@@ -139,7 +154,7 @@ export const settingsRules: TransportSettingsRules = {
   validate,
   normalize,
   withFeatureModel,
-  dataConsentVersion: DATA_CONSENT_VERSION,
+  ...CONSENTED,
   dataConsentError: DATA_CONSENT_ERROR,
   timeoutSeconds: AI_TIMEOUT_SECONDS,
 };

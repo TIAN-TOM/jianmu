@@ -8,6 +8,7 @@
 // 设置页「拉取模型列表」和后台都会写这份缓存：后台在缓存过期或缺失时自己拉一次，
 // 免得用户没点过拉取就一直用不上能力数据。
 import { NO_CLEAR_GUARD, type ClearEpoch, type ClearGuard } from "../clear-guard.ts";
+import { dataConsentGiven, type DataConsentRules, type StoredDataConsent } from "../consent.ts";
 import { CAPABILITY_STORAGE_KEY } from "../../shared/names.ts";
 import {
   buildModelsRequest,
@@ -83,8 +84,8 @@ export type ModelsSend = (request: ModelsRequest, settings?: AiSettings) => Prom
 export type ConsentGuardedSend = ModelsSend & { readonly consentGuarded: true };
 
 export interface ConsentGuardDeps {
-  readonly getSettings: () => Promise<{ readonly dataConsentVersion?: unknown }>;
-  readonly settingsRules: { readonly dataConsentVersion: number; readonly dataConsentError: string };
+  readonly getSettings: () => Promise<StoredDataConsent>;
+  readonly settingsRules: DataConsentRules & { readonly dataConsentError: string };
   readonly send: ModelsSend;
 }
 
@@ -296,12 +297,11 @@ export function createJsonGetter(fetchImpl: JsonFetch, timeoutMs = FETCH_TIMEOUT
 
 /**
  * 查模型能力要带着密钥翻页读模型列表。用户在途中取消了数据说明的确认，后面的页就不再发。
- * 设置里的同意版本由读设置时规整好，这里只比对。
+ * 设置里的同意版本和指纹由读设置时规整好，这里只比对。
  */
 export function createConsentGuardedGetter({ getSettings, settingsRules, send }: ConsentGuardDeps): ConsentGuardedSend {
   const guarded: ModelsSend = async (request, settings) => {
-    const current = await getSettings();
-    if (current.dataConsentVersion !== settingsRules.dataConsentVersion) {
+    if (!dataConsentGiven(await getSettings(), settingsRules)) {
       const error: ProviderError = new Error(settingsRules.dataConsentError);
       error.code = "NO_DATA_CONSENT";
       throw error;

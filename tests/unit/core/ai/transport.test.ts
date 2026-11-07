@@ -39,7 +39,7 @@ function makeSettings(overrides: SETTINGS.SettingsInput = {}) {
     aiApiKey: "test-key",
     aiBaseUrl: "https://api.example.com/v1",
     aiModel: "test-model",
-    dataConsentVersion: SETTINGS.DATA_CONSENT_VERSION,
+    ...SETTINGS.CONSENTED,
     ...overrides,
   });
 }
@@ -376,11 +376,14 @@ test("校验放行时，发出之前的同意核对照样拦下", async () => {
 
 test("设置规则缺了核对同意要用的项时建不出传输层", () => {
   const { dataConsentVersion: _version, ...withoutVersion } = SETTINGS.settingsRules;
+  const { dataConsentFingerprint: _fingerprint, ...withoutFingerprint } = SETTINGS.settingsRules;
   const incomplete: readonly unknown[] = [
     undefined,
     withoutVersion,
+    withoutFingerprint,
     { ...SETTINGS.settingsRules, dataConsentVersion: 0 },
     { ...SETTINGS.settingsRules, dataConsentVersion: 1.5 },
+    { ...SETTINGS.settingsRules, dataConsentFingerprint: "" },
     { ...SETTINGS.settingsRules, dataConsentError: "" },
     { ...SETTINGS.settingsRules, normalize: undefined },
     { ...SETTINGS.settingsRules, validate: undefined },
@@ -569,6 +572,7 @@ test("后台：查模型能力途中取消了确认，后面的页和模型请�
       aiApiKey: "sk-ant-test",
       aiApiKeyOrigin: "https://api.anthropic.com/",
       aiModel: "claude-sonnet-5-5",
+      ...SETTINGS.CONSENTED,
       dataConsentVersion: consent,
     });
   const jsonGet = createJsonGetter(async (url) => {
@@ -2060,7 +2064,7 @@ const SETTINGS_OPENAI = SETTINGS.normalize({
   protocol: PROTOCOLS.OPENAI,
   aiBaseUrl: "https://ai.example.com/v1",
   aiApiKey: "offline-dummy-key",
-  dataConsentVersion: SETTINGS.DATA_CONSENT_VERSION,
+  ...SETTINGS.CONSENTED,
   aiModel: "offline-model",
 });
 
@@ -2107,7 +2111,7 @@ test("Anthropic 的信封被截断时同样标成截断", async () => {
     protocol: PROTOCOLS.ANTHROPIC,
     aiBaseUrl: "https://claude.example.com",
     aiApiKey: "offline-dummy-key",
-    dataConsentVersion: SETTINGS.DATA_CONSENT_VERSION,
+    ...SETTINGS.CONSENTED,
     aiModel: "claude-offline",
   });
   const envelope = { content: [{ type: "text", text: ANSWER }], stop_reason: "end_turn" };
@@ -2145,7 +2149,7 @@ function customSettings(overrides: SETTINGS.SettingsInput = {}) {
     protocol: PROTOCOLS.OPENAI,
     aiBaseUrl: "https://api.example.com/v1",
     aiApiKey: "test-key",
-    dataConsentVersion: SETTINGS.DATA_CONSENT_VERSION,
+    ...SETTINGS.CONSENTED,
     aiModel: "m-default",
     ...overrides,
   });
@@ -2207,7 +2211,7 @@ test("放宽记忆按实际模型区分：一个模型拒绝过的参数不连�
     protocol: PROTOCOLS.ANTHROPIC,
     aiBaseUrl: "https://gateway.example.com",
     aiApiKey: "sk-gw",
-    dataConsentVersion: SETTINGS.DATA_CONSENT_VERSION,
+    ...SETTINGS.CONSENTED,
     aiModel: "gw-strict-ok",
     featureModels: { analysis: "gw-rejects-disabled" },
   });
@@ -2265,7 +2269,7 @@ function anthropicKeyedSettings(aiBaseUrl: string) {
     protocol: PROTOCOLS.ANTHROPIC,
     aiBaseUrl,
     aiApiKey: KEY,
-    dataConsentVersion: SETTINGS.DATA_CONSENT_VERSION,
+    ...SETTINGS.CONSENTED,
     aiApiKeyOrigin: SETTINGS.originOf(aiBaseUrl),
     aiModel: "claude-test",
   });
@@ -2350,7 +2354,7 @@ test("模型服务在 HTTP 报错里回显密钥时，错误和给界面的提�
     protocol: PROTOCOLS.OPENAI,
     aiBaseUrl: "https://gateway.example.com/v1",
     aiApiKey: KEY,
-    dataConsentVersion: SETTINGS.DATA_CONSENT_VERSION,
+    ...SETTINGS.CONSENTED,
     aiModel: "test-model",
   });
   const transport = transportFor(settings, async () => ({
@@ -2373,7 +2377,7 @@ test("Responses 返回 200 但生成失败、报错里回显密钥时，空响�
     protocol: PROTOCOLS.RESPONSES,
     aiBaseUrl: "https://gateway.example.com/v1",
     aiApiKey: KEY,
-    dataConsentVersion: SETTINGS.DATA_CONSENT_VERSION,
+    ...SETTINGS.CONSENTED,
     aiModel: "gpt-test",
   });
   const transport = transportFor(settings, async () => ({
@@ -2394,7 +2398,7 @@ test("拒答说明里回显密钥时，报错同样脱敏", async () => {
     protocol: PROTOCOLS.RESPONSES,
     aiBaseUrl: "https://gateway.example.com/v1",
     aiApiKey: KEY,
-    dataConsentVersion: SETTINGS.DATA_CONSENT_VERSION,
+    ...SETTINGS.CONSENTED,
     aiModel: "gpt-test",
   });
   const transport = transportFor(settings, async () => RESP.asFetchResponse(RESP.refusal(`cannot use ${KEY}`)));

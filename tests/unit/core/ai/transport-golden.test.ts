@@ -39,7 +39,7 @@ async function throughTransport({ protocol, baseUrl, model, sample }: ChainCase)
     aiApiKey: "sk-golden-fake",
     aiBaseUrl: baseUrl,
     aiModel: model,
-    dataConsentVersion: SETTINGS.DATA_CONSENT_VERSION,
+    ...SETTINGS.CONSENTED,
   });
   let calls = 0;
   const transport = createAiTransport({

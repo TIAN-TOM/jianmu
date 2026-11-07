@@ -1,4 +1,5 @@
 // 一次模型调用的完整过程：校验配置、查能力、发送，以及空响应、截断、限流各自的自愈。
+import { dataConsentGiven } from "../../consent.ts";
 import {
   canRaiseBudget,
   createRelaxMemory,
@@ -36,7 +37,7 @@ import type {
   TransportSettingsRules,
 } from "./types.ts";
 
-// 同意的核对靠这几样。缺一样、或者版本号不是正整数，比较就可能恒成立，所以建传输层时就拦下。
+// 同意的核对靠这几样。缺一样、版本号不是正整数或者指纹是空的，比较就可能恒成立，所以建传输层时就拦下。
 function assertSettingsRules(rules: TransportSettingsRules | undefined): void {
   const complete =
     typeof rules?.validate === "function" &&
@@ -44,10 +45,11 @@ function assertSettingsRules(rules: TransportSettingsRules | undefined): void {
     typeof rules.withFeatureModel === "function" &&
     Number.isInteger(rules.dataConsentVersion) &&
     rules.dataConsentVersion > 0 &&
+    Boolean(rules.dataConsentFingerprint) &&
     Boolean(rules.dataConsentError) &&
     rules.timeoutSeconds > 0;
   if (!complete) {
-    throw new Error("AI 传输层需要设置规则：校验、规整、按功能换模型、同意版本和提示、默认超时");
+    throw new Error("AI 传输层需要设置规则：校验、规整、按功能换模型、同意版本、指纹和提示、默认超时");
   }
 }
 
@@ -285,8 +287,7 @@ export function createAiTransport({
   // 之后的加码重试、放宽重发都不再发。开头的校验和第一次请求之间还隔着查模型能力
   // （Anthropic 要联网），所以每次发之前都查一遍，第一次也不例外。
   async function assertConsentStillGiven(): Promise<void> {
-    const current = settingsRules.normalize(await getSettings());
-    if (current.dataConsentVersion === settingsRules.dataConsentVersion) return;
+    if (dataConsentGiven(settingsRules.normalize(await getSettings()), settingsRules)) return;
     const error: TransportError = new Error(`AI 还没配置好：${settingsRules.dataConsentError}`);
     error.code = "NO_AI_CONFIG";
     throw error;

@@ -24,8 +24,8 @@ const KEY = "FAKE-KEY-FOR-OFFLINE-TESTS-0001";
 // 能力查询只收核对过同意的 GET。用这个的用例不看同意，核对总是通过。
 const consented = (send: CAPS.ModelsSend): CAPS.ConsentGuardedSend =>
   CAPS.createConsentGuardedGetter({
-    getSettings: async () => ({ dataConsentVersion: 1 }),
-    settingsRules: { dataConsentVersion: 1, dataConsentError: "没有确认" },
+    getSettings: async () => ({ dataConsentVersion: 1, dataConsentFingerprint: "指纹" }),
+    settingsRules: { dataConsentVersion: 1, dataConsentFingerprint: "指纹", dataConsentError: "没有确认" },
     send,
   });
 
@@ -300,8 +300,8 @@ test("核对同意的 GET：版本对得上才发，对不上报 NO_DATA_CONSENT
   const sent: unknown[][] = [];
   let version: unknown = 2;
   const get = CAPS.createConsentGuardedGetter({
-    getSettings: async () => ({ dataConsentVersion: version }),
-    settingsRules: { dataConsentVersion: 2, dataConsentError: "请先确认数据说明" },
+    getSettings: async () => ({ dataConsentVersion: version, dataConsentFingerprint: "指纹" }),
+    settingsRules: { dataConsentVersion: 2, dataConsentFingerprint: "指纹", dataConsentError: "请先确认数据说明" },
     send: async (...args) => {
       sent.push(args);
       return "回复";

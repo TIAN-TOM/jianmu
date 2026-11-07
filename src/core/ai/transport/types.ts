@@ -1,4 +1,5 @@
 // 传输层对外的形状：注入的依赖、入参、结果和错误。
+import type { StoredDataConsent } from "../../consent.ts";
 import type {
   AiSettings,
   ChatRequest,
@@ -78,18 +79,20 @@ export type AiFetch = (url: string, init: AiFetchInit) => Promise<TransportRespo
 
 /**
  * 设置模块提供的规则：校验、规整、按功能换模型都按它的口径来。
- * 同意的核对在传输层自己做，每次发出之前读一次设置，规整后的版本号和 dataConsentVersion 比，
- * 所以 normalize 和 dataConsentVersion 是必需的，建传输层时会查。
+ * 同意的核对在传输层自己做，每次发出之前读一次设置，规整后的版本和指纹都要和这里的对上，
+ * 所以 normalize、dataConsentVersion 和 dataConsentFingerprint 是必需的，建传输层时会查。
  */
 export interface TransportSettingsRules {
   /** 配置是否足以发起一次请求，errors 是给用户看的提示。 */
   readonly validate: (settings: AiSettings) => { readonly ok: boolean; readonly errors: readonly string[] };
-  /** 规整一份设置，这里只读其中用户确认过的数据说明版本。 */
-  readonly normalize: (settings: AiSettings) => { readonly dataConsentVersion?: unknown };
+  /** 规整一份设置，这里只读其中用户确认过的数据说明版本和指纹。 */
+  readonly normalize: (settings: AiSettings) => StoredDataConsent;
   /** 把 aiModel 换成这项功能实际要用的模型，没有选过就原样返回。 */
   readonly withFeatureModel: (settings: AiSettings, feature: string | undefined) => AiSettings;
   /** 当前数据说明的版本，正整数；0 表示用户还没确认过，不能拿来比。 */
   readonly dataConsentVersion: number;
+  /** 当前数据说明条目的指纹，不能是空串。 */
+  readonly dataConsentFingerprint: string;
   /** 没有确认时给用户的提示。 */
   readonly dataConsentError: string;
   /** 硬超时的默认值，秒。 */
