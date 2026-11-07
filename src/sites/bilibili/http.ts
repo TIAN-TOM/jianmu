@@ -47,7 +47,7 @@ const API_INIT: RequestInit = { credentials: "include", cache: "no-store", heade
 const FILE_INIT: RequestInit = { credentials: "omit", cache: "default", headers: ACCEPT_JSON };
 const FILE_HOST_SUFFIX = ".hdslb.com";
 
-const ABORTED: SiteResult<never> = { ok: false, code: "NETWORK", detail: "aborted" };
+export const ABORTED: SiteResult<never> = { ok: false, code: "NETWORK", detail: "aborted" };
 const NEVER_ABORTED = new AbortController().signal;
 
 type Channel = "account" | "api" | "file";
@@ -217,7 +217,7 @@ async function clearStrikes(ctx: SiteCtx): Promise<void> {
 }
 
 // 调用方取消只是不再等，共用的请求照常跑完。
-function untilAborted<T>(work: Promise<SiteResult<T>>, signal: AbortSignal): Promise<SiteResult<T>> {
+export function untilAborted<T>(work: Promise<SiteResult<T>>, signal: AbortSignal): Promise<SiteResult<T>> {
   return new Promise((resolve) => {
     const stop = (): void => resolve(ABORTED);
     if (signal.aborted) stop();
