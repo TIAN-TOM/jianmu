@@ -1,0 +1,391 @@
+{
+ "schema": 1,
+ "name": "bilibili-sign",
+ "title": "B 站接口要求的请求签名",
+ "cases": [
+  {
+   "id": "md5#1",
+   "label": "",
+   "fn": "md5",
+   "args": [
+    ""
+   ],
+   "result": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  {
+   "id": "md5#2",
+   "label": "",
+   "fn": "md5",
+   "args": [
+    "a"
+   ],
+   "result": "0cc175b9c0f1b6a831c399e269772661"
+  },
+  {
+   "id": "md5#3",
+   "label": "",
+   "fn": "md5",
+   "args": [
+    "abc"
+   ],
+   "result": "900150983cd24fb0d6963f7d28e17f72"
+  },
+  {
+   "id": "md5#4",
+   "label": "",
+   "fn": "md5",
+   "args": [
+    "番茄"
+   ],
+   "result": "2a31c61781bad84ec252fc746cd93cdf"
+  },
+  {
+   "id": "md5#5",
+   "label": "",
+   "fn": "md5",
+   "args": [
+    "The quick brown fox"
+   ],
+   "result": "a2004f37730b9445670a738fa0fc9ee5"
+  },
+  {
+   "id": "md5#6",
+   "label": "",
+   "fn": "md5",
+   "args": [
+    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+   ],
+   "result": "04364420e25c512fd958a70738aa8f72"
+  },
+  {
+   "id": "md5#7",
+   "label": "",
+   "fn": "md5",
+   "args": [
+    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+   ],
+   "result": "668a72d5ba17f08e62dabcafad6db14b"
+  },
+  {
+   "id": "md5#8",
+   "label": "",
+   "fn": "md5",
+   "args": [
+    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+   ],
+   "result": "c1bb4f81d892b2d57947682aeb252456"
+  },
+  {
+   "id": "md5#9",
+   "label": "",
+   "fn": "md5",
+   "args": [
+    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+   ],
+   "result": "30a83621ce5422fbdfdd539777458c78"
+  },
+  {
+   "id": "keyFromImageUrl#1",
+   "label": "",
+   "fn": "keyFromImageUrl",
+   "args": [
+    "https://example.invalid/bfs/wbi/0123456789abcdef.png"
+   ],
+   "result": "0123456789abcdef"
+  },
+  {
+   "id": "keyFromImageUrl#2",
+   "label": "",
+   "fn": "keyFromImageUrl",
+   "args": [
+    "https://example.invalid/a/b/c.d.webp"
+   ],
+   "result": "c.d"
+  },
+  {
+   "id": "keyFromImageUrl#3",
+   "label": "",
+   "fn": "keyFromImageUrl",
+   "args": [
+    "no-slash"
+   ],
+   "result": "no-slash"
+  },
+  {
+   "id": "keyFromImageUrl#4",
+   "label": "",
+   "fn": "keyFromImageUrl",
+   "args": [
+    ""
+   ],
+   "result": ""
+  },
+  {
+   "id": "keyFromImageUrl#5",
+   "label": "",
+   "fn": "keyFromImageUrl",
+   "args": [
+    null
+   ],
+   "result": ""
+  },
+  {
+   "id": "deriveSigningSecret#1",
+   "label": "",
+   "fn": "deriveSigningSecret",
+   "args": [
+    "0123456789abcdef0123456789abcdef",
+    "fedcba9876543210fedcba9876543210"
+   ],
+   "result": "1022a87ffdaf532cb45ee953dce8c96d"
+  },
+  {
+   "id": "deriveSigningSecret#2",
+   "label": "",
+   "fn": "deriveSigningSecret",
+   "args": [
+    "goldengoldengoldengoldengolden00",
+    "tomatotomatotomatotomatotomato11"
+   ],
+   "result": "maglalntdte0mdoadonoodtonelogtao"
+  },
+  {
+   "id": "deriveSigningSecret#3",
+   "label": "长度不足",
+   "fn": "deriveSigningSecret",
+   "args": [
+    "short",
+    "short"
+   ],
+   "thrown": {
+    "$error": {
+     "name": "Error",
+     "message": "签名密钥长度不足"
+    }
+   }
+  },
+  {
+   "id": "buildQuery#1",
+   "label": "",
+   "fn": "buildQuery",
+   "args": [
+    {
+     "a": 1,
+     "b": 2
+    }
+   ],
+   "result": "a=1&b=2"
+  },
+  {
+   "id": "buildQuery#2",
+   "label": "",
+   "fn": "buildQuery",
+   "args": [
+    {
+     "plot": 7070,
+     "row": "12",
+     "seed": "番茄"
+    }
+   ],
+   "result": "plot=7070&row=12&seed=%E7%95%AA%E8%8C%84"
+  },
+  {
+   "id": "buildQuery#3",
+   "label": "",
+   "fn": "buildQuery",
+   "args": [
+    {
+     "text": "番茄 a+b/c?d=e"
+    }
+   ],
+   "result": "text=%E7%95%AA%E8%8C%84%20a%2Bb%2Fc%3Fd%3De"
+  },
+  {
+   "id": "buildQuery#4",
+   "label": "",
+   "fn": "buildQuery",
+   "args": [
+    {
+     "n": "",
+     "text": "!'()*留下"
+    }
+   ],
+   "result": "n=&text=%E7%95%99%E4%B8%8B"
+  },
+  {
+   "id": "buildQuery#5",
+   "label": "",
+   "fn": "buildQuery",
+   "args": [
+    {
+     "empty": null,
+     "undef": {
+      "$undefined": true
+     }
+    }
+   ],
+   "result": "empty=&undef="
+  },
+  {
+   "id": "buildQuery#6",
+   "label": "",
+   "fn": "buildQuery",
+   "args": [
+    {}
+   ],
+   "result": ""
+  },
+  {
+   "id": "signParams#1",
+   "label": "普通参数",
+   "fn": "signParams",
+   "args": [
+    {
+     "plot": 7070,
+     "row": "12",
+     "seed": "番茄"
+    },
+    {
+     "imgKey": "0123456789abcdef0123456789abcdef",
+     "subKey": "fedcba9876543210fedcba9876543210"
+    },
+    1793000000
+   ],
+   "result": {
+    "plot": 7070,
+    "row": "12",
+    "seed": "番茄",
+    "w_rid": "f6ad3c07f35c94567115384f1089fd9a",
+    "wts": 1793000000
+   }
+  },
+  {
+   "id": "signParams#2",
+   "label": "带要剔除的字符",
+   "fn": "signParams",
+   "args": [
+    {
+     "plot": 2,
+     "row": 1,
+     "text": "番茄!'()*"
+    },
+    {
+     "imgKey": "0123456789abcdef0123456789abcdef",
+     "subKey": "fedcba9876543210fedcba9876543210"
+    },
+    1793000000
+   ],
+   "result": {
+    "plot": 2,
+    "row": 1,
+    "text": "番茄!'()*",
+    "w_rid": "7526f7d15b5a5f013da68ee3bad8645f",
+    "wts": 1793000000
+   }
+  },
+  {
+   "id": "signedUrl#1",
+   "label": "拼完整地址",
+   "fn": "signedUrl",
+   "args": [
+    "https://example.invalid/sign",
+    {
+     "a": 1,
+     "b": "乙"
+    },
+    {
+     "imgKey": "0123456789abcdef0123456789abcdef",
+     "subKey": "fedcba9876543210fedcba9876543210"
+    },
+    1793000000
+   ],
+   "result": "https://example.invalid/sign?a=1&b=%E4%B9%99&w_rid=d0f4f746ac544e0151046f02dd894c9e&wts=1793000000"
+  },
+  {
+   "id": "signParams#3",
+   "label": "普通参数",
+   "fn": "signParams",
+   "args": [
+    {
+     "plot": 7070,
+     "row": "12",
+     "seed": "番茄"
+    },
+    {
+     "imgKey": "goldengoldengoldengoldengolden00",
+     "subKey": "tomatotomatotomatotomatotomato11"
+    },
+    1793000000
+   ],
+   "result": {
+    "plot": 7070,
+    "row": "12",
+    "seed": "番茄",
+    "w_rid": "8766a56060136c41bfcfa3a00fdf90af",
+    "wts": 1793000000
+   }
+  },
+  {
+   "id": "signParams#4",
+   "label": "带要剔除的字符",
+   "fn": "signParams",
+   "args": [
+    {
+     "plot": 2,
+     "row": 1,
+     "text": "番茄!'()*"
+    },
+    {
+     "imgKey": "goldengoldengoldengoldengolden00",
+     "subKey": "tomatotomatotomatotomatotomato11"
+    },
+    1793000000
+   ],
+   "result": {
+    "plot": 2,
+    "row": 1,
+    "text": "番茄!'()*",
+    "w_rid": "6559a1816f66b26b9afdd228b698ee28",
+    "wts": 1793000000
+   }
+  },
+  {
+   "id": "signedUrl#2",
+   "label": "拼完整地址",
+   "fn": "signedUrl",
+   "args": [
+    "https://example.invalid/sign",
+    {
+     "a": 1,
+     "b": "乙"
+    },
+    {
+     "imgKey": "goldengoldengoldengoldengolden00",
+     "subKey": "tomatotomatotomatotomatotomato11"
+    },
+    1793000000
+   ],
+   "result": "https://example.invalid/sign?a=1&b=%E4%B9%99&w_rid=a942d4841e7ded5d5b389a5dbd7d3f21&wts=1793000000"
+  },
+  {
+   "id": "signParams#5",
+   "label": "时间变了结果就变",
+   "fn": "signParams",
+   "args": [
+    {
+     "a": 1
+    },
+    {
+     "imgKey": "0123456789abcdef0123456789abcdef",
+     "subKey": "fedcba9876543210fedcba9876543210"
+    },
+    1793000001
+   ],
+   "result": {
+    "a": 1,
+    "w_rid": "b0a0e5246b0b16bdff9ccb6186e89560",
+    "wts": 1793000001
+   }
+  }
+ ]
+}
