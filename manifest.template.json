@@ -4,7 +4,9 @@
   "version": "0.0.0-构建时写入",
   "description": "几分钟判断一个长视频值不值得看。正在重写，尚未发布。",
   "minimum_chrome_version": "116",
-  "permissions": ["sidePanel"],
+  "permissions": ["sidePanel", "storage"],
+  "host_permissions": ["https://www.bilibili.com/*", "https://api.bilibili.com/*", "https://*.hdslb.com/*"],
+  "optional_host_permissions": ["https://*/*"],
   "background": {
     "service_worker": "background.js"
   },

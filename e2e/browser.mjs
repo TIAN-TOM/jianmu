@@ -1,8 +1,8 @@
-// 启动断网的无头 Chrome：所有域名都解析失败，扩展连不上外网。
+// 启动无头 Chrome：站点主机映射到本机模拟服务器，其余域名都解析失败，扩展连不上外网。
 import { spawn } from "node:child_process";
 import { createCdp } from "./cdp.mjs";
 
-export function launchChrome({ executable, profileDir }) {
+export function launchChrome({ executable, profileDir, hostRules }) {
   const child = spawn(
     executable,
     [
@@ -10,7 +10,10 @@ export function launchChrome({ executable, profileDir }) {
       "--remote-debugging-pipe",
       "--enable-unsafe-extension-debugging",
       `--user-data-dir=${profileDir}`,
-      "--host-resolver-rules=MAP * ~NOTFOUND",
+      `--host-resolver-rules=${hostRules}`,
+      // 走代理时域名交给代理解析，上面的映射就用不上了。
+      "--no-proxy-server",
+      "--ignore-certificate-errors",
       "--no-first-run",
       "--no-default-browser-check",
       "--disable-component-update",

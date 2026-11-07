@@ -1,10 +1,12 @@
-// 端到端冒烟：把 zip 解压出来的扩展装进断网的 Chrome for Testing，核对后台和侧边栏都没有报错。
+// 端到端冒烟：把 zip 解压出来的扩展装进 Chrome for Testing，站点请求都到本机模拟服务器，其余域名解析失败。
+// 核对后台和侧边栏都没有报错，主机权限和登录状态都生效，也没有意外请求。
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchChrome } from "./browser.mjs";
+import { apiHost, fileHost, PROBE, startMockServer } from "./mock-server.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TIMEOUT_MS = 20_000;
@@ -33,7 +35,8 @@ const work = mkdtempSync(join(tmpdir(), "jianmu-e2e-"));
 const extensionDir = join(work, "extension");
 execFileSync("unzip", ["-q", join(ROOT, "dist", `jianmu-${version}.zip`), "-d", extensionDir]);
 
-const browser = launchChrome({ executable, profileDir: join(work, "profile") });
+const mock = await startMockServer({ dir: work });
+const browser = launchChrome({ executable, profileDir: join(work, "profile"), hostRules: mock.hostRules });
 const { cdp } = browser;
 const sessions = new Map();
 const errors = [];
@@ -87,10 +90,29 @@ try {
   const text = await until("侧边栏渲染出内容", () => evaluate(page, 'document.getElementById("app")?.textContent ?? ""'));
   console.log(`✓ 侧边栏显示：${text}`);
 
+  const readLogin = () =>
+    evaluate(worker, `fetch(${JSON.stringify(PROBE.account)}, { credentials: "include", cache: "no-store" }).then((response) => response.json()).then(${PROBE.loginOf})`);
+  if ((await readLogin()) !== false) throw new Error("没登录时账号接口就回了已登录");
+  await cdp.send("Target.createTarget", { url: PROBE.login });
+  await until("模拟登录生效", readLogin);
+  console.log("✓ 接口请求带上了浏览器的登录状态");
+
+  // 模拟服务器不回跨域响应头，读得到全靠清单的主机权限。
+  const file = await evaluate(worker, `fetch(${JSON.stringify(PROBE.file)}, { credentials: "omit" }).then(async (response) => response.status + " " + (await response.text()))`);
+  if (!file.startsWith("200 ")) throw new Error(`读不到字幕文件：${file}`);
+  const lastApi = mock.requests.filter((entry) => apiHost(entry.host)).at(-1);
+  const files = mock.requests.filter((entry) => fileHost(entry.host));
+  if (!lastApi?.cookie.includes(PROBE.cookie)) throw new Error("接口请求没带登录状态");
+  if (files.length === 0 || files.some((entry) => entry.cookie)) throw new Error("字幕文件请求不该带 Cookie");
+  console.log("✓ 字幕文件靠主机权限读到，没带 Cookie");
+
   // 启动期的报错可能晚一点才到，等一小会再查。
   await new Promise((done) => setTimeout(done, 500));
   if (errors.length > 0) throw new Error(`扩展有报错：\n${errors.join("\n")}`);
   console.log("✓ 没有报错");
+  const stray = mock.requests.filter((entry) => entry.unexpected);
+  if (stray.length > 0) throw new Error(`模拟服务器收到意外请求：${JSON.stringify(stray)}`);
+  console.log(`✓ ${mock.requests.length} 个请求都在模拟路由里`);
 } catch (error) {
   failed = true;
   console.error(`✗ ${error.message}`);
@@ -99,6 +121,7 @@ try {
   if (stderr) console.error(`Chrome 的输出：\n${stderr.slice(-2000)}`);
 } finally {
   browser.child.kill("SIGKILL");
+  mock.close();
   rmSync(work, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 }
 process.exit(failed ? 1 : 0);

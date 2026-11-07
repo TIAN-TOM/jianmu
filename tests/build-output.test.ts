@@ -10,7 +10,10 @@ import { extractPromptSection } from "../src/core/ai/prompt.ts";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BUILD = join(ROOT, "build");
 const BUNDLES = ["background.js", "pages/sidepanel.js"];
-const FORBIDDEN_PERMISSIONS = ["tabs", "activeTab", "cookies", "downloads", "debugger", "tabCapture", "desktopCapture"];
+// 权限只认这几项：多一项要改这里，不靠禁用名单列举。YouTube 和 AI 地址都走运行时申请的可选权限。
+const PERMISSIONS = ["sidePanel", "storage"];
+const HOST_PERMISSIONS = ["https://www.bilibili.com/*", "https://api.bilibili.com/*", "https://*.hdslb.com/*"];
+const OPTIONAL_HOST_PERMISSIONS = ["https://*/*"];
 
 const readBuild = (file: string): string => readFileSync(join(BUILD, file), "utf8");
 
@@ -33,11 +36,9 @@ test("清单不变量", () => {
   const { version } = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
   assert.equal(manifest.manifest_version, 3);
   assert.equal(manifest.version, version);
-  assert.deepEqual(manifest.permissions.filter((name: string) => FORBIDDEN_PERMISSIONS.includes(name)), []);
-  // 安装时不要 YouTube 和宽泛的主机权限：这些只走运行时申请的可选权限。
-  for (const host of manifest.host_permissions ?? []) {
-    assert.doesNotMatch(host, /youtube|<all_urls>|^\*:|^https:\/\/\*\/\*$/);
-  }
+  assert.deepEqual(manifest.permissions, PERMISSIONS);
+  assert.deepEqual(manifest.host_permissions, HOST_PERMISSIONS);
+  assert.deepEqual(manifest.optional_host_permissions, OPTIONAL_HOST_PERMISSIONS);
   assert.equal(manifest.web_accessible_resources, undefined);
 });
 
@@ -47,6 +48,11 @@ test("包里的源文件注释只来自 src/、prompts/ 和依赖包", () => {
     assert.ok(origins.length > 0, `${file} 没有源文件注释`);
     assert.deepEqual(origins.filter((origin) => !/^(?:src\/|node_modules\/|prompts\/[^/]+\.md$)/.test(origin)), [], file);
   }
+});
+
+test("页面包里没有站点的后台读取代码", () => {
+  const origins = [...readBuild("pages/sidepanel.js").matchAll(/^\s*\/\/ (src\/sites\/\S+)$/gm)].map((match) => match[1] ?? "");
+  assert.deepEqual(origins.filter((origin) => !/^src\/sites\/(?:rules\.ts|[^/]+\/url\.ts)$/.test(origin)), []);
 });
 
 test("包里没有 source map 引用", () => {

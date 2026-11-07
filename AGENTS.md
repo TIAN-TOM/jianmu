@@ -6,7 +6,7 @@
 
 ## 现在有什么
 
-核心逻辑、设置、同意和授权已经移植完（架构设计第 12 节第 3、5 步），第 4 步（身份和存储）还差备份，还没有用户能用的功能。下表只列已有的东西。目标结构见架构设计第 5.1 节。
+核心逻辑、设置、同意、授权和 B 站适配层已经移植完（架构设计第 12 节第 3、5、6 步），第 4 步（身份和存储）还差备份，后台服务还没接上，还没有用户能用的功能。下表只列已有的东西。目标结构见架构设计第 5.1 节。
 
 | 位置 | 做什么 |
 | --- | --- |
@@ -14,14 +14,14 @@
 | `src/core/` | 纯逻辑，不碰 `chrome.*` 和 DOM：视频身份、并发、任务、清除闸门、高亮、同意表和启用说明，以及 `transcript/`、`qa/`、`triage/`、`ai/`、`notes/` |
 | `src/shared/` | `names.ts` 存储键，`storage-plan.ts` 每份本机数据的清除和备份归属，`settings-schema.ts` 设置的结构、规整和校验 |
 | `src/platform/` | `idb.ts` IndexedDB 驱动，`storage.ts`、`locks.ts`、`permissions.ts` 是扩展存储、Web Locks 和主机权限的薄封装，`settings-store.ts` 设置读写、会话密钥、记住密钥的本机记录和设置修订号，`site-backoff.ts` 站点限速和退避 |
-| `src/sites/` | 站点适配层：`types.ts`、`page-types.ts` 是契约，`rules.ts` 是地址规则，`bilibili/` 是 B 站的地址解析和播放页 |
+| `src/sites/` | 站点适配层：`types.ts`、`page-types.ts` 是契约，`rules.ts` 是地址规则，`bilibili/` 是 B 站的地址解析、播放页和读取实现，`services.ts` 是后台用的服务注册表 |
 | `src/background/`、`src/pages/` | 后台入口、内联的提示词、`grants.ts` 回收用不上的主机授权，侧边栏占位页 |
 | `src/background/stores/` | 字幕缓存、笔记、概览三个仓储，`write-gate.ts` 是它们共用的写入关口 |
 | `prompts/` | 提示词模板，构建时内联进后台包 |
 | `static/` | 原样复制进构建产物 |
 | `scripts/` | `build.mjs` 构建，`package.mjs` 打包和校验，`check-public.mjs` 公开结构检查 |
 | `tests/` | `unit/` 单元测试，`structure.test.ts` 结构规则，`build-output.test.ts` 构建产物检查，`fixtures/golden/` 黄金样本 |
-| `e2e/` | 把打好的包装进断网的 Chrome for Testing 跑冒烟 |
+| `e2e/` | 把打好的包装进 Chrome for Testing 跑冒烟，站点请求都指向本机模拟服务器，其余域名解析失败 |
 | `notes/` | 公开的设计文档，走白名单 |
 
 ## 命令
@@ -50,7 +50,7 @@ npm run test:e2e    # 端到端冒烟，用 CHROME_PATH 指定 Chrome for Testin
 - 读写设置一律经 settings store 的锁，不直接写整份设置，否则密钥可能落盘。
 - 删掉的设置项不留界面也不留存储；改设置结构时，旧值要么安全忽略，要么迁移，并补测试。
 - 发给模型的数据类别、用途、接收方、发送的触发方式或范围有实质变化，同步改设置页的数据说明、首次启用说明、同意表、`PRIVACY.md`、README；超出原同意范围的升版，开发期间也一样。规则见 PRD 第 9.2 节，版本号见方案第 7.3 节。
-- 端到端的模拟服务器建好以后，扩展新增对外请求时要给它补一条路由，否则测试会把它当意外请求判失败。
+- 扩展新增对外请求时要给端到端的模拟服务器补一条路由，否则测试会把它当意外请求判失败。
 - GPL、AGPL 许可的同类项目只借思路，不用代码。
 
 ## 公开内容的边界
