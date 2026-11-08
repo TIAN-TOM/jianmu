@@ -3,6 +3,7 @@
 
 export interface TabsApi {
   query(info: { url: string[] }): Promise<readonly { readonly id?: number }[]>;
+  get(tabId: number): Promise<{ readonly title?: string }>;
   sendMessage(tabId: number, message: unknown): Promise<unknown>;
 }
 
@@ -70,6 +71,8 @@ export interface Tabs {
   readonly tabsMatching: (matches: readonly string[]) => Promise<readonly number[]>;
   /** 往一个标签页补注入一组内容脚本，先样式后脚本。注入不进去时抛错。 */
   readonly inject: (tabId: number, script: ContentScript) => Promise<void>;
+  /** 标签页的标题，读不到时是 null。只在确认启用之后调。 */
+  readonly title: (tabId: number) => Promise<string | null>;
 }
 
 export function createTabs(
@@ -105,6 +108,14 @@ export function createTabs(
         allFrames,
       })),
     tabsMatching,
+    async title(tabId) {
+      try {
+        const { title } = await tabs.get(tabId);
+        return typeof title === "string" && title.trim() !== "" ? title : null;
+      } catch {
+        return null;
+      }
+    },
     async inject(tabId, { js, css, allFrames }) {
       const target = allFrames ? { tabId, allFrames } : { tabId };
       if (css.length > 0) await scripting.insertCSS({ target, files: [...css] });

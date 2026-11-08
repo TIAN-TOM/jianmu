@@ -347,6 +347,17 @@ test("存过旧版本的只列之后新增的内容", () => {
   assert.deepEqual(status.state === "needed" ? ids(status.items) : [], ["imported-transcript"]);
 });
 
+test("启用说明第 2 版加了 B 站登录状态和稍后再看的观看进度：确认过第 1 版的只看到这两条，第 1 版的指纹不变", () => {
+  const [first, second] = versionStamps(ACTIVATION_TABLE, FRAME_OFF);
+  assert.deepEqual(first, { version: 1, fingerprint: "ea809e9a65f8b633" });
+  assert.equal(second?.version, ACTIVATION_VERSION);
+  assert.ok(first);
+  const status = noticeStatus(ACTIVATION_TABLE, first, FRAME_OFF);
+  assert.ok(status.state === "needed" && status.updated);
+  assert.deepEqual(status.state === "needed" ? ids(status.items) : [], ["bili-login-state", "watch-later-progress"]);
+  assert.ok(status.state === "needed" && status.items.every((entry) => entry.kind === "read"));
+});
+
 test("版本相同指纹不同、认不出的版本：确认失效，认不出同意过什么就显示完整说明", () => {
   const cases: readonly [NoticeTable<string>, number, string][] = [
     [DATA_CONSENT_TABLE, DATA_CONSENT_VERSION, DATA_CONSENT_FINGERPRINT],

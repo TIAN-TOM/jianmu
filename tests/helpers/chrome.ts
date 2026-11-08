@@ -8,7 +8,7 @@ import type { VideoRef } from "../../src/core/video-ref.ts";
 import { createLocks } from "../../src/platform/locks.ts";
 import { PAGE_PATHS, SETTINGS_STORAGE_KEY } from "../../src/shared/names.ts";
 import { ACTIVATION_CONFIRMED, activationStatus } from "../../src/shared/settings-schema.ts";
-import type { SiteRules } from "../../src/sites/types.ts";
+import type { SiteCtx, SiteRules, SiteService } from "../../src/sites/types.ts";
 import { manualTimers } from "./manual-timers.ts";
 import { createMemoryIndexedDb } from "./memory-idb.ts";
 import { memoryStorage, type MemoryStorage } from "./memory-storage.ts";
@@ -70,6 +70,10 @@ export interface FakeChromeOptions {
   readonly prompts?: Readonly<Record<string, string>>;
   /** 换掉后台的端口表。 */
   readonly ports?: Readonly<Record<string, AnyPortSpec>>;
+  /** 后台用的站点读取服务。不给时哪个站都没有读取服务。 */
+  readonly site?: SiteService;
+  /** tabs.get 回的标题。 */
+  readonly tabTitles?: Readonly<Record<number, string>>;
 }
 
 /** 一次调用，记下当时存储里的启用确认算不算数：确认之后查标签页是允许的，之前不行。 */
@@ -144,6 +148,8 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     fetches: [] as string[],
     /** 保活调了几次扩展接口。 */
     pings: 0,
+    /** 后台建的站点读取环境。 */
+    siteCtxs: [] as SiteCtx[],
   };
   const timers = manualTimers();
 
@@ -185,7 +191,8 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     },
     async get(tabId: number) {
       record(calls.tabGets, tabId);
-      return { id: tabId };
+      const title = options.tabTitles?.[tabId];
+      return title === undefined ? { id: tabId } : { id: tabId, title };
     },
     async sendMessage(tabId: number, message: unknown) {
       calls.tabMessages.push({ tabId, message: copy(message) });
@@ -318,6 +325,18 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
       indexedDB: () => indexedDB,
       locks: createLocks(),
       siteRules,
+      sites: {
+        service: (platform) => (options.site && options.site.rules.platform === platform ? options.site : undefined),
+        ctx(_platform, { signal }) {
+          const ctx: SiteCtx = {
+            fetch: () => Promise.reject(new Error("测试里的读取环境不发请求")),
+            signal,
+            backoff: { admit: async () => ({ ok: true }), trip: async () => {}, clear: async () => {} },
+          };
+          calls.siteCtxs.push(ctx);
+          return ctx;
+        },
+      },
       fetch,
       prompts: options.prompts ?? {},
       ping: () => {

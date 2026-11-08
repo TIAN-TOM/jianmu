@@ -67,6 +67,13 @@ const realRoutes = (): Readonly<Record<string, AnyRoute>> =>
     },
     channels: { clear: async () => assert.fail() },
     playbackLimits: { admitMilestone: () => assert.fail() },
+    transcript: {
+      get: async () => assert.fail(),
+      light: async () => assert.fail(),
+      checkAvailable: async () => assert.fail(),
+      importFile: async () => assert.fail(),
+      removeImport: async () => assert.fail(),
+    },
   });
 
 const ALL_SENDERS: readonly [string, () => MessageSender][] = [

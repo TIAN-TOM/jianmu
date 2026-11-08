@@ -8,8 +8,10 @@ import type { VideoKey } from "../core/video-ref.ts";
 import type { AiApi } from "./messages/ai.ts";
 import type { CoreApi } from "./messages/core.ts";
 import type { GrantsApi } from "./messages/grants.ts";
+import type { ImportsApi } from "./messages/imports.ts";
 import type { SessionApi } from "./messages/session.ts";
 import type { TaskApi } from "./messages/tasks.ts";
+import type { TranscriptApi } from "./messages/transcript.ts";
 import type { AccentTheme } from "./settings-schema.ts";
 
 /** 路由表按这几类放行。page 再按页面细分，内容脚本按站点细分。 */
@@ -23,7 +25,9 @@ export interface Api extends
   AiApi,
   TaskApi,
   SessionApi,
-  GrantsApi {}
+  GrantsApi,
+  TranscriptApi,
+  ImportsApi {}
 
 export type RouteName = keyof Api;
 

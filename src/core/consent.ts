@@ -105,6 +105,13 @@ export const ACTIVATION_TABLE: NoticeTable<ActivationKind> = [
       { kind: "store", id: "saved", text: "你保存的概览、问答、笔记和译文长期留在本机，保存到你删除为止" },
     ],
   },
+  {
+    version: 2,
+    items: [
+      { kind: "read", id: "bili-login-state", text: "B 站登录状态：只看是否已登录，不读 Cookie 内容" },
+      { kind: "read", id: "watch-later-progress", text: "粗筛读到的稍后再看列表里，每个视频看到哪里" },
+    ],
+  },
 ];
 
 // 当前构建打开了哪些开关。发布脚本把它记进候选记录。

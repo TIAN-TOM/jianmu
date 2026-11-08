@@ -1,14 +1,24 @@
 // 错误码汇总和统一的结果形状。各领域的码和文案在 errors/ 下各一份，这里拼成一张表；漏写文案编译就报错。
 import { AI_ERROR_TEXT, type AiErrorCode } from "./errors/ai.ts";
+import { DATA_ERROR_TEXT, type DataErrorCode } from "./errors/data.ts";
 import { ROUTING_ERROR_TEXT, type RoutingErrorCode } from "./errors/routing.ts";
 import { SESSION_ERROR_TEXT, type SessionErrorCode } from "./errors/session.ts";
 import { SETTINGS_ERROR_TEXT, type SettingsErrorCode } from "./errors/settings.ts";
-import { SITE_ERROR_TEXT, type SiteErrorCode } from "./errors/site.ts";
+import { SITE_DETAIL_TEXT, SITE_ERROR_TEXT, type SiteErrorCode } from "./errors/site.ts";
 import { TASK_ERROR_TEXT, type TaskErrorCode } from "./errors/tasks.ts";
+import { TRANSCRIPT_DETAIL_TEXT, TRANSCRIPT_ERROR_TEXT, type TranscriptErrorCode } from "./errors/transcript.ts";
 
-export type { AiErrorCode, RoutingErrorCode, SessionErrorCode, SettingsErrorCode, SiteErrorCode, TaskErrorCode };
+export type { AiErrorCode, DataErrorCode, RoutingErrorCode, SessionErrorCode, SettingsErrorCode, SiteErrorCode, TaskErrorCode, TranscriptErrorCode };
 
-export type ErrorCode = SiteErrorCode | SettingsErrorCode | RoutingErrorCode | AiErrorCode | TaskErrorCode | SessionErrorCode;
+export type ErrorCode =
+  | SiteErrorCode
+  | SettingsErrorCode
+  | RoutingErrorCode
+  | AiErrorCode
+  | TaskErrorCode
+  | SessionErrorCode
+  | TranscriptErrorCode
+  | DataErrorCode;
 
 export interface Failure {
   readonly ok: false;
@@ -26,10 +36,16 @@ const TEXT: Readonly<Record<ErrorCode, string>> = {
   ...AI_ERROR_TEXT,
   ...TASK_ERROR_TEXT,
   ...SESSION_ERROR_TEXT,
+  ...TRANSCRIPT_ERROR_TEXT,
+  ...DATA_ERROR_TEXT,
 };
 
-/** 给用户看的一句话。detail 先留着位置，按细节换说法时用。 */
-export function describe(code: ErrorCode, _detail?: string): string {
+const DETAIL_TEXT: Readonly<Partial<Record<ErrorCode, Readonly<Record<string, string>>>>> = { ...SITE_DETAIL_TEXT, ...TRANSCRIPT_DETAIL_TEXT };
+
+/** 给用户看的一句话。有的码按 detail 换说法，认不出的 detail 用码本身的说法。 */
+export function describe(code: ErrorCode, detail?: string): string {
+  const byDetail = DETAIL_TEXT[code];
+  if (detail !== undefined && byDetail && Object.hasOwn(byDetail, detail)) return byDetail[detail] ?? TEXT[code];
   return TEXT[code];
 }
 

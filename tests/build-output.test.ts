@@ -70,6 +70,13 @@ test("页面包里没有站点的后台读取代码", () => {
   assert.deepEqual(origins.filter((origin) => !/^src\/sites\/(?:rules\.ts|[^/]+\/url\.ts)$/.test(origin)), []);
 });
 
+test("后台包带着 B 站的读取实现和取字幕服务", () => {
+  const origins = new Set([...readBuild("background.js").matchAll(/^\s*\/\/ (src\/\S+)$/gm)].map((match) => match[1] ?? ""));
+  for (const origin of ["src/sites/bilibili/service.ts", "src/sites/bilibili/sign.ts", "src/sites/services.ts", "src/background/services/transcript/index.ts"]) {
+    assert.ok(origins.has(origin), `后台包里没有 ${origin}`);
+  }
+});
+
 test("包里没有 source map 引用", () => {
   for (const file of BUNDLES) assert.doesNotMatch(readBuild(file), /sourceMappingURL/);
 });

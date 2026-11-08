@@ -18,7 +18,7 @@ export type SubtitleFileResult =
 
 // 侧边栏读文件前和后台解析时都核对，免得误选一个视频文件把内存撑爆。普通字幕几十到几百 KB。
 export const MAX_FILE_BYTES = 2 * 1024 * 1024;
-const MAX_ENTRIES = 20000;
+export const MAX_ENTRIES = 20000;
 export const EXTENSIONS: readonly string[] = [".srt", ".vtt"];
 
 // 00:01:02,345、00:01:02.345、01:02.345（VTT 允许省略小时）、1:02:03,4

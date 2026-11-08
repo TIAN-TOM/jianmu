@@ -3,13 +3,25 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { describe, fail, isErrorCode, ok } from "../../../src/core/errors.ts";
 import { AI_ERROR_TEXT } from "../../../src/core/errors/ai.ts";
+import { DATA_ERROR_TEXT } from "../../../src/core/errors/data.ts";
 import { ROUTING_ERROR_TEXT } from "../../../src/core/errors/routing.ts";
 import { SESSION_ERROR_TEXT } from "../../../src/core/errors/session.ts";
 import { SETTINGS_ERROR_CODES, SETTINGS_ERROR_TEXT } from "../../../src/core/errors/settings.ts";
-import { SITE_ERROR_TEXT } from "../../../src/core/errors/site.ts";
+import { SITE_DETAIL_TEXT, SITE_ERROR_TEXT } from "../../../src/core/errors/site.ts";
 import { TASK_ERROR_TEXT } from "../../../src/core/errors/tasks.ts";
+import { TRANSCRIPT_DETAIL_TEXT, TRANSCRIPT_ERROR_TEXT } from "../../../src/core/errors/transcript.ts";
+import { parseSubtitleFile } from "../../../src/core/transcript/import-file.ts";
 
-const DOMAINS = { site: SITE_ERROR_TEXT, settings: SETTINGS_ERROR_TEXT, routing: ROUTING_ERROR_TEXT, ai: AI_ERROR_TEXT, tasks: TASK_ERROR_TEXT, session: SESSION_ERROR_TEXT };
+const DOMAINS = {
+  site: SITE_ERROR_TEXT,
+  settings: SETTINGS_ERROR_TEXT,
+  routing: ROUTING_ERROR_TEXT,
+  ai: AI_ERROR_TEXT,
+  tasks: TASK_ERROR_TEXT,
+  session: SESSION_ERROR_TEXT,
+  transcript: TRANSCRIPT_ERROR_TEXT,
+  data: DATA_ERROR_TEXT,
+};
 
 test("每个码都有一句给用户看的话，各领域之间不重名", () => {
   const seen = new Map<string, string>();
@@ -22,6 +34,34 @@ test("每个码都有一句给用户看的话，各领域之间不重名", () =>
       assert.match(text, /[。]$/, `${code} 是一句完整的话`);
     }
   }
+});
+
+test("按说明换说法的只有认得的那几个，说明对不上时用码本身的说法", () => {
+  for (const [detail, text] of Object.entries(SITE_DETAIL_TEXT.UNPLAYABLE ?? {})) {
+    assert.equal(describe("UNPLAYABLE", detail), text);
+    assert.notEqual(text, SITE_ERROR_TEXT.UNPLAYABLE);
+  }
+  assert.equal(describe("UNPLAYABLE", "toString"), SITE_ERROR_TEXT.UNPLAYABLE, "原型上的名字不算");
+  assert.equal(describe("UNPLAYABLE", ""), SITE_ERROR_TEXT.UNPLAYABLE);
+});
+
+test("字幕文件读不了时按原因换说法，和解析时给的说法一致", () => {
+  const samples: Readonly<Record<string, string>> = {
+    EMPTY_FILE: "",
+    FILE_TOO_LARGE: "x".repeat(2 * 1024 * 1024 + 1),
+    TOO_MANY_ENTRIES: Array.from({ length: 20001 }, (_, index) => `00:00:${String(index % 60).padStart(2, "0")},000 --> 00:01:00,000\n句${index}\n`).join("\n"),
+    NO_CUES: "这不是字幕",
+  };
+  const details = TRANSCRIPT_DETAIL_TEXT.UNSUPPORTED_FILE ?? {};
+  assert.deepEqual(Object.keys(details).sort(), Object.keys(samples).sort());
+  for (const [detail, text] of Object.entries(samples)) {
+    const parsed = parseSubtitleFile(text, "a.srt");
+    assert.equal(parsed.ok, false, detail);
+    if (parsed.ok) continue;
+    assert.equal(parsed.error, detail);
+    assert.equal(describe("UNSUPPORTED_FILE", detail), parsed.message, detail);
+  }
+  assert.equal(describe("UNSUPPORTED_FILE"), TRANSCRIPT_ERROR_TEXT.UNSUPPORTED_FILE);
 });
 
 test("认不出的码不算，原型上的名字也不算", () => {

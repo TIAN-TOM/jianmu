@@ -55,6 +55,8 @@ export const PROBE = Object.freeze({
 export const apiHost = (host) => host === API_HOST;
 /** @param {string} host */
 export const fileHost = (host) => host.endsWith(FILE_HOST_SUFFIX);
+/** 读视频内容的请求：接口主机上除登录检查以外的，加上字幕文件。 @param {{ host: string, path: string }} request */
+export const contentRead = ({ host, path }) => (apiHost(host) && path !== ACCOUNT_PATH) || fileHost(host);
 
 /** 只把这几个主机映射到本机，其余域名解析失败。 @param {number} port */
 export function hostRulesFor(port) {
@@ -264,11 +266,13 @@ function selfSignedCert(dir) {
 export async function startMockServer({ dir }) {
   /** @type {{ host: string, path: string, cookie: string, unexpected: boolean }[]} */
   const requests = [];
+  // 当前场景，空串是一切正常；测试中途可以换。
+  let scenario = "";
   const server = createServer(selfSignedCert(dir), (req, res) => {
     const host = String(req.headers.host ?? "").replace(/:\d+$/, "").toLowerCase();
     const { pathname: path, searchParams: query } = new URL(req.url ?? "/", "https://mock.invalid");
     const cookie = req.headers.cookie ?? "";
-    const answer = route({ host, path, query, cookie });
+    const answer = route({ host, path, query, cookie }, scenario);
     requests.push({ host, path, cookie, unexpected: answer.unexpected === true });
     res.writeHead(answer.status, answer.headers);
     res.end(answer.body);
@@ -279,6 +283,10 @@ export async function startMockServer({ dir }) {
   return {
     hostRules: hostRulesFor(address.port),
     requests,
+    /** 换场景，之后的请求按它回答。 @param {string} name */
+    setScenario(name) {
+      scenario = name;
+    },
     close() {
       server.closeAllConnections();
       server.close();

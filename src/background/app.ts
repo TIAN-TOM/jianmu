@@ -11,6 +11,8 @@ import { createSettingsStore, type SettingsStore } from "../platform/settings-st
 import { extensionStorage, type ExtensionStorage } from "../platform/storage.ts";
 import { createTabs, type Tabs, type TabsDeps } from "../platform/tabs.ts";
 import { siteRules } from "../sites/rules.ts";
+import { createSiteCtx, siteService } from "../sites/services.ts";
+import type { OverviewRecord } from "../core/notes/records.ts";
 import type { SiteRules } from "../sites/types.ts";
 import { createAiWiring, type AiWiring, type ModelServiceFetch, type PromptTable } from "./ai.ts";
 import { createContentTabs, type ContentTabs } from "./content-tabs.ts";
@@ -23,9 +25,15 @@ import { activationLost } from "./routes/activation.ts";
 import { appearanceChange, type StorageChange } from "./routes/appearance.ts";
 import { createPorts, createRoutes } from "./routes/index.ts";
 import { createSenders } from "./senders.ts";
+import { createTranscriptService, type SiteAccess, type TranscriptService } from "./services/transcript/index.ts";
+import { OFFICIAL_CAPTIONS_FALLBACK } from "./services/transcript/official.ts";
+import type { CachedTranscript } from "./services/transcript/write.ts";
 import { createSessions, type Sessions } from "./sessions.ts";
+import { createCacheStore, type CacheEntry } from "./stores/cache.ts";
 import { createChannelStore, type ChannelRecord, type ChannelStore } from "./stores/channels.ts";
 import { lazyDriver } from "./stores/drivers.ts";
+import { createImportStore, type ImportRecord } from "./stores/imports.ts";
+import { createOverviewStore } from "./stores/overviews.ts";
 import { CLAIM_MS, createTaskRunner, type TaskRunner, type Timers } from "./tasks.ts";
 
 export interface AppDeps {
@@ -39,6 +47,8 @@ export interface AppDeps {
   readonly indexedDB: () => IdbFactory | undefined;
   readonly locks: Locks;
   readonly siteRules: readonly SiteRules[];
+  /** 各站的读取服务和读取环境。 */
+  readonly sites: SiteAccess;
   /** 发模型请求、拉模型列表用。 */
   readonly fetch: ModelServiceFetch;
   readonly prompts: PromptTable;
@@ -72,6 +82,7 @@ export function chromeDeps(prompts: PromptTable): AppDeps {
     indexedDB: () => globalThis.indexedDB,
     locks: createLocks(),
     siteRules: Object.values(siteRules),
+    sites: { service: siteService, ctx: (platform, { signal }) => createSiteCtx(platform, signal) },
     fetch: (url, init) => fetch(url, init),
     prompts,
     ping: chromePing,
@@ -104,6 +115,7 @@ interface Core {
   /** 观看会话。拿不到任务和模型入口。 */
   readonly sessions: Sessions;
   readonly playbackLimits: PlaybackLimits;
+  readonly transcript: TranscriptService;
 }
 
 function assembleAi(deps: AppDeps, settings: SettingsStore, clearGuard: ClearGuard): AiWiring {
@@ -161,6 +173,26 @@ function assembleSessions(deps: AppDeps, clearGuard: ClearGuard, messenger: Mess
   return { channels, sessions, playbackLimits: createPlaybackLimits({ now: deps.timers.now }) };
 }
 
+// 取字幕：缓存、导入字幕和概览三个仓储的驱动第一次读写时才建（概览只读，给卡片的轻量读取带回已有的）。
+// 官方总结附带的字幕兜底按官方总结模块的开关。
+function assembleTranscript(deps: AppDeps, clearGuard: ClearGuard, tabs: Tabs): TranscriptService {
+  return createTranscriptService({
+    sites: deps.sites,
+    cache: createCacheStore<CachedTranscript>({
+      driver: lazyDriver<CacheEntry<CachedTranscript>>("cache", deps.indexedDB),
+      guard: clearGuard,
+      now: deps.timers.now,
+    }),
+    imports: createImportStore({ driver: lazyDriver<ImportRecord>("imports", deps.indexedDB), guard: clearGuard }),
+    overviews: createOverviewStore({ driver: lazyDriver<OverviewRecord>("overviews", deps.indexedDB), guard: clearGuard, now: deps.timers.now }),
+    guard: clearGuard,
+    tabTitle: tabs.title,
+    timers: deps.timers,
+    log: deps.log,
+    officialCaptionsFallback: OFFICIAL_CAPTIONS_FALLBACK,
+  });
+}
+
 function assembleCore(deps: AppDeps): Core {
   const tabs = createTabs({ tabs: deps.tabs, sidePanel: deps.sidePanel, runtime: deps.runtime, scripting: deps.scripting });
   const contentTabs = createContentTabs();
@@ -184,6 +216,7 @@ function assembleCore(deps: AppDeps): Core {
     reinject: createReinject({ tabs, enabled, log: deps.log }),
     grants: assembleGrants(deps, settings),
     ...assembleSessions(deps, clearGuard, messenger),
+    transcript: assembleTranscript(deps, clearGuard, tabs),
   };
 }
 

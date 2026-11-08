@@ -1,15 +1,20 @@
 // 端到端冒烟：把 zip 解压出来的扩展装进 Chrome for Testing，站点请求都到本机模拟服务器，其余域名解析失败。
-// 核对后台和侧边栏都没有报错，主机权限和登录状态都生效，也没有意外请求。
+// 核对后台和侧边栏都没有报错，主机权限和登录状态都生效，后台取字幕在确认前、没登录、付费时都按规矩停下，也没有意外请求。
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { videoKey } from "../src/core/video-ref.ts";
 import { launchChrome } from "./browser.mjs";
-import { apiHost, fileHost, PROBE, startMockServer } from "./mock-server.mjs";
+import { VIDEOS } from "./fixtures.mjs";
+import { apiHost, contentRead, fileHost, PROBE, startMockServer } from "./mock-server.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TIMEOUT_MS = 20_000;
+const [FIRST_ID = "", SECOND_ID = ""] = Object.keys(VIDEOS);
+const FIRST = videoKey({ platform: "bilibili", videoId: FIRST_ID });
+const SECOND = videoKey({ platform: "bilibili", videoId: SECOND_ID });
 
 // 调试器接上 service worker 时脚本可能还没跑，求值报错也接着等，超时才算失败。
 async function until(label, read) {
@@ -93,6 +98,24 @@ try {
   const text = await until("侧边栏渲染出内容", () => evaluate(page, 'document.getElementById("app")?.textContent ?? ""'));
   console.log(`✓ 侧边栏显示：${text}`);
 
+  // 从侧边栏页面给后台发消息：自己占一个标签页时按路径算侧边栏。
+  const ask = (type, req = {}) => evaluate(page, `chrome.runtime.sendMessage(${JSON.stringify({ type, req })})`);
+  const status = await ask("activation.get");
+  if (!status?.ok || status.value.state !== "needed") throw new Error(`装好以后应该还没确认启用：${JSON.stringify(status)}`);
+  const beforeConfirm = mock.requests.length;
+  const refused = await ask("transcript.get", { video: FIRST, mode: "full" });
+  if (refused?.code !== "NOT_ENABLED") throw new Error(`确认前取字幕应该回还没启用：${JSON.stringify(refused)}`);
+  if (mock.requests.length !== beforeConfirm) throw new Error("确认前取字幕发了请求");
+  console.log("✓ 确认启用之前取字幕回还没启用，一个请求都没发");
+
+  const confirmed = await ask("activation.confirm");
+  if (!confirmed?.ok || confirmed.value.state !== "current") throw new Error(`确认启用失败：${JSON.stringify(confirmed)}`);
+  const loggedOut = await ask("transcript.get", { video: FIRST, mode: "full" });
+  if (loggedOut?.code !== "NEED_LOGIN") throw new Error(`没登录时取字幕应该回要登录：${JSON.stringify(loggedOut)}`);
+  const peeked = mock.requests.filter(contentRead);
+  if (peeked.length > 0) throw new Error(`没登录时读了视频内容：${JSON.stringify(peeked)}`);
+  console.log("✓ 确认以后、没登录时取字幕只报要登录，没读任何视频内容");
+
   const readLogin = () =>
     evaluate(worker, `fetch(${JSON.stringify(PROBE.account)}, { credentials: "include", cache: "no-store" }).then((response) => response.json()).then(${PROBE.loginOf})`);
   if ((await readLogin()) !== false) throw new Error("没登录时账号接口就回了已登录");
@@ -108,6 +131,19 @@ try {
   if (!lastApi?.cookie.includes(PROBE.cookie)) throw new Error("接口请求没带登录状态");
   if (files.length === 0 || files.some((entry) => entry.cookie)) throw new Error("字幕文件请求不该带 Cookie");
   console.log("✓ 字幕文件靠主机权限读到，没带 Cookie");
+
+  const read = await ask("transcript.get", { video: FIRST, mode: "full" });
+  if (!read?.ok || read.value.transcript.cues.length === 0) throw new Error(`登录以后取不到字幕：${JSON.stringify(read)}`);
+  if (read.value.official?.status !== "ok" || read.value.transcript.ref.kind === "official-ai") throw new Error(`官方总结没跟着字幕回来，或者拿它附带的字幕顶替了：${JSON.stringify(read.value.official)}`);
+  const cached = await ask("transcript.get", { video: FIRST, mode: "cache-only" });
+  if (!cached?.ok || !cached.value.fromCache || cached.value.official?.status !== "ok") throw new Error(`读到的字幕和官方总结没进本机缓存：${JSON.stringify(cached)}`);
+  console.log(`✓ 登录以后后台读到 ${read.value.transcript.cues.length} 条字幕、${read.value.tracks.length} 条字幕轨和官方总结，存进了本机缓存`);
+
+  mock.setScenario("paid");
+  const paid = await ask("transcript.get", { video: SECOND, mode: "full" });
+  mock.setScenario("");
+  if (paid?.code !== "UNPLAYABLE") throw new Error(`付费视频应该报看不了：${JSON.stringify(paid)}`);
+  console.log("✓ 付费视频读完视频信息就停下，报看不了");
 
   // 启动期的报错可能晚一点才到，等一小会再查。
   await new Promise((done) => setTimeout(done, 500));

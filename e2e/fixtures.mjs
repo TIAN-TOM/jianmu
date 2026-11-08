@@ -130,11 +130,13 @@ export function watchLaterData({ paid = false } = {}) {
   return { count: 2, list: [watchLaterItem(FIRST_VIDEO, paid), watchLaterItem(SECOND_VIDEO, false)] };
 }
 
+// 两个样例视频共用这一份。时间轴要和两个视频的时长都对得上（不超出 15 分钟那个，也覆盖 30 分钟那个的三成以上），
+// 否则取字幕服务当它挂错了视频，不写缓存。
 export function captionFile() {
   return {
     body: [
       { from: 0, to: 2.5, content: "样例台词一" },
-      { from: 2.5, to: 5, content: "样例台词二" },
+      { from: 597.5, to: 600, content: "样例台词二" },
     ],
   };
 }
