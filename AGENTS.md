@@ -16,6 +16,7 @@
 | `src/platform/` | `idb.ts` IndexedDB 驱动，`storage.ts`、`locks.ts`、`permissions.ts`、`messaging.ts`、`tabs.ts` 是扩展存储、Web Locks、主机权限、消息、标签页、侧边栏和脚本注入的薄封装，`settings-store.ts` 设置读写、会话密钥、记住密钥的本机记录和设置修订号，`site-backoff.ts` 站点限速和退避，`keepalive.ts` 任务在跑时撑着 service worker 不被回收 |
 | `src/sites/` | 站点适配层：`types.ts`、`page-types.ts` 是契约，`rules.ts` 是地址规则，`bilibili/` 是 B 站的地址解析、播放页和读取实现，`services.ts` 是后台用的服务注册表 |
 | `src/background/`、`src/pages/` | 内联的提示词、`grants.ts` 回收用不上的主机授权，侧边栏占位页 |
+| `src/pages/shared/` | `theme.ts` 把主题、明暗和界面字号落到页面根节点上，跟着设置变，每次落地刷新首帧缓存，清除全部数据后按默认值重写；`theme-boot.ts` 打成经典脚本，在页面 `<head>` 里同步读首帧缓存 |
 | `src/background/` 入口和路由 | `main.ts` 一次注册全部顶层监听，都先过 `wake.ts` 的醒来钩子；`app.ts` 拼依赖；`router.ts`、`senders.ts`、`routes/` 是路由表、端口表、发送方核对和首次启用闸门，放行规则见架构设计第 10.2 节的允许矩阵；端口连接走同一道闸门，启用失效时断开，会发起工作的端口消息逐条重查 |
 | `src/background/ai.ts` | 模型服务接线：传输层按设置规则建，主机权限只查不申请，参数放宽记在会话存储里，模型能力只经核对过同意的读取取得，写缓存过清除闸门；服务按任务取冻结的地址和模型；配置检查、拉模型列表、测试连接三条路由在 `routes/ai.ts` |
 | `src/background/tasks.ts` | 任务运行：登记、认领、没人认领到点收尾，任务里另几步用的功能（概览的结论）登记时一起取定配置，问答的问题、解释的选区这类功能输入随登记一起交、进等价键，互斥键和等价键，跟着页面走的任务在页面都断开时停下，整个任务和每次模型请求两层保活；任务表只在内存里。`limits.ts` 是卡片的限频和一次性令牌，列出、登记、取消三条路由在 `routes/tasks.ts` |
@@ -27,7 +28,7 @@
 | `src/background/services/translate.ts`、`auto-generate.ts` | 翻译：侧边栏经端口发起，后台分批请求模型，每批推给页面、并进译文仓储（按字幕版本加目标语言一条，记录里按段的原文指纹记译文，换了字幕版本原文没变的段直接带过来）；偶发失败的批次补一轮，补轮那一批不再自己重发；订阅的页面都断开了才停下还没开始的批次，在途的照常存下，点停止连在途的一起中止；写回前核对清除代数和字幕代数。端口在 `routes/translate.ts`，只收侧边栏，发起翻译的消息每条重查启用。打开 B 站视频就生成的闸门骨架（`auto-generate.ts`）：确认和开关之前不读标签页地址，只认 B 站，同意里要有自动发送那一条，同时一个、滑动 10 分钟最多 20 个，尝试在模型请求真正发出时才记；还没有开关和监听，生产里不触发 |
 | `src/background/stores/` | 字幕缓存、导入的字幕、笔记、概览、问答、译文、频道偏好七个仓储，`write-gate.ts` 是它们共用的写入关口，`drivers.ts` 第一次读写时才建数据库驱动 |
 | `prompts/` | 提示词模板，构建时内联进后台包 |
-| `static/` | 原样复制进构建产物 |
+| `static/` | 原样复制进构建产物：`theme.css` 是扩展页面共用的设计变量（三套主题、两种明暗，界面字号改根字号），`icons/` 是 16、48、128 三档扩展图标，`pages/` 是页面外壳 |
 | `scripts/` | `build.mjs` 构建，`package.mjs` 打包和校验（同一个提交打两次得到同一个 zip，旁边写校验值文件），`release.mjs` 发布候选、候选之后的核对、发布说明草稿和发布前检查，`check-public.mjs` 公开结构检查 |
 | `tests/` | `unit/` 单元测试，`structure.test.ts` 结构规则，`build-output.test.ts` 构建产物检查，`fixtures/golden/` 黄金样本，`helpers/` 替身（`fake-ai.ts` 是后台各服务测试共用的模型服务替身，`fake-site-service.ts` 是站点读取服务的替身，`overview-service.ts` 是概览和用官方总结写结论的测试架子，`study-service.ts`、`study-background.ts` 是问答、划词解释和笔记的服务架子和走真实后台分发的架子，`manual-timers.ts` 是手动推进的计时器） |
 | `e2e/` | 把打好的包装进 Chrome for Testing 跑冒烟，站点和两家模型服务的请求都指向本机模拟服务器（能中途切场景、拖慢读取、挂住模型请求），其余域名解析失败；`lifecycle.mjs` 单独看任务跨过 service worker 空闲回收、被强行终止时的样子 |

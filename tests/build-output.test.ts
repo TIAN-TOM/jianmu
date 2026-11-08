@@ -1,7 +1,7 @@
 // 构建产物检查：要先跑 npm run build。守的是产物，源码由结构测试守。
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { before, test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -10,7 +10,7 @@ import { extractPromptSection } from "../src/core/ai/prompt.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BUILD = join(ROOT, "build");
-const BUNDLES = ["background.js", "pages/sidepanel.js"];
+const BUNDLES = ["background.js", "pages/sidepanel.js", "pages/theme-boot.js"];
 // 权限只认这几项：多一项要改这里，不靠禁用名单列举。YouTube 和 AI 地址都走运行时申请的可选权限。
 // scripting 用来在安装、更新和确认启用后往已开的视频页补注入内容脚本，本身没有安装警告。
 const PERMISSIONS = ["sidePanel", "storage", "scripting"];
@@ -55,6 +55,68 @@ test("清单不变量", () => {
   assert.deepEqual(manifest.host_permissions, HOST_PERMISSIONS);
   assert.deepEqual(manifest.optional_host_permissions, OPTIONAL_HOST_PERMISSIONS);
   assert.equal(manifest.web_accessible_resources, undefined);
+});
+
+const PACKAGE_FILES = readFileSync(join(ROOT, "tests/fixtures/package-files.txt"), "utf8").split("\n").filter(Boolean);
+
+test("四个扩展页面都在 <head> 里、样式表之前同步加载主题启动脚本，并且打进包里", () => {
+  const pages = readdirSync(join(BUILD, "pages")).filter((name) => name.endsWith(".html"));
+  assert.ok(pages.includes("sidepanel.html"), "至少有侧边栏");
+  for (const page of pages) {
+    const html = readBuild(`pages/${page}`);
+    const head = html.slice(0, html.indexOf("</head>"));
+    const scripts = [...head.matchAll(/<script\b[^>]*>/g)];
+    const first = scripts[0];
+    assert.ok(first && /\bsrc="\.\/theme-boot\.js"/.test(first[0]), `${page}：<head> 里第一个脚本是首帧外观脚本`);
+    assert.doesNotMatch(first[0], /\b(?:async|defer|type)\b/, `${page}：要同步执行，第一帧之前写好`);
+    const stylesheet = head.search(/<link\b[^>]*\brel="stylesheet"/);
+    assert.ok(stylesheet === -1 || first.index < stylesheet, `${page}：要放在样式表前面`);
+    assert.match(head, /<link rel="stylesheet" href="\.\.\/theme\.css" \/>/, `${page}：加载共用的主题样式表`);
+    for (const [tag] of scripts) assert.match(tag, /\bsrc="/, `${page}：MV3 不允许内联脚本`);
+  }
+  for (const file of ["pages/theme-boot.js", "theme.css"]) {
+    assert.ok(existsSync(join(BUILD, file)), `构建里没有 ${file}`);
+    assert.ok(PACKAGE_FILES.includes(file), `${file} 要进包`);
+  }
+
+  // 打出来的是经典脚本：在一个假的页面里求值，按缓存同步写好 <html>
+  const dataset: Record<string, string> = {};
+  const style: Record<string, string> = {};
+  const cache = JSON.stringify({ accentTheme: "ochre", themeMode: "dark", uiFontScale: 112 });
+  vm.runInNewContext(readBuild("pages/theme-boot.js"), {
+    document: { documentElement: { dataset, style: { setProperty: (name: string, value: string) => (style[name] = value) } } },
+    localStorage: { getItem: (key: string) => (key === "jianmu_appearance" ? cache : null) },
+    matchMedia: () => ({ matches: false }),
+  });
+  assert.deepEqual({ dataset, style }, { dataset: { accentTheme: "ochre", themeMode: "dark" }, style: { "--ui-font-zoom": "1.12" } });
+});
+
+const ICON_SIZES = [16, 48, 128];
+const PNG_SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
+
+/** PNG 里每一块的类型，按出现顺序。 */
+function pngChunks(png: Buffer): string[] {
+  const types: string[] = [];
+  for (let offset = 8; offset + 8 <= png.length; offset += 12 + png.readUInt32BE(offset)) types.push(png.toString("latin1", offset + 4, offset + 8));
+  return types;
+}
+
+test("扩展图标是 16、48、128 三档 PNG：尺寸对得上，工具栏用同一套，都进包，不带文字信息块", () => {
+  const manifest = JSON.parse(readBuild("manifest.json"));
+  const icons = Object.fromEntries(ICON_SIZES.map((size) => [String(size), `icons/icon-${size}.png`]));
+  assert.deepEqual(manifest.icons, icons);
+  assert.deepEqual(manifest.action.default_icon, icons);
+  for (const [size, file] of Object.entries(icons)) {
+    const png = readFileSync(join(BUILD, file));
+    assert.deepEqual([...png.subarray(0, 8)], PNG_SIGNATURE, `${file} 不是 PNG`);
+    const chunks = pngChunks(png);
+    assert.equal(chunks[0], "IHDR");
+    assert.equal(chunks.at(-1), "IEND");
+    assert.deepEqual([png.readUInt32BE(16), png.readUInt32BE(20)], [Number(size), Number(size)], `${file} 的尺寸`);
+    // 只有图像数据：作者、软件名、注释这类文字块和元数据不进包
+    assert.deepEqual(chunks.filter((type) => !["IHDR", "PLTE", "tRNS", "IDAT", "IEND"].includes(type)), [], file);
+    assert.ok(PACKAGE_FILES.includes(file), `${file} 要进包`);
+  }
 });
 
 test("包里的源文件注释只来自 src/、prompts/ 和依赖包", () => {

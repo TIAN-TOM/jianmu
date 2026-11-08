@@ -1,5 +1,10 @@
 LICENSE.txt
 background.js
+icons/icon-128.png
+icons/icon-16.png
+icons/icon-48.png
 manifest.json
 pages/sidepanel.html
 pages/sidepanel.js
+pages/theme-boot.js
+theme.css

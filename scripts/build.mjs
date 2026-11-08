@@ -36,11 +36,12 @@ const shared = {
   plugins: [promptText],
 };
 
-// 页面各打一个自包含的 ESM 包，不开代码拆分，产物清单才稳定。
+// 页面各打一个自包含的 ESM 包，不开代码拆分，产物清单才稳定。首帧外观脚本在页面 <head> 里同步加载，打成经典脚本。
 /** @type {import("esbuild").BuildOptions[]} */
 const bundles = [
   { entryPoints: ["src/background/main.ts"], outfile: "build/background.js", format: "iife" },
   { entryPoints: ["src/pages/sidepanel/main.tsx"], outfile: "build/pages/sidepanel.js", format: "esm" },
+  { entryPoints: ["src/pages/shared/theme-boot.ts"], outfile: "build/pages/theme-boot.js", format: "iife" },
 ];
 
 function writeManifest() {

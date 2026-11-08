@@ -1,0 +1,449 @@
+/* 简幕的设计变量。
+ *
+ * 四个扩展页面（侧边栏、设置页、播放页卡片、粗筛页）共用。页面样式只用第二层的语义变量，
+ * 不写死色值；换主题、换明暗都只动这里。
+ *
+ *   1. 主题：三套完整配色，每套一组原始色值，浅色 --l-*、深色 --d-*，
+ *      由 html 的 data-accent-theme 切换（取值和设置模块的主题表一致，单元测试核对）
+ *   2. 语义变量：--bg、--card、--text 按明暗从原始色值里取
+ *   3. 时间轨和判断档位
+ *   4. 字号、行高、间距、圆角、阴影、动效、版面尺寸；界面字号改根字号
+ *   5. 浏览器自己画的部分：复选框、滚动条、选中色、搜索框清除按钮、自动填充、下拉框
+ *
+ * 页面第一帧的主题、明暗和字号由首帧外观脚本在 <head> 里同步写到 html 上。
+ *
+ * 三套主题共用同一套明度阶梯、排版和间距，只换色相和彩度。
+ * 强调色低饱和，只落在主要操作上；--mark 是唯一的第二种颜色，只给播放头和重点章节，
+ * 两者都是在说「看这里」。文字色在各自模式的底色上都过 WCAG AA，单元测试逐套核对。
+ *
+ * 深色挂两套选择器：data-theme-mode 承接首帧脚本和页面脚本写下的结果；
+ * prefers-color-scheme 兜还没有首帧缓存时的首屏，免得系统深色的人先闪一下浅色。两处列表要同步维护。
+ * 清单的最低版本是 Chrome 116，所以不用 light-dark()（Chrome 123 才有）。
+ */
+
+/* ---------- 1. 主题：原始色值 ---------- */
+
+/* 宣纸墨青（ink，默认）：暖白纸面、偏冷的墨色文字、低饱和的青黛强调色。
+ * 写在 :root 上，还没写下 data-accent-theme 的首屏也是这一套。 */
+:root {
+  --l-bg: #f6f3ed;
+  --l-surface: #fdfbf8;
+  --l-sunken: #f0ede7;
+  --l-hover: #eeebe5;
+  --l-active: #e7e4dd;
+  --l-border: #e2dfd9;
+  --l-border-strong: #c3c0ba;
+  --l-text: #1d2428;
+  --l-text-muted: #4e555a;
+  --l-text-faint: #636a6f;
+  --l-accent: #2a6664;
+  --l-accent-strong: #165553;
+  --l-accent-text: #246361;
+  --l-accent-text-strong: #114c4a;
+  --l-on-accent: #ffffff;
+  --l-shadow: 40 32 20;
+  --l-mark: #a8620c;
+
+  --d-bg: #141818;
+  --d-surface: #1b201f;
+  --d-sunken: #171c1c;
+  --d-hover: #242928;
+  --d-active: #2b3030;
+  --d-border: #2e3332;
+  --d-border-strong: #414646;
+  --d-text: #e3dfd7;
+  --d-text-muted: #b4b1a9;
+  --d-text-faint: #949089;
+  --d-accent: #76b9b6;
+  --d-accent-strong: #86c9c6;
+  --d-accent-text: #88c9c5;
+  --d-accent-text-strong: #a7ddda;
+  --d-on-accent: #0b1918;
+  --d-shadow: 0 0 0;
+  --d-mark: #f2b544;
+}
+
+/* 石墨靛蓝（graphite）：冷调石墨灰、白卡片、低饱和的靛蓝强调色 */
+:root[data-accent-theme="graphite"] {
+  --l-bg: #f2f4f8;
+  --l-surface: #ffffff;
+  --l-sunken: #eceef2;
+  --l-hover: #eaecf0;
+  --l-active: #e2e4e8;
+  --l-border: #dde0e4;
+  --l-border-strong: #bfc1c5;
+  --l-text: #1f232b;
+  --l-text-muted: #50545d;
+  --l-text-faint: #646972;
+  --l-accent: #515d9f;
+  --l-accent-strong: #414c8c;
+  --l-accent-text: #4e5a9e;
+  --l-accent-text-strong: #3a4480;
+  --l-on-accent: #ffffff;
+  --l-shadow: 20 26 40;
+  --l-mark: #a8620c;
+
+  --d-bg: #15171c;
+  --d-surface: #1c1f23;
+  --d-sunken: #191b20;
+  --d-hover: #25282d;
+  --d-active: #2d2f34;
+  --d-border: #2f3237;
+  --d-border-strong: #42454b;
+  --d-text: #dde0e5;
+  --d-text-muted: #aeb1b6;
+  --d-text-faint: #8e9196;
+  --d-accent: #9daae4;
+  --d-accent-strong: #acbaf5;
+  --d-accent-text: #adbbf2;
+  --d-accent-text-strong: #c7d2fd;
+  --d-on-accent: #13151f;
+  --d-mark: #f2b544;
+}
+
+/* 暖岩赭石（ochre）：带红褐的暖灰、压低饱和的赭石强调色。强调色已经是暖色，重点改用墨青。 */
+:root[data-accent-theme="ochre"] {
+  --l-bg: #f8f3ee;
+  --l-surface: #fdfbf9;
+  --l-sunken: #f2ede8;
+  --l-hover: #f0ebe6;
+  --l-active: #e8e3df;
+  --l-border: #e4dfda;
+  --l-border-strong: #c5c0bc;
+  --l-text: #29211d;
+  --l-text-muted: #5b524d;
+  --l-text-faint: #706762;
+  --l-accent: #8e5729;
+  --l-accent-strong: #7c4615;
+  --l-accent-text: #8b5425;
+  --l-accent-text-strong: #6c3d13;
+  --l-on-accent: #ffffff;
+  --l-shadow: 48 30 18;
+  --l-mark: #2a6664;
+
+  --d-bg: #1a1614;
+  --d-surface: #221e1b;
+  --d-sunken: #1e1a17;
+  --d-hover: #2b2724;
+  --d-active: #322e2b;
+  --d-border: #35312e;
+  --d-border-strong: #484441;
+  --d-text: #e5ded7;
+  --d-text-muted: #b6b0a9;
+  --d-text-faint: #959089;
+  --d-accent: #dea77e;
+  --d-accent-strong: #efb78d;
+  --d-accent-text: #e9b58e;
+  --d-accent-text-strong: #f7cfb1;
+  --d-on-accent: #1d140d;
+  --d-mark: #76b9b6;
+}
+
+/* ---------- 2. 语义变量 ---------- */
+
+/* 浅色。--card 是浮层和卡片的表面，--bg-subtle 是再凹下去一层（引用、输入框）。
+ * accent / accent-strong 只做填充（按钮底、进度条），落到文字上一律用 accent-text。 */
+:root {
+  color-scheme: light;
+  --bg: var(--l-bg);
+  --card: var(--l-surface);
+  --input: var(--l-surface);
+  --bg-subtle: var(--l-sunken);
+  --bg-hover: var(--l-hover);
+  --bg-active: var(--l-active);
+  --border: var(--l-border);
+  --border-strong: var(--l-border-strong);
+  --text: var(--l-text);
+  --text-muted: var(--l-text-muted);
+  --text-faint: var(--l-text-faint);
+  --text-strong: color-mix(in oklab, var(--l-text) 70%, #000);
+  --accent: var(--l-accent);
+  --accent-strong: var(--l-accent-strong);
+  --accent-text: var(--l-accent-text);
+  --accent-text-strong: var(--l-accent-text-strong);
+  --on-accent: var(--l-on-accent);
+  --mark: var(--l-mark);
+  --danger: #a7463e;
+  --warn: #835617;
+  --ok: #36714e;
+  --shadow-rgb: var(--l-shadow);
+  --shadow-alpha: 1;
+}
+
+:root[data-theme-mode="dark"] {
+  color-scheme: dark;
+  --bg: var(--d-bg);
+  --card: var(--d-surface);
+  --input: var(--d-sunken);
+  --bg-subtle: var(--d-sunken);
+  --bg-hover: var(--d-hover);
+  --bg-active: var(--d-active);
+  --border: var(--d-border);
+  --border-strong: var(--d-border-strong);
+  --text: var(--d-text);
+  --text-muted: var(--d-text-muted);
+  --text-faint: var(--d-text-faint);
+  --text-strong: color-mix(in oklab, var(--d-text) 60%, #fff);
+  --accent: var(--d-accent);
+  --accent-strong: var(--d-accent-strong);
+  --accent-text: var(--d-accent-text);
+  --accent-text-strong: var(--d-accent-text-strong);
+  --on-accent: var(--d-on-accent);
+  --mark: var(--d-mark);
+  --danger: #e88f87;
+  --warn: #e0b771;
+  --ok: #8bc49e;
+  --shadow-rgb: var(--d-shadow);
+  --shadow-alpha: 3;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme-mode="light"]) {
+    color-scheme: dark;
+    --bg: var(--d-bg);
+    --card: var(--d-surface);
+    --input: var(--d-sunken);
+    --bg-subtle: var(--d-sunken);
+    --bg-hover: var(--d-hover);
+    --bg-active: var(--d-active);
+    --border: var(--d-border);
+    --border-strong: var(--d-border-strong);
+    --text: var(--d-text);
+    --text-muted: var(--d-text-muted);
+    --text-faint: var(--d-text-faint);
+    --text-strong: color-mix(in oklab, var(--d-text) 60%, #fff);
+    --accent: var(--d-accent);
+    --accent-strong: var(--d-accent-strong);
+    --accent-text: var(--d-accent-text);
+    --accent-text-strong: var(--d-accent-text-strong);
+    --on-accent: var(--d-on-accent);
+    --mark: var(--d-mark);
+    --danger: #e88f87;
+    --warn: #e0b771;
+    --ok: #8bc49e;
+    --shadow-rgb: var(--d-shadow);
+    --shadow-alpha: 3;
+  }
+}
+
+/* 派生色：跟着上面的强调色和状态色走，换主题、换明暗都不用再写一遍。 */
+:root {
+  --accent-soft: color-mix(in oklab, var(--accent) 9%, transparent);
+  --accent-soft-strong: color-mix(in oklab, var(--accent) 16%, transparent);
+  --accent-line: color-mix(in oklab, var(--accent) 40%, transparent);
+  --danger-soft: color-mix(in oklab, var(--danger) 10%, transparent);
+  --warn-soft: color-mix(in oklab, var(--warn) 12%, transparent);
+  --ok-soft: color-mix(in oklab, var(--ok) 11%, transparent);
+  --focus-color: var(--accent-text);
+  --focus-ring: 2px solid var(--focus-color);
+  /* 滚动条拇指：注释文字色压到 80% 不透明度，和底色、卡片、悬停底色都差 ≥ 3:1 */
+  --scrollbar-thumb: color-mix(in oklab, var(--text-faint) 80%, transparent);
+}
+
+/* ---------- 3. 时间轨和判断档位 ---------- */
+
+:root {
+  /* 时间轨：把视频时长竖着摆在侧边栏左边，同时承担章节、生成进度、播放位置三件事 */
+  --rail-track: var(--border-strong); /* 还没有章节时的细线、还没写的块 */
+  --rail-seg: color-mix(in oklab, var(--text-faint) 78%, transparent); /* 章节段、写完的块 */
+  --rail-played: var(--accent); /* 已播放的部分、正在写的块 */
+  --rail-key: var(--mark); /* 重点章节 */
+  --rail-focus: var(--text); /* 悬停或当前章节 */
+  --rail-failed: var(--danger); /* 失败的块，画成斜纹 */
+
+  /* 判断档位：颜色只是第二层，形状和文字才是主信息 */
+  --verdict-go: var(--ok); /* 推荐看 */
+  --verdict-fair: var(--accent-text); /* 可以看 */
+  --verdict-skip: var(--text-muted); /* 可跳过 */
+  --verdict-unknown: var(--warn); /* 信息不足 */
+}
+
+/* ---------- 4. 字号、行高、间距、圆角、阴影、动效、版面尺寸 ---------- */
+
+:root {
+  --font-sans: -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  /* 宋体只用在结论句和页面大标题，16px 以下不用。不列 SimSun：小字号下发虚，
+   * Windows 上没装思源宋体时直接回到黑体。 */
+  --font-serif: "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", var(--font-sans);
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+
+  /* 界面字号的倍数：标准 1、较大 1.12、特大 1.25，由页面脚本写在 html 的行内样式上 */
+  --ui-font-zoom: 1;
+
+  /* 字号阶梯：用 rem，跟着根字号走；界面字号设置改根字号，页面不用 zoom。
+   * 默认 16px 根字号下依次是 12 / 13 / 14 / 15 / 17 / 18 / 20 / 26。 */
+  --fs-caption: 0.75rem; /* 徽章、角标、极次要的注 */
+  --fs-meta: 0.8125rem; /* 时间戳、条数、说明、来源 */
+  --fs-ui: 0.875rem; /* 按钮、标签页、输入框、紧凑正文 */
+  --fs-body: 0.9375rem; /* 阅读正文 */
+  --fs-title: 1.0625rem; /* 视频标题、分组标题 */
+  --fs-verdict: 1.125rem; /* 一句话结论 */
+  --fs-heading: 1.25rem; /* 子页面标题 */
+  --fs-display: 1.625rem; /* 设置页、粗筛页大标题 */
+
+  --lh-verdict: 1.6; /* 一句话结论 */
+  --lh-body: 1.7; /* 中文正文 */
+  --lh-snug: 1.5; /* 说明、列表 */
+  --lh-tight: 1.35; /* 标题、按钮 */
+
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+
+  /* 间距：4 / 8 的倍数 */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+
+  /* 圆角收敛：小标记 6、按钮和输入框 8、抽屉和卡片 12；胶囊只留给进度类圆点 */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  /* 阴影很轻：版面靠细线分层，只有浮层（抽屉、菜单、对话框）才真的浮起来。
+   * 深色下同样的投影看不出来，--shadow-alpha 把不透明度放大三倍。 */
+  --shadow-sm: 0 1px 2px rgb(var(--shadow-rgb) / calc(0.04 * var(--shadow-alpha)));
+  --shadow-md:
+    0 2px 6px rgb(var(--shadow-rgb) / calc(0.05 * var(--shadow-alpha))),
+    0 8px 24px rgb(var(--shadow-rgb) / calc(0.08 * var(--shadow-alpha)));
+  --shadow-lg:
+    0 4px 12px rgb(var(--shadow-rgb) / calc(0.06 * var(--shadow-alpha))),
+    0 16px 40px rgb(var(--shadow-rgb) / calc(0.12 * var(--shadow-alpha)));
+
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --dur-fast: 120ms; /* 悬停、按压 */
+  --dur: 160ms; /* 展开、淡入 */
+  --dur-mode: 240ms; /* 切换模式、抽屉 */
+
+  /* 版面尺寸。轨道粗细和播放头用 px，不随字号变 */
+  --rail-gutter: 1.25rem; /* 时间轨占的左边距 */
+  --rail-bar: 4px; /* 轨道粗细 */
+  --playhead: 10px; /* 播放头直径 */
+  --panel-pad: var(--space-4); /* 侧边栏内容的左右留白 */
+  --dock-h: 3.25rem; /* 底部工具条 */
+  --notice-h: 2rem; /* 一行提示 */
+  --hit: 1.75rem; /* 图标按钮的点击区 */
+}
+
+/* 四个页面的尺寸都用 rem，界面字号只改这里，卡片报给播放页的高度就是实际高度。 */
+html {
+  font-size: calc(100% * var(--ui-font-zoom));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur: 0ms;
+    --dur-mode: 0ms;
+  }
+}
+
+/* ---------- 5. 浏览器自己画的部分 ----------
+ * 复选框、单选、进度条、滚动条、选中色、搜索框的清除按钮、自动填充底色、下拉框都由浏览器画，
+ * 不管的话会露出浏览器默认的蓝色。:where 不加权重，页面样式可以覆盖。 */
+
+/* scrollbar-color 会继承，写在根上，页面里所有滚动区域都用这一套，轨道透明。
+ * macOS 的浮动滚动条只在元素同时设了 scrollbar-width 时才认颜色，
+ * 别处照旧是系统的浮动滚动条，本来就是中性灰。 */
+:where(html) {
+  accent-color: var(--accent);
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+::selection {
+  background: var(--accent-soft-strong);
+}
+
+/* 搜索框的清除按钮：浏览器自带的是一个蓝色的 ×。换成用注释文字色画的 ×，悬停加深。
+ * 点了清空、触发 input 事件还是浏览器原生的行为，键盘按 Esc 也能清空。 */
+:where(input[type="search"])::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1rem;
+  height: 1rem;
+  margin: 0 -2px 0 var(--space-2);
+  background-color: var(--text-faint);
+  -webkit-mask: var(--search-clear-icon) center / 0.75rem no-repeat;
+  mask: var(--search-clear-icon) center / 0.75rem no-repeat;
+  cursor: pointer;
+}
+
+:where(input[type="search"])::-webkit-search-cancel-button:hover {
+  background-color: var(--text);
+}
+
+:root {
+  --search-clear-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round'%3E%3Cpath d='m3.5 3.5 9 9M12.5 3.5l-9 9'/%3E%3C/svg%3E");
+}
+
+/* 浏览器自动填充（比如密码管理器填进 API 密钥）会给输入框铺一层浅蓝底。这层底色被浏览器
+ * 用 !important 锁着，只能拿一圈足够大的内阴影盖住；聚焦时把各页统一的聚焦光圈叠在外面。 */
+:where(input):autofill {
+  box-shadow: inset 0 0 0 100vmax var(--input);
+  -webkit-text-fill-color: var(--text);
+}
+
+:where(input):autofill:focus {
+  box-shadow:
+    inset 0 0 0 100vmax var(--input),
+    0 0 0 3px var(--accent-soft-strong);
+}
+
+/* 下拉框：浏览器支持 appearance: base-select（Chrome 135 起）时整个交给网页来画，
+ * 展开的选项列表也跟着主题；更早的版本照旧是原生下拉框。下拉框本身的边框和留白由页面样式定。 */
+@supports (appearance: base-select) {
+  select,
+  ::picker(select) {
+    appearance: base-select;
+  }
+
+  select::picker-icon {
+    color: var(--text-muted);
+    transition: rotate var(--dur) var(--ease);
+  }
+
+  select:open::picker-icon {
+    rotate: 180deg;
+  }
+
+  ::picker(select) {
+    margin-block: var(--space-1);
+    padding: var(--space-1);
+    color: var(--text);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+  }
+
+  option {
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+  }
+
+  option:hover {
+    background: var(--bg-hover);
+  }
+
+  option:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: -2px;
+  }
+
+  option:checked {
+    color: var(--accent-text-strong);
+    font-weight: var(--fw-medium);
+    background: var(--accent-soft);
+  }
+
+  option::checkmark {
+    color: var(--accent-text);
+  }
+}
