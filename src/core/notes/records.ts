@@ -32,10 +32,12 @@ export interface GenInfo {
   readonly effort: Effort;
 }
 
-export interface Derived {
-  readonly basis: Basis;
-  readonly gen: GenInfo;
-}
+type LegacyBasis = Extract<Basis, { readonly source: "legacy-unknown" }>;
+
+/** 结果记下的依据和生成配置。旧备份导入的记录不知道当时的生成配置，只有依据未知的可以缺 gen。 */
+export type Derived =
+  | { readonly basis: Exclude<Basis, LegacyBasis>; readonly gen: GenInfo }
+  | { readonly basis: LegacyBasis; readonly gen?: GenInfo };
 
 export type NoteKind = "note";
 

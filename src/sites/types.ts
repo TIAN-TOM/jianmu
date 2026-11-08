@@ -80,9 +80,15 @@ export type SiteErrorCode =
   | "NETWORK"
   | "TIMEOUT";
 
-export type SiteResult<T> =
-  | { ok: true; value: T }
-  | { ok: false; code: SiteErrorCode; retryAfterSec?: number; detail?: string };
+/** 读取失败波及多大：item 只是这一个视频这次读不成，批量处理记这一项、接着下一项；source 是这条读取路线这会儿整体读不了，批量处理停下。由读取实现判定，调用方据此分流时不解析 detail。 */
+export type SiteFailureReach = "item" | "source";
+
+// 内容格式不对时必须标影响范围，别的码的含义由码本身决定。
+export type SiteFailure =
+  | { ok: false; code: "MALFORMED"; reach: SiteFailureReach; retryAfterSec?: never; detail?: string }
+  | { ok: false; code: Exclude<SiteErrorCode, "MALFORMED">; retryAfterSec?: number; detail?: string };
+
+export type SiteResult<T> = { ok: true; value: T } | SiteFailure;
 
 type R<T> = Promise<SiteResult<T>>;
 

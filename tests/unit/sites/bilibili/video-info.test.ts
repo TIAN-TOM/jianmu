@@ -114,12 +114,48 @@ test("没有分 P 列表时第 1 P 用视频本身的 cid 和时长", () => {
 
 test("选中的那一 P 缺 cid 时报 MALFORMED，不退回视频本身的 cid", () => {
   const data = viewData({ cid: 111, pages: [{ page: 1, cid: 111 }, { page: 2 }] });
-  assert.deepEqual(parseVideoInfo(data, { ...REF, segment: 2 }), { ok: false, code: "MALFORMED", detail: "no-cid" });
+  assert.deepEqual(parseVideoInfo(data, { ...REF, segment: 2 }), { ok: false, code: "MALFORMED", reach: "item", detail: "no-cid" });
 });
 
 test("缺 cid 报 MALFORMED", () => {
   const result = parseVideoInfo(viewData({ cid: 0, pages: [{ page: 1, part: "样例" }] }), REF);
-  assert.deepEqual(result, { ok: false, code: "MALFORMED", detail: "no-cid" });
+  assert.deepEqual(result, { ok: false, code: "MALFORMED", reach: "item", detail: "no-cid" });
+});
+
+const OTHER_BVID = "BV1Sample999";
+const MISMATCH = { ok: false, code: "MALFORMED", reach: "source", detail: "video-mismatch" };
+const OTHER_VIDEO = { bvid: OTHER_BVID, aid: 9009, cid: 8008, title: "另一个样例视频", pages: [{ page: 1, cid: 8008, part: "另一个样例视频", duration: 300 }] };
+
+test("请求 A、返回 B：报 MALFORMED，影响整条读取路线，B 的标题和 cid 都不用", async () => {
+  assert.deepEqual(parseVideoInfo(viewData(OTHER_VIDEO), REF), MISMATCH);
+
+  const fake = site(() => json(200, viewEnvelope(OTHER_VIDEO)));
+  const result = await readVideoInfo(createBiliHttp(), REF, siteCtx(fake));
+
+  assert.deepEqual(result, MISMATCH);
+  assert.deepEqual(fake.requests.map((request) => request.endpoint), [NAV_URL, VIEW_URL], "对不上就停，后面的请求不发");
+});
+
+test("返回的视频信息缺 bvid 或写法不同：一样当作对不上", () => {
+  for (const bvid of [undefined, null, "", 1001, BVID.toLowerCase(), ` ${BVID}`, [BVID]]) {
+    assert.deepEqual(parseVideoInfo(viewData({ bvid }), REF), MISMATCH, JSON.stringify(bvid));
+  }
+  const { bvid: _bvid, ...withoutId } = viewData();
+  assert.deepEqual(parseVideoInfo(withoutId, REF), MISMATCH, "整个缺这一项");
+});
+
+test("请求 A、返回的 B 是付费视频：报对不上，不把 B 的付费结论记到 A 上", () => {
+  for (const marks of [{ rights: { pay: 1 } }, { is_upower_exclusive: true }, { rights: { pay: 0, ugc_pay: 0 } }]) {
+    assert.deepEqual(parseVideoInfo(viewData({ ...OTHER_VIDEO, ...marks }), REF), MISMATCH, JSON.stringify(marks));
+  }
+});
+
+test("返回的视频和请求的一致：照常读出，身份就是请求的那个", async () => {
+  const fake = site(() => json(200, viewEnvelope(TWO_PARTS)));
+  const second = value(await readVideoInfo(createBiliHttp(), { ...REF, segment: 2 }, siteCtx(fake)));
+  assert.deepEqual(second.ref, { ...REF, segment: 2 });
+  assert.equal(second.mediaVersion, "222");
+  assert.deepEqual(value(parseVideoInfo(viewData(), REF)).ref, REF);
 });
 
 const FREE_RIGHTS = { pay: 0, ugc_pay: 0, arc_pay: 0 };

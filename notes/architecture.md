@@ -154,14 +154,14 @@ jianmu/
 
 依赖只能往下：`pages`、`content`、`background` → `sites` → `platform` → `core`、`shared`。
 
-- 后台经 `sites/services.ts` 取适配器。内容脚本 `content/<站>.ts` 只导入自己站的 `sites/<站>/page.ts` 和 `sites/rules.ts`，不导入任何站点的 `service.ts`（B 站的签名也只经它进后台包）；扩展页面只用 `sites/rules.ts`。这样内容脚本包里不会带进签名和后台读取的代码。构建产物检查按 esbuild 产物里的源文件注释再核对一遍。
+- 后台经 `sites/services.ts` 取适配器。内容脚本 `content/<站>.ts` 只导入自己站的 `sites/<站>/page.ts` 和 `sites/rules.ts`，不导入任何站点的 `service.ts`（B 站的签名也只经它进后台包）；扩展页面只用 `sites/rules.ts`。契约文件例外：扩展页面可以只按类型导入 `sites/types.ts`，内容脚本可以导入 `sites/types.ts`、`sites/page-types.ts`。这样内容脚本包里不会带进签名和后台读取的代码。构建产物检查按 esbuild 产物里的源文件注释再核对一遍。
 - `core` 同时被 `tsconfig.sw.json` 和 `tsconfig.pages.json` 检查，两边都要通过，保证纯逻辑不用某一端独有的接口。后台代码按 webworker 库检查，用了只有页面才有的接口直接报错。
 - 注入 B 站和 YouTube 页面的标识（DOM id、class、CSS 自定义属性、主世界和隔离世界之间的页面事件名）一律以 `jianmu-` 开头，集中定义在 `shared/names.ts`。这些标识在别人的页面上公开可见，不加前缀容易和页面本身或其他扩展撞名。存储键和库名的前缀见第 7.3、7.4 节。
 
 `tests/structure.test.ts` 读源码文本，守这几条：
 
 1. 导入方向如上；`core` 里不出现 `chrome.`；`.ts` 不导入 `.tsx`。
-2. 只扫 `src/`：两站的主机名和路径样式的字符串只许出现在 `src/sites/` 里。`src/` 以外的清单模板、`tests/unit/sites/` 的地址解析测试、端到端模拟服务器、`notes/` 里按能力写的文档本来就要写，不算违规（方案第 5.2 节）。
+2. 只扫 `src/`：两站的主机名和路径样式的字符串只许出现在 `src/sites/` 里。`src/core/ai/` 里模型服务的接口路径不算。`src/` 以外的清单模板、`tests/unit/sites/` 的地址解析测试、端到端模拟服务器、`notes/` 里按能力写的文档本来就要写，不算违规（方案第 5.2 节）。
 3. `src/sites/` 下的注释只写用途。结构测试拦路径样式的字符串、外部链接、带下划线的字段名、常见写法的错误码和几种讲来历的说法，别的写法靠写的人和私有检查守；每个文件头注释不超过 3 行。
 4. 单个源文件超过 500 行就失败，不再长出四千行的大文件。
 5. `src/content/` 和 `src/sites/*/page.ts` 给注入的节点设 id、class、CSS 自定义属性，以及派发和监听页面事件时，只许用 `shared/names.ts` 的常量，不许写字面字符串；`names.ts` 里这几类常量都以 `jianmu-` 开头。
@@ -214,7 +214,11 @@ export interface WatchLaterItem extends TriageItem { cover: string; description:
 export interface WatchLaterList { total: number; dropped: number; items: WatchLaterItem[] }
 export type SiteErrorCode = "NEED_LOGIN" | "NO_CAPTIONS" | "EMPTY_CAPTION_FILE" | "RATE_LIMITED" | "UNPLAYABLE"
   | "NOT_FOUND" | "SEGMENT_OUT_OF_RANGE" | "VIDEO_CHANGED" | "TAB_NOT_READY" | "MALFORMED" | "NETWORK" | "TIMEOUT";
-export type SiteResult<T> = { ok: true; value: T } | { ok: false; code: SiteErrorCode; retryAfterSec?: number; detail?: string };
+export type SiteFailureReach = "item" | "source";   // 读取失败波及多大：item 只是这一个视频读不成，source 是这条读取路线这会儿整体读不了；由读取实现判定，调用方据此分流时不解析 detail
+export type SiteFailure =
+  | { ok: false; code: "MALFORMED"; reach: SiteFailureReach; retryAfterSec?: never; detail?: string }   // 内容格式不对时必须标影响范围
+  | { ok: false; code: Exclude<SiteErrorCode, "MALFORMED">; retryAfterSec?: number; detail?: string };
+export type SiteResult<T> = { ok: true; value: T } | SiteFailure;
 type R<T> = Promise<SiteResult<T>>;
 
 export interface SiteRules {                 // 纯函数，后台、页面、内容脚本共用
@@ -271,7 +275,7 @@ export interface SitePage {                  // 内容脚本里跑
 下面这些都在公开仓库里，边界见第 6.5 节。
 
 - `url.ts`：现有代码里散在侧边栏、内容脚本、卡片、后台的十几份地址解析合并成一份。播放页、列表播放页、带语言前缀的同类页、av 号都认；追踪参数、起播时间不进身份。
-- `service.ts`（入口，读取按能力拆文件）：视频信息、登录后的字幕轨和字幕正文、官方总结和附带的 AI 字幕、UP 主分段、稍后再看、限流识别和退避。每次新的读取操作开始前确认登录状态，只合并同时进行的登录检查，不跨独立读取操作复用已登录结论；登录确认失败或无法确认时不发内容请求，收到未登录信号时立即作废登录记录；登录检查同样受站点限速和退避约束，按需触发，不定时轮询；一次读取操作用一个读取环境，批量处理时每个条目算一次。读视频信息时分 P 超出范围报 `SEGMENT_OUT_OF_RANGE`，不再悄悄退回第 1 P（有意改变，界面提示见 PRD F01）。只有按已核实的响应规则能够确认属于非付费普通视频时，才读取字幕、官方总结和分段：付费和充电专属内容报 `UNPLAYABLE`；付费状态未知、必要字段缺失或格式不符时同样停止读取，同样报 `UNPLAYABLE`，`detail` 分别是 `paid` 和 `paid-unknown`，界面据此分开提示「付费内容不读」和「暂时无法确认可读范围」，不按免费处理。稍后再看采用同一规则。全部请求经站点限速和退避。字幕文件读取被限流也按限流处理，不再试下一条轨，也不重新列轨。第一次被拒时最多重新准备一次再试，仍被拒就退避（方案第 8 节第 1 项）。
+- `service.ts`（入口，读取按能力拆文件）：视频信息、登录后的字幕轨和字幕正文、官方总结和附带的 AI 字幕、UP 主分段、稍后再看、限流识别和退避。每次新的读取操作开始前确认登录状态，只合并同时进行的登录检查，不跨独立读取操作复用已登录结论；登录确认失败或无法确认时不发内容请求，收到未登录信号时立即作废登录记录；登录检查同样受站点限速和退避约束，按需触发，不定时轮询；一次读取操作用一个读取环境，批量处理时每个条目算一次。读视频信息时分 P 超出范围报 `SEGMENT_OUT_OF_RANGE`，不再悄悄退回第 1 P（有意改变，界面提示见 PRD F01）。读视频信息时先核对返回的是不是请求的那个视频，对不上或看不出是哪个视频都当作 `MALFORMED`，不用这份结果，也不拿它判断付费（有意改变）。`MALFORMED` 一律标影响范围：只影响这一个视频，或这条读取路线这会儿整体读不了；批量处理据此跳过这一项或整批停下，不解析 `detail`（有意改变）。只有按已核实的响应规则能够确认属于非付费普通视频时，才读取字幕、官方总结和分段：付费和充电专属内容报 `UNPLAYABLE`；付费状态未知、必要字段缺失或格式不符时同样停止读取，同样报 `UNPLAYABLE`，`detail` 分别是 `paid` 和 `paid-unknown`，界面据此分开提示「付费内容不读」和「暂时无法确认可读范围」，不按免费处理。稍后再看采用同一规则。全部请求经站点限速和退避。字幕文件读取被限流也按限流处理，不再试下一条轨，也不重新列轨。第一次被拒时最多重新准备一次再试，仍被拒就退避（方案第 8 节第 1 项）。
 - `sign.ts`：B 站接口要求的请求签名（第 6.5 节）。
 - `page.ts`：主视频元素，`findMainVideo()` 在普通视频上报 `found` 或 `none`。B 站普通视频有没有要报 `ad` 的播放器广告、特殊播放器元素算哪种结果，第 11 步实测后定；实测之前不报 `ad`，取不到 `HTMLVideoElement` 时报 `none`；等页面框架激活（等页面加载完、服务端渲染的标记消失，再等 1.2 秒，照搬现有规则）；卡片插槽的几种位置；小窗避让；悬停图标挂载点（不能是直接包着视频的那一层）。
 
@@ -326,7 +330,9 @@ type Basis =                                                              // 结
   | { source: "title-description"; video: VideoKey; fingerprint: string } // 标题加简介规范化后取指纹
   | { source: "legacy-unknown"; hint?: "official-summary" };              // 旧备份导入，依据未知；旧记录标过依据官方总结的留个提示
 interface GenInfo { feature: FeatureId; promptVersion: string; model: string; effort: Effort } // effort 是实际生效的档位
-interface Derived { basis: Basis; gen: GenInfo }
+type Derived =                                                            // 旧备份导入的记录不知道当时的生成配置，只有依据未知的可以缺 gen
+  | { basis: Exclude<Basis, { source: "legacy-unknown" }>; gen: GenInfo }
+  | { basis: Extract<Basis, { source: "legacy-unknown" }>; gen?: GenInfo };
 ```
 
 - 带时效的字幕地址、凭据、抓取时间都不进指纹，字幕地址不进长期记录。平台返回的字幕地址也不进 `cache` 仓库，不落盘，换语言时重新列轨（首发待实现）。指纹持久化在记录里，service worker 被回收后照样能判断旧结果还能不能用。

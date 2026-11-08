@@ -9,8 +9,10 @@ import {
   SUMMARY_URL,
   VIEW_URL,
   WATCH_LATER_URL,
+  type BiliHttp,
   type GetRequest,
 } from "../../../../src/sites/bilibili/http.ts";
+import type { SiteCtx, SiteFailure, SiteFailureReach, SiteResult } from "../../../../src/sites/types.ts";
 import { deferred, nextTurn } from "../../../helpers/deferred.ts";
 import {
   expectedSignature,
@@ -18,6 +20,7 @@ import {
   fakeBackoff,
   fakeSite,
   hanging,
+  reachOf,
   signatureOf,
   siteCtx,
   testClock,
@@ -386,4 +389,61 @@ test("调用方取消时到点放手，替身不理会中止信号也一样", as
   leaving.abort();
 
   assert.equal(failure(await reading).code, "NETWORK");
+});
+
+// 影响范围：内容格式不对的失败都标上，批量处理据此跳过这一项或整批停下；别的错误码不标。
+
+type Read = (http: BiliHttp, ctx: SiteCtx) => Promise<SiteResult<unknown>>;
+
+interface ReachRow {
+  readonly name: string;
+  readonly routes: Readonly<Record<string, Route>>;
+  readonly read: Read;
+  readonly code: string;
+  readonly reach?: SiteFailureReach;
+}
+
+const viaApi: Read = (http, ctx) => http.getData(VIEW, ctx);
+const viaFile: Read = (http, ctx) => http.getFile(FILE_URL, ctx);
+const apiReply = (reply: Route): Readonly<Record<string, Route>> => ({ [NAV_URL]: account, [VIEW_URL]: reply });
+
+const REACH_ROWS: readonly ReachRow[] = [
+  { name: "登录检查回了不认识的业务码", routes: { [NAV_URL]: () => json(200, { code: -400 }) }, read: viaApi, code: "MALFORMED", reach: "source" },
+  { name: "登录检查回的不是 JSON", routes: { [NAV_URL]: htmlPage }, read: viaApi, code: "MALFORMED", reach: "source" },
+  { name: "登录了但拿不到签名密钥", routes: { [NAV_URL]: () => json(200, navWithoutKeys()) }, read: (http, ctx) => http.getData(SIGNED, ctx), code: "MALFORMED", reach: "source" },
+  { name: "接口回的不是 JSON", routes: apiReply(htmlPage), read: viaApi, code: "MALFORMED", reach: "source" },
+  { name: "接口回的正文没有业务码", routes: apiReply(() => json(200, { data: {} })), read: viaApi, code: "MALFORMED", reach: "source" },
+  { name: "接口回了不认识的业务码", routes: apiReply(() => json(200, { code: -400 })), read: viaApi, code: "MALFORMED", reach: "item" },
+  { name: "字幕文件回的不是 JSON", routes: { [FILE_URL]: htmlPage }, read: viaFile, code: "MALFORMED", reach: "item" },
+  { name: "字幕文件回了不认识的业务码", routes: { [FILE_URL]: () => json(200, { code: -400 }) }, read: viaFile, code: "MALFORMED", reach: "item" },
+  { name: "字幕地址不在字幕文件的主机上", routes: {}, read: (http, ctx) => http.getFile("https://sample.example/zh.json", ctx), code: "MALFORMED", reach: "item" },
+  { name: "被限流", routes: apiReply(() => json(200, { code: -412 })), read: viaApi, code: "RATE_LIMITED" },
+  { name: "账号接口说没登录", routes: { [NAV_URL]: () => json(200, navLoggedOut()) }, read: viaApi, code: "NEED_LOGIN" },
+  { name: "视频不存在", routes: apiReply(() => json(200, { code: -404 })), read: viaApi, code: "NOT_FOUND" },
+  { name: "没有权限", routes: apiReply(() => json(200, { code: -403 })), read: viaApi, code: "UNPLAYABLE" },
+  { name: "HTTP 失败", routes: apiReply(() => new Response("sample", { status: 500 })), read: viaApi, code: "NETWORK" },
+];
+
+for (const row of REACH_ROWS) {
+  test(`影响范围：${row.name}，报 ${row.code}，${row.reach ? `标 ${row.reach}` : "不标影响范围"}`, async () => {
+    const result = failure(await row.read(createBiliHttp(), siteCtx(fakeSite(row.routes))));
+
+    assert.equal(result.code, row.code);
+    assert.equal(reachOf(result), row.reach);
+  });
+}
+
+test("类型上：内容格式不对必须标影响范围、不带等待时间，别的错误码不许标影响范围", () => {
+  const malformed: SiteFailure = { ok: false, code: "MALFORMED", reach: "source" };
+  const limited: SiteFailure = { ok: false, code: "RATE_LIMITED", retryAfterSec: 60 };
+  // @ts-expect-error 内容格式不对时缺影响范围
+  const unmarked: SiteFailure = { ok: false, code: "MALFORMED" };
+  // @ts-expect-error 别的错误码不带影响范围
+  const marked: SiteFailure = { ok: false, code: "NETWORK", reach: "item" };
+  // @ts-expect-error 内容格式不对时没有等待时间
+  const waiting: SiteFailure = { ok: false, code: "MALFORMED", reach: "item", retryAfterSec: 60 };
+
+  // 不分错误码读等待时间照样能写。
+  assert.deepEqual([malformed, limited].map((result) => result.retryAfterSec), [undefined, 60]);
+  assert.deepEqual([unmarked, marked, waiting].map((result) => result.code), ["MALFORMED", "NETWORK", "MALFORMED"]);
 });

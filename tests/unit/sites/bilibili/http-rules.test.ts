@@ -475,7 +475,7 @@ test("字幕文件的地址在发请求之前核对：只收 https 和字幕文�
   ];
   for (const url of refused) {
     assert.equal(isCaptionFileUrl(url), false, url);
-    assert.deepEqual(await http.getFile(url, siteCtx(fake)), { ok: false, code: "MALFORMED", detail: "untrusted-file-host" });
+    assert.deepEqual(await http.getFile(url, siteCtx(fake)), { ok: false, code: "MALFORMED", reach: "item", detail: "untrusted-file-host" });
   }
   assert.deepEqual(fake.requests, []);
   assert.equal(isCaptionFileUrl(FILE_URL), true);

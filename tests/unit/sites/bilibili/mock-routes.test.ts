@@ -286,6 +286,18 @@ test("不认识的视频号：报 NOT_FOUND", async () => {
   assertNoStray(state);
 });
 
+test("模拟服务器回的视频信息就是请求的那个视频：两个样例视频都过得了身份核对", async () => {
+  const state = loggedInWorld();
+  for (const video of [FIRST_VIDEO, SECOND_VIDEO]) {
+    const ref: VideoRef = { platform: "bilibili", videoId: video.bvid, segment: 1 };
+    const info = value(await state.service.readVideoInfo(ref, state.ctx));
+    assert.deepEqual(info.ref, ref);
+    assert.equal(info.title, video.title);
+    assert.equal(info.mediaVersion, String(video.cid));
+  }
+  assertNoStray(state);
+});
+
 test("no-captions：列表为空时返回空，只发这一次列表请求", async () => {
   const state = loggedInWorld();
   state.scenario = "no-captions";

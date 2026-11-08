@@ -158,13 +158,16 @@ describe("规则能拦下造好的违规", () => {
     assert.deepEqual(rulesHit("src/sites/bilibili/service.ts", "const a = `${origin}/some/path`;\n"), [6]);
   });
 
-  test("第 6 条：url.ts、page.ts 不发请求，不导入后台读取代码", () => {
+  test("第 6 条：url.ts、page.ts 不发请求，不导入后台读取代码，只写播放页地址", () => {
     assert.deepEqual(rulesHit("src/sites/bilibili/page.ts", "await fetch(url);\n"), [6]);
     assert.deepEqual(rulesHit("src/sites/youtube/page.ts", "new XMLHttpRequest();\n"), [6]);
     assert.deepEqual(rulesHit("src/sites/bilibili/page.ts", 'import { sign } from "./sign.ts";\n'), [6]);
     assert.deepEqual(rulesHit("src/sites/bilibili/url.ts", 'import { read } from "./service.ts";\n'), [6]);
     assert.deepEqual(rulesHit("src/sites/bilibili/page.ts", 'import { parse } from "./url.ts";\n'), []);
     assert.deepEqual(rulesHit("src/sites/bilibili/url.ts", "const a = `https://www.bilibili.com/video/${id}`;\n"), []);
+    assert.deepEqual(rulesHit("src/sites/bilibili/url.ts", 'export const A = "/some/request/path";\n'), [6]);
+    assert.deepEqual(rulesHit("src/sites/bilibili/page.ts", 'const a = "/some/request/path";\n'), [6]);
+    assert.deepEqual(rulesHit("src/sites/bilibili/page.ts", "const a = `${origin}/some/path`;\n"), [6]);
   });
 
   test("第 6 条：services.ts 只经各站的 service.ts 取服务", () => {
@@ -234,19 +237,30 @@ describe("规则能拦下造好的违规", () => {
     assert.deepEqual(rulesHit("src/sites/request.ts", 'const a = "https://api.bilibili.com/some/other/path";\n'), [6]);
     assert.deepEqual(rulesHit("src/sites/youtube/service.ts", 'const a = "/some/request/path";\n'), [6]);
     assert.deepEqual(rulesHit("src/sites/services.ts", 'const a = "https://api.bilibili.com/x/web-interface/view";\n'), []);
-    assert.deepEqual(rulesHit("src/sites/youtube/url.ts", 'const a = "/some/request/path";\n'), []);
+    assert.deepEqual(rulesHit("src/sites/youtube/url.ts", 'const a = "/some/request/path";\n'), [6]);
     assert.deepEqual(rulesHit("src/sites/bilibili/url.ts", 'export const A = "https://api.bilibili.com/some/other/path";\n'), [6]);
     assert.deepEqual(rulesHit("src/sites/bilibili/page.ts", 'export const A = "api.bilibili.com/some/path";\n'), [6]);
     assert.deepEqual(rulesHit("src/sites/bilibili/url.ts", 'export const A = "https://www.bilibili.com/video/x";\n'), []);
   });
 
-  test("第 6 条：内容脚本不发请求，契约文件也不转手后台读取代码", () => {
+  test("第 6 条：内容脚本不发请求，也不直接或间接带入发请求的模块；契约文件也不转手后台读取代码", () => {
     assert.deepEqual(rulesHit("src/content/bilibili.ts", 'export const load = () => fetch(location.href);\n'), [6]);
     const viaTypes = {
       "src/content/bilibili.ts": 'import "../sites/types.ts";\n',
       "src/sites/types.ts": 'export { createBilibiliService } from "./bilibili/service.ts";\n',
     };
     assert.deepEqual(filesHit(viaTypes), ["6 src/sites/types.ts"]);
+    const net = "export interface Net {\n  fetch: typeof fetch;\n}\nexport const get = (url: string) => fetch(url);\n";
+    const direct = { "src/core/net.ts": net, "src/content/bilibili.ts": 'import { get } from "../core/net.ts";\n' };
+    assert.deepEqual(filesHit(direct), ["6 src/content/bilibili.ts"]);
+    const relayed = {
+      "src/core/net.ts": net,
+      "src/core/relay.ts": 'export { get } from "./net.ts";\n',
+      "src/content/bilibili.ts": 'import { get } from "../core/relay.ts";\n',
+    };
+    assert.deepEqual(filesHit(relayed), ["6 src/content/bilibili.ts"]);
+    const typeOnly = { "src/core/net.ts": net, "src/content/bilibili.ts": 'import type { Net } from "../core/net.ts";\n' };
+    assert.deepEqual(filesHit(typeOnly), []);
   });
 
   test("第 6 条：B 站读取的请求只从 http.ts 出去，不经公共请求封装", () => {

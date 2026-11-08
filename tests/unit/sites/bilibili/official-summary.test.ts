@@ -8,7 +8,7 @@ import { videoKey } from "../../../../src/core/video-ref.ts";
 import { NAV_URL, PLAYER_URL, SUMMARY_URL, type BiliHttp, type GetRequest } from "../../../../src/sites/bilibili/http.ts";
 import { parseOfficialSummary, readOfficialSummary } from "../../../../src/sites/bilibili/official-summary.ts";
 import { INFO, playerEnvelope, rig, ZH_TRACK } from "../../../helpers/bilibili-captions.ts";
-import { expectedSignature, failure, hanging, signatureOf, value, type Route, type SeenRequest } from "../../../helpers/bilibili-fetch.ts";
+import { expectedSignature, failure, hanging, reachOf, signatureOf, value, type Route, type SeenRequest } from "../../../helpers/bilibili-fetch.ts";
 import { BAN_RESPONSES, BVID, FIRST_KEYS, json, navLoggedIn, navLoggedOut, navWithoutKeys, SECOND_KEYS } from "../../../helpers/bilibili-fixtures.ts";
 
 const REJECTED = { code: -352, message: "sample refusal" };
@@ -364,6 +364,21 @@ test("不认识的内容状态报 MALFORMED，不当成没有总结", () => {
   assert.equal(strange.detail, "summary-code:7");
 
   assert.equal(failure(parseOfficialSummary({ stid: "1234" })).detail, "no-summary-code");
+});
+
+test("官方总结读不懂只影响这一个视频：内层错误码、缺码、数据不是对象、缺媒体版本都标 item", async () => {
+  for (const data of [noSummary(7, ""), { stid: "1234" }, null, "oops"]) {
+    assert.equal(failure(parseOfficialSummary(data)).code, "MALFORMED", JSON.stringify(data));
+    assert.equal(reachOf(parseOfficialSummary(data)), "item", JSON.stringify(data));
+  }
+
+  const empty = rig({ [SUMMARY_URL]: () => json(200, { code: 0 }) });
+  assert.equal(reachOf(await readOfficialSummary(empty.http, INFO, empty.ctx)), "item", "信封里没有数据");
+
+  const { mediaVersion: _mediaVersion, ...withoutVersion } = INFO;
+  const unversioned = rig({ [SUMMARY_URL]: okSummary });
+  assert.equal(reachOf(await readOfficialSummary(unversioned.http, withoutVersion, unversioned.ctx)), "item");
+  assert.equal(unversioned.fake.calls(SUMMARY_URL).length, 0);
 });
 
 test("没有总结只有附带字幕时报没有总结，字幕照样带回", () => {

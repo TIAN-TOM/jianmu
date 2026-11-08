@@ -1,6 +1,6 @@
 // 读 B 站的全部请求都从这里出去：站点限速和退避、登录门、签名密钥、时限和响应分类。
 import { retryAfterMsOf } from "../../core/ai/transport/policy.ts";
-import type { SiteCtx, SiteErrorCode, SiteResult } from "../types.ts";
+import type { SiteCtx, SiteErrorCode, SiteFailure, SiteFailureReach, SiteResult } from "../types.ts";
 import { buildQuery, KEY_ORDER, keysFromNav, signedUrl, type SigningKeys } from "./sign.ts";
 
 export const NAV_URL = "https://api.bilibili.com/x/web-interface/nav";
@@ -52,7 +52,6 @@ const NEVER_ABORTED = new AbortController().signal;
 
 type Channel = "account" | "api" | "file";
 type Outcome = "response" | "blocked" | "unconfirmed" | "timeout" | "threw";
-type SiteFailure = Extract<SiteResult<never>, { ok: false }>;
 
 // 一次账号读取的结果和发出时的代次。
 interface AccountCheck {
@@ -73,12 +72,15 @@ interface Reading {
   readonly retryAfterSec?: number | undefined;
 }
 
-interface ErrorRow {
+// 内容格式不对的行必须标影响范围，别的码的行不许标。
+type ErrorRow = {
   readonly when: (reading: Reading) => boolean;
-  readonly code: SiteErrorCode;
   readonly trip?: true; // 进退避
   readonly forgetLogin?: true;
-}
+} & (
+  | { readonly code: "MALFORMED"; readonly reach: SiteFailureReach }
+  | { readonly code: Exclude<SiteErrorCode, "MALFORMED">; readonly reach?: never }
+);
 
 const LIMIT_STATUSES: ReadonlySet<number> = new Set([429, 412]);
 const SIGN_REJECTED_CODE = -352;
@@ -86,6 +88,8 @@ const LIMIT_CODES: ReadonlySet<number> = new Set([-412, -509, -799, SIGN_REJECTE
 const GONE_CODES: ReadonlySet<number> = new Set([-404, 62002, 62004]);
 
 // 平台限流或拦下请求的几种信号，处理都是停下；从上往下第一行对上的算数，都对不上就是成功。
+// 影响范围：响应整个不是预期的格式、或登录检查给了不认识的结果，算整条读取路线读不了；
+// 某个视频的读取给了不认识的结果、字幕文件读不懂，只算这一项。
 const ERROR_TABLE: readonly ErrorRow[] = [
   { when: (r) => r.outcome === "blocked", code: "RATE_LIMITED" },
   { when: (r) => r.outcome === "unconfirmed", code: "NEED_LOGIN" },
@@ -95,12 +99,13 @@ const ERROR_TABLE: readonly ErrorRow[] = [
   { when: (r) => r.apiCode === -101, code: "NEED_LOGIN", forgetLogin: true },
   { when: (r) => r.apiCode === -403, code: "UNPLAYABLE" },
   { when: (r) => GONE_CODES.has(r.apiCode), code: "NOT_FOUND" },
-  { when: (r) => r.apiCode !== 0, code: "MALFORMED" },
+  { when: (r) => r.apiCode !== 0 && r.channel === "account", code: "MALFORMED", reach: "source" },
+  { when: (r) => r.apiCode !== 0, code: "MALFORMED", reach: "item" },
   { when: (r) => !r.ok && r.channel !== "file" && r.status === 403, code: "NETWORK", trip: true },
   { when: (r) => !r.ok, code: "NETWORK" },
-  { when: (r) => !r.json && r.channel !== "file", code: "MALFORMED", trip: true },
-  { when: (r) => !r.json, code: "MALFORMED" },
-  { when: (r) => r.channel === "api" && !r.enveloped, code: "MALFORMED" },
+  { when: (r) => !r.json && r.channel !== "file", code: "MALFORMED", reach: "source", trip: true },
+  { when: (r) => !r.json, code: "MALFORMED", reach: "item" },
+  { when: (r) => r.channel === "api" && !r.enveloped, code: "MALFORMED", reach: "source" },
 ];
 
 function detailOf(reading: Reading): string {
@@ -108,6 +113,12 @@ function detailOf(reading: Reading): string {
   if (reading.outcome !== "response") return reading.outcome;
   if (!reading.ok) return `http:${reading.status}`;
   return reading.json ? "no-code" : "unreadable-body";
+}
+
+function failureFromRow(row: ErrorRow, detail: string, retryAfterSec: number | undefined): SiteFailure {
+  if (row.code === "MALFORMED") return { ok: false, code: row.code, reach: row.reach, detail };
+  if (row.code === "RATE_LIMITED" && retryAfterSec !== undefined) return { ok: false, code: row.code, retryAfterSec, detail };
+  return { ok: false, code: row.code, detail };
 }
 
 function notSent(channel: Channel, outcome: Outcome, retryAfterSec?: number): Reading {
@@ -271,8 +282,7 @@ export function createBiliHttp(deps: BiliHttpDeps = {}): BiliHttp {
     if (!row) return null;
     if (row.forgetLogin) forgetLogin();
     const retryAfterSec = row.trip ? await enterBackoff(ctx, reading.retryAfterSec) : reading.retryAfterSec;
-    const failure: SiteFailure = { ok: false, code: row.code, detail: detailOf(reading) };
-    return row.code === "RATE_LIMITED" && retryAfterSec !== undefined ? { ...failure, retryAfterSec } : failure;
+    return failureFromRow(row, detailOf(reading), retryAfterSec);
   }
 
   function apiSend(request: GetRequest, ctx: SiteCtx): Send {
@@ -341,7 +351,7 @@ export function createBiliHttp(deps: BiliHttpDeps = {}): BiliHttp {
     const account = await untilAborted(loadAccount(ctx), ctx.signal);
     if (!account.ok) return account;
     const fetched = freshKeys();
-    return fetched ? { ok: true, value: fetched } : { ok: false, code: "MALFORMED", detail: "no-signing-keys" };
+    return fetched ? { ok: true, value: fetched } : { ok: false, code: "MALFORMED", reach: "source", detail: "no-signing-keys" };
   }
 
   // 返回能重签一次的新密钥，不该重发时返回 null，未登录时返回这个失败。两次被拒之间最多换一次。
@@ -385,7 +395,7 @@ export function createBiliHttp(deps: BiliHttpDeps = {}): BiliHttp {
   }
 
   async function getFile(url: string, ctx: SiteCtx): Promise<SiteResult<unknown>> {
-    if (!isCaptionFileUrl(url)) return { ok: false, code: "MALFORMED", detail: "untrusted-file-host" };
+    if (!isCaptionFileUrl(url)) return { ok: false, code: "MALFORMED", reach: "item", detail: "untrusted-file-host" };
     // 这次操作确认过登录的，排队期间作废了就不发；没确认过的由调用方负责先过登录门。
     const stillConfirmed = (): boolean => (confirmed.get(ctx) ?? generation) === generation;
     const spec: Send = { channel: "file", init: FILE_INIT, timeoutMs: requestTimeoutMs, signal: ctx.signal, stillConfirmed };

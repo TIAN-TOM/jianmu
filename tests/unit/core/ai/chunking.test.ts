@@ -439,3 +439,136 @@ test("补失败块时截断区间：被重试的区间换成这次的结果，�
   );
   assert.equal("truncatedRanges" in cleared, false);
 });
+
+test("元数据时长带小数时向下取整，不是数字时按字幕末尾算", () => {
+  assert.equal(analysisTimingVariables("[1:30] 末尾", 100.6).maxTimestampSeconds, 100);
+  for (const duration of ["未知", Number.NaN, undefined]) {
+    assert.equal(analysisTimingVariables("[1:30] 末尾", duration).maxTimestampSeconds, 90, String(duration));
+  }
+});
+
+test("输出预算：默认按一比一估算，小数向上取整，非正数和非数字按零字算", () => {
+  assert.equal(estimateOutputTokens(2000), 2512);
+  assert.equal(estimateOutputTokens(3001, { ratio: 0.5 }), 2013);
+  assert.equal(estimateOutputTokens(1, { floor: 0 }), 513);
+  for (const chars of [0, -3, Number.NaN]) {
+    assert.equal(estimateOutputTokens(chars, { floor: 0 }), 512, String(chars));
+  }
+});
+
+test("总字数正好等于不分块阈值时不分块，多一个字才分", () => {
+  const options = { maxChars: 10, singleChars: 20 };
+  assert.equal(planAnalysisChunks(makeAnalysisSegments(2, 10), options).length, 1);
+  const over = [...makeAnalysisSegments(2, 10), { id: "s2", start: 60, text: "多" }];
+  assert.equal(planAnalysisChunks(over, options).length, 3);
+});
+
+test("块内字数正好等于上限时不切，第二块起也一样", () => {
+  const segments = [
+    { id: "a", start: 0, text: "甲".repeat(10) },
+    { id: "b", start: 30, text: "乙".repeat(5) },
+    { id: "c", start: 60, text: "丙".repeat(5) },
+    { id: "d", start: 90, text: "丁" },
+  ];
+  const chunks = planAnalysisChunks(segments, { maxChars: 10, singleChars: 0 });
+  assert.deepEqual(
+    chunks.map((chunk) => chunk.segments.map((segment) => segment.id)),
+    [["a"], ["b", "c"], ["d"]],
+  );
+});
+
+test("块的起止秒数向下取整，分段起点不是数字时按 0 算", () => {
+  const [fractional] = planAnalysisChunks([
+    { start: 12.6, text: "甲" },
+    { start: 75.4, text: "乙" },
+  ]);
+  assert.deepEqual([fractional?.startSeconds, fractional?.endSeconds], [12, 75]);
+
+  const [missingStart] = planAnalysisChunks([{ start: Number.NaN, text: "甲" }, { start: 30, text: "乙" }]);
+  assert.equal(missingStart?.startSeconds, 0);
+  const [missingEnd] = planAnalysisChunks([{ start: 0, text: "甲" }, { start: Number.NaN, text: "乙" }]);
+  assert.equal(missingEnd?.endSeconds, 0);
+});
+
+test("前情按字数取上一块末尾：够数就停，不足一段也至少带一段", () => {
+  const segments = [
+    { start: 0, text: "一二三四" },
+    { start: 30, text: "五六七八" },
+    { start: 60, text: "九十甲乙" },
+  ];
+  const contextWith = (overlapChars: number): string | undefined =>
+    planAnalysisChunks(segments, { maxChars: 8, singleChars: 0, overlapChars })[1]?.contextText;
+  assert.equal(contextWith(1), "[0:30] 五六七八");
+  assert.equal(contextWith(4), "[0:30] 五六七八", "正好够数，不多带一段");
+  assert.equal(contextWith(5), "[0:00] 一二三四\n[0:30] 五六七八");
+});
+
+test("金句按去掉首尾空白后的文字去重", () => {
+  const merged = mergeAnalyses(
+    [
+      { keyQuotes: [{ quote: "同一句", timestampSeconds: 10 }] },
+      { keyQuotes: [{ quote: " 同一句 ", timestampSeconds: 20 }] },
+    ],
+    600,
+  );
+  assert.deepEqual(
+    merged.keyQuotes.map((quote) => quote.timestampSeconds),
+    [10],
+  );
+});
+
+test("失败原因去掉首尾空白，超过 200 字截断", () => {
+  const chunks = [{ index: 0, startSeconds: 0, endSeconds: 60 }];
+  const results = [{ status: "rejected", reason: new Error("原始报错") }];
+  assert.equal(chunkFailureRanges(chunks, results, () => "  超时了  ")[0]?.reason, "超时了");
+  assert.equal(chunkFailureRanges(chunks, results, () => "因".repeat(250))[0]?.reason?.length, 200);
+});
+
+test("存下的失败区间按时间对块时，端点相接的邻居不算，起止缺失时有兜底", () => {
+  const chunks = [
+    { index: 0, startSeconds: 0, endSeconds: 100 },
+    { index: 1, startSeconds: 100, endSeconds: 200 },
+    { index: 2, startSeconds: 200, endSeconds: 300 },
+  ];
+  // 序号对不上（分块方式变过），只能按时间重叠找。
+  const pick = (range: object, list: readonly { index: number; startSeconds: number; endSeconds: number }[] = chunks) =>
+    chunksForFailureRanges(list, [{ index: 9, ...range }]).map((chunk) => chunk.index);
+  assert.deepEqual(pick({ startSeconds: 100, endSeconds: 200 }), [1]);
+  assert.deepEqual(pick({ startSeconds: 0, endSeconds: 150 }), [0, 1]);
+  assert.deepEqual(pick({ startSeconds: 50 }), [0], "终点缺失时按起点算，包含起点的块仍选中");
+
+  const firstSecond = [{ index: 0, startSeconds: 0, endSeconds: 1 }];
+  assert.deepEqual(pick({ startSeconds: 0, endSeconds: 50 }, firstSecond), [0]);
+  assert.deepEqual(pick({ endSeconds: 50 }, firstSecond), [0], "起点缺失时按 0 算");
+});
+
+test("补块时清掉被重试时段的旧条目：终点那一秒不算，起点缺失按 0 算", () => {
+  const existing = {
+    chapters: [
+      { title: "开场", timestampSeconds: 0 },
+      { title: "中段", timestampSeconds: 50 },
+      { title: "边界", timestampSeconds: 100 },
+      { title: "之后", timestampSeconds: 150 },
+    ],
+    keyQuotes: [
+      { quote: "开场的话", timestampSeconds: 0 },
+      { quote: "边界的话", timestampSeconds: 100 },
+    ],
+  };
+  for (const retried of [{ startSeconds: 0, endSeconds: 100 }, { endSeconds: 100 }]) {
+    const merged = mergeRetryIntoAnalysis(existing, [], [retried], 600);
+    assert.deepEqual(merged.chapters.map((chapter) => chapter.title), ["边界", "之后"], JSON.stringify(retried));
+    assert.deepEqual(merged.keyQuotes.map((quote) => quote.quote), ["边界的话"], JSON.stringify(retried));
+  }
+});
+
+test("翻译批次的字数上限正好 1200：等于上限不切，超过才切，第二批起也一样", () => {
+  const segments = (...lengths: number[]) => lengths.map((length, i) => ({ id: `s${i}`, text: "字".repeat(length) }));
+  const sizes = (batches: { text: string }[][]) => batches.map((batch) => batch.map((item) => item.text.length));
+  assert.deepEqual(sizes(planTranslationBatches(segments(600, 600))), [[600, 600]]);
+  assert.deepEqual(sizes(planTranslationBatches(segments(600, 601))), [[600], [601]]);
+  assert.deepEqual(sizes(planTranslationBatches(segments(1, 1, 1, 1, 600, 600))), [
+    [1, 1, 1, 1],
+    [600, 600],
+  ]);
+});

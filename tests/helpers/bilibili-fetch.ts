@@ -1,7 +1,7 @@
 // B 站请求的严格替身：没配的地址抛错，记下每个请求；没绑定就以方法形式调用时抛错，和浏览器一样。
 import assert from "node:assert/strict";
 import { signParams, type SigningKeys } from "../../src/sites/bilibili/sign.ts";
-import type { SiteBackoff, SiteCtx, SiteResult } from "../../src/sites/types.ts";
+import type { SiteBackoff, SiteCtx, SiteFailureReach, SiteResult } from "../../src/sites/types.ts";
 
 export interface SeenRequest {
   readonly url: string;
@@ -94,6 +94,11 @@ export function failure<T>(result: SiteResult<T>): Extract<SiteResult<T>, { ok: 
   assert.equal(result.ok, false, JSON.stringify(result));
   if (result.ok) throw new Error("不该走到这里");
   return result;
+}
+
+/** 失败的影响范围；成功或别的错误码时是 undefined。 */
+export function reachOf(result: SiteResult<unknown>): SiteFailureReach | undefined {
+  return !result.ok && result.code === "MALFORMED" ? result.reach : undefined;
 }
 
 export function value<T>(result: SiteResult<T>): T {

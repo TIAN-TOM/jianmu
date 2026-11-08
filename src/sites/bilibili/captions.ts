@@ -221,7 +221,7 @@ export function createCaptions(http: BiliHttp, deps: CaptionsDeps = {}): Caption
   ): Promise<SiteResult<Player>> {
     const login = await http.requireLogin(ctx);
     if (!login.ok) return login;
-    if (!info.mediaVersion) return { ok: false, code: "MALFORMED", detail: "no-media-version" };
+    if (!info.mediaVersion) return { ok: false, code: "MALFORMED", reach: "item", detail: "no-media-version" };
     const player = options.fresh ? undefined : remembered(recordKey(info));
     if (player) return { ok: true, value: player };
     if (ctx.signal.aborted) return ABORTED;
@@ -231,7 +231,7 @@ export function createCaptions(http: BiliHttp, deps: CaptionsDeps = {}): Caption
   const listCaptionTracks: Captions["listCaptionTracks"] = async (info, ctx, options) => {
     const player = await loadPlayer(info, ctx, options);
     if (!player.ok) return player;
-    if (player.value.unusable) return { ok: false, code: "MALFORMED", detail: "no-usable-url" };
+    if (player.value.unusable) return { ok: false, code: "MALFORMED", reach: "item", detail: "no-usable-url" };
     return { ok: true, value: [...player.value.tracks] };
   };
 

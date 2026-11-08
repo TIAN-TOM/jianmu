@@ -292,6 +292,24 @@ test("正常请求返回模型文本与本次设置", async () => {
   assert.equal(result.settings.aiModel, "test-model");
 });
 
+test("发出的请求体照构造时的键序原样序列化，不重排", async () => {
+  const sent: string[] = [];
+  const t = makeTransport(async (_url, init) => {
+    sent.push(init.body);
+    return openaiReply("{}");
+  });
+  await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 512, temperature: 0.2, responseFormat: SCHEMAS.VERDICT });
+  assert.deepEqual(sent, [
+    JSON.stringify({
+      model: "test-model",
+      messages: MESSAGES,
+      max_tokens: 512,
+      temperature: 0.2,
+      response_format: { type: "json_object" },
+    }),
+  ]);
+});
+
 test("配置不完整时拒绝请求，不发起网络调用", async () => {
   let called = 0;
   const t = TRANSPORT.createAiTransport({

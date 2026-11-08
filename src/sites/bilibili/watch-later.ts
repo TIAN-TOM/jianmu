@@ -81,7 +81,7 @@ export function parseWatchLaterItem(raw: RawItem | null): WatchLaterItem | null 
 
 /** 把列表规整成内部结构。没有列表算空的；缺视频编号和重复的项丢掉，计入 dropped。 */
 export function parseWatchLater(data: unknown): SiteResult<WatchLaterList> {
-  if (typeof data !== "object" || data === null) return { ok: false, code: "MALFORMED", detail: "no-list-data" };
+  if (typeof data !== "object" || data === null) return { ok: false, code: "MALFORMED", reach: "source", detail: "no-list-data" };
   const { count, list } = data as WatchLaterData;
   const rawList: readonly (RawItem | null)[] = Array.isArray(list) ? list : [];
   const items = new Map<string, WatchLaterItem>();

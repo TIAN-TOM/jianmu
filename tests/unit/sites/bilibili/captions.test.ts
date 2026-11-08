@@ -6,7 +6,7 @@ import { parseChapters, parseCues } from "../../../../src/sites/bilibili/caption
 import { NAV_URL, PLAYER_URL } from "../../../../src/sites/bilibili/http.ts";
 import type { CaptionTrack } from "../../../../src/sites/types.ts";
 import { EN_TRACK, INFO, listing, oneLine, playerEnvelope, rig, ZH_FILE, ZH_TRACK } from "../../../helpers/bilibili-captions.ts";
-import { expectedSignature, failure, signatureOf, value, type Route, type SeenRequest } from "../../../helpers/bilibili-fetch.ts";
+import { expectedSignature, failure, reachOf, signatureOf, value, type Route, type SeenRequest } from "../../../helpers/bilibili-fetch.ts";
 import { BVID, FIRST_KEYS, json, navLoggedIn, navLoggedOut, SECOND_KEYS } from "../../../helpers/bilibili-fixtures.ts";
 
 const ZH: CaptionTrack = { trackId: "zh-CN", lang: "zh-CN", label: "中文（中国）", kind: "human" };
@@ -273,6 +273,30 @@ test("字幕文件返回的不是 JSON：报 MALFORMED", async () => {
   assert.equal(result.code, "MALFORMED");
   assert.doesNotMatch(result.detail ?? "", /JSON|Unexpected/);
   assert.equal(backoff.trips.length, 0);
+});
+
+test("字幕读不懂只影响这一个视频：没有可用地址、缺媒体版本、字幕文件读不懂都标 item", async () => {
+  const unusable = playerEnvelope([{ ...ZH_TRACK, subtitle_url: "//files.example.test/zh.json" }]);
+  const noUrl = rig({ [PLAYER_URL]: () => json(200, unusable) });
+  assert.equal(reachOf(await noUrl.captions.listCaptionTracks(INFO, noUrl.ctx)), "item");
+  assert.equal(reachOf(await noUrl.captions.readCaptions(INFO, ZH, noUrl.ctx)), "item");
+
+  const { mediaVersion: _mediaVersion, ...withoutVersion } = INFO;
+  const unversioned = rig({ [PLAYER_URL]: listing(ZH_TRACK) });
+  assert.equal(reachOf(await unversioned.captions.listCaptionTracks(withoutVersion, unversioned.ctx)), "item");
+  assert.equal(reachOf(await unversioned.captions.readCaptions(withoutVersion, ZH, unversioned.ctx)), "item");
+
+  for (const file of [htmlPage, () => json(200, { code: -400 })]) {
+    const broken = rig({ [PLAYER_URL]: listing(ZH_TRACK), [ZH_FILE]: file });
+    assert.equal(reachOf(await broken.captions.readCaptions(INFO, ZH, broken.ctx)), "item");
+  }
+});
+
+test("字幕列表读不懂时标 source：响应不是 JSON 或没有业务码", async () => {
+  for (const reply of [htmlPage, () => json(200, { data: {} })]) {
+    const { captions, ctx } = rig({ [PLAYER_URL]: reply });
+    assert.equal(reachOf(await captions.listCaptionTracks(INFO, ctx)), "source");
+  }
 });
 
 test("字幕列表被限流（HTTP 429）：报限流，不自动重发，也不换备用接口再问一遍", async () => {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { planTranslationBatches } from "../../../../src/core/ai/chunking.ts";
-import { alignTranslatedSegments, validateAnalysis } from "../../../../src/core/ai/validate.ts";
+import { alignTranslatedSegments, looksLikeTranslation, validateAnalysis } from "../../../../src/core/ai/validate.ts";
 
 test("丢弃超出视频时长的时间戳", () => {
   const result = validateAnalysis(
@@ -226,4 +226,122 @@ test("翻译返回结构完全畸形时，整批退回原文而不是抛错", ()
   assert.deepEqual(alignTranslatedSegments(null, EN_BATCH).translated, {});
   assert.deepEqual(alignTranslatedSegments({ segments: "不是数组" }, EN_BATCH).translated, {});
   assert.equal(alignTranslatedSegments(null, EN_BATCH).rejected.length, 2);
+});
+
+test("正好等于视频时长的时间戳保留，超出才丢", () => {
+  const result = validateAnalysis(
+    {
+      chapters: [
+        { title: "末尾", timestampSeconds: 120 },
+        { title: "越界", timestampSeconds: 121 },
+      ],
+      keyQuotes: [
+        { quote: "末尾", timestampSeconds: 120 },
+        { quote: "越界", timestampSeconds: 120.5 },
+      ],
+    },
+    120,
+  );
+  assert.deepEqual(result.chapters.map((c) => c.title), ["末尾"]);
+  assert.deepEqual(result.keyQuotes.map((q) => q.quote), ["末尾"]);
+});
+
+test("时长不是正数时不按时长裁剪，时长为 1 秒时照常裁", () => {
+  const late = { chapters: [{ title: "很晚", timestampSeconds: 5000 }] };
+  for (const max of [0, -5, Number.NaN, undefined, "未知"]) {
+    assert.deepEqual(validateAnalysis(late, max).chapters.map((c) => c.title), ["很晚"], String(max));
+  }
+  const short = {
+    chapters: [
+      { title: "第一秒", timestampSeconds: 1 },
+      { title: "第二秒", timestampSeconds: 2 },
+    ],
+  };
+  assert.deepEqual(validateAnalysis(short, 1).chapters.map((c) => c.title), ["第一秒"]);
+});
+
+test("分块的起点之前的条目丢掉，正好在起点上的保留", () => {
+  const result = validateAnalysis(
+    {
+      chapters: [
+        { title: "上一块的", timestampSeconds: 0 },
+        { title: "起点", timestampSeconds: 1 },
+      ],
+      keyQuotes: [
+        { quote: "上一块的", timestampSeconds: 0.5 },
+        { quote: "起点", timestampSeconds: 1 },
+      ],
+    },
+    600,
+    1,
+  );
+  assert.deepEqual(result.chapters.map((c) => c.title), ["起点"]);
+  assert.deepEqual(result.keyQuotes.map((q) => q.quote), ["起点"]);
+});
+
+test("秒数带小数时向下取整，显示用时间戳跟着取整后的秒数", () => {
+  const result = validateAnalysis(
+    {
+      chapters: [{ title: "章", timestampSeconds: 95.9 }],
+      keyQuotes: [{ quote: "句", timestampSeconds: 59.99 }],
+    },
+    600,
+  );
+  assert.deepEqual(
+    [result.chapters[0]?.timestampSeconds, result.chapters[0]?.timestamp],
+    [95, "1:35"],
+  );
+  assert.deepEqual(
+    [result.keyQuotes[0]?.timestampSeconds, result.keyQuotes[0]?.timestamp],
+    [59, "0:59"],
+  );
+});
+
+test("标题、摘要和金句去掉首尾空白，只剩空白的条目丢掉", () => {
+  const result = validateAnalysis(
+    {
+      chapters: [
+        { title: "  开场  ", summary: "  讲了背景  ", timestampSeconds: 0 },
+        { title: "   ", summary: "有摘要没标题", timestampSeconds: 10 },
+      ],
+      keyQuotes: [
+        { quote: "  一句金句  ", timestampSeconds: 5 },
+        { quote: " \n ", timestampSeconds: 6 },
+      ],
+    },
+    600,
+  );
+  assert.deepEqual(
+    result.chapters.map((c) => [c.title, c.summary]),
+    [["开场", "讲了背景"]],
+  );
+  assert.deepEqual(result.keyQuotes.map((q) => q.quote), ["一句金句"]);
+});
+
+test("金句超过 3000 字截断，条数最多 50 条", () => {
+  const result = validateAnalysis(
+    {
+      keyQuotes: Array.from({ length: 60 }, (_, i) => ({ quote: "句".repeat(3001), timestampSeconds: i })),
+    },
+    600,
+  );
+  assert.equal(result.keyQuotes.length, 50);
+  assert.equal(result.keyQuotes[0]?.quote.length, 3000);
+});
+
+test("中译英：原文 10 个汉字起才检查，译文汉字少于原文一半才算翻译了", () => {
+  const nine = "一二三四五六七八九";
+  const ten = "一二三四五六七八九十";
+  assert.equal(looksLikeTranslation(nine, nine, "en"), true, "不到 10 个汉字不检查");
+  assert.equal(looksLikeTranslation(ten, ten, "en"), false, "10 个汉字原样抄回来算没翻译");
+  assert.equal(looksLikeTranslation("Name: 一二三四", ten, "en"), true, "留 4 个汉字，少于一半");
+  assert.equal(looksLikeTranslation("Name: 一二三四五", ten, "en"), false, "留 5 个汉字，正好一半");
+});
+
+test("译成中文：原文 20 个拉丁字母起才检查，译文出现一个汉字就算翻译了", () => {
+  const nineteen = "word ".repeat(4) + "abc";
+  const twenty = "word ".repeat(5);
+  assert.equal(looksLikeTranslation(nineteen, nineteen), true, "不到 20 个字母不检查");
+  assert.equal(looksLikeTranslation(twenty, twenty), false, "20 个字母原样抄回来算没翻译");
+  assert.equal(looksLikeTranslation(`${twenty}好`, twenty), true, "出现一个汉字就算");
 });

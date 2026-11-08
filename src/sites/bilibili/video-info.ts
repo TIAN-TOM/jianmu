@@ -45,12 +45,16 @@ export function paidStatus(data: unknown): PaidStatus {
   return markers.every(isMarker) ? "free" : "unknown";
 }
 
-/** 把视频信息规整成内部结构。确认是免费的才往下读；分 P 按身份里的序号取，不退回第 1 P。 */
+/**
+ * 把视频信息规整成内部结构。先核对返回的是不是请求的那个视频，再判断付费，确认是免费的才往下读；
+ * 分 P 按身份里的序号取，不退回第 1 P。
+ */
 export function parseVideoInfo(data: unknown, ref: VideoRef): SiteResult<VideoInfo> {
+  if (!isRecord(data)) return { ok: false, code: "UNPLAYABLE", detail: "paid-unknown" };
+  // 对不上或看不出是哪个视频时整份不用，也不拿它的付费结论记到请求的视频上。
+  if (data["bvid"] !== ref.videoId) return { ok: false, code: "MALFORMED", reach: "source", detail: "video-mismatch" };
   const paid = paidStatus(data);
-  if (paid !== "free" || !isRecord(data)) {
-    return { ok: false, code: "UNPLAYABLE", detail: paid === "paid" ? "paid" : "paid-unknown" };
-  }
+  if (paid !== "free") return { ok: false, code: "UNPLAYABLE", detail: paid === "paid" ? "paid" : "paid-unknown" };
 
   const video: ViewData = data;
   const segment = ref.segment ?? 1;
@@ -60,14 +64,14 @@ export function parseVideoInfo(data: unknown, ref: VideoRef): SiteResult<VideoIn
 
   // 选中的那一 P 缺编号时不退回视频本身的编号：那可能是另一 P 的。
   const cid = Number(page ? page.cid : video.cid) || 0;
-  if (!cid) return { ok: false, code: "MALFORMED", detail: "no-cid" };
+  if (!cid) return { ok: false, code: "MALFORMED", reach: "item", detail: "no-cid" };
 
   const aid = Number(video.aid) || 0;
   const mid = Number(video.owner?.mid) || 0;
   return {
     ok: true,
     value: {
-      ref,
+      ref, // 上面核对过，和返回的是同一个视频
       // 分 P 视频用分 P 标题，更贴近用户在页面上看到的。
       title: (pages.length > 1 && text(page?.part)) || text(video.title),
       author: text(video.owner?.name),

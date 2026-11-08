@@ -225,7 +225,7 @@ function checkFile(file: Module): Violation[] {
     if (file.sends) report(6, front ? "url.ts、page.ts 不发请求" : "站点的请求只从 bilibili/http.ts 经 ctx.fetch 发");
     for (const value of strings) {
       const bad = front
-        ? (EXTERNAL_LINK.test(value) || HOST_AND_PATH.test(value)) && !PAGE_ADDRESS.test(value)
+        ? (EXTERNAL_LINK.test(value) || HOST_AND_PATH.test(value) || PATH_STRING.test(value) || JOINED_ADDRESS.test(value)) && !PAGE_ADDRESS.test(value)
         : JOINED_ADDRESS.test(value) || (isAddress(value) && !BILIBILI_ADDRESSES.has(value));
       if (bad) report(6, front ? `url.ts、page.ts 只写播放页地址：${value}` : `请求地址要写成完整常量，并且在放行表里：${value}`);
     }
@@ -296,6 +296,13 @@ function checkReach(file: Module, modules: ReadonlyMap<string, Module>): Violati
       found.push({ rule: 6, file: path, detail: `前台模块不带入后台读取代码：${chain(path, outside, all)}` });
     } else if (sending !== undefined) {
       found.push({ rule: 6, file: path, detail: `前台模块不带入发请求的模块：${chain(path, sending, values)}` });
+    }
+  }
+  if (path.startsWith("src/content/")) {
+    const values = reach(path, modules, true);
+    const sending = sender(values);
+    if (sending !== undefined) {
+      found.push({ rule: 6, file: path, detail: `内容脚本不带入发请求的模块：${chain(path, sending, values)}` });
     }
   }
   if (BILIBILI_READ.test(path)) {

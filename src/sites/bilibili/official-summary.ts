@@ -83,13 +83,13 @@ function summaryOf(status: OfficialSummary["status"], content: Partial<OfficialS
 
 /** 把官方总结规整成四种内容状态：有总结、没有、排队生成中、平台不做。 */
 export function parseOfficialSummary(data: unknown): SiteResult<OfficialSummary> {
-  if (typeof data !== "object" || data === null) return { ok: false, code: "MALFORMED", detail: "no-summary-data" };
+  if (typeof data !== "object" || data === null) return { ok: false, code: "MALFORMED", reach: "item", detail: "no-summary-data" };
   const raw = data as SummaryData;
   const code = Number(raw.code);
   if (code === -1) return summaryOf("unsupported");
   if (code === 1) return summaryOf(String(raw.stid ?? "") === "0" ? "queued" : "none");
   if (code !== 0) {
-    return { ok: false, code: "MALFORMED", detail: Number.isFinite(code) ? `summary-code:${code}` : "no-summary-code" };
+    return { ok: false, code: "MALFORMED", reach: "item", detail: Number.isFinite(code) ? `summary-code:${code}` : "no-summary-code" };
   }
   const summary = plainText(raw.model_result?.summary);
   const outline = parseOutline(raw.model_result?.outline);
@@ -104,7 +104,7 @@ export async function readOfficialSummary(
   ctx: SiteCtx,
   deps: OfficialSummaryDeps = {},
 ): Promise<SiteResult<OfficialSummary>> {
-  if (!info.mediaVersion) return { ok: false, code: "MALFORMED", detail: "no-media-version" };
+  if (!info.mediaVersion) return { ok: false, code: "MALFORMED", reach: "item", detail: "no-media-version" };
   const params: Record<string, string> = { bvid: info.ref.videoId, cid: info.mediaVersion };
   if (info.channel) params["up_mid"] = info.channel.channelId;
   const timeoutMs = deps.timeoutMs ?? SUMMARY_TIMEOUT_MS;

@@ -93,3 +93,54 @@ test("结论认「信息不足」一档；概览缺块时标成不完整", () =>
     "完整概览的结论不带不完整标记",
   );
 });
+
+test("缺块时段的起止取整到秒，起点缺失按 0 算，终点缺失按起点算", () => {
+  const note = verdictInputs(
+    { chapters: [] },
+    {
+      failures: [
+        { startSeconds: 12.3, endSeconds: 30.2 },
+        { startSeconds: 0, endSeconds: 30 },
+        { endSeconds: 45 },
+        { startSeconds: 60 },
+      ],
+    },
+  ).coverageNote;
+  assert.equal(
+    note,
+    "不完整。以下时间段生成失败，章节摘要和金句里没有这几段的内容：0:12–0:30、0:00–0:30、0:00–0:45、1:00–1:00。",
+  );
+});
+
+test("结论输入去掉章节摘要的首尾空白，只剩空白时不带冒号", () => {
+  const { chaptersText } = verdictInputs({
+    chapters: [
+      { timestamp: "0:00", title: "开场", summary: "   " },
+      { timestamp: "1:00", title: "方法", summary: " 讲了步骤 " },
+    ],
+  });
+  assert.equal(chaptersText, "[0:00] 开场\n[1:00] 方法：讲了步骤");
+});
+
+test("官方总结只有空白时不算有内容；提纲里只有空白标题、又没有要点的段落跳过", () => {
+  assert.equal(hasOfficialSummaryContent({ summary: "   " }), false);
+  const { chaptersText } = officialVerdictInputs({
+    outline: [
+      { title: "  ", timestamp: 10, points: [] },
+      { title: " 第一段 ", timestamp: 0, points: [] },
+    ],
+  });
+  assert.equal(chaptersText, "[0:00] 第一段");
+});
+
+test("结论的判断档位去掉首尾空白再比对，价值和理由超过 120 字截断", () => {
+  const verdict = validateVerdict({
+    summary: "讲了 A",
+    value: "值".repeat(121),
+    verdict: " 可以跳过 ",
+    reason: "因".repeat(121),
+  });
+  assert.equal(verdict?.verdict, "可以跳过");
+  assert.equal(verdict?.value.length, 120);
+  assert.equal(verdict?.reason.length, 120);
+});

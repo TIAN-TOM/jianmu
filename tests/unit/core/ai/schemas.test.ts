@@ -138,3 +138,105 @@ test("schema 拒绝提示词之外的形状：缺字段、多字段、自创档�
     "秒数要求整数",
   );
 });
+
+// 名字和字段顺序原样进请求：结构化输出按字段顺序生成，先写摘要再下判断；名字出现在 OpenAI 的请求里。
+// 只比 deepEqual 拦不住换顺序，这里比序列化后的文字。
+test("五份输出结构的名字、字段和顺序逐字节固定", () => {
+  const text = { type: "string" };
+  const seconds = { type: "integer" };
+  const expected: readonly (readonly [ResponseSchema, unknown])[] = [
+    [
+      SCHEMAS.ANALYSIS_CHUNK,
+      {
+        type: "json_schema",
+        name: "analysis_chunk",
+        schema: {
+          type: "object",
+          properties: {
+            chapters: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: { title: text, timestamp: text, timestampSeconds: seconds, summary: text },
+                required: ["title", "timestamp", "timestampSeconds", "summary"],
+                additionalProperties: false,
+              },
+            },
+            keyQuotes: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: { quote: text, timestamp: text, timestampSeconds: seconds },
+                required: ["quote", "timestamp", "timestampSeconds"],
+                additionalProperties: false,
+              },
+            },
+          },
+          required: ["chapters", "keyQuotes"],
+          additionalProperties: false,
+        },
+      },
+    ],
+    [
+      SCHEMAS.VERDICT,
+      {
+        type: "json_schema",
+        name: "verdict",
+        schema: {
+          type: "object",
+          properties: {
+            summary: text,
+            value: text,
+            verdict: { type: "string", enum: ["值得看完整视频", "看概览就够", "可以跳过", "信息不足"] },
+            reason: text,
+          },
+          required: ["summary", "value", "verdict", "reason"],
+          additionalProperties: false,
+        },
+      },
+    ],
+    [
+      SCHEMAS.SEGMENT_BATCH,
+      {
+        type: "json_schema",
+        name: "segment_batch",
+        schema: {
+          type: "object",
+          properties: {
+            segments: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: { id: text, text },
+                required: ["id", "text"],
+                additionalProperties: false,
+              },
+            },
+          },
+          required: ["segments"],
+          additionalProperties: false,
+        },
+      },
+    ],
+    [
+      SCHEMAS.QA_ANSWER,
+      {
+        type: "json_schema",
+        name: "qa_answer",
+        schema: { type: "object", properties: { answer: text }, required: ["answer"], additionalProperties: false },
+      },
+    ],
+    [
+      SCHEMAS.NOTE_QUOTE,
+      {
+        type: "json_schema",
+        name: "note_quote",
+        schema: { type: "object", properties: { quote: text }, required: ["quote"], additionalProperties: false },
+      },
+    ],
+  ];
+  assert.equal(expected.length, ALL.length);
+  for (const [descriptor, shape] of expected) {
+    assert.equal(JSON.stringify(descriptor), JSON.stringify(shape), descriptor.name);
+  }
+});

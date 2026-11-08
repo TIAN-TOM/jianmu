@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { NAV_URL, WATCH_LATER_URL, type BiliHttp, type GetRequest } from "../../../../src/sites/bilibili/http.ts";
 import { parseWatchLater, parseWatchLaterItem, readWatchLater } from "../../../../src/sites/bilibili/watch-later.ts";
 import { rig } from "../../../helpers/bilibili-captions.ts";
-import { failure, hanging, value, type Route } from "../../../helpers/bilibili-fetch.ts";
+import { failure, hanging, reachOf, value, type Route } from "../../../helpers/bilibili-fetch.ts";
 import { BAN_RESPONSES, json, navLoggedOut } from "../../../helpers/bilibili-fixtures.ts";
 
 const FIRST_ID = "BV1Sample001";
@@ -170,6 +170,14 @@ test("未登录 -101 报 NEED_LOGIN；其余错误码和坏结构报 MALFORMED",
   assert.equal((await read(null)).code, "MALFORMED");
   assert.equal((await read({ message: "没有业务码" })).code, "MALFORMED");
   assert.equal((await read({ code: 0 })).code, "MALFORMED");
+});
+
+test("列表本身读不懂时标 source：这条读取路线整体读不了，批量处理停下", async () => {
+  for (const data of [null, undefined, "oops", 1]) {
+    assert.deepEqual(parseWatchLater(data), { ok: false, code: "MALFORMED", reach: "source", detail: "no-list-data" }, String(data));
+  }
+  const { http, ctx } = rig({ [WATCH_LATER_URL]: () => json(200, { code: 0 }) });
+  assert.equal(reachOf(await readWatchLater(http, ctx)), "source", "信封里没有数据");
 });
 
 test("只发一个不带参数的 GET，带登录 cookie", async () => {
