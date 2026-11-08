@@ -1,0 +1,297 @@
+/* 共用组件：时间轨、结论、章节。侧边栏和播放页卡片都用。 */
+
+/* ---------- 时间轨 ----------
+ * 一根细线打底，章节或分块按比例叠在上面；--start、--size、--played 由组件按比例写在每一段上。 */
+
+.rail {
+  position: relative;
+  flex: none;
+}
+
+.rail[data-orientation="vertical"] {
+  width: var(--rail-gutter);
+  min-height: 100%;
+}
+
+.rail[data-orientation="horizontal"] {
+  height: 0.75rem;
+}
+
+.rail-line,
+.rail-piece,
+.rail-head {
+  position: absolute;
+}
+
+.rail-line {
+  background: var(--rail-track);
+}
+
+.rail[data-orientation="vertical"] .rail-line {
+  top: 0;
+  bottom: 0;
+  left: calc(50% - 1px);
+  width: 2px;
+}
+
+.rail[data-orientation="horizontal"] .rail-line {
+  left: 0;
+  right: 0;
+  top: calc(50% - 1px);
+  height: 2px;
+}
+
+.rail-piece {
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--rail-seg);
+  cursor: pointer;
+}
+
+.rail[data-orientation="vertical"] .rail-piece {
+  top: calc(var(--start) + 1px);
+  height: max(2px, calc(var(--size) - 2px));
+  left: calc(50% - var(--rail-bar) / 2);
+  width: var(--rail-bar);
+}
+
+.rail[data-orientation="horizontal"] .rail-piece {
+  left: calc(var(--start) + 1px);
+  width: max(2px, calc(var(--size) - 2px));
+  top: calc(50% - var(--rail-bar) / 2);
+  height: var(--rail-bar);
+}
+
+.rail-played {
+  position: absolute;
+  inset: 0;
+  background: var(--rail-played);
+}
+
+.rail[data-orientation="vertical"] .rail-played {
+  bottom: auto;
+  height: var(--played);
+}
+
+.rail[data-orientation="horizontal"] .rail-played {
+  right: auto;
+  width: var(--played);
+}
+
+.rail-piece[data-kind="pending"] {
+  background: var(--rail-track);
+  cursor: default;
+}
+
+.rail[data-orientation="vertical"] .rail-piece[data-kind="pending"] {
+  left: calc(50% - 1px);
+  width: 2px;
+}
+
+.rail[data-orientation="horizontal"] .rail-piece[data-kind="pending"] {
+  top: calc(50% - 1px);
+  height: 2px;
+}
+
+.rail-piece[data-kind="writing"] {
+  background: var(--rail-played);
+  cursor: default;
+  animation: ske-pulse 1.2s var(--ease) infinite alternate;
+}
+
+.rail-piece[data-kind="failed"] {
+  background: repeating-linear-gradient(135deg, var(--rail-failed) 0 2px, transparent 2px 4px);
+  cursor: default;
+}
+
+.rail-piece[data-key] {
+  background: var(--rail-key);
+}
+
+.rail[data-orientation="vertical"] .rail-piece[data-key],
+.rail[data-orientation="vertical"] .rail-piece[data-focus],
+.rail[data-orientation="vertical"] .rail-piece[data-kind="chapter"]:hover {
+  left: calc(50% - 3px);
+  width: 6px;
+}
+
+.rail[data-orientation="horizontal"] .rail-piece[data-key],
+.rail[data-orientation="horizontal"] .rail-piece[data-focus],
+.rail[data-orientation="horizontal"] .rail-piece[data-kind="chapter"]:hover {
+  top: calc(50% - 3px);
+  height: 6px;
+}
+
+.rail-piece[data-focus],
+.rail-piece[data-kind="chapter"]:hover {
+  background: var(--rail-focus);
+}
+
+.rail-head {
+  width: var(--playhead);
+  height: var(--playhead);
+  border-radius: var(--radius-pill);
+  background: var(--mark);
+  box-shadow: 0 0 0 2px var(--bg);
+  pointer-events: none;
+}
+
+.rail[data-orientation="vertical"] .rail-head {
+  top: calc(var(--at) - var(--playhead) / 2);
+  left: calc(50% - var(--playhead) / 2);
+}
+
+.rail[data-orientation="horizontal"] .rail-head {
+  left: calc(var(--at) - var(--playhead) / 2);
+  top: calc(50% - var(--playhead) / 2);
+}
+
+/* ---------- 结论 ---------- */
+
+.verdict {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.verdict-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: var(--hit);
+}
+
+.verdict-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-semibold);
+}
+
+.verdict[data-shape="go"] .verdict-label {
+  color: var(--verdict-go);
+}
+
+.verdict[data-shape="fair"] .verdict-label {
+  color: var(--verdict-fair);
+}
+
+.verdict[data-shape="skip"] .verdict-label {
+  color: var(--verdict-skip);
+}
+
+.verdict[data-shape="unknown"] .verdict-label {
+  color: var(--verdict-unknown);
+}
+
+.verdict[data-shape="square"] .verdict-label {
+  color: var(--text);
+}
+
+.verdict-text {
+  color: var(--text-strong);
+  font-family: var(--font-serif);
+  font-size: var(--fs-verdict);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-verdict);
+  overflow-wrap: anywhere;
+}
+
+.verdict-basis {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+}
+
+/* ---------- 章节 ---------- */
+
+.section-title {
+  margin-bottom: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-medium);
+}
+
+.chapter-list {
+  display: grid;
+  gap: var(--space-1);
+  padding: 0;
+  list-style: none;
+}
+
+.chapter-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.chapter-time {
+  flex: none;
+  padding: 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--accent-text);
+  font-size: var(--fs-meta);
+  cursor: pointer;
+}
+
+.chapter-time:hover {
+  background: var(--bg-hover);
+}
+
+.chapter-toggle,
+.chapter-title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-snug);
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.chapter-toggle {
+  cursor: pointer;
+}
+
+.chapter-toggle:hover .chapter-name,
+.chapter[data-focus] .chapter-name {
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+}
+
+.chapter[data-key] .chapter-name {
+  font-weight: var(--fw-semibold);
+}
+
+.key-dot {
+  flex: none;
+  align-self: center;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  background: var(--mark);
+}
+
+.chapter-detail {
+  padding: var(--space-1) 0 var(--space-2) var(--space-10);
+  color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail-piece[data-kind="writing"] {
+    animation: none;
+  }
+}

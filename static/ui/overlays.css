@@ -1,0 +1,142 @@
+/* 共用组件：抽屉、层和菜单，只有它们浮起来，有表面和阴影。 */
+
+/* ---------- 抽屉和层 ---------- */
+
+.sheet,
+.layer {
+  padding: 0;
+  border: 0;
+  color: var(--text);
+  background: var(--card);
+}
+
+.sheet {
+  width: 100%;
+  max-width: 100%;
+  max-height: 76vh;
+  margin: auto 0 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: var(--shadow-lg);
+}
+
+.sheet[open] {
+  animation: sheet-rise var(--dur-mode) var(--ease);
+}
+
+.sheet::backdrop {
+  background: rgb(var(--shadow-rgb) / calc(0.12 * var(--shadow-alpha)));
+}
+
+@keyframes sheet-rise {
+  from {
+    transform: translateY(1.5rem);
+    opacity: 0;
+  }
+}
+
+.sheet-body {
+  display: flex;
+  flex-direction: column;
+  max-height: 76vh;
+}
+
+.layer {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  background: var(--bg);
+}
+
+.layer::backdrop {
+  background: transparent;
+}
+
+.overlay-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--dock-h);
+  padding: 0 var(--space-2) 0 var(--panel-pad);
+  border-bottom: 1px solid var(--border);
+}
+
+.layer .overlay-head {
+  padding-left: var(--space-2);
+}
+
+.overlay-title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+}
+
+.overlay-actions {
+  display: inline-flex;
+  gap: var(--space-1);
+}
+
+.overlay-content {
+  overflow: auto;
+  padding: var(--space-4) var(--panel-pad);
+}
+
+/* ---------- 菜单 ---------- */
+
+.menu-anchor {
+  display: inline-flex;
+}
+
+.menu {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  min-width: 10rem;
+  max-width: calc(100vw - var(--space-4));
+  max-height: calc(100vh - var(--space-4));
+  overflow: auto;
+  padding: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+}
+
+.menu:not([data-placed]) {
+  visibility: hidden;
+}
+
+.menu-item {
+  display: grid;
+  width: 100%;
+  padding: var(--space-1) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+}
+
+.menu-item:hover,
+.menu-item:focus-visible {
+  background: var(--bg-hover);
+  outline: none;
+}
+
+.menu-item[data-danger] {
+  color: var(--danger);
+}
+
+.menu-item[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.menu-hint {
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}

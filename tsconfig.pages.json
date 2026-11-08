@@ -4,6 +4,6 @@
     "lib": ["es2023", "dom", "dom.iterable"],
     "types": ["chrome"]
   },
-  "include": ["src/core/**/*", "src/shared/**/*", "src/platform/**/*", "src/sites/**/*", "src/content/**/*", "src/pages/**/*"],
+  "include": ["src/core/**/*", "src/shared/**/*", "src/platform/**/*", "src/sites/**/*", "src/content/**/*", "src/pages/**/*", "e2e/pages/fixtures/**/*"],
   "exclude": ["src/sites/services.ts", "src/sites/*/service.ts"]
 }

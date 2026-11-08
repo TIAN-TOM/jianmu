@@ -19,6 +19,7 @@
     "package": "npm run build && node scripts/package.mjs",
     "test:e2e": "npm run package && node e2e/run.mjs",
     "test:e2e:lifecycle": "npm run package && node e2e/lifecycle.mjs",
+    "test:pages": "npm run build && node e2e/pages.mjs",
     "release": "node scripts/release.mjs"
   },
   "dependencies": {

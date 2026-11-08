@@ -1,0 +1,361 @@
+/* 共用组件：页面底子、按钮和标记、模式切换、一行提示、底部工具条、状态块、首次启用说明。 */
+
+/* ---------- 页面底子 ---------- */
+
+:where(body) {
+  margin: 0;
+  color: var(--text);
+  background: var(--bg);
+  font-family: var(--font-sans);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-snug);
+  font-variant-numeric: tabular-nums;
+}
+
+:where(h1, h2, h3, h4, p, ul, ol) {
+  margin: 0;
+}
+
+:where(button) {
+  font: inherit;
+  color: inherit;
+}
+
+:where(button, summary, a):focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.icon,
+.verdict-mark {
+  display: inline-block;
+  flex: none;
+  vertical-align: -0.125em;
+}
+
+.ske-line {
+  display: block;
+  height: 0.75rem;
+  margin: var(--space-2) 0;
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  animation: ske-pulse 1.4s var(--ease) infinite alternate;
+}
+
+@keyframes ske-pulse {
+  to {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ske-line {
+    animation: none;
+  }
+}
+
+/* ---------- 按钮和标记 ---------- */
+
+.control {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  max-width: 100%;
+}
+
+.control[data-wide] {
+  display: flex;
+  align-items: stretch;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: 2rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+
+.button:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.button[data-variant="primary"] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.button[data-variant="primary"]:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+.button[data-variant="text"] {
+  min-height: auto;
+  padding: 0;
+  border-color: transparent;
+  color: var(--accent-text);
+}
+
+.button[data-variant="text"]:hover:not(:disabled) {
+  background: transparent;
+  text-decoration: underline;
+}
+
+.button[data-variant="danger"] {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.button:disabled,
+.icon-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.control-reason,
+.control-note {
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+}
+
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--hit);
+  height: var(--hit);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+
+.icon-button:hover:not(:disabled),
+.icon-button[aria-pressed="true"] {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+  line-height: var(--lh-snug);
+  white-space: nowrap;
+}
+
+.badge[data-tone="warn"] {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.badge[data-tone="danger"] {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.badge[data-tone="ok"] {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.badge[data-tone="line"] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+/* ---------- 模式切换 ---------- */
+
+.modes {
+  display: flex;
+  gap: var(--space-5);
+}
+
+.mode {
+  position: relative;
+  padding: var(--space-1) 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--fs-body);
+  cursor: pointer;
+}
+
+.mode:hover {
+  color: var(--text);
+}
+
+.mode[aria-checked="true"] {
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+}
+
+.mode[aria-checked="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--text);
+}
+
+/* ---------- 一行提示 ---------- */
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--notice-h);
+  padding: var(--space-1) var(--panel-pad);
+  background: var(--bg-subtle);
+  color: var(--text);
+  font-size: var(--fs-meta);
+}
+
+.notice[data-tone="warn"] {
+  background: var(--warn-soft);
+}
+
+.notice[data-tone="accent"] {
+  background: var(--accent-soft);
+}
+
+.notice-text {
+  flex: 1;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.notice-action {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-text);
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+}
+
+/* ---------- 底部工具条 ---------- */
+
+.dock {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--dock-h);
+  padding: var(--space-2) var(--panel-pad);
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
+/* ---------- 状态块 ---------- */
+
+.state-block {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--panel-pad);
+}
+
+.state-title {
+  font-size: var(--fs-title);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+}
+
+.state-impact {
+  color: var(--text-muted);
+}
+
+.state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* ---------- 首次启用说明 ---------- */
+
+.activation {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-6) var(--panel-pad);
+}
+
+.activation-title {
+  font-family: var(--font-serif);
+  font-size: var(--fs-heading);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+}
+
+.activation-section {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.activation-heading {
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-medium);
+}
+
+.activation-lines {
+  display: grid;
+  gap: var(--space-1);
+  padding-left: var(--space-5);
+  font-size: var(--fs-ui);
+}
+
+.activation-full summary {
+  color: var(--accent-text);
+  cursor: pointer;
+}
+
+.activation-full[open] {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.activation-foot {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.activation-foot .button {
+  width: 100%;
+}
+
+.activation-error {
+  color: var(--danger);
+}
+
+.activation-footnote {
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+}

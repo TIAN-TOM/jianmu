@@ -1,0 +1,42 @@
+/* 组件样张自己的版面，只在页面测试里用。 */
+
+.gallery {
+  display: grid;
+  gap: var(--space-6);
+  padding: var(--space-4) var(--panel-pad) var(--space-10);
+}
+
+.gallery-title {
+  font-family: var(--font-serif);
+  font-size: var(--fs-display);
+}
+
+.gallery-rail-row {
+  display: flex;
+  gap: var(--space-2);
+  min-height: 12rem;
+}
+
+.gallery-grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.gallery-stack {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.gallery-wrap,
+#marks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.gallery-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}

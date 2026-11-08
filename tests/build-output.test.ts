@@ -91,6 +91,23 @@ test("四个扩展页面都在 <head> 里、样式表之前同步加载主题启
   assert.deepEqual({ dataset, style }, { dataset: { accentTheme: "ochre", themeMode: "dark" }, style: { "--ui-font-zoom": "1.12" } });
 });
 
+test("扩展页面紧跟着主题样式表加载共用组件的样式表，组件样式都进包", () => {
+  const pages = readdirSync(join(BUILD, "pages")).filter((name) => name.endsWith(".html"));
+  for (const page of pages) {
+    const html = readBuild(`pages/${page}`);
+    const head = html.slice(0, html.indexOf("</head>"));
+    const sheets = [...head.matchAll(/<link\b[^>]*\brel="stylesheet"[^>]*\bhref="([^"]+)"/g)].map((match) => match[1]);
+    assert.deepEqual(sheets.slice(0, 2), ["../theme.css", "../ui.css"], `${page}：先变量后组件`);
+  }
+  // 组件样式按用途分了几份，由 ui.css 引进来：每一份都在构建里、进包。
+  const parts = [...readBuild("ui.css").matchAll(/@import url\("\.\/([^"]+)"\);/g)].map((match) => match[1] ?? "");
+  assert.ok(parts.length > 0, "ui.css 没有引进组件样式");
+  for (const file of ["ui.css", ...parts]) {
+    assert.ok(existsSync(join(BUILD, file)), `构建里没有 ${file}`);
+    assert.ok(PACKAGE_FILES.includes(file), `${file} 要进包`);
+  }
+});
+
 const ICON_SIZES = [16, 48, 128];
 const PNG_SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
 

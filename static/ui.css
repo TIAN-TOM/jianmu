@@ -1,0 +1,16 @@
+/* 简幕扩展页面的共用组件样式，入口文件。
+ *
+ * 跟在 theme.css 后面加载，颜色、字号、间距只用那里的变量。组件在 src/pages/shared/ui/，
+ * 样式按用途分三份：
+ *
+ *   ui/controls.css   页面底子、按钮和标记、模式切换、一行提示、底部工具条、状态块、首次启用说明
+ *   ui/reading.css    时间轨、结论、章节
+ *   ui/overlays.css   抽屉、层和菜单
+ *
+ * 版面靠细线和留白分层，只有真的浮起来的东西（抽屉、菜单、对话框）才有表面和阴影。
+ * 尺寸用 rem，跟着界面字号走；只有轨道粗细、播放头和细线用 px。
+ */
+
+@import url("./ui/controls.css");
+@import url("./ui/reading.css");
+@import url("./ui/overlays.css");

@@ -8,3 +8,7 @@ pages/sidepanel.html
 pages/sidepanel.js
 pages/theme-boot.js
 theme.css
+ui.css
+ui/controls.css
+ui/overlays.css
+ui/reading.css

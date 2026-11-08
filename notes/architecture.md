@@ -118,7 +118,7 @@ jianmu/
   LICENSE  README.md  PRIVACY.md  SECURITY.md  AGENTS.md  CHANGELOG.md
   notes/                     PRD、方案、本文、实机检查清单
   prompts/                   内置提示词，构建时内联进后台包；skim/、study/、common/（english/ 在更新三）
-  static/                    原样复制：_locales/、icons/*.png、pages/*.html、theme.css
+  static/                    原样复制：_locales/、icons/*.png、pages/*.html、theme.css、ui.css 和 ui/
   src/
     core/                    纯逻辑，不碰 chrome.* 和 DOM
       video-ref.ts  errors.ts  consent.ts   身份；错误码和三段文案；每个同意版本新增了哪些发送内容
@@ -144,7 +144,7 @@ jianmu/
       sidepanel/             main.tsx、app.tsx、skim/、study/、qa/、notes/、batch/
       card/  options/  triage/
   tests/                     unit/ 镜像 src；helpers/ 替身（含注入给后台服务的站点替身）；fixtures/（golden/、legacy-backups/、package-files.txt）；structure.test.ts；build-output.test.ts
-  e2e/                       run、pages、lifecycle、perf、mock-server、fixtures、browser、cdp（.mjs）
+  e2e/                       run、pages（页面测试入口，场景按页面分在 pages/）、lifecycle、perf、mock-server、fixtures、browser、cdp（.mjs）
   scripts/                   build、package、dev-reload、check-public（.mjs），normalize-eol.sh
 ```
 
