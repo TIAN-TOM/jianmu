@@ -3,6 +3,7 @@
 
 export interface PermissionsApi {
   getAll(): Promise<{ readonly origins?: readonly string[] }>;
+  contains(permissions: { origins: string[] }): Promise<boolean>;
   remove(permissions: { origins: string[] }): Promise<boolean>;
 }
 
@@ -16,6 +17,8 @@ export interface Permissions {
   readonly declared: () => readonly string[];
   /** 浏览器现在列出的全部主机规则。除了运行时的授权，清单主机和内容脚本的匹配规则也在里面。 */
   readonly listed: () => Promise<readonly string[]>;
+  /** 这个来源现在能不能访问。只查不申请：申请要用户手势，只在设置页里做。 */
+  readonly contains: (origin: string) => Promise<boolean>;
   /** 回收一条。不提供批量：一批里只要有一条回收不了，浏览器就拒绝整批。 */
   readonly revoke: (pattern: string) => Promise<boolean>;
 }
@@ -30,6 +33,7 @@ export function createPermissions(
       return [...hosts, ...scripts.flatMap(({ matches = [] }) => matches)];
     },
     listed: async () => (await api.getAll()).origins ?? [],
+    contains: (origin) => api.contains({ origins: [origin] }),
     revoke: (pattern) => api.remove({ origins: [pattern] }),
   };
 }

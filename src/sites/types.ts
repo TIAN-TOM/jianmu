@@ -1,9 +1,10 @@
 // 站点适配层的契约，后台和内容脚本共用，不带 DOM 类型。
+import type { SiteErrorCode } from "../core/errors/site.ts";
 import type { CaptionKind } from "../core/transcript/sources.ts";
 import type { TriageItem } from "../core/triage/state.ts";
 import type { ChannelRef, Platform, VideoRef } from "../core/video-ref.ts";
 
-export type { CaptionKind };
+export type { CaptionKind, SiteErrorCode };
 
 export interface CaptionTrack {
   trackId: string;
@@ -65,20 +66,6 @@ export interface WatchLaterList {
   dropped: number;
   items: WatchLaterItem[];
 }
-
-export type SiteErrorCode =
-  | "NEED_LOGIN"
-  | "NO_CAPTIONS"
-  | "EMPTY_CAPTION_FILE"
-  | "RATE_LIMITED"
-  | "UNPLAYABLE"
-  | "NOT_FOUND"
-  | "SEGMENT_OUT_OF_RANGE"
-  | "VIDEO_CHANGED"
-  | "TAB_NOT_READY"
-  | "MALFORMED"
-  | "NETWORK"
-  | "TIMEOUT";
 
 /** 读取失败波及多大：item 只是这一个视频这次读不成，批量处理记这一项、接着下一项；source 是这条读取路线这会儿整体读不了，批量处理停下。由读取实现判定，调用方据此分流时不解析 detail。 */
 export type SiteFailureReach = "item" | "source";

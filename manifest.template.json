@@ -5,7 +5,7 @@
   "description": "几分钟判断一个长视频值不值得看。正在重写，尚未发布。",
   "minimum_chrome_version": "116",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApp39qxYk/pPIJNH2Tx79RYEa14n9Gj3xdTrsm4/is1Ly3zpeGgSPMUQjaPFmC5pgi5bMipVGU6Up1c9/4fs7tt/WFI3W4DllKs7gA4LosR2guFiZ5aCZZcRdsvr+D8hIfXD5gIq4uU8QCu4BPV3r49hyw1Eks+YLUzHxLhXGcMI9LINWgTW9d1R0XSNDTYtliZ0bxkqJR0PShd00ERBzEV+wkJOR5MKbKU0cv8ISDMhBpu8N5b4tld9r74douICKUOL0EXATserXfjE3ul9BnvOmtgOrKkZAdYYLXpM3GZHW+WyXdKLOuK+s1uwTwS+ilU25naXfoGZNZpQCAAfy3wIDAQAB",
-  "permissions": ["sidePanel", "storage"],
+  "permissions": ["sidePanel", "storage", "scripting"],
   "host_permissions": ["https://www.bilibili.com/*", "https://api.bilibili.com/*", "https://*.hdslb.com/*"],
   "optional_host_permissions": ["https://*/*"],
   "background": {

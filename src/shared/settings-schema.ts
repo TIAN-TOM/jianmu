@@ -13,6 +13,7 @@ import {
 } from "../core/ai/provider/endpoint.ts";
 import type { AiSettings } from "../core/ai/provider/index.ts";
 import type { TransportSettingsRules } from "../core/ai/transport/index.ts";
+import type { Effort } from "../core/notes/records.ts";
 import {
   ACTIVATION_FINGERPRINT,
   ACTIVATION_TABLE,
@@ -81,6 +82,13 @@ export const REGION_PRESETS: readonly { readonly id: string; readonly label: str
 // 单次请求超时 120 秒，长视频超时就把概览分块改成「较短」。
 export const AI_CONCURRENCY = 3;
 export const AI_TIMEOUT_SECONDS = 120;
+// 推理档位越高，单次请求允许等得越久（初值）；关和低档就是上面那个值。保活的上限跟着算。
+export const EFFORT_TIMEOUT_SECONDS: Readonly<Record<Effort, number>> = Object.freeze({
+  off: AI_TIMEOUT_SECONDS,
+  low: AI_TIMEOUT_SECONDS,
+  medium: 180,
+  high: 300,
+});
 
 const MAX_MODEL_CHARS = 200;
 

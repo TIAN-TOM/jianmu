@@ -156,10 +156,10 @@ test("Anthropic 模型列表按 has_more 和 last_id 翻页读完", async () => 
   ];
   const result = await CAPS.listModels({
     settings: anthropicSettings,
-    send: async (request) => {
+    send: consented(async (request) => {
       requests.push(request);
       return pages[requests.length - 1];
-    },
+    }),
   });
 
   assert.deepEqual(
@@ -178,20 +178,20 @@ test("游标原地打转或页数太多时停下，不会无限翻页", async ()
   let calls = 0;
   await CAPS.listModels({
     settings: anthropicSettings,
-    send: async () => {
+    send: consented(async () => {
       calls += 1;
       return page([modelInfo("claude-opus-5-5")], { hasMore: true });
-    },
+    }),
   });
   assert.equal(calls, 2, "第二页的 last_id 和上一页一样就停");
 
   calls = 0;
   await CAPS.listModels({
     settings: anthropicSettings,
-    send: async () => {
+    send: consented(async () => {
       calls += 1;
       return page([modelInfo(`claude-m-${calls}`)], { hasMore: true });
-    },
+    }),
   });
   assert.equal(calls, 10);
 });
@@ -200,10 +200,10 @@ test("OpenAI 的 /models 只发一次，不带翻页参数，也没有能力数�
   const requests: ModelsRequest[] = [];
   const result = await CAPS.listModels({
     settings: openaiSettings,
-    send: async (request) => {
+    send: consented(async (request) => {
       requests.push(request);
       return { object: "list", data: [{ id: "gpt-6-astra", object: "model" }, { id: "gpt-5.5", object: "model" }] };
-    },
+    }),
   });
   assert.deepEqual(requests.map((r) => r.url), ["https://api.openai.com/v1/models"]);
   assert.deepEqual(result, { ids: ["gpt-5.5", "gpt-6-astra"], capabilities: {} });
@@ -370,7 +370,7 @@ test("后台读取模型能力同样不跟随重定向", async () => {
     return opaqueRedirect();
   });
   await assert.rejects(
-    CAPS.listModels({ settings, send }),
+    CAPS.listModels({ settings, send: consented(send) }),
     (error: ProviderError) => error.code === "AI_REDIRECT_BLOCKED",
   );
   assert.deepEqual(inits.map((init) => init.redirect), ["manual"]);
@@ -383,7 +383,7 @@ test("模型能力的报错同样脱敏", async () => {
     status: 401,
     json: async () => ({ error: { message: `invalid x-api-key ${KEY}` } }),
   }));
-  const error = (await CAPS.listModels({ settings, send }).catch((caught: unknown) => caught)) as ProviderError;
+  const error = (await CAPS.listModels({ settings, send: consented(send) }).catch((caught: unknown) => caught)) as ProviderError;
   assert.equal(error.status, 401);
   assert.equal(error.message, "invalid x-api-key [已隐藏的密钥]");
 });

@@ -1,9 +1,44 @@
-// AI 任务生命周期：去重、进度、取消与状态广播；任务在跑时的 service worker 保活。
+// AI 任务生命周期：去重、进度、取消与状态广播。保活在 platform/keepalive.ts。
+import type { Effort, FeatureId } from "./notes/records.ts";
+import type { VideoKey } from "./video-ref.ts";
+
 export type TaskState = "running" | "completed" | "failed" | "canceled";
+
+/** 后台登记的任务种类。页面按它显示进度、决定跟不跟。 */
+export type TaskKind = "overview" | "verdict" | "translate" | "qa" | "explain" | "frame-explain" | "triage-verdict" | "batch";
+
+/** 谁发起的：用户在侧边栏或扩展页面、播放页卡片、自动生成、批量处理。 */
+export type TaskOrigin = "user" | "card" | "auto" | "batch";
+
+/** 给页面看的任务状态。互斥键是后台内部的，不给出去。 */
+export interface TaskView {
+  readonly id: string;
+  readonly kind: TaskKind;
+  readonly origin: TaskOrigin;
+  readonly video: VideoKey;
+  readonly state: TaskState;
+  readonly done: number;
+  readonly total: number;
+  readonly phase: string;
+  readonly message: string;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+  readonly finishing?: boolean;
+}
+
+/** 任务创建时取定的生成配置，跑到一半改设置也不影响这个任务。 */
+export interface FrozenGen {
+  readonly feature: FeatureId;
+  readonly baseUrl: string;
+  readonly model: string;
+  readonly effort: Effort;
+  readonly promptVersion: string;
+}
 
 export interface Task {
   readonly id: string;
   readonly kind: string;
+  readonly origin: TaskOrigin;
   readonly key: string;
   readonly state: TaskState;
   readonly done: number;
@@ -18,6 +53,7 @@ export interface Task {
 export interface TaskStart {
   readonly id: string;
   readonly kind: string;
+  readonly origin: TaskOrigin;
   readonly key: string;
 }
 
@@ -48,7 +84,8 @@ export type TaskCancelResult =
 export interface TaskManagerDeps {
   readonly onChange?: (task: Task) => void;
   readonly now?: () => number;
-  readonly holdKeyAfterCancel?: readonly string[];
+  /** 哪些任务取消后、已经开始的操作收尾之前仍占着键。 */
+  readonly holdKeyAfterCancel?: (task: Task) => boolean;
 }
 
 export interface TaskManager {
@@ -58,6 +95,8 @@ export interface TaskManager {
   finish(id: string, end?: TaskEnd): Task | null;
   claim(id: string): AbortSignal | null;
   expireIfUnclaimed(id: string, end?: TaskEnd): Task | null;
+  /** 占着这个键的任务：还在跑的，或者取消后操作还没收尾、要占键的。 */
+  occupant(key: string): Task | null;
   get(id: string): Task | null;
   signal(id: string): AbortSignal | null;
   list(): Task[];
@@ -77,19 +116,18 @@ function snapshot(entry: TaskEntry | undefined): Task | null {
 }
 
 /**
- * holdKeyAfterCancel 里的几种任务，取消只撤还没开始的那一步，已经在跑的操作照常跑完
+ * holdKeyAfterCancel 认下的任务，取消只撤还没开始的那一步，已经在跑的操作照常跑完
  * （粗筛写结论：已经发给模型的照常等它回来、存下结论）。这次操作收尾（finish）之前，
  * 它仍占着这个键：同一个目标再登记会被拦下，不为同一份结果再花一次钱。
  * 还没开始操作就取消的不占：那次操作可能永远不会来（页面已经关了），键不能一直占着。
- * 其他种类取消就是真停了，键马上让出来，比如侧边栏停掉概览后可以立刻重新生成。
+ * 其他任务取消就是真停了，键马上让出来，比如侧边栏停掉概览后可以立刻重新生成。
  */
 export function createTaskManager({
   onChange = () => {},
   now = () => Date.now(),
-  holdKeyAfterCancel = [],
+  holdKeyAfterCancel = () => false,
 }: TaskManagerDeps = {}): TaskManager {
   const active = new Map<string, TaskEntry>();
-  const holdingKinds = new Set(holdKeyAfterCancel);
   // 还没认领就取消或过期而删掉的任务，留下已中止的信号：迟到的生成请求认领时照样拿到
   // 「已取消」，页面显示的是停止，而不是「任务已经结束」。只留最近的一些，免得越积越多。
   const RETIRED_LIMIT = 50;
@@ -101,7 +139,7 @@ export function createTaskManager({
 
   const occupiesKey = (entry: TaskEntry): boolean =>
     entry.state === "running" ||
-    (entry.state === "canceled" && entry.operating === true && holdingKinds.has(entry.kind));
+    (entry.state === "canceled" && entry.operating === true && holdKeyAfterCancel(snapshot(entry)));
 
   const emit = (entry: TaskEntry): Task => {
     const task = snapshot(entry);
@@ -113,10 +151,11 @@ export function createTaskManager({
     return task;
   };
 
-  function start({ id, kind, key }: TaskStart): TaskStartResult {
-    const duplicate = [...active.values()].find(
-      (entry) => entry.key === key && occupiesKey(entry),
-    );
+  const occupying = (key: string): TaskEntry | undefined =>
+    [...active.values()].find((entry) => entry.key === key && occupiesKey(entry));
+
+  function start({ id, kind, origin, key }: TaskStart): TaskStartResult {
+    const duplicate = occupying(key);
     if (duplicate) {
       return {
         success: false,
@@ -130,6 +169,7 @@ export function createTaskManager({
     const entry: TaskEntry = {
       id,
       kind,
+      origin,
       key,
       state: "running",
       done: 0,
@@ -218,100 +258,10 @@ export function createTaskManager({
     return task;
   }
 
+  const occupant = (key: string): Task | null => snapshot(occupying(key));
   const get = (id: string): Task | null => snapshot(active.get(id));
   const signal = (id: string): AbortSignal | null => active.get(id)?.controller.signal || retired.get(id) || null;
   const list = (): Task[] => [...active.values()].map((entry) => snapshot(entry));
 
-  return { start, progress, cancel, finish, claim, expireIfUnclaimed, get, signal, list };
-}
-
-export interface KeepAliveDeps {
-  readonly ping: () => unknown;
-  readonly intervalMs?: number;
-  readonly now?: () => number;
-  // 计时器句柄的类型各环境不同，这里只原样交回 clearTimeout；写成方法才放得进具体的句柄类型。
-  readonly setTimeout?: (callback: () => void, delayMs: number) => unknown;
-  clearTimeout?(timer: unknown): void;
-}
-
-export interface KeepAlive {
-  hold(budgetMs: number): () => void;
-  during<Result>(budgetMs: number, work: () => Result | Promise<Result>): Promise<Result>;
-}
-
-/**
- * MV3 的 service worker 空闲约 30 秒就会被回收，在途的 fetch 跟着中止：发起任务的页面关掉以后，
- * 没有挂着的消息撑着它；页面开着，挂着的消息也只撑 5 分钟左右。
- * 调用任何扩展 API 都会重置空闲计时，所以有任务在跑时每隔 intervalMs 调一次 ping。
- *
- * hold(budgetMs) 登记一份保活，返回 release()；任务结束时调用，最后一份撤掉就立刻停表。
- * 每份登记各有截止时间（登记时刻 + budgetMs），全都过了也停：任务因为意外一直不结束，
- * 也不能让 worker 永远不休眠。during(budgetMs, work) 是 hold 加 release 的简写。
- */
-export function createKeepAlive({
-  ping,
-  intervalMs = 20 * 1000,
-  now = () => Date.now(),
-  // 计时器可由调用方传入，测试用手动推进的替身。
-  setTimeout: schedule = setTimeout,
-  clearTimeout: unschedule = clearTimeout,
-}: KeepAliveDeps = {} as KeepAliveDeps): KeepAlive {
-  if (typeof ping !== "function") throw new Error("保活需要 ping 函数");
-  const deadlines = new Map<number, number>();
-  let nextId = 0;
-  let timer: unknown = null;
-
-  const live = (): boolean => {
-    const current = now();
-    for (const deadline of deadlines.values()) {
-      if (deadline > current) return true;
-    }
-    return false;
-  };
-
-  function stop(): void {
-    if (timer === null) return;
-    unschedule(timer);
-    timer = null;
-  }
-
-  function arm(): void {
-    if (timer !== null) return;
-    timer = schedule(tick, intervalMs);
-    // Node 测试里别让计时器拖住进程；浏览器的计时器返回数字，没有 unref。
-    (timer as { unref?: () => void } | null | undefined)?.unref?.();
-  }
-
-  function tick(): void {
-    timer = null;
-    if (!live()) return;
-    // 调用本身就是保活，结果不重要；调用失败也只是少续这一次。
-    try {
-      Promise.resolve(ping()).catch(() => {});
-    } catch (_) {
-      // 同上：同步抛错也不能打断任务。
-    }
-    arm();
-  }
-
-  function hold(budgetMs: number): () => void {
-    const id = (nextId += 1);
-    deadlines.set(id, now() + Math.max(0, Number(budgetMs) || 0));
-    arm();
-    return function release() {
-      if (!deadlines.delete(id)) return;
-      if (!deadlines.size) stop();
-    };
-  }
-
-  async function during<Result>(budgetMs: number, work: () => Result | Promise<Result>): Promise<Result> {
-    const release = hold(budgetMs);
-    try {
-      return await work();
-    } finally {
-      release();
-    }
-  }
-
-  return { hold, during };
+  return { start, progress, cancel, finish, claim, expireIfUnclaimed, occupant, get, signal, list };
 }

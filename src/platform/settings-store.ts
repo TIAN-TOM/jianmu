@@ -2,6 +2,7 @@
 // 一次保存分几步写，失败还要把密钥换回去，交错起来会互相冲掉，所以写都排在同一把独占锁里；
 // 读用共享锁，不会读到保存做到一半的状态。
 import type { ActivationKind, NoticeStatus } from "../core/consent.ts";
+import { SETTINGS_ERROR_CODES, SETTINGS_ERROR_TEXT, type SettingsErrorCode } from "../core/errors/settings.ts";
 import {
   API_KEY_LOCAL_KEY,
   API_KEY_SESSION_KEY,
@@ -50,15 +51,27 @@ export type SettingsPatch = Pick<SettingsInput, (typeof INSTANT_FIELDS)[number]>
   readonly rememberApiKey?: false;
 };
 
-export type SettingsErrorCode = "SETTINGS_STALE" | "REMEMBER_KEY_UNPROTECTED" | "REMEMBER_KEY_UNBOUND";
+export type { SettingsErrorCode };
 
 export interface SettingsError extends Error {
   readonly code: SettingsErrorCode;
 }
 
+/** 不含密钥的设置：给外观、卡片开关这类读取用，回复和广播里带出去也不会带上密钥。 */
+export type PublicSettings = Omit<NormalizedSettings, "aiApiKey" | "aiApiKeyOrigin">;
+
+/** 设置读写抛出来的错：码在设置的码表里。经路由回给页面时只放码，不放异常。 */
+export function isSettingsError(error: unknown): error is SettingsError {
+  if (!(error instanceof Error)) return false;
+  const { code } = error as { code?: unknown };
+  return (SETTINGS_ERROR_CODES as readonly unknown[]).includes(code);
+}
+
 export interface SettingsStore {
   /** 读出完整设置，含算数的那份密钥。 */
   readonly load: () => Promise<LoadedSettings>;
+  /** 读出不含密钥的设置，只读本机设置这一项，不碰密钥记录。 */
+  readonly loadPublic: () => Promise<PublicSettings>;
   /**
    * 表单整份替换已存的设置，规整后分开存，记不记住看表单里的开关。返回规整后的完整设置。
    * 页面要自己补全表单上没有的字段。来源也是：新填的密钥来源留空，归到当前地址，留着旧来源会被当成别家的丢掉；
@@ -76,8 +89,8 @@ export interface SettingsStore {
   readonly setDataConsent: (given: boolean) => Promise<WrittenSettings>;
   /** 启用确认还算不算数，不算时给出这次要显示的说明。 */
   readonly activation: () => Promise<NoticeStatus<ActivationKind>>;
-  /** 用户点了「启用简幕」：记下当前说明的版本和指纹。 */
-  readonly confirmActivation: () => Promise<WrittenSettings>;
+  /** 用户点了「启用简幕」：记下当前说明的版本和指纹，回写入之后的启用状态，不带设置和密钥。 */
+  readonly confirmActivation: () => Promise<NoticeStatus<ActivationKind>>;
   /**
    * 清除全部数据时先写入清除表里标 renew 的新值，再清两个存储区，都排在同一把锁里：
    * 保存要么整段在清除之前、随后被清掉，要么整段在之后，并且核对不过清除之前打开的表单。
@@ -99,8 +112,8 @@ interface Snapshot {
 const fieldsOf = (value: unknown): Readonly<Record<string, unknown>> =>
   typeof value === "object" && value !== null ? { ...value } : {};
 
-function settingsError(code: SettingsErrorCode, message: string, cause?: unknown): SettingsError {
-  return Object.assign(new Error(message, { cause }), { code });
+function settingsError(code: SettingsErrorCode, cause?: unknown): SettingsError {
+  return Object.assign(new Error(SETTINGS_ERROR_TEXT[code], { cause }), { code });
 }
 
 const remembers = ({ stored }: Snapshot): boolean => fieldsOf(stored)["rememberApiKey"] === true;
@@ -188,12 +201,12 @@ export function createSettingsStore({ storage, locks }: SettingsStoreDeps): Sett
     if (rewrite) {
       // 地址不合法时规整不核对来源，所以这里再比一次：写进磁盘的只能是绑定当前地址的那把。
       if (!origin || origin !== originOf(settings.aiBaseUrl)) {
-        throw settingsError("REMEMBER_KEY_UNBOUND", "密钥缺少所属的 API 地址，没有记到这台电脑上。");
+        throw settingsError("REMEMBER_KEY_UNBOUND");
       }
       try {
         await restrictToTrustedContexts(storage.local);
       } catch (cause) {
-        throw settingsError("REMEMBER_KEY_UNPROTECTED", "没能限制本机存储的访问范围，密钥没有记到这台电脑上。", cause);
+        throw settingsError("REMEMBER_KEY_UNPROTECTED", cause);
       }
     }
     // 一次写完：记录、开关和修订号要么都写进去，要么都没写（比如存储写满）。
@@ -271,7 +284,7 @@ export function createSettingsStore({ storage, locks }: SettingsStoreDeps): Sett
       exclusive(async () => {
         const current = await read();
         if (expectedRevision !== current.revision) {
-          throw settingsError("SETTINGS_STALE", "设置刚在别的页面改过，这里的表单已经过时。");
+          throw settingsError("SETTINGS_STALE");
         }
         const before = compose(current);
         return write({ ...settingsFromForm(form, before), ...activationOf(before) }, current);
@@ -287,11 +300,12 @@ export function createSettingsStore({ storage, locks }: SettingsStoreDeps): Sett
         const { dataConsentVersion, dataConsentFingerprint } = given === true ? DATA_CONSENT_CONFIRMED : DEFAULTS;
         return write({ ...compose(current), dataConsentVersion, dataConsentFingerprint }, current);
       }),
+    loadPublic: () => shared(async () => withoutApiKey(normalize(await readItem(storage.local, SETTINGS_STORAGE_KEY)))),
     activation: () => shared(async () => activationStatus(await readItem(storage.local, SETTINGS_STORAGE_KEY))),
     confirmActivation: () =>
       exclusive(async () => {
         const current = await read();
-        return write({ ...compose(current), ...ACTIVATION_CONFIRMED }, current);
+        return activationStatus(await write({ ...compose(current), ...ACTIVATION_CONFIRMED }, current));
       }),
     clearAll: () =>
       exclusive(async () => {

@@ -9,6 +9,7 @@ import { ACTIVATION_FINGERPRINT, ACTIVATION_VERSION, DATA_CONSENT_ERROR } from "
 import { createLocks, type LockManagerLike } from "../../../src/platform/locks.ts";
 import {
   createSettingsStore,
+  isSettingsError,
   type LoadedSettings,
   type SettingsStore,
   type WrittenSettings,
@@ -66,7 +67,7 @@ const writesFail = (world: Areas): ExtensionStorage => ({
   local: {
     ...world.local,
     async set() {
-      throw new Error("QUOTA_BYTES quota exceeded");
+      throw new Error("Resource::kQuotaBytes quota exceeded");
     },
   },
 });
@@ -178,7 +179,7 @@ test("storage.local 写不进去（存储写满）：保存失败，会话里的
   const world = areas();
   await storeOn(world).save({ ...DEEPSEEK, aiApiKey: "sk-old" }, NO_REVISION);
 
-  await assert.rejects(storeOn(writesFail(world)).save(ANTHROPIC_NEW, revisionOf(world)), /QUOTA_BYTES/);
+  await assert.rejects(storeOn(writesFail(world)).save(ANTHROPIC_NEW, revisionOf(world)), /quota exceeded/);
 
   const loaded = await storeOn(world).load();
   assert.equal(loaded.presetId, "deepseek");
@@ -195,8 +196,46 @@ test("保存空密钥就删掉会话里的密钥", async () => {
 
 test("第一次保存就写不进去：回滚时会话里不留新密钥", async () => {
   const world = areas();
-  await assert.rejects(storeOn(writesFail(world)).save({ ...DEEPSEEK, aiApiKey: "sk-ds" }, NO_REVISION), /QUOTA_BYTES/);
+  await assert.rejects(storeOn(writesFail(world)).save({ ...DEEPSEEK, aiApiKey: "sk-ds" }, NO_REVISION), /quota exceeded/);
   assert.deepEqual(world.session.data, {});
+});
+
+/** 会话存储写不进去、删不掉的样子：只坏一种操作，另一种照常。 */
+function sessionFails(world: Areas, operation: "set" | "remove"): ExtensionStorage {
+  return {
+    ...world,
+    session: {
+      ...world.session,
+      [operation]: async () => {
+        throw new Error("IO error");
+      },
+    },
+  };
+}
+
+test("会话写不进去：这次保存整次不动，设置、修订号、本机和会话里的密钥都和之前一样", async () => {
+  const world = areas();
+  await storeOn(world).save({ ...DEEPSEEK, aiApiKey: "sk-old" }, NO_REVISION);
+  const before = structuredClone({ local: world.local.data, session: world.session.data });
+
+  await assert.rejects(storeOn(sessionFails(world, "set")).save(ANTHROPIC_NEW, revisionOf(world)), /IO error/);
+
+  assert.deepEqual({ local: world.local.data, session: world.session.data }, before);
+  const loaded = await storeOn(world).load();
+  assert.equal(loaded.presetId, "deepseek");
+  assert.equal(loaded.aiApiKey, "sk-old");
+});
+
+test("清除密钥时会话里那份删不掉：整次报错，设置不写，密钥也不会显示成已清除", async () => {
+  const world = areas();
+  await storeOn(world).save({ ...DEEPSEEK, aiApiKey: "sk-ds", accentTheme: "ochre" }, NO_REVISION);
+  const settingsBefore = structuredClone(savedSettings(world));
+
+  await assert.rejects(storeOn(sessionFails(world, "remove")).update({ aiApiKey: "" }), /IO error/);
+
+  assert.deepEqual(savedSettings(world), settingsBefore, "设置没写进去");
+  const loaded = await storeOn(world).load();
+  assert.equal(loaded.aiApiKey, "sk-ds", "密钥还在，读到的就是它，不会以为已经清掉");
 });
 
 test("会话清空以后（浏览器重启、扩展更新）其余设置还在，密钥要重填", async () => {
@@ -437,7 +476,7 @@ test("打开记住时 storage.local 写不进去：什么都没写进去，会�
   await storeOn(world).save({ ...DEEPSEEK, aiApiKey: "sk-old" }, NO_REVISION);
 
   const form = { ...DEEPSEEK, aiApiKey: "sk-new", rememberApiKey: true };
-  await assert.rejects(storeOn(writesFail(world)).save(form, revisionOf(world)), /QUOTA_BYTES/);
+  await assert.rejects(storeOn(writesFail(world)).save(form, revisionOf(world)), /quota exceeded/);
 
   assert.equal(Object.hasOwn(world.local.data, API_KEY_LOCAL_KEY), false);
   const loaded = await storeOn(world).load();
@@ -485,13 +524,13 @@ test("取消记住时本机那份已删、开关没写进去：不把那份写�
     local: {
       ...world.local,
       async set(entries: Record<string, unknown>) {
-        if (entries[SETTINGS_STORAGE_KEY]) throw new Error("QUOTA_BYTES quota exceeded");
+        if (entries[SETTINGS_STORAGE_KEY]) throw new Error("Resource::kQuotaBytes quota exceeded");
         return world.local.set(entries);
       },
     },
   };
 
-  await assert.rejects(storeOn(full).update({ rememberApiKey: false }), /QUOTA_BYTES/);
+  await assert.rejects(storeOn(full).update({ rememberApiKey: false }), /quota exceeded/);
 
   assert.equal(Object.hasOwn(world.local.data, API_KEY_LOCAL_KEY), false, "删掉的不再恢复");
   assert.equal((await storeOn(world).load()).aiApiKey, "", "记住状态下只认本机那份，没有就当没填");
@@ -783,10 +822,10 @@ test("只勾选、没保存：改设置和确认启用都打不开记住，密�
 
   // @ts-expect-error 打开记住只走 save
   const updated = await store.update({ rememberApiKey: true });
-  const confirmed = await store.confirmActivation();
+  await store.confirmActivation();
   const loaded = await store.load();
 
-  for (const settings of [updated, confirmed, loaded]) assert.equal(settings.rememberApiKey, false);
+  for (const settings of [updated, loaded]) assert.equal(settings.rememberApiKey, false);
   assert.equal(Object.hasOwn(world.local.data, API_KEY_LOCAL_KEY), false);
   assert.doesNotMatch(JSON.stringify(world.local.data), /sk-ds/);
   assert.deepEqual(world.accessLevels, []);
@@ -967,6 +1006,45 @@ test("设置的三种报错都不带密钥：说明、调用栈、原因和序�
     const shown = [error.message, error.stack, String(error.cause), JSON.stringify(error)].join("\n");
     assert.equal(shown.includes(secret), false, String(error.code));
   }
+});
+
+test("isSettingsError 只认设置读写抛的三种码，别的错和伪造的对象不算", async () => {
+  const stale = restrictable();
+  await storeOn(stale).save({ ...DEEPSEEK, aiApiKey: "sk-ds" }, NO_REVISION);
+  const error = await failureOf(storeOn(stale).save(DEEPSEEK, NO_REVISION));
+
+  assert.equal(isSettingsError(error), true);
+  assert.equal(isSettingsError(new Error("IO error")), false);
+  assert.equal(isSettingsError(Object.assign(new Error("x"), { code: "NOT_A_SETTINGS_CODE" })), false);
+  assert.equal(isSettingsError({ code: "SETTINGS_STALE", message: "不是异常" }), false);
+});
+
+test("不含密钥的读法：会话里和本机记录里的密钥都不带，本机设置里多出来的密钥字段也去掉", async () => {
+  const sessionWorld = areas({ [SETTINGS_STORAGE_KEY]: WITH_STRAY_KEY }, { [API_KEY_SESSION_KEY]: { key: "sk-ds", origin: DEEPSEEK_ORIGIN } });
+  const remembering = await remembered();
+
+  for (const world of [sessionWorld, remembering]) {
+    const publicSettings = await storeOn(world).loadPublic();
+    assertNoKeyFields(publicSettings);
+    assert.doesNotMatch(JSON.stringify(publicSettings), /sk-ds|sk-stray/);
+    assert.equal(publicSettings.presetId, "deepseek");
+  }
+});
+
+test("不含密钥的读法只读本机设置这一项，不碰会话和本机的密钥记录", async () => {
+  const world = await remembered();
+  const reads: unknown[] = [];
+  const watched = (area: MemoryStorage): MemoryStorage => ({
+    ...area,
+    async get(key) {
+      reads.push(key);
+      return area.get(key);
+    },
+  });
+
+  await storeOn({ local: watched(world.local), session: watched(world.session) }).loadPublic();
+
+  assert.deepEqual(reads, [SETTINGS_STORAGE_KEY]);
 });
 
 // ============================================================
@@ -1161,7 +1239,7 @@ test("清除全部数据时存储写满：修订号写不进去也不挡住清�
     local: {
       ...world.local,
       async set(entries) {
-        if (SETTINGS_STORAGE_KEY in world.local.data) throw new Error("QUOTA_BYTES quota exceeded");
+        if (SETTINGS_STORAGE_KEY in world.local.data) throw new Error("Resource::kQuotaBytes quota exceeded");
         await world.local.set(entries);
       },
     },
@@ -1180,7 +1258,7 @@ test("清除全部数据时修订号一直写不进去：照样删掉，报原�
   await store.save(form, NO_REVISION);
   const beforeClear = revisionOf(world);
 
-  await assert.rejects(storeOn(writesFail(world)).clearAll(), /QUOTA_BYTES/);
+  await assert.rejects(storeOn(writesFail(world)).clearAll(), /quota exceeded/);
 
   assert.deepEqual(world.local.data, {});
   assert.deepEqual(world.session.data, {});
@@ -1242,7 +1320,7 @@ test("两个设置页同时保存：先保存的写 storage.local 失败、回�
         if (localWrites === 1) {
           firstWriting.resolve();
           await failFirst.promise;
-          throw new Error("QUOTA_BYTES quota exceeded");
+          throw new Error("Resource::kQuotaBytes quota exceeded");
         }
         return world.local.set(entries);
       },
@@ -1257,7 +1335,7 @@ test("两个设置页同时保存：先保存的写 storage.local 失败、回�
   const second = storeOn(storage).save(ANTHROPIC_NEW, revision);
   await Promise.race([firstWriting.promise, second.catch(() => {})]);
   failFirst.resolve();
-  await assert.rejects(first, /QUOTA_BYTES/);
+  await assert.rejects(first, /quota exceeded/);
   await second;
 
   const loaded = await storeOn(world).load();
@@ -1443,7 +1521,8 @@ test("启用确认和数据同意分开记：确认启用不算同意，也不�
     NO_REVISION,
   );
 
-  const confirmed = await store.confirmActivation();
+  assert.deepEqual(await store.confirmActivation(), { state: "current" }, "只回启用状态，不带设置和密钥");
+  const confirmed = await store.load();
 
   assert.equal(confirmed.dataConsentVersion, 0);
   assert.equal(confirmed.aiApiKey, "sk-ds");

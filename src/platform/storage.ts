@@ -30,6 +30,14 @@ export async function restrictToTrustedContexts(area: RestrictableStorageArea): 
   await area.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
 }
 
+/**
+ * 存储写满的报错。浏览器的文案随版本变，有的带存储区的配额名，有的带内部资源名，
+ * 只认其中一种会漏掉另一种，所以按共同的「quota」判断。
+ */
+export function isQuotaError(error: unknown): boolean {
+  return error instanceof Error && /quota/i.test(error.message);
+}
+
 /** 读一项，没有时是 undefined。 */
 export async function readItem(area: StorageArea, key: string): Promise<unknown> {
   return (await area.get(key))[key];

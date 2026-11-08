@@ -76,6 +76,8 @@ export function fakePermissions({ granted = [], alsoRequired = [] }: FakePermiss
   return {
     api: {
       getAll: async () => ({ permissions: ["sidePanel", "storage", "scripting"], origins: origins() }),
+      // 每条都要被列出来的某条规则盖住才算有。
+      contains: async ({ origins: patterns }) => patterns.every((pattern) => origins().some((host) => covers(host, pattern))),
       // 整批要么全过要么全拒。没授权过的规则照样回 true；比必需主机宽的规则不拒绝，落在里面的一起收掉。
       async remove({ origins: patterns }) {
         removeCalls.push([...patterns]);

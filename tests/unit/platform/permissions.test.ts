@@ -30,6 +30,17 @@ test("浏览器的回答里没有 origins 时 listed 是空的", async () => {
   assert.deepEqual(await permissions.listed(), []);
 });
 
+test("contains 只查一个来源，授权过的主机和清单主机都算，没授权的不算", async () => {
+  const browser = fakePermissions();
+  browser.grant("https://api.example.com/");
+  const permissions = permissionsOn(browser);
+
+  assert.equal(await permissions.contains("https://api.example.com/"), true);
+  assert.equal(await permissions.contains("https://www.video.example/"), true);
+  assert.equal(await permissions.contains("https://other.example.com/"), false);
+  assert.deepEqual(browser.removeCalls, [], "只查不改");
+});
+
 test("revoke 一次只把一条规则交给浏览器", async () => {
   const browser = fakePermissions({ granted: ["https://api.example.com/*"] });
 

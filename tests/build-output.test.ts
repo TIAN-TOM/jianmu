@@ -12,7 +12,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BUILD = join(ROOT, "build");
 const BUNDLES = ["background.js", "pages/sidepanel.js"];
 // 权限只认这几项：多一项要改这里，不靠禁用名单列举。YouTube 和 AI 地址都走运行时申请的可选权限。
-const PERMISSIONS = ["sidePanel", "storage"];
+// scripting 用来在安装、更新和确认启用后往已开的视频页补注入内容脚本，本身没有安装警告。
+const PERMISSIONS = ["sidePanel", "storage", "scripting"];
 const HOST_PERMISSIONS = ["https://www.bilibili.com/*", "https://api.bilibili.com/*", "https://*.hdslb.com/*"];
 const OPTIONAL_HOST_PERMISSIONS = ["https://*/*"];
 
@@ -22,14 +23,27 @@ before(() => {
   assert.ok(existsSync(join(BUILD, "manifest.json")), "先跑 npm run build");
 });
 
+// 后台的全部顶层监听，都在入口一次注册。标签页激活、更新和窗口焦点不在里面：没有开关时注册它们只会让后台白白醒来。
+const TOP_LEVEL_LISTENERS = [
+  "runtime.onConnect",
+  "runtime.onInstalled",
+  "runtime.onMessage",
+  "runtime.onStartup",
+  "storage.onChanged",
+  "tabs.onRemoved",
+];
+
 test("后台包在替身环境里求值不抛错，监听都注册上", () => {
-  const listeners: unknown[] = [];
+  const registered: string[] = [];
+  const event = (name: string) => ({ addListener: (listener: unknown) => registered.push(`${name}:${typeof listener}`) });
+  // 求值时只给事件：入口在顶层碰了存储、标签页或别的接口就会抛错。
   const chrome = {
-    runtime: { onInstalled: { addListener: (listener: unknown) => listeners.push(listener) } },
-    sidePanel: { setPanelBehavior: async () => undefined },
+    runtime: Object.fromEntries(["onConnect", "onInstalled", "onMessage", "onStartup"].map((name) => [name, event(`runtime.${name}`)])),
+    tabs: { onRemoved: event("tabs.onRemoved") },
+    storage: { onChanged: event("storage.onChanged") },
   };
-  vm.runInNewContext(readBuild("background.js"), { chrome, console }, { filename: "background.js" });
-  assert.equal(listeners.length, 1);
+  vm.runInNewContext(readBuild("background.js"), { chrome, console, TextEncoder, AbortController }, { filename: "background.js" });
+  assert.deepEqual(registered.sort(), TOP_LEVEL_LISTENERS.map((name) => `${name}:function`));
 });
 
 test("清单不变量", () => {

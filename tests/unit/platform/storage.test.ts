@@ -1,7 +1,7 @@
 // chrome.storage 的封装。
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { extensionStorage, readItem, restrictToTrustedContexts } from "../../../src/platform/storage.ts";
+import { extensionStorage, isQuotaError, readItem, restrictToTrustedContexts } from "../../../src/platform/storage.ts";
 import { memoryStorage } from "../../helpers/memory-storage.ts";
 
 test("readItem 取出这一项的值，没有这一项时是 undefined", async () => {
@@ -47,4 +47,11 @@ test("extensionStorage 取的是浏览器的 local 和 session 两个存储区",
   const storage = extensionStorage();
   assert.equal(storage.local, local);
   assert.equal(storage.session, session);
+});
+
+test("isQuotaError 认得两种写满的文案，别的错不算", () => {
+  assert.equal(isQuotaError(new Error("Resource::kQuotaBytes quota exceeded")), true);
+  assert.equal(isQuotaError(new Error("QUOTA_BYTES quota exceeded")), true);
+  assert.equal(isQuotaError(new Error("IO error")), false);
+  assert.equal(isQuotaError("quota exceeded"), false, "不是异常对象的不认");
 });

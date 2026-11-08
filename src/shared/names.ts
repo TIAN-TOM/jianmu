@@ -16,6 +16,14 @@ export const WATCH_SESSIONS_KEY = "jianmu_watch_sessions";
 export const APPEARANCE_CACHE_KEY = "jianmu_appearance";
 export const SITE_BACKOFF_KEY = "jianmu_site_backoff";
 
+// 扩展自己的页面，相对扩展根目录，不带前导斜杠；认发送方时拼成完整地址再比。
+export const PAGE_PATHS = Object.freeze({
+  sidepanel: "pages/sidepanel.html",
+  options: "pages/options.html",
+  triage: "pages/triage.html",
+  card: "pages/card.html",
+} as const);
+
 // 设置读写用的 Web Locks 锁名，不是存储键，不用登记。
 export const SETTINGS_LOCK_NAME = "jianmu_settings";
 

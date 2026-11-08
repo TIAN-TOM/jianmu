@@ -180,13 +180,14 @@ export function parseModelCapabilities(item: unknown): ClaudeCapabilities | null
  * 列出模型名和各模型的能力。send(request, settings) 发 GET，成功返回响应数据，
  * 失败抛出带 status 的错误。Anthropic 按 has_more 和 last_id 翻页；
  * OpenAI 兼容的两种协议只发一次。返回 { ids, capabilities }，capabilities 按模型名索引。
+ * 每一页都带着密钥，所以只收核对过同意的 GET：途中取消了确认，后面的页就不再发。
  */
 export async function listModels({
   settings,
   send,
 }: {
   readonly settings: AiSettings;
-  readonly send: ModelsSend;
+  readonly send: ConsentGuardedSend;
 }): Promise<ModelListing> {
   if (settings.protocol !== PROTOCOLS.ANTHROPIC) {
     const data = await send(buildModelsRequest(settings), settings);

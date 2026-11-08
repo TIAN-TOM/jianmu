@@ -1,14 +1,24 @@
 // 回收用不上的主机授权。拉模型列表和测试连接也会给还没保存的地址申请权限，换过几次地址就攒下一串。
 // 保留集合是清单主机、内容脚本的匹配规则、已启用站点的来源和当前 AI 地址的来源，其余的一条一条收。
 import type { Permissions } from "../platform/permissions.ts";
-import { originOf, type NormalizedSettings } from "../shared/settings-schema.ts";
+import type { PublicSettings } from "../platform/settings-store.ts";
+import { originOf } from "../shared/settings-schema.ts";
 
 export interface GrantsDeps {
   readonly permissions: Permissions;
-  readonly loadSettings: () => Promise<NormalizedSettings>;
+  /** 回收只看地址，用不着密钥。 */
+  readonly loadSettings: () => Promise<PublicSettings>;
   /** 已启用站点的来源，保存 AI 设置不能碰这些授权。 */
-  readonly siteOrigins: (settings: NormalizedSettings) => readonly string[];
+  readonly siteOrigins: (settings: PublicSettings) => readonly string[];
   readonly logError?: (message: string, detail: unknown) => void;
+}
+
+/**
+ * 按设置里的站点启用推出要保留的站点来源。设置里还没有站点启用这一项，B 站的主机写在清单里本来就保留，
+ * 所以现在一个都没有；加 YouTube 启用的那次改动让它返回已启用站点的来源，主机名从站点适配层取，不写在后台。
+ */
+export function siteOriginsFromSettings(_settings: PublicSettings): readonly string[] {
+  return [];
 }
 
 export interface ReleaseResult {
