@@ -1,6 +1,6 @@
-// 响应信封的解析：正常响应走截断补齐，错误响应只求别丢状态码。
+// 响应信封的解析：正常响应走截断补齐，强制流式的拼回普通响应，错误响应只求别丢状态码。
 import { repairTruncatedJson } from "../parse.ts";
-import { redactSecret } from "../provider/index.ts";
+import { assembleEventStream, looksLikeEventStream, redactSecret, type Protocol } from "../provider/index.ts";
 import type { TransportError } from "./types.ts";
 
 /**
@@ -12,11 +12,40 @@ const repairedEnvelopes = new WeakSet<object>();
 export const isRepairedEnvelope = (data: unknown): boolean => repairedEnvelopes.has(data as object);
 
 /**
+ * 事件流中途报了错：响应头已经是成功，状态码只能从错误类型对应出来。
+ * 拼成和错误响应一样的形状，记下对应的状态码，发送那一层照错误响应处理。
+ */
+const streamFailures = new WeakMap<object, number>();
+
+export const streamFailureStatus = (data: unknown): number | undefined =>
+  data && typeof data === "object" ? streamFailures.get(data) : undefined;
+
+/** 认事件流要用的两样：响应类型和这次请求的协议。没有协议时不认，按 JSON 解析。 */
+export interface EnvelopeHints {
+  readonly contentType?: string | null | undefined;
+  readonly protocol?: Protocol | undefined;
+}
+
+// 只看开头一小段就够认出事件流。
+const STREAM_HEAD_CHARS = 64;
+
+function truncatedError(): TransportError {
+  const truncated: TransportError = new Error("AI 响应不完整，请重试。");
+  truncated.code = "AI_RESPONSE_TRUNCATED";
+  return truncated;
+}
+
+/**
  * 信封解析：截断的 body 补齐后解析；修不动才翻译成能看懂的报错。
  * 补齐出来的信封记进 repairedEnvelopes：正文可能只有半截，服务商写在末尾的
  * 截断原因（finish_reason、stop_reason、status）也多半跟着丢了。
+ * 网关强制回了事件流时先拼成普通响应：断在半截的流同样记进 repairedEnvelopes，
+ * 一个事件也认不出的和修不动的 JSON 一样报响应不完整。
  */
-export function parseResponseEnvelope(text: string): unknown {
+export function parseResponseEnvelope(text: string, { contentType, protocol }: EnvelopeHints = {}): unknown {
+  if (protocol && looksLikeEventStream(contentType, text.slice(0, STREAM_HEAD_CHARS))) {
+    return parseEventStream(protocol, text);
+  }
   const raw = text.trimStart();
   try {
     return JSON.parse(raw);
@@ -26,11 +55,22 @@ export function parseResponseEnvelope(text: string): unknown {
       if (repaired && typeof repaired === "object") repairedEnvelopes.add(repaired);
       return repaired;
     } catch {
-      const truncated: TransportError = new Error("AI 响应不完整，请重试。");
-      truncated.code = "AI_RESPONSE_TRUNCATED";
-      throw truncated;
+      throw truncatedError();
     }
   }
+}
+
+function parseEventStream(protocol: Protocol, text: string): unknown {
+  const assembled = assembleEventStream(protocol, text);
+  if (!assembled.ok) {
+    const { message, type, code, param } = assembled;
+    const failure = { error: { message, ...(type ? { type } : {}), ...(code ? { code } : {}), ...(param ? { param } : {}) } };
+    streamFailures.set(failure, assembled.status);
+    return failure;
+  }
+  if (!assembled.data) throw truncatedError();
+  if (!assembled.complete) repairedEnvelopes.add(assembled.data);
+  return assembled.data;
 }
 
 /**

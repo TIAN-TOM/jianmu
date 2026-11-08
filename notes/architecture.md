@@ -176,7 +176,7 @@ jianmu/
 | 位置 | 做什么 |
 | --- | --- |
 | `manifest.template.json` | 清单模板，手写；版本号由构建写入 |
-| `src/core/` | 纯逻辑，不碰 `chrome.*` 和 DOM：视频身份、并发、任务（`task-keys.ts` 是互斥键和等价键）、清除闸门、高亮、同意表和启用说明，`errors.ts` 错误码和结果形状（各领域的码在 `errors/`），`mode/` 模式和观看会话的类型、`decide.ts` 模式规则，`backup/` 备份的新格式、旧格式读取器和合并，以及 `transcript/`、`qa/`、`triage/`、`ai/`、`notes/` |
+| `src/core/` | 纯逻辑，不碰 `chrome.*` 和 DOM：视频身份、并发、任务（`task-keys.ts` 是互斥键和等价键）、清除闸门、高亮、同意表和启用说明，`errors.ts` 错误码和结果形状（各领域的码在 `errors/`），`mode/` 模式和观看会话的类型、`decide.ts` 模式规则，`backup/` 备份的新格式、旧格式读取器和合并，以及 `transcript/`、`qa/`、`triage/`、`ai/`（`provider/` 里有消息部件、强制流式的拼回）、`notes/` |
 | `src/shared/` | `names.ts` 存储键和扩展页面路径，`storage-plan.ts` 每份本机数据的清除和备份归属，`settings-schema.ts` 设置的结构、规整和校验，`messages.ts` 消息类型（各领域在 `messages/`，发给内容脚本的指令在 `messages/content.ts`），`build-id.ts` 构建时注入的构建标识 |
 | `src/platform/` | `idb.ts` IndexedDB 驱动，`storage.ts`、`locks.ts`、`permissions.ts`、`messaging.ts`、`tabs.ts` 是扩展存储、Web Locks、主机权限、消息、标签页和窗口焦点、侧边栏和脚本注入的薄封装，`settings-store.ts` 设置读写、会话密钥、记住密钥的本机记录和设置修订号，`site-backoff.ts` 站点限速和退避，`keepalive.ts` 任务在跑时撑着 service worker 不被回收 |
 | `src/sites/` | 站点适配层：`types.ts`、`page-types.ts` 是契约，`rules.ts` 是地址规则，`bilibili/` 是 B 站的地址解析、播放页和读取实现，`services.ts` 是后台用的服务注册表 |

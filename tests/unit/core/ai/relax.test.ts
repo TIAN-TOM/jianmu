@@ -379,3 +379,102 @@ test("放宽记忆：写到一半清除开始了，清除等写完再删，存�
   assert.equal(state.writes, 1);
   assert.equal(provider.RELAX_STORAGE_KEY in session.data, false, "清除没等写完的话，这条会留在存储里");
 });
+
+// ============================================================
+// 不收 JSON 输出格式参数的兼容网关
+// ============================================================
+
+const FORMAT_REJECTED = { status: 400, message: "this gateway does not accept response_format" };
+
+function openaiRequest(extra: Partial<ChatRequestInput> = {}) {
+  return provider.buildChatRequest({
+    settings: openaiSettings,
+    messages: MESSAGES,
+    maxTokens: 512,
+    responseFormat: SCHEMAS.QA_ANSWER,
+    ...extra,
+  });
+}
+
+// 拒收 JSON 输出格式参数的网关：带了就回 400，不带就正常回复。
+function formatRejectingGateway(sent: ChatRequestBody[], rejection = FORMAT_REJECTED) {
+  return async (request: ChatRequest) => {
+    sent.push(request.body);
+    if ("response_format" in request.body) throw Object.assign(new Error(rejection.message), { status: rejection.status });
+    return { choices: [{ message: { content: '{"answer":"可用"}' }, finish_reason: "stop" }] };
+  };
+}
+
+test("OpenAI 兼容：报错点名 JSON 输出格式参数时放宽一次，别的报错和别的状态码照旧交还", () => {
+  const { body } = openaiRequest();
+  assert.deepEqual(provider.relaxRejectedParams(PROTOCOLS.OPENAI, FORMAT_REJECTED, {}, body), { responseFormat: true });
+  assert.deepEqual(
+    provider.relaxRejectedParams(PROTOCOLS.OPENAI, { status: 400, message: "invalid value", param: "response_format" }, {}, body),
+    { responseFormat: true },
+    "参数名单独放在 param 里也认",
+  );
+  assert.deepEqual(
+    provider.relaxRejectedParams(PROTOCOLS.OPENAI, { status: 400, message: "json_object is not supported" }, { temperature: true }, body),
+    { temperature: true, responseFormat: true },
+    "保留已有的放宽项",
+  );
+  assert.equal(provider.relaxRejectedParams(PROTOCOLS.OPENAI, FORMAT_REJECTED, { responseFormat: true }, body), null, "放宽过还被拒就交还");
+  assert.equal(provider.relaxRejectedParams(PROTOCOLS.OPENAI, FORMAT_REJECTED, {}, openaiRequest({ responseFormat: null }).body), null, "没发这个参数就不是它的问题");
+  assert.equal(provider.relaxRejectedParams(PROTOCOLS.OPENAI, { ...FORMAT_REJECTED, status: 422 }, {}, body), null);
+  assert.equal(provider.relaxRejectedParams(PROTOCOLS.OPENAI, { status: 400, message: "max_tokens too large" }, {}, body), null);
+});
+
+test("OpenAI 兼容：放宽后不发 JSON 输出格式参数，在最后一条用户消息里补一句只输出 JSON", () => {
+  const relaxed = openaiRequest({ relax: { responseFormat: true } }).body;
+  assert.equal("response_format" in relaxed, false);
+  assert.deepEqual(relaxed.messages, [
+    { role: "system", content: "你是助理" },
+    { role: "user", content: "你好\n\n请只输出 JSON。" },
+  ]);
+  assert.deepEqual(openaiRequest().body.response_format, { type: "json_object" }, "没放宽时照旧发");
+  assert.deepEqual(openaiRequest({ responseFormat: null, relax: { responseFormat: true } }).body.messages, MESSAGES, "不要 JSON 输出的请求不补这一句");
+});
+
+test("OpenAI 兼容：被拒一次，去掉参数重发成功，记进放宽记忆；同一会话第二次直接不发", async () => {
+  const session = memoryStorage();
+  const memory = provider.createRelaxMemory({ storage: session });
+  const sent: ChatRequestBody[] = [];
+  const input = { settings: openaiSettings, messages: MESSAGES, maxTokens: 512, responseFormat: SCHEMAS.QA_ANSWER, memory };
+
+  const first = await provider.sendChatWithRelax({ ...input, send: formatRejectingGateway(sent) });
+  assert.equal(sent.length, 2);
+  assert.equal("response_format" in (sent[0] as ChatRequestBody), true);
+  assert.equal("response_format" in (sent[1] as ChatRequestBody), false);
+  assert.deepEqual(first.relax, { responseFormat: true });
+
+  await provider.sendChatWithRelax({ ...input, send: formatRejectingGateway(sent) });
+  assert.equal(sent.length, 3, "第二次直接按放宽后的参数发，不再先挨一次 400");
+  assert.equal("response_format" in (sent[2] as ChatRequestBody), false);
+
+  // 后台被回收后醒来：新的记忆对象，同一个会话存储。
+  const revived = provider.createRelaxMemory({ storage: session });
+  await provider.sendChatWithRelax({ ...input, memory: revived, send: formatRejectingGateway(sent) });
+  assert.equal(sent.length, 4);
+  assert.equal("response_format" in (sent[3] as ChatRequestBody), false);
+});
+
+test("OpenAI 兼容：去掉参数以后还被同样拒绝，只重发一次就交还，不循环", async () => {
+  const sent: ChatRequestBody[] = [];
+  const memory = provider.createRelaxMemory();
+  await assert.rejects(
+    provider.sendChatWithRelax({
+      settings: openaiSettings,
+      messages: MESSAGES,
+      maxTokens: 512,
+      responseFormat: SCHEMAS.QA_ANSWER,
+      memory,
+      send: async (request) => {
+        sent.push(request.body);
+        throw Object.assign(new Error(FORMAT_REJECTED.message), { status: 400 });
+      },
+    }),
+    /response_format/,
+  );
+  assert.equal(sent.length, 2);
+  assert.deepEqual(memory.recall(openaiSettings), {}, "没成功过就不记");
+});

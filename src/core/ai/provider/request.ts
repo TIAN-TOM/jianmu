@@ -2,6 +2,7 @@
 import { apiVersionFor, claudeRequestTraits, isOfficialAnthropic, THINKING_BETWEEN_TOOLS, THINKING_DISABLED } from "./anthropic.ts";
 import { chatCompletionsUrl, modelsUrl, PROTOCOLS } from "./endpoint.ts";
 import { isOpenAiReasoningModel, openAiModelTraits, vendorExtras } from "./openai.ts";
+import { isMessageParts, withProtocolContent } from "./parts.ts";
 import type { ResponseSchema } from "../schemas.ts";
 import type {
   AiSettings,
@@ -56,7 +57,7 @@ function buildResponsesBody({
   const traits = openAiModelTraits(settings.aiModel);
   const body: ChatRequestBody & { input: readonly ChatMessage[] } = {
     model: settings.aiModel,
-    input: split.messages,
+    input: withProtocolContent(PROTOCOLS.RESPONSES, split.messages),
     max_output_tokens: maxTokens,
     // 默认会在服务端存 30 天。每次都是一次性的请求，用不着存，显式关掉。
     store: false,
@@ -75,7 +76,7 @@ function buildResponsesBody({
         ? { type: "json_schema", name: schema.name, schema: schema.schema, strict: true }
         : JSON_OBJECT_FORMAT,
     };
-    if (!structured) body.input = withJsonMention(body.input);
+    if (!structured) body.input = withProtocolContent(PROTOCOLS.RESPONSES, withJsonMention(split.messages));
   }
   return body;
 }
@@ -83,16 +84,25 @@ function buildResponsesBody({
 /**
  * JSON 模式要求 input 里出现 "JSON" 这个词，instructions 不算。我们的提示词只在系统
  * 提示里讲输出格式，所以在最后一条用户消息末尾补一句；已经有这个词时原样返回。
+ * 兼容网关拒收 JSON 输出格式参数、不再发它时，也靠这一句约束格式。
+ * 用部件写的消息补在最后一个文字部件之后。
  */
 const JSON_MENTION = "请只输出 JSON。";
+const MENTIONS_JSON = /\bjson\b/i;
 
 function withJsonMention(input: readonly ChatMessage[]): readonly ChatMessage[] {
   const index = input.findLastIndex((message) => message.role === "user");
   const last = input[index];
+  if (last && isMessageParts(last.content)) {
+    if (last.content.some((part) => part.type === "text" && MENTIONS_JSON.test(part.text))) return input;
+    const next = [...input];
+    next[index] = { ...last, content: [...last.content, { type: "text", text: JSON_MENTION }] };
+    return next;
+  }
   if (!last || typeof last.content !== "string") {
     return [...input, { role: "user", content: JSON_MENTION }];
   }
-  if (/\bjson\b/i.test(last.content)) return input;
+  if (MENTIONS_JSON.test(last.content)) return input;
   const next = [...input];
   next[index] = { ...last, content: `${last.content}\n\n${JSON_MENTION}` };
   return next;
@@ -123,7 +133,7 @@ export function buildChatRequest({
       model: settings.aiModel,
       // Anthropic 的 max_tokens 是必填项。
       max_tokens: maxTokens,
-      messages: split.messages,
+      messages: withProtocolContent(PROTOCOLS.ANTHROPIC, split.messages),
     };
     // effort 和结构化输出同在 output_config 里，合成一个对象发。
     const outputConfig: NonNullable<ChatRequestBody["output_config"]> = {};
@@ -184,9 +194,10 @@ export function buildChatRequest({
   }
 
   const openaiReasoning = isOpenAiReasoningModel(settings.aiModel);
+  const list: readonly ChatMessage[] = Array.isArray(messages) ? messages : [];
   const body: ChatRequestBody = {
     model: settings.aiModel,
-    messages: Array.isArray(messages) ? messages : [],
+    messages: withProtocolContent(PROTOCOLS.OPENAI, list),
     ...vendorExtras(settings.aiBaseUrl),
   };
   if (openaiReasoning) {
@@ -197,7 +208,9 @@ export function buildChatRequest({
   }
   // 兼容服务商大多只认 json_object（DeepSeek 就不支持 json_schema），
   // 调用方传了 schema 也只发 json_object，靠提示词约束字段。
-  if (responseFormat) body.response_format = JSON_OBJECT_FORMAT;
+  // 有的网关连 json_object 也拒收：放宽后不发这个参数，在最后一条用户消息里补一句只输出 JSON。
+  if (responseFormat && !relax.responseFormat) body.response_format = JSON_OBJECT_FORMAT;
+  else if (responseFormat) body.messages = withProtocolContent(PROTOCOLS.OPENAI, withJsonMention(list));
 
   return {
     url,

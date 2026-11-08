@@ -2,8 +2,8 @@
 //
 // 双重超时各管一段，边界是「响应头是否已到达」：之前是模型在生成，
 // 归硬超时管；之后 body 应连续到达，静默即视为连接出了问题。
-import { KEYED_FETCH_REDIRECT, keyedHttpError, rejectRedirect, type ChatRequest } from "../provider/index.ts";
-import { parseErrorEnvelope, parseResponseEnvelope } from "./envelope.ts";
+import { KEYED_FETCH_REDIRECT, keyedHttpError, rejectRedirect, type ChatRequest, type Protocol } from "../provider/index.ts";
+import { parseErrorEnvelope, parseResponseEnvelope, streamFailureStatus } from "./envelope.ts";
 import { taskCanceledError } from "./errors.ts";
 import { BUSY_RETRY_MAX_WAIT_MS, BUSY_RETRY_STATUSES, MODEL_UNAVAILABLE, QUOTA_EXHAUSTED, retryAfterMsOf } from "./policy.ts";
 import type { AiFetch, SendSettings, TransportError, TransportResponse } from "./types.ts";
@@ -76,9 +76,12 @@ export function createAiSender({
       const data = await readBoundedAiResponse(response, resetIdleTimer, {
         lenient: !response.ok,
         secret: settings.aiApiKey,
+        protocol: settings.protocol,
       });
-      if (!response.ok) {
-        const error: TransportError = keyedHttpError(data, response.status, settings);
+      // 强制流式的网关在流中途报的错，和错误响应走同一套：限流、过载照样重发一次，额度用完照样不重发。
+      const status = response.ok ? streamFailureStatus(data) : response.status;
+      if (status !== undefined) {
+        const error: TransportError = keyedHttpError(data, status, settings);
         const retryAfterMs = retryAfterMsOf(response.headers);
         if (retryAfterMs !== undefined) error.retryAfterMs = retryAfterMs;
         const body = data as ErrorBody | null | undefined;
@@ -87,8 +90,8 @@ export function createAiSender({
         // 限流、过载里马上重发也没用的几种：额度用完、服务要求等得比上限还久、中转站没有这个模型。
         // 标出来，传输层不自动重发，概览的自动补轮也不替它重发。
         if (
-          BUSY_RETRY_STATUSES.has(response.status) &&
-          ((response.status === 429 && error.quotaExhausted) ||
+          BUSY_RETRY_STATUSES.has(status) &&
+          ((status === 429 && error.quotaExhausted) ||
             (retryAfterMs !== undefined && Number.isFinite(retryAfterMs) && retryAfterMs > BUSY_RETRY_MAX_WAIT_MS) ||
             MODEL_UNAVAILABLE.test(kind))
         ) {
@@ -131,15 +134,23 @@ export function createAiSender({
   }
 
   /**
-   * 边读边计字节数，避免异常大的响应把内存吃满。
+   * 边读边计字节数，避免异常大的响应把内存吃满；强制流式的响应同样按原始正文计。
    * lenient 用于错误响应：解析不了不报错，交给 keyedHttpError 按状态码处理。
+   * protocol 是这次请求的协议，正常响应是事件流时按它拼回普通响应。
    */
   async function readBoundedAiResponse(
     response: TransportResponse,
     onActivity: () => void,
-    { lenient = false, secret }: { readonly lenient?: boolean; readonly secret?: unknown } = {},
+    {
+      lenient = false,
+      secret,
+      protocol,
+    }: { readonly lenient?: boolean; readonly secret?: unknown; readonly protocol?: Protocol | undefined } = {},
   ): Promise<unknown> {
-    const parse = lenient ? (body: string) => parseErrorEnvelope(body, secret) : parseResponseEnvelope;
+    const contentType = headerOf(response, "content-type");
+    const parse = lenient
+      ? (body: string) => parseErrorEnvelope(body, secret)
+      : (body: string) => parseResponseEnvelope(body, { contentType, protocol });
     const reader = response.body?.getReader?.();
     if (!reader) {
       const text = await response.text();
@@ -168,4 +179,13 @@ export function createAiSender({
   }
 
   return { sendAiRequest, readBoundedAiResponse };
+}
+
+// 替身响应可能没有响应头，取不到就当没写。
+function headerOf(response: TransportResponse, name: string): string | null {
+  try {
+    return response.headers?.get?.(name) ?? null;
+  } catch {
+    return null;
+  }
 }

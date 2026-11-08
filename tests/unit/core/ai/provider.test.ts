@@ -434,7 +434,7 @@ test("只有 Anthropic 的 400 参数报错才放宽，每种参数只放宽一�
     provider.relaxRejectedParams(PROTOCOLS.ANTHROPIC, temperatureError, { thinking: true }),
     { thinking: true, temperature: true },
   );
-  assert.equal(provider.relaxRejectedParams(PROTOCOLS.OPENAI, temperatureError), null, "OpenAI 兼容服务不归这里管");
+  assert.equal(provider.relaxRejectedParams(PROTOCOLS.OPENAI, temperatureError), null, "OpenAI 兼容服务只放宽 JSON 输出格式参数，温度报错照旧交还");
   assert.equal(
     provider.relaxRejectedParams(PROTOCOLS.ANTHROPIC, { status: 401, message: "temperature" }),
     null,

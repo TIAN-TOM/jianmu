@@ -167,8 +167,8 @@ export interface CompletionResult {
   readonly truncated?: true;
 }
 
-/** sendAiRequest 只用到地址和密钥。 */
-export type SendSettings = Pick<AiSettings, "aiBaseUrl"> & Partial<Pick<AiSettings, "aiApiKey">>;
+/** sendAiRequest 只用到地址和密钥；有协议时，强制流式的响应按它拼回。 */
+export type SendSettings = Pick<AiSettings, "aiBaseUrl"> & Partial<Pick<AiSettings, "aiApiKey" | "protocol">>;
 
 export interface AiTransport {
   readonly requestAiCompletion: (request: CompletionRequest) => Promise<CompletionResult>;

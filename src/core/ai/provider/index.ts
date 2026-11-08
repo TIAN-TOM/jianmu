@@ -20,6 +20,13 @@ export {
   type RedirectProbe,
 } from "./keyed.ts";
 export { isOpenAiReasoningModel, openAiModelTraits, vendorExtras } from "./openai.ts";
+export {
+  isMessageParts,
+  toProtocolContent,
+  withProtocolContent,
+  type MessageContent,
+  type MessagePart,
+} from "./parts.ts";
 export { createRelaxMemory, RELAX_STORAGE_KEY, relaxRejectedParams, sendChatWithRelax } from "./relax.ts";
 export { buildChatRequest, buildModelsRequest, splitSystemMessages } from "./request.ts";
 export {
@@ -30,6 +37,7 @@ export {
   parseModelsResponse,
   refusalOf,
 } from "./response.ts";
+export { assembleEventStream, looksLikeEventStream, type StreamAssembly } from "./stream.ts";
 export type {
   AiSettings,
   ChatMessage,

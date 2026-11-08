@@ -12,6 +12,7 @@ export interface AiSettings {
   readonly aiModel: string;
 }
 
+/** content 写字符串或部件数组（parts.ts 的 MessageContent），别的写法原样发出。 */
 export interface ChatMessage {
   readonly role: string;
   readonly content: unknown;
@@ -29,6 +30,7 @@ export interface RelaxState {
   format?: boolean;
   effort?: boolean;
   jsonObject?: boolean;
+  responseFormat?: boolean;
 }
 
 /** 从模型服务读到的能力，见 capabilities.ts。 */

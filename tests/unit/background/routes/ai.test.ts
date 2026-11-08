@@ -9,7 +9,15 @@ import { createSenders } from "../../../../src/background/senders.ts";
 import { CAPABILITY_STORAGE_KEY } from "../../../../src/shared/names.ts";
 import { createFakeChrome, EXTENSION_ID, extensionUrl, senders } from "../../../helpers/chrome.ts";
 import { createFakeAi } from "../../../helpers/fake-ai.ts";
-import { chatReply, keyedStorage, modelService, reply, SAMPLE_KEY, type ServiceHandler } from "../../../helpers/fake-model-service.ts";
+import {
+  chatReply,
+  keyedStorage,
+  modelService,
+  reply,
+  SAMPLE_KEY,
+  type ServiceHandler,
+  type ServiceReply,
+} from "../../../helpers/fake-model-service.ts";
 
 const DEEPSEEK = { presetId: "deepseek", aiModel: "deepseek-v4-flash" };
 const DEEPSEEK_ORIGIN = "https://api.deepseek.com/";
@@ -73,6 +81,22 @@ test("测试连接只发一次很小的请求，回模型名和头几个字；�
   const empty = await ask("ai.testConnection", senders.options(), { feature: "notes" });
   assert.equal(empty.ok ? "ok" : empty.code, "EMPTY_AI_RESPONSE");
   assert.deepEqual(service.posts().map((request) => request.body?.model), ["deepseek-v4-flash", "m-qa", "m-empty"], "空回复只发了一次");
+});
+
+test("测试连接对强制回事件流的网关照样回成功，走的是同一个解析，只发一次", async () => {
+  const chunk = (delta: object, finish: string | null = null) =>
+    `data: ${JSON.stringify({ object: "chat.completion.chunk", choices: [{ index: 0, delta, finish_reason: finish }] })}\n\n`;
+  const stream = `${chunk({ role: "assistant", content: "可" })}${chunk({ content: "用" })}${chunk({}, "stop")}data: [DONE]\n\n`;
+  const streamed: ServiceReply = {
+    ok: true,
+    status: 200,
+    headers: { get: (name) => (name.toLowerCase() === "content-type" ? "text/event-stream" : null) },
+    text: async () => stream,
+    json: async () => assert.fail("事件流不按 JSON 读"),
+  };
+  const { ask, service } = appWith(keyedStorage(DEEPSEEK, DEEPSEEK_ORIGIN), () => streamed);
+  assert.deepEqual(await ask("ai.testConnection"), { ok: true, value: { model: "deepseek-v4-flash", reply: "可用" } });
+  assert.equal(service.posts().length, 1);
 });
 
 test("拉模型列表按已保存的设置拉，Anthropic 的能力顺带存下；没填密钥、没授权时一个请求都不发", async () => {
