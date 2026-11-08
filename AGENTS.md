@@ -19,7 +19,7 @@
 | `src/background/stores/` | 字幕缓存、笔记、概览三个仓储，`write-gate.ts` 是它们共用的写入关口 |
 | `prompts/` | 提示词模板，构建时内联进后台包 |
 | `static/` | 原样复制进构建产物 |
-| `scripts/` | `build.mjs` 构建，`package.mjs` 打包和校验，`check-public.mjs` 公开结构检查 |
+| `scripts/` | `build.mjs` 构建，`package.mjs` 打包和校验（同一个提交打两次得到同一个 zip，旁边写校验值文件），`release.mjs` 发布候选、候选之后的核对、发布说明草稿和发布前检查，`check-public.mjs` 公开结构检查 |
 | `tests/` | `unit/` 单元测试，`structure.test.ts` 结构规则，`build-output.test.ts` 构建产物检查，`fixtures/golden/` 黄金样本 |
 | `e2e/` | 把打好的包装进 Chrome for Testing 跑冒烟，站点请求都指向本机模拟服务器，其余域名解析失败 |
 | `notes/` | 公开的设计文档，走白名单 |
@@ -28,11 +28,14 @@
 
 ```bash
 npm run check       # 写代码时每轮必跑：类型检查、单元测试、构建、构建产物检查、公开结构检查
-npm run package     # 打出 dist/jianmu-<版本>.zip，同时校验包的内容
+npm run package     # 打出 dist/jianmu-<版本>.zip 和同名的 .sha256，同时校验包的内容
 npm run test:e2e    # 端到端冒烟，用 CHROME_PATH 指定 Chrome for Testing 的可执行文件
+npm run release -- candidate   # 发布候选：要在远端 main 的最新提交上、工作树干净；其余子命令见 scripts/release.mjs 开头
 ```
 
 单项命令：`npm run typecheck`、`npm test`、`npm run build`、`npm run test:build`、`npm run check:public`。
+
+打完发布候选，在 GitHub Actions 里手动触发「发布前核对」（`.github/workflows/release-check.yml`），填候选的提交号和校验值：它在 Chrome for Testing 116 和当前稳定版上各跑一遍端到端，在 Linux 上重新打包核对校验值。这个工作流不在必需检查里。
 
 ## 改代码时要知道的
 
@@ -45,6 +48,7 @@ npm run test:e2e    # 端到端冒烟，用 CHROME_PATH 指定 Chrome for Testin
 - 注入 B 站和 YouTube 页面的标识一律以 `jianmu-` 开头，集中定义在 `src/shared/names.ts`。
 - 新增要进包的文件，同一个 PR 改 `tests/fixtures/package-files.txt`。
 - 版本号只写在 `package.json`，构建时写进产物清单。改版本号的提交用 `release:`。
+- 清单模板里的 `key` 是扩展身份，决定扩展 ID（快照在 `tests/fixtures/extension-id.txt`），不要改：改了已装用户的资料就接不上。私钥不进仓库，公开结构检查拦 `.pem`、`.crx`、`.key`。
 - 文本文件一律 LF。
 - 新增或升级依赖，在 PR 里写明是什么、为什么要。`.npmrc` 开了 `ignore-scripts`，`npm run` 不跑 pre、post 脚本，别依赖它们。
 - 读写设置一律经 settings store 的锁，不直接写整份设置，否则密钥可能落盘。
@@ -62,6 +66,7 @@ npm run test:e2e    # 端到端冒烟，用 CHROME_PATH 指定 Chrome for Testin
 - B 站读取实现（含请求签名）在 `src/sites/bilibili/`，随这个仓库和 Releases 的 zip 公开。不抄第三方接口文档，不带它们的文字和注释，沿用 MIT 代码的部分保留版权声明；只给已登录用户读，每次读取先确认登录；不下载音视频，不碰付费内容，付费状态确认不了时也不读，保持低频，被限流或遇到人机验证就停，不读 Cookie 值，不冒充其他客户端。见方案第 4.4 节。
 - 测试样例和黄金样本的输入一律自己造，不用真实视频的编号、标题、字幕和平台返回文字，不用真实备份，也不用第三方资料里的示例值。
 - `notes/` 只放白名单里的文档。主要使用者写作「开发者本人」。
+- README 用的截图和演示动图放 `.github/assets/`，只许 PNG 和 GIF，单个不超过 5 MB；`.github/` 别处不放图片。公开结构检查会拦。
 - 称呼 Digest for Bilibili 用它的名字。
 
 ## 提交和 PR

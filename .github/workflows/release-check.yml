@@ -1,0 +1,123 @@
+name: 发布前核对
+
+# 只手动触发，不在必需检查里。打发布候选以后跑一次：最低支持的 Chrome 116 和当前稳定版上各跑一遍端到端，
+# 在 Linux 上重新打包，把校验值记进运行摘要；给了期望值就比，不同就失败。
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: 发布候选的完整提交号（打包的文件时间取它的提交时间）
+        required: true
+        type: string
+      expected-sha256:
+        description: 期望的 zip 校验值；留空只记不比
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: e2e (Chrome ${{ matrix.chrome }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        chrome: ['116', 'stable']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.commit }}
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+          cache: npm
+
+      # .npmrc 里的 min-release-age 从 npm 11.10.0 起才生效
+      - name: 核对 npm 版本
+        run: |
+          if ! node -e 'const [major, minor] = process.argv[1].split(".").map(Number); process.exit(major > 11 || (major === 11 && minor >= 10) ? 0 : 1)' "$(npm --version)"; then
+            npm install --global npm@11.20.0
+          fi
+          npm --version
+
+      - run: npm ci
+
+      # 版本和下载地址都从 Chrome for Testing 的版本列表里取：116 取这个大版本的最后一版，stable 取当前稳定版
+      - name: 安装 Chrome for Testing
+        env:
+          CHROME: ${{ matrix.chrome }}
+        run: |
+          list=https://googlechromelabs.github.io/chrome-for-testing
+          if [ "$CHROME" = stable ]; then
+            url="$(curl --fail --silent --show-error "$list/last-known-good-versions-with-downloads.json" \
+              | jq -r '.channels.Stable.downloads.chrome[] | select(.platform == "linux64") | .url')"
+          else
+            url="$(curl --fail --silent --show-error "$list/latest-versions-per-milestone-with-downloads.json" \
+              | jq -r --arg milestone "$CHROME" '.milestones[$milestone].downloads.chrome[] | select(.platform == "linux64") | .url')"
+          fi
+          case "$url" in
+            https://storage.googleapis.com/chrome-for-testing-public/*/linux64/chrome-linux64.zip) ;;
+            https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/*/linux64/chrome-linux64.zip) ;;
+            *) echo "::error::下载地址不在 Chrome for Testing 的官方渠道：$url"; exit 1 ;;
+          esac
+          curl --fail --silent --show-error --output "$RUNNER_TEMP/chrome.zip" "$url"
+          unzip -q "$RUNNER_TEMP/chrome.zip" -d "$RUNNER_TEMP"
+          echo "CHROME_PATH=$RUNNER_TEMP/chrome-linux64/chrome" >> "$GITHUB_ENV"
+          echo "- $("$RUNNER_TEMP/chrome-linux64/chrome" --version)" >> "$GITHUB_STEP_SUMMARY"
+
+      # Ubuntu 24.04 默认限制非特权用户命名空间，Chrome 的沙箱起不来
+      - name: 放开用户命名空间
+        run: echo 0 | sudo tee /proc/sys/kernel/apparmor_restrict_unprivileged_userns
+
+      - run: npm run test:e2e
+
+  package:
+    name: Linux 打包校验值
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.commit }}
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+          cache: npm
+
+      - name: 核对 npm 版本
+        run: |
+          if ! node -e 'const [major, minor] = process.argv[1].split(".").map(Number); process.exit(major > 11 || (major === 11 && minor >= 10) ? 0 : 1)' "$(npm --version)"; then
+            npm install --global npm@11.20.0
+          fi
+          npm --version
+
+      - run: npm ci
+
+      - run: npm run package
+
+      - name: 记下并核对校验值
+        env:
+          EXPECTED: ${{ inputs.expected-sha256 }}
+        run: |
+          line="$(cat dist/jianmu-*.zip.sha256)"
+          actual="${line%% *}"
+          {
+            echo "提交 \`$(git rev-parse HEAD)\`，文件时间 \`$(git log -1 --format=%ct HEAD)\`"
+            echo
+            echo "\`$line\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          expected="$(printf '%s' "$EXPECTED" | tr -d '[:space:]' | tr 'A-F' 'a-f')"
+          if [ -z "$expected" ]; then
+            echo "没给期望值，只记不比"
+          elif [ "$expected" = "$actual" ]; then
+            echo "校验值和期望值相同"
+          else
+            echo "::error::Linux 上打出的校验值 $actual 和期望值 $expected 不同"
+            exit 1
+          fi

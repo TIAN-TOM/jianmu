@@ -107,8 +107,8 @@ export const ACTIVATION_TABLE: NoticeTable<ActivationKind> = [
   },
 ];
 
-// 当前构建打开了哪些开关。
-const BUILD_FEATURES: NoticeFeatures = { frameExplain: false };
+// 当前构建打开了哪些开关。发布脚本把它记进候选记录。
+export const BUILD_FEATURES: NoticeFeatures = { frameExplain: false };
 
 const FNV_OFFSET = 0xcbf29ce484222325n;
 const FNV_PRIME = 0x100000001b3n;

@@ -1,5 +1,6 @@
 // 构建产物检查：要先跑 npm run build。守的是产物，源码由结构测试守。
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { before, test } from "node:test";
@@ -91,8 +92,41 @@ test("包里带项目和打进包的依赖的许可声明", () => {
   const licenses = readBuild("LICENSE.txt");
   assert.ok(licenses.startsWith("MIT License"), "项目自己的许可在最前面");
   for (const holder of ["TIAN-TOM", "k1234567", "Zara Zhang"]) assert.ok(licenses.includes(holder), `缺 ${holder}`);
-  for (const name of ["preact", "@preact/signals", "@preact/signals-core"]) {
-    assert.ok(licenses.includes(`\n${name}\n`), `缺 ${name} 的许可`);
-  }
   assert.ok(!licenses.includes("\r"));
+});
+
+/** 包里源文件注释指向的依赖包名，作用域包取两段；嵌套安装的取最里面那个。 */
+function bundledPackages(bundle: string): string[] {
+  const names = new Set<string>();
+  for (const [, origin = ""] of bundle.matchAll(/^\s*\/\/ (node_modules\/\S+)$/gm)) {
+    const name = [...origin.matchAll(/(?:^|\/)node_modules\/((?:@[^/]+\/)?[^/]+)\//g)].at(-1)?.[1];
+    assert.ok(name, `认不出包名：${origin}`);
+    names.add(name);
+  }
+  return [...names].sort();
+}
+
+test("打进包的每个依赖都有自己的许可证一节，仓库 LICENSE 的版权行原样都在", () => {
+  const licenses = readBuild("LICENSE.txt");
+  const headings = new Set(licenses.split("\n\n---\n\n").map((section) => section.split("\n", 1)[0]));
+  const packages = BUNDLES.flatMap((file) => bundledPackages(readBuild(file)));
+  assert.ok(packages.length > 0, "包里没有依赖包的源文件注释");
+  for (const name of new Set(packages)) assert.ok(headings.has(name), `${name} 打进了包，LICENSE.txt 里没有它的许可证一节`);
+
+  const copyrights = readFileSync(join(ROOT, "LICENSE"), "utf8").split("\n").filter((line) => line.startsWith("Copyright "));
+  assert.equal(copyrights.length, 3, "仓库 LICENSE 应有三行版权");
+  for (const line of copyrights) assert.ok(licenses.includes(`\n${line}\n`), `LICENSE.txt 缺这行版权：${line}`);
+});
+
+// 扩展 ID 由清单 key 里的公钥决定：公钥的 SHA-256 取前 32 个十六进制字符，0–f 换成 a–p。
+function extensionIdOf(publicKey: string): string {
+  const hex = createHash("sha256").update(Buffer.from(publicKey, "base64")).digest("hex").slice(0, 32);
+  return [...hex].map((digit) => String.fromCharCode(97 + Number.parseInt(digit, 16))).join("");
+}
+
+test("清单带固定的 key，算出的扩展 ID 等于快照", () => {
+  const { key } = JSON.parse(readBuild("manifest.json"));
+  assert.equal(typeof key, "string", "清单缺 key：没有它，扩展 ID 跟着加载的文件夹走，换文件夹资料就接不上");
+  const expected = readFileSync(join(ROOT, "tests/fixtures/extension-id.txt"), "utf8").trim();
+  assert.equal(extensionIdOf(key), expected, "key 换了：已装用户的资料会接不上");
 });

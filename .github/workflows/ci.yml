@@ -59,6 +59,15 @@ jobs:
 
       - run: npm ci
 
+      # 同一个提交连打两次，第二次核对第一次的校验值文件。中间隔两秒，文件时间没固定住就会对不上
+      - name: 核对打包可复现
+        run: |
+          npm run package
+          cp dist/jianmu-*.zip.sha256 "$RUNNER_TEMP/first.sha256"
+          sleep 2
+          npm run package
+          cd dist && sha256sum -c "$RUNNER_TEMP/first.sha256"
+
       - name: 安装 Chrome for Testing
         run: |
           version="$(curl --fail --silent --show-error https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_STABLE)"

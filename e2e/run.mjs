@@ -31,12 +31,13 @@ const executable = process.env.CHROME_PATH;
 if (!executable) throw new Error("用 CHROME_PATH 指定 Chrome for Testing 的可执行文件");
 
 const { version } = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
+const expectedId = readFileSync(join(ROOT, "tests/fixtures/extension-id.txt"), "utf8").trim();
 const work = mkdtempSync(join(tmpdir(), "jianmu-e2e-"));
 const extensionDir = join(work, "extension");
 execFileSync("unzip", ["-q", join(ROOT, "dist", `jianmu-${version}.zip`), "-d", extensionDir]);
 
 const mock = await startMockServer({ dir: work });
-const browser = launchChrome({ executable, profileDir: join(work, "profile"), hostRules: mock.hostRules });
+const browser = launchChrome({ executable, profileDir: join(work, "profile"), hostRules: mock.hostRules, extensionDir });
 const { cdp } = browser;
 const sessions = new Map();
 const errors = [];
@@ -73,7 +74,9 @@ try {
   const { product } = await cdp.send("Browser.getVersion", {}, undefined, TIMEOUT_MS);
   await cdp.send("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
   await cdp.send("Target.setDiscoverTargets", { discover: true });
-  const { id } = await cdp.send("Extensions.loadUnpacked", { path: extensionDir }, undefined, TIMEOUT_MS);
+  const { id } = await browser.loadExtension(TIMEOUT_MS);
+  // 清单里的 key 固定了扩展 ID，换文件夹加载也不变。
+  if (id !== expectedId) throw new Error(`扩展 ID 是 ${id}，应为 ${expectedId}`);
   console.log(`✓ ${product} 装上了扩展 ${id}`);
 
   const worker = await until("service worker 启动", () => findSession("service_worker", `chrome-extension://${id}/background.js`));
