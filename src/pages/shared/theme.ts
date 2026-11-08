@@ -3,6 +3,7 @@
 // 设置里不含密钥，这里只取外观三项。
 import { APPEARANCE_CACHE_KEY, SETTINGS_STORAGE_KEY } from "../../shared/names.ts";
 import { DEFAULTS, normalize, normalizeUiFontScale, THEME_MODES, type AccentTheme, type ThemeMode, type UiFontScale } from "../../shared/settings-schema.ts";
+import type { PageApi } from "./api.ts";
 
 export interface Appearance {
   readonly accentTheme: AccentTheme;
@@ -94,9 +95,17 @@ export interface AppearanceWatch {
   readonly stop: () => void;
 }
 
-/** 页面里的真实来源：本机存储和它的变化事件。清除广播由页面的消息客户端另接。 */
+/** 页面里的真实来源：本机存储和它的变化事件。清除广播见 pageAppearanceSources。 */
 export function browserAppearanceStorage(): Pick<WatchAppearanceDeps, "local" | "onChanged"> {
   return { local: chrome.storage.local, onChanged: chrome.storage.onChanged };
+}
+
+/** 页面接外观用的全部来源：本机存储和它的变化事件，加上消息客户端收到的清除广播。 */
+export function pageAppearanceSources(
+  api: Pick<PageApi, "on">,
+  storage: Pick<WatchAppearanceDeps, "local" | "onChanged"> = browserAppearanceStorage(),
+): WatchAppearanceDeps {
+  return { ...storage, onDataCleared: (listener) => api.on("data.cleared", ({ scope }) => listener(scope)) };
 }
 
 /**

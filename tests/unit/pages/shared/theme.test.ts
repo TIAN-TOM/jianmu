@@ -1,11 +1,14 @@
 // 扩展页面的外观：主题、明暗、字号落到根节点上，跟着设置变；清除全部数据后按默认值重写首帧缓存。
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { applyAppearance, applyUiFontScale, resolveThemeMode, watchAppearance, type WatchAppearanceDeps } from "../../../../src/pages/shared/theme.ts";
+import { createPageApi } from "../../../../src/pages/shared/api.ts";
+import { applyAppearance, applyUiFontScale, pageAppearanceSources, resolveThemeMode, watchAppearance, type WatchAppearanceDeps } from "../../../../src/pages/shared/theme.ts";
 import { APPEARANCE_CACHE_KEY, SETTINGS_STORAGE_KEY } from "../../../../src/shared/names.ts";
 import { ACCENT_THEMES, THEME_MODES, UI_FONT_SCALES } from "../../../../src/shared/settings-schema.ts";
+import { EXTENSION_ID } from "../../../helpers/chrome.ts";
 import { deferred, nextTurn } from "../../../helpers/deferred.ts";
 import { fakePage, memoryLocalStorage } from "../../../helpers/fake-page.ts";
+import { fakeRuntime } from "../../../helpers/fake-runtime.ts";
 import { memoryStorage } from "../../../helpers/memory-storage.ts";
 import { until } from "../../../helpers/wait-until.ts";
 
@@ -142,6 +145,35 @@ test("收到清除全部数据：按清除后的设置（默认值）重写外�
   other.broadcastCleared("all");
   assert.ok(await until(() => otherPage.root.dataset.accentTheme === "ink"));
   assert.equal(JSON.parse(otherCache.getItem(APPEARANCE_CACHE_KEY) ?? "null").accentTheme, "ink");
+});
+
+test("页面接上消息客户端：后台广播清除全部数据就按默认值重写外观；只清缓存、不是后台发的清除都不动；停止以后退订", async () => {
+  const source = fakeSource({ accentTheme: "graphite", themeMode: "dark", uiFontScale: 125 });
+  const runtime = fakeRuntime();
+  const api = createPageApi({ runtime: runtime.runtime, sleep: async () => {}, reportError: (error) => assert.fail(String(error)) });
+  const page = fakePage();
+  const watch = await watchAppearance(pageAppearanceSources(api, { local: source.deps.local, onChanged: source.deps.onChanged }), page.root);
+  assert.equal(page.root.dataset.accentTheme, "graphite");
+
+  await source.local.remove(SETTINGS_STORAGE_KEY);
+  runtime.broadcast({ type: "data.cleared", scope: "cache" });
+  runtime.broadcast({ type: "data.cleared", scope: "all" }, { id: EXTENSION_ID, tab: { id: 3 } });
+  await nextTurn();
+  assert.equal(source.reads(), 1, "只清缓存、从网页标签页里来的都不重读");
+  assert.equal(page.root.dataset.accentTheme, "graphite");
+
+  runtime.broadcast({ type: "data.cleared", scope: "all" });
+  assert.ok(await until(() => page.root.dataset.accentTheme === "ink"));
+  assert.equal(watch.current()?.uiFontScale, 100);
+
+  watch.stop();
+  assert.equal(runtime.listeners(), 1, "客户端的监听由页面停客户端时撤");
+  await source.local.set({ [SETTINGS_STORAGE_KEY]: { accentTheme: "ochre" } });
+  runtime.broadcast({ type: "data.cleared", scope: "all" });
+  await nextTurn();
+  assert.equal(source.reads(), 2, "停止以后清除广播不再触发重读");
+  api.stop();
+  assert.equal(runtime.listeners(), 0);
 });
 
 test("跟随系统时系统明暗变了跟着换，选定明暗时不跟；停止以后什么都不再改", async () => {
