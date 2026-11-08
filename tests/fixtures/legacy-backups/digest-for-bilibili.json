@@ -1,0 +1,107 @@
+{
+  "kind": "bilibili-digest-backup",
+  "schemaVersion": 2,
+  "exportedAt": "2026-06-01T12:00:00.000Z",
+  "notes": [
+    {
+      "id": "note_1750000000000_a1b2c3",
+      "bvid": "BV1Sample000",
+      "page": 1,
+      "videoTitle": "番茄搭架子入门",
+      "ownerName": "菜园实验室",
+      "timestamp": "1:05",
+      "timestampSeconds": 65,
+      "timestampedUrl": "https://www.bilibili.com/video/BV1Sample000?t=65",
+      "text": "间距四十厘米，绑绳别勒太紧。",
+      "rawText": "竹竿间距留够 40 厘米",
+      "createdAt": 1750000000000,
+      "updatedAt": 1750000500000,
+      "learningId": "BV1Sample000:p1",
+      "revision": 3,
+      "contentSource": "user"
+    },
+    {
+      "id": "note_1750000100000_d4e5f6",
+      "bvid": "BV1Sample001",
+      "page": 3,
+      "videoTitle": "侧枝什么时候掐",
+      "ownerName": "菜园实验室",
+      "timestamp": "0:30",
+      "timestampSeconds": 30,
+      "timestampedUrl": "https://www.bilibili.com/video/BV1Sample001?p=3&t=30",
+      "text": "第三 P 从这里开始讲打顶",
+      "rawText": "第三 P 从这里开始讲打顶",
+      "createdAt": 1750000100000,
+      "updatedAt": 1750000100000,
+      "learningId": "BV1Sample001:p3",
+      "revision": 1,
+      "contentSource": "raw"
+    },
+    {
+      "id": "note_1750000200000_g7h8i9",
+      "bvid": "",
+      "page": 1,
+      "videoTitle": "",
+      "ownerName": "",
+      "timestamp": "0:05",
+      "timestampSeconds": 5,
+      "timestampedUrl": "",
+      "text": "没有视频号的笔记",
+      "rawText": "没有视频号的笔记",
+      "createdAt": 1750000200000,
+      "updatedAt": 1750000200000,
+      "revision": 1,
+      "contentSource": "legacy"
+    },
+    {
+      "id": { "$oid": "65f0c0ffee" },
+      "bvid": "BV1Sample000",
+      "page": 1,
+      "videoTitle": "番茄搭架子入门",
+      "ownerName": "菜园实验室",
+      "timestamp": "0:40",
+      "timestampSeconds": 40,
+      "timestampedUrl": "https://www.bilibili.com/video/BV1Sample000?t=40",
+      "text": "编号是个对象",
+      "rawText": "编号是个对象",
+      "createdAt": 1750000300000,
+      "updatedAt": 1750000300000,
+      "learningId": "BV1Sample000:p1",
+      "revision": 2,
+      "contentSource": "ai"
+    }
+  ],
+  "learning": [
+    {
+      "schemaVersion": 2,
+      "learningId": "BV1Sample000:p1",
+      "bvid": "BV1Sample000",
+      "page": 1,
+      "videoTitle": "番茄搭架子入门",
+      "ownerName": "菜园实验室",
+      "analysis": {
+        "chapters": [
+          { "timestamp": "0:08", "timestampSeconds": 8, "title": "为什么要搭架子", "summary": "果实一多枝条就压弯。" },
+          { "timestamp": "1:05", "timestampSeconds": 65, "title": "竹竿怎么摆", "summary": "间距四十厘米。" }
+        ],
+        "keyQuotes": [{ "timestamp": "1:10", "timestampSeconds": 70, "quote": "间距宁宽勿窄。" }]
+      },
+      "updatedAt": 1750000400000
+    },
+    {
+      "schemaVersion": 2,
+      "learningId": "BV1Sample001:p3",
+      "bvid": "BV1Sample001",
+      "page": 3,
+      "videoTitle": "侧枝什么时候掐",
+      "ownerName": "菜园实验室",
+      "analysis": {
+        "chapters": [{ "timestamp": "0:30", "timestampSeconds": 30, "title": "打顶", "summary": "长到第五穗就打顶。" }],
+        "keyQuotes": []
+      },
+      "updatedAt": 1750000600000,
+      "analysisFailures": [{ "index": 2, "startSeconds": 300, "endSeconds": 420 }]
+    }
+  ],
+  "analysisSystemPrompt": "按章节整理字幕，每章写一句摘要。"
+}

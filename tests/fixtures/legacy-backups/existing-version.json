@@ -1,0 +1,223 @@
+{
+  "kind": "bilibili-digest-backup",
+  "schemaVersion": 2,
+  "exportedAt": "2026-10-20T09:30:00.000Z",
+  "notes": [
+    {
+      "id": "note_1760000000000_k3m9qa",
+      "bvid": "BV1Sample000",
+      "page": 1,
+      "videoTitle": "番茄搭架子入门",
+      "ownerName": "菜园实验室",
+      "timestamp": "1:05",
+      "timestampSeconds": 65,
+      "timestampedUrl": "https://www.bilibili.com/video/BV1Sample000?t=65",
+      "text": "竹竿间距留够 40 厘米，绑绳留一指宽。",
+      "rawText": "竹竿间距留够 40 厘米",
+      "createdAt": 1760000000000,
+      "updatedAt": 1760000000000,
+      "learningId": "BV1Sample000:p1"
+    },
+    {
+      "id": "note_1760000100000_p2x7ab",
+      "bvid": "BV1Sample000",
+      "page": 2,
+      "videoTitle": "番茄搭架子入门",
+      "ownerName": "菜园实验室",
+      "timestamp": "0:00",
+      "timestampSeconds": 0,
+      "timestampedUrl": "https://www.bilibili.com/video/BV1Sample000?p=2",
+      "text": "第二 P 开头讲工具\n先备好麻绳和剪刀",
+      "rawText": "第二 P 开头讲工具\n先备好麻绳和剪刀",
+      "createdAt": 1760000100000,
+      "updatedAt": 1760000200000,
+      "learningId": "BV1Sample000:p2"
+    },
+    {
+      "id": "note_1760000300000_z8c4de",
+      "bvid": "BV1Sample001",
+      "page": 0,
+      "videoTitle": "侧枝什么时候掐",
+      "ownerName": "菜园实验室",
+      "timestamp": "2:30",
+      "timestampSeconds": 150,
+      "timestampedUrl": "https://www.bilibili.com/video/BV1Sample001?t=150",
+      "text": "侧枝要晴天上午掐掉，伤口干得快。",
+      "rawText": "侧枝要晴天上午掐掉",
+      "createdAt": 1760000300000,
+      "updatedAt": 1760000300000,
+      "learningId": "BV1Sample001:p1"
+    },
+    {
+      "id": "note_1760000310000_badvid",
+      "bvid": "BV123",
+      "page": 1,
+      "videoTitle": "视频号不对",
+      "ownerName": "菜园实验室",
+      "timestamp": "0:10",
+      "timestampSeconds": 10,
+      "timestampedUrl": "https://www.bilibili.com/video/BV123?t=10",
+      "text": "这条的视频号缺了几位",
+      "rawText": "这条的视频号缺了几位",
+      "createdAt": 1760000310000,
+      "updatedAt": 1760000310000,
+      "learningId": "BV123:p1"
+    },
+    {
+      "id": "note_1760000320000_negsec",
+      "bvid": "BV1Sample000",
+      "page": 1,
+      "videoTitle": "番茄搭架子入门",
+      "ownerName": "菜园实验室",
+      "timestamp": "0:00",
+      "timestampSeconds": -3,
+      "timestampedUrl": "https://www.bilibili.com/video/BV1Sample000",
+      "text": "时间点是负的",
+      "rawText": "时间点是负的",
+      "createdAt": 1760000320000,
+      "updatedAt": 1760000320000,
+      "learningId": "BV1Sample000:p1"
+    },
+    {
+      "id": "",
+      "bvid": "BV1Sample000",
+      "page": 1,
+      "videoTitle": "番茄搭架子入门",
+      "ownerName": "菜园实验室",
+      "timestamp": "0:20",
+      "timestampSeconds": 20,
+      "timestampedUrl": "https://www.bilibili.com/video/BV1Sample000?t=20",
+      "text": "没有编号的笔记",
+      "rawText": "没有编号的笔记",
+      "createdAt": 1760000330000,
+      "updatedAt": 1760000330000,
+      "learningId": "BV1Sample000:p1"
+    }
+  ],
+  "learning": [
+    {
+      "schemaVersion": 2,
+      "learningId": "BV1Sample000:p1",
+      "bvid": "BV1Sample000",
+      "page": 1,
+      "videoTitle": "番茄搭架子入门",
+      "ownerName": "菜园实验室",
+      "analysis": {
+        "chapters": [
+          { "timestamp": "0:08", "timestampSeconds": 8, "title": "为什么要搭架子", "summary": "果实一多枝条就压弯，架子帮它分担重量。" },
+          { "timestamp": "1:05", "timestampSeconds": 65, "title": "竹竿怎么摆", "summary": "竹竿间距四十厘米，插到三十厘米深。" },
+          { "timestamp": "-0:05", "timestampSeconds": -5, "title": "时间点不对的章节", "summary": "" }
+        ],
+        "keyQuotes": [{ "timestamp": "1:10", "timestampSeconds": 70, "quote": "间距宁宽勿窄。" }],
+        "verdict": {
+          "summary": "讲清了番茄搭架子的三个要点。",
+          "value": "间距和绑法",
+          "verdict": "看概览就够",
+          "reason": "要点都在章节里"
+        }
+      },
+      "updatedAt": 1760000400000
+    },
+    {
+      "schemaVersion": 2,
+      "learningId": "BV1Sample001:p1",
+      "bvid": "BV1Sample001",
+      "page": 1,
+      "videoTitle": "侧枝什么时候掐",
+      "ownerName": "菜园实验室",
+      "analysis": {
+        "chapters": [],
+        "keyQuotes": [],
+        "verdict": {
+          "summary": "官方总结说这期讲侧枝管理。",
+          "value": "掐侧枝的时机",
+          "verdict": "值得看完整视频",
+          "reason": "有实操演示",
+          "source": "official"
+        }
+      },
+      "updatedAt": 1760000500000
+    },
+    {
+      "schemaVersion": 2,
+      "learningId": "BV1Sample000:p2",
+      "bvid": "BV1Sample000",
+      "page": 2,
+      "videoTitle": "番茄搭架子入门",
+      "ownerName": "菜园实验室",
+      "analysis": {
+        "chapters": [{ "timestamp": "0:00", "timestampSeconds": 0, "title": "准备工具", "summary": "麻绳、剪刀和竹竿。" }],
+        "keyQuotes": [],
+        "verdict": {
+          "summary": "前半讲工具，后半没有生成。",
+          "value": "",
+          "verdict": "信息不足",
+          "reason": "后半段缺失",
+          "incomplete": true
+        }
+      },
+      "analysisFailures": [{ "index": 1, "startSeconds": 600, "endSeconds": 1170, "reason": "服务限流了" }],
+      "updatedAt": 1760000600000
+    },
+    {
+      "schemaVersion": 2,
+      "learningId": "BV1Sample002:p1",
+      "bvid": "BV1Sample003",
+      "page": 1,
+      "videoTitle": "记录键和视频号对不上",
+      "ownerName": "菜园实验室",
+      "analysis": { "chapters": [], "keyQuotes": [] },
+      "updatedAt": 1760000610000
+    },
+    {
+      "schemaVersion": 2,
+      "videoTitle": "没有视频号",
+      "ownerName": "菜园实验室",
+      "analysis": { "chapters": [], "keyQuotes": [] },
+      "updatedAt": 1760000620000
+    }
+  ],
+  "qa": [
+    {
+      "id": "qa_1760000700000_abcdef",
+      "bvid": "BV1Sample000",
+      "page": 1,
+      "question": "竹竿要插多深？",
+      "answer": "视频建议插到三十厘米左右 [1:20]。",
+      "citations": [{ "startSeconds": 80, "quote": "竹竿插到三十厘米左右" }],
+      "clickable": [80],
+      "createdAt": 1760000700000
+    },
+    {
+      "id": "qa_1760000800000_bcdefa",
+      "bvid": "BV1Sample000",
+      "page": 2,
+      "question": "第二 P 用了哪些工具？",
+      "answer": "麻绳和剪刀 [0:12]，后面还提到",
+      "citations": [{ "startSeconds": 12, "quote": "先备好麻绳和剪刀" }],
+      "clickable": [12],
+      "truncated": true,
+      "createdAt": 1760000800000
+    },
+    {
+      "id": "note_1760000900000_cdefab",
+      "bvid": "BV1Sample000",
+      "page": 1,
+      "question": "编号前缀不对",
+      "answer": "这条不是问答记录。",
+      "citations": [],
+      "clickable": [],
+      "createdAt": 1760000900000
+    },
+    {
+      "id": "qa_1760001000000_defabc",
+      "bvid": "not-a-video",
+      "page": 1,
+      "question": "视频号不对",
+      "answer": "这条的视频号读不懂。",
+      "citations": [],
+      "clickable": [],
+      "createdAt": 1760001000000
+    }
+  ]
+}
