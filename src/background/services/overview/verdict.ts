@@ -219,6 +219,8 @@ export function createVerdictService(deps: VerdictServiceDeps): VerdictService {
       const basis: OfficialBasis = { source: "official-summary", video, fingerprint: material.value.official.fingerprint };
       // 种类不进这把键：侧边栏的结论和粗筛写结论写的是同一份。
       const key = await equivalenceKey({ kind: "verdict", video, basis, gen: run.gen });
+      // 算键的工夫被停了：闸门有空位时请求会立刻发出去、撤不回来，这里就收手。
+      if (stopped()) return fail("TASK_CANCELED");
       const busy = inflight.get(video);
       const writing = (): void => run.progress({ done: 0, total: 1, phase: "verdict", message: "正在写一句话结论…" });
       if (busy && busy.key === key && !cleared(busy.since)) {

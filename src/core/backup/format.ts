@@ -1,8 +1,7 @@
 // 简幕自己的备份格式：导出、先认格式再读。旧格式交给 legacy-reader，合并在 merge。
 // 备份只带笔记、概览和问答；密钥、设置、提示词和链接这类字段一律不进文件，记录过一遍校验只留认得的字段。
 import { fail, ok, type Result } from "../errors.ts";
-import type { NoteRecord, OverviewRecord } from "../notes/records.ts";
-import type { QaRecord } from "../qa/records.ts";
+import type { NoteRecord, OverviewRecord, QaRecord } from "../notes/records.ts";
 import { isLegacyBackup, readLegacyBackup } from "./legacy-reader.ts";
 import {
   checkNote,

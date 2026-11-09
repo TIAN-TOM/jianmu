@@ -243,8 +243,10 @@ export function createGenerator(deps: GenerateDeps) {
       if (!existing || !hasAnalysisContent(existing.analysis)) return fail("NO_ANALYSIS");
       const stored = normalizeAnalysisFailures(existing.analysisFailures);
       if (!stored.length) return ok(storedView(job.video, existing));
-      // 生效的章节依据的字幕和现在的对不上（换过语言、导入过字幕文件）：按区间补会拼出两份字幕的混合，要重新生成。
+      // 生效的章节依据的字幕和现在的对不上（换过语言、导入过字幕文件），或是旧备份导入的、依据未知：
+      // 按区间补会拼出两份字幕的混合，要重新生成。
       const basis = existing.parts?.chapters?.derived.basis;
+      if (basis?.source === "legacy-unknown") return fail("FAILED_CHUNKS_MISMATCH");
       if (basis?.source === "transcript" && basis.transcript.fingerprint !== view.transcript.ref.fingerprint) return fail("FAILED_CHUNKS_MISMATCH");
       const { run } = job;
       try {

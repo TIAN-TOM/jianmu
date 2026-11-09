@@ -302,3 +302,26 @@ test("字幕太长、问题又没有内容词时只送每块开头一句：引�
   assert.equal(kept.answer, "开头讲田间管理 [0:00]");
   assert.deepEqual(kept.clickable, [0]);
 });
+
+test("只挑了部分块时：紧挨着没送进去的块，它起点那一秒的引用不算依据，也不能点；送进去的最后一句照常认", async () => {
+  // 每条字幕 1900 字、三条一块；只有第 14 条讲嫁接，检索挑中它所在的块和前一块，后一块超出预算没送。
+  const filler = (index: number) => `第${index + 1}条：${"田间管理要点。".repeat(280)}`.slice(0, 1900);
+  const cues = Array.from({ length: 30 }, (_, index) => cue(index * 60, index === 13 ? `嫁接先削口。${filler(index)}`.slice(0, 1900) : filler(index), 60));
+  const ask = async (answer: string) => {
+    const h = studyHarness({ transcripts: { [VIDEO]: cues }, info: { durationSec: 1800 }, ai: { replies: { qa: JSON.stringify({ answer }) } } });
+    const result = await h.ask("嫁接怎么做？").result;
+    assert.ok(result.ok && result.value.retrievalMode === "selected", JSON.stringify(result.ok && result.value.retrievalMode));
+    assert.match(userMessage(h.fake.calls[0]!.request), /\[14:00\]/);
+    assert.doesNotMatch(userMessage(h.fake.calls[0]!.request), /\[15:00\]/, "后一块没送进去");
+    return answerOf(result);
+  };
+
+  const outside = await ask("后面还讲了别的 [15:00]");
+  assert.equal(outside.answer, FALLBACK_ANSWER, "第 15 分钟那句模型没看到，不能拿它当依据");
+  assert.deepEqual(outside.citations, []);
+
+  const mixed = await ask("先削口 [14:59]，后面还讲了别的 [15:00]");
+  assert.deepEqual(mixed.citations.map((citation) => citation.startSeconds), [899]);
+  assert.match(mixed.citations[0]?.quote ?? "", /^第15条/, "第 14 分 59 秒对到送进去的最后一句");
+  assert.deepEqual(mixed.clickable, [899], "没送进去的那一秒不能点");
+});

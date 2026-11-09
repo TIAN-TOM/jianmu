@@ -445,6 +445,37 @@ test("用官方总结写结论被停止：已经发给模型的不跟着中止�
   assert.equal((await h.record())?.analysis.verdict?.source, "official", "钱已经花了，结论照常存下");
 });
 
+test("用官方总结写结论：算等价键的工夫被停止，恢复以后不再发请求", async () => {
+  // 只拦写结论时算的那把键（带着官方总结的依据），登记任务时算的不拦。
+  const subtle = globalThis.crypto.subtle;
+  const digest = subtle.digest.bind(subtle);
+  const keying = deferred();
+  const release = deferred();
+  Object.defineProperty(subtle, "digest", {
+    configurable: true,
+    value: async (algorithm: AlgorithmIdentifier, data: BufferSource) => {
+      if (new TextDecoder().decode(data).includes('"source":"official-summary"')) {
+        keying.resolve();
+        await release.promise;
+      }
+      return digest(algorithm, data);
+    },
+  });
+  try {
+    const h = overviewHarness({ respond: officialOnly });
+    const { taskId, result } = h.officialVerdict();
+    await keying.promise;
+    h.tasks.cancel(await taskId);
+    release.resolve();
+    assert.equal(codeOf(await result), "TASK_CANCELED");
+    await nextTurn();
+    assert.equal(h.asks.length, 0, "闸门有空位也不发");
+    assert.equal(await h.record(), null);
+  } finally {
+    Reflect.deleteProperty(subtle, "digest");
+  }
+});
+
 test("用官方总结写结论被停止：限流后的自动重发也听它的，停止时不再重发", async () => {
   const sent = deferred();
   const reply = deferred();

@@ -1,5 +1,6 @@
 // 备份里三类记录的校验：导出、读新格式、转换旧格式都过这一道。只留记录类型里有的字段，
-// 概览过一遍和生成时相同的校验，必填的字段不对就整条丢掉，交给调用方计数。
+// 概览过一遍和生成时相同的校验，必填的字段不对就整条丢掉，交给调用方计数。草稿不进备份。
+import type { TimeRange } from "../ai/chunking.ts";
 import { validateAnalysis } from "../ai/validate.ts";
 import { validateVerdict } from "../ai/verdict.ts";
 import type { LearningAnalysis, LearningVerdict } from "../notes/markdown.ts";
@@ -12,10 +13,12 @@ import {
   type GenInfo,
   type NoteRecord,
   type NoteSnapshot,
+  type OverviewPart,
+  type OverviewParts,
   type OverviewRecord,
+  type QaCitation,
+  type QaRecord,
 } from "../notes/records.ts";
-import type { Citation } from "../qa/citations.ts";
-import type { QaRecord } from "../qa/records.ts";
 import type { CaptionKind } from "../transcript/sources.ts";
 import { parseVideoKey, type VideoKey } from "../video-ref.ts";
 
@@ -102,7 +105,8 @@ export function keepValid<T>(list: readonly unknown[], check: (value: unknown) =
   return { kept, skipped };
 }
 
-const UNKNOWN_BASIS: Derived = Object.freeze({ basis: Object.freeze({ source: "legacy-unknown" }) });
+/** 依据未知：旧备份导入的，和新格式里依据读不懂的。 */
+export const UNKNOWN_BASIS: Derived = Object.freeze({ basis: Object.freeze({ source: "legacy-unknown" }) });
 
 function checkGen(value: unknown): GenInfo | null {
   if (!isFields(value)) return null;
@@ -142,18 +146,59 @@ export function checkDerived(value: unknown): Derived {
   return gen ? { basis, gen } : UNKNOWN_BASIS;
 }
 
-/** 结论按生成时的规则重建；依据官方总结写的照旧标明。 */
+/** 结论按生成时的规则重建；依据官方总结写的、正文被截断过的照旧标明。 */
 function checkVerdict(value: unknown): LearningVerdict | null {
   if (!isFields(value)) return null;
   const verdict = validateVerdict(value, { incomplete: value.incomplete === true });
   if (!verdict) return null;
-  return value.source === "official" ? { ...verdict, source: "official" } : verdict;
+  return {
+    ...verdict,
+    ...(value.source === "official" ? { source: "official" } : {}),
+    ...(value.truncated === true ? { truncated: true } : {}),
+  };
 }
 
-function checkAnalysis(value: Fields): LearningAnalysis {
+/** 截断区间：那几段的内容可能不完整，随概览保存。读不懂的区间丢掉。 */
+function truncatedRangesOf(value: unknown): TimeRange[] {
+  if (!Array.isArray(value)) return [];
+  const items: readonly unknown[] = value;
+  return items.flatMap((item) => {
+    if (!isFields(item)) return [];
+    const startSeconds = finite(item.startSeconds);
+    const endSeconds = finite(item.endSeconds);
+    if (startSeconds === null || endSeconds === null || startSeconds < 0 || endSeconds < startSeconds) return [];
+    return [{ startSeconds, endSeconds }];
+  });
+}
+
+export type CheckedAnalysis = LearningAnalysis & { readonly truncatedRanges?: readonly TimeRange[] };
+
+function checkAnalysis(value: Fields): CheckedAnalysis {
   const { chapters, keyQuotes } = validateAnalysis(value, undefined);
   const verdict = checkVerdict(value.verdict);
-  return verdict ? { chapters, keyQuotes, verdict } : { chapters, keyQuotes };
+  const truncatedRanges = truncatedRangesOf(value.truncatedRanges);
+  return {
+    chapters,
+    keyQuotes,
+    ...(verdict ? { verdict } : {}),
+    ...(truncatedRanges.length ? { truncatedRanges } : {}),
+  };
+}
+
+function checkPart(value: unknown): OverviewPart | null {
+  if (!isFields(value)) return null;
+  const taskCreatedAt = finite(value.taskCreatedAt);
+  if (taskCreatedAt === null || taskCreatedAt < 0) return null;
+  return { derived: checkDerived(value.derived), taskCreatedAt };
+}
+
+/** 各部分的来历只跟着还在的那部分走：结论没留下，结论的来历也不留。 */
+function checkParts(value: unknown, analysis: LearningAnalysis): OverviewParts | undefined {
+  if (!isFields(value)) return undefined;
+  const chapters = checkPart(value.chapters);
+  const verdict = analysis.verdict ? checkPart(value.verdict) : null;
+  if (!chapters && !verdict) return undefined;
+  return { ...(chapters ? { chapters } : {}), ...(verdict ? { verdict } : {}) };
 }
 
 /** 正文和原文按上限截断。 */
@@ -189,20 +234,25 @@ export function checkNote(value: unknown): NoteRecord | null {
   });
 }
 
+/** parts 交回各部分的来历；结论那部分只在结论读得懂时才用。 */
 export function overviewRecord(
   videoKey: VideoKey,
   snapshot: NoteSnapshot,
   analysis: Fields,
   failures: unknown,
   updatedAt: number,
+  parts: (checked: CheckedAnalysis) => OverviewParts | undefined,
 ): OverviewRecord {
   const analysisFailures = normalizeAnalysisFailures(failures);
+  const checked = checkAnalysis(analysis);
+  const recorded = parts(checked);
   return {
     schemaVersion: OVERVIEW_RECORD_VERSION,
     videoKey,
     snapshot,
-    analysis: checkAnalysis(analysis),
+    analysis: checked,
     ...(analysisFailures.length ? { analysisFailures } : {}),
+    ...(recorded ? { parts: recorded } : {}),
     updatedAt,
   };
 }
@@ -213,10 +263,12 @@ export function checkOverview(value: unknown): OverviewRecord | null {
   const updatedAt = finite(value.updatedAt);
   const { snapshot, analysis } = value;
   if (!videoKey || updatedAt === null || !isFields(analysis)) return null;
-  return overviewRecord(videoKey, storedSnapshot(snapshot), analysis, value.analysisFailures, updatedAt);
+  return overviewRecord(videoKey, storedSnapshot(snapshot), analysis, value.analysisFailures, updatedAt, (checked) =>
+    checkParts(value.parts, checked),
+  );
 }
 
-function citationsOf(value: unknown): Citation[] {
+function citationsOf(value: unknown): QaCitation[] {
   if (!Array.isArray(value)) return [];
   const items: readonly unknown[] = value;
   return items.flatMap((item) => {
@@ -234,7 +286,7 @@ function secondsOf(value: unknown): number[] {
 }
 
 /** 问答的公共部分：问题和回答必须是文字，引用和可点的时间点只留认得的。 */
-export function qaRecord(id: string, video: VideoKey, fields: Fields, derived: Derived | undefined): QaRecord | null {
+export function qaRecord(id: string, video: VideoKey, fields: Fields, derived: Derived): QaRecord | null {
   const { question, answer } = fields;
   if (typeof question !== "string" || typeof answer !== "string") return null;
   return {
@@ -245,7 +297,7 @@ export function qaRecord(id: string, video: VideoKey, fields: Fields, derived: D
     citations: citationsOf(fields.citations),
     clickable: secondsOf(fields.clickable),
     ...(fields.truncated === true ? { truncated: true as const } : {}),
-    ...(derived === undefined ? {} : { derived }),
+    derived,
     createdAt: finite(fields.createdAt) ?? 0,
   };
 }
@@ -254,5 +306,5 @@ export function checkQa(value: unknown): QaRecord | null {
   if (!isFields(value) || !isQaId(value.id)) return null;
   const video = videoOf(value.video);
   if (!video) return null;
-  return qaRecord(value.id, video, value, value.derived === undefined ? undefined : checkDerived(value.derived));
+  return qaRecord(value.id, video, value, checkDerived(value.derived));
 }

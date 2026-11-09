@@ -4,8 +4,7 @@ import { test } from "node:test";
 import { BACKUP_KIND, BACKUP_VERSION, buildBackup, readBackup } from "../../../../src/core/backup/format.ts";
 import type { ImportedBackup } from "../../../../src/core/backup/records.ts";
 import { notesAsMarkdown } from "../../../../src/core/notes/markdown.ts";
-import type { Derived, NoteRecord, OverviewRecord } from "../../../../src/core/notes/records.ts";
-import type { QaRecord } from "../../../../src/core/qa/records.ts";
+import type { Derived, NoteRecord, OverviewRecord, QaRecord } from "../../../../src/core/notes/records.ts";
 import { videoKey } from "../../../../src/core/video-ref.ts";
 
 const VIDEO_BASE = "https://video.example/";
@@ -52,6 +51,7 @@ const QA: QaRecord = {
   answer: "三十厘米左右 [1:20]。",
   citations: [{ startSeconds: 80, quote: "竹竿插到三十厘米左右" }],
   clickable: [80],
+  derived: { basis: DERIVED.basis, gen: { feature: "qa", promptVersion: "1", model: "sample-model", effort: "off" } },
   createdAt: 4000,
 };
 
@@ -147,12 +147,12 @@ test("新格式的记录只留认得的字段：依据读不懂的记成未知�
         overviews: [
           {
             ...OVERVIEW,
-            draft: { chapters: [] },
+            draft: { analysis: { chapters: [] }, chapters: { derived: DERIVED, taskCreatedAt: 1 } },
             analysis: {
               chapters: [{ title: "越界", timestampSeconds: -1 }, { title: "  留下  ", timestampSeconds: 5 }],
               verdict: { summary: "", verdict: "值得看完整视频" },
             },
-          } as OverviewRecord,
+          },
         ],
       },
       EXPORTED_AT,
@@ -169,4 +169,47 @@ test("新格式的记录只留认得的字段：依据读不懂的记成未知�
     chapters: [{ title: "留下", summary: "", timestampSeconds: 5, timestamp: "0:05" }],
     keyQuotes: [],
   });
+});
+
+test("新格式的概览带着各部分的依据和写它的任务的创建时间往返，草稿不进备份；截断的结论和截断区间照旧标出", () => {
+  const official: Derived = { basis: { source: "official-summary", video: KEY_Y, fingerprint: "fedcba9876543210" }, gen: { feature: "verdict", promptVersion: "1", model: "sample-model", effort: "off" } };
+  const parts = { chapters: { derived: DERIVED, taskCreatedAt: 2500 }, verdict: { derived: official, taskCreatedAt: 2600 } };
+  const analysis = { ...OVERVIEW.analysis, verdict: { ...OVERVIEW.analysis.verdict, truncated: true }, truncatedRanges: [{ startSeconds: 0, endSeconds: 300 }] };
+  const record: OverviewRecord = { ...OVERVIEW, analysis, parts };
+  const withDraft: OverviewRecord = { ...record, draft: { analysis: { chapters: [] }, chapters: { derived: DERIVED, taskCreatedAt: 2700 } } };
+  const backup = buildBackup({ overviews: [withDraft] }, EXPORTED_AT);
+  assert.equal(Object.hasOwn(backup.overviews[0] ?? {}, "draft"), false, "草稿不进备份");
+  assert.deepEqual(read(backup).contents.overviews, [record]);
+});
+
+test("新格式里读不懂的部分来历丢掉，依据读不懂的记成未知；结论没留下时结论的来历也不留", () => {
+  const parts = { chapters: { derived: DERIVED, taskCreatedAt: 2500 }, verdict: { derived: DERIVED, taskCreatedAt: 2600 } };
+  const backup = buildBackup({}, EXPORTED_AT);
+  const [odd, noVerdict, junk] = read({
+    ...backup,
+    overviews: [
+      { ...OVERVIEW, parts: { chapters: { derived: "坏的", taskCreatedAt: 5 }, verdict: { derived: DERIVED, taskCreatedAt: -1 } } },
+      { ...OVERVIEW, analysis: { ...OVERVIEW.analysis, verdict: { summary: "" } }, parts },
+      { ...OVERVIEW, parts: "不是对象", analysis: { ...OVERVIEW.analysis, truncatedRanges: [{ startSeconds: 9, endSeconds: 3 }, "坏的"] } },
+    ],
+  }).contents.overviews;
+  assert.deepEqual(odd?.parts, { chapters: { derived: { basis: { source: "legacy-unknown" } }, taskCreatedAt: 5 } });
+  assert.equal(noVerdict?.analysis.verdict, undefined);
+  assert.deepEqual(noVerdict?.parts, { chapters: parts.chapters });
+  assert.equal(Object.hasOwn(junk ?? {}, "parts"), false);
+  assert.equal(Object.hasOwn(junk?.analysis ?? {}, "truncatedRanges"), false);
+});
+
+test("新格式的问答缺依据或依据读不懂时记成依据未知，整条照常导入", () => {
+  const { derived: _dropped, ...withoutDerived } = QA;
+  const backup = buildBackup({}, EXPORTED_AT);
+  const imported = read({ ...backup, qa: [{ ...withoutDerived, id: "qa_none" }, { ...QA, id: "qa_bad", derived: { basis: { source: "猜的" } } }] });
+  assert.deepEqual(
+    imported.contents.qa.map((entry) => [entry.id, entry.derived]),
+    [
+      ["qa_none", { basis: { source: "legacy-unknown" } }],
+      ["qa_bad", { basis: { source: "legacy-unknown" } }],
+    ],
+  );
+  assert.deepEqual(imported.skipped.qa, 0);
 });

@@ -48,7 +48,11 @@ export interface ChapterWrite {
 const newer = (existing: OverviewPart | undefined, mine: OverviewPart): boolean =>
   existing !== undefined && existing.taskCreatedAt > mine.taskCreatedAt;
 
-const isTranscriptBased = (part: OverviewPart | undefined): boolean => part?.derived.basis.source === "transcript";
+// 旧备份导入的结论依据未知，没标过依据官方总结的按依据字幕算，免得被只依据官方总结的盖掉。
+function isTranscriptBased(part: OverviewPart | undefined): boolean {
+  const basis = part?.derived.basis;
+  return basis?.source === "transcript" || (basis?.source === "legacy-unknown" && basis.hint !== "official-summary");
+}
 
 /**
  * 结论这一部分谁留下：依据字幕写的优先于只依据官方总结的；同一类的，较晚创建的任务赢。

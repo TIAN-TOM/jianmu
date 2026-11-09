@@ -10,7 +10,7 @@ import type { ClearEpoch, ClearGuard } from "../../core/clear-guard.ts";
 import { fail, ok, type Failure, type Result } from "../../core/errors.ts";
 import type { QaRecord } from "../../core/notes/records.ts";
 import { buildCitationsFromAnswer, clickableTimestamps, type CitationRange } from "../../core/qa/citations.ts";
-import { selectContext, type QaChapter, type QaContext } from "../../core/qa/retrieval.ts";
+import { selectContext, type QaChapter, type QaChunk, type QaContext } from "../../core/qa/retrieval.ts";
 import type { FrozenGen } from "../../core/tasks.ts";
 import { parseVideoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
 import type { EmptyRequest } from "../../shared/messages/core.ts";
@@ -98,13 +98,30 @@ function parseAnswer(raw: string): string | null {
  * 引用只认送给模型的那些字幕。骨架只送了每块开头一句，检索给的区间却是整块：
  * 这时只认每块开头那一句的时间点，块里其余的话模型根本没看到。
  */
-function evidenceRange(context: QaContext): CitationRange | null {
+function evidenceRange(context: QaContext, all: readonly QaChunk[]): CitationRange | null {
+  if (context.mode === "selected") return selectedRange(context, all);
   if (context.mode !== "skeleton" || !context.chunks.length) return context.timeRange;
   const ranges = context.chunks.map((chunk) => {
     const at = Math.floor(chunk.startSeconds);
     return { min: at, max: at };
   });
   return { min: Math.min(...ranges.map((range) => range.min)), max: Math.max(...ranges.map((range) => range.max)), ranges };
+}
+
+/**
+ * 只挑了部分块时，检索给的每段区间上界是后面那块的起点。那块没送进去时上界改成开区间：
+ * 时间点按整秒对字幕，落在它起点那一秒的引用对到的是它的第一句，模型没看到。
+ */
+function selectedRange(context: QaContext, all: readonly QaChunk[]): CitationRange | null {
+  const range = context.timeRange;
+  if (!range) return null;
+  const sent = new Set(context.chunks.map((chunk) => chunk.index));
+  const unsent = all.filter((chunk) => !sent.has(chunk.index)).map((chunk) => Math.floor(chunk.startSeconds));
+  const ranges = range.ranges.map((part) => {
+    const cut = unsent.find((start) => start > part.min && start <= part.max);
+    return cut === undefined ? part : { min: part.min, max: cut - 1 };
+  });
+  return { min: range.min, max: Math.max(...ranges.map((part) => part.max)), ranges };
 }
 
 function chaptersOf(analysis: { readonly chapters?: readonly { readonly title?: unknown; readonly summary?: unknown; readonly timestampSeconds: number }[] | null } | undefined): QaChapter[] {
@@ -170,7 +187,7 @@ export function createQaService(deps: QaServiceDeps): QaService {
     if (raw === null) return fail("QA_PARSE_FAILED");
 
     // 依据原句由本地从字幕里取，模型只在正文里标时间点，想编造也没有载体。
-    const evidence = evidenceRange(context);
+    const evidence = evidenceRange(context, chunks);
     const citations = buildCitationsFromAnswer(raw, view.transcript.cues, evidence);
     const fromModel = Boolean(raw && citations.length);
     const shown = fromModel ? raw : FALLBACK_ANSWER;

@@ -1,7 +1,6 @@
 // 备份合并：按记录的主键对上本机的记录，更新时间严格更大才覆盖，平局留本机；只把真正新增或更新的列为待写入。
 // 问答记下以后不改，只补本机没有的。合并只加和改，本机多出来的记录原样留着，同一份备份导入几次结果都一样。
-import type { NoteRecord, OverviewRecord } from "../notes/records.ts";
-import type { QaRecord } from "../qa/records.ts";
+import type { NoteRecord, OverviewRecord, QaRecord } from "../notes/records.ts";
 import type { BackupContents } from "./records.ts";
 
 export interface MergeResult<T> {

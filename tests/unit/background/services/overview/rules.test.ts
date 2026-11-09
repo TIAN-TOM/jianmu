@@ -2,7 +2,7 @@
 // 官方总结写的结论先留着，等这次的结论写好再换；章节依据的字幕换过时不按区间补块；错误日志里不带密钥。
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { planChapters, planDraft, planVerdict, verdictWins } from "../../../../../src/background/services/overview/persist.ts";
+import { planChapters, planDraft, planOfficialVerdict, planVerdict, verdictWins } from "../../../../../src/background/services/overview/persist.ts";
 import type { OverviewPart, OverviewRecord } from "../../../../../src/core/notes/records.ts";
 import { deferred } from "../../../../helpers/deferred.ts";
 import { SAMPLE_KEY } from "../../../../helpers/fake-model-service.ts";
@@ -70,6 +70,29 @@ test("生效章节依据的字幕换过：补失败块要求重新生成整份�
     parts: { chapters: { derived: { basis: { source: "transcript", transcript: { ...TRANSCRIPT, fingerprint: "另一份字幕" } }, gen: GEN }, taskCreatedAt: 1 } },
   });
   const h = overviewHarness({ records: [changed] });
+  assert.equal(codeOf(await h.retry().result), "FAILED_CHUNKS_MISMATCH");
+  assert.equal(h.asks.length, 0);
+});
+
+test("旧备份导入的结论依据未知：没标过官方总结的不被官方总结写的结论盖掉，标过的照常换新，依据字幕的照常换掉", () => {
+  const legacy: OverviewPart = { derived: { basis: { source: "legacy-unknown" } }, taskCreatedAt: 0 };
+  const legacyOfficial: OverviewPart = { derived: { basis: { source: "legacy-unknown", hint: "official-summary" } }, taskCreatedAt: 0 };
+  assert.equal(verdictWins(legacy, byOfficial(START)), false);
+  assert.equal(verdictWins(legacyOfficial, byOfficial(START)), true);
+  assert.equal(verdictWins(legacy, byTranscript(START)), true);
+  assert.equal(verdictWins(legacyOfficial, byTranscript(START)), true);
+
+  const imported = (part: OverviewPart, source?: string) =>
+    stored({ analysis: { ...chapter("导入的章"), verdict: { summary: "旧备份里的结论", ...(source ? { source } : {}) } }, parts: { chapters: legacy, verdict: part } });
+  const write = { verdict: { summary: "官方总结写的", source: "official" }, part: byOfficial(START) };
+  assert.equal(planOfficialVerdict(imported(legacy), FIELDS, write, 5), null, "旧结论多半是依据字幕写的，不换");
+  assert.equal(planOfficialVerdict(imported(legacyOfficial, "official"), FIELDS, write, 5)?.analysis.verdict?.summary, "官方总结写的");
+});
+
+test("旧备份导入的概览补失败块要求重新生成整份：依据未知，按区间补拼不出可信的内容", async () => {
+  const legacy: OverviewPart = { derived: { basis: { source: "legacy-unknown" } }, taskCreatedAt: 0 };
+  const imported = stored({ analysisFailures: [{ index: 1, startSeconds: 150, endSeconds: 600 }], parts: { chapters: legacy } });
+  const h = overviewHarness({ records: [imported] });
   assert.equal(codeOf(await h.retry().result), "FAILED_CHUNKS_MISMATCH");
   assert.equal(h.asks.length, 0);
 });

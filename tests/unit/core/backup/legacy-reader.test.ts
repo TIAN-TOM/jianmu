@@ -285,6 +285,22 @@ test("旧结论：「看概览就够」连同理由原样保留，依据官方�
   assert.deepEqual(odd?.analysis.verdict, { summary: "只留这句", value: "", verdict: "", reason: "" }, "认不出的档位只留结论文字");
 });
 
+test("旧概览的章节和结论都记成依据未知，依据官方总结写的结论带上提示；截断区间照旧带过来", () => {
+  const unknown = { derived: { basis: { source: "legacy-unknown" } }, taskCreatedAt: 0 };
+  const [tomato, official, partial] = read(fixture("existing-version.json")).contents.overviews;
+  assert.deepEqual(tomato?.parts, { chapters: unknown, verdict: unknown });
+  assert.deepEqual(official?.parts, { chapters: unknown, verdict: { ...unknown, derived: { basis: { source: "legacy-unknown", hint: "official-summary" } } } });
+  assert.deepEqual(partial?.parts, { chapters: unknown, verdict: unknown });
+  for (const record of read(fixture("digest-for-bilibili.json")).contents.overviews) {
+    assert.deepEqual(record.parts, { chapters: unknown }, "没有结论的只记章节的依据");
+  }
+
+  const [cut] = read(
+    legacyBackup({ learning: [{ bvid: ID_A, analysis: { chapters: [], truncatedRanges: [{ startSeconds: 0, endSeconds: 300 }, { startSeconds: "x" }] }, updatedAt: 1 }] }),
+  ).contents.overviews;
+  assert.deepEqual((cut?.analysis as { truncatedRanges?: unknown } | undefined)?.truncatedRanges, [{ startSeconds: 0, endSeconds: 300 }]);
+});
+
 test("旧笔记按 B 站视频读：分 P 不合法按第 1 P，原文和正文不一样时另存成原文，依据记成未知", () => {
   const { notes } = read(fixture("existing-version.json")).contents;
   const [first, second, third] = notes;

@@ -6,8 +6,7 @@ import { buildBackup, readBackup } from "../../../../src/core/backup/format.ts";
 import { LEGACY_BACKUP_KIND } from "../../../../src/core/backup/legacy-reader.ts";
 import { mergeBackup, mergeNotes, mergeOverviews, mergeQa } from "../../../../src/core/backup/merge.ts";
 import type { BackupContents, ImportedBackup } from "../../../../src/core/backup/records.ts";
-import type { NoteRecord, OverviewRecord } from "../../../../src/core/notes/records.ts";
-import type { QaRecord } from "../../../../src/core/qa/records.ts";
+import type { NoteRecord, OverviewRecord, QaRecord } from "../../../../src/core/notes/records.ts";
 import { parseVideoKey, videoKey } from "../../../../src/core/video-ref.ts";
 
 const KEY_A = videoKey({ platform: "bilibili", videoId: "BV1Sample000" });
@@ -47,6 +46,7 @@ const ENTRY: QaRecord = Object.freeze({
   answer: "早上先做最难的一件事 [00:12]。",
   citations: [{ startSeconds: 12, quote: "早上先做最难的一件事" }],
   clickable: [12],
+  derived: { basis: { source: "legacy-unknown" as const } },
   createdAt: 1700000000000,
 });
 
