@@ -109,6 +109,6 @@ export interface SiteService {
   listCaptionTracks(info: VideoInfo, ctx: SiteCtx, options?: { fresh?: boolean }): R<CaptionTrack[]>; // 用户刷新和换语言时带 fresh
   readCaptions(info: VideoInfo, track: CaptionTrack, ctx: SiteCtx): R<Cue[]>;
   readOfficialSummary?(info: VideoInfo, ctx: SiteCtx): R<OfficialSummary>;
-  readCreatorChapters?(info: VideoInfo, ctx: SiteCtx): R<Chapter[]>;
+  readCreatorChapters?(info: VideoInfo, ctx: SiteCtx, options?: { fresh?: boolean }): R<Chapter[]>; // 和列轨一起带 fresh，分段跟着新的列表走
   readWatchLater?(ctx: SiteCtx): R<WatchLaterList>;
 }

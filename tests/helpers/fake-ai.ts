@@ -9,8 +9,14 @@ import type { ConfigCheckView } from "../../src/shared/messages/ai.ts";
 import { normalize } from "../../src/shared/settings-schema.ts";
 import { deferred, type Deferred } from "./deferred.ts";
 
-/** 一项功能的回复：固定文字、按请求算出来的文字，或者要抛出的错误。 */
-export type FakeReply = string | Error | ((request: CompletionRequest) => string | Promise<string>);
+/** 传输层交回的正文；被截断、靠补齐才读出来的带标记。 */
+export interface FakeText {
+  readonly text: string;
+  readonly truncated?: true;
+}
+
+/** 一项功能的回复：固定文字、按请求算出来的文字（可以标成被截断），或者要抛出的错误。 */
+export type FakeReply = string | FakeText | Error | ((request: CompletionRequest) => string | FakeText | Promise<string | FakeText>);
 
 export interface FakeAiOptions {
   /** 按功能名给回复；"*" 是没单独给的功能共用的。 */
@@ -61,8 +67,9 @@ export function createFakeAi(options: FakeAiOptions = {}): FakeAi {
     const reply = options.replies?.[feature ?? ""] ?? options.replies?.["*"];
     if (reply === undefined) throw new Error(`替身没给「${feature ?? "默认"}」准备回复`);
     if (reply instanceof Error) throw reply;
-    const text = typeof reply === "function" ? await reply(request) : reply;
-    return { text, settings: { ...settings, aiModel: frozen?.model ?? model }, sends: 1 };
+    const produced = typeof reply === "function" ? await reply(request) : reply;
+    const { text, truncated } = typeof produced === "string" ? { text: produced, truncated: undefined } : produced;
+    return { text, ...(truncated ? { truncated } : {}), settings: { ...settings, aiModel: frozen?.model ?? model }, sends: 1 };
   }
 
   const ai: AiWiring = {

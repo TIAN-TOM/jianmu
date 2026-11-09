@@ -1,11 +1,12 @@
-// 本机 HTTPS 模拟服务：一个端口扮演 B 站页面、接口和字幕文件主机，Chrome 把这几个主机解析到这里，按 Host 头分流。
-// 路由是纯函数，单元测试拿真实读取实现直接对着它跑。验签用 node:crypto 另写一份：
+// 本机 HTTPS 模拟服务：一个端口扮演 B 站页面、接口和字幕文件主机，加两家模型服务，Chrome 把这几个主机解析到这里，按 Host 头分流。
+// B 站的路由是纯函数，单元测试拿真实读取实现直接对着它跑。验签用 node:crypto 另写一份：
 // 要是拿产品自己的实现验签，签名用的常量写错时两边照样对得上，只能证明自洽。
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createServer } from "node:https";
 import { join } from "node:path";
+import { createModelServices, MODEL_HOSTS } from "./mock-ai.mjs";
 import {
   COVER_SVG,
   KEYS,
@@ -60,8 +61,17 @@ export const contentRead = ({ host, path }) => (apiHost(host) && path !== ACCOUN
 
 /** 只把这几个主机映射到本机，其余域名解析失败。 @param {number} port */
 export function hostRulesFor(port) {
-  const hosts = [PAGE_HOST, API_HOST, `*${FILE_HOST_SUFFIX}`];
+  const hosts = [PAGE_HOST, API_HOST, `*${FILE_HOST_SUFFIX}`, ...MODEL_HOSTS];
   return [...hosts.map((host) => `MAP ${host} 127.0.0.1:${port}`), "MAP * ~NOTFOUND"].join(", ");
+}
+
+/**
+ * 慢场景里要拖住的几种读取：登录检查、视频信息、字幕列表、字幕文件。官方总结照常马上回，它有自己更短的时限。
+ * @param {{ host: string, path: string }} request
+ */
+export function slowed({ host, path }) {
+  if (apiHost(host)) return path === ACCOUNT_PATH || path === "/x/web-interface/view" || path === "/x/player/wbi/v2";
+  return fileHost(host) && path.startsWith("/bfs/subtitle/");
 }
 
 /**
@@ -262,20 +272,51 @@ function selfSignedCert(dir) {
   return { key: readFileSync(keyPath), cert: readFileSync(certPath) };
 }
 
+/**
+ * 收到的每个请求记一条：at 是收到的时刻，answeredAt 是回完的时刻，aborted 是没等回答客户端就断了。
+ * @typedef {{ host: string, path: string, cookie: string, unexpected: boolean, at: number, answeredAt?: number, aborted?: true }} Logged
+ */
+
 /** @param {{ dir: string }} options 放临时证书的目录 */
 export async function startMockServer({ dir }) {
-  /** @type {{ host: string, path: string, cookie: string, unexpected: boolean }[]} */
+  /** @type {Logged[]} */
   const requests = [];
-  // 当前场景，空串是一切正常；测试中途可以换。
+  // 当前场景，空串是一切正常；测试中途可以换。慢场景拖多久由测试给，不超过读取实现的单次时限。
   let scenario = "";
+  let delayMs = 0;
+  /** @type {Set<ReturnType<typeof setTimeout>>} */
+  const timers = new Set();
+  const models = createModelServices({ record: (entry) => void requests.push(entry) });
+
+  /** @param {import("node:http").ServerResponse} res @param {Logged} entry @param {MockResponse} answer */
+  function answerWith(res, entry, answer) {
+    if (res.destroyed) {
+      entry.aborted = true;
+      return;
+    }
+    res.writeHead(answer.status, answer.headers);
+    res.end(answer.body);
+    entry.answeredAt = Date.now();
+  }
+
   const server = createServer(selfSignedCert(dir), (req, res) => {
     const host = String(req.headers.host ?? "").replace(/:\d+$/, "").toLowerCase();
     const { pathname: path, searchParams: query } = new URL(req.url ?? "/", "https://mock.invalid");
+    if (models.serves(host)) {
+      void models.handle(req, res, { host, path });
+      return;
+    }
     const cookie = req.headers.cookie ?? "";
     const answer = route({ host, path, query, cookie }, scenario);
-    requests.push({ host, path, cookie, unexpected: answer.unexpected === true });
-    res.writeHead(answer.status, answer.headers);
-    res.end(answer.body);
+    /** @type {Logged} */
+    const entry = { host, path, cookie, unexpected: answer.unexpected === true, at: Date.now() };
+    requests.push(entry);
+    if (scenario !== "slow" || !slowed({ host, path })) return answerWith(res, entry, answer);
+    const timer = setTimeout(() => {
+      timers.delete(timer);
+      answerWith(res, entry, answer);
+    }, delayMs);
+    timers.add(timer);
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(undefined)));
   const address = server.address();
@@ -283,11 +324,20 @@ export async function startMockServer({ dir }) {
   return {
     hostRules: hostRulesFor(address.port),
     requests,
-    /** 换场景，之后的请求按它回答。 @param {string} name */
-    setScenario(name) {
+    /** 两家模型服务：挂住、放行、按视频数请求。 */
+    models,
+    /**
+     * 换场景，之后的请求按它回答。slow：登录检查、视频信息、字幕列表、字幕文件各拖 delayMs 才回。
+     * @param {string} name
+     * @param {{ delayMs?: number }} [options]
+     */
+    setScenario(name, options = {}) {
       scenario = name;
+      delayMs = options.delayMs ?? 0;
     },
     close() {
+      for (const timer of timers) clearTimeout(timer);
+      models.close();
       server.closeAllConnections();
       server.close();
     },

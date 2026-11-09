@@ -119,6 +119,8 @@ export function buildCitationsFromAnswer(
   const list: readonly CitationEntry[] = Array.isArray(entries) ? entries : [];
   if (!list.length) return [];
   const at = (seconds: number): string => {
+    // 早于第一句的时间戳归第一句：字幕开头前的空白里说的话，最近的依据是开场那句。
+    if (seconds < Math.floor(Number(list[0]?.start) || 0)) return String(list[0]?.text || "").trim();
     for (let i = 0; i < list.length; i += 1) {
       const start = Math.floor(Number(list[i]?.start) || 0);
       const next = Math.floor(Number(list[i + 1]?.start) || Infinity);

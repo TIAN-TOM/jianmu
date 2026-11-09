@@ -142,3 +142,13 @@ export function captionFile() {
 }
 
 export const COVER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>';
+
+/**
+ * 两家模拟的模型服务：设置里的服务商、自造的密钥和型号。
+ * @typedef {{ presetId: string, origin: string, key: string, model: string }} ModelService
+ */
+
+/** @type {ModelService} */
+export const ANTHROPIC = { presetId: "anthropic", origin: "https://api.anthropic.com", key: "e2e-anthropic-sample-key", model: "claude-e2e-sample" };
+/** @type {ModelService} */
+export const OPENAI = { presetId: "openai", origin: "https://api.openai.com", key: "e2e-openai-sample-key", model: "gpt-e2e-sample" };

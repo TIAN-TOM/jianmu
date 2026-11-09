@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { FIRST_VIDEO, KEYS, ROTATED_KEYS, SECOND_VIDEO } from "../../../../e2e/fixtures.mjs";
-import { hostRulesFor, PROBE, route } from "../../../../e2e/mock-server.mjs";
+import { hostRulesFor, PROBE, route, slowed } from "../../../../e2e/mock-server.mjs";
 import type { VideoRef } from "../../../../src/core/video-ref.ts";
 import { createSiteBackoff } from "../../../../src/platform/site-backoff.ts";
 import { PLAYER_URL, SUMMARY_URL, VIEW_URL, WATCH_LATER_URL } from "../../../../src/sites/bilibili/http.ts";
@@ -372,10 +372,22 @@ test("模拟路由：签名不对或时间差太多都标意外，用当前密�
   assert.equal(ask(signedUrl(SUMMARY_URL, params, KEYS, seconds - 3600), PROBE.cookie).unexpected, true);
 });
 
-test("主机映射只有三个站点主机指向本机，其余域名解析失败", () => {
+test("主机映射只有三个站点主机和两家模拟的模型服务指向本机，其余域名解析失败", () => {
   const rules = hostRulesFor(4321).split(", ");
   assert.equal(rules.at(-1), "MAP * ~NOTFOUND");
-  assert.equal(rules.length, 4);
+  assert.equal(rules.length, 6);
   for (const rule of rules.slice(0, -1)) assert.match(rule, /^MAP \S+ 127\.0\.0\.1:4321$/);
-  for (const rule of rules) assert.doesNotMatch(rule, /youtube|openai|anthropic/i);
+  assert.equal(rules.filter((rule) => /openai|anthropic/i.test(rule)).length, 2);
+  for (const rule of rules) assert.doesNotMatch(rule, /youtube/i);
+});
+
+test("慢场景只拖登录检查、视频信息、字幕列表和字幕文件，官方总结和别的主机照常", () => {
+  const at = (url: string) => {
+    const { hostname: host, pathname: path } = new URL(url);
+    return slowed({ host, path });
+  };
+  for (const url of [PROBE.account, VIEW_URL, PLAYER_URL, PROBE.file]) assert.equal(at(url), true, url);
+  assert.equal(at(WATCH_LATER_URL), false);
+  assert.equal(at(signedUrl(SUMMARY_URL, { bvid: FIRST_VIDEO.bvid, cid: FIRST_VIDEO.cid }, KEYS, testClock().at / 1000)), false);
+  assert.equal(at(PROBE.login), false);
 });

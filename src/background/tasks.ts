@@ -44,6 +44,8 @@ export interface TaskSpec {
   readonly lang?: string;
   readonly basis?: Basis;
   readonly gen: FrozenGen;
+  /** 任务里另一项功能的请求（概览的结论那一步）也在创建时取定配置，按功能名经 aiFor 取入口。 */
+  readonly stages?: readonly FrozenGen[];
   /** 跟着页面走：订阅它的页面都断开了就停下还没开始的部分，也不用认领时限。 */
   readonly followsPage: boolean;
 }
@@ -63,8 +65,14 @@ export type Registration =
 export interface TaskRun {
   readonly signal: AbortSignal;
   readonly gen: FrozenGen;
+  /** 登记时交的功能输入：问题、选中的文字这类。 */
+  readonly input: unknown;
+  /** 任务登记的时间：结果按部分合并时，较早创建的任务不覆盖较晚的。 */
+  readonly createdAt: number;
   /** 这个任务发模型请求的唯一入口：按冻结的配置发，每次请求另有一份保活。 */
   readonly ai: TaskAi;
+  /** 任务里另一项功能的入口和取定的配置，只认登记时取定了配置的功能；入口和保活同 ai。 */
+  readonly stage: (feature: string) => { readonly ai: TaskAi; readonly gen: FrozenGen };
   readonly progress: (patch: TaskProgress) => void;
 }
 
@@ -238,15 +246,24 @@ export function createTaskRunner(deps: TaskRunnerDeps): TaskRunner {
       }
       const { gen } = meta.spec;
       const budget = budgetFor(gen);
-      const bound = deps.ai.forTask(gen);
-      const ai: TaskAi = {
-        requestAiCompletion: (request) => keepAlive.during(budget, () => bound.requestAiCompletion(request)),
+      const entry = (frozen: FrozenGen): TaskAi => {
+        const bound = deps.ai.forTask(frozen);
+        const ceiling = Math.max(budget, budgetFor(frozen));
+        return { requestAiCompletion: (request) => keepAlive.during(ceiling, () => bound.requestAiCompletion(request)) };
       };
+      const ai = entry(gen);
+      const stages = new Map((meta.spec.stages ?? []).map((frozen) => [frozen.feature, { ai: entry(frozen), gen: frozen }] as const));
+      const stage = (feature: string): { readonly ai: TaskAi; readonly gen: FrozenGen } => {
+        const found = feature === gen.feature ? { ai, gen } : stages.get(feature);
+        if (!found) throw new Error(`任务没有取定这项功能的配置：${feature}`);
+        return found;
+      };
+      const createdAt = manager.get(taskId)?.createdAt ?? timers.now();
       // 整个任务期间保活：取字幕、排队、两次请求之间的落库都算在内，发起页面关掉也照常跑完。
       const release = keepAlive.hold(budget);
       let result: Result<T>;
       try {
-        result = await work({ signal, gen, ai, progress: (patch) => void manager.progress(taskId, patch) });
+        result = await work({ signal, gen, input: meta.spec.input, createdAt, ai, stage, progress: (patch) => void manager.progress(taskId, patch) });
       } catch (error) {
         result = signal.aborted ? fail("TASK_CANCELED") : aiFailure(error);
       } finally {

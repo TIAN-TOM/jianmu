@@ -1,8 +1,22 @@
 // 启动无头 Chrome：站点主机映射到本机模拟服务器，其余域名都解析失败，扩展连不上外网。
 import { execFileSync, spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createCdp } from "./cdp.mjs";
+
+/**
+ * 把打好的包解压到临时目录。给了 origins 时，只在这份临时副本的清单里加上这几个来源的主机权限：
+ * 模型服务的权限要用户在设置页点了才申请，无头 Chrome 里点不了。
+ * @param {{ zip: string, dir: string, origins?: readonly string[] }} options
+ */
+export function prepareExtension({ zip, dir, origins = [] }) {
+  execFileSync("unzip", ["-q", zip, "-d", dir]);
+  if (!origins.length) return;
+  const manifestPath = join(dir, "manifest.json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  manifest.host_permissions = [...(manifest.host_permissions ?? []), ...origins.map((origin) => `${origin}/*`)];
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+}
 
 // 调试协议里加载扩展的命令从 Chrome 126 起才有；更老的版本（最低要求 116）改用启动参数加载同一个目录。
 const LOAD_COMMAND_SINCE = 126;

@@ -74,6 +74,12 @@ const realRoutes = (): Readonly<Record<string, AnyRoute>> =>
       importFile: async () => assert.fail(),
       removeImport: async () => assert.fail(),
     },
+    overview: { generate: async () => assert.fail(), retryFailed: async () => assert.fail(), get: async () => assert.fail() },
+    verdict: { fromOfficial: async () => assert.fail() },
+    qa: { ask: async () => assert.fail(), history: async () => assert.fail(), remove: async () => assert.fail() },
+    explain: { explain: async () => assert.fail() },
+    notes: { save: async () => assert.fail(), list: async () => assert.fail(), update: async () => assert.fail(), remove: async () => assert.fail() },
+    playerNotePolish: () => assert.fail(),
   });
 
 const ALL_SENDERS: readonly [string, () => MessageSender][] = [

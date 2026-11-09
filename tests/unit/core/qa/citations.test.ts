@@ -159,6 +159,17 @@ test("字幕起点带小数时按整秒对齐，第一句没有起点时按 0 �
   ]);
 });
 
+test("时间戳早于第一句字幕时依据取第一句，不落到最后一句", () => {
+  const entries = [
+    { start: 8, text: "开场白" },
+    { start: 30, text: "第二句" },
+    { start: 60, text: "结尾" },
+  ];
+  assert.deepEqual(buildCitationsFromAnswer("[0:03]", entries, { min: 0, max: 90 }), [{ startSeconds: 3, quote: "开场白" }]);
+  assert.deepEqual(buildCitationsFromAnswer("[0:03]", entries), [{ startSeconds: 3, quote: "开场白" }], "不给区间时也一样");
+  assert.deepEqual(buildCitationsFromAnswer("[1:10]", entries, { min: 0, max: 90 }), [{ startSeconds: 70, quote: "结尾" }], "晚于最后一句的照旧归最后一句");
+});
+
 test("时间戳两边的空白不影响解析，秒数转回时间戳时向下取整", () => {
   assert.equal(timestampToSeconds(" 3:12 "), 192);
   assert.equal(secondsToTimestamp(192.7), "3:12");

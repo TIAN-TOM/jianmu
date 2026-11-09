@@ -66,8 +66,8 @@ export interface Officials {
   forRead(video: VideoKey, cached: CachedTranscript | null, options: ForReadOptions, ask: AskOfficial): (info: VideoInfo, ctx: SiteCtx) => Promise<OfficialRead>;
   /** 问一次官方总结：同一视频同一媒体版本在问的就并进那一次。从不失败。 */
   lookup(video: VideoKey, info: VideoInfo, read: () => Promise<SiteResult<OfficialSummary>>): Promise<OfficialRead>;
-  /** 先交了字幕的读取还在等的官方总结，没有时是 undefined。 */
-  lateFor(video: VideoKey): Promise<StoredOfficial> | undefined;
+  /** 先交了字幕的读取还在等的官方总结，按视频和媒体版本找：换过内容的版本不拿旧版本的那份。没有时是 undefined。 */
+  lateFor(video: VideoKey, info: Pick<VideoInfo, "mediaVersion">): Promise<StoredOfficial> | undefined;
   /** 字幕读到了：官方总结最多再等一小会儿，等不到先放占位，回来后填回缓存。 */
   attach(video: VideoKey, record: TranscriptRecord, pending: Promise<OfficialRead> | undefined, since: ClearEpoch | undefined): Promise<TranscriptRecord>;
   /** 播放器字幕取不到时用附带字幕组装的结果：开关开着、没点名语言、这种失败可以兜底、确实附带了字幕时才有。 */
@@ -88,7 +88,7 @@ export function needsRetry(official: StoredOfficial, now: number): boolean {
 }
 
 // 问询和回填按「视频、媒体版本」记：换过内容的分 P 不并进旧版本的那次。
-const slotOf = (video: VideoKey, info: VideoInfo): string => JSON.stringify([video, info.mediaVersion ?? ""]);
+const slotOf = (video: VideoKey, info: Pick<VideoInfo, "mediaVersion">): string => JSON.stringify([video, info.mediaVersion ?? ""]);
 
 export function createOfficials({ writer, guard, timers, log, captionsFallback, patchMemory }: OfficialDeps): Officials {
   const asking = new Map<string, Promise<OfficialRead>>();
@@ -178,10 +178,7 @@ export function createOfficials({ writer, guard, timers, log, captionsFallback, 
 
     lookup: ask,
 
-    lateFor(video) {
-      for (const [slot, filled] of late) if ((JSON.parse(slot) as [string, string])[0] === video) return filled;
-      return undefined;
-    },
+    lateFor: (video, info) => late.get(slotOf(video, info)),
 
     async attach(video, record, pending, since) {
       if (!pending) return record;

@@ -28,6 +28,8 @@ export interface NoteStore {
   readonly all: () => Promise<NoteView[]>;
   /** 一个视频的笔记，最新的在前。 */
   readonly byVideo: (video: VideoKey) => Promise<NoteView[]>;
+  /** 刚写下的记录配上现拼的链接，不再读一遍库。 */
+  readonly view: (note: NoteRecord) => NoteView;
   /** 写入一批，坏记录逐条跳过。清除过就不写，返回 false。 */
   readonly commit: (change: NoteChange, options?: WriteOptions) => Promise<boolean>;
   /**
@@ -95,6 +97,8 @@ export function createNoteStore({ driver, guard, canonicalUrl }: NoteStoreDeps):
       const rows = readable(await driver.getAllByIndex("byVideo", video));
       return rows.sort((left, right) => right.createdAt - left.createdAt).map(withUrl);
     },
+
+    view: (note) => withUrl(cleanNote(note)),
 
     async commit(change, { since } = {}) {
       const written = await gate(since, async () => {

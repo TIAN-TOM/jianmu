@@ -22,6 +22,8 @@ export interface LearningVerdict {
   readonly reason?: unknown;
   readonly source?: unknown;
   readonly incomplete?: unknown;
+  /** 模型的正文被截断，靠补齐读出来：摘要或理由可能只有半句。 */
+  readonly truncated?: unknown;
 }
 
 export interface LearningAnalysis {

@@ -131,10 +131,12 @@ test("安装、更新和浏览器启动只设工具栏图标打开侧边栏，�
   assert.equal(fake.calls.optionsOpened, 0);
 });
 
-test("没有业务端口时，谁连都断开，后台不读存储", async (t) => {
+test("端口表里没有的端口、端口不收的发送方，连上就断开，后台不读存储", async (t) => {
   const fake = await boot(t);
   for (const sender of [senders.panel(), senders.triage(), senders.content(), senders.foreign()]) {
     for (const name of ["translate", "batch", "unknown"]) {
+      // 翻译端口收侧边栏：它要先过启用闸门，另有测试。
+      if (name === "translate" && sender.url === senders.panel().url) continue;
       assert.equal(fake.connect(name, sender).disconnected, true, name);
     }
   }

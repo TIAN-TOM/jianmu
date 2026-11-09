@@ -4,12 +4,16 @@ import { test } from "node:test";
 import { describe, fail, isErrorCode, ok } from "../../../src/core/errors.ts";
 import { AI_ERROR_TEXT } from "../../../src/core/errors/ai.ts";
 import { DATA_ERROR_TEXT } from "../../../src/core/errors/data.ts";
+import { NOTE_ERROR_TEXT } from "../../../src/core/errors/notes.ts";
+import { OVERVIEW_ERROR_TEXT } from "../../../src/core/errors/overview.ts";
+import { QA_ERROR_TEXT } from "../../../src/core/errors/qa.ts";
 import { ROUTING_ERROR_TEXT } from "../../../src/core/errors/routing.ts";
 import { SESSION_ERROR_TEXT } from "../../../src/core/errors/session.ts";
 import { SETTINGS_ERROR_CODES, SETTINGS_ERROR_TEXT } from "../../../src/core/errors/settings.ts";
 import { SITE_DETAIL_TEXT, SITE_ERROR_TEXT } from "../../../src/core/errors/site.ts";
 import { TASK_ERROR_TEXT } from "../../../src/core/errors/tasks.ts";
 import { TRANSCRIPT_DETAIL_TEXT, TRANSCRIPT_ERROR_TEXT } from "../../../src/core/errors/transcript.ts";
+import { TRANSLATE_ERROR_TEXT } from "../../../src/core/errors/translate.ts";
 import { parseSubtitleFile } from "../../../src/core/transcript/import-file.ts";
 
 const DOMAINS = {
@@ -21,6 +25,10 @@ const DOMAINS = {
   session: SESSION_ERROR_TEXT,
   transcript: TRANSCRIPT_ERROR_TEXT,
   data: DATA_ERROR_TEXT,
+  overview: OVERVIEW_ERROR_TEXT,
+  qa: QA_ERROR_TEXT,
+  notes: NOTE_ERROR_TEXT,
+  translate: TRANSLATE_ERROR_TEXT,
 };
 
 test("每个码都有一句给用户看的话，各领域之间不重名", () => {

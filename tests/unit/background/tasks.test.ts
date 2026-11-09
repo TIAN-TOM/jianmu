@@ -106,7 +106,7 @@ test("登记后先被取消、生成请求才到：不取字幕，直接回已�
 });
 
 test("任务路由不为同一视频重复起任务：相同的接上原任务，配置不同的回已有任务在跑；能查询和取消", async () => {
-  const fake = createFakeChrome({ local: { [SETTINGS_STORAGE_KEY]: CONFIRMED }, prompts: { "analysis.md": "概览提示词" } });
+  const fake = createFakeChrome({ local: { [SETTINGS_STORAGE_KEY]: CONFIRMED }, prompts: { "analysis.md": "概览提示词", "verdict.md": "结论提示词" } });
   const app = createApp(fake.deps({ warn() {}, error() {} }));
   const ask = (type: string, req: unknown) => app.dispatch({ type, req }, senders.panel()) as Promise<unknown>;
 
@@ -369,7 +369,7 @@ test("保活上限按冻结的推理档位的硬超时算：关和低档 11 分�
 });
 
 test("任务表只在内存里：存储里没有任务，后台重建以后任务表是空的", async () => {
-  const fake = createFakeChrome({ local: { [SETTINGS_STORAGE_KEY]: CONFIRMED }, prompts: { "analysis.md": "概览提示词" } });
+  const fake = createFakeChrome({ local: { [SETTINGS_STORAGE_KEY]: CONFIRMED }, prompts: { "analysis.md": "概览提示词", "verdict.md": "结论提示词" } });
   const first = createApp(fake.deps({ warn() {}, error() {} }));
   const reply = (await first.dispatch({ type: "task.start", req: { kind: "overview", video: VIDEO } }, senders.panel())) as { ok: true; value: { task: TaskView } };
   assert.equal(reply.ok, true);

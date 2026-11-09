@@ -6,7 +6,7 @@ import { fail, ok, type ErrorCode, type Result } from "../../../core/errors.ts";
 import { videoKey, type VideoKey, type VideoRef } from "../../../core/video-ref.ts";
 import type { EmptyRequest } from "../../../shared/messages/core.ts";
 import type { ImportReceipt } from "../../../shared/messages/imports.ts";
-import type { GuidesReply, TranscriptFailure, TranscriptReadMode, TranscriptReply } from "../../../shared/messages/transcript.ts";
+import type { GuidesReply, TranscriptFailure, TranscriptReadMode, TranscriptReply, TranscriptView } from "../../../shared/messages/transcript.ts";
 import { errorLabel, type Log } from "../../log.ts";
 import type { ImportRecord, ImportStore } from "../../stores/imports.ts";
 import type { OverviewStore } from "../../stores/overviews.ts";
@@ -57,8 +57,20 @@ export interface TranscriptGetOptions {
   readonly tabId?: number | undefined;
 }
 
+/** 给概览、问答、笔记、翻译用的字幕快照。 */
+export interface TranscriptSnapshot {
+  readonly view: TranscriptView;
+  /** 读之前记下的这个视频的字幕代数：写回前和 generation() 比，变了说明这期间换过字幕文件。 */
+  readonly generation: number;
+}
+
 export interface TranscriptService {
   get(ref: VideoRef, options: TranscriptGetOptions): Promise<TranscriptReply>;
+  /**
+   * 生成和问答取字幕：和没点名语言的完整读取同一条读取顺序（缓存、内存里对不上的、导入的、平台），
+   * 同一视频在途的读取合并，卡片轻量读取记着的官方总结接着用。
+   */
+  ensure(ref: VideoRef): Promise<Result<TranscriptSnapshot>>;
   /** 卡片的轻量读取：视频信息、官方总结和本机已有的概览，不读字幕。 */
   light(ref: VideoRef): Promise<GuidesReply>;
   /** 原视频还在不在：只有平台明确说找不到才算不在，别的失败都放行。 */
@@ -97,6 +109,16 @@ interface ReadStart {
   readonly since: ClearEpoch | undefined;
   readonly memory: number;
   readonly generation: number;
+}
+
+interface SettleOptions {
+  /** 对得上的写进缓存。视频信息是拿标题顶上的就不写。 */
+  readonly persist: boolean;
+  /** 只交给这次的调用方，缓存和内存都不碰。 */
+  readonly callerOnly?: boolean;
+  readonly keep?: ((current: CachedTranscript | null) => current is TranscriptRecord) | undefined;
+  /** 这次读取还在等的官方总结：记进内存以后回来的，补填进去。 */
+  readonly late?: Promise<OfficialRead> | undefined;
 }
 
 /** 一次在途的完整读取：读到视频信息以后登记下来，卡片等不及时接着用。 */
@@ -175,20 +197,13 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
 
   // 读到一份字幕以后：对得上的写缓存；对不上的只记在内存里，缓存里已有对得上的就以缓存为准。
   // keep：轮到写的那一刻缓存里已有的就留着它，交回它（官方总结附带字幕的兜底不顶替平台字幕）。
-  async function settle(
-    video: VideoKey,
-    record: TranscriptRecord,
-    lang: string,
-    start: ReadStart,
-    persist: boolean,
-    keep?: (current: CachedTranscript | null) => current is TranscriptRecord,
-    late?: Promise<OfficialRead>,
-  ): Promise<TranscriptReply> {
+  async function settle(video: VideoKey, record: TranscriptRecord, lang: string, start: ReadStart, options: SettleOptions): Promise<TranscriptReply> {
+    const { persist, keep, late } = options;
     const stale = (): boolean => guard.clearedSince(start.since, "cache") || memory.epoch() !== start.memory || generationOf(video) !== start.generation;
     const mismatch = timelineMismatch(record);
     const marks = mismatch ? ({ subtitleMismatch: true } as const) : {};
-    // 读取途中清除过本机数据或换过字幕文件：结果照样交给发起的调用方，不写缓存，也不记进内存。
-    if (stale()) return ok(viewOf(video, record, false, marks));
+    // 读取途中清除过本机数据或换过字幕文件，或者这份只给调用方：结果照样交回去，不写缓存，也不记进内存。
+    if (options.callerOnly || stale()) return ok(viewOf(video, record, false, marks));
     if (!mismatch) {
       // 写不进去（存储出错）也照样把这次读到的交给调用方。
       const saved = persist ? await writer.save(video, record, start.since, stale, keep) : null;
@@ -220,7 +235,7 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
     const title = !cached?.info && !imported.info && tabId !== undefined ? await deps.tabTitle(tabId) : null;
     const { record, known } = await assembleImported(ref, video, imported, cached, title);
     // 视频信息是拿标题顶上的就不进缓存：别的读取会把它当成读到的视频信息。导入的文件一直在，下次再组装。
-    return settle(video, record, "", start, known);
+    return settle(video, record, "", start, { persist: known });
   }
 
   // 播放器字幕取不到：能兜底就用官方总结附带的字幕，不然带上已经知道的报原来的错。
@@ -234,7 +249,7 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
   ): Promise<TranscriptReply> {
     const official = read.official ? await read.official : undefined;
     const fallback = official ? await officials.fallback(video, read.failure, official, lang, read.guides) : null;
-    if (fallback && !keepsCaptions(await cache.load(video))) return settle(video, fallback, "", start, true, keepsCaptions);
+    if (fallback && !keepsCaptions(await cache.load(video))) return settle(video, fallback, "", start, { persist: true, keep: keepsCaptions });
     const failure = await guidesFailure(read.failure, read.guides, cached, tabId);
     return official ? { ...failure, official: officialView(official.record) } : failure;
   }
@@ -258,8 +273,8 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
     const remembered = fresh ? null : memory.get(video, lang);
     if (remembered) return ok(viewOf(video, remembered, false, { subtitleMismatch: true }));
     // 导入的字幕排在读视频信息之前，命中就不向平台发任何请求；刷新也用它。点名语言时要的是平台的那条轨。
-    const imported = lang ? null : await imports.load(video);
-    if (imported) return fromImport(ref, video, imported, cached, start, tabId);
+    const imported = await imports.load(video);
+    if (imported && !lang) return fromImport(ref, video, imported, cached, start, tabId);
     const site = deps.sites.service(ref.platform);
     if (!site) return fail("SITE_UNSUPPORTED");
     const ask = site.readOfficialSummary?.bind(site);
@@ -279,7 +294,9 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
       },
     });
     if (!read.ok) return afterFailure(video, read, cached, lang, start, tabId);
-    return settle(video, await officials.attach(video, read.record, read.official, start.since), lang, start, true, undefined, read.official);
+    // 用户导入了字幕时，点名语言读到的平台字幕只给这次的调用方：进了缓存或内存，之后没点名语言的读取就拿它顶掉导入的那份。
+    const attached = await officials.attach(video, read.record, read.official, start.since);
+    return settle(video, attached, lang, start, { persist: true, callerOnly: imported !== null, late: read.official });
   }
 
   // 只读缓存：缓存和内存里记着的那份，导入的文件不拿来组装，一个请求都不发。官方总结的占位只接还在路上的回填。
@@ -290,7 +307,7 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
     return remembered ? ok(viewOf(video, await officials.settled(video, remembered), false, { subtitleMismatch: true })) : fail("NOT_CACHED");
   }
 
-  return {
+  const service: TranscriptService = {
     async get(ref, { mode, lang = "", fresh = false, tabId }) {
       const video = keyOf(ref);
       if (!video) return fail("INVALID_REQUEST");
@@ -313,6 +330,15 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
         reply.then(settled, settled);
       }
       return shell(await entry.reply);
+    },
+
+    async ensure(ref) {
+      const video = keyOf(ref);
+      if (!video) return fail("INVALID_REQUEST");
+      // 代数在读之前记：读的工夫换了字幕文件，调用方写回前就看得出来。
+      const generation = generationOf(video);
+      const reply = await service.get(ref, { mode: "full" });
+      return reply.ok ? ok({ view: reply.value, generation }) : reply;
     },
 
     async light(ref) {
@@ -361,4 +387,5 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
       light.forget();
     },
   };
+  return service;
 }

@@ -1,14 +1,31 @@
 // 错误码汇总和统一的结果形状。各领域的码和文案在 errors/ 下各一份，这里拼成一张表；漏写文案编译就报错。
 import { AI_ERROR_TEXT, type AiErrorCode } from "./errors/ai.ts";
 import { DATA_ERROR_TEXT, type DataErrorCode } from "./errors/data.ts";
+import { NOTE_ERROR_TEXT, type NoteErrorCode } from "./errors/notes.ts";
+import { OVERVIEW_ERROR_TEXT, type OverviewErrorCode } from "./errors/overview.ts";
+import { QA_ERROR_TEXT, type QaErrorCode } from "./errors/qa.ts";
 import { ROUTING_ERROR_TEXT, type RoutingErrorCode } from "./errors/routing.ts";
 import { SESSION_ERROR_TEXT, type SessionErrorCode } from "./errors/session.ts";
 import { SETTINGS_ERROR_TEXT, type SettingsErrorCode } from "./errors/settings.ts";
 import { SITE_DETAIL_TEXT, SITE_ERROR_TEXT, type SiteErrorCode } from "./errors/site.ts";
 import { TASK_ERROR_TEXT, type TaskErrorCode } from "./errors/tasks.ts";
 import { TRANSCRIPT_DETAIL_TEXT, TRANSCRIPT_ERROR_TEXT, type TranscriptErrorCode } from "./errors/transcript.ts";
+import { TRANSLATE_ERROR_TEXT, type TranslateErrorCode } from "./errors/translate.ts";
 
-export type { AiErrorCode, DataErrorCode, RoutingErrorCode, SessionErrorCode, SettingsErrorCode, SiteErrorCode, TaskErrorCode, TranscriptErrorCode };
+export type {
+  AiErrorCode,
+  DataErrorCode,
+  NoteErrorCode,
+  OverviewErrorCode,
+  QaErrorCode,
+  RoutingErrorCode,
+  SessionErrorCode,
+  SettingsErrorCode,
+  SiteErrorCode,
+  TaskErrorCode,
+  TranscriptErrorCode,
+  TranslateErrorCode,
+};
 
 export type ErrorCode =
   | SiteErrorCode
@@ -18,7 +35,11 @@ export type ErrorCode =
   | TaskErrorCode
   | SessionErrorCode
   | TranscriptErrorCode
-  | DataErrorCode;
+  | DataErrorCode
+  | OverviewErrorCode
+  | QaErrorCode
+  | NoteErrorCode
+  | TranslateErrorCode;
 
 export interface Failure {
   readonly ok: false;
@@ -38,6 +59,10 @@ const TEXT: Readonly<Record<ErrorCode, string>> = {
   ...SESSION_ERROR_TEXT,
   ...TRANSCRIPT_ERROR_TEXT,
   ...DATA_ERROR_TEXT,
+  ...OVERVIEW_ERROR_TEXT,
+  ...QA_ERROR_TEXT,
+  ...NOTE_ERROR_TEXT,
+  ...TRANSLATE_ERROR_TEXT,
 };
 
 const DETAIL_TEXT: Readonly<Partial<Record<ErrorCode, Readonly<Record<string, string>>>>> = { ...SITE_DETAIL_TEXT, ...TRANSCRIPT_DETAIL_TEXT };

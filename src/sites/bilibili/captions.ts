@@ -235,8 +235,9 @@ export function createCaptions(http: BiliHttp, deps: CaptionsDeps = {}): Caption
     return { ok: true, value: [...player.value.tracks] };
   };
 
-  const readCreatorChapters: Captions["readCreatorChapters"] = async (info, ctx) => {
-    const player = await loadPlayer(info, ctx);
+  // 刷新时和列轨同样不用记着的旧记录：两者并在同一次列表请求上，分段跟着新列表走。
+  const readCreatorChapters: Captions["readCreatorChapters"] = async (info, ctx, options) => {
+    const player = await loadPlayer(info, ctx, options);
     return player.ok ? { ok: true, value: [...player.value.chapters] } : player;
   };
 

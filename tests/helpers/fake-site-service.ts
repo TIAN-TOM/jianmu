@@ -33,7 +33,7 @@ export interface SiteScript {
   videoInfo: (ref: VideoRef, ctx: SiteCtx) => Reply<VideoInfo>;
   tracks: (info: VideoInfo, ctx: SiteCtx, options?: { readonly fresh?: boolean }) => Reply<CaptionTrack[]>;
   captions: (info: VideoInfo, track: CaptionTrack, ctx: SiteCtx) => Reply<Cue[]>;
-  chapters: (info: VideoInfo, ctx: SiteCtx) => Reply<Chapter[]>;
+  chapters: (info: VideoInfo, ctx: SiteCtx, options?: { readonly fresh?: boolean }) => Reply<Chapter[]>;
   officialSummary: (info: VideoInfo, ctx: SiteCtx) => Reply<OfficialSummary>;
   watchLater: (ctx: SiteCtx) => Reply<WatchLaterList>;
 }
@@ -128,9 +128,9 @@ export function fakeSiteService(overrides: Partial<SiteScript> = {}): FakeSiteSe
       record({ method: "readOfficialSummary", ctx, info });
       return script.officialSummary(info, ctx);
     },
-    async readCreatorChapters(info, ctx) {
-      record({ method: "readCreatorChapters", ctx, info });
-      return script.chapters(info, ctx);
+    async readCreatorChapters(info, ctx, options) {
+      record({ method: "readCreatorChapters", ctx, info, options });
+      return script.chapters(info, ctx, options);
     },
     async readWatchLater(ctx) {
       record({ method: "readWatchLater", ctx });

@@ -20,6 +20,7 @@ import type {
 import type { SiteCtx, VideoInfo } from "../../../sites/types.ts";
 import { errorLabel, type Log } from "../../log.ts";
 import type { OverviewStore } from "../../stores/overviews.ts";
+import { overviewView } from "../overview/view.ts";
 import type { Timers } from "../../tasks.ts";
 import { needsRetry, type OfficialRead, type Officials, type RememberedOfficial } from "./official.ts";
 import type { SiteAccess } from "./read.ts";
@@ -105,10 +106,10 @@ export function createLight(deps: LightDeps): Light {
     }
   }
 
+  // 只给生效中的那份：重新生成写到一半的草稿不摆到卡片上。
   async function overviewOf(video: VideoKey): Promise<OverviewView | undefined> {
     try {
-      const record = await deps.overviews.find(video);
-      return record ? { analysis: record.analysis, analysisFailures: record.analysisFailures ?? [] } : undefined;
+      return overviewView(await deps.overviews.find(video));
     } catch (error) {
       log.warn("读本机概览失败", errorLabel(error));
       return undefined;
@@ -141,10 +142,12 @@ export function createLight(deps: LightDeps): Light {
   }
 
   // 并进的完整读取读到了字幕：官方总结还是占位（字幕先交了）就等它回来，不说成没有官方总结。
-  async function fromView(video: VideoKey, view: TranscriptView): Promise<GuidesReply> {
+  // 只等这次读取自己那个媒体版本的：刷新时换了新版本，旧版本迟到的官方总结不能和新的视频信息摆在一起。
+  // 不知道这次读取用的是哪个版本（没向平台读）时不等，照实摆占位。
+  async function fromView(video: VideoKey, view: TranscriptView, reading: ReadingGuides | undefined): Promise<GuidesReply> {
     let official = view.official;
-    if (official?.status === "pending") {
-      const filled = deps.officials.lateFor(video);
+    if (official?.status === "pending" && reading) {
+      const filled = deps.officials.lateFor(video, reading.info);
       if (filled) official = officialView(await filled);
     }
     return success(video, view.info, official, { hasTranscript: true, fromCache: view.fromCache });
@@ -165,7 +168,7 @@ export function createLight(deps: LightDeps): Light {
     });
     const reply = await Promise.race([full.reply, expired]).finally(() => timers.clearTimeout(timer));
     const reading = full.reading();
-    if (reply !== EXPIRED) return reply.ok ? fromView(video, reply.value) : fromFailure(video, reply, reading);
+    if (reply !== EXPIRED) return reply.ok ? fromView(video, reply.value, reading) : fromFailure(video, reply, reading);
     // 视频信息都还没读到：自己读。
     if (!reading) return null;
     const official = reading.official ? (await reading.official).record : undefined;

@@ -76,9 +76,11 @@ export async function readFromSite({ site, ref, video, lang, fresh, knownTracks,
   // 真被一起中止也只是记成没问成，下次再问。
   const official = askOfficial?.(info, ctx);
   onInfo?.(info, official);
+  // 重新列轨时分段也跟着重读，免得新列表里的分段被旧记录顶掉。
+  const listing = fresh ? { fresh: true } : undefined;
   const [listed, chapterRead] = await Promise.all([
-    site.listCaptionTracks(info, ctx, fresh ? { fresh: true } : undefined),
-    site.readCreatorChapters ? site.readCreatorChapters(info, ctx) : Promise.resolve({ ok: true as const, value: [] }),
+    site.listCaptionTracks(info, ctx, listing),
+    site.readCreatorChapters ? site.readCreatorChapters(info, ctx, listing) : Promise.resolve({ ok: true as const, value: [] }),
   ]);
   // 分段读不到不影响字幕。
   const chapters = chapterRead.ok ? chapterRead.value : [];

@@ -28,6 +28,7 @@ import {
   DATA_CONSENT_TABLE,
   DATA_CONSENT_VERSION,
   dataConsentGiven,
+  noticeLines,
   noticeStatus,
   versionStamps,
   type NoticeItem,
@@ -344,7 +345,86 @@ test("存过旧版本的只列之后新增的内容", () => {
   const status = noticeStatus(DATA_CONSENT_TABLE, first, FRAME_OFF);
   assert.equal(status.state, "needed");
   assert.ok(status.state === "needed" && status.updated);
-  assert.deepEqual(status.state === "needed" ? ids(status.items) : [], ["imported-transcript"]);
+  assert.deepEqual(status.state === "needed" ? ids(status.items) : [], ["imported-transcript", "video-duration"]);
+});
+
+// 数据同意第 3 版：发给模型的视频信息多了时长。完整说明里和「视频标题」并成一行显示，指纹按新增的语义条目算。
+const [CONSENT_V1, CONSENT_V2] = versionStamps(DATA_CONSENT_TABLE, FRAME_OFF);
+const lines = (items: readonly NoticeItem<string>[]) => noticeLines(items).map(({ ids: lineIds, text }) => ({ ids: lineIds, text }));
+
+test("数据同意第 3 版加了视频时长：第 1、2 版的指纹不变，第 3 版的指纹是快照里那一份", () => {
+  assert.deepEqual(versionStamps(DATA_CONSENT_TABLE, FRAME_OFF), [
+    { version: 1, fingerprint: "b77f44c06d527713" },
+    { version: 2, fingerprint: "3bba6112484a07d2" },
+    { version: 3, fingerprint: "7388613d751dad34" },
+  ]);
+  assert.deepEqual(currentStamp(DATA_CONSENT_TABLE, FRAME_ON), { version: 3, fingerprint: "7388613d751dad34" });
+  assert.deepEqual(DATA_CONSENT_TABLE.at(-1)?.items.map(({ kind, id }) => `${kind}:${id}`), ["category:video-duration"]);
+});
+
+test("只把「视频标题」的措辞改成「视频标题和时长」、不加条目：第 2 版的同意照样算数，所以光改文字不够", () => {
+  const reworded: NoticeTable<string> = DATA_CONSENT_TABLE.slice(0, 2).map((row) => ({
+    ...row,
+    items: row.items.map((entry) => (entry.id === "video-title" ? { ...entry, text: "视频标题和时长" } : entry)),
+  }));
+  assert.deepEqual(noticeStatus(reworded, CONSENT_V2 ?? {}, FRAME_OFF), { state: "current" });
+});
+
+test("存着第 2 版的同意：当前规则下不算同意，提示说明有更新，模型请求不放行", () => {
+  assert.ok(CONSENT_V2);
+  const status = noticeStatus(DATA_CONSENT_TABLE, CONSENT_V2, FRAME_OFF);
+  assert.equal(status.state, "needed");
+  assert.ok(status.state === "needed" && status.updated);
+  const stored = { dataConsentVersion: CONSENT_V2.version, dataConsentFingerprint: CONSENT_V2.fingerprint };
+  assert.equal(dataConsentGiven(stored, { dataConsentVersion: DATA_CONSENT_VERSION, dataConsentFingerprint: DATA_CONSENT_FINGERPRINT }), false);
+});
+
+test("更新提示：第 2 版的同意者只看到新增的「视频时长」一行，第 1 版的同意者看到导入字幕和时长", () => {
+  const fromSecond = noticeStatus(DATA_CONSENT_TABLE, CONSENT_V2 ?? {}, FRAME_OFF);
+  assert.ok(fromSecond.state === "needed");
+  assert.deepEqual(ids(fromSecond.items), ["video-duration"]);
+  assert.deepEqual(lines(fromSecond.items), [{ ids: ["video-duration"], text: "视频时长" }]);
+
+  const fromFirst = noticeStatus(DATA_CONSENT_TABLE, CONSENT_V1 ?? {}, FRAME_OFF);
+  assert.ok(fromFirst.state === "needed");
+  assert.deepEqual(ids(fromFirst.items), ["imported-transcript", "video-duration"]);
+  assert.deepEqual(lines(fromFirst.items).map(({ text }) => text), ["你导入的字幕文件里的文字", "视频时长"]);
+});
+
+test("完整说明：从没同意过的人看到「视频标题和时长」一行，带两个条目，没有单独的「视频时长」", () => {
+  const status = noticeStatus(DATA_CONSENT_TABLE, {}, FRAME_OFF);
+  assert.ok(status.state === "needed" && !status.updated);
+  const shown = lines(status.items);
+  assert.equal(shown.length, status.items.length - 1);
+  assert.deepEqual(shown.find(({ text }) => text === "视频标题和时长"), { ids: ["video-title", "video-duration"], text: "视频标题和时长" });
+  assert.equal(shown.some(({ text }) => text === "视频时长"), false);
+  assert.equal(shown.some(({ text }) => text === "视频标题"), false);
+  assert.deepEqual(shown.flatMap(({ ids: lineIds }) => lineIds).sort(), ids(status.items).sort(), "每个条目都在某一行里");
+});
+
+test("并显示只能指向同一张表更早版本里同一类的条目，被指向的条目自己不再并到别处", () => {
+  for (const table of [DATA_CONSENT_TABLE, ACTIVATION_TABLE] as readonly NoticeTable<string>[]) {
+    table.forEach((row, index) => {
+      for (const entry of row.items) {
+        if (!entry.shownWith) continue;
+        const earlier = table.slice(0, index).flatMap((previous) => previous.items);
+        const target = earlier.find((candidate) => candidate.kind === entry.kind && candidate.id === entry.shownWith?.id);
+        assert.ok(target, `${entry.kind}:${entry.id} 指向的条目不在更早的版本里`);
+        assert.equal(target.shownWith, undefined, `${entry.kind}:${entry.id} 指向的条目自己也要并到别处`);
+        assert.ok(entry.shownWith.combined.trim(), `${entry.kind}:${entry.id} 没写合成的措辞`);
+      }
+    });
+  }
+});
+
+test("加上或去掉并显示的写法，指纹都不变", () => {
+  const plain = DATA_CONSENT_TABLE.map((row) => ({ ...row, items: row.items.map(({ kind, id, text }) => ({ kind, id, text })) }));
+  assert.deepEqual(versionStamps(plain, FRAME_OFF), versionStamps(DATA_CONSENT_TABLE, FRAME_OFF));
+  const extra: NoticeTable<string> = DATA_CONSENT_TABLE.map((row) => ({
+    ...row,
+    items: row.items.map((entry) => (entry.id === "selection" ? { ...entry, shownWith: { id: "question", combined: "选中的文字和问题" } } : entry)),
+  }));
+  assert.deepEqual(versionStamps(extra, FRAME_OFF), versionStamps(DATA_CONSENT_TABLE, FRAME_OFF));
 });
 
 test("启用说明第 2 版加了 B 站登录状态和稍后再看的观看进度：确认过第 1 版的只看到这两条，第 1 版的指纹不变", () => {

@@ -2,22 +2,24 @@
 // 后台的依赖在这里拼起来。第一个事件来了才建，建的时候也不碰存储、数据库和网络。
 // 按领域拆装配函数，这里只汇总；服务还没接上的事件什么都不做。
 import { createClearGuard, type ClearGuard } from "../core/clear-guard.ts";
+import { createLimiter, type Limiter } from "../core/concurrency.ts";
 import type { IdbFactory } from "../platform/idb.ts";
-import { chromePing, createKeepAlive } from "../platform/keepalive.ts";
+import { chromePing, createKeepAlive, type KeepAlive } from "../platform/keepalive.ts";
 import { createMessenger, type Messenger, type PortLike, type RuntimeMessaging } from "../platform/messaging.ts";
 import { createLocks, type Locks } from "../platform/locks.ts";
 import { createPermissions, type PermissionsApi } from "../platform/permissions.ts";
 import { createSettingsStore, type SettingsStore } from "../platform/settings-store.ts";
 import { extensionStorage, type ExtensionStorage } from "../platform/storage.ts";
 import { createTabs, type Tabs, type TabsDeps } from "../platform/tabs.ts";
+import { analysisChunkOptions } from "../shared/settings-schema.ts";
 import { siteRules } from "../sites/rules.ts";
 import { createSiteCtx, siteService } from "../sites/services.ts";
-import type { OverviewRecord } from "../core/notes/records.ts";
+import type { NoteRecord, OverviewRecord, QaRecord } from "../core/notes/records.ts";
 import type { SiteRules } from "../sites/types.ts";
 import { createAiWiring, type AiWiring, type ModelServiceFetch, type PromptTable } from "./ai.ts";
 import { createContentTabs, type ContentTabs } from "./content-tabs.ts";
 import { createGrants, siteOriginsFromSettings, type Grants } from "./grants.ts";
-import { createCardLimits, createPlaybackLimits, type CardLimits, type PlaybackLimits } from "./limits.ts";
+import { createCardLimits, createPlaybackLimits, createPlayerNoteLimit, type CardLimits, type PlaybackLimits } from "./limits.ts";
 import { errorLabel, type Log } from "./log.ts";
 import { createReinject, type Reinject } from "./reinject.ts";
 import { createRouter, type AnyPortSpec, type Router } from "./router.ts";
@@ -33,7 +35,16 @@ import { createCacheStore, type CacheEntry } from "./stores/cache.ts";
 import { createChannelStore, type ChannelRecord, type ChannelStore } from "./stores/channels.ts";
 import { lazyDriver } from "./stores/drivers.ts";
 import { createImportStore, type ImportRecord } from "./stores/imports.ts";
-import { createOverviewStore } from "./stores/overviews.ts";
+import { createNoteStore } from "./stores/notes.ts";
+import { createOverviewStore, type OverviewStore } from "./stores/overviews.ts";
+import { createQaStore } from "./stores/qa.ts";
+import { createTranslationStore, type TranslationRecord } from "./stores/translations.ts";
+import { createOverviewService, type OverviewService } from "./services/overview/index.ts";
+import { createVerdictService, type VerdictService } from "./services/overview/verdict.ts";
+import { createExplainService, type ExplainService } from "./services/explain.ts";
+import { createNotesService, type NotesService } from "./services/notes.ts";
+import { createQaService, type QaService } from "./services/qa.ts";
+import { createTranslateService, type TranslateService } from "./services/translate.ts";
 import { CLAIM_MS, createTaskRunner, type TaskRunner, type Timers } from "./tasks.ts";
 
 export interface AppDeps {
@@ -116,6 +127,15 @@ interface Core {
   readonly sessions: Sessions;
   readonly playbackLimits: PlaybackLimits;
   readonly transcript: TranscriptService;
+  readonly overview: OverviewService;
+  readonly verdict: VerdictService;
+  readonly qa: QaService;
+  readonly explain: ExplainService;
+  readonly notes: NotesService;
+  /** 翻译：经端口发起，译文单独存。 */
+  readonly translate: TranslateService;
+  /** 播放页记的笔记这会儿还能不能润色。 */
+  readonly playerNotePolish: () => boolean;
 }
 
 function assembleAi(deps: AppDeps, settings: SettingsStore, clearGuard: ClearGuard): AiWiring {
@@ -129,14 +149,13 @@ function assembleAi(deps: AppDeps, settings: SettingsStore, clearGuard: ClearGua
   });
 }
 
-function assembleTasks(deps: AppDeps, ai: AiWiring, messenger: Messenger): TaskRunner {
+// 任务和笔记的后台润色共用一个保活：哪一份还在，就隔一会儿调一次扩展接口。
+function assembleKeepAlive({ ping, timers }: AppDeps): KeepAlive {
+  return createKeepAlive({ ping, now: timers.now, setTimeout: timers.setTimeout, clearTimeout: (timer) => timers.clearTimeout(timer) });
+}
+
+function assembleTasks(deps: AppDeps, ai: AiWiring, messenger: Messenger, keepAlive: KeepAlive): TaskRunner {
   const { timers } = deps;
-  const keepAlive = createKeepAlive({
-    ping: deps.ping,
-    now: timers.now,
-    setTimeout: timers.setTimeout,
-    clearTimeout: (timer) => timers.clearTimeout(timer),
-  });
   return createTaskRunner({
     ai,
     keepAlive,
@@ -173,9 +192,9 @@ function assembleSessions(deps: AppDeps, clearGuard: ClearGuard, messenger: Mess
   return { channels, sessions, playbackLimits: createPlaybackLimits({ now: deps.timers.now }) };
 }
 
-// 取字幕：缓存、导入字幕和概览三个仓储的驱动第一次读写时才建（概览只读，给卡片的轻量读取带回已有的）。
+// 取字幕：缓存、导入字幕两个仓储的驱动第一次读写时才建；概览仓储和概览服务共用一份，轻量读取只读它带回已有的。
 // 官方总结附带的字幕兜底按官方总结模块的开关。
-function assembleTranscript(deps: AppDeps, clearGuard: ClearGuard, tabs: Tabs): TranscriptService {
+function assembleTranscript(deps: AppDeps, clearGuard: ClearGuard, tabs: Tabs, overviews: OverviewStore): TranscriptService {
   return createTranscriptService({
     sites: deps.sites,
     cache: createCacheStore<CachedTranscript>({
@@ -184,12 +203,113 @@ function assembleTranscript(deps: AppDeps, clearGuard: ClearGuard, tabs: Tabs): 
       now: deps.timers.now,
     }),
     imports: createImportStore({ driver: lazyDriver<ImportRecord>("imports", deps.indexedDB), guard: clearGuard }),
-    overviews: createOverviewStore({ driver: lazyDriver<OverviewRecord>("overviews", deps.indexedDB), guard: clearGuard, now: deps.timers.now }),
+    overviews,
     guard: clearGuard,
     tabTitle: tabs.title,
     timers: deps.timers,
     log: deps.log,
     officialCaptionsFallback: OFFICIAL_CAPTIONS_FALLBACK,
+  });
+}
+
+/** 概览和用官方总结写结论共用的部件：同一个概览仓储、同一道模型请求的并发闸门。 */
+interface OverviewParts {
+  readonly settings: SettingsStore;
+  readonly clearGuard: ClearGuard;
+  readonly ai: AiWiring;
+  readonly tasks: TaskRunner;
+  readonly messenger: Messenger;
+  readonly transcript: TranscriptService;
+  readonly overviews: OverviewStore;
+  readonly gate: Limiter;
+}
+
+// 概览：分块大小按设置；发往模型的请求几个视频、两种生成合起来不超过并发上限。
+function assembleOverview(deps: AppDeps, parts: OverviewParts): OverviewService {
+  return createOverviewService({
+    tasks: parts.tasks,
+    transcript: parts.transcript,
+    overviews: parts.overviews,
+    guard: parts.clearGuard,
+    prompt: parts.ai.prompt,
+    chunkOptions: async () => analysisChunkOptions(await parts.settings.loadPublic()),
+    gate: parts.gate,
+    broadcast: (message) => void parts.messenger.toPages(message),
+    log: deps.log,
+    now: deps.timers.now,
+  });
+}
+
+// 用官方总结写结论：和概览写进同一个仓储，排同一道并发闸门。
+function assembleVerdict(deps: AppDeps, parts: OverviewParts): VerdictService {
+  return createVerdictService({
+    tasks: parts.tasks,
+    transcript: parts.transcript,
+    overviews: parts.overviews,
+    guard: parts.clearGuard,
+    prompt: parts.ai.prompt,
+    gate: parts.gate,
+    broadcast: (message) => void parts.messenger.toPages(message),
+    log: deps.log,
+    now: deps.timers.now,
+  });
+}
+
+/** 问答、划词解释和笔记：问答历史和笔记各一个仓储，笔记的链接按站点的规则现拼。 */
+function assembleStudy(deps: AppDeps, parts: OverviewParts, keepAlive: KeepAlive) {
+  const { timers } = deps;
+  const newId = () => crypto.randomUUID();
+  const rules = (platform: string) => deps.siteRules.find((rule) => rule.platform === platform);
+  const notes = createNoteStore({
+    driver: lazyDriver<NoteRecord>("notes", deps.indexedDB),
+    guard: parts.clearGuard,
+    canonicalUrl: (ref, atSec) => rules(ref.platform)?.canonicalUrl(ref, atSec) ?? "",
+  });
+  return {
+    qa: createQaService({
+      tasks: parts.tasks,
+      transcript: parts.transcript,
+      overviews: parts.overviews,
+      qa: createQaStore({ driver: lazyDriver<QaRecord>("qa", deps.indexedDB), guard: parts.clearGuard }),
+      guard: parts.clearGuard,
+      prompt: parts.ai.prompt,
+      chunkOptions: async () => analysisChunkOptions(await parts.settings.loadPublic()),
+      log: deps.log,
+      now: timers.now,
+      newId,
+    }),
+    explain: createExplainService({ tasks: parts.tasks, transcript: parts.transcript, prompt: parts.ai.prompt, log: deps.log }),
+    notes: createNotesService({
+      notes,
+      transcript: parts.transcript,
+      ai: parts.ai,
+      keepAlive,
+      guard: parts.clearGuard,
+      broadcast: (message) => void parts.messenger.toPages(message),
+      defer: (work) => void timers.setTimeout(work, 0),
+      log: deps.log,
+      now: timers.now,
+      newId,
+    }),
+    playerNotePolish: createPlayerNoteLimit({ now: timers.now }),
+  };
+}
+
+// 翻译：译文按字幕版本单独存，清除全部数据时才清；分批的并发按自己的上限，不排概览那道闸门。
+function assembleTranslate(deps: AppDeps, parts: OverviewParts): TranslateService {
+  return createTranslateService({
+    tasks: parts.tasks,
+    transcript: parts.transcript,
+    translations: createTranslationStore({
+      driver: lazyDriver<TranslationRecord>("translations", deps.indexedDB),
+      guard: parts.clearGuard,
+      now: deps.timers.now,
+    }),
+    freeze: parts.ai.freeze,
+    prompt: parts.ai.prompt,
+    guard: parts.clearGuard,
+    timers: deps.timers,
+    log: deps.log,
   });
 }
 
@@ -201,11 +321,16 @@ function assembleCore(deps: AppDeps): Core {
   const ai = assembleAi(deps, settings, clearGuard);
   const messenger = createMessenger(deps.runtime, tabs.send);
   const enabled = async () => (await settings.activation()).state === "current";
+  const keepAlive = assembleKeepAlive(deps);
+  const tasks = assembleTasks(deps, ai, messenger, keepAlive);
+  const overviews = createOverviewStore({ driver: lazyDriver<OverviewRecord>("overviews", deps.indexedDB), guard: clearGuard, now: deps.timers.now });
+  const transcript = assembleTranscript(deps, clearGuard, tabs, overviews);
+  const generation: OverviewParts = { settings, clearGuard, ai, tasks, messenger, transcript, overviews, gate: createLimiter() };
   return {
     settings,
     clearGuard,
     ai,
-    tasks: assembleTasks(deps, ai, messenger),
+    tasks,
     // 令牌和认领时限一样长：过了这个时间，没人认领的任务已经收掉了。
     cardLimits: createCardLimits({ now: deps.timers.now, newToken: () => crypto.randomUUID(), tokenTtlMs: CLAIM_MS }),
     tabs,
@@ -216,7 +341,11 @@ function assembleCore(deps: AppDeps): Core {
     reinject: createReinject({ tabs, enabled, log: deps.log }),
     grants: assembleGrants(deps, settings),
     ...assembleSessions(deps, clearGuard, messenger),
-    transcript: assembleTranscript(deps, clearGuard, tabs),
+    transcript,
+    overview: assembleOverview(deps, generation),
+    verdict: assembleVerdict(deps, generation),
+    ...assembleStudy(deps, generation, keepAlive),
+    translate: assembleTranslate(deps, generation),
   };
 }
 
@@ -224,7 +353,7 @@ function assembleRouter(deps: AppDeps, core: Core): Router {
   const { settings, tabs, contentTabs } = core;
   return createRouter({
     routes: createRoutes(core),
-    ports: deps.ports ?? createPorts(),
+    ports: deps.ports ?? createPorts(core),
     senders: createSenders({ extensionId: deps.runtime.id, extensionUrl: (path) => deps.runtime.getURL(path), rules: deps.siteRules }),
     enabled: async () => (await settings.activation()).state === "current",
     async cardEnabled() {

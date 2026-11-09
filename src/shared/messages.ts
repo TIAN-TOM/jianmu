@@ -9,9 +9,13 @@ import type { AiApi } from "./messages/ai.ts";
 import type { CoreApi } from "./messages/core.ts";
 import type { GrantsApi } from "./messages/grants.ts";
 import type { ImportsApi } from "./messages/imports.ts";
+import type { NotesApi } from "./messages/notes.ts";
+import type { OverviewApi } from "./messages/overview.ts";
+import type { QaApi } from "./messages/qa.ts";
 import type { SessionApi } from "./messages/session.ts";
 import type { TaskApi } from "./messages/tasks.ts";
 import type { TranscriptApi } from "./messages/transcript.ts";
+import type { TranslateIn, TranslateOut } from "./messages/translate.ts";
 import type { AccentTheme } from "./settings-schema.ts";
 
 /** 路由表按这几类放行。page 再按页面细分，内容脚本按站点细分。 */
@@ -27,7 +31,10 @@ export interface Api extends
   SessionApi,
   GrantsApi,
   TranscriptApi,
-  ImportsApi {}
+  ImportsApi,
+  OverviewApi,
+  QaApi,
+  NotesApi {}
 
 export type RouteName = keyof Api;
 
@@ -37,7 +44,7 @@ export type Reply<K extends RouteName> = Result<Api[K]["res"]>;
 
 export type Broadcast =
   | { readonly type: "task.changed"; readonly task: TaskView }
-  | { readonly type: "overview.preview"; readonly video: VideoKey; readonly taskId: string; readonly analysis: LearningAnalysis }
+  | { readonly type: "overview.preview"; readonly video: VideoKey; readonly taskId: string; readonly analysis: LearningAnalysis; readonly done: number; readonly total: number }
   | { readonly type: "overview.updated"; readonly video: VideoKey; readonly verdictPending: boolean }
   | { readonly type: "notes.changed"; readonly video?: VideoKey }
   | { readonly type: "session.changed"; readonly tabId: number; readonly session: SessionView }
@@ -53,7 +60,7 @@ export type PortName = "translate" | "batch";
 
 /** 各端口两个方向的消息，由各领域在 messages/ 下定义后填进来；还没接上的端口什么都不收。 */
 export interface PortApi {
-  translate: { readonly in: never; readonly out: never };
+  translate: { readonly in: TranslateIn; readonly out: TranslateOut };
   batch: { readonly in: never; readonly out: never };
 }
 

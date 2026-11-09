@@ -63,6 +63,16 @@ export function createCardLimits({ now, newToken, tokenTtlMs }: CardLimitsDeps):
   };
 }
 
+// 播放页记的笔记（按钮和快捷键）存完会在后台请模型润色，花的是用户的额度。按钮在视频网站的页面里，
+// 页面脚本能把它改得透明、铺满播放器，骗用户每点一下视频就记一条。所以这条路每分钟最多润色 6 次，超出的照存原文。
+export const PLAYER_NOTE_POLISH_LIMIT = 6;
+export const PLAYER_NOTE_POLISH_WINDOW_MS = 60_000;
+
+/** 播放页记的笔记这会儿还能不能润色：能就记一次。 */
+export function createPlayerNoteLimit({ now }: { readonly now: () => number }): () => boolean {
+  return createRateLimit({ limit: PLAYER_NOTE_POLISH_LIMIT, windowMs: PLAYER_NOTE_POLISH_WINDOW_MS, now });
+}
+
 // 内容脚本每累计播放 10 秒报一次进度，真实经过的时间只会更长，所以一个标签页 10 秒里最多收一条。
 // 收不下的那条不会丢进度：累计秒数是总数，下一条照样带上。
 export const MILESTONE_INTERVAL_MS = 10_000;

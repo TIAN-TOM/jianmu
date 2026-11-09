@@ -14,17 +14,23 @@ const tubeVideo = (index: number): VideoKey => videoKey({ platform: "youtube", v
 type Started = { ok: true; value: { task: TaskView; joined: boolean; token?: string } } | { ok: false; code: string };
 
 function appOn(local: Record<string, unknown> = { [SETTINGS_STORAGE_KEY]: CONFIRMED }) {
-  const fake = createFakeChrome({ local, prompts: { "analysis.md": "概览提示词" } });
+  const fake = createFakeChrome({ local, prompts: { "analysis.md": "概览提示词", "verdict.md": "结论提示词" } });
   const app = createApp(fake.deps({ warn() {}, error() {} }));
   const start = (video: VideoKey, sender = senders.card()) =>
     app.dispatch({ type: "task.start", req: { kind: "overview", video } }, sender) as Promise<Started>;
   return { fake, app, start };
 }
 
-test("登记只收概览和视频键两项：别的种类、多带字段、视频键解析不出的都不登记", async () => {
+test("登记的请求按种类核对：概览和写结论只收种类和视频键，问答要带问题，解释要带选中的文字；别的种类、多带字段、视频键解析不出的都不登记", async () => {
   const { app } = appOn();
   for (const req of [
     { kind: "qa", video: VIDEO },
+    { kind: "qa", video: VIDEO, question: 42 },
+    { kind: "qa", video: VIDEO, question: "问题", extra: 1 },
+    { kind: "qa", video: VIDEO, question: "问".repeat(20_001) },
+    { kind: "explain", video: VIDEO },
+    { kind: "explain", video: VIDEO, selection: "词", context: 1 },
+    { kind: "overview", video: VIDEO, question: "问题" },
     { kind: "translate", video: VIDEO },
     { kind: "overview", video: VIDEO, extra: 1 },
     { kind: "overview", video: "" },
@@ -38,6 +44,15 @@ test("登记只收概览和视频键两项：别的种类、多带字段、视�
     }
   }
   assert.deepEqual(await app.dispatch({ type: "task.list", req: {} }, senders.panel()), { ok: true, value: { tasks: [] } });
+});
+
+test("用官方总结写结论能登记，取定结论那项的配置；卡片登记不了这一种", async () => {
+  const { app } = appOn();
+  const panel = (await app.dispatch({ type: "task.start", req: { kind: "verdict", video: VIDEO } }, senders.panel())) as Started;
+  assert.ok(panel.ok && panel.value.task.kind === "verdict" && !("token" in panel.value), JSON.stringify(panel));
+  const again = (await app.dispatch({ type: "task.start", req: { kind: "verdict", video: VIDEO } }, senders.panel())) as Started;
+  assert.ok(again.ok && again.value.joined && again.value.task.id === panel.value.task.id, "同一视频再点一次接上同一个任务");
+  assert.deepEqual(await app.dispatch({ type: "task.start", req: { kind: "verdict", video: VIDEO } }, senders.card()), { ok: false, code: "FORBIDDEN" });
 });
 
 test("卡片发起的生成每分钟最多 3 次：同一视频已在生成不算一次，超出的说明原因；侧边栏不受限", async () => {

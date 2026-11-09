@@ -65,15 +65,58 @@ export interface NoteRecord {
   readonly updatedAt: number;
 }
 
+/** 问答引用的一句：原句是存下时从字幕里取的快照，字幕换了也照样显示。 */
+export interface QaCitation {
+  readonly startSeconds: number;
+  readonly quote: string;
+}
+
+/** 一条问答，记下后不改。依据是回答时读到的那份字幕。 */
+export interface QaRecord {
+  readonly id: string;
+  readonly video: VideoKey;
+  readonly question: string;
+  readonly answer: string;
+  readonly citations: readonly QaCitation[];
+  /** 回答正文里哪些时间点落在送给模型的范围内，可以点。 */
+  readonly clickable: readonly number[];
+  /** 回答由被截断的正文补齐得到，可能只有半截。 */
+  readonly truncated?: true;
+  readonly derived: Derived;
+  readonly createdAt: number;
+}
+
 export const OVERVIEW_RECORD_VERSION = 1;
 
-/** 一个视频的概览，不随字幕缓存过期。 */
+/** 概览的一部分（章节、结论）是哪个任务写的、依据什么、用什么配置生成的。 */
+export interface OverviewPart {
+  readonly derived: Derived;
+  /** 写它的任务的创建时间：较早创建的任务不覆盖较晚的。 */
+  readonly taskCreatedAt: number;
+}
+
+/** 生效中的章节和结论各自的来历。旧版本存下的、导入的旧备份里的记录没有。 */
+export interface OverviewParts {
+  readonly chapters?: OverviewPart;
+  readonly verdict?: OverviewPart;
+}
+
+/** 重新生成已有的概览时先写在这里，结论写好才换上；停在中途或结论没写成时，生效的那份不动。 */
+export interface OverviewDraft {
+  readonly analysis: LearningAnalysis;
+  readonly analysisFailures?: readonly FailureRange[];
+  readonly chapters: OverviewPart;
+}
+
+/** 一个视频的概览，不随字幕缓存过期。analysis 和 analysisFailures 是生效中的那份。 */
 export interface OverviewRecord {
   readonly schemaVersion: number;
   readonly videoKey: VideoKey;
   readonly snapshot: NoteSnapshot;
   readonly analysis: LearningAnalysis;
   readonly analysisFailures?: readonly FailureRange[];
+  readonly parts?: OverviewParts;
+  readonly draft?: OverviewDraft;
   readonly updatedAt: number;
 }
 

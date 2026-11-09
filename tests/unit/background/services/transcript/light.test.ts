@@ -88,6 +88,32 @@ test("没缓存时带回本机已有的概览和结论", async () => {
   assert.deepEqual(methods(h), ["readOfficialSummary", "readVideoInfo"]);
 });
 
+test("卡片只摆生效中的那份概览：重新生成写到一半的草稿不给，只有草稿时什么都不摆", async () => {
+  const h = rig();
+  const part = { derived: { basis: { source: "legacy-unknown" as const } }, taskCreatedAt: 1 };
+  const draft = { analysis: { chapters: [{ title: "草稿里的", timestampSeconds: 0 }], keyQuotes: [] }, chapters: part };
+  const record = { schemaVersion: 1, videoKey: KEY, snapshot: { title: "", author: "" }, updatedAt: 1, draft } as const;
+  await h.overviewsDriver.write({ put: [{ ...record, analysis: ANALYSIS, parts: { chapters: part } }] });
+  const card = guides(await h.service.light(REF));
+  assert.deepEqual(card.overview, { analysis: ANALYSIS, analysisFailures: [] });
+
+  await h.overviewsDriver.write({ put: [{ ...record, analysis: { chapters: [], keyQuotes: [] } }] });
+  h.service.forget("cache");
+  assert.equal(guides(await h.service.light(REF)).overview, undefined);
+});
+
+test("给概览取字幕：先轻量读取过的，官方总结接着用记着的那份，快照带着字幕代数", async () => {
+  const h = rig();
+  guides(await h.service.light(REF));
+  assert.equal(count(h, "readOfficialSummary"), 1);
+  const snapshot = await h.service.ensure(REF);
+  assert.ok(snapshot.ok, JSON.stringify(snapshot));
+  assert.equal(snapshot.value.view.official?.summary, "官方摘要");
+  assert.equal(snapshot.value.generation, 0);
+  assert.equal(count(h, "readOfficialSummary"), 1, "官方总结不再问一遍");
+  assert.match(texts({ ok: true, value: snapshot.value.view }), /第一句/);
+});
+
 test("取字幕带轻量模式：只问视频信息和官方总结，不取字幕、不建缓存；不带轻量模式照旧完整读取", async () => {
   const h = rig({ site: { tracks: () => ok([]) } });
   const light = guides(await h.service.light(REF));
@@ -404,6 +430,42 @@ test("卡片并进先交了字幕的完整读取：等官方总结回来再交�
   const card = guides(await light);
   assert.equal(card.official?.summary, "官方摘要");
   assert.equal(count(h, "readOfficialSummary"), 1);
+});
+
+test("卡片并进刷新：刷新换了新的媒体版本，旧版本迟到的官方总结先回来也不摆到新版本上", async () => {
+  const answers = [deferred(), deferred()] as const;
+  let infos = 0;
+  let asked = 0;
+  const h = rig({
+    site: {
+      videoInfo: (ref) => ({ ok: true, value: sampleInfo(ref, { mediaVersion: (infos += 1) === 1 ? "media-old" : "media-new" }) }),
+      officialSummary: async () => {
+        const index = asked;
+        asked += 1;
+        await answers[index === 0 ? 0 : 1].promise;
+        return ok({ ...SUMMARY, summary: index === 0 ? "旧版本的官方总结" : "新版本的官方总结" });
+      },
+    },
+  });
+  const first = h.service.get(REF, { mode: "full" });
+  assert.ok(await until(() => h.timers.due(OFFICIAL_GRACE_MS) === 1));
+  h.timers.advance(OFFICIAL_GRACE_MS);
+  assert.equal(view(await first).official?.status, "pending");
+
+  const refreshed = h.service.get(REF, { mode: "full", fresh: true });
+  const light = h.service.light(REF);
+  assert.ok(await until(() => h.timers.due(OFFICIAL_GRACE_MS) === 1), "刷新同样先交了字幕");
+  h.timers.advance(OFFICIAL_GRACE_MS);
+  assert.equal(view(await refreshed).official?.status, "pending");
+
+  let settled = false;
+  void light.then(() => (settled = true));
+  answers[0].resolve();
+  assert.equal(await until(() => settled, 50), false, "旧版本的那份回来了，卡片还在等新版本的");
+  assert.equal((await h.rows())[0]?.official?.status, "pending", "旧版本的那份也不写进新版本的缓存");
+  answers[1].resolve();
+  const card = guides(await light);
+  assert.equal(card.official?.summary, "新版本的官方总结");
 });
 
 test("卡片并进的完整读取卡在下载：等一小会儿就改走轻量读取，官方总结不重复问", async () => {

@@ -132,6 +132,16 @@ test("换语言和用户刷新都重新列轨；第一次读取用读取实现�
   assert.deepEqual(listings(), [undefined, { fresh: true }, { fresh: true }]);
 });
 
+test("重新列轨时 UP 主分段也重新读，不用读取实现记着的旧分段", async () => {
+  const h = harness();
+  const chapterReads = () => h.site.calls.filter((call) => call.method === "readCreatorChapters").map((call) => call.options);
+
+  await h.service.get(REF, { mode: "full" });
+  await h.service.get(REF, { mode: "full", lang: "en-US" });
+  await h.service.get(REF, { mode: "full", fresh: true });
+  assert.deepEqual(chapterReads(), [undefined, { fresh: true }, { fresh: true }]);
+});
+
 test("列轨和读 UP 主分段一起发：两个都发出去以后才等结果", async () => {
   const listed = deferred();
   const chapters: Chapter[] = [{ title: "开场", start: 0, end: null }];

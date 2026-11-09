@@ -44,7 +44,8 @@ const fileName = (request: SeenRequest): string => request.endpoint.slice(FILES.
 interface Script {
   /** 第 n 次列轨（从 1 数）回哪些字幕轨，view_points 另给。 */
   readonly tracks?: (n: number) => readonly unknown[];
-  readonly chapters?: readonly unknown[];
+  /** UP 主分段：固定一份，或者按第 n 次列轨给。 */
+  readonly chapters?: readonly unknown[] | ((n: number) => readonly unknown[]);
   /** 字幕文件按请求回。 */
   readonly file?: (request: SeenRequest) => Response;
   readonly summary?: Route;
@@ -66,7 +67,8 @@ function rig(script: Script = {}, options: { readonly seed?: readonly Row[]; rea
     [VIEW_URL]: () => json(200, viewEnvelope()),
     [PLAYER_URL]: () => {
       listings += 1;
-      return json(200, playerEnvelope(script.tracks?.(listings) ?? BILINGUAL, script.chapters ? { view_points: script.chapters } : {}));
+      const chapters = typeof script.chapters === "function" ? script.chapters(listings) : script.chapters;
+      return json(200, playerEnvelope(script.tracks?.(listings) ?? BILINGUAL, chapters ? { view_points: chapters } : {}));
     },
     [SUMMARY_URL]: script.summary ?? (() => json(200, { code: 0, data: { code: -1, model_result: { summary: "", outline: [] } } })),
   };
@@ -307,6 +309,16 @@ test("UP 主分段随字幕一起取回、进缓存；换语言重新列轨时�
   assert.equal(english.transcript.ref.lang, "en");
   assert.equal(h.fake.calls(PLAYER_URL).length, 2, "换语言重新列了一次轨");
   assert.equal(english.chapters.length, 2);
+});
+
+test("刷新时 UP 主分段跟着新列表走：列表记录还没过期也不拿旧分段写回缓存", async () => {
+  const h = rig({ chapters: (n) => [{ type: 2, from: 0, to: 60, content: n === 1 ? "旧的分段" : "新的分段" }] });
+  assert.deepEqual(view(await h.service.get(REF, { mode: "full" })).chapters.map((chapter) => chapter.title), ["旧的分段"]);
+
+  const refreshed = view(await h.service.get(REF, { mode: "full", fresh: true }));
+  assert.equal(h.fake.calls(PLAYER_URL).length, 2, "刷新重新列了一次轨，分段并在同一次请求上");
+  assert.deepEqual(refreshed.chapters.map((chapter) => chapter.title), ["新的分段"]);
+  assert.deepEqual((await h.rows())[0]?.chapters.map((chapter) => chapter.title), ["新的分段"]);
 });
 
 test("没有字幕时，失败结果里照样带着 UP 主分段", async () => {

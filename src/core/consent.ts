@@ -1,5 +1,5 @@
 // 两份说明的版本表和指纹。数据同意管发给模型服务的内容，首次启用说明管在本机读取和保存的内容，分开记、分开判断。
-// 表里每个版本只写相对上一版新增或扩大了什么。指纹只算条目的 kind 和 id，改 text 的措辞不用重新同意；
+// 表里每个版本只写相对上一版新增或扩大了什么。指纹只算条目的 kind 和 id，改 text 的措辞、并显示的写法都不用重新同意；
 // 条目变了就要升版，tests/fixtures/consent-fingerprints.json 的快照拦下忘了升版的改动。
 
 /** 构建时开关。带开关的版本只在开关打开的构建里进说明和指纹，关着的构建停在不含它的版本上。 */
@@ -16,6 +16,18 @@ export interface NoticeItem<Kind extends string> {
   /** 这一条的实质内容。范围变了就换新 id，写进新版本。 */
   readonly id: string;
   /** 给用户看的措辞，不进指纹。 */
+  readonly text: string;
+  /**
+   * 只管显示，不进指纹：完整说明里这一条不单列，并进同一 kind、id 为 shownWith.id 的那一条，那一条改显示 combined。
+   * 那一条不在要显示的这组里（老用户只看新增的）时照常单列。
+   */
+  readonly shownWith?: { readonly id: string; readonly combined: string };
+}
+
+/** 给用户看的一行：通常是一个条目，并显示的是几个条目合成一行。 */
+export interface NoticeLine<Kind extends string> {
+  readonly kind: Kind;
+  readonly ids: readonly string[];
   readonly text: string;
 }
 
@@ -84,6 +96,10 @@ export const DATA_CONSENT_TABLE: NoticeTable<DataConsentKind> = [
   {
     version: 2,
     items: [{ kind: "category", id: "imported-transcript", text: "你导入的字幕文件里的文字" }],
+  },
+  {
+    version: 3,
+    items: [{ kind: "category", id: "video-duration", text: "视频时长", shownWith: { id: "video-title", combined: "视频标题和时长" } }],
   },
 ];
 
@@ -189,12 +205,41 @@ export function noticeStatus<Kind extends string>(
   };
 }
 
+/** noticeStatus 给出的一组条目排成给用户看的行：带 shownWith 的并进它指向的那一行，指向的不在这组里就单列。 */
+export function noticeLines<Kind extends string>(items: readonly NoticeItem<Kind>[]): NoticeLine<Kind>[] {
+  const keyOf = (kind: string, id: string): string => `${kind}:${id}`;
+  const present = new Set(items.map((item) => keyOf(item.kind, item.id)));
+  const merges = (item: NoticeItem<Kind>): boolean => item.shownWith !== undefined && present.has(keyOf(item.kind, item.shownWith.id));
+  const lines = new Map<string, { kind: Kind; ids: string[]; text: string }>();
+  for (const item of items) if (!merges(item)) lines.set(keyOf(item.kind, item.id), { kind: item.kind, ids: [item.id], text: item.text });
+  for (const item of items) {
+    const line = item.shownWith && merges(item) ? lines.get(keyOf(item.kind, item.shownWith.id)) : undefined;
+    if (!line || !item.shownWith) continue;
+    line.ids.push(item.id);
+    line.text = item.shownWith.combined;
+  }
+  return [...lines.values()];
+}
+
 /** 发给模型服务之前的核对：版本和指纹都和当前一致才放行。 */
 export function dataConsentGiven(stored: StoredDataConsent, rules: DataConsentRules): boolean {
   return stampMatches(
     { version: stored.dataConsentVersion, fingerprint: stored.dataConsentFingerprint },
     { version: rules.dataConsentVersion, fingerprint: rules.dataConsentFingerprint },
   );
+}
+
+/**
+ * 存着的同意是不是当前这一版，而且当前这一版里有这一条：只看「同意了」不够，比如自动发送要等说明里写了它、用户同意了那一版才算。
+ */
+export function consentCovers<Kind extends string>(
+  table: NoticeTable<Kind>,
+  stored: StoredStamp,
+  item: { readonly kind: Kind; readonly id: string },
+  features: NoticeFeatures = BUILD_FEATURES,
+): boolean {
+  if (!stampMatches(stored, currentStamp(table, features))) return false;
+  return activeVersions(table, features).some((row) => row.items.some((entry) => entry.kind === item.kind && entry.id === item.id));
 }
 
 const dataConsent = currentStamp(DATA_CONSENT_TABLE);

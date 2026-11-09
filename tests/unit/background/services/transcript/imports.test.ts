@@ -281,6 +281,44 @@ test("点名平台的某条字幕轨时不拿导入的那份顶替", async () =>
   assert.equal(h.site.count("readCaptions"), 1);
 });
 
+test("导入字幕以后点名语言读了平台字幕：只交给这次调用，之后没点名语言的读取照样用导入的，不用刷新", async () => {
+  const h = harness({ seed: [cachedRow()] });
+  await h.service.importFile(REF, FILE);
+
+  const named = view(await h.service.get(REF, { mode: "full", lang: "en-US" }));
+  assert.equal(named.transcript.ref.kind, "human");
+  assert.equal(named.transcript.ref.lang, "en-US");
+  const requests = h.site.calls.length;
+
+  const plain = view(await h.service.get(REF, { mode: "full" }));
+  assert.equal(plain.transcript.ref.kind, "imported");
+  assert.equal(texts({ ok: true, value: plain }), IMPORTED_TEXTS);
+  assert.equal(h.site.calls.length, requests, "用导入的那份，不向平台发请求");
+  assert.equal((await h.rows())[0]?.transcript?.ref.kind, "imported", "缓存里是导入的那份，不是点名读到的平台字幕");
+  assert.equal(view(await h.service.get(REF, { mode: "cache-only" })).transcript.ref.kind, "imported");
+
+  const again = view(await h.service.get(REF, { mode: "full", lang: "en-US" }));
+  assert.equal(again.transcript.ref.lang, "en-US", "再点名还能读到平台那条轨");
+  assert.equal(view(await h.service.get(REF, { mode: "full" })).transcript.ref.kind, "imported");
+});
+
+test("导入字幕以后点名语言读到的平台字幕和视频时长对不上：也不记进内存，之后没点名语言的读取用导入的", async () => {
+  const late: Cue[] = [0, 1, 2, 3, 4].map((index) => ({ start: index * 1000, duration: 2, text: `平台 ${index}` }));
+  const h = harness({
+    seed: [cachedRow(undefined, { info: sampleInfo(REF, { durationSec: 600 }) })],
+    site: {
+      videoInfo: (ref) => ({ ok: true, value: sampleInfo(ref, { durationSec: 600 }) }),
+      captions: (_info, track) => ({ ok: true, value: track.lang === "en-US" ? late : [{ start: 1, duration: 2, text: "平台中文" }] }),
+    },
+  });
+  await h.service.importFile(REF, FILE);
+
+  assert.equal(view(await h.service.get(REF, { mode: "full", lang: "en-US" })).subtitleMismatch, true);
+  const plain = view(await h.service.get(REF, { mode: "full" }));
+  assert.equal(plain.transcript.ref.kind, "imported");
+  assert.equal(texts({ ok: true, value: plain }), IMPORTED_TEXTS);
+});
+
 test("本机不知道视频信息时：标题用标签页的，没有就用文件名，这份不进缓存", async () => {
   const h = harness({ tabTitles: { 7: "标签页的标题" } });
   await h.service.importFile(REF, FILE);

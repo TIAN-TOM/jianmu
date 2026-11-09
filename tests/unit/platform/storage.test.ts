@@ -55,3 +55,10 @@ test("isQuotaError 认得两种写满的文案，别的错不算", () => {
   assert.equal(isQuotaError(new Error("IO error")), false);
   assert.equal(isQuotaError("quota exceeded"), false, "不是异常对象的不认");
 });
+
+test("数据库写满的异常按名字认：文案里只说磁盘满了、或者一个字都没有，也算写满", () => {
+  const named = (message: string) => Object.assign(new Error(message), { name: "QuotaExceededError" });
+  assert.equal(isQuotaError(named("Encountered disk full while committing transaction.")), true);
+  assert.equal(isQuotaError(named("")), true);
+  assert.equal(isQuotaError(Object.assign(new Error("disk full"), { name: "AbortError" })), false, "名字不对、文案里也没有配额的不算");
+});

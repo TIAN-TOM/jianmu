@@ -32,10 +32,11 @@ export async function restrictToTrustedContexts(area: RestrictableStorageArea): 
 
 /**
  * 存储写满的报错。浏览器的文案随版本变，有的带存储区的配额名，有的带内部资源名，
- * 只认其中一种会漏掉另一种，所以按共同的「quota」判断。
+ * 只认其中一种会漏掉另一种，所以按共同的「quota」判断。数据库写满时异常的名字是固定的，
+ * 文案却可能只说磁盘满了、甚至是空的，所以先认名字。
  */
 export function isQuotaError(error: unknown): boolean {
-  return error instanceof Error && /quota/i.test(error.message);
+  return error instanceof Error && (error.name === "QuotaExceededError" || /quota/i.test(error.message));
 }
 
 /** 读一项，没有时是 undefined。 */

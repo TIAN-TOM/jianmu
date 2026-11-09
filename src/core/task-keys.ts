@@ -19,6 +19,8 @@ export interface EquivalenceInput extends MutexInput {
   /** 功能输入：问题、选区、补块的区间这类。 */
   readonly input?: unknown;
   readonly gen: FrozenGen;
+  /** 任务里另几项功能取定的配置，没有时不进键。 */
+  readonly stages?: readonly FrozenGen[] | undefined;
 }
 
 /** `<种类>:<视频键>`，翻译再加目标语言；问答、划词解释、画面解释没有互斥键。 */
@@ -42,8 +44,8 @@ export async function sha256Hex(text: string): Promise<string> {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-/** 种类、视频、依据、功能输入、生成配置规范化后取哈希。 */
-export function equivalenceKey({ kind, video, lang, basis, input, gen }: EquivalenceInput): Promise<string> {
-  const parts = { kind, video, lang: lang ?? null, basis: basis ?? null, input: input ?? null, gen };
+/** 种类、视频、依据、功能输入、生成配置（含另几项功能的）规范化后取哈希。 */
+export function equivalenceKey({ kind, video, lang, basis, input, gen, stages }: EquivalenceInput): Promise<string> {
+  const parts = { kind, video, lang: lang ?? null, basis: basis ?? null, input: input ?? null, gen, ...(stages?.length ? { stages } : {}) };
   return sha256Hex(JSON.stringify(canonical(parts)));
 }

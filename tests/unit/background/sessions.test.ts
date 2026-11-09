@@ -152,6 +152,25 @@ test("撤销自动切换回到速览、不记频道，这次观看不再切；�
   assert.deepEqual(await world.sessions.onMilestone(TAB, VIDEO, 200), { ok: true, value: { report: false } }, "手动选过就停报");
 });
 
+test("频道还不知道时主动选模式：不记频道；之后报上来的频道也不补记，这次选的模式不变", async () => {
+  const early = harness({ channels: [{ channelKey: CHANNEL, mode: "skim", updatedAt: 1 }] });
+  // 播放上报还没到，侧边栏里先选了精读。
+  const picked = await early.sessions.setMode(TAB, VIDEO, { intent: "manual", mode: "study" });
+  assert.equal(picked.ok && picked.value.modeSource, "manual");
+  await early.sessions.onPlaybackInfo(TAB, VIDEO, { durationSec: LONG, channel: CHANNEL_REF });
+  assert.deepEqual(await early.sessions.get(TAB), { video: VIDEO, mode: "study", modeSource: "manual", autoSwitched: false, playedSec: 0 }, "频道偏好不盖掉这次选的");
+  assert.deepEqual(
+    (await early.driver.getAll()).map(({ channelKey: key, mode }) => ({ key, mode })),
+    [{ key: CHANNEL, mode: "skim" }],
+    "频道偏好还是原来那条，没有按这次选的补记",
+  );
+
+  const unknown = harness();
+  await unknown.sessions.onPlaybackInfo(TAB, VIDEO, { durationSec: LONG });
+  assert.equal((await unknown.sessions.setMode(TAB, VIDEO, { intent: "manual", mode: "study" })).ok, true);
+  assert.deepEqual(await unknown.driver.getAll(), [], "这个视频没报频道：主动选了也没有可记的");
+});
+
 test("这次手动选过模式：播多久都不自动切；没有切过可撤销的时候撤销什么都不改", async () => {
   const world = harness();
   await world.sessions.onPlaybackInfo(TAB, VIDEO, { durationSec: LONG });

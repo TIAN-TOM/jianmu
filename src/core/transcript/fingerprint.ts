@@ -17,7 +17,7 @@ export async function transcriptFingerprint(entries: CaptionEntries): Promise<st
   return (await sha256Hex(lines.join("\n"))).slice(0, FINGERPRINT_LENGTH);
 }
 
-/** 一段文字（官方总结正文、标题加简介）规范化后取指纹。 */
+/** 一段文字规范化后取指纹。 */
 export async function textFingerprint(text: string): Promise<string> {
   return (await sha256Hex(normalizeCaptionText(text))).slice(0, FINGERPRINT_LENGTH);
 }
@@ -41,4 +41,9 @@ export async function officialFingerprint({ summary, outline }: OfficialContent)
     for (const point of section.points) lines.push(`P|${stamp(point.timestamp)}|${normalizeCaptionText(point.content)}`);
   }
   return (await sha256Hex(lines.join("\n"))).slice(0, FINGERPRINT_LENGTH);
+}
+
+/** 标题和简介：两段分开记，标题末尾的字挪到简介开头也算变了。只依据标题和简介写的结果用它记依据。 */
+export async function titleDescriptionFingerprint(title: string, description: string): Promise<string> {
+  return (await sha256Hex(`T|${normalizeCaptionText(title)}\nD|${normalizeCaptionText(description)}`)).slice(0, FINGERPRINT_LENGTH);
 }

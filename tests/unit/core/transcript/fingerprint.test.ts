@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { test } from "node:test";
-import { officialFingerprint, textFingerprint, transcriptFingerprint } from "../../../../src/core/transcript/fingerprint.ts";
+import { officialFingerprint, textFingerprint, titleDescriptionFingerprint, transcriptFingerprint } from "../../../../src/core/transcript/fingerprint.ts";
 
 const CUES = [
   { start: 0, duration: 2, text: "第一句" },
@@ -60,4 +60,13 @@ test("官方总结指纹：空白差异不算；摘要、标题、要点、时�
   assert.notEqual(await officialFingerprint({ ...OFFICIAL, outline: [{ ...first, points: [{ timestamp: 1.5, content: "要点三" }] }, second] }), base);
   assert.notEqual(await officialFingerprint({ ...OFFICIAL, outline: [second, first] }), base);
   assert.notEqual(await officialFingerprint({ ...OFFICIAL, outline: [first, { ...second, timestamp: 0 }] }), base, "没有时间和 0 秒不是一回事");
+});
+
+test("标题和简介的指纹：空白差异不算；标题或简介变了、两段的分界挪了都算", async () => {
+  const base = await titleDescriptionFingerprint("样例标题", "样例简介");
+  assert.match(base, /^[0-9a-f]{16}$/);
+  assert.equal(await titleDescriptionFingerprint(" 样例标题 ", "样例简介\n"), base);
+  assert.notEqual(await titleDescriptionFingerprint("样例标题！", "样例简介"), base);
+  assert.notEqual(await titleDescriptionFingerprint("样例标题", "别的简介"), base);
+  assert.notEqual(await titleDescriptionFingerprint("样例标", "题样例简介"), base, "标题末尾的字挪到简介开头");
 });
