@@ -283,3 +283,24 @@ test("跟随：切到新标签页、还没查完时旧标签页改了标题，�
   assert.equal(follow.target.value.video, SECOND);
   follow.stop();
 });
+
+test("跟随：同一个标签页、同一个视频再确认一次，目标不换对象，各页签不重读", async () => {
+  const { fake, api } = setup();
+  const tabs = new Map([[5, { windowId: 1, url: WATCH, title: "标题" }]]);
+  const page = fakeBrowser(tabs, { id: 5 });
+  const follow = createFollow({ api, enabled: signal(true), browser: page.browser });
+  await follow.refresh();
+  const first = follow.target.value;
+  let changes = 0;
+  const off = follow.target.subscribe(() => (changes += 1));
+  changes = 0;
+  await follow.refresh();
+  page.navigate(5, WATCH);
+  fake.broadcast({ type: "panel.follow", tabId: 5 });
+  await nextTurn();
+  await nextTurn();
+  assert.equal(follow.target.value, first, "目标还是同一个对象");
+  assert.equal(changes, 0, "订阅方没收到变化");
+  off();
+  follow.stop();
+});

@@ -110,7 +110,7 @@ async function panelFlow(launcher, panelUrl, videoId) {
   await until("视频页连上", () => evaluate(panel, `!document.querySelector(".notice[data-id='connect']")`));
   // 点最后一句的时间，视频页跳到的秒数要和按钮上写的对得上。先把播放位置挪开，看得出跳没跳。
   await evaluate(video, `(document.querySelector("video").currentTime = 100, true)`);
-  const label = await evaluate(panel, `(() => { const times = document.querySelectorAll(".cue-time"); const last = times[times.length - 1]; last.click(); return last.textContent; })()`);
+  const label = await until("点最后一句", () => evaluate(panel, `(() => { const times = document.querySelectorAll(".cue-time"); const last = times[times.length - 1]; if (!last) return null; last.click(); return last.textContent; })()`));
   const seeked = await until("视频页跳到那一句", async () => {
     const at = await evaluate(video, `document.querySelector("video")?.currentTime ?? 100`);
     return at !== 100 ? String(at) : null;
@@ -119,20 +119,20 @@ async function panelFlow(launcher, panelUrl, videoId) {
   if (`${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}` !== label) throw new Error(`点的是 ${label}，视频页跳到了 ${seeked} 秒`);
   console.log("✓ 侧边栏跟着视频页读到字幕，点一句跳到了那里");
 
-  await clickIn(panel, "#tab-overview");
+  await until("切到概览页签", () => clickIn(panel, "#tab-overview"));
   await until("生成概览可以点", () => clickIn(panel, "button", "生成概览"));
   await until("概览生成完", async () => (await textOf(panel, ".chapter-name")).includes("模拟服务写的章节"));
   await until("结论写好", async () => (await textOf(panel, ".verdict-text")).includes("模拟服务写的一句话结论"));
   console.log("✓ 生成概览：章节和一句话结论都显示出来");
 
-  await clickIn(panel, ".chapter-toggle");
+  await until("展开章节", () => clickIn(panel, ".chapter-toggle"));
   await until("把金句存为笔记", () => clickIn(panel, ".quote button", "存为笔记"));
   await until("存好笔记", async () => (await textOf(panel, ".notice-text")).includes("已存为笔记"));
-  await clickIn(panel, "#tab-notes");
+  await until("切到笔记页签", () => clickIn(panel, "#tab-notes"));
   await until("笔记页签列出这条", async () => (await textOf(panel, ".note-text")).includes("模拟服务挑的金句"));
   console.log("✓ 金句存成笔记，笔记页签列出来");
 
-  await clickIn(panel, "#tab-qa");
+  await until("切到问答页签", () => clickIn(panel, "#tab-qa"));
   await until("提问框可以用", () =>
     evaluate(panel, `(() => { const input = document.querySelector(".qa-form input"); if (!input) return false; input.value = "这个视频讲了什么"; input.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`),
   );
