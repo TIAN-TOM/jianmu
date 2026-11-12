@@ -1051,7 +1051,8 @@ test("概览请求挂着时每 20 秒保活一次；回来后照常落库，保�
   t.after(() => gate.resolve());
   const bg = background(async (request) => (isVerdictRequest(request) ? VERDICT_ANSWER : (await gate.promise, chunkAnswer(request))));
   const pending = bg.generate();
-  assert.ok(await until(() => bg.ai.posts().length === 1), "模型请求发出去了");
+  // 发请求之前要过取字幕和读设置几道异步，机器忙时一千轮不够，多给一些。
+  assert.ok(await until(() => bg.ai.posts().length === 1, 20_000), "模型请求发出去了");
   assert.equal(bg.fake.timers.due(INTERVAL), 1, "任务进行中排着下一次保活");
   assert.equal(bg.fake.calls.pings, 0, "不到 20 秒不调");
   bg.fake.timers.fire(INTERVAL);
