@@ -1046,13 +1046,30 @@ function background(handler: (request: SentRequest) => ReturnType<typeof chatRep
   return { ai, fake, app, generate, logged };
 }
 
-test("概览请求挂着时每 20 秒保活一次；回来后照常落库，保活随即停下", async (t) => {
+/**
+ * 概览块的请求挂在 gate 上，结论请求照常回。发请求之前要过登记任务时算哈希这类交给线程池的异步，
+ * 机器忙时多久才回来和事件循环转了几轮无关，所以测试等的是「请求发出去了」这件事本身，不按轮数等。
+ */
+function holdChunks(t: { after(fn: () => void): void }) {
   const gate = deferred();
+  const sent = deferred();
   t.after(() => gate.resolve());
-  const bg = background(async (request) => (isVerdictRequest(request) ? VERDICT_ANSWER : (await gate.promise, chunkAnswer(request))));
+  const bg = background(async (request) => {
+    if (isVerdictRequest(request)) return VERDICT_ANSWER;
+    sent.resolve();
+    await gate.promise;
+    return chunkAnswer(request);
+  });
   const pending = bg.generate();
-  // 发请求之前要过取字幕和读设置几道异步，机器忙时一千轮不够，多给一些。
-  assert.ok(await until(() => bg.ai.posts().length === 1, 20_000), "模型请求发出去了");
+  // 没发请求就结束了的，直接报出结果，不干等到测试超时。
+  const chunkSent = Promise.race([sent.promise, pending.then((result) => assert.fail(`没发模型请求就结束了：${JSON.stringify(result)}`))]);
+  return { bg, gate, pending, chunkSent };
+}
+
+test("概览请求挂着时每 20 秒保活一次；回来后照常落库，保活随即停下", async (t) => {
+  const { bg, gate, pending, chunkSent } = holdChunks(t);
+  await chunkSent;
+  assert.equal(bg.ai.posts().length, 1, "模型请求发出去了");
   assert.equal(bg.fake.timers.due(INTERVAL), 1, "任务进行中排着下一次保活");
   assert.equal(bg.fake.calls.pings, 0, "不到 20 秒不调");
   bg.fake.timers.fire(INTERVAL);
@@ -1072,11 +1089,9 @@ test("概览请求挂着时每 20 秒保活一次；回来后照常落库，保�
 
 // 上限按推理档位的硬超时算：关档是 120 秒 × 5 轮（3 轮自愈、1 轮参数放宽、1 轮限流过载后的重发）+ 60 秒余量 = 11 分钟。
 test("任务挂过 5 分钟仍在保活，到按推理档位算的截止时间才停（关档 11 分钟）", async (t) => {
-  const gate = deferred();
-  t.after(() => gate.resolve());
-  const bg = background(async (request) => (isVerdictRequest(request) ? VERDICT_ANSWER : (await gate.promise, chunkAnswer(request))));
-  const pending = bg.generate();
-  assert.ok(await until(() => bg.ai.posts().length === 1));
+  const { bg, gate, pending, chunkSent } = holdChunks(t);
+  await chunkSent;
+  assert.equal(bg.ai.posts().length, 1, "模型请求发出去了");
 
   bg.fake.timers.advance(6 * 60_000);
   const atSix = bg.fake.calls.pings;
