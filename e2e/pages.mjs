@@ -24,7 +24,7 @@ const TEST_TIMEOUT_MS = 30_000;
 const SETTLE_MS = 150;
 
 /** 场景文件，按页面分。后面的页面加进来时在这里登记。 */
-const SCENARIOS = ["e2e/pages/gallery.mjs", "e2e/pages/sidepanel.mjs", "e2e/pages/options.mjs"];
+const SCENARIOS = ["e2e/pages/gallery.mjs", "e2e/pages/sidepanel.mjs", "e2e/pages/options.mjs", "e2e/pages/card.mjs"];
 
 const executable = process.env.CHROME_PATH;
 if (!executable) throw new Error("用 CHROME_PATH 指定 Chrome for Testing 的可执行文件");
@@ -44,11 +44,11 @@ async function prepareExtension(dir) {
   manifest.host_permissions = [...manifest.host_permissions, ...MODEL_HOSTS.map((host) => `https://${host}/*`)];
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   const fixtures = join(ROOT, "e2e/pages/fixtures");
-  for (const name of ["gallery.html", "gallery.css"]) cpSync(join(fixtures, name), join(dir, "pages", name));
+  for (const name of ["gallery.html", "gallery.css", "card-sample.html"]) cpSync(join(fixtures, name), join(dir, "pages", name));
   await build({
     absWorkingDir: ROOT,
-    entryPoints: [join(fixtures, "gallery.tsx")],
-    outfile: join(dir, "pages/gallery.js"),
+    entryPoints: { gallery: join(fixtures, "gallery.tsx"), "card-sample": join(fixtures, "card-sample.tsx") },
+    outdir: join(dir, "pages"),
     bundle: true,
     format: "esm",
     target: "chrome116",

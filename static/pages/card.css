@@ -9,11 +9,23 @@ body {
   overflow: hidden;
 }
 
+/* 整张卡片不超过内容脚本给框架夹的高度上限（card-frame.ts 里的 CARD_HEIGHT.max，单元测试核对两边一致）：
+ * 字号大、内容多时只有正文区滚动，标题栏、进度和底部按钮一直露在外面。 */
 .card {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  max-height: 720px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--card);
   overflow: hidden;
+}
+
+.card-head,
+.card-progress,
+.card-actions {
+  flex: none;
 }
 
 .card-head {
@@ -57,7 +69,9 @@ body {
 .card-body {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
   gap: var(--space-3);
+  min-height: 0;
   max-height: 34rem;
   padding: 0 var(--space-3) var(--space-2);
   overflow-y: auto;
