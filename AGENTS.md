@@ -63,7 +63,7 @@ npm run release -- candidate   # 发布候选：要在远端 main 的最新提�
 - 依赖只能往下：`pages`、`content`、`background` → `sites` → `platform` → `core`、`shared`。结构规则见架构设计第 5.2 节，`tests/structure.test.ts` 会查。
 - 相对导入写 `.ts` 扩展名；不用 `enum`、`namespace`、参数属性、路径别名、装饰器。`.tsx` 不进单元测试，渲染放到无头 Chrome 里测。
 - Node 跑测试只剥类型不查类型，类型错误靠 `npm run typecheck` 拦。
-- 业务入口写成 `createX(deps)`，测试注入替身。测试不访问真实的模型服务和平台接口；等异步结果按条件等，不固定等几毫秒。
+- 业务入口写成 `createX(deps)`，测试注入替身。测试不访问真实的模型服务和平台接口；等异步结果按条件等，不固定等几毫秒：等会发生的事用 `tests/helpers/wait-until.ts` 的 `until`，确认没发生用 `stillFalse`；能等到具体事件（比如模拟服务收到请求）的就直接等那件事。
 - 注入 B 站和 YouTube 页面的标识一律以 `jianmu-` 开头，集中定义在 `src/shared/names.ts`。
 - 新增要进包的文件，同一个 PR 改 `tests/fixtures/package-files.txt`。
 - 版本号只写在 `package.json`，构建时写进产物清单。改版本号的提交用 `release:`。

@@ -9,7 +9,7 @@ import type { CaptionTrack, Cue, SiteResult } from "../../../../../src/sites/typ
 import { deferred } from "../../../../helpers/deferred.ts";
 import { failed, untilAborted } from "../../../../helpers/fake-site-service.ts";
 import { cachedRow, EN, harness, KEY, REF, sampleCues, texts, view, ZH, type Row } from "../../../../helpers/transcript-service.ts";
-import { until } from "../../../../helpers/wait-until.ts";
+import { stillFalse, until } from "../../../../helpers/wait-until.ts";
 
 const HANS: CaptionTrack = { trackId: "zh-Hans", lang: "zh-Hans", label: "中文（简体）", kind: "human" };
 const PLAIN_EN: CaptionTrack = { trackId: "en", lang: "en", label: "English", kind: "human" };
@@ -251,7 +251,7 @@ test("淘汰排在缓存写入队列里：之后的读—改—写等它做完",
   assert.ok(await until(() => log.includes("evict:start")));
 
   const update = h.service.writer.update(KEY, (current) => current && { ...current, chapters: [] });
-  assert.equal(await until(() => log.filter((entry) => entry === "write").length > 1, 20), false, "淘汰没做完前不写");
+  assert.ok(await stillFalse(() => log.filter((entry) => entry === "write").length > 1, 20), "淘汰没做完前不写");
   evictGate.resolve();
   await update;
   assert.deepEqual(log.slice(-2), ["evict:done", "write"]);

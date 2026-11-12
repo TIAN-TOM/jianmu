@@ -14,7 +14,7 @@ import type { Cue } from "../../../../../src/sites/types.ts";
 import { deferred, type Deferred } from "../../../../helpers/deferred.ts";
 import { failed } from "../../../../helpers/fake-site-service.ts";
 import { cachedRow, harness, KEY, REF, sampleInfo, texts, view, type Row } from "../../../../helpers/transcript-service.ts";
-import { until } from "../../../../helpers/wait-until.ts";
+import { stillFalse, until } from "../../../../helpers/wait-until.ts";
 
 const SRT = ["1", "00:00:01,000 --> 00:00:04,000", "导入的第一句", "", "2", "00:00:05,000 --> 00:00:08,000", "导入的第二句", ""].join("\n");
 const FILE = { name: "课程.srt", text: SRT };
@@ -492,7 +492,7 @@ test("导入或移除还没做完（比如作废失败、正在撤回）时来�
   let settled = false;
   const reading = h.service.get(REF, { mode: "full", fresh: true });
   void reading.then(() => (settled = true));
-  assert.equal(await until(() => settled, 50), false, "撤回之前读取等着");
+  assert.ok(await stillFalse(() => settled, 50), "撤回之前读取等着");
   assert.equal(h.site.calls.length, 0);
 
   const hold = faults.hold;

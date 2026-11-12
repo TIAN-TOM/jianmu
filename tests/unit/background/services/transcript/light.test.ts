@@ -12,7 +12,7 @@ import type { Cue, OfficialSummary, SiteResult } from "../../../../../src/sites/
 import { deferred } from "../../../../helpers/deferred.ts";
 import { failed, type SiteMethod } from "../../../../helpers/fake-site-service.ts";
 import { cachedRow, harness, KEY, REF, sampleInfo, START, texts, view, type Harness, type HarnessOptions } from "../../../../helpers/transcript-service.ts";
-import { until } from "../../../../helpers/wait-until.ts";
+import { stillFalse, until } from "../../../../helpers/wait-until.ts";
 
 const MINUTE = 60_000;
 const P2 = { ...REF, segment: 2 };
@@ -461,7 +461,7 @@ test("卡片并进刷新：刷新换了新的媒体版本，旧版本迟到的�
   let settled = false;
   void light.then(() => (settled = true));
   answers[0].resolve();
-  assert.equal(await until(() => settled, 50), false, "旧版本的那份回来了，卡片还在等新版本的");
+  assert.ok(await stillFalse(() => settled, 50), "旧版本的那份回来了，卡片还在等新版本的");
   assert.equal((await h.rows())[0]?.official?.status, "pending", "旧版本的那份也不写进新版本的缓存");
   answers[1].resolve();
   const card = guides(await light);

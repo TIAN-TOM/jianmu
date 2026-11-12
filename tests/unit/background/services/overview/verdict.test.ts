@@ -29,7 +29,7 @@ import {
   type Respond,
 } from "../../../../helpers/overview-service.ts";
 import { harness as transcriptHarness, KEY as TRANSCRIPT_KEY, REF as TRANSCRIPT_REF } from "../../../../helpers/transcript-service.ts";
-import { until } from "../../../../helpers/wait-until.ts";
+import { stillFalse, until } from "../../../../helpers/wait-until.ts";
 
 const OFFICIAL_REPLY = verdictReply("官方说讲了两段", "看概览就够");
 const officialOnly: Respond = ({ isVerdict }) => (isVerdict ? OFFICIAL_REPLY : undefined);
@@ -291,7 +291,7 @@ test("粗筛和侧边栏同时给同一个视频写官方结论：只发一次�
   const fromPanel = h.officialVerdict().result;
   assert.ok(await until(() => h.reads() === 2), "后到的也读完了材料");
   // 给后到的一点机会：它要是自己发，会在这里发出第二次请求。
-  assert.equal(await until(() => h.verdictAsks().length > 1), false);
+  assert.ok(await stillFalse(() => h.verdictAsks().length > 1));
   release();
   const [a, b] = await Promise.all([fromTriage, fromPanel]);
   assert.equal(value(a).analysis.verdict?.summary, "官方说讲了两段");
@@ -306,7 +306,7 @@ test("排在后面的粗筛结论被停止：不等前一个写完，马上按�
   const queued = h.officialVerdict({ kind: "triage-verdict", origin: "batch" });
   const taskId = await queued.taskId;
   assert.ok(await until(() => h.reads() === 2));
-  assert.equal(await until(() => h.verdictAsks().length > 1), false);
+  assert.ok(await stillFalse(() => h.verdictAsks().length > 1));
   h.tasks.cancel(taskId);
   const done = settles(queued.result);
   assert.ok(await until(done), "不等前一个写完");
@@ -323,7 +323,7 @@ test("排在后面的被停止后，再来一个同视频的结论：仍排在�
   const queued = h.officialVerdict({ kind: "triage-verdict", origin: "batch" });
   const queuedId = await queued.taskId;
   assert.ok(await until(() => h.reads() === 2));
-  assert.equal(await until(() => h.verdictAsks().length > 1), false, "排上了，没有自己发");
+  assert.ok(await stillFalse(() => h.verdictAsks().length > 1), "排上了，没有自己发");
   h.tasks.cancel(queuedId);
   assert.ok(await until(settles(queued.result)), "被停止的马上收尾");
   assert.equal(codeOf(await queued.result), "TASK_CANCELED");
@@ -331,7 +331,7 @@ test("排在后面的被停止后，再来一个同视频的结论：仍排在�
   const third = h.officialVerdict({ kind: "triage-verdict", origin: "batch" }).result;
   assert.ok(await until(() => h.reads() === 3));
   // 被停止的那个离开时要是把在途的那次一起撤了，第三个看不到前面还在写，会发第二次请求。
-  assert.equal(await until(() => h.verdictAsks().length > 1), false);
+  assert.ok(await stillFalse(() => h.verdictAsks().length > 1));
   release();
   const results = await Promise.all([first, third]);
   assert.ok(results.every((result) => result.ok), JSON.stringify(results));
@@ -346,7 +346,7 @@ test("生成配置不一样的同视频结论：等前一个写完，看到已�
   assert.ok("task" in other);
   const second = h.verdict.fromOfficial(other.task.id, VIDEO);
   assert.ok(await until(() => h.reads() === 2));
-  assert.equal(await until(() => h.verdictAsks().length > 1), false);
+  assert.ok(await stillFalse(() => h.verdictAsks().length > 1));
   release();
   assert.equal((await first).ok, true);
   const done = value(await second);
@@ -384,7 +384,7 @@ test("两份概览服务注入同一道闸门：同时跑时发往模型的请�
   const overview = h.generate({ video: VIDEO }).result;
   const verdict = h.verdict.fromOfficial(await h.registerVerdict(), VIDEO);
   assert.ok(await until(() => inflight === 2));
-  assert.equal(await until(() => h.asks.length > 2), false, "上限是 2，第三个排在闸门外");
+  assert.ok(await stillFalse(() => h.asks.length > 2), "上限是 2，第三个排在闸门外");
   reply.resolve();
   assert.equal((await overview).ok, true);
   assert.equal((await verdict).ok, true);
@@ -676,7 +676,7 @@ test("两个侧边栏同时点：也只发一次", async (t) => {
   const second = await bg.start("verdict");
   assert.equal(second.joined, true, "第二个侧边栏接上同一个任务");
   const again = bg.ask("verdict.fromOfficial", { video: TRANSCRIPT_KEY, taskId: second.id });
-  assert.equal(await until(() => bg.ai.posts().length > 1), false);
+  assert.ok(await stillFalse(() => bg.ai.posts().length > 1));
   gate.resolve();
   const results = await Promise.all([pending, again]);
   assert.ok(results.every((result) => result.ok), JSON.stringify(results));
@@ -695,7 +695,7 @@ test("后台里概览和用官方总结写结论排同一道并发闸门：合�
   const overview = bg.ask("overview.start", { video: TRANSCRIPT_KEY, taskId: overviewTask.id });
   assert.ok(await until(() => bg.ai.posts().length === 3), "概览先占满三个名额");
   const verdict = bg.official();
-  assert.equal(await until(() => bg.ai.posts().length > 3), false, "结论排在同一道闸门外");
+  assert.ok(await stillFalse(() => bg.ai.posts().length > 3), "结论排在同一道闸门外");
   gate.resolve();
   assert.equal((await overview).ok, true);
   assert.equal((await verdict).ok, true);
