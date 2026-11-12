@@ -43,6 +43,8 @@ const bundles = [
   { entryPoints: ["src/pages/sidepanel/main.tsx"], outfile: "build/pages/sidepanel.js", format: "esm" },
   { entryPoints: ["src/pages/options/main.tsx"], outfile: "build/pages/options.js", format: "esm" },
   { entryPoints: ["src/pages/shared/theme-boot.ts"], outfile: "build/pages/theme-boot.js", format: "iife" },
+  { entryPoints: ["src/pages/card/main.tsx"], outfile: "build/pages/card.js", format: "esm" },
+  { entryPoints: ["src/content/bilibili.ts"], outfile: "build/content/bilibili.js", format: "iife" },
 ];
 
 function writeManifest() {

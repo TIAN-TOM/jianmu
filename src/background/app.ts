@@ -24,7 +24,7 @@ import { createCardLimits, createPlaybackLimits, createPlayerNoteLimit, type Car
 import { errorLabel, type Log } from "./log.ts";
 import { createReinject, type Reinject } from "./reinject.ts";
 import { createRouter, type AnyPortSpec, type Router } from "./router.ts";
-import { activationLost } from "./routes/activation.ts";
+import { activationDropped, activationLost } from "./routes/activation.ts";
 import { appearanceChange, type StorageChange } from "./routes/appearance.ts";
 import { createPorts, createRoutes } from "./routes/index.ts";
 import { createSenders } from "./senders.ts";
@@ -432,6 +432,8 @@ export function createApp(deps: AppDeps): App {
     async onStorageChanged(changes, area) {
       // 先断端口：启用失效以后，连着的页面不能再发起新的读取和模型请求。
       if (activationLost(changes, area)) router.closeBusinessPorts("NOT_ENABLED");
+      // 只发给发过消息的内容脚本：启用已经失效，不再按地址查标签页。
+      if (activationDropped(changes, area)) await core.messenger.toTabs(core.contentTabs.list(), { type: "activation.changed", confirmed: false });
       const message = appearanceChange(changes, area);
       if (!message) return;
       try {

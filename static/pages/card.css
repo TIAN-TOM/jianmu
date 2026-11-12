@@ -1,0 +1,154 @@
+/* 播放页右栏的总结卡片。嵌在网页的 iframe 里：页面底子透明，只有卡片本身有表面。 */
+
+html,
+body {
+  background: transparent;
+}
+
+body {
+  overflow: hidden;
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  overflow: hidden;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.card-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+}
+
+.card-name {
+  flex: 1;
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+.card-chevron {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 1.5px solid var(--text-muted);
+  border-bottom: 1.5px solid var(--text-muted);
+  transform: rotate(45deg);
+  transition: transform 0.15s;
+}
+
+.card[data-collapsed="true"] .card-chevron {
+  transform: rotate(-45deg);
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-height: 34rem;
+  padding: 0 var(--space-3) var(--space-2);
+  overflow-y: auto;
+}
+
+.card-video-title {
+  color: var(--text-strong);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+}
+
+.card-status,
+.card-note,
+.card-pending {
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+}
+
+.card-status[data-tone="error"] {
+  color: var(--danger);
+}
+
+.card-status[data-tone="warn"] {
+  color: var(--warn);
+}
+
+.card-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.card-reading {
+  line-height: var(--lh-body);
+}
+
+.outline,
+.points {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: 0;
+  list-style: none;
+}
+
+.outline-item,
+.point {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.points {
+  margin-top: var(--space-1);
+}
+
+.outline-details summary {
+  cursor: pointer;
+}
+
+.card-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.card-track {
+  flex: 0 0 4rem;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--rail-track);
+  overflow: hidden;
+}
+
+.card-bar {
+  height: 100%;
+  background: var(--accent);
+}
+
+.card-progress-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+}
+
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3) var(--space-3);
+}

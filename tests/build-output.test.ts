@@ -10,7 +10,7 @@ import { extractPromptSection } from "../src/core/ai/prompt.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BUILD = join(ROOT, "build");
-const BUNDLES = ["background.js", "pages/sidepanel.js", "pages/theme-boot.js"];
+const BUNDLES = ["background.js", "pages/sidepanel.js", "pages/theme-boot.js", "pages/card.js", "content/bilibili.js"];
 // 权限只认这几项：多一项要改这里，不靠禁用名单列举。YouTube 和 AI 地址都走运行时申请的可选权限。
 // scripting 用来在安装、更新和确认启用后往已开的视频页补注入内容脚本，本身没有安装警告。
 const PERMISSIONS = ["sidePanel", "storage", "scripting"];
@@ -54,7 +54,12 @@ test("清单不变量", () => {
   assert.deepEqual(manifest.permissions, PERMISSIONS);
   assert.deepEqual(manifest.host_permissions, HOST_PERMISSIONS);
   assert.deepEqual(manifest.optional_host_permissions, OPTIONAL_HOST_PERMISSIONS);
-  assert.equal(manifest.web_accessible_resources, undefined);
+  // 网页能加载的只有卡片页，而且只能从每次会话都变的地址加载：卡片关着时网页拼不出能用的地址。
+  assert.deepEqual(manifest.web_accessible_resources, [{ resources: ["pages/card.html"], matches: ["https://www.bilibili.com/*"], use_dynamic_url: true }]);
+  // 补注入按清单取脚本：清单里的每个脚本都在构建里。
+  for (const script of manifest.content_scripts) {
+    for (const file of script.js) assert.ok(existsSync(join(BUILD, file)), `构建里没有内容脚本 ${file}`);
+  }
 });
 
 const PACKAGE_FILES = readFileSync(join(ROOT, "tests/fixtures/package-files.txt"), "utf8").split("\n").filter(Boolean);
@@ -145,8 +150,16 @@ test("包里的源文件注释只来自 src/、prompts/ 和依赖包", () => {
 });
 
 test("页面包里没有站点的后台读取代码", () => {
-  const origins = [...readBuild("pages/sidepanel.js").matchAll(/^\s*\/\/ (src\/sites\/\S+)$/gm)].map((match) => match[1] ?? "");
-  assert.deepEqual(origins.filter((origin) => !/^src\/sites\/(?:rules\.ts|[^/]+\/url\.ts)$/.test(origin)), []);
+  for (const file of ["pages/sidepanel.js", "pages/card.js"]) {
+    const origins = [...readBuild(file).matchAll(/^\s*\/\/ (src\/sites\/\S+)$/gm)].map((match) => match[1] ?? "");
+    assert.deepEqual(origins.filter((origin) => !/^src\/sites\/(?:rules\.ts|[^/]+\/url\.ts)$/.test(origin)), [], file);
+  }
+});
+
+test("内容脚本包里只有自己站的页面模块和地址规则，没有后台、页面和设置的代码", () => {
+  const origins = [...readBuild("content/bilibili.js").matchAll(/^\s*\/\/ (src\/\S+)$/gm)].map((match) => match[1] ?? "");
+  assert.ok(origins.includes("src/content/bilibili.ts"));
+  assert.deepEqual(origins.filter((origin) => /^src\/(?:sites\/(?!bilibili\/(?:page|url)\.ts)|background\/|pages\/|platform\/)|settings-schema/.test(origin)), []);
 });
 
 test("后台包带着 B 站的读取实现和取字幕服务", () => {

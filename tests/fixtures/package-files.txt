@@ -1,9 +1,13 @@
 LICENSE.txt
 background.js
+content/bilibili.js
 icons/icon-128.png
 icons/icon-16.png
 icons/icon-48.png
 manifest.json
+pages/card.css
+pages/card.html
+pages/card.js
 pages/options.css
 pages/options.html
 pages/options.js

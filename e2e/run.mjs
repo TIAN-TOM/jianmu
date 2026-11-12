@@ -1,14 +1,14 @@
 // 端到端冒烟：把 zip 解压出来的扩展装进 Chrome for Testing，站点请求都到本机模拟服务器，其余域名解析失败。
 // 核对后台和侧边栏都没有报错，主机权限和登录状态都生效，后台取字幕在确认前、没登录、付费时都按规矩停下，也没有意外请求。
-import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { videoKey } from "../src/core/video-ref.ts";
-import { launchChrome } from "./browser.mjs";
-import { VIDEOS } from "./fixtures.mjs";
+import { launchChrome, prepareExtension } from "./browser.mjs";
+import { ANTHROPIC, VIDEOS } from "./fixtures.mjs";
 import { apiHost, contentRead, fileHost, PROBE, startMockServer } from "./mock-server.mjs";
+import { createWatchSteps } from "./watch-steps.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TIMEOUT_MS = 20_000;
@@ -39,7 +39,8 @@ const { version } = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"))
 const expectedId = readFileSync(join(ROOT, "tests/fixtures/extension-id.txt"), "utf8").trim();
 const work = mkdtempSync(join(tmpdir(), "jianmu-e2e-"));
 const extensionDir = join(work, "extension");
-execFileSync("unzip", ["-q", join(ROOT, "dist", `jianmu-${version}.zip`), "-d", extensionDir]);
+// 模型服务的主机权限要用户在设置页点了才申请，无头 Chrome 里点不了，只给这份副本的清单加上。
+prepareExtension({ zip: join(ROOT, "dist", `jianmu-${version}.zip`), dir: extensionDir, origins: [ANTHROPIC.origin] });
 
 const mock = await startMockServer({ dir: work });
 const browser = launchChrome({ executable, profileDir: join(work, "profile"), hostRules: mock.hostRules, extensionDir });
@@ -108,6 +109,11 @@ try {
   if (mock.requests.length !== beforeConfirm) throw new Error("确认前取字幕发了请求");
   console.log("✓ 确认启用之前取字幕回还没启用，一个请求都没发");
 
+  const watch = createWatchSteps({ cdp, until, evaluate, findSession, url: `https://${PROBE.pageHost}/video/${FIRST_ID}` });
+  await watch.beforeActivation();
+  if (mock.requests.some(contentRead)) throw new Error("确认启用前打开播放页就读了视频内容");
+  console.log("✓ 确认启用前打开播放页：内容脚本什么都没挂，也没读视频内容");
+
   const confirmed = await ask("activation.confirm");
   if (!confirmed?.ok || confirmed.value.state !== "current") throw new Error(`确认启用失败：${JSON.stringify(confirmed)}`);
   const loggedOut = await ask("transcript.get", { video: FIRST, mode: "full" });
@@ -115,6 +121,8 @@ try {
   const peeked = mock.requests.filter(contentRead);
   if (peeked.length > 0) throw new Error(`没登录时读了视频内容：${JSON.stringify(peeked)}`);
   console.log("✓ 确认以后、没登录时取字幕只报要登录，没读任何视频内容");
+  await watch.afterActivation();
+  console.log("✓ 确认启用以后不刷新页面，播放页挂上了笔记按钮和卡片");
 
   const readLogin = () =>
     evaluate(worker, `fetch(${JSON.stringify(PROBE.account)}, { credentials: "include", cache: "no-store" }).then((response) => response.json()).then(${PROBE.loginOf})`);
@@ -144,6 +152,15 @@ try {
   mock.setScenario("");
   if (paid?.code !== "UNPLAYABLE") throw new Error(`付费视频应该报看不了：${JSON.stringify(paid)}`);
   console.log("✓ 付费视频读完视频信息就停下，报看不了");
+
+  const { card } = await watch.notesAndOfficial(ask, FIRST);
+  console.log("✓ 卡片显示官方总结，没配模型服务时摆「打开设置」；穿过透明层点笔记按钮、按 n 各存下一条笔记");
+  await watch.generate(card, page, ANTHROPIC);
+  console.log("✓ 配好模型服务后卡片换回「生成概览」，点一下出了章节和结论");
+  await watch.wideScreen();
+  console.log("✓ 宽屏时卡片挪到弹幕列表下面");
+  await watch.afterClear(page);
+  console.log("✓ 清掉本机设置让启用失效，播放页上的笔记按钮和卡片不用刷新就全部撤下");
 
   // 启动期的报错可能晚一点才到，等一小会再查。
   await new Promise((done) => setTimeout(done, 500));

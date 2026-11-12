@@ -54,3 +54,12 @@ export function activationLost(changes: Readonly<Record<string, StorageChange>>,
   const change = changes[SETTINGS_STORAGE_KEY];
   return change !== undefined && activationStatus(change.newValue).state !== "current";
 }
+
+/**
+ * 这次变化把原本算数的启用确认弄没了（比如清除全部数据）：已开视频页里的内容脚本要撤下界面、重新等确认。
+ * 从没确认过、原本就过期的不算，那时还不能按地址找标签页，也没有界面要撤。
+ */
+export function activationDropped(changes: Readonly<Record<string, StorageChange>>, area: string): boolean {
+  const change = changes[SETTINGS_STORAGE_KEY];
+  return activationLost(changes, area) && change !== undefined && activationStatus(change.oldValue).state === "current";
+}

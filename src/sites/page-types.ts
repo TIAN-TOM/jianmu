@@ -19,4 +19,5 @@ export interface SitePage {
   watchControls?(cb: (visible: boolean) => void): () => void; // 找到页面信号再实现
   noteShortcut: string | null;
   cardSlot?(): { parent: Element; before: Node | null } | null;
+  fillsScreen?(): boolean; // 播放器占满屏幕或网页，页面临时改了布局
 }

@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import { createServer } from "node:https";
 import { join } from "node:path";
 import { createModelServices, MODEL_HOSTS } from "./mock-ai.mjs";
+import { watchPageHtml } from "./watch-page.mjs";
 import {
   COVER_SVG,
   KEYS,
@@ -48,6 +49,7 @@ export const PROBE = Object.freeze({
   account: `https://${API_HOST}${ACCOUNT_PATH}`,
   file: `https://aisubtitle${FILE_HOST_SUFFIX}/bfs/subtitle/sample-zh.json`,
   login: `https://${PAGE_HOST}/e2e/login`,
+  pageHost: PAGE_HOST,
   cookie: LOGIN_COOKIE,
   loginOf: "(body) => body.data.isLogin",
 });
@@ -247,6 +249,8 @@ function pageRoute(path) {
     return text(200, "text/html; charset=utf-8", "<title>login</title>", { "Set-Cookie": cookie });
   }
   if (path === "/favicon.ico") return { status: 204 };
+  const watched = VIDEOS[/^\/video\/(BV\w+)\/?$/.exec(path)?.[1] ?? ""];
+  if (watched) return text(200, "text/html; charset=utf-8", watchPageHtml(watched));
   return unexpected();
 }
 

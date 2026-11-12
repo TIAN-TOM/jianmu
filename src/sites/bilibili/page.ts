@@ -23,6 +23,11 @@ const CARD_COLUMN_SELECTORS = [
   ".r-con",
 ];
 
+// 播放器容器标着屏幕状态：网页全屏和全屏时页面临时改了右栏。
+const SCREEN_CONTAINER = ".bpx-player-container";
+const SCREEN_ATTRIBUTE = "data-screen";
+const FILLING_SCREENS = new Set(["web", "full"]);
+
 const SERVER_RENDERED_ROOT = "[data-server-rendered]";
 const READY_POLL_MS = 200;
 const SETTLE_DELAY_MS = 1200;
@@ -129,6 +134,10 @@ export function createBilibiliPage({ document, location, sleep = waitFor, every 
       if (anchor && parent) return { parent, before: pushedBelowPlayer(anchor) ? anchor.nextSibling : anchor };
       const column = firstMatch(CARD_COLUMN_SELECTORS);
       return column ? { parent: column, before: column.firstChild } : null;
+    },
+
+    fillsScreen() {
+      return FILLING_SCREENS.has(document.querySelector(SCREEN_CONTAINER)?.getAttribute(SCREEN_ATTRIBUTE) ?? "");
     },
   };
 }

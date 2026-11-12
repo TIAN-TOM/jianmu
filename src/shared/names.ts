@@ -24,6 +24,17 @@ export const PAGE_PATHS = Object.freeze({
   card: "pages/card.html",
 } as const);
 
+// 注入视频网站页面的节点标识，和页面、卡片之间互发消息的标记，一律以 jianmu- 开头。
+export const INJECTED = {
+  overlay: "jianmu-overlay",
+  noteButton: "jianmu-note-button",
+  noteLabel: "jianmu-note-label",
+  cardFrame: "jianmu-card",
+  cardMessage: "jianmu-card-message",
+  hostMessage: "jianmu-card-host",
+  instance: "jianmu-content-instance",
+} as const;
+
 // 设置读写用的 Web Locks 锁名，不是存储键，不用登记。
 export const SETTINGS_LOCK_NAME = "jianmu_settings";
 
