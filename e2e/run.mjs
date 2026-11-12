@@ -104,7 +104,9 @@ async function panelFlow(launcher, panelUrl, videoId) {
   await evaluate(launcher, `chrome.tabs.create({ windowId: ${windowId}, url: ${JSON.stringify(watchUrl)} }).then(() => true)`);
   const video = await until("视频页打开", () => findSession("page", watchUrl));
 
-  await until("侧边栏跟着视频页读到字幕", async () => (await textOf(panel, ".cue-text")).includes("样例台词二"));
+  // 两个样例视频共用一份字幕：要认准标题，免得在切过来之前就把上一个视频页的字幕当成这一个的。
+  const title = VIDEOS[videoId]?.title ?? "";
+  await until("侧边栏跟着视频页读到字幕", async () => (await textOf(panel, ".video-title")) === title && (await textOf(panel, ".cue-text")).includes("样例台词二"));
   await until("视频页连上", () => evaluate(panel, `!document.querySelector(".notice[data-id='connect']")`));
   // 点最后一句的时间，视频页跳到的秒数要和按钮上写的对得上。先把播放位置挪开，看得出跳没跳。
   await evaluate(video, `(document.querySelector("video").currentTime = 100, true)`);
