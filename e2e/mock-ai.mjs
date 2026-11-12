@@ -9,7 +9,7 @@ import { ANTHROPIC, OPENAI, VIDEOS } from "./fixtures.mjs";
 /**
  * 一次模型请求。video 是视频的编号（fixtures 里 VIDEOS 的键），认不出时是空串。
  * @typedef {{ host: string, path: string, cookie: string, unexpected: boolean, at: number, answeredAt?: number, aborted?: true,
- *   provider: string, kind: "analysis" | "verdict" | "models" | "test" | "", video: string, held?: true }} ModelCall
+ *   provider: string, kind: "analysis" | "verdict" | "qa" | "models" | "test" | "", video: string, held?: true }} ModelCall
  */
 
 const SERVICES = [
@@ -47,26 +47,34 @@ function promptOf(body) {
 
 /** @param {string} prompt */
 function videoOf(prompt) {
-  const title = /视频标题：(.+)/.exec(prompt)?.[1]?.trim();
+  const title = (/视频标题：(.+)/.exec(prompt) ?? /^视频：(.+)$/m.exec(prompt))?.[1]?.trim();
   return Object.entries(VIDEOS).find(([, video]) => video.title === title)?.[0] ?? "";
 }
 
 /** 设置页「测试连接」发的那句话。 */
 const TEST_PROMPT = "回复两个字：可用";
 
-/** @param {string} prompt @returns {"analysis" | "verdict" | "test" | ""} */
+/** @param {string} prompt @returns {"analysis" | "verdict" | "qa" | "test" | ""} */
 function kindOf(prompt) {
   if (prompt.trim() === TEST_PROMPT) return "test";
+  if (prompt.includes("用户的问题：")) return "qa";
   if (prompt.includes("章节摘要：")) return "verdict";
   if (/（第 \d+ 秒）/.test(prompt) && prompt.includes("字幕：")) return "analysis";
   return "";
 }
 
-/** 概览块的章节放在本块起点那一秒，结论按提示词的格式写。 @param {"analysis" | "verdict"} kind @param {string} prompt */
+/**
+ * 概览块的章节和金句放在本块起点那一秒，结论按提示词的格式写，问答引用字幕第一句的时间点。
+ * @param {"analysis" | "verdict" | "qa"} kind @param {string} prompt
+ */
 function resultOf(kind, prompt) {
   if (kind === "verdict") return { summary: "模拟服务写的一句话结论", value: "样例价值", verdict: "看概览就够", reason: "样例理由" };
+  if (kind === "qa") return { answer: "模拟服务的回答，依据在 [0:00]。" };
   const seconds = Number(/（第 (\d+) 秒）/.exec(prompt)?.[1] ?? 0);
-  return { chapters: [{ title: "模拟服务写的章节", timestampSeconds: seconds, summary: "样例摘要" }], keyQuotes: [] };
+  return {
+    chapters: [{ title: "模拟服务写的章节", timestampSeconds: seconds, summary: "样例摘要" }],
+    keyQuotes: [{ quote: `模拟服务挑的金句（第 ${seconds} 秒）`, timestampSeconds: seconds }],
+  };
 }
 
 /** @param {string} protocol @param {string} model @param {string} text @param {number} serial */

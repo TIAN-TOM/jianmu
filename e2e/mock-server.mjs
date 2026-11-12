@@ -54,6 +54,9 @@ export const PROBE = Object.freeze({
   loginOf: "(body) => body.data.isLogin",
 });
 
+/** 播放页的地址：侧边栏跟着它认视频。 @param {string} bvid */
+export const watchPage = (bvid) => `https://${PAGE_HOST}/video/${bvid}`;
+
 /** @param {string} host */
 export const apiHost = (host) => host === API_HOST;
 /** @param {string} host */

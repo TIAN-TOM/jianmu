@@ -11,6 +11,7 @@ pages/card.js
 pages/options.css
 pages/options.html
 pages/options.js
+pages/sidepanel.css
 pages/sidepanel.html
 pages/sidepanel.js
 pages/theme-boot.js
