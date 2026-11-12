@@ -8,6 +8,7 @@ import { Button } from "../shared/ui/button.tsx";
 import { ChapterList } from "../shared/ui/chapter-list.tsx";
 import { VerdictBlock } from "../shared/ui/verdict-block.tsx";
 import type { BasisSource } from "../shared/ui/verdict.ts";
+import { BatchBar } from "./batch-bar.tsx";
 import { downloadText, safeFileName, videoBaseOf } from "./files.ts";
 import { CreatorChapters, OfficialSummary } from "./guides.tsx";
 import type { Panel } from "./panel.ts";
@@ -146,6 +147,7 @@ export function OverviewTab({ panel }: { readonly panel: Panel }) {
 
   return (
     <div class="overview">
+      <BatchBar panel={panel} ready={ready} />
       <Verdict panel={panel} analysis={state.saved?.analysis ?? null} canOffer={ready && official?.status === "ok" && !running} failures={failures} />
       {running ? (
         <div class="progress-row" role="status">

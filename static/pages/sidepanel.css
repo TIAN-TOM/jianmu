@@ -163,6 +163,90 @@
   font-size: var(--fs-meta);
 }
 
+/* ---------- 本窗口全部生成：窗口级的一条，切视频时不跟着换 ---------- */
+
+/* 有话要说（清点、确认、进度）时才铺成卡片；空闲时只是一个按钮。 */
+.batch-bar:not([data-phase="idle"]) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+}
+
+.batch-status {
+  font-size: var(--fs-ui);
+  line-height: var(--lh-snug);
+  color: var(--text);
+}
+
+.batch-notice {
+  font-size: var(--fs-meta);
+  line-height: var(--lh-snug);
+  color: var(--text-muted);
+}
+
+.batch-error {
+  margin-top: var(--space-2);
+  font-size: var(--fs-meta);
+  color: var(--danger);
+}
+
+.batch-progress {
+  width: 100%;
+  height: 6px;
+  accent-color: var(--accent);
+}
+
+.batch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.batch-failures {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) 0 0;
+  list-style: none;
+  border-top: 1px solid var(--border);
+}
+
+.batch-failure {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fs-meta);
+}
+
+.batch-failure-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.batch-failure-title {
+  overflow: hidden;
+  color: var(--text);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.batch-failure-reason {
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.batch-failure[data-status="failed"] .batch-failure-reason {
+  color: var(--danger);
+}
+
 .loading {
   padding: var(--space-4) 0;
 }

@@ -4,8 +4,10 @@
 import assert from "node:assert/strict";
 import { describe as describeError } from "../../src/core/errors.ts";
 import { videoKey } from "../../src/core/video-ref.ts";
-import { VIDEOS } from "../fixtures.mjs";
+import { API_KEY_SESSION_KEY, SETTINGS_STORAGE_KEY } from "../../src/shared/names.ts";
+import { ANTHROPIC, VIDEOS } from "../fixtures.mjs";
 import { PROBE, watchPage } from "../mock-server.mjs";
+import { storedSettings } from "../settings.mjs";
 import { scenario } from "./harness.mjs";
 
 const test = scenario(import.meta.url);
@@ -140,5 +142,32 @@ test("侧边栏：笔记页签列出本视频的笔记，能改能删，删完�
     await tap(panel, ".note .menu-anchor button");
     assert.ok(await clickText(panel, ".menu-item", "删除"));
     await waitIn(panel, "删完回到空状态", `${appText}.includes("还没有笔记")`);
+  });
+});
+
+test("侧边栏：没设置 AI 服务时本窗口全部生成停用；设置好以后清点写清几个视频、要新生成几个，取消回到按钮", async (ctx) => {
+  await withVideo(ctx, async (panel) => {
+    await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
+    await tap(panel, "#tab-overview");
+    const batchButton = `[...document.querySelectorAll(".batch-bar .button")].find((node) => node.textContent.startsWith("本窗口全部生成"))`;
+    await waitIn(panel, "批量按钮停用", `${batchButton}?.disabled === true`);
+    assert.ok((await panel.evaluate(textOf(".batch-bar .control-reason"))).includes("先在设置页设置 AI 服务"));
+
+    // 只在这个测试里配好模型服务，做完还原，后面的测试照旧是没设置的样子。
+    const before = await panel.evaluate(`chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)})`);
+    const stored = await storedSettings(ANTHROPIC);
+    await panel.evaluate(`Promise.all([chrome.storage.local.set(${JSON.stringify({ [SETTINGS_STORAGE_KEY]: stored.local[SETTINGS_STORAGE_KEY] })}), chrome.storage.session.set(${JSON.stringify(stored.session)})]).then(() => true)`);
+    try {
+      await waitIn(panel, "批量按钮能点", `${batchButton}?.disabled === false`);
+      await panel.evaluate(`(${batchButton}).click(), true`);
+      await waitIn(panel, "清点完给出确认", `${textOf(".batch-bar .batch-status")} === "本窗口有 1 个视频，要新生成 1 个。"`);
+      assert.match(await panel.evaluate(textOf(".batch-bar .batch-notice")), /会用掉 API 额度/);
+      assert.ok(await panel.evaluate(`[...document.querySelectorAll(".batch-bar .button")].some((node) => node.textContent === "开始生成 1 个")`), "确认按钮写着要生成几个");
+      // 不真的开始：生成、停止和重开接上在端到端里走。
+      assert.ok(await clickText(panel, ".batch-bar .button", "取消"));
+      await waitIn(panel, "取消以后回到按钮", `Boolean(${batchButton})`);
+    } finally {
+      await panel.evaluate(`Promise.all([chrome.storage.local.set(${JSON.stringify(before)}), chrome.storage.session.remove(${JSON.stringify(API_KEY_SESSION_KEY)})]).then(() => true)`);
+    }
   });
 });

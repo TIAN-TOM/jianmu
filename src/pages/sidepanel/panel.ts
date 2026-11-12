@@ -4,6 +4,7 @@ import { computed, effect, signal, type Signal } from "@preact/signals";
 import type { PageApi } from "../shared/api.ts";
 import { createActivation, type Activation } from "../shared/activation.ts";
 import { createConfigWatch, type ConfigWatch } from "../shared/config.ts";
+import { createWindowBatch, type WindowBatchStore } from "./batch.ts";
 import { createFollow, type Follow } from "./follow.ts";
 import { createNotesStore, type NotesStore } from "./notes.ts";
 import { createOverviewStore, type OverviewStore } from "./overview.ts";
@@ -30,6 +31,8 @@ export interface Panel {
   readonly overview: OverviewStore;
   readonly notes: NotesStore;
   readonly qa: QaStore;
+  /** 本窗口全部生成。 */
+  readonly batch: WindowBatchStore;
   readonly tab: Signal<TabId>;
   readonly toast: Signal<Toast | null>;
   /** 一闪而过的一句提示：存好了、导出了、跳转失败的原因。 */
@@ -52,6 +55,7 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
   const overview = createOverviewStore({ api });
   const notes = createNotesStore({ api });
   const qa = createQaStore({ api });
+  const batch = createWindowBatch({ api });
   const tab = signal<TabId>("transcript");
   const toast = signal<Toast | null>(null);
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -89,6 +93,8 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
       if (now.state === "ready") translation.bind(now.video, now.view.transcript.ref.fingerprint);
       else if (now.state !== "loading") translation.bind(null, null);
     }),
+    // 启用以后才连上批次端口，接上本窗口已有的一批。
+    effect(() => batch.setEnabled(activation.enabled.value)),
     // 字幕页签开着时才每秒问一次播放位置。
     effect(() => {
       player.setPolling(activation.enabled.value && tab.value === "transcript" && transcript.state.value.state === "ready");
@@ -108,6 +114,7 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
     overview,
     notes,
     qa,
+    batch,
     tab,
     toast,
     say,
@@ -132,6 +139,7 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
       overview.stop();
       notes.stop();
       qa.stop();
+      batch.stop();
       api.stop();
     },
   };
