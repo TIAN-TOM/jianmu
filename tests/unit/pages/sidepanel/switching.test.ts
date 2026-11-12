@@ -256,3 +256,30 @@ test("概览：没存进本机的概览，收尾广播和更新广播都不拿�
   assert.equal(overview.state.value.result?.saveFailed, true);
   overview.stop();
 });
+
+test("跟随：切到新标签页、还没查完时旧标签页改了标题，不把这次查询作废", async () => {
+  const { api } = setup();
+  type Activated = (info: { tabId: number; windowId: number }) => void;
+  type Updated = (tabId: number, change: { title?: string }, tab: unknown) => void;
+  const activated = new Set<Activated>();
+  const updated = new Set<Updated>();
+  const slow = deferred();
+  const browser = {
+    currentWindowId: async () => 1,
+    activeTab: async () => ({ id: 5, windowId: 1, url: WATCH }),
+    getTab: async (id: number) => {
+      await slow.promise;
+      return { id, windowId: 1, url: "https://www.bilibili.com/video/BV1Sample002" };
+    },
+    onActivated: { addListener: (l: Activated) => void activated.add(l), removeListener: (l: Activated) => void activated.delete(l) },
+    onUpdated: { addListener: (l: Updated) => void updated.add(l), removeListener: (l: Updated) => void updated.delete(l) },
+  } as unknown as FollowBrowser;
+  const follow = createFollow({ api, enabled: signal(true), browser });
+  await follow.refresh();
+  for (const listener of activated) listener({ tabId: 6, windowId: 1 });
+  for (const listener of updated) listener(5, { title: "旧标签页的新标题" }, { id: 5, windowId: 1, url: WATCH, title: "旧标签页的新标题" });
+  slow.resolve();
+  await until(() => follow.target.value.tabId === 6);
+  assert.equal(follow.target.value.video, SECOND);
+  follow.stop();
+});

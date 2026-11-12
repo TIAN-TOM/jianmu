@@ -125,6 +125,8 @@ export function createFollow({ api, enabled, browser = browserFollow() }: Follow
 
   const onActivated: ActivatedListener = ({ tabId, windowId: from }) => {
     if (stopped || from !== windowId) return;
+    // 查之前就改认新标签页：查的途中旧标签页的更新不再算数，不会把这次查询作废。
+    watching = tabId;
     void follow(() => browser.getTab(tabId));
   };
   const onUpdated: UpdatedListener = (tabId, change, tab) => {
