@@ -81,6 +81,8 @@ export function createPlayer({ currentRef, findMainVideo, now = Date.now }: Play
     currentKey,
     confirmed,
     videoChanged() {
+      // 标签页在后台时地址变化晚发现：播放器早已换上、确认过的不作废。
+      if (confirmed()) return;
       playing = now() - lastMediaAt <= MEDIA_SWITCH_WINDOW_MS ? currentKey() : null;
     },
     mediaLoading() {

@@ -74,6 +74,16 @@ test("地址换了视频以后，播放器开始加载新内容之前按视频�
   assert.equal(player.confirmed(), true, "地址变化前半秒播放器已经开始加载");
 });
 
+test("标签页在后台时播放器先换上了新视频，回到前台才发现地址变了：已经确认的不作废", () => {
+  const { player, go, tick } = setup(() => ({ status: "found", video: fakeVideo() as unknown as HTMLVideoElement }));
+  go(SECOND);
+  player.mediaLoading();
+  tick(MEDIA_SWITCH_WINDOW_MS * 10);
+  player.videoChanged();
+  assert.equal(player.confirmed(), true);
+  assert.equal(player.handle({ type: "player.getState", req: { video: videoKey(SECOND) } })?.ok, true);
+});
+
 test("时长每个视频报一次，等播放器换上、读得到时长、不在播广告；两次上报至少隔一段时间", () => {
   let main: MainVideo = { status: "ad" };
   let ref: VideoRef = FIRST;
