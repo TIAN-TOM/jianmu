@@ -1,6 +1,6 @@
 /// <reference types="chrome" />
 // 侧边栏跟着本窗口当前的标签页走：切标签页、标签页换地址、后台的跟随广播都重新认一次视频。
-// 视频身份按站点规则从标签页地址解析；地址里认不出时，退到这个标签页的观看会话（启用以后才问）。
+// 视频身份按站点规则从标签页地址解析；读不到地址时，退到这个标签页的观看会话（启用以后才问）。
 import { signal, type ReadonlySignal } from "@preact/signals";
 import { videoKey, type VideoKey } from "../../core/video-ref.ts";
 import { siteRules } from "../../sites/rules.ts";
@@ -81,9 +81,7 @@ export function createFollow({ api, enabled, browser = browserFollow() }: Follow
   let generation = 0;
   let stopped = false;
 
-  async function settle(tab: TabInfo | null): Promise<void> {
-    generation += 1;
-    const asked = generation;
+  async function settle(tab: TabInfo | null, asked: number): Promise<void> {
     if (!tab || typeof tab.id !== "number") {
       watching = null;
       target.value = NONE;
@@ -92,7 +90,8 @@ export function createFollow({ api, enabled, browser = browserFollow() }: Follow
     const tabId = tab.id;
     watching = tabId;
     let video = videoOfUrl(tab.url);
-    if (video === null && enabled.peek()) {
+    // 只在读不到地址时退到观看会话：地址明明不是播放页时，会话里记的是之前那个视频。
+    if (video === null && !tab.url && enabled.peek()) {
       const reply = await api.send("session.get", { tabId });
       if (stopped || asked !== generation) return;
       video = reply.ok ? (reply.value.session?.video ?? null) : null;
@@ -107,19 +106,30 @@ export function createFollow({ api, enabled, browser = browserFollow() }: Follow
     target.value = next;
   }
 
-  async function refresh(): Promise<void> {
-    if (windowId === null) windowId = await browser.currentWindowId();
-    if (stopped || windowId === null) return;
-    await settle(await browser.activeTab(windowId));
+  /** 每次去认标签页之前先取代数：连着切了几次时，晚回来的旧查询不改目标。accept 不收的结果重新认一次当前标签页。 */
+  async function follow(lookup: () => Promise<TabInfo | null>, accept: (tab: TabInfo | null) => boolean = () => true): Promise<void> {
+    generation += 1;
+    const asked = generation;
+    const tab = await lookup();
+    if (stopped || asked !== generation) return;
+    if (!accept(tab)) return refresh();
+    await settle(tab, asked);
+  }
+
+  function refresh(): Promise<void> {
+    return follow(async () => {
+      if (windowId === null) windowId = await browser.currentWindowId();
+      return windowId === null ? null : browser.activeTab(windowId);
+    });
   }
 
   const onActivated: ActivatedListener = ({ tabId, windowId: from }) => {
     if (stopped || from !== windowId) return;
-    void browser.getTab(tabId).then((tab) => (stopped ? undefined : settle(tab)));
+    void follow(() => browser.getTab(tabId));
   };
   const onUpdated: UpdatedListener = (tabId, change, tab) => {
     if (stopped || tabId !== watching || (change.url === undefined && change.title === undefined)) return;
-    void settle(tab);
+    void follow(async () => tab);
   };
   browser.onActivated.addListener(onActivated);
   browser.onUpdated.addListener(onUpdated);
@@ -127,7 +137,10 @@ export function createFollow({ api, enabled, browser = browserFollow() }: Follow
   const unsubscribe = [
     // 卡片点开侧边栏时后台广播它所在的标签页；不在本窗口的不跟。
     api.on("panel.follow", ({ tabId }) => {
-      void browser.getTab(tabId).then((tab) => (stopped || tab?.windowId !== windowId ? undefined : settle(tab)));
+      void follow(
+        () => browser.getTab(tabId),
+        (tab) => tab?.windowId === windowId,
+      );
     }),
     // 启用以后再认一次：地址里认不出的视频这时才问得了观看会话。
     api.on("activation.changed", ({ confirmed }) => {

@@ -184,3 +184,75 @@ test("问答：没存进历史的回答，收尾广播先到也不被历史盖�
   assert.equal(qa.state.value.unsavedId, "q2");
   qa.stop();
 });
+
+test("跟随：地址明确不是播放页时不退到观看会话，不把上一个视频找回来", async () => {
+  const { fake, api } = setup();
+  const tabs = new Map([[5, { windowId: 1, url: WATCH }]]);
+  const page = fakeBrowser(tabs, { id: 5 });
+  fake.reply("session.get", { value: { ok: true, value: { session: { video: FIRST } } } });
+  const follow = createFollow({ api, enabled: signal(true), browser: page.browser });
+  await follow.refresh();
+  assert.equal(follow.target.value.video, FIRST);
+  page.navigate(5, "https://www.bilibili.com/");
+  await until(() => follow.target.value.video === null);
+  await nextTurn();
+  assert.equal(follow.target.value.video, null);
+  assert.equal(fake.attempts("session.get"), 0, "读得到地址就不问观看会话");
+  follow.stop();
+});
+
+test("跟随：连着切两次标签页，先发的查询晚回来也不把目标改回去", async () => {
+  const { api } = setup();
+  type Listener = (info: { tabId: number; windowId: number }) => void;
+  const activated = new Set<Listener>();
+  const slow = deferred();
+  const browser = {
+    currentWindowId: async () => 1,
+    activeTab: async () => ({ id: 5, windowId: 1, url: WATCH }),
+    getTab: async (id: number) => {
+      if (id === 6) await slow.promise;
+      return { id, windowId: 1, url: id === 6 ? WATCH : "https://www.bilibili.com/video/BV1Sample002" };
+    },
+    onActivated: { addListener: (l: Listener) => void activated.add(l), removeListener: (l: Listener) => void activated.delete(l) },
+    onUpdated: { addListener: () => {}, removeListener: () => {} },
+  } as unknown as FollowBrowser;
+  const follow = createFollow({ api, enabled: signal(true), browser });
+  await follow.refresh();
+  for (const tabId of [6, 7]) for (const listener of activated) listener({ tabId, windowId: 1 });
+  await until(() => follow.target.value.tabId === 7);
+  slow.resolve();
+  await nextTurn();
+  assert.equal(follow.target.value.tabId, 7);
+  assert.equal(follow.target.value.video, SECOND);
+  follow.stop();
+});
+
+test("概览：没存进本机的概览，收尾广播和更新广播都不拿本机那份盖掉它", async () => {
+  const { fake, api } = setup();
+  const gate = deferred();
+  const fresh = { chapters: [{ title: "刚生成的", timestampSeconds: 0 }] };
+  fake.reply("overview.get", { value: { ok: true, value: { video: FIRST, overview: { analysis: { chapters: [{ title: "旧的", timestampSeconds: 0 }] }, analysisFailures: [] } } } });
+  fake.reply("task.list", { value: { ok: true, value: { tasks: [] } } });
+  const task: TaskView = { id: "o2", kind: "overview", origin: "user", video: FIRST, state: "running", done: 0, total: 1, phase: "", message: "", createdAt: 1, updatedAt: 1 };
+  fake.reply("task.start", { value: { ok: true, value: { task, joined: false } } });
+  fake.reply("overview.start", async () => {
+    await gate.promise;
+    return { ok: true, value: { video: FIRST, analysis: fresh, analysisFailures: [], fromCache: false, failedChunks: 0, saveFailed: true } };
+  });
+  const overview = createOverviewStore({ api });
+  overview.bind(FIRST);
+  await until(() => overview.state.value.loaded);
+  const running = overview.generate(true);
+  await until(() => overview.state.value.task?.id === "o2");
+  fake.broadcast({ type: "task.changed", task: { ...task, state: "completed" } });
+  await nextTurn();
+  gate.resolve();
+  await running;
+  assert.equal(fake.attempts("overview.get"), 1, "自己在等的任务收尾时不另外重读");
+  fake.broadcast({ type: "overview.updated", video: FIRST, verdictPending: false });
+  await until(() => fake.attempts("overview.get") === 2);
+  await nextTurn();
+  assert.deepEqual(overview.state.value.saved?.analysis, fresh);
+  assert.equal(overview.state.value.result?.saveFailed, true);
+  overview.stop();
+});

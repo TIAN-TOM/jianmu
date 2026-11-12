@@ -53,6 +53,10 @@ export function createOverviewStore({ api }: { readonly api: Pick<PageApi, "send
   const state = signal<OverviewState>(EMPTY);
   let generation = 0;
   let offs: (() => void)[] = [];
+  /** 这个页面自己在等回复的任务：收尾广播不替它重读，结果以回复为准。 */
+  const awaiting = new Set<string>();
+  /** 刚生成却没存进本机的概览只在这一页上，重读时不拿本机那份盖掉它。 */
+  let keepLocal = false;
 
   const patch = (asked: number, next: Partial<OverviewState>): void => {
     if (asked === generation) state.value = { ...state.peek(), ...next };
@@ -60,7 +64,7 @@ export function createOverviewStore({ api }: { readonly api: Pick<PageApi, "send
 
   async function reload(asked: number, video: VideoKey): Promise<void> {
     const reply = await api.send("overview.get", { video });
-    if (reply.ok) patch(asked, { saved: reply.value.overview ?? null, loaded: true });
+    if (reply.ok) patch(asked, { loaded: true, ...(keepLocal ? {} : { saved: reply.value.overview ?? null }) });
     else patch(asked, { loaded: true, error: failureText(reply) });
   }
 
@@ -76,7 +80,7 @@ export function createOverviewStore({ api }: { readonly api: Pick<PageApi, "send
     } else {
       return;
     }
-    if (!isRunning(task)) void reload(asked, video);
+    if (task.state !== "running" && !awaiting.has(task.id)) void reload(asked, video);
   }
 
   async function attach(asked: number, video: VideoKey): Promise<void> {
@@ -104,9 +108,11 @@ export function createOverviewStore({ api }: { readonly api: Pick<PageApi, "send
     const { task, joined } = started.value;
     patch(asked, { [slot]: task });
     if (joined) return;
-    const reply = await begin(task.id, video);
+    awaiting.add(task.id);
+    const reply = await begin(task.id, video).finally(() => awaiting.delete(task.id));
     if (asked !== generation) return;
     if (reply.ok) {
+      keepLocal = reply.value.saveFailed === true;
       patch(asked, { [slot]: null, preview: kind === "overview" ? null : state.peek().preview, result: reply.value, saved: { analysis: reply.value.analysis, analysisFailures: reply.value.analysisFailures } });
     } else {
       patch(asked, { [slot]: null, ...(kind === "overview" ? { preview: null } : {}), error: failureText(reply) });
@@ -122,6 +128,7 @@ export function createOverviewStore({ api }: { readonly api: Pick<PageApi, "send
       const asked = generation;
       for (const off of offs) off();
       offs = [];
+      keepLocal = false;
       state.value = { ...EMPTY, video };
       if (!video) return;
       offs = [
