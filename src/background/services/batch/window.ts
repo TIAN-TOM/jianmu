@@ -1,8 +1,9 @@
 // 本窗口全部生成，分两段。确认前只在本机清点，跟着页面走：只看标签页的地址和标题、本机已有的概览和任务表，不向平台读，
 // 清点结果记在发起清点的端口上，端口断开就忘掉。确认后不跟页面走：后台逐个读字幕（两项之间有间隔，被限流、连着要登录、
 // 读取路线读不了就整批停下），读到了就登记一个概览任务交给概览服务，模型请求和单个概览排同一道并发闸门；
-// 关掉侧边栏照常做完，重开时按窗口接上。只认 B 站的视频，同一个视频同一分 P 只算一次。这一批只记在内存里。
+// 关掉侧边栏照常做完，重开时按窗口接上；清除本机数据以后整批停下。只认 B 站的视频，同一个视频同一分 P 只算一次。这一批只记在内存里。
 import { hasAnalysisContent } from "../../../core/ai/verdict.ts";
+import type { ClearEpoch, ClearGuard } from "../../../core/clear-guard.ts";
 import type { ErrorCode, Result } from "../../../core/errors.ts";
 import { OFFICIAL_INTERVAL_MS, runPaced, type BatchStop, type PacedOutcome, type SleepFn } from "../../../core/triage/batch.ts";
 import { parseVideoKey, videoKey, type VideoKey } from "../../../core/video-ref.ts";
@@ -35,6 +36,7 @@ export interface WindowBatchDeps {
   readonly overview: Pick<OverviewService, "generate" | "retryFailed">;
   readonly tasks: Pick<TaskRunner, "register" | "cancel" | "list">;
   readonly ai: Pick<AiWiring, "configCheck" | "freeze">;
+  readonly guard: ClearGuard;
   readonly keepAlive: KeepAlive;
   readonly sleep: SleepFn;
   readonly now: () => number;
@@ -68,6 +70,8 @@ interface Run {
   readonly entries: Map<VideoKey, Entry>;
   readonly listeners: Map<string, WindowListener>;
   readonly halt: AbortController;
+  /** 确认时记下的清除代数：之后清除了本机数据，这一批就停下。 */
+  readonly since: ClearEpoch | undefined;
   stopping: boolean;
   stop?: BatchStop | undefined;
   /** 逐个读的那一圈还在走。 */
@@ -103,6 +107,15 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
     }
     return null;
   }
+
+  const cleared = (since: ClearEpoch | undefined): boolean => deps.guard.clearedSince(since, "cache");
+
+  const cancelEntry = (run: Run, entry: Entry): PacedOutcome => {
+    entry.status = "canceled";
+    entry.taskId = undefined;
+    publish(run);
+    return { requested: false };
+  };
 
   const busy = (run: Run): boolean => run.pacing || [...run.entries.values()].some((entry) => !SETTLED.has(entry.status));
 
@@ -155,14 +168,22 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
    * 登记一个概览任务、交给概览服务。任务不跟页面走：关掉侧边栏照常做完。同一个视频别处用同样的设置在生成就接上它，
    * 用别的设置在生成就跳过。生成在后台继续，这里不等它做完。
    */
-  async function launch(run: Run, entry: Entry, mode: "generate" | "retry"): Promise<void> {
+  async function launch(run: Run, entry: Entry, mode: "generate" | "retry", since: ClearEpoch | undefined): Promise<void> {
+    // 等取定配置、等登记的工夫点了停止或者清除了本机数据：不再开始。
+    const dropped = (): boolean => entry.stopRequested === true || cleared(since);
     const gen = await deps.ai.freeze("analysis");
     const stages = [await deps.ai.freeze("verdict")];
+    if (dropped()) return void cancelEntry(run, entry);
     const registered = await deps.tasks.register({ kind: "overview", origin: "batch", video: entry.video, gen, stages, followsPage: false }, {});
     if (!("task" in registered)) {
       entry.status = "skipped";
       publish(run);
       return;
+    }
+    if (dropped()) {
+      // 新起的任务撤掉；接上的是别处的任务，留给它自己。
+      if (!registered.joined) deps.tasks.cancel(registered.task.id);
+      return void cancelEntry(run, entry);
     }
     const taskId = registered.task.id;
     entry.taskId = taskId;
@@ -178,15 +199,11 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
     );
   }
 
-  const cancelEntry = (run: Run, entry: Entry): PacedOutcome => {
-    entry.status = "canceled";
-    publish(run);
-    return { requested: false };
-  };
-
   /** 逐个读字幕的一项：读到了才登记任务。读不成的码交给停止规则。 */
   async function step(run: Run, entry: Entry): Promise<PacedOutcome> {
     const ref = parseVideoKey(entry.video);
+    // 清除了本机数据：整批停下，之前开始的这一批不再登记新的任务。
+    if (cleared(run.since)) run.halt.abort();
     if (!ref || entry.stopRequested || run.halt.signal.aborted) return cancelEntry(run, entry);
     entry.status = "running";
     publish(run);
@@ -198,8 +215,9 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
       // 取字幕服务交回的失败不带影响范围：格式不对时按整体读不了算，整批停下。
       return { requested: true, failure: { code: snapshot.code } };
     }
-    if (entry.stopRequested) return { ...cancelEntry(run, entry), requested: true };
-    await launch(run, entry, "generate");
+    if (cleared(run.since)) run.halt.abort();
+    if (entry.stopRequested || cleared(run.since)) return { ...cancelEntry(run, entry), requested: true };
+    await launch(run, entry, "generate", run.since);
     return { requested: true };
   }
 
@@ -266,6 +284,7 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
         entries: new Map(items.map((item) => [item.video, { video: item.video, title: item.title, status: "pending" as const }])),
         listeners: new Map([...(again?.listeners ?? []), [listener.id, listener]]),
         halt: new AbortController(),
+        since: deps.guard.epoch(),
         stopping: false,
         pacing: false,
       };
@@ -293,6 +312,7 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
       if (!run || !entry || !RETRYABLE.has(entry.status)) return;
       if (!(await deps.ai.configCheck()).ready) return refuse(listener, windowId, "NO_AI_CONFIG");
       if (!RETRYABLE.has(entry.status)) return;
+      const since = deps.guard.epoch();
       run.stopping = false;
       entry.stopRequested = undefined;
       entry.failure = undefined;
@@ -301,7 +321,7 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
       // 停掉时存下了一部分的，只补没做完的块；别的从头生成，读字幕交给概览服务自己做。
       const stored = await deps.overviews.find(video);
       const gaps = hasAnalysisContent(stored?.analysis) && (stored?.analysisFailures?.length ?? 0) > 0;
-      await launch(run, entry, gaps ? "retry" : "generate");
+      await launch(run, entry, gaps ? "retry" : "generate", since);
     },
 
     watch(windowId, listener) {

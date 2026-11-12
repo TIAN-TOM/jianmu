@@ -52,6 +52,8 @@ interface Options {
   readonly ensureFails?: Readonly<Record<string, string>>;
   readonly tabs?: readonly { readonly url: string; readonly title: string }[];
   readonly verdictConcurrency?: number;
+  /** 取定配置前先等它：测试在这段等待里点停止。 */
+  readonly freezeGate?: Promise<void>;
 }
 
 /** 一句话的字幕：概览一块就做完。 */
@@ -106,7 +108,13 @@ function setup(options: Options = {}) {
     overview: harness.service,
     tasks: harness.tasks,
     verdict: harness.verdict,
-    ai: { configCheck: async () => ({ ready, errors: [] }), freeze: async (feature) => gens[feature] ?? ANALYSIS_GEN },
+    ai: {
+      configCheck: async () => ({ ready, errors: [] }),
+      async freeze(feature) {
+        await options.freezeGate;
+        return gens[feature] ?? ANALYSIS_GEN;
+      },
+    },
     guard: harness.guard,
     keepAlive: { hold: () => () => {}, during: async (_ms, work) => work() },
     timers,
@@ -361,6 +369,40 @@ test("全部停止：正在生成的停下，没轮到的不再开始", async ()
   assert.ok(await until(() => statuses(panel.last("window.state")).every((status) => status === "canceled")));
   assert.equal(panel.last("window.state")?.run?.stopping, false);
   assert.equal(harness.tasks.list().filter((task) => task.state === "running").length, 0);
+});
+
+test("清除了本机数据：这一批不再读下一个，也不再登记新的任务", async () => {
+  const tabs = ids.slice(0, 3).map((id) => ({ url: watchUrl(id), title: id }));
+  const { service, harness, timers, ensured, page } = setup({ tabs, respond: (ask) => hang(ask.request.signal) });
+  const panel = page("panel");
+  await service.handle({ type: "window.count", windowId: 7 }, panel.listener);
+  const running = service.handle({ type: "window.start", windowId: 7 }, panel.listener);
+  assert.ok(await until(() => harness.chunkAsks().length >= 1));
+  // 设置页清除：先停下在跑的任务，再在闸门里清。
+  harness.tasks.cancelAll({ code: "LOCAL_DATA_CLEARED" });
+  await harness.guard.clear("cache", async () => {});
+  await tick(timers);
+  await running;
+  assert.equal(new Set(ensured).size, 1, "清除以后没再读字幕");
+  assert.deepEqual(statuses(panel.last("window.state")).slice(1), ["canceled", "canceled"]);
+  assert.equal(harness.tasks.list().filter((task) => task.state === "running").length, 0);
+});
+
+test("取定配置、登记的工夫点了全部停止：回来以后不开始生成", async () => {
+  let release: () => void = () => {};
+  const freezeGate = new Promise<void>((resolve) => void (release = resolve));
+  const tabs = [{ url: watchUrl(ids[0]), title: "一" }];
+  const { service, harness, ensured, page } = setup({ tabs, freezeGate });
+  const panel = page("panel");
+  await service.handle({ type: "window.count", windowId: 7 }, panel.listener);
+  const running = service.handle({ type: "window.start", windowId: 7 }, panel.listener);
+  assert.ok(await until(() => ensured.length === 1));
+  await service.handle({ type: "window.stop", windowId: 7 }, panel.listener);
+  release();
+  await running;
+  assert.ok(await until(() => statuses(panel.last("window.state"))[0] === "canceled"));
+  assert.equal(harness.chunkAsks().length, 0, "没有发模型请求");
+  assert.equal(harness.tasks.list().length, 0, "没有留下任务");
 });
 
 test("没有清点过、或者 AI 服务没设置好时不开始；有一批在跑时不另开", async () => {

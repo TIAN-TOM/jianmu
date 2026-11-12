@@ -113,6 +113,7 @@ export function createBatchService(deps: BatchServiceDeps): BatchService {
     overview: deps.overview,
     tasks: deps.tasks,
     ai: deps.ai,
+    guard,
     keepAlive: deps.keepAlive,
     sleep,
     now: timers.now,
