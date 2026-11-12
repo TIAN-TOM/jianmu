@@ -117,7 +117,11 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
     }
   }
 
+  // 按存储重新载入过几次：保存在授权弹窗之后、排完队时比一下，期间重新载入过，点击时的表单就作废了。
+  let reloads = 0;
+
   async function reloadStale(): Promise<void> {
+    reloads += 1;
     models.value = [];
     await load();
     aiStatus.value = { text: STALE_TEXT, tone: "warn" };
@@ -163,8 +167,8 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
     const current = form.peek();
     const before = saved.peek();
     if (!current || !before || busy.peek()) return false;
-    // 按点击那一刻的表单保存。修订号用本页排在前面的写入落地之后的：授权弹窗期间别的页面清过密钥或全部数据，
-    // 本页记着的修订号就对不上，这次保存作废，不把清掉的写回去。
+    // 按点击那一刻的表单保存。修订号用本页排在前面的写入落地之后的；授权弹窗期间别的页面清过密钥或全部数据，
+    // 这次保存作废，不把清掉的写回去。
     const input = settingsInput(current, before);
     const check = validateForSave(input);
     const origin = check.ok ? originOf(check.settings.aiBaseUrl) : null;
@@ -173,6 +177,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       return false;
     }
     const asked = deps.requestHost(`${origin}*`);
+    const reloadsAtClick = reloads;
     busy.value = "save";
     try {
       let granted = false;
@@ -187,6 +192,11 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
         return false;
       }
       const written = await queued(async () => {
+        // 等授权、排队的工夫别的页面改过设置（比如清了密钥），表单已经按存储重新载入：点击时的表单不能再写回去。
+        if (reloads !== reloadsAtClick) {
+          aiStatus.value = { text: STALE_TEXT, tone: "warn" };
+          return null;
+        }
         ownWrites += 1;
         try {
           // 表单上没有的字段（同意、外观）用排在前面的写入落地之后的设置补全，不拿点击时的旧值盖回去。

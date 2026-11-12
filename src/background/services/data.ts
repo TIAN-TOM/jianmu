@@ -24,6 +24,8 @@ export interface DataServiceDeps {
   readonly tasks: Pick<TaskRunner, "cancelAll">;
   readonly settings: Pick<SettingsStore, "clearAll">;
   readonly storage: ExtensionStorage;
+  /** 忘掉取字幕服务内存里记着的字幕、官方总结和轻量读取，在途读取不再给之后的调用合并。 */
+  readonly forgetMemory: (scope: ClearScope) => void;
   /** 清空一个数据库仓库。 */
   readonly clearStore: (name: StoreName) => Promise<void>;
   readonly broadcast: (message: Broadcast) => void;
@@ -84,6 +86,7 @@ export function createDataService(deps: DataServiceDeps): DataService {
     deps.tasks.cancelAll(CLEARING);
     const targets = clearTargets(scope);
     await guard.clear(scope, async () => {
+      deps.forgetMemory(scope);
       await Promise.all(targets.stores.map((name) => deps.clearStore(name)));
       if (scope === "all") {
         await deps.settings.clearAll();

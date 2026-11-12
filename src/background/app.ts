@@ -340,6 +340,7 @@ function assembleData(deps: AppDeps, parts: OverviewParts, stores: ReturnType<ty
     tasks: parts.tasks,
     settings: parts.settings,
     storage: deps.storage,
+    forgetMemory: (scope) => parts.transcript.forget(scope),
     clearStore: (name) => driverOf(name).clear(),
     broadcast: (message) => void parts.messenger.toPages(message),
     now: deps.timers.now,

@@ -1,8 +1,10 @@
 // 资料一节的三条路由：导出的备份能原样导回来，导两次不重复；清除缓存留着笔记，清除全部连设置一起清掉并广播；
-// 导出和清除确认启用之前也能用，导入要先确认；只有设置页能发。
+// 导出和清除确认启用之前也能用，导入要先确认；只有设置页能发。清除连取字幕服务内存里记着的一起忘掉。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createApp } from "../../../../src/background/app.ts";
+import { createDataService } from "../../../../src/background/services/data.ts";
+import { createClearGuard } from "../../../../src/core/clear-guard.ts";
 import type { Backup } from "../../../../src/core/backup/format.ts";
 import { videoKey } from "../../../../src/core/video-ref.ts";
 import type { BackupImportReply } from "../../../../src/shared/messages/data.ts";
@@ -91,4 +93,37 @@ test("侧边栏、粗筛页、卡片和内容脚本都发不了", async () => {
       assert.deepEqual(await bg.send(type, req, sender), { ok: false, code: "FORBIDDEN" }, type);
     }
   }
+});
+
+test("两种清除都忘掉取字幕服务内存里记着的，而且在清除闸门里做", async () => {
+  const forgotten: string[] = [];
+  let clearing = false;
+  const guard = createClearGuard();
+  const data = createDataService({
+    notes: { all: async () => [], update: async () => null },
+    overviews: { all: async () => [], update: async () => null },
+    qa: { all: async () => [], commit: async () => true },
+    guard: {
+      ...guard,
+      clear: (scope, run) =>
+        guard.clear(scope, async () => {
+          clearing = true;
+          try {
+            return await run();
+          } finally {
+            clearing = false;
+          }
+        }),
+    },
+    tasks: { cancelAll: () => {} },
+    settings: { clearAll: async () => {} },
+    storage: createFakeChrome().deps({ warn() {}, error() {} }).storage,
+    forgetMemory: (scope) => void forgotten.push(`${scope}:${clearing}`),
+    clearStore: async () => {},
+    broadcast: () => {},
+    now: () => 0,
+  });
+  await data.clear("cache");
+  await data.clear("all");
+  assert.deepEqual(forgotten, ["cache:true", "all:true"]);
 });
