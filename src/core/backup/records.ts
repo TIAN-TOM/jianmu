@@ -45,7 +45,6 @@ export interface ImportedBackup {
 const ID_MAX = 200;
 const QA_ID_MAX = 100;
 const QA_ID_PREFIX = "qa_";
-export const NOTE_TEXT_MAX = 3000;
 const TITLE_MAX = 500;
 const AUTHOR_MAX = 300;
 
@@ -98,7 +97,13 @@ export function keepValid<T>(list: readonly unknown[], check: (value: unknown) =
   const kept: T[] = [];
   let skipped = 0;
   for (const value of list) {
-    const record = check(value);
+    let record: T | null;
+    try {
+      record = check(value);
+    } catch {
+      // 校验途中抛错的记录（比如字段转不成数字）也只算这一条坏。
+      record = null;
+    }
     if (record === null) skipped += 1;
     else kept.push(record);
   }
@@ -201,16 +206,6 @@ function checkParts(value: unknown, analysis: LearningAnalysis): OverviewParts |
   return { ...(chapters ? { chapters } : {}), ...(verdict ? { verdict } : {}) };
 }
 
-/** 正文和原文按上限截断。 */
-export function noteRecord(fields: NoteRecord): NoteRecord {
-  const { quote, text, ...rest } = fields;
-  return {
-    ...rest,
-    text: text.slice(0, NOTE_TEXT_MAX),
-    ...(quote === undefined ? {} : { quote: quote.slice(0, NOTE_TEXT_MAX) }),
-  };
-}
-
 export function checkNote(value: unknown): NoteRecord | null {
   if (!isFields(value)) return null;
   const { id, kind, origin, snapshot, text, quote, derived, updatedAt } = value;
@@ -219,7 +214,8 @@ export function checkNote(value: unknown): NoteRecord | null {
   if (!isRecordId(id) || kind !== "note" || (origin !== "user" && origin !== "legacy")) return null;
   if (!video || atSec === null || atSec < 0 || typeof text !== "string") return null;
   const createdAt = finite(value.createdAt) ?? finite(updatedAt) ?? 0;
-  return noteRecord({
+  // 正文和原文原样保留：从字幕存的笔记会比手写的上限长，备份不能把存得下的内容截短。
+  return {
     id,
     kind,
     origin,
@@ -231,7 +227,7 @@ export function checkNote(value: unknown): NoteRecord | null {
     ...(derived === undefined ? {} : { derived: checkDerived(derived) }),
     createdAt,
     updatedAt: finite(updatedAt) ?? createdAt,
-  });
+  };
 }
 
 /** parts 交回各部分的来历；结论那部分只在结论读得懂时才用。 */

@@ -135,7 +135,7 @@ test("新格式的坏记录逐条跳过并计数，该是列表的不是列表�
   }
 });
 
-test("新格式的记录只留认得的字段：依据读不懂的记成未知，正文截到 3000 字，概览过一遍生成时的校验", () => {
+test("新格式的记录只留认得的字段：依据读不懂的记成未知，长正文原样保留，概览过一遍生成时的校验", () => {
   const imported = read(
     buildBackup(
       {
@@ -159,7 +159,7 @@ test("新格式的记录只留认得的字段：依据读不懂的记成未知�
     ),
   );
   const [long, noGen, legacy] = imported.contents.notes;
-  assert.equal(long?.text.length, 3000);
+  assert.equal(long?.text.length, 3100);
   assert.deepEqual(long?.derived, { basis: { source: "legacy-unknown" } });
   assert.deepEqual(noGen?.derived, { basis: { source: "legacy-unknown" } }, "依据已知却缺生成配置的只能算未知");
   assert.deepEqual(legacy?.derived, { basis: { source: "legacy-unknown", hint: "official-summary" } });
@@ -212,4 +212,35 @@ test("新格式的问答缺依据或依据读不懂时记成依据未知，整�
     ],
   );
   assert.deepEqual(imported.skipped.qa, 0);
+});
+
+test("从字幕存的长笔记：导出再导入，正文和原文一个字不少", () => {
+  const text = "句".repeat(3506);
+  const quote = "原".repeat(3200);
+  const imported = read(buildBackup({ notes: [{ ...NOTE, id: "note_from_cues", text, quote }] }, EXPORTED_AT));
+  const [note] = imported.contents.notes;
+  assert.equal(note?.text, text);
+  assert.equal(note?.quote, quote);
+});
+
+test("校验途中抛错的记录只跳过这一条，同一份里的其他记录照常读出来", () => {
+  // 解析 JSON 得到的对象可以带一个不是函数的 toString，转成数字时会抛错。
+  const throwing = { toString: null };
+  const imported = read({
+    kind: BACKUP_KIND,
+    version: 1,
+    notes: [NOTE],
+    overviews: [
+      { ...OVERVIEW, videoKey: KEY_A, analysis: { chapters: [{ title: "坏的", timestampSeconds: throwing }] } },
+      OVERVIEW,
+    ],
+    qa: [QA],
+  });
+  assert.equal(imported.contents.notes.length, 1);
+  assert.equal(imported.contents.qa.length, 1);
+  assert.deepEqual(
+    imported.contents.overviews.map((item) => item.videoKey),
+    [KEY_Y],
+  );
+  assert.deepEqual(imported.skipped, { notes: 0, overviews: 1, qa: 0 });
 });

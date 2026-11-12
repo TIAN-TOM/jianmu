@@ -10,7 +10,6 @@ import {
   isQaId,
   isRecordId,
   keepValid,
-  noteRecord,
   overviewRecord,
   qaRecord,
   snapshotOf,
@@ -75,7 +74,7 @@ function legacyNote(value: unknown): NoteRecord | null {
   const createdAt = finite(value.createdAt) ?? finite(updatedAt) ?? 0;
   // 原文和正文一样时（手写的笔记）不另存一份。
   const quote = typeof rawText === "string" && rawText.trim() && rawText.trim() !== text.trim() ? rawText : undefined;
-  return noteRecord({
+  return {
     id: value.id,
     kind: "note",
     origin: "legacy",
@@ -87,7 +86,7 @@ function legacyNote(value: unknown): NoteRecord | null {
     derived: UNKNOWN_BASIS,
     createdAt,
     updatedAt: finite(updatedAt) ?? createdAt,
-  });
+  };
 }
 
 /** 概览的视频：先从视频号和分 P 推，再和旧记录键核对；不一致、读不懂或两样都缺就跳过。 */

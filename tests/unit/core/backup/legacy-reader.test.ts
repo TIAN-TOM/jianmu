@@ -319,7 +319,7 @@ test("旧笔记按 B 站视频读：分 P 不合法按第 1 P，原文和正文�
   });
   assert.equal(Object.hasOwn(second ?? {}, "quote"), false, "原文和正文一样的手写笔记不另存原文");
   assert.equal(third?.video, KEY_B1, "分 P 是 0 时按第 1 P");
-  assert.equal(read(legacyBackup({ notes: [evilNote({ text: "长".repeat(3100) })] })).contents.notes[0]?.text.length, 3000);
+  assert.equal(read(legacyBackup({ notes: [evilNote({ text: "长".repeat(3100) })] })).contents.notes[0]?.text.length, 3100, "长正文原样保留");
 });
 
 test("概览的记录键读不懂、和视频号对不上或分 P 大得离谱时跳过，不抛错", () => {
