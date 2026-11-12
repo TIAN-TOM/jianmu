@@ -134,10 +134,14 @@ export function createCardModel(deps: CardDeps) {
   function syncVideo(url: string): void {
     const next = keyOf(deps.parseVideo(url));
     if (next === video && view.peek().phase !== "waiting") return;
+    const changed = next !== video;
     video = next;
     reset(next ? "loading" : "not-video");
+    // 手动展开收起只管这一个视频：换了视频回到默认，再看新视频的会话里有没有记着。
+    if (changed) patch({ collapsed: false });
     if (!next) patch(notice("这里不是视频播放页。"));
     void load();
+    if (changed && next) void restoreCollapse();
   }
 
   async function load(quiet = false): Promise<void> {
@@ -335,7 +339,6 @@ export function createCardModel(deps: CardDeps) {
       tab = await deps.currentTab();
       if (!tab) return patch({ phase: "failed", ...notice("没能确认卡片所在的标签页。请打开完整面板查看总结。", "error") });
       syncVideo(tab.url);
-      void restoreCollapse();
     },
     /** 配置检查有了新结果：卡片从隐藏变成显示时接着读。 */
     configChanged(): void {

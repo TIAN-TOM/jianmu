@@ -91,6 +91,20 @@ test("同一视频已经有任务在跑：接上它看进度，结束后重读",
   assert.deepEqual(model.view.value.analysis, ANALYSIS);
 });
 
+test("收起只管当前视频：换了视频回到展开，接着读新视频", async () => {
+  const { fake, model } = setup();
+  fake.reply("card.setOverride", { value: { ok: true, value: { session: {} } } });
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  await model.toggle();
+  assert.equal(model.view.value.collapsed, true);
+  fake.reply("transcript.get", { value: guides(videoKey(SECOND)) });
+  model.urlChanged("https://www.bilibili.com/video/BV1Sample002");
+  assert.equal(model.view.value.collapsed, false);
+  assert.ok(await until(() => model.view.value.phase === "loaded" && model.view.value.title !== ""));
+});
+
 test("换了视频以后，上一个视频迟到的读取结果不渲染", async () => {
   const { fake, model } = setup();
   let release: (value: unknown) => void = () => undefined;
