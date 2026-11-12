@@ -11,6 +11,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
 import { launchChrome } from "./browser.mjs";
+import { MODEL_HOSTS } from "./mock-ai.mjs";
 import { startMockServer } from "./mock-server.mjs";
 import { createHarness, registered, STEP_TIMEOUT_MS } from "./pages/harness.mjs";
 
@@ -23,7 +24,7 @@ const TEST_TIMEOUT_MS = 30_000;
 const SETTLE_MS = 150;
 
 /** 场景文件，按页面分。后面的页面加进来时在这里登记。 */
-const SCENARIOS = ["e2e/pages/gallery.mjs", "e2e/pages/panel.mjs"];
+const SCENARIOS = ["e2e/pages/gallery.mjs", "e2e/pages/panel.mjs", "e2e/pages/options.mjs"];
 
 const executable = process.env.CHROME_PATH;
 if (!executable) throw new Error("用 CHROME_PATH 指定 Chrome for Testing 的可执行文件");
@@ -37,6 +38,11 @@ const dirty = git("status", "--porcelain").length > 0;
 /** 复制构建产物，再把组件样张现编进副本：样张只在测试里有，不进产品包。 */
 async function prepareExtension(dir) {
   cpSync(BUILD, dir, { recursive: true });
+  // 模型服务的主机权限要用户在设置页点了才申请，无头 Chrome 里点不了授权框：副本的清单里先写上，申请时直接放行。
+  const manifestPath = join(dir, "manifest.json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  manifest.host_permissions = [...manifest.host_permissions, ...MODEL_HOSTS.map((host) => `https://${host}/*`)];
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   const fixtures = join(ROOT, "e2e/pages/fixtures");
   for (const name of ["gallery.html", "gallery.css"]) cpSync(join(fixtures, name), join(dir, "pages", name));
   await build({
@@ -99,6 +105,8 @@ try {
   ({ product: chrome } = await cdp.send("Browser.getVersion", {}, undefined, STEP_TIMEOUT_MS));
   await cdp.send("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
   await cdp.send("Target.setDiscoverTargets", { discover: true });
+  // 设置页导出备份会下载文件：落到临时目录，不进用户的下载文件夹。
+  await cdp.send("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: join(work, "downloads") });
   const { id } = await browser.loadExtension(STEP_TIMEOUT_MS * 2);
   if (id !== expectedId) throw new Error(`扩展 ID 是 ${id}，应为 ${expectedId}`);
   console.log(`${chrome} 装上了扩展，开始页面测试`);

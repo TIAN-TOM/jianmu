@@ -26,5 +26,9 @@
   },
   "side_panel": {
     "default_path": "pages/sidepanel.html"
+  },
+  "options_ui": {
+    "page": "pages/options.html",
+    "open_in_tab": true
   }
 }

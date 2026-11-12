@@ -4,6 +4,9 @@ icons/icon-128.png
 icons/icon-16.png
 icons/icon-48.png
 manifest.json
+pages/options.css
+pages/options.html
+pages/options.js
 pages/sidepanel.html
 pages/sidepanel.js
 pages/theme-boot.js

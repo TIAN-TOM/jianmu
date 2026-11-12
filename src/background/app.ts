@@ -15,6 +15,7 @@ import { analysisChunkOptions } from "../shared/settings-schema.ts";
 import { siteRules } from "../sites/rules.ts";
 import { createSiteCtx, siteService } from "../sites/services.ts";
 import type { NoteRecord, OverviewRecord, QaRecord } from "../core/notes/records.ts";
+import type { StoreName } from "../shared/names.ts";
 import type { SiteRules } from "../sites/types.ts";
 import { createAiWiring, type AiWiring, type ModelServiceFetch, type PromptTable } from "./ai.ts";
 import { createContentTabs, type ContentTabs } from "./content-tabs.ts";
@@ -35,14 +36,15 @@ import { createCacheStore, type CacheEntry } from "./stores/cache.ts";
 import { createChannelStore, type ChannelRecord, type ChannelStore } from "./stores/channels.ts";
 import { lazyDriver } from "./stores/drivers.ts";
 import { createImportStore, type ImportRecord } from "./stores/imports.ts";
-import { createNoteStore } from "./stores/notes.ts";
+import { createNoteStore, type NoteStore } from "./stores/notes.ts";
 import { createOverviewStore, type OverviewStore } from "./stores/overviews.ts";
-import { createQaStore } from "./stores/qa.ts";
+import { createQaStore, type QaStore } from "./stores/qa.ts";
 import { createTranslationStore, type TranslationRecord } from "./stores/translations.ts";
 import { createOverviewService, type OverviewService } from "./services/overview/index.ts";
 import { createVerdictService, type VerdictService } from "./services/overview/verdict.ts";
 import { createExplainService, type ExplainService } from "./services/explain.ts";
 import { createNotesService, type NotesService } from "./services/notes.ts";
+import { createDataService, type DataService } from "./services/data.ts";
 import { createQaService, type QaService } from "./services/qa.ts";
 import { createTranslateService, type TranslateService } from "./services/translate.ts";
 import { CLAIM_MS, createTaskRunner, type TaskRunner, type Timers } from "./tasks.ts";
@@ -136,6 +138,8 @@ interface Core {
   readonly translate: TranslateService;
   /** 播放页记的笔记这会儿还能不能润色。 */
   readonly playerNotePolish: () => boolean;
+  /** 设置页的备份和清除。 */
+  readonly data: DataService;
 }
 
 function assembleAi(deps: AppDeps, settings: SettingsStore, clearGuard: ClearGuard): AiWiring {
@@ -256,21 +260,28 @@ function assembleVerdict(deps: AppDeps, parts: OverviewParts): VerdictService {
 }
 
 /** 问答、划词解释和笔记：问答历史和笔记各一个仓储，笔记的链接按站点的规则现拼。 */
-function assembleStudy(deps: AppDeps, parts: OverviewParts, keepAlive: KeepAlive) {
+function assembleStudyStores(deps: AppDeps, clearGuard: ClearGuard): { readonly notes: NoteStore; readonly qa: QaStore } {
+  const rules = (platform: string) => deps.siteRules.find((rule) => rule.platform === platform);
+  return {
+    notes: createNoteStore({
+      driver: lazyDriver<NoteRecord>("notes", deps.indexedDB),
+      guard: clearGuard,
+      canonicalUrl: (ref, atSec) => rules(ref.platform)?.canonicalUrl(ref, atSec) ?? "",
+    }),
+    qa: createQaStore({ driver: lazyDriver<QaRecord>("qa", deps.indexedDB), guard: clearGuard }),
+  };
+}
+
+function assembleStudy(deps: AppDeps, parts: OverviewParts, keepAlive: KeepAlive, stores: ReturnType<typeof assembleStudyStores>) {
   const { timers } = deps;
   const newId = () => crypto.randomUUID();
-  const rules = (platform: string) => deps.siteRules.find((rule) => rule.platform === platform);
-  const notes = createNoteStore({
-    driver: lazyDriver<NoteRecord>("notes", deps.indexedDB),
-    guard: parts.clearGuard,
-    canonicalUrl: (ref, atSec) => rules(ref.platform)?.canonicalUrl(ref, atSec) ?? "",
-  });
+  const { notes } = stores;
   return {
     qa: createQaService({
       tasks: parts.tasks,
       transcript: parts.transcript,
       overviews: parts.overviews,
-      qa: createQaStore({ driver: lazyDriver<QaRecord>("qa", deps.indexedDB), guard: parts.clearGuard }),
+      qa: stores.qa,
       guard: parts.clearGuard,
       prompt: parts.ai.prompt,
       chunkOptions: async () => analysisChunkOptions(await parts.settings.loadPublic()),
@@ -313,6 +324,28 @@ function assembleTranslate(deps: AppDeps, parts: OverviewParts): TranslateServic
   });
 }
 
+// 清除用的驱动单独建，每个仓库一份，第一次清除时才开库。
+function assembleData(deps: AppDeps, parts: OverviewParts, stores: ReturnType<typeof assembleStudyStores>): DataService {
+  const drivers = new Map<StoreName, ReturnType<typeof lazyDriver>>();
+  const driverOf = (name: StoreName) => {
+    let driver = drivers.get(name);
+    if (!driver) drivers.set(name, (driver = lazyDriver(name, deps.indexedDB)));
+    return driver;
+  };
+  return createDataService({
+    notes: stores.notes,
+    overviews: parts.overviews,
+    qa: stores.qa,
+    guard: parts.clearGuard,
+    tasks: parts.tasks,
+    settings: parts.settings,
+    storage: deps.storage,
+    clearStore: (name) => driverOf(name).clear(),
+    broadcast: (message) => void parts.messenger.toPages(message),
+    now: deps.timers.now,
+  });
+}
+
 function assembleCore(deps: AppDeps): Core {
   const tabs = createTabs({ tabs: deps.tabs, sidePanel: deps.sidePanel, runtime: deps.runtime, scripting: deps.scripting });
   const contentTabs = createContentTabs();
@@ -326,6 +359,7 @@ function assembleCore(deps: AppDeps): Core {
   const overviews = createOverviewStore({ driver: lazyDriver<OverviewRecord>("overviews", deps.indexedDB), guard: clearGuard, now: deps.timers.now });
   const transcript = assembleTranscript(deps, clearGuard, tabs, overviews);
   const generation: OverviewParts = { settings, clearGuard, ai, tasks, messenger, transcript, overviews, gate: createLimiter() };
+  const studyStores = assembleStudyStores(deps, clearGuard);
   return {
     settings,
     clearGuard,
@@ -344,8 +378,9 @@ function assembleCore(deps: AppDeps): Core {
     transcript,
     overview: assembleOverview(deps, generation),
     verdict: assembleVerdict(deps, generation),
-    ...assembleStudy(deps, generation, keepAlive),
+    ...assembleStudy(deps, generation, keepAlive, studyStores),
     translate: assembleTranslate(deps, generation),
+    data: assembleData(deps, generation, studyStores),
   };
 }
 

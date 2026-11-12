@@ -7,6 +7,7 @@ import type { TaskView } from "../core/tasks.ts";
 import type { VideoKey } from "../core/video-ref.ts";
 import type { AiApi } from "./messages/ai.ts";
 import type { CoreApi } from "./messages/core.ts";
+import type { DataApi } from "./messages/data.ts";
 import type { GrantsApi } from "./messages/grants.ts";
 import type { ImportsApi } from "./messages/imports.ts";
 import type { NotesApi } from "./messages/notes.ts";
@@ -34,7 +35,8 @@ export interface Api extends
   ImportsApi,
   OverviewApi,
   QaApi,
-  NotesApi {}
+  NotesApi,
+  DataApi {}
 
 export type RouteName = keyof Api;
 

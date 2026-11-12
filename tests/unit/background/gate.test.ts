@@ -57,6 +57,7 @@ const realRoutes = (): Readonly<Record<string, AnyRoute>> =>
     cardLimits: { admitGenerate: () => assert.fail(), issueToken: () => assert.fail(), redeemToken: () => assert.fail() },
     reinject: async () => assert.fail(),
     grants: { releaseUnused: async () => assert.fail() },
+    data: { exportBackup: async () => assert.fail(), importBackup: async () => assert.fail(), clear: async () => assert.fail() },
     sessions: {
       onPlaybackInfo: async () => assert.fail(),
       onMilestone: async () => assert.fail(),

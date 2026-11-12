@@ -9,7 +9,7 @@ import { ANTHROPIC, OPENAI, VIDEOS } from "./fixtures.mjs";
 /**
  * 一次模型请求。video 是视频的编号（fixtures 里 VIDEOS 的键），认不出时是空串。
  * @typedef {{ host: string, path: string, cookie: string, unexpected: boolean, at: number, answeredAt?: number, aborted?: true,
- *   provider: string, kind: "analysis" | "verdict" | "models" | "", video: string, held?: true }} ModelCall
+ *   provider: string, kind: "analysis" | "verdict" | "models" | "test" | "", video: string, held?: true }} ModelCall
  */
 
 const SERVICES = [
@@ -51,8 +51,12 @@ function videoOf(prompt) {
   return Object.entries(VIDEOS).find(([, video]) => video.title === title)?.[0] ?? "";
 }
 
-/** @param {string} prompt @returns {"analysis" | "verdict" | ""} */
+/** 设置页「测试连接」发的那句话。 */
+const TEST_PROMPT = "回复两个字：可用";
+
+/** @param {string} prompt @returns {"analysis" | "verdict" | "test" | ""} */
 function kindOf(prompt) {
+  if (prompt.trim() === TEST_PROMPT) return "test";
   if (prompt.includes("章节摘要：")) return "verdict";
   if (/（第 \d+ 秒）/.test(prompt) && prompt.includes("字幕：")) return "analysis";
   return "";
@@ -164,7 +168,8 @@ export function createModelServices({ record }) {
       const prompt = promptOf(body);
       call.kind = kindOf(prompt);
       call.video = videoOf(prompt);
-      if (req.method !== "POST" || path !== endpoint || !call.kind || !call.video) {
+      // 测试连接不带视频，其余请求要认得出是哪个视频。
+      if (req.method !== "POST" || path !== endpoint || !call.kind || (!call.video && call.kind !== "test")) {
         call.unexpected = true;
         return send(res, 404, { error: { message: "sample refusal" } });
       }
@@ -173,7 +178,8 @@ export function createModelServices({ record }) {
         return undefined;
       }
       serial += 1;
-      send(res, 200, completion(protocol, body?.model ?? service.model, JSON.stringify(resultOf(call.kind, prompt)), serial));
+      const text = call.kind === "test" ? "可用" : JSON.stringify(resultOf(call.kind, prompt));
+      send(res, 200, completion(protocol, body?.model ?? service.model, text, serial));
       call.answeredAt = Date.now();
       return undefined;
     },

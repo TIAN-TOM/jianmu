@@ -3,6 +3,7 @@ import type { AnyPortSpec, Ports, Routes } from "../router.ts";
 import { activationRoutes, type ActivationRouteDeps } from "./activation.ts";
 import { aiRoutes, type AiRouteDeps } from "./ai.ts";
 import { appearanceRoutes, type AppearanceRouteDeps } from "./appearance.ts";
+import { dataRoutes, type DataRouteDeps } from "./data.ts";
 import { grantRoutes, type GrantRouteDeps } from "./grants.ts";
 import { importRoutes, type ImportRouteDeps } from "./imports.ts";
 import { noteRoutes, type NoteRouteDeps } from "./notes.ts";
@@ -27,7 +28,8 @@ export type RouteDeps = ActivationRouteDeps &
   OverviewRouteDeps &
   VerdictRouteDeps &
   QaRouteDeps &
-  NoteRouteDeps;
+  NoteRouteDeps &
+  DataRouteDeps;
 
 export function createRoutes(deps: RouteDeps): Routes {
   return {
@@ -44,6 +46,7 @@ export function createRoutes(deps: RouteDeps): Routes {
     ...verdictRoutes(deps),
     ...qaRoutes(deps),
     ...noteRoutes(deps),
+    ...dataRoutes(deps),
   };
 }
 
