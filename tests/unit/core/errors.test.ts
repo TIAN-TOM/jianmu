@@ -4,6 +4,7 @@ import { test } from "node:test";
 import { describe, fail, isErrorCode, ok } from "../../../src/core/errors.ts";
 import { AI_ERROR_TEXT } from "../../../src/core/errors/ai.ts";
 import { BACKUP_ERROR_TEXT } from "../../../src/core/errors/backup.ts";
+import { BATCH_ERROR_TEXT } from "../../../src/core/errors/batch.ts";
 import { DATA_ERROR_TEXT } from "../../../src/core/errors/data.ts";
 import { NOTE_ERROR_TEXT } from "../../../src/core/errors/notes.ts";
 import { OVERVIEW_ERROR_TEXT } from "../../../src/core/errors/overview.ts";
@@ -31,6 +32,7 @@ const DOMAINS = {
   notes: NOTE_ERROR_TEXT,
   translate: TRANSLATE_ERROR_TEXT,
   backup: BACKUP_ERROR_TEXT,
+  batch: BATCH_ERROR_TEXT,
 };
 
 test("每个码都有一句给用户看的话，各领域之间不重名", () => {

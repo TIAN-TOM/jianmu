@@ -855,7 +855,7 @@ test("翻译批次自己重发过、回来的还是读不出的 JSON：补轮不
 });
 
 test("翻译端口只收侧边栏：放行规则等于允许矩阵里那一行，别的页面连上就断开", async () => {
-  const spec = createPorts({ translate: { start: async () => {}, stop() {}, leave() {} } }).translate;
+  const spec = createPorts({ translate: { start: async () => {}, stop() {}, leave() {} }, batch: { handle: async () => {}, leave() {}, state: async () => assert.fail() } }).translate;
   const expected = ROUTE_MATRIX.find((row) => row.name === "translate" && row.port);
   assert.ok(spec && expected);
   assert.deepEqual(

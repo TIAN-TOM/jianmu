@@ -9,6 +9,7 @@ import {
   runVerdictBatch,
   verdictTodo,
   type OfficialRequest,
+  type ReadFailure,
   type VerdictRequest,
 } from "../../../../src/core/triage/batch.ts";
 import type { TriageVerdict } from "../../../../src/core/triage/groups.ts";
@@ -184,29 +185,48 @@ test("停止：请求进行中点停止，等这一个回来就结束", async ()
   assert.equal(result.stopped, true);
 });
 
-test("第一步的消息：带上视频身份", async () => {
+test("第一步：每一项交给注入的步骤，带上条目和视频身份；没发请求的不等间隔", async () => {
   const clock = fakeClock();
-  const sent: OfficialRequest[] = [];
+  const seen: OfficialRequest[] = [];
   const started: VideoKey[] = [];
   const channel = { platform: "bilibili", channelId: "22" } as const;
-  await runOfficialBatch({
-    items: [item("A", { mediaVersion: "11", channel }), item("B")],
-    send: async (message) => {
-      sent.push(message);
-      return { success: true, requested: message.ref?.videoId !== refOf("B").videoId };
+  const result = await runOfficialBatch({
+    items: [item("A", { mediaVersion: "11", channel }), item("B"), item("C")],
+    step: async (request) => {
+      seen.push(request);
+      return { requested: request.ref?.videoId !== refOf("B").videoId };
     },
     now: clock.now,
     sleep: clock.sleep,
     onStart: (video) => started.push(video.videoKey),
   });
-  assert.deepEqual(sent[0], {
-    action: "getOfficialSummary",
-    ref: refOf("A"),
-    mediaVersion: "11",
-    channel,
-  });
-  assert.deepEqual(started, [keyOf("A"), keyOf("B")]);
+  assert.deepEqual(seen[0], { item: item("A", { mediaVersion: "11", channel }), ref: refOf("A") });
+  assert.deepEqual(started, [keyOf("A"), keyOf("B"), keyOf("C")]);
   assert.deepEqual(clock.waits, [1500]);
+  assert.equal(result.stop, null);
+});
+
+test("第一步的停止规则：被限流马上停；连着两个要登录才停；格式不对只影响这一项时接着做", async () => {
+  const run = async (failures: Record<string, ReadFailure | null>) => {
+    const clock = fakeClock();
+    const done: string[] = [];
+    const result = await runOfficialBatch({
+      items: Object.keys(failures).map((name) => item(name)),
+      step: async ({ item: entry }) => {
+        const name = [...refs].find(([, ref]) => videoKey(ref) === entry.videoKey)?.[0] ?? "";
+        done.push(name);
+        return { requested: true, failure: failures[name] ?? null };
+      },
+      now: clock.now,
+      sleep: clock.sleep,
+    });
+    return { done, stop: result.stop };
+  };
+  assert.deepEqual(await run({ R1: null, R2: { code: "RATE_LIMITED" }, R3: null }), { done: ["R1", "R2"], stop: "rate-limited" });
+  assert.deepEqual(await run({ L1: { code: "NEED_LOGIN" }, L2: null, L3: { code: "NEED_LOGIN" }, L4: null }), { done: ["L1", "L2", "L3", "L4"], stop: null });
+  assert.deepEqual(await run({ N1: { code: "NEED_LOGIN" }, N2: { code: "NEED_LOGIN" }, N3: null }), { done: ["N1", "N2"], stop: "need-login" });
+  assert.deepEqual(await run({ M1: { code: "MALFORMED", reach: "item" }, M2: null }), { done: ["M1", "M2"], stop: null });
+  assert.deepEqual(await run({ S1: { code: "MALFORMED" }, S2: null }), { done: ["S1"], stop: "source" });
 });
 
 // 跳过已完成
@@ -266,25 +286,21 @@ test("第二步只挑有官方总结内容、还没有结论的视频", () => {
   );
 });
 
-test("第二步的消息：analyzeTranscript 带 verdictSource official 和 triage，只发给挑出来的视频", async () => {
+test("第二步：只把挑出来的视频交给注入的步骤，带上视频身份", async () => {
   const items = [item("A"), item("B"), item("C")];
   const official = { [keyOf("A")]: OK(), [keyOf("C")]: OK() };
-  const sent: VerdictRequest[] = [];
+  const seen: VerdictRequest[] = [];
   const results: [VideoKey, boolean][] = [];
   await runVerdictBatch({
     items: verdictTodo(items, official, {}),
     concurrency: 2,
-    send: async (message) => {
-      sent.push(message);
-      return { success: true, analysis: { verdict: verdictOf("可以跳过") } };
+    step: async (request) => {
+      seen.push(request);
+      return { written: true };
     },
-    onResult: (video, outcome) =>
-      results.push([video.videoKey, "response" in outcome && outcome.response.success]),
+    onResult: (video, outcome) => results.push([video.videoKey, !("error" in outcome) && outcome.written]),
   });
-  assert.deepEqual(sent, [
-    { action: "analyzeTranscript", ref: refOf("A"), verdictSource: "official", triage: true },
-    { action: "analyzeTranscript", ref: refOf("C"), verdictSource: "official", triage: true },
-  ]);
+  assert.deepEqual(seen.map((request) => request.ref), [refOf("A"), refOf("C")]);
   assert.deepEqual(results, [[keyOf("A"), true], [keyOf("C"), true]]);
 });
 

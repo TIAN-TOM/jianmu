@@ -20,6 +20,7 @@ export const IDEMPOTENT_ROUTES: ReadonlySet<RouteName> = new Set<RouteName>([
   "session.get",
   "task.list",
   "transcript.get",
+  "triage.state",
   "video.checkAvailable",
 ]);
 

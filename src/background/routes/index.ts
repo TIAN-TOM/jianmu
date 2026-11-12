@@ -3,6 +3,7 @@ import type { AnyPortSpec, Ports, Routes } from "../router.ts";
 import { activationRoutes, type ActivationRouteDeps } from "./activation.ts";
 import { aiRoutes, type AiRouteDeps } from "./ai.ts";
 import { appearanceRoutes, type AppearanceRouteDeps } from "./appearance.ts";
+import { batchPort, batchRoutes, type BatchRouteDeps } from "./batch.ts";
 import { dataRoutes, type DataRouteDeps } from "./data.ts";
 import { grantRoutes, type GrantRouteDeps } from "./grants.ts";
 import { importRoutes, type ImportRouteDeps } from "./imports.ts";
@@ -29,7 +30,8 @@ export type RouteDeps = ActivationRouteDeps &
   VerdictRouteDeps &
   QaRouteDeps &
   NoteRouteDeps &
-  DataRouteDeps;
+  DataRouteDeps &
+  BatchRouteDeps;
 
 export function createRoutes(deps: RouteDeps): Routes {
   return {
@@ -47,13 +49,14 @@ export function createRoutes(deps: RouteDeps): Routes {
     ...qaRoutes(deps),
     ...noteRoutes(deps),
     ...dataRoutes(deps),
+    ...batchRoutes(deps),
   };
 }
 
-export type PortDeps = TranslatePortDeps;
+export type PortDeps = TranslatePortDeps & BatchRouteDeps;
 
-/** 端口表：批量处理的端口随它的服务接上，在那之前谁连都断开。 */
+/** 端口表：翻译和粗筛。 */
 export function createPorts(deps: PortDeps): Readonly<Record<string, AnyPortSpec>> {
-  const ports: Ports = { ...translatePort(deps) };
+  const ports: Ports = { ...translatePort(deps), ...batchPort(deps) };
   return ports as Readonly<Record<string, AnyPortSpec>>;
 }

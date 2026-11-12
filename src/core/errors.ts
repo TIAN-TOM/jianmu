@@ -1,6 +1,7 @@
 // 错误码汇总和统一的结果形状。各领域的码和文案在 errors/ 下各一份，这里拼成一张表；漏写文案编译就报错。
 import { AI_ERROR_TEXT, type AiErrorCode } from "./errors/ai.ts";
 import { BACKUP_ERROR_TEXT, type BackupErrorCode } from "./errors/backup.ts";
+import { BATCH_ERROR_TEXT, type BatchErrorCode } from "./errors/batch.ts";
 import { DATA_ERROR_TEXT, type DataErrorCode } from "./errors/data.ts";
 import { NOTE_ERROR_TEXT, type NoteErrorCode } from "./errors/notes.ts";
 import { OVERVIEW_ERROR_TEXT, type OverviewErrorCode } from "./errors/overview.ts";
@@ -16,6 +17,7 @@ import { TRANSLATE_ERROR_TEXT, type TranslateErrorCode } from "./errors/translat
 export type {
   AiErrorCode,
   BackupErrorCode,
+  BatchErrorCode,
   DataErrorCode,
   NoteErrorCode,
   OverviewErrorCode,
@@ -42,7 +44,8 @@ export type ErrorCode =
   | QaErrorCode
   | NoteErrorCode
   | TranslateErrorCode
-  | BackupErrorCode;
+  | BackupErrorCode
+  | BatchErrorCode;
 
 export interface Failure {
   readonly ok: false;
@@ -67,6 +70,7 @@ const TEXT: Readonly<Record<ErrorCode, string>> = {
   ...NOTE_ERROR_TEXT,
   ...TRANSLATE_ERROR_TEXT,
   ...BACKUP_ERROR_TEXT,
+  ...BATCH_ERROR_TEXT,
 };
 
 const DETAIL_TEXT: Readonly<Partial<Record<ErrorCode, Readonly<Record<string, string>>>>> = { ...SITE_DETAIL_TEXT, ...TRANSCRIPT_DETAIL_TEXT };

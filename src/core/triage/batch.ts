@@ -1,9 +1,10 @@
-// 粗筛的两步批次。两步都由用户点按钮开始，每一步发消息给后台、等回复：
-//  第一步：逐个取官方总结。串行，真正发了请求的两次之间至少隔 1.5 秒。
+// 粗筛的两步批次。两步都由用户点按钮开始，在后台批次服务里跑，每一项怎么做由它注入：
+//  第一步：逐个取官方总结。串行，真正发了请求的两次之间至少隔 1.5 秒；读不成时按停止规则看要不要整批停下。
 //  第二步：只对有官方总结、还没有结论的视频写一句话结论，同时最多 3 个。
-import { parseVideoKey, type ChannelRef, type VideoRef } from "../video-ref.ts";
+import type { SiteFailureReach } from "../errors/site.ts";
+import type { VideoRef } from "../video-ref.ts";
 import { hasVerdict, type VerdictMap } from "./groups.ts";
-import type { OfficialMap, OfficialRecord, TriageItem } from "./state.ts";
+import { triageRef, type OfficialMap, type OfficialRecord, type TriageItem } from "./state.ts";
 
 export const OFFICIAL_INTERVAL_MS = 1500;
 
@@ -47,37 +48,48 @@ export interface PoolResult extends SerialResult {
   readonly started: number;
 }
 
+/** 交给每一项的：条目本身和它的视频身份。视频键认不出、或者不是第 1 P 时身份是 null，这一项不发请求。 */
 export interface OfficialRequest {
-  readonly action: "getOfficialSummary";
-  readonly ref: VideoRef | null; // 存储里的键认不出时是 null
-  readonly mediaVersion: string | undefined;
-  readonly channel: ChannelRef | undefined;
+  readonly item: TriageItem;
+  readonly ref: VideoRef | null;
 }
 
-export interface OfficialOutcome<R> extends RequestMark {
-  readonly response: R;
-  readonly requested: boolean;
+export type VerdictRequest = OfficialRequest;
+
+/** 连着几个要登录就整批停下：偶尔一个不作数。 */
+export const LOGIN_STREAK_STOP = 2;
+
+/** 整批提前停下的原因：被平台限流、连着要登录、这条读取路线整体读不了。 */
+export type BatchStop = "rate-limited" | "need-login" | "source";
+
+/** 一项读不成：只有错误码和读取实现标的影响范围，不看别的说明。 */
+export interface ReadFailure {
+  readonly code: string;
+  readonly reach?: SiteFailureReach | undefined;
 }
 
-export interface OfficialBatch<R> extends SerialOptions<TriageItem, OfficialOutcome<R>> {
+export interface StopCheck {
+  readonly stop: BatchStop | null;
+  readonly loginStreak: number;
+}
+
+/** 逐个读取的一项交回的：有没有真的发请求，读不成时的失败。 */
+export interface PacedOutcome extends RequestMark {
+  readonly failure?: ReadFailure | null | undefined;
+}
+
+export interface PacedResult extends SerialResult {
+  readonly stop: BatchStop | null;
+}
+
+export interface OfficialBatch<R extends PacedOutcome> extends SerialOptions<TriageItem, R> {
   readonly items: readonly TriageItem[];
-  readonly send: (message: OfficialRequest) => Promise<R>;
+  readonly step: (request: OfficialRequest) => Promise<R>;
 }
 
-export interface VerdictRequest {
-  readonly action: "analyzeTranscript";
-  readonly ref: VideoRef | null; // 存储里的键认不出时是 null
-  readonly verdictSource: "official";
-  readonly triage: true;
-}
-
-export interface VerdictOutcome<R> {
-  readonly response: R;
-}
-
-export interface VerdictBatch<R> extends BatchHooks<TriageItem, VerdictOutcome<R>> {
+export interface VerdictBatch<R> extends BatchHooks<TriageItem, R> {
   readonly items: readonly TriageItem[];
-  readonly send: (message: VerdictRequest) => Promise<R>;
+  readonly step: (request: VerdictRequest) => Promise<R>;
   readonly concurrency?: unknown;
 }
 
@@ -109,6 +121,26 @@ export function verdictTodo(
 ): TriageItem[] {
   const list: readonly TriageItem[] = Array.isArray(items) ? items : [];
   return list.filter((item) => hasOfficialContent(official[item.videoKey]) && !hasVerdict(verdicts[item.videoKey]));
+}
+
+/**
+ * 读完一项以后要不要整批停下。被限流就停；连着两个要登录也停；格式不对时看读取实现标的影响范围，
+ * 只影响这一项就接着下一项，这条读取路线整体读不了就停，没标的按整体读不了算。其余的失败只记这一项。
+ */
+export function stopAfter(failure: ReadFailure | null | undefined, loginStreak: number): StopCheck {
+  if (!failure) return { stop: null, loginStreak: 0 };
+  if (failure.code === "RATE_LIMITED") return { stop: "rate-limited", loginStreak: 0 };
+  if (failure.code === "NEED_LOGIN") {
+    const streak = loginStreak + 1;
+    return { stop: streak >= LOGIN_STREAK_STOP ? "need-login" : null, loginStreak: streak };
+  }
+  if (failure.code === "MALFORMED" && failure.reach !== "item") return { stop: "source", loginStreak: 0 };
+  return { stop: null, loginStreak: 0 };
+}
+
+/** 列表没确认过付费状态、或者缺媒体版本的条目，读官方总结之前先读一次视频信息：付费确认不了时它按看不了报。 */
+export function needsVideoInfo(item: Pick<TriageItem, "paidChecked" | "mediaVersion">): boolean {
+  return item.paidChecked !== true || !item.mediaVersion;
 }
 
 export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
@@ -203,56 +235,52 @@ export async function runPool<T, R>(
   return { started: next, done, total: list.length, stopped: next < list.length };
 }
 
-/** 第一步：逐个让后台取官方总结。 */
-export function runOfficialBatch<R extends RequestMark | null | undefined>({
-  items,
-  send,
-  signal,
-  intervalMs,
-  sleep: wait,
-  now,
-  onStart,
-  onResult,
-}: OfficialBatch<R>): Promise<SerialResult> {
-  return runSerial(
-    items,
-    async (item): Promise<OfficialOutcome<R>> => {
-      const response: R = await send({
-        action: "getOfficialSummary",
-        ref: parseVideoKey(item.videoKey),
-        mediaVersion: item.mediaVersion,
-        channel: item.channel,
-      });
-      return { response, requested: response?.requested !== false };
-    },
-    { intervalMs, signal, sleep: wait, now, onStart, onResult },
-  );
+/**
+ * 逐个读取：间隔照 runSerial，每读完一项按停止规则看要不要整批停下。
+ * signal 是用户的停止，只拦还没开始的；正在读的那一个读完为止。worker 抛错不算平台的信号，不因此停下。
+ */
+export async function runPaced<T, R extends PacedOutcome>(
+  items: readonly T[],
+  worker: (item: T) => Promise<R>,
+  options: SerialOptions<T, R> = {},
+): Promise<PacedResult> {
+  const halt = new AbortController();
+  const outer = options.signal;
+  const forward = (): void => halt.abort();
+  if (outer?.aborted) halt.abort();
+  else outer?.addEventListener?.("abort", forward, { once: true });
+  let streak = 0;
+  let stop: BatchStop | null = null;
+  try {
+    const result = await runSerial(items, worker, {
+      ...options,
+      signal: halt.signal,
+      onResult(item, outcome, done) {
+        const failure = "error" in (outcome as object) ? null : (outcome as R).failure;
+        const check = stopAfter(failure, streak);
+        streak = check.loginStreak;
+        if (check.stop && !stop) {
+          stop = check.stop;
+          halt.abort();
+        }
+        options.onResult?.(item, outcome, done);
+      },
+    });
+    return { ...result, stop };
+  } finally {
+    outer?.removeEventListener?.("abort", forward);
+  }
+}
+
+/** 第一步：逐个取官方总结，每一项交给注入的步骤。 */
+export function runOfficialBatch<R extends PacedOutcome>({ items, step, ...options }: OfficialBatch<R>): Promise<PacedResult> {
+  return runPaced(items, (item) => step({ item, ref: triageRef(item.videoKey) }), options);
 }
 
 /**
- * 第二步：逐个让后台用官方总结写结论。verdictSource: "official" 复用概览的结论写法；
- * triage: true 让后台从粗筛存的官方总结里取材料，不为写结论再去取字幕。
- * 不占这个视频的概览任务。调用方传进来的 send 给每条请求另登记一个 triage-verdict 任务，
- * 停止时据此撤掉还在后台排队的请求。
+ * 第二步：逐个用官方总结写结论，每一项交给注入的步骤。步骤给每一项另登记一个粗筛写结论的任务，
+ * 停止时据此撤掉还在后台排队的请求；已经发出去的照常等它回来。
  */
-export function runVerdictBatch<R>({
-  items,
-  send,
-  concurrency,
-  signal,
-  onStart,
-  onResult,
-}: VerdictBatch<R>): Promise<PoolResult> {
-  return runPool(
-    items,
-    async (item): Promise<VerdictOutcome<R>> => ({
-      response: await send({
-        action: "analyzeTranscript",
-        ref: parseVideoKey(item.videoKey),
-        verdictSource: "official",
-        triage: true,
-      }),
-    }),
-    { concurrency, signal, onStart, onResult },
-  );
+export function runVerdictBatch<R>({ items, step, concurrency, signal, onStart, onResult }: VerdictBatch<R>): Promise<PoolResult> {
+  return runPool(items, (item) => step({ item, ref: triageRef(item.videoKey) }), { concurrency, signal, onStart, onResult });
 }

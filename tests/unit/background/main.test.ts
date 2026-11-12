@@ -135,8 +135,9 @@ test("端口表里没有的端口、端口不收的发送方，连上就断开�
   const fake = await boot(t);
   for (const sender of [senders.panel(), senders.triage(), senders.content(), senders.foreign()]) {
     for (const name of ["translate", "batch", "unknown"]) {
-      // 翻译端口收侧边栏：它要先过启用闸门，另有测试。
+      // 翻译端口收侧边栏，批次端口收侧边栏和粗筛页：它们要先过启用闸门，另有测试。
       if (name === "translate" && sender.url === senders.panel().url) continue;
+      if (name === "batch" && (sender.url === senders.panel().url || sender.url === senders.triage().url)) continue;
       assert.equal(fake.connect(name, sender).disconnected, true, name);
     }
   }

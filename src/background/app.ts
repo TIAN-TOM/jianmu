@@ -47,6 +47,8 @@ import { createNotesService, type NotesService } from "./services/notes.ts";
 import { createDataService, type DataService } from "./services/data.ts";
 import { createQaService, type QaService } from "./services/qa.ts";
 import { createTranslateService, type TranslateService } from "./services/translate.ts";
+import { createBatchService, type BatchService } from "./services/batch/index.ts";
+import { createTriageStore } from "./stores/triage.ts";
 import { CLAIM_MS, createTaskRunner, type TaskRunner, type Timers } from "./tasks.ts";
 
 export interface AppDeps {
@@ -140,6 +142,8 @@ interface Core {
   readonly playerNotePolish: () => boolean;
   /** 设置页的备份和清除。 */
   readonly data: DataService;
+  /** 稍后再看粗筛和本窗口全部生成。 */
+  readonly batch: BatchService;
 }
 
 function assembleAi(deps: AppDeps, settings: SettingsStore, clearGuard: ClearGuard): AiWiring {
@@ -324,6 +328,28 @@ function assembleTranslate(deps: AppDeps, parts: OverviewParts): TranslateServic
   });
 }
 
+// 批次：粗筛的列表和官方总结存在扩展本机存储里；写结论和本窗口全部生成都排概览那道并发闸门。
+function assembleBatch(deps: AppDeps, parts: OverviewParts, tabs: Tabs, keepAlive: KeepAlive, services: { readonly overview: OverviewService; readonly verdict: VerdictService }): BatchService {
+  const watchPages = tabs.contentScripts().flatMap((script) => script.matches);
+  return createBatchService({
+    triage: createTriageStore({ storage: deps.storage.local, guard: parts.clearGuard, now: deps.timers.now }),
+    sites: deps.sites,
+    rules: deps.siteRules,
+    windowTabs: (windowId) => tabs.windowTabs(windowId, watchPages),
+    transcript: parts.transcript,
+    overviews: parts.overviews,
+    overview: services.overview,
+    tasks: parts.tasks,
+    verdict: services.verdict,
+    ai: parts.ai,
+    guard: parts.clearGuard,
+    keepAlive,
+    timers: deps.timers,
+    newId: () => crypto.randomUUID(),
+    log: deps.log,
+  });
+}
+
 // 清除用的驱动单独建，每个仓库一份，第一次清除时才开库。
 function assembleData(deps: AppDeps, parts: OverviewParts, stores: ReturnType<typeof assembleStudyStores>): DataService {
   const drivers = new Map<StoreName, ReturnType<typeof lazyDriver>>();
@@ -361,6 +387,8 @@ function assembleCore(deps: AppDeps): Core {
   const transcript = assembleTranscript(deps, clearGuard, tabs, overviews);
   const generation: OverviewParts = { settings, clearGuard, ai, tasks, messenger, transcript, overviews, gate: createLimiter() };
   const studyStores = assembleStudyStores(deps, clearGuard);
+  const overview = assembleOverview(deps, generation);
+  const verdict = assembleVerdict(deps, generation);
   return {
     settings,
     clearGuard,
@@ -377,11 +405,12 @@ function assembleCore(deps: AppDeps): Core {
     grants: assembleGrants(deps, settings),
     ...assembleSessions(deps, clearGuard, messenger),
     transcript,
-    overview: assembleOverview(deps, generation),
-    verdict: assembleVerdict(deps, generation),
+    overview,
+    verdict,
     ...assembleStudy(deps, generation, keepAlive, studyStores),
     translate: assembleTranslate(deps, generation),
     data: assembleData(deps, generation, studyStores),
+    batch: assembleBatch(deps, generation, tabs, keepAlive, { overview, verdict }),
   };
 }
 

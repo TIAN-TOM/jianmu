@@ -81,6 +81,7 @@ const realRoutes = (): Readonly<Record<string, AnyRoute>> =>
     explain: { explain: async () => assert.fail() },
     notes: { save: async () => assert.fail(), list: async () => assert.fail(), update: async () => assert.fail(), remove: async () => assert.fail() },
     playerNotePolish: () => assert.fail(),
+    batch: { handle: async () => assert.fail(), leave: () => assert.fail(), state: async () => assert.fail() },
   });
 
 const ALL_SENDERS: readonly [string, () => MessageSender][] = [

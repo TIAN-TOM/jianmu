@@ -2,7 +2,7 @@
 // 标签页、侧边栏、设置页和往页面里注入脚本的薄封装。下面的接口只列用到的方法，真实的接口和测试替身都按结构满足它们。
 
 export interface TabsApi {
-  query(info: { url: string[] }): Promise<readonly { readonly id?: number }[]>;
+  query(info: { url: string[]; windowId?: number }): Promise<readonly { readonly id?: number; readonly url?: string; readonly title?: string }[]>;
   get(tabId: number): Promise<{ readonly title?: string }>;
   sendMessage(tabId: number, message: unknown): Promise<unknown>;
 }
@@ -73,6 +73,15 @@ export interface Tabs {
   readonly inject: (tabId: number, script: ContentScript) => Promise<void>;
   /** 标签页的标题，读不到时是 null。只在确认启用之后调。 */
   readonly title: (tabId: number) => Promise<string | null>;
+  /** 一个窗口里地址匹配得上这几条规则的标签页：编号、地址和标题，按标签页的顺序。只在确认启用之后调。 */
+  readonly windowTabs: (windowId: number, matches: readonly string[]) => Promise<readonly WindowTab[]>;
+}
+
+/** 窗口里开着的一个标签页。 */
+export interface WindowTab {
+  readonly tabId: number;
+  readonly url: string;
+  readonly title: string;
 }
 
 export function createTabs(
@@ -115,6 +124,11 @@ export function createTabs(
       } catch {
         return null;
       }
+    },
+    async windowTabs(windowId, matches) {
+      if (matches.length === 0) return [];
+      const found = await tabs.query({ url: [...matches], windowId });
+      return found.flatMap(({ id, url, title }) => (typeof id === "number" && typeof url === "string" ? [{ tabId: id, url, title: title ?? "" }] : []));
     },
     async inject(tabId, { js, css, allFrames }) {
       const target = allFrames ? { tabId, allFrames } : { tabId };

@@ -351,7 +351,7 @@ test("长连接：收发消息；后台说了原因再断开时带上原因，�
   assert.equal(second.isOpen(), false);
 
   // 认不得的码按后台出了问题。
-  api.connect("batch", { onEvent: (event) => void events.push(event), onClose: (code) => void closed.push(code) });
+  api.connect("batch", { onEvent: (event) => void (events as unknown[]).push(event), onClose: (code) => void closed.push(code) });
   fake.ports[2]?.push({ type: "port.error", code: "NO_SUCH_CODE" });
   fake.ports[2]?.drop();
   assert.deepEqual(events.at(-1), { type: "port.error", code: "BACKGROUND_FAILED" });

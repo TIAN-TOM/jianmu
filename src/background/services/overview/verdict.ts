@@ -14,7 +14,7 @@ import { formatTimestamp } from "../../../core/transcript/segment.ts";
 import { parseVideoKey, type VideoKey, type VideoRef } from "../../../core/video-ref.ts";
 import type { Broadcast } from "../../../shared/messages.ts";
 import type { OverviewResultView } from "../../../shared/messages/overview.ts";
-import type { OfficialSummaryView, VideoInfoView } from "../../../shared/messages/transcript.ts";
+import type { OfficialSummaryView, TranscriptReply, VideoInfoView } from "../../../shared/messages/transcript.ts";
 import { AI_CONCURRENCY } from "../../../shared/settings-schema.ts";
 import { aiFailure } from "../../ai.ts";
 import { errorLabel, type Log } from "../../log.ts";
@@ -41,6 +41,8 @@ export interface VerdictServiceDeps {
 export interface VerdictOptions {
   /** 排队之前记下的清除代数：排队期间清除了本机数据，轮到时也认得出来。不给时按认领那一刻算。 */
   readonly since?: ClearEpoch | undefined;
+  /** 从哪里取材料。不给时走取字幕服务的完整读取；粗筛写结论用它自己存的列表和官方总结，不为写结论向平台读字幕。 */
+  readonly read?: ((ref: VideoRef) => Promise<TranscriptReply>) | undefined;
 }
 
 export interface VerdictService {
@@ -125,8 +127,10 @@ export function createVerdictService(deps: VerdictServiceDeps): VerdictService {
   const roundOf = (video: VideoKey): number => rounds.get(video) ?? 0;
   const cleared = (since: ClearEpoch | undefined): boolean => guard.clearedSince(since, "all");
 
-  async function materialOf(ref: VideoRef): Promise<Result<Material>> {
-    const reply = await deps.transcript.get(ref, { mode: "full" });
+  const fullRead = (ref: VideoRef): Promise<TranscriptReply> => deps.transcript.get(ref, { mode: "full" });
+
+  async function materialOf(ref: VideoRef, read: (ref: VideoRef) => Promise<TranscriptReply>): Promise<Result<Material>> {
+    const reply = await read(ref);
     // 读不成字幕时带回来的视频信息和官方总结照样能用：没有字幕的视频往往只有官方总结。
     const info = reply.ok ? reply.value.info : reply.info;
     const official = reply.ok ? reply.value.official : reply.official;
@@ -205,7 +209,7 @@ export function createVerdictService(deps: VerdictServiceDeps): VerdictService {
     });
   }
 
-  async function work(run: TaskRun, video: VideoKey, ref: VideoRef, since: ClearEpoch | undefined): Promise<Result<OverviewResultView>> {
+  async function work(run: TaskRun, video: VideoKey, ref: VideoRef, since: ClearEpoch | undefined, read: (ref: VideoRef) => Promise<TranscriptReply>): Promise<Result<OverviewResultView>> {
     const stopped = (): boolean => run.signal.aborted || cleared(since);
     for (;;) {
       const round = roundOf(video);
@@ -213,7 +217,7 @@ export function createVerdictService(deps: VerdictServiceDeps): VerdictService {
       const existing = await deps.overviews.find(video);
       if (cleared(since)) return fail("TASK_CANCELED");
       if (hasVerdict(existing)) return ok(storedView(video, existing));
-      const material = await materialOf(ref);
+      const material = await materialOf(ref, read);
       if (stopped()) return fail("TASK_CANCELED");
       if (!material.ok) return material;
       const basis: OfficialBasis = { source: "official-summary", video, fingerprint: material.value.official.fingerprint };
@@ -238,14 +242,14 @@ export function createVerdictService(deps: VerdictServiceDeps): VerdictService {
   }
 
   return {
-    fromOfficial(taskId, video, { since: queued } = {}) {
+    fromOfficial(taskId, video, { since: queued, read = fullRead } = {}) {
       const ref = parseVideoKey(video);
       if (!ref) return Promise.resolve(fail("INVALID_REQUEST"));
       // 只认登记成结论、而且是这个视频的任务：拿别的任务号开始，就绕过了登记时的核对。
       const task = deps.tasks.list().find((entry) => entry.id === taskId);
       if (!task || !VERDICT_KINDS.has(task.kind) || task.video !== video) return Promise.resolve(fail("TASK_NOT_FOUND"));
       const since = queued ?? guard.epoch();
-      return deps.tasks.run(taskId, (run) => work(run, video, ref, since), { autoFinish: true });
+      return deps.tasks.run(taskId, (run) => work(run, video, ref, since, read), { autoFinish: true });
     },
   };
 }

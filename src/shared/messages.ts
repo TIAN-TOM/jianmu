@@ -6,6 +6,7 @@ import type { LearningAnalysis } from "../core/notes/markdown.ts";
 import type { TaskView } from "../core/tasks.ts";
 import type { VideoKey } from "../core/video-ref.ts";
 import type { AiApi } from "./messages/ai.ts";
+import type { BatchApi, BatchIn, BatchOut } from "./messages/batch.ts";
 import type { CoreApi } from "./messages/core.ts";
 import type { DataApi } from "./messages/data.ts";
 import type { GrantsApi } from "./messages/grants.ts";
@@ -36,7 +37,8 @@ export interface Api extends
   OverviewApi,
   QaApi,
   NotesApi,
-  DataApi {}
+  DataApi,
+  BatchApi {}
 
 export type RouteName = keyof Api;
 
@@ -60,10 +62,10 @@ export type BroadcastType = Broadcast["type"];
 /** 页面和后台之间的长连接：翻译和批量处理。 */
 export type PortName = "translate" | "batch";
 
-/** 各端口两个方向的消息，由各领域在 messages/ 下定义后填进来；还没接上的端口什么都不收。 */
+/** 各端口两个方向的消息，由各领域在 messages/ 下定义后填进来。 */
 export interface PortApi {
   translate: { readonly in: TranslateIn; readonly out: TranslateOut };
-  batch: { readonly in: never; readonly out: never };
+  batch: { readonly in: BatchIn; readonly out: BatchOut };
 }
 
 /** 后台在端口上回页面的通知：这条消息没收，或者启用失效、马上断开。 */
