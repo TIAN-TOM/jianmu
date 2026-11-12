@@ -151,3 +151,46 @@ test("停止以后广播和迟到的回答都不再改状态", async () => {
   await activation.confirm();
   assert.equal(fake.attempts("activation.confirm"), 0);
 });
+
+test("确认的回答还在路上时启用失效：迟到的回答不把页面改回已启用，重新问后台", async () => {
+  const { fake, activation } = setup();
+  fake.reply("activation.get", { value: { ok: true, value: NEEDED } });
+  await activation.load();
+  const gate = deferred();
+  fake.reply("activation.confirm", async () => {
+    await gate.promise;
+    return { ok: true, value: { state: "current", unreachableTabs: [12] } };
+  });
+  const confirming = activation.confirm();
+  fake.broadcast({ type: "data.cleared", scope: "all" });
+  assert.ok(await until(() => activation.view.value.state === "needed"));
+  const asked = fake.attempts("activation.get");
+
+  gate.resolve();
+  await confirming;
+  assert.equal(activation.enabled.value, false, "失效之后才到的确认回答不算数");
+  assert.deepEqual(activation.view.value, NEEDED);
+  assert.equal(fake.attempts("activation.get"), asked + 1, "重新问了一次后台");
+  assert.deepEqual(activation.unreachableTabs.value, []);
+  assert.equal(activation.phase.value, "idle");
+});
+
+test("确认的回答还在路上时启用失效过，但后台最后是已启用：重问以后算启用，记下没补上的标签页", async () => {
+  const { fake, activation } = setup();
+  fake.reply("activation.get", { value: { ok: true, value: NEEDED } });
+  await activation.load();
+  const gate = deferred();
+  fake.reply("activation.confirm", async () => {
+    await gate.promise;
+    return { ok: true, value: { state: "current", unreachableTabs: [7] } };
+  });
+  const confirming = activation.confirm();
+  fake.broadcast({ type: "activation.changed", confirmed: false });
+  assert.ok(await until(() => activation.view.value.state === "needed"));
+
+  fake.reply("activation.get", { value: { ok: true, value: { state: "current" } } });
+  gate.resolve();
+  await confirming;
+  assert.equal(activation.enabled.value, true);
+  assert.deepEqual(activation.unreachableTabs.value, [7]);
+});

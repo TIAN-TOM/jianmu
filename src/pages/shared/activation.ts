@@ -46,6 +46,7 @@ export function createActivation({ api }: ActivationDeps): Activation {
   const confirmFailure = signal<Failure | null>(null);
   const unreachableTabs = signal<readonly number[]>([]);
   let generation = 0;
+  let losses = 0;
   let stopped = false;
 
   async function load(): Promise<void> {
@@ -59,6 +60,7 @@ export function createActivation({ api }: ActivationDeps): Activation {
   // 失效的先按没启用处理，再问后台要这次该给用户看的说明。
   const lost = (): void => {
     if (stopped) return;
+    losses += 1;
     view.value = LOADING;
     void load();
   };
@@ -85,6 +87,7 @@ export function createActivation({ api }: ActivationDeps): Activation {
       if (stopped || phase.peek() === "saving") return;
       phase.value = "saving";
       confirmFailure.value = null;
+      const lossesBefore = losses;
       const reply = await api.send("activation.confirm", {});
       if (stopped) return;
       if (!reply.ok) {
@@ -92,10 +95,16 @@ export function createActivation({ api }: ActivationDeps): Activation {
         phase.value = "failed";
         return;
       }
+      phase.value = "idle";
+      // 等回答的工夫启用失效过：这份回答可能已经过时，不拿它算启用，重新问一次后台。
+      if (losses !== lossesBefore) {
+        await load();
+        if (!stopped && view.peek().state === "current") unreachableTabs.value = reply.value.unreachableTabs;
+        return;
+      }
       generation += 1;
       view.value = viewOf(reply.value);
       unreachableTabs.value = reply.value.unreachableTabs;
-      phase.value = "idle";
     },
     stop() {
       stopped = true;
