@@ -33,6 +33,8 @@ test("进度那一行：完成数、失败、停掉、跳过，整批提前停�
   };
   assert.equal(progressText(run), "本窗口：已完成 1 / 3，失败 1，已停止 1，跳过 1");
   assert.match(progressText({ ...run, stop: "rate-limited" }), /被 B 站限流/);
+  const partial: WindowRunView = { stopping: false, entries: [{ video: video(1), title: "一", status: "completed", partial: true }, { video: video(2), title: "二", status: "completed" }] };
+  assert.equal(progressText(partial), "本窗口：已完成 2 / 2，其中 1 个不完整");
 });
 
 /** 读现在的阶段；不让断言把类型收窄，后面还要再读。 */

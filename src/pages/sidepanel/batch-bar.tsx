@@ -67,6 +67,7 @@ export function BatchBar({ panel, ready }: { readonly panel: Panel; readonly rea
   const settled = counts.completed + counts.failed + counts.canceled;
   const total = counts.total - counts.skipped;
   const retryable = run.entries.filter((entry) => RETRYABLE.has(entry.status));
+  const partial = run.entries.filter((entry) => entry.status === "completed" && entry.partial);
   return (
     <section class="batch-bar" data-phase="active" aria-label="本窗口全部生成">
       <p class="batch-status" role="status">
@@ -97,6 +98,20 @@ export function BatchBar({ panel, ready }: { readonly panel: Panel; readonly rea
               <Button variant="text" disabled={!ready} {...notReady} onClick={() => batch.retry(entry.video)}>
                 重试
               </Button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {partial.length ? (
+        <ul class="batch-failures" aria-label="不完整的概览">
+          {partial.map((entry) => (
+            <li key={entry.video} class="batch-failure" data-status="partial" data-video={entry.video}>
+              <span class="batch-failure-text">
+                <span class="batch-failure-title" title={entry.title}>
+                  {entry.title}
+                </span>
+                <span class="batch-failure-reason">有分块没生成成功，切到这个视频点「补失败块」</span>
+              </span>
             </li>
           ))}
         </ul>

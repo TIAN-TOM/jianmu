@@ -62,6 +62,8 @@ export interface Counts {
   readonly failed: number;
   readonly canceled: number;
   readonly skipped: number;
+  /** 生成出来了，但有分块没成。 */
+  readonly partial: number;
 }
 
 export function countsOf(run: WindowRunView): Counts {
@@ -74,6 +76,7 @@ export function countsOf(run: WindowRunView): Counts {
     failed: of("failed"),
     canceled: of("canceled"),
     skipped: of("skipped"),
+    partial: run.entries.filter((entry) => entry.status === "completed" && entry.partial).length,
   };
 }
 
@@ -91,6 +94,7 @@ export function progressText(run: WindowRunView): string {
   const counts = countsOf(run);
   const total = counts.total - counts.skipped;
   const parts = [`本窗口：已完成 ${counts.completed} / ${total}`];
+  if (counts.partial) parts.push(`其中 ${counts.partial} 个不完整`);
   if (counts.failed) parts.push(`失败 ${counts.failed}`);
   if (counts.canceled) parts.push(`已停止 ${counts.canceled}`);
   if (counts.skipped) parts.push(`跳过 ${counts.skipped}`);
