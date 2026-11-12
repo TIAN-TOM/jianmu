@@ -227,7 +227,7 @@ export function createBatchService(deps: BatchServiceDeps): BatchService {
     if (!list) return refuse(run, "TRIAGE_LIST_CLEARED");
     const todo = verdictTodo(list.items, official, await verdictsOf(list.items));
     if (todo.length > 0 && !(await deps.ai.configCheck()).ready) return refuse(run, "NO_AI_CONFIG");
-    const round: VerdictRound = { id: run.id, gen: await deps.ai.freeze("verdict"), since: run.since, taskIds: run.taskIds };
+    const round: VerdictRound = { id: run.id, gen: await deps.ai.freeze("verdict"), since: run.since, taskIds: run.taskIds, signal: run.halt.signal };
     Object.assign(run, { total: todo.length, skipped: list.items.length - todo.length });
     emit(run, { type: "triage.started", step: "verdict", total: run.total, skipped: run.skipped, joined: false });
     const elsewhere: TriageItem[] = [];

@@ -22,7 +22,7 @@ export interface WatchLaterDeps {
   readonly triage: TriageStore;
   readonly sites: SiteAccess;
   readonly transcript: Pick<TranscriptService, "get">;
-  readonly tasks: Pick<TaskRunner, "register">;
+  readonly tasks: Pick<TaskRunner, "register" | "cancel">;
   readonly verdict: Pick<VerdictService, "fromOfficial">;
   readonly guard: ClearGuard;
   readonly now: () => number;
@@ -189,6 +189,8 @@ export interface VerdictRound {
   readonly since: ClearEpoch | undefined;
   /** 在跑的写结论任务，用户停止时撤。 */
   readonly taskIds: Set<string>;
+  /** 这一轮停下了：用户点了停止，或者订阅的页面都走了。 */
+  readonly signal: AbortSignal;
 }
 
 /**
@@ -198,9 +200,16 @@ export interface VerdictRound {
 export async function writeVerdict(deps: WatchLaterDeps, { item, ref }: VerdictRequest, round: VerdictRound, material: (ref: VideoRef) => Promise<TranscriptReply>): Promise<ItemOutcome> {
   if (!ref) return { requested: false, failure: failure("INVALID_REQUEST") };
   const video = item.videoKey;
+  const stopped: ItemOutcome = { requested: false, failure: failure("TASK_CANCELED") };
+  if (round.signal.aborted) return stopped;
   const registered = await deps.tasks.register({ kind: "triage-verdict", origin: "batch", video, gen: round.gen, followsPage: true }, { port: round.id });
   if (!("task" in registered) || registered.joined) return { requested: false, elsewhere: true, failure: failure("TASK_ALREADY_RUNNING") };
   const taskId = registered.task.id;
+  // 等登记的工夫这一轮停下了：停止时这个任务还没记进来、撤不到，这里把刚建的撤掉，不再写结论。
+  if (round.signal.aborted) {
+    deps.tasks.cancel(taskId);
+    return stopped;
+  }
   round.taskIds.add(taskId);
   try {
     const result = await deps.verdict.fromOfficial(taskId, video, { since: round.since, read: material });

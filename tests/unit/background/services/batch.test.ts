@@ -23,6 +23,9 @@ const ids = ["BV1Sample101", "BV1Sample102", "BV1Sample103", "BV1Sample104"] as 
 const refOf = (id: string, segment = 1): VideoRef => ({ platform: "bilibili", videoId: id, segment });
 const keyOf = (id: string, segment = 1): VideoKey => videoKey(refOf(id, segment));
 
+/** 列表项的观看进度：一个别处不会出现的秒数，看它有没有进写结论的材料和请求。 */
+const PROGRESS = 4321;
+
 function listItem(id: string, extra: Partial<WatchLaterItem> = {}): WatchLaterItem {
   return {
     videoKey: keyOf(id),
@@ -31,8 +34,8 @@ function listItem(id: string, extra: Partial<WatchLaterItem> = {}): WatchLaterIt
     channel: { platform: "bilibili", channelId: "3003" },
     mediaVersion: `${id}-m1`,
     duration: 300,
-    progress: 30,
-    finished: false,
+    progress: PROGRESS,
+    finished: true,
     pageCount: 1,
     available: true,
     cover: "",
@@ -54,6 +57,8 @@ interface Options {
   readonly verdictConcurrency?: number;
   /** 取定配置前先等它：测试在这段等待里点停止。 */
   readonly freezeGate?: Promise<void>;
+  /** 登记任务前先等它：测试在登记还没回来时停下这一轮。 */
+  readonly registerGate?: Promise<void>;
 }
 
 /** 一句话的字幕：概览一块就做完。 */
@@ -93,6 +98,8 @@ function setup(options: Options = {}) {
   };
   const harness: OverviewHarness = overviewHarness({ transcript, ...(options.respond ? { respond: options.respond } : {}) });
   const storage = memoryStorage();
+  /** 写结论时交给结论服务的取材料函数。 */
+  const materials: ((ref: VideoRef) => Promise<TranscriptReply>)[] = [];
   const timers = harness.timers;
   const gens: Record<string, FrozenGen> = { analysis: ANALYSIS_GEN, verdict: VERDICT_GEN };
   let ready = true;
@@ -106,8 +113,19 @@ function setup(options: Options = {}) {
     transcript,
     overviews: harness.store,
     overview: harness.service,
-    tasks: harness.tasks,
-    verdict: harness.verdict,
+    tasks: {
+      ...harness.tasks,
+      async register(...args: Parameters<typeof harness.tasks.register>) {
+        await options.registerGate;
+        return harness.tasks.register(...args);
+      },
+    },
+    verdict: {
+      fromOfficial(taskId, video, verdictOptions) {
+        if (verdictOptions?.read) materials.push(verdictOptions.read);
+        return harness.verdict.fromOfficial(taskId, video, verdictOptions);
+      },
+    },
     ai: {
       configCheck: async () => ({ ready, errors: [] }),
       async freeze(feature) {
@@ -127,7 +145,7 @@ function setup(options: Options = {}) {
     const listener: BatchListener = { id, post: (event) => void events.push(structuredClone(event)) };
     return { listener, events, last: <T extends BatchOut["type"]>(type: T) => events.filter((event): event is Extract<BatchOut, { type: T }> => event.type === type).at(-1) };
   };
-  return { site, harness, service, storage, timers, ensured, cacheReads, page, setReady: (value: boolean) => void (ready = value) };
+  return { site, harness, service, storage, timers, ensured, cacheReads, materials, page, setReady: (value: boolean) => void (ready = value) };
 }
 
 /** 等到间隔计时器排上，再让它到点。 */
@@ -223,7 +241,7 @@ test("第二步：只发模型请求，不向平台读；结论跟着概览存�
     watchLater: () => ({ ok: true, value: { total: 2, dropped: 0, items: [listItem(ids[0]), listItem(ids[1])] } }),
     officialSummary: officialOk,
   });
-  const { service, harness, timers, page, ensured } = setup({ site, respond: (ask) => (ask.isVerdict ? verdictReply("讲了一件事", "可以跳过") : undefined) });
+  const { service, harness, timers, page, ensured, materials } = setup({ site, respond: (ask) => (ask.isVerdict ? verdictReply("讲了一件事", "可以跳过") : undefined) });
   const tab = page("p1");
   await service.handle({ type: "triage.start", step: "list" }, tab.listener);
   const first = service.handle({ type: "triage.start", step: "official" }, tab.listener);
@@ -234,7 +252,14 @@ test("第二步：只发模型请求，不向平台读；结论跟着概览存�
   assert.equal(site.calls.length, before, "写结论不向平台读");
   assert.deepEqual(ensured, [], "写结论不取字幕");
   assert.equal(harness.verdictAsks().length, 2);
-  assert.ok(!harness.verdictAsks().some((ask) => ask.user.includes("30")), "观看进度不进提示词");
+  // 观看进度不进写结论的材料，也不进发给模型的请求：列表项的进度是 PROGRESS 秒、标成看完了。
+  assert.equal(materials.length, 2);
+  for (const read of materials) {
+    const material = JSON.stringify(await read(refOf(ids[0])));
+    assert.doesNotMatch(material, /progress|finished/, "材料里没有观看进度的字段");
+    assert.ok(!material.includes(String(PROGRESS)), "材料里没有观看进度的值");
+  }
+  assert.ok(!harness.verdictAsks().some((ask) => JSON.stringify(ask.request).includes(String(PROGRESS))), "发给模型的请求里没有观看进度");
   const state = await service.state();
   assert.equal(state.verdicts[keyOf(ids[0])]?.verdict, "可以跳过");
   assert.equal(tab.last("triage.done")?.done, 2);
@@ -276,6 +301,48 @@ test("第二步：页面都关了撤掉还在排队的；已经发出的那次�
   await second;
   assert.equal(harness.verdictAsks().length, 3, "三个视频各写一次，已经写好的不重发");
   assert.equal(Object.keys((await service.state()).verdicts).length, 3);
+});
+
+test("第二步：登记还没回来时停下这一轮，回来以后撤掉刚建的任务，不发模型请求、不存结论", async () => {
+  let release: () => void = () => {};
+  const registerGate = new Promise<void>((resolve) => void (release = resolve));
+  const site = fakeSiteService({
+    watchLater: () => ({ ok: true, value: { total: 1, dropped: 0, items: [listItem(ids[0])] } }),
+    officialSummary: officialOk,
+  });
+  const { service, harness, page } = setup({ site, registerGate, respond: (ask) => (ask.isVerdict ? verdictReply() : undefined) });
+  const tab = page("p1");
+  await service.handle({ type: "triage.start", step: "list" }, tab.listener);
+  await service.handle({ type: "triage.start", step: "official" }, tab.listener);
+  const writing = service.handle({ type: "triage.start", step: "verdict" }, tab.listener);
+  assert.ok(await until(() => tab.last("triage.started")?.step === "verdict"));
+  await service.handle({ type: "triage.stop" }, tab.listener);
+  release();
+  await writing;
+  assert.equal(harness.verdictAsks().length, 0, "没有发模型请求");
+  assert.equal(harness.tasks.list().length, 0, "刚建的任务撤掉了");
+  assert.deepEqual((await service.state()).verdicts, {}, "没有存下结论");
+  assert.equal(tab.last("triage.done")?.stop, "stopped");
+});
+
+test("第二步：登记还没回来时最后一个页面走了，同样不发模型请求", async () => {
+  let release: () => void = () => {};
+  const registerGate = new Promise<void>((resolve) => void (release = resolve));
+  const site = fakeSiteService({
+    watchLater: () => ({ ok: true, value: { total: 1, dropped: 0, items: [listItem(ids[0])] } }),
+    officialSummary: officialOk,
+  });
+  const { service, harness, page } = setup({ site, registerGate, respond: (ask) => (ask.isVerdict ? verdictReply() : undefined) });
+  const tab = page("p1");
+  await service.handle({ type: "triage.start", step: "list" }, tab.listener);
+  await service.handle({ type: "triage.start", step: "official" }, tab.listener);
+  const writing = service.handle({ type: "triage.start", step: "verdict" }, tab.listener);
+  assert.ok(await until(() => tab.last("triage.started")?.step === "verdict"));
+  service.leave("p1");
+  release();
+  await writing;
+  assert.equal(harness.verdictAsks().length, 0);
+  assert.equal(harness.tasks.list().length, 0);
 });
 
 test("第二步：AI 服务没设置好时不开始", async () => {
@@ -403,6 +470,26 @@ test("取定配置、登记的工夫点了全部停止：回来以后不开始�
   assert.ok(await until(() => statuses(panel.last("window.state"))[0] === "canceled"));
   assert.equal(harness.chunkAsks().length, 0, "没有发模型请求");
   assert.equal(harness.tasks.list().length, 0, "没有留下任务");
+});
+
+test("登记任务还没回来时点了全部停止：回来以后撤掉刚建的任务，不开始生成", async () => {
+  let release: () => void = () => {};
+  const registerGate = new Promise<void>((resolve) => void (release = resolve));
+  const tabs = [{ url: watchUrl(ids[0]), title: "一" }];
+  const { service, harness, ensured, page } = setup({ tabs, registerGate });
+  const panel = page("panel");
+  await service.handle({ type: "window.count", windowId: 7 }, panel.listener);
+  const running = service.handle({ type: "window.start", windowId: 7 }, panel.listener);
+  assert.ok(await until(() => ensured.length === 1));
+  // 取定配置走完，正卡在登记上。
+  await new Promise((resolve) => setImmediate(resolve));
+  await service.handle({ type: "window.stop", windowId: 7 }, panel.listener);
+  release();
+  await running;
+  assert.ok(await until(() => statuses(panel.last("window.state"))[0] === "canceled"));
+  assert.equal(harness.chunkAsks().length, 0, "没有发模型请求");
+  assert.equal(harness.tasks.list().length, 0, "刚建的任务撤掉了");
+  assert.equal(await harness.record(keyOf(ids[0])), null, "没有存下概览");
 });
 
 test("没有清点过、或者 AI 服务没设置好时不开始；有一批在跑时不另开", async () => {
