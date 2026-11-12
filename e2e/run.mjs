@@ -10,7 +10,6 @@ import { launchChrome, prepareExtension } from "./browser.mjs";
 import { ANTHROPIC, VIDEOS } from "./fixtures.mjs";
 import { apiHost, contentRead, fileHost, PROBE, startMockServer, watchPage } from "./mock-server.mjs";
 import { storedSettings } from "./settings.mjs";
-import { WATCH_PAGE_AT_SEC } from "./watch-page.mjs";
 import { createWatchSteps } from "./watch-steps.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -107,11 +106,12 @@ async function panelFlow(launcher, panelUrl, videoId) {
 
   await until("侧边栏跟着视频页读到字幕", async () => (await textOf(panel, ".cue-text")).includes("样例台词二"));
   await until("视频页连上", () => evaluate(panel, `!document.querySelector(".notice[data-id='connect']")`));
-  // 点最后一句的时间，视频页跳到的秒数要和按钮上写的对得上。
+  // 点最后一句的时间，视频页跳到的秒数要和按钮上写的对得上。先把播放位置挪开，看得出跳没跳。
+  await evaluate(video, `(document.querySelector("video").currentTime = 100, true)`);
   const label = await evaluate(panel, `(() => { const times = document.querySelectorAll(".cue-time"); const last = times[times.length - 1]; last.click(); return last.textContent; })()`);
   const seeked = await until("视频页跳到那一句", async () => {
-    const at = await evaluate(video, `document.querySelector("video")?.currentTime ?? 0`);
-    return at > 0 && at !== WATCH_PAGE_AT_SEC ? at : null;
+    const at = await evaluate(video, `document.querySelector("video")?.currentTime ?? 100`);
+    return at !== 100 ? String(at) : null;
   });
   const seconds = Math.floor(Number(seeked));
   if (`${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}` !== label) throw new Error(`点的是 ${label}，视频页跳到了 ${seeked} 秒`);

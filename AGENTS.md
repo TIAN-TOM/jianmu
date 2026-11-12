@@ -36,7 +36,7 @@
 | `static/` | 原样复制进构建产物：`theme.css` 是扩展页面共用的设计变量（三套主题、两种明暗，界面字号改根字号），`ui.css` 引进 `ui/` 下按用途分开的共用组件样式，`icons/` 是 16、48、128 三档扩展图标，`pages/` 是页面外壳 |
 | `scripts/` | `build.mjs` 构建，`package.mjs` 打包和校验（同一个提交打两次得到同一个 zip，旁边写校验值文件），`release.mjs` 发布候选、候选之后的核对、发布说明草稿和发布前检查，`check-public.mjs` 公开结构检查 |
 | `tests/` | `unit/` 单元测试，`structure.test.ts` 结构规则，`build-output.test.ts` 构建产物检查，`fixtures/golden/` 黄金样本，`helpers/` 替身（`fake-ai.ts` 是后台各服务测试共用的模型服务替身，`fake-site-service.ts` 是站点读取服务的替身，`overview-service.ts` 是概览和用官方总结写结论的测试架子，`study-service.ts`、`study-background.ts` 是问答、划词解释和笔记的服务架子和走真实后台分发的架子，`manual-timers.ts` 是手动推进的计时器） |
-| `e2e/` | 把打好的包装进 Chrome for Testing 跑冒烟，站点和两家模型服务的请求都指向本机模拟服务器（能中途切场景、拖慢读取、挂住模型请求），其余域名解析失败；`lifecycle.mjs` 单独看任务跨过 service worker 空闲回收、被强行终止时的样子；`pages.mjs` 是页面测试的入口，场景按页面分在 `pages/`，`pages/harness.mjs` 是公共部分，`pages/fixtures/` 的组件样张只在测试时编进扩展副本；`run.mjs` 最后在真实的侧边栏里走主流程，清单里还没有内容脚本时只在临时副本里挂 `fake-content.js` 应答播放器指令 |
+| `e2e/` | 把打好的包装进 Chrome for Testing 跑冒烟，站点和两家模型服务的请求都指向本机模拟服务器（能中途切场景、拖慢读取、挂住模型请求），其余域名解析失败；`lifecycle.mjs` 单独看任务跨过 service worker 空闲回收、被强行终止时的样子；`pages.mjs` 是页面测试的入口，场景按页面分在 `pages/`，`pages/harness.mjs` 是公共部分，`pages/fixtures/` 的组件样张只在测试时编进扩展副本；`run.mjs` 在播放页步骤之后，在真实的侧边栏里走主流程 |
 | `notes/` | 公开的设计文档，走白名单 |
 
 ## 命令

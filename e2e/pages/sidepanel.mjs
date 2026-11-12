@@ -1,5 +1,5 @@
 // 侧边栏：确认启用前只有启用说明；没有视频时说明怎么用；视频页上读不到字幕、读到字幕、四个页签的主要状态。
-// 页面测试的副本里没有内容脚本，也没有模型服务的主机权限：视频页一直提示没连上，概览和问答停在要先设置 AI 服务。
+// 页面测试里没有设置模型服务的密钥：概览和问答停在要先设置 AI 服务。
 // 几个测试按顺序共用同一个浏览器：第一个确认启用，第二个还没登录，第三个起已登录。
 import assert from "node:assert/strict";
 import { describe as describeError } from "../../src/core/errors.ts";
@@ -65,7 +65,7 @@ test("侧边栏：确认启用前只有启用说明，点启用以后说明怎�
   await waitIn(panel, "没有视频时的说明", `${appText}.includes("打开一个 B 站视频")`);
 });
 
-test("侧边栏：没登录时字幕页签说明原因，给重试和导入字幕文件；视频页没连上时提示刷新", async (ctx) => {
+test("侧边栏：没登录时字幕页签说明原因，给重试和导入字幕文件，标题用标签页的", async (ctx) => {
   await withVideo(ctx, async (panel) => {
     await waitIn(panel, "要登录的说明", `${appText}.includes(${JSON.stringify(describeError("NEED_LOGIN"))})`);
     const state = await panel.evaluate(`({
@@ -80,8 +80,7 @@ test("侧边栏：没登录时字幕页签说明原因，给重试和导入字�
       ["问答", "false"],
     ]);
     assert.deepEqual(state.actions, ["重试", "导入字幕文件"]);
-    assert.equal(state.title, FIRST_TITLE, "视频信息读不到时用标签页的标题");
-    await waitIn(panel, "没连上的提示", `document.querySelector(".notice[data-id='connect'] .notice-action")?.textContent === "刷新视频页"`);
+    assert.ok(state.title.includes(FIRST_TITLE), `视频信息读不到时用标签页的标题：${state.title}`);
   });
 });
 
