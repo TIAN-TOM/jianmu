@@ -44,6 +44,8 @@ export function createQaStore({ api }: { readonly api: Pick<PageApi, "send" | "o
   let generation = 0;
   let explainGeneration = 0;
   let offs: (() => void)[] = [];
+  /** 这个页面自己在等回复的问答任务：收尾广播不替它重读历史，免得没存上的回答被历史盖掉。 */
+  const awaiting = new Set<string>();
 
   const patch = (asked: number, next: Partial<QaState>): void => {
     if (asked === generation) state.value = { ...state.peek(), ...next };
@@ -53,12 +55,15 @@ export function createQaStore({ api }: { readonly api: Pick<PageApi, "send" | "o
   async function reload(asked: number, video: VideoKey): Promise<void> {
     const reply = await api.send("qa.history", { video });
     if (!reply.ok) return patch(asked, { loaded: true, error: describe(reply.code, reply.detail) });
-    patch(asked, { loaded: true, entries: [...reply.value.entries].sort((a, b) => b.createdAt - a.createdAt) });
+    // 没存进历史的回答只在这一页上，重读历史时留着它。
+    const { unsavedId, entries: shown } = state.peek();
+    const unsaved = shown.filter((entry) => entry.id === unsavedId && !reply.value.entries.some((item) => item.id === entry.id));
+    patch(asked, { loaded: true, entries: [...unsaved, ...reply.value.entries].sort((a, b) => b.createdAt - a.createdAt) });
   }
 
   // 别处发起的、或者面板关掉前没等到的回答：收尾后重读历史。
   function onTask(asked: number, video: VideoKey, task: TaskView): void {
-    if (task.kind !== "qa" || task.state === "running") return;
+    if (task.kind !== "qa" || task.state === "running" || awaiting.has(task.id)) return;
     if (!state.peek().pending.some((item) => item.taskId === task.id)) return;
     dropPending(asked, task.id);
     if (task.state === "failed") patch(asked, { error: task.message || "没能回答这个问题。" });
@@ -101,7 +106,8 @@ export function createQaStore({ api }: { readonly api: Pick<PageApi, "send" | "o
       if (!started.ok) return patch(asked, { error: describe(started.code, started.detail) });
       const taskId = started.value.task.id;
       if (!state.peek().pending.some((item) => item.taskId === taskId)) patch(asked, { pending: [...state.peek().pending, { taskId, question }] });
-      const reply = await api.send("qa.ask", { video, taskId });
+      awaiting.add(taskId);
+      const reply = await api.send("qa.ask", { video, taskId }).finally(() => awaiting.delete(taskId));
       if (asked !== generation) return;
       dropPending(asked, taskId);
       if (!reply.ok) {

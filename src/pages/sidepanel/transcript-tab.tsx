@@ -74,7 +74,12 @@ function Toolbar({ panel, view, onSearch, searching, onImport }: { readonly pane
     );
   };
   const moreItems: MenuItem[] = [
-    { label: "重新读取字幕", hint: "不看本机缓存", onSelect: () => void transcript.load(view.video, follow.target.peek().tabId, { lang: view.transcript.ref.lang, fresh: true }) },
+    {
+      label: "重新读取字幕",
+      hint: "不看本机缓存",
+      // 导入的字幕不点名语言：点名语言会改读平台的字幕轨，绕过导入的文件。
+      onSelect: () => void transcript.load(view.video, follow.target.peek().tabId, { ...(view.transcript.fileName ? {} : { lang: view.transcript.ref.lang }), fresh: true }),
+    },
     { label: "复制全部字幕", onSelect: copyAll },
     { label: "导出 SRT", hint: `内容跟着${MODE_LABEL[mode]}视图`, onSelect: exportSrt },
     { label: "导入字幕文件", hint: "SRT 或 VTT，只存在这台电脑上", onSelect: onImport },

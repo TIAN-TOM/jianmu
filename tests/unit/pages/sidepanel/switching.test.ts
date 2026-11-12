@@ -158,3 +158,29 @@ test("概览：接上别处在跑的任务只跟着广播，不再认领；任�
   assert.equal(overview.state.value.task, null);
   overview.stop();
 });
+
+test("问答：没存进历史的回答，收尾广播先到也不被历史盖掉，标着没存上", async () => {
+  const { fake, api } = setup();
+  const gate = deferred();
+  fake.reply("qa.history", { value: { ok: true, value: { entries: [] } } });
+  fake.reply("task.list", { value: { ok: true, value: { tasks: [] } } });
+  fake.reply("task.start", { value: { ok: true, value: { task: { id: "t2" }, joined: false } } });
+  fake.reply("qa.ask", async () => {
+    await gate.promise;
+    return { ok: true, value: { entry: { id: "q2", video: FIRST, question: "问", answer: "答", citations: [], clickable: [], createdAt: 2 }, retrievalMode: "full", historySaved: false } };
+  });
+  const qa = createQaStore({ api });
+  qa.bind(FIRST);
+  await until(() => qa.state.value.loaded);
+  const asking = qa.ask("问");
+  await until(() => qa.state.value.pending.length === 1);
+  fake.broadcast({ type: "task.changed", task: { id: "t2", kind: "qa", origin: "user", video: FIRST, state: "completed", done: 1, total: 1, phase: "", message: "", createdAt: 2, updatedAt: 2 } });
+  await nextTurn();
+  gate.resolve();
+  await asking;
+  await nextTurn();
+  assert.equal(fake.attempts("qa.history"), 1, "自己在等的任务收尾时不另外重读历史");
+  assert.deepEqual(qa.state.value.entries.map((entry) => entry.id), ["q2"]);
+  assert.equal(qa.state.value.unsavedId, "q2");
+  qa.stop();
+});
