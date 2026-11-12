@@ -1,0 +1,209 @@
+/* 稍后再看粗筛页的版面。底子（页面、卡片、按钮、状态行、就地确认）沿用 options.css 和 ui.css，
+ * 颜色、字号、间距只用 theme.css 的变量，这里只放列表页自己的版式。结论块和侧边栏的是同一个组件。 */
+
+.triage-page {
+  max-width: 52rem;
+}
+
+.page-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.back-link {
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-medium);
+  color: var(--accent-text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.back-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.lede {
+  font-size: var(--fs-ui);
+  line-height: var(--lh-body);
+  color: var(--text-muted);
+  text-wrap: pretty;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.step + .step {
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border);
+}
+
+.note {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+/* ---------- 结果 ---------- */
+
+.results-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+/* 按判断筛选：一排小标签，选中的那个用强调色的浅底和深一档的字 */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.filter {
+  min-height: 30px;
+  padding: var(--space-1) var(--space-3);
+  font: inherit;
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-medium);
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition:
+    color var(--dur) var(--ease),
+    border-color var(--dur) var(--ease),
+    background-color var(--dur) var(--ease);
+}
+
+.filter:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.filter[aria-pressed="true"] {
+  color: var(--accent-text-strong);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  font-weight: var(--fw-semibold);
+}
+
+.video-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.video {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr);
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--border);
+}
+
+.video:first-child {
+  border-top: none;
+}
+
+.cover {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--bg-hover);
+}
+
+.cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 封面上的时长：压在图片上，固定深底白字 */
+.cover-duration {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  padding: 0 6px;
+  font-size: var(--fs-caption);
+  font-variant-numeric: tabular-nums;
+  line-height: 20px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.62);
+  border-radius: 4px;
+}
+
+.video-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.video-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.video-title:hover {
+  color: var(--accent-text);
+}
+
+.video-meta {
+  font-size: var(--fs-meta);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.video-official,
+.video-note,
+.video-line {
+  font-size: var(--fs-ui);
+  line-height: var(--lh-body);
+  color: var(--text);
+}
+
+.video-official[data-status="none"],
+.video-note,
+.video-line {
+  color: var(--text-muted);
+}
+
+.video-note a {
+  color: var(--accent-text);
+}
+
+.video-error {
+  font-size: var(--fs-meta);
+  color: var(--danger);
+}
+
+.label {
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+
+@media (max-width: 560px) {
+  .video {
+    grid-template-columns: 1fr;
+  }
+
+  .cover {
+    max-width: 320px;
+  }
+}

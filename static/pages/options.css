@@ -241,3 +241,8 @@ details.field[open] {
 .status[data-tone="error"] {
   color: var(--danger);
 }
+
+/* 打开粗筛页的入口是链接，长得和按钮一样。 */
+a.button {
+  text-decoration: none;
+}

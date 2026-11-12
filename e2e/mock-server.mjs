@@ -10,8 +10,10 @@ import { createModelServices, MODEL_HOSTS } from "./mock-ai.mjs";
 import { watchPageHtml } from "./watch-page.mjs";
 import {
   COVER_SVG,
+  FOURTH_VIDEO,
   KEYS,
   LOGIN_COOKIE,
+  NO_SUMMARY,
   ROTATED_KEYS,
   VIDEOS,
   accountImages,
@@ -189,19 +191,27 @@ function readPlayer(request) {
 /** @param {Read} request */
 function readSummary(request) {
   if (isPaid(request.scenario)) return unexpected();
-  return signedRead(request, () => ok(summaryData()));
+  return signedRead(request, (video) => ok(video.bvid === FOURTH_VIDEO.bvid ? NO_SUMMARY : summaryData()));
 }
 
 /** @param {Read} request */
 const readWatchLater = ({ scenario }) => ok(watchLaterData({ paid: scenario === "paid" }));
 
+const SUMMARY_PATH = "/x/web-interface/view/conclusion/get";
+const WATCH_LATER_PATH = "/x/v2/history/toview";
+
 /** @type {Readonly<Record<string, (request: Read) => MockResponse>>} */
 const CONTENT_ROUTES = {
   "/x/web-interface/view": readView,
   "/x/player/wbi/v2": readPlayer,
-  "/x/web-interface/view/conclusion/get": readSummary,
-  "/x/v2/history/toview": readWatchLater,
+  [SUMMARY_PATH]: readSummary,
+  [WATCH_LATER_PATH]: readWatchLater,
 };
+
+/** 读官方总结的请求。 @param {{ host: string, path: string }} entry */
+export const officialRead = ({ host, path }) => apiHost(host) && path === SUMMARY_PATH;
+/** 读稍后再看列表的请求。 @param {{ host: string, path: string }} entry */
+export const watchLaterRead = ({ host, path }) => apiHost(host) && path === WATCH_LATER_PATH;
 
 /** @param {string} cookie @param {string} scenario */
 function isLoggedIn(cookie, scenario) {
@@ -281,7 +291,8 @@ function selfSignedCert(dir) {
 
 /**
  * 收到的每个请求记一条：at 是收到的时刻，answeredAt 是回完的时刻，aborted 是没等回答客户端就断了。
- * @typedef {{ host: string, path: string, cookie: string, unexpected: boolean, at: number, answeredAt?: number, aborted?: true }} Logged
+ * 一次站点请求。video 是请求里带的视频编号，没带时是空串。
+ * @typedef {{ host: string, path: string, video: string, cookie: string, unexpected: boolean, at: number, answeredAt?: number, aborted?: true }} Logged
  */
 
 /** @param {{ dir: string }} options 放临时证书的目录 */
@@ -316,7 +327,7 @@ export async function startMockServer({ dir }) {
     const cookie = req.headers.cookie ?? "";
     const answer = route({ host, path, query, cookie }, scenario);
     /** @type {Logged} */
-    const entry = { host, path, cookie, unexpected: answer.unexpected === true, at: Date.now() };
+    const entry = { host, path, video: query.get("bvid") ?? "", cookie, unexpected: answer.unexpected === true, at: Date.now() };
     requests.push(entry);
     if (scenario !== "slow" || !slowed({ host, path })) return answerWith(res, entry, answer);
     const timer = setTimeout(() => {

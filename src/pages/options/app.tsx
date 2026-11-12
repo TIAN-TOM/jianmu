@@ -117,6 +117,24 @@ function CardSection({ state }: { readonly state: OptionsState }) {
   );
 }
 
+// ---- 稍后再看粗筛 ----
+
+function TriageSection() {
+  return (
+    <section class="card" id="triage-entry">
+      <h2>稍后再看粗筛</h2>
+      <p class="hint">
+        在新标签页里读取你的 B 站稍后再看列表，先用官方总结快速看每个视频讲了什么，需要时再花 API 额度写一句话结论，按判断分组、导出清单。读取列表和取官方总结不调模型。
+      </p>
+      <div class="actions">
+        <a class="button" data-variant="secondary" id="openTriage" href="./triage.html" target="_blank" rel="noopener">
+          打开稍后再看粗筛
+        </a>
+      </div>
+    </section>
+  );
+}
+
 // ---- 资料 ----
 
 function DataSection({ state, enabled }: { readonly state: OptionsState; readonly enabled: boolean }) {
@@ -194,6 +212,7 @@ export function App({ state, activation }: { readonly state: OptionsState; reado
           <AppearanceSection state={state} />
           <CardSection state={state} />
           <AiSection state={state} />
+          <TriageSection />
         </>
       ) : null}
       <DataSection state={state} enabled={enabled} />

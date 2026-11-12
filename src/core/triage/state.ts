@@ -23,6 +23,8 @@ export interface TriageItem {
   readonly pageCount?: number;
   readonly available?: boolean;
   readonly description?: string;
+  /** 封面图的地址，粗筛页显示用。 */
+  readonly cover?: string;
   /** 列表里确认过付费状态才是真；不是真的条目，读官方总结之前先读一次视频信息。 */
   readonly paidChecked?: boolean;
 }

@@ -1,7 +1,7 @@
 // 真实读取实现对着端到端的模拟路由走一遍：Chrome 里的真实链路要等后台路由接上，这里先核对两边对得上。
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { FIRST_VIDEO, KEYS, ROTATED_KEYS, SECOND_VIDEO } from "../../../../e2e/fixtures.mjs";
+import { FIRST_VIDEO, FOURTH_VIDEO, KEYS, ROTATED_KEYS, SECOND_VIDEO, THIRD_VIDEO } from "../../../../e2e/fixtures.mjs";
 import { hostRulesFor, PROBE, route, slowed } from "../../../../e2e/mock-server.mjs";
 import type { VideoRef } from "../../../../src/core/video-ref.ts";
 import { createSiteBackoff } from "../../../../src/platform/site-backoff.ts";
@@ -136,8 +136,8 @@ test("走完登录、视频信息、字幕、分段、官方总结、稍后再�
   assert.equal(summary.cues.length, 1);
 
   const list = value(await service.readWatchLater(ctx));
-  assert.equal(list.total, 2);
-  assert.deepEqual(list.items.map((item) => item.available), [true, true]);
+  assert.equal(list.total, 4);
+  assert.deepEqual(list.items.map((item) => item.available), [true, true, true, true]);
   assert.ok(list.items[0]?.cover.endsWith(`${FIRST_VIDEO.bvid}.jpg`));
 
   assertNoStray(state);
@@ -224,7 +224,7 @@ test("sign-rejected-once：平台换过密钥时重取一次、重签一次就�
   assert.equal(tracks.length, 2);
   assert.equal(pathCount(state, PLAYER_URL), 2, "被拒后重签一次");
   assert.equal(pathCount(state, PROBE.account), 2, "重取一次密钥");
-  assert.equal(value(await state.service.readWatchLater(state.ctx)).total, 2, "没有进退避");
+  assert.equal(value(await state.service.readWatchLater(state.ctx)).total, 4, "没有进退避");
   assertNoStray(state);
 });
 
@@ -255,6 +255,8 @@ test("paid：稍后再看里的付费项标成不可用，别的项不受影响"
   assert.deepEqual(items.map((item) => [item.title, item.available, item.paidChecked]), [
     [FIRST_VIDEO.title, false, true],
     [SECOND_VIDEO.title, true, false],
+    [THIRD_VIDEO.title, true, false],
+    [FOURTH_VIDEO.title, true, false],
   ]);
   assertNoStray(state);
 });
@@ -266,6 +268,8 @@ test("upower-only：列表项没带充电标记时 paidChecked 为 false，要�
   assert.deepEqual(items.map((item) => [item.title, item.available, item.paidChecked]), [
     [FIRST_VIDEO.title, true, false],
     [SECOND_VIDEO.title, true, false],
+    [THIRD_VIDEO.title, true, false],
+    [FOURTH_VIDEO.title, true, false],
   ]);
   assert.equal(failure(await state.service.readVideoInfo(REF, state.ctx)).code, "UNPLAYABLE");
   assertNoStray(state);
@@ -275,7 +279,7 @@ test("not-found：报 NOT_FOUND，不进退避", async () => {
   const state = loggedInWorld();
   state.scenario = "not-found";
   assert.equal(failure(await state.service.readVideoInfo(REF, state.ctx)).code, "NOT_FOUND");
-  assert.equal(value(await state.service.readWatchLater(state.ctx)).total, 2);
+  assert.equal(value(await state.service.readWatchLater(state.ctx)).total, 4);
   assertNoStray(state);
 });
 

@@ -1,7 +1,8 @@
 // 端到端冒烟：把 zip 解压出来的扩展装进 Chrome for Testing，站点请求都到本机模拟服务器，其余域名解析失败。
 // 核对后台和侧边栏都没有报错，主机权限和登录状态都生效，后台取字幕在确认前、没登录、付费时都按规矩停下，也没有意外请求。
-// 播放页之后在真实的侧边栏里走一遍主流程：跟着视频页读字幕、点一句跳过去、生成概览、把金句存为笔记、提问并点引用跳转。
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+// 播放页之后在真实的侧边栏里走一遍主流程：跟着视频页读字幕、点一句跳过去、生成概览、把金句存为笔记、提问并点引用跳转；
+// 再从设置页打开粗筛页，读稍后再看、两步批次、分组和导出。
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,6 +11,7 @@ import { launchChrome, prepareExtension } from "./browser.mjs";
 import { ANTHROPIC, VIDEOS } from "./fixtures.mjs";
 import { apiHost, contentRead, fileHost, PROBE, startMockServer, watchPage } from "./mock-server.mjs";
 import { storedSettings } from "./settings.mjs";
+import { triageFlow } from "./triage-steps.mjs";
 import { createWatchSteps } from "./watch-steps.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -149,6 +151,10 @@ try {
   const { product } = await cdp.send("Browser.getVersion", {}, undefined, TIMEOUT_MS);
   await cdp.send("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
   await cdp.send("Target.setDiscoverTargets", { discover: true });
+  // 粗筛页导出 Markdown 会下载文件：落到临时目录。
+  const downloads = join(work, "downloads");
+  mkdirSync(downloads, { recursive: true });
+  await cdp.send("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: downloads });
   const { id } = await browser.loadExtension(TIMEOUT_MS);
   // 清单里的 key 固定了扩展 ID，换文件夹加载也不变。
   if (id !== expectedId) throw new Error(`扩展 ID 是 ${id}，应为 ${expectedId}`);
@@ -235,6 +241,7 @@ try {
     const shown = panel ? await evaluate(panel, `document.getElementById("app")?.innerText ?? ""`).catch(() => "") : "";
     throw new Error(`${error.message}\n侧边栏上显示：${shown}`);
   });
+  await triageFlow({ until, evaluate, cdp, findSession, mock, extensionId: id, downloads });
   await watch.afterClear(page);
   console.log("✓ 清掉本机设置让启用失效，播放页上的笔记按钮和卡片不用刷新就全部撤下");
 

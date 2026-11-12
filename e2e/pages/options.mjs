@@ -84,7 +84,7 @@ test("设置页：确认启用之前只有启用说明和资料一节，确认�
   assert.deepEqual(before.buttons, ["导出备份", "清除缓存", "清除全部数据"], "确认前不能恢复备份");
   await enable(page);
   const after = await page.evaluate(`[...document.querySelectorAll(".card > h2")].map((node) => node.textContent)`);
-  assert.deepEqual(after, ["外观", "播放页", "AI 服务", "学习资料"]);
+  assert.deepEqual(after, ["外观", "播放页", "AI 服务", "稍后再看粗筛", "学习资料"]);
   assert.equal(await page.overflowsX(), false);
 });
 

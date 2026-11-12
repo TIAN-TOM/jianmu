@@ -15,6 +15,9 @@ pages/sidepanel.css
 pages/sidepanel.html
 pages/sidepanel.js
 pages/theme-boot.js
+pages/triage.css
+pages/triage.html
+pages/triage.js
 theme.css
 ui.css
 ui/controls.css

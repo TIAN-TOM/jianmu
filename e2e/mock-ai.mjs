@@ -1,6 +1,6 @@
 // 两家模拟的模型服务：Anthropic 和 OpenAI 的 Responses。按提示词里的视频标题认是哪个视频、按提示词认是概览块还是结论，
 // 回一份能通过校验的结果。测试可以把某个视频的概览请求挂住，放行或客户端中途断开才收尾；每个请求都记下。
-import { ANTHROPIC, OPENAI, VIDEOS } from "./fixtures.mjs";
+import { ANTHROPIC, OPENAI, SKIPPED_VIDEO, VIDEOS } from "./fixtures.mjs";
 
 /** @typedef {import("./fixtures.mjs").ModelService} ModelService */
 /** @typedef {import("node:http").IncomingMessage} Request */
@@ -64,11 +64,11 @@ function kindOf(prompt) {
 }
 
 /**
- * 概览块的章节和金句放在本块起点那一秒，结论按提示词的格式写，问答引用字幕第一句的时间点。
+ * 概览块的章节和金句放在本块起点那一秒，结论按提示词的格式写（粗筛分组用的那个视频判可以跳过），问答引用字幕第一句的时间点。
  * @param {"analysis" | "verdict" | "qa"} kind @param {string} prompt
  */
 function resultOf(kind, prompt) {
-  if (kind === "verdict") return { summary: "模拟服务写的一句话结论", value: "样例价值", verdict: "看概览就够", reason: "样例理由" };
+  if (kind === "verdict") return { summary: "模拟服务写的一句话结论", value: "样例价值", verdict: videoOf(prompt) === SKIPPED_VIDEO ? "可以跳过" : "看概览就够", reason: "样例理由" };
   if (kind === "qa") return { answer: "模拟服务的回答，依据在 [0:00]。" };
   const seconds = Number(/（第 (\d+) 秒）/.exec(prompt)?.[1] ?? 0);
   return {

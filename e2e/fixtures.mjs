@@ -29,8 +29,16 @@ export const FIRST_VIDEO = { bvid: "BV1Sample001", aid: 1001, cid: 2001, mid: 30
 /** @type {Video} */
 export const SECOND_VIDEO = { bvid: "BV1Sample002", aid: 1002, cid: 2002, mid: 3002, title: "第二个样例视频", owner: "另一位样例作者", duration: 900 };
 
+/** 只在稍后再看里出现的两个：别的步骤不读它们，粗筛第一步要真的向平台问。 @type {Video} */
+export const THIRD_VIDEO = { bvid: "BV1Sample003", aid: 1003, cid: 2003, mid: 3003, title: "稍后再看的样例视频", owner: "第三位样例作者", duration: 1200 };
+/** 没有官方总结的那个。 @type {Video} */
+export const FOURTH_VIDEO = { bvid: "BV1Sample004", aid: 1004, cid: 2004, mid: 3004, title: "没有官方总结的样例视频", owner: "第四位样例作者", duration: 600 };
+
 /** @type {Readonly<Record<string, Video>>} */
-export const VIDEOS = { [FIRST_VIDEO.bvid]: FIRST_VIDEO, [SECOND_VIDEO.bvid]: SECOND_VIDEO };
+export const VIDEOS = { [FIRST_VIDEO.bvid]: FIRST_VIDEO, [SECOND_VIDEO.bvid]: SECOND_VIDEO, [THIRD_VIDEO.bvid]: THIRD_VIDEO, [FOURTH_VIDEO.bvid]: FOURTH_VIDEO };
+
+/** 写结论时模拟服务判「可以跳过」的视频，粗筛分组用；其余判「看概览就够」。 */
+export const SKIPPED_VIDEO = THIRD_VIDEO.bvid;
 
 /** @param {Keys} keys */
 export function accountImages(keys) {
@@ -85,6 +93,9 @@ export function untrustedTracks(video) {
   return trackList(video).map((track) => ({ ...track, subtitle_url: "https://files.example.com/bfs/subtitle/sample.json" }));
 }
 
+/** 平台说这个视频没有官方总结。 */
+export const NO_SUMMARY = { code: 1, stid: "1" };
+
 export function summaryData() {
   return {
     code: 0,
@@ -127,7 +138,8 @@ function watchLaterItem(video, paid) {
 
 /** @param {{ paid?: boolean }} [options] 第一项要不要带付费标记 */
 export function watchLaterData({ paid = false } = {}) {
-  return { count: 2, list: [watchLaterItem(FIRST_VIDEO, paid), watchLaterItem(SECOND_VIDEO, false)] };
+  const list = [watchLaterItem(FIRST_VIDEO, paid), watchLaterItem(SECOND_VIDEO, false), watchLaterItem(THIRD_VIDEO, false), watchLaterItem(FOURTH_VIDEO, false)];
+  return { count: list.length, list };
 }
 
 // 两个样例视频共用这一份。时间轴要和两个视频的时长都对得上（不超出 15 分钟那个，也覆盖 30 分钟那个的三成以上），
