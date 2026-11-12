@@ -177,8 +177,8 @@ export function createTriageState(deps: TriageDeps): TriageState {
       listStatus.value = { text: `${listSummary(reply.value)}要看最新的列表就再读取一次。` };
       officialStatus.value = { text: officialCounts(reply.value.list.items, reply.value.official) };
     }
-    // 别的页面正在跑的一步：连上端口，之后的进度这一页也收得到。
-    if (reply.value.running) ensurePort();
+    // 别的页面正在跑的一步：发一次同一步的开始，后台把这一页接上，之后的进度、停止和关页面都算这一页一份。
+    if (reply.value.running) ensurePort().post({ type: "triage.start", step: reply.value.running });
   }
 
   function onItem(event: Extract<TriageOut, { type: "triage.item" }>): void {
