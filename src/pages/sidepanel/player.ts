@@ -71,12 +71,13 @@ export function createPlayer({ tabs = chrome.tabs as PlayerTabs }: { readonly ta
     return reply;
   }
 
-  async function poll(): Promise<void> {
+  // 换了视频后的第一次总要问，看连没连上；之后页面不可见时不问。
+  async function poll(first = false): Promise<void> {
     timer = null;
     const asked = generation;
     const at = current;
     if (!at) return;
-    if (typeof document === "undefined" || document.visibilityState === "visible") {
+    if (first || typeof document === "undefined" || document.visibilityState === "visible") {
       const reply = await send(at.tabId, "player.getState", { video: at.video });
       if (asked !== generation) return;
       if (reply.ok && reply.value.status !== "ad") position.value = { video: at.video, atSec: reply.value.atSec, status: reply.value.status };
@@ -88,7 +89,7 @@ export function createPlayer({ tabs = chrome.tabs as PlayerTabs }: { readonly ta
     if (timer !== null) clearTimeout(timer);
     timer = null;
     generation += 1;
-    if (current) void poll();
+    if (current) void poll(true);
   };
 
   return {

@@ -15,7 +15,8 @@
 | `src/shared/` | `names.ts` 存储键和扩展页面路径，`storage-plan.ts` 每份本机数据的清除和备份归属，`settings-schema.ts` 设置的结构、规整和校验，`messages.ts` 消息类型（各领域在 `messages/`，发给内容脚本的指令在 `messages/content.ts`） |
 | `src/platform/` | `idb.ts` IndexedDB 驱动，`storage.ts`、`locks.ts`、`permissions.ts`、`messaging.ts`、`tabs.ts` 是扩展存储、Web Locks、主机权限、消息、标签页、侧边栏和脚本注入的薄封装，`settings-store.ts` 设置读写、会话密钥、记住密钥的本机记录和设置修订号，`site-backoff.ts` 站点限速和退避，`keepalive.ts` 任务在跑时撑着 service worker 不被回收 |
 | `src/sites/` | 站点适配层：`types.ts`、`page-types.ts` 是契约，`rules.ts` 是地址规则，`bilibili/` 是 B 站的地址解析、播放页和读取实现，`services.ts` 是后台用的服务注册表 |
-| `src/background/`、`src/pages/` | 内联的提示词、`grants.ts` 回收用不上的主机授权，侧边栏占位页 |
+| `src/background/`、`src/pages/` | 内联的提示词、`grants.ts` 回收用不上的主机授权 |
+| `src/pages/sidepanel/` | 侧边栏：跟着本窗口当前的视频标签页走（`follow.ts`），确认启用前只有启用说明；字幕、概览、笔记、问答四个页签，各页签的数据在同名 `.ts` 里，换视频时旧视频的回复作废；播放器指令经 `player.ts` 发给视频页的内容脚本，送不到就提示刷新视频页；`panel.ts` 把各块拼起来，`static/pages/sidepanel.css` 是它自己的版面 |
 | `src/pages/shared/` | `api.ts` 是消息客户端：请求一律回结果，后台的拒绝原样交出去，够不着后台和半路断开各给中文说明，只有路由表标了幂等的请求断线时重试一次；广播只收后台发的，按任务号、视频键、标签页号过滤；长连接的收发和断开。`activation.ts` 是启用状态（确认启用、启用失效马上按没启用处理），`config.ts` 是配置检查（启用以后才问，设置和密钥变了只看键名、去抖后重问），`persist.ts` 申请持久化存储；`theme.ts` 把主题、明暗和界面字号落到页面根节点上，跟着设置变，每次落地刷新首帧缓存，清除全部数据后按默认值重写（`pageAppearanceSources` 接上清除广播）；`theme-boot.ts` 打成经典脚本，在页面 `<head>` 里同步读首帧缓存；`ui/` 是四个页面共用的组件（时间轨、结论块、章节列表、模式切换、一行提示、底部工具条、抽屉和层、菜单、按钮、状态块、首次启用说明、图标），组件只渲染，规则写在旁边的 `.ts` 里由单元测试守，渲染在页面测试的组件样张里看 |
 | `src/pages/options/` | 设置页：确认启用之前只有启用说明和资料一节（导出备份、清除本机数据）；确认以后有外观、播放页卡片开关和 AI 服务（服务商、地址、密钥和记住密钥、默认模型和按功能选模型、概览分块、数据说明和同意）。设置直接经设置仓库读写，本页的写入排成一条队；保存先在点击里申请这个地址的主机权限，存好以后回收用不上的授权；拉模型和测试连接先按表单保存再发给后台。`form.ts` 是表单的纯逻辑，`state.ts` 是状态和动作 |
 | `src/content/` | B 站内容脚本，原生 DOM：`bilibili.ts` 是入口，同一页面再注入一份时新的接手、旧的整套撤下；`gate.ts` 是启用闸门，确认前只挂一个收后台消息的监听，不读页面、不插节点，启用失效（清除全部数据）时整套撤下、重新等确认；`app.ts` 管生命周期（页面激活稳定后才挂界面、定时自查、扩展重新加载后旧脚本收场）；`player.ts` 执行播放器指令（读状态、跳转，地址变了要等播放器换上新视频）并每个视频报一次时长；`note-button.ts`、`shortcut.ts`、`mini-player.ts` 是笔记按钮、`n` 快捷键和小窗避让，只认真实操作；`card-frame.ts` 用 iframe 把卡片插在右栏，宽屏时挪到弹幕列表下面，换视频只发提醒不改地址 |
@@ -35,7 +36,7 @@
 | `static/` | 原样复制进构建产物：`theme.css` 是扩展页面共用的设计变量（三套主题、两种明暗，界面字号改根字号），`ui.css` 引进 `ui/` 下按用途分开的共用组件样式，`icons/` 是 16、48、128 三档扩展图标，`pages/` 是页面外壳 |
 | `scripts/` | `build.mjs` 构建，`package.mjs` 打包和校验（同一个提交打两次得到同一个 zip，旁边写校验值文件），`release.mjs` 发布候选、候选之后的核对、发布说明草稿和发布前检查，`check-public.mjs` 公开结构检查 |
 | `tests/` | `unit/` 单元测试，`structure.test.ts` 结构规则，`build-output.test.ts` 构建产物检查，`fixtures/golden/` 黄金样本，`helpers/` 替身（`fake-ai.ts` 是后台各服务测试共用的模型服务替身，`fake-site-service.ts` 是站点读取服务的替身，`overview-service.ts` 是概览和用官方总结写结论的测试架子，`study-service.ts`、`study-background.ts` 是问答、划词解释和笔记的服务架子和走真实后台分发的架子，`manual-timers.ts` 是手动推进的计时器） |
-| `e2e/` | 把打好的包装进 Chrome for Testing 跑冒烟，站点和两家模型服务的请求都指向本机模拟服务器（能中途切场景、拖慢读取、挂住模型请求），其余域名解析失败；`lifecycle.mjs` 单独看任务跨过 service worker 空闲回收、被强行终止时的样子；`pages.mjs` 是页面测试的入口，场景按页面分在 `pages/`，`pages/harness.mjs` 是公共部分，`pages/fixtures/` 的组件样张只在测试时编进扩展副本 |
+| `e2e/` | 把打好的包装进 Chrome for Testing 跑冒烟，站点和两家模型服务的请求都指向本机模拟服务器（能中途切场景、拖慢读取、挂住模型请求），其余域名解析失败；`lifecycle.mjs` 单独看任务跨过 service worker 空闲回收、被强行终止时的样子；`pages.mjs` 是页面测试的入口，场景按页面分在 `pages/`，`pages/harness.mjs` 是公共部分，`pages/fixtures/` 的组件样张只在测试时编进扩展副本；`run.mjs` 最后在真实的侧边栏里走主流程，清单里还没有内容脚本时只在临时副本里挂 `fake-content.js` 应答播放器指令 |
 | `notes/` | 公开的设计文档，走白名单 |
 
 ## 命令

@@ -24,7 +24,7 @@ const TEST_TIMEOUT_MS = 30_000;
 const SETTLE_MS = 150;
 
 /** 场景文件，按页面分。后面的页面加进来时在这里登记。 */
-const SCENARIOS = ["e2e/pages/gallery.mjs", "e2e/pages/panel.mjs", "e2e/pages/options.mjs"];
+const SCENARIOS = ["e2e/pages/gallery.mjs", "e2e/pages/sidepanel.mjs", "e2e/pages/options.mjs"];
 
 const executable = process.env.CHROME_PATH;
 if (!executable) throw new Error("用 CHROME_PATH 指定 Chrome for Testing 的可执行文件");
