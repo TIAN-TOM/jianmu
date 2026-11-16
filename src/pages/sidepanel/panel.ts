@@ -1,5 +1,6 @@
 // 侧边栏的各块数据拼在一起：启用、配置、跟随的标签页、播放器，四个页签的数据。
 // 启用以后才跟着当前视频读取；换了视频，各页签一起换，没启用或没有视频时全部清空。
+// 打开就出结论停下或恢复时重问一次配置，顶上那一行跟着变。
 import { computed, effect, signal, type Signal } from "@preact/signals";
 import type { PageApi } from "../shared/api.ts";
 import { createActivation, type Activation } from "../shared/activation.ts";
@@ -95,6 +96,7 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
     }),
     // 启用以后才连上批次端口，接上本窗口已有的一批。
     effect(() => batch.setEnabled(activation.enabled.value)),
+    api.on("auto.changed", () => void config.check()),
     // 字幕页签开着时才每秒问一次播放位置。
     effect(() => {
       player.setPolling(activation.enabled.value && tab.value === "transcript" && transcript.state.value.state === "ready");

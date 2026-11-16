@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe as describeError } from "../../src/core/errors.ts";
 import { videoKey } from "../../src/core/video-ref.ts";
-import { API_KEY_SESSION_KEY, SETTINGS_STORAGE_KEY } from "../../src/shared/names.ts";
+import { API_KEY_SESSION_KEY, AUTO_LEDGER_KEY, SETTINGS_STORAGE_KEY } from "../../src/shared/names.ts";
 import { ANTHROPIC, VIDEOS } from "../fixtures.mjs";
 import { PROBE, watchPage } from "../mock-server.mjs";
 import { storedSettings } from "../settings.mjs";
@@ -168,6 +168,35 @@ test("侧边栏：没设置 AI 服务时本窗口全部生成停用；设置好�
       await waitIn(panel, "取消以后回到按钮", `Boolean(${batchButton})`);
     } finally {
       await panel.evaluate(`Promise.all([chrome.storage.local.set(${JSON.stringify(before)}), chrome.storage.session.remove(${JSON.stringify(API_KEY_SESSION_KEY)})]).then(() => true)`);
+    }
+  });
+});
+
+test("侧边栏：打开就出结论因为额度用完停着时，顶上一行写明怎么恢复；关掉开关以后这一行消失", async (ctx) => {
+  await withVideo(ctx, async (panel) => {
+    await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
+    const before = await panel.evaluate(`chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)})`);
+    const stored = await storedSettings(ANTHROPIC);
+    const settings = { ...stored.local[SETTINGS_STORAGE_KEY], autoOverview: true };
+    const paused = { tried: [], sent: [], paused: { reason: "quota", at: Date.now() } };
+    const setLocal = (value) => panel.evaluate(`chrome.storage.local.set(${JSON.stringify({ [SETTINGS_STORAGE_KEY]: value })}).then(() => true)`);
+    // 先打开开关（开关一动后台就清掉暂停），再放一份停着的记录，然后改一项别的设置让侧边栏重问配置。
+    await panel.evaluate(`chrome.storage.session.set(${JSON.stringify(stored.session)}).then(() => true)`);
+    await setLocal(settings);
+    try {
+      await waitIn(panel, "配置齐了", `!${textOf(".notice-text")}.includes("要先设置 AI 服务")`);
+      await panel.evaluate(`chrome.storage.session.set(${JSON.stringify({ [AUTO_LEDGER_KEY]: paused })}).then(() => true)`);
+      await setLocal({ ...settings, analysisChunkMode: "short" });
+      await waitIn(panel, "暂停的提示", `${textOf(".notice-text")}.includes("额度用完，打开就出结论已暂停")`);
+      // 关掉开关：后台从暂停里恢复，告诉页面以后这一行消失。
+      await setLocal({ ...settings, analysisChunkMode: "short", autoOverview: false });
+      await waitIn(panel, "提示消失", `!${textOf(".notice-text")}.includes("打开就出结论已暂停")`);
+      const ledger = await panel.evaluate(`chrome.storage.session.get(${JSON.stringify(AUTO_LEDGER_KEY)})`);
+      assert.equal(ledger[AUTO_LEDGER_KEY]?.paused, undefined);
+    } finally {
+      await panel.evaluate(
+        `Promise.all([chrome.storage.local.set(${JSON.stringify(before)}), chrome.storage.session.remove([${JSON.stringify(API_KEY_SESSION_KEY)}, ${JSON.stringify(AUTO_LEDGER_KEY)}])]).then(() => true)`,
+      );
     }
   });
 });

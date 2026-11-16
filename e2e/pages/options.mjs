@@ -84,7 +84,7 @@ test("设置页：确认启用之前只有启用说明和资料一节，确认�
   assert.deepEqual(before.buttons, ["导出备份", "清除缓存", "清除全部数据"], "确认前不能恢复备份");
   await enable(page);
   const after = await page.evaluate(`[...document.querySelectorAll(".card > h2")].map((node) => node.textContent)`);
-  assert.deepEqual(after, ["外观", "播放页", "AI 服务", "稍后再看粗筛", "学习资料"]);
+  assert.deepEqual(after, ["外观", "播放页", "AI 服务", "打开就出结论", "稍后再看粗筛", "学习资料"]);
   assert.equal(await page.overflowsX(), false);
 });
 
@@ -118,6 +118,34 @@ test("设置页：选服务商、填密钥、勾同意后保存，拉模型列�
   const reopened = await open(PAGE_PATHS.options, { width: WIDTH });
   await reopened.waitFor("重新打开后表单填回来", `document.getElementById("aiModel")?.value === ${JSON.stringify(ANTHROPIC.model)}`);
   assert.equal(await reopened.evaluate(`document.getElementById("aiApiKey").value`), ANTHROPIC.key);
+});
+
+test("设置页：打开就出结论默认关；没同意时勾开关先列出说明，同意并打开后才开；关掉、改时长不用同意", async ({ open }) => {
+  const page = await freshOptions(open);
+  await enable(page);
+  const stored = () => page.evaluate(`chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)}).then((items) => items[${JSON.stringify(SETTINGS_STORAGE_KEY)}] ?? {})`);
+  assert.equal(await page.evaluate(`document.getElementById("autoOverview").checked`), false);
+  assert.equal(await page.evaluate(`document.getElementById("autoOverviewMinutes").value`), "10");
+
+  await page.click("#autoOverview");
+  await page.waitFor("列出数据说明", `document.querySelector("#auto-overview .consent-lines") !== null`);
+  const listed = await page.evaluate(`document.querySelector("#auto-overview .consent-lines").textContent`);
+  assert.match(listed, /打开「打开就出结论」以后/);
+  assert.equal(await page.evaluate(`document.getElementById("autoOverview").checked`), false, "同意之前不打开");
+  assert.equal((await stored()).autoOverview, false);
+
+  await clickButton(page, "同意并打开", "#auto-overview");
+  await page.waitFor("开关打开", `document.getElementById("autoOverview").checked && document.getElementById("dataConsent").checked`);
+  const on = await stored();
+  assert.equal(on.autoOverview, true);
+  assert.ok(on.dataConsentVersion > 0, "同意一起存下");
+
+  await fill(page, "#autoOverviewMinutes", "25");
+  await page.waitFor("时长存下", `chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)}).then((items) => items[${JSON.stringify(SETTINGS_STORAGE_KEY)}]?.autoOverviewMinutes === 25)`);
+  await page.click("#autoOverview");
+  await page.waitFor("开关关掉", `chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)}).then((items) => items[${JSON.stringify(SETTINGS_STORAGE_KEY)}]?.autoOverview === false)`);
+  assert.equal(await page.evaluate(`document.querySelector("#auto-overview .consent-lines") === null`), true, "关掉不用同意");
+  assert.equal(await page.overflowsX(), false);
 });
 
 test("设置页：导出的备份清除全部数据后能再导回来", async ({ open }) => {

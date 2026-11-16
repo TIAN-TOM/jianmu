@@ -1,5 +1,6 @@
 // 卡片的状态和操作。认哪个视频只看所在标签页的地址；读数据只用轻量读取（官方总结和本机已有的概览）；
-// 生成概览只认真实点击，登记时换到一次性令牌才开始；侧边栏为同一视频起的任务就跟着看进度。没启用、卡片关着时什么都不显示。
+// 生成概览只认真实点击，登记时换到一次性令牌才开始；侧边栏为同一视频起的、打开就出结论自动起的任务就跟着看进度。
+// 没启用、卡片关着时什么都不显示。
 import { computed, signal, type ReadonlySignal } from "@preact/signals";
 import { describe, type ErrorCode } from "../../core/errors.ts";
 import type { LearningAnalysis } from "../../core/notes/markdown.ts";
@@ -31,6 +32,8 @@ export type Tone = "" | "warn" | "error";
 export interface TaskProgress {
   readonly id: string;
   readonly external: boolean;
+  /** 打开就出结论自动起的。 */
+  readonly auto: boolean;
   readonly canceling: boolean;
   readonly done: number;
   readonly total: number;
@@ -182,7 +185,7 @@ export function createCardModel(deps: CardDeps) {
   }
 
   function progressOf(task: TaskView, external: boolean, canceling = false): TaskProgress {
-    return { id: task.id, external, canceling, done: task.done, total: task.total, message: task.message };
+    return { id: task.id, external, auto: task.origin === "auto", canceling, done: task.done, total: task.total, message: task.message };
   }
 
   // 侧边栏可能正在为这个视频生成概览：接上它的进度，不摆一个点了会被拦下的按钮。
@@ -224,7 +227,7 @@ export function createCardModel(deps: CardDeps) {
     if (v.task || v.phase !== "loaded" || v.noCaptions || hasOverview(saved)) return;
     const asked = ticket;
     const current = video;
-    patch({ task: { id: "", external: false, canceling: false, done: 0, total: 0, message: "" }, settingsError: false, ...notice("") });
+    patch({ task: { id: "", external: false, auto: false, canceling: false, done: 0, total: 0, message: "" }, settingsError: false, ...notice("") });
     const started = await api.send("task.start", { kind: "overview", video: current });
     if (asked !== ticket) return;
     if (!started.ok) return finishOwn(null, started.code, describe(started.code, started.detail));

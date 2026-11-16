@@ -26,7 +26,7 @@ const view: CardView = {
   },
   verdictPending: false,
   noCaptions: false,
-  task: { id: "sample", external: false, canceling: false, done: 3, total: 8, message: "" },
+  task: { id: "sample", external: false, auto: false, canceling: false, done: 3, total: 8, message: "" },
   settingsError: false,
   notice: { text: LONG, tone: "" },
 };

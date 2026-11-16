@@ -39,6 +39,7 @@ export interface OptionsState {
   readonly form: ReadonlySignal<AiForm | null>;
   readonly loadError: ReadonlySignal<string | null>;
   readonly aiStatus: ReadonlySignal<Status | null>;
+  readonly autoStatus: ReadonlySignal<Status | null>;
   readonly dataStatus: ReadonlySignal<Status | null>;
   readonly busy: ReadonlySignal<Busy>;
   readonly models: ReadonlySignal<readonly string[]>;
@@ -51,6 +52,8 @@ export interface OptionsState {
   save(): Promise<boolean>;
   saveInstant(patch: SettingsPatch): Promise<void>;
   setConsent(given: boolean): Promise<void>;
+  /** 打开就出结论：先同意当前的数据说明，同意存上了才打开开关。 */
+  enableAuto(): Promise<void>;
   setRemember(remember: boolean): Promise<void>;
   clearKey(): Promise<void>;
   fetchModels(): Promise<void>;
@@ -94,6 +97,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
   const form = signal<AiForm | null>(null);
   const loadError = signal<string | null>(null);
   const aiStatus = signal<Status | null>(null);
+  const autoStatus = signal<Status | null>(null);
   const dataStatus = signal<Status | null>(null);
   const busy = signal<Busy>(null);
   const models = signal<readonly string[]>([]);
@@ -258,6 +262,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
     form,
     loadError,
     aiStatus,
+    autoStatus,
     dataStatus,
     busy,
     models,
@@ -295,6 +300,16 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
         await ownWrite(() => store.setDataConsent(given));
       } catch (error) {
         aiStatus.value = { text: `没有保存：${errorText(error)}`, tone: "error" };
+      }
+    },
+    async enableAuto() {
+      try {
+        const consented = await ownWrite(() => store.setDataConsent(true));
+        if (!consented) return;
+        const written = await ownWrite(() => store.update({ autoOverview: true }));
+        autoStatus.value = written ? null : { text: STALE_TEXT, tone: "warn" };
+      } catch (error) {
+        autoStatus.value = { text: `没有打开：${errorText(error)}`, tone: "error" };
       }
     },
     async setRemember(remember) {

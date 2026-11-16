@@ -1,7 +1,8 @@
 // 侧边栏外壳：没确认启用时只有启用说明；没有视频时说明怎么用；有视频时是头部、一行提示和四个页签。
-// 视频页没连上扩展、还没设置 AI 服务、字幕和视频对不上，都放在头部下面的一行提示里。
+// 视频页没连上扩展、还没设置 AI 服务、字幕和视频对不上、打开就出结论停着，都放在头部下面的一行提示里。
 import { describe } from "../../core/errors.ts";
 import { noticeLines, noticeStatus, ACTIVATION_TABLE } from "../../core/consent.ts";
+import type { AutoPauseReason } from "../../shared/messages/ai.ts";
 import { ActivationNotice } from "../shared/ui/activation-notice.tsx";
 import { activationSections } from "../shared/ui/activation.ts";
 import { IconButton } from "../shared/ui/button.tsx";
@@ -22,6 +23,11 @@ const TABS: readonly { readonly id: TabId; readonly label: string }[] = [
   { id: "notes", label: "笔记" },
   { id: "qa", label: "问答" },
 ];
+
+const AUTO_PAUSED: Readonly<Record<AutoPauseReason, string>> = {
+  quota: "额度用完，打开就出结论已暂停。手动生成成功一次，或在设置页关掉再打开就恢复",
+  key: "密钥被拒，打开就出结论已暂停。手动生成成功一次，或在设置页关掉再打开就恢复",
+};
 
 const FULL_SECTIONS = (() => {
   const status = noticeStatus(ACTIVATION_TABLE, {});
@@ -139,6 +145,9 @@ function notices(panel: Panel): (NoticeEntry | null)[] {
     now.state === "ready" && now.view.subtitleMismatch ? { id: "mismatch", priority: 2, text: describe("SUBTITLE_MISMATCH"), tone: "warn" } : null,
     config.state === "checked" && !config.view.ready
       ? { id: "config", priority: 3, text: "字幕不用设置就能看；概览和问答要先设置 AI 服务", tone: "plain", action: { label: "打开设置", run: panel.openOptions } }
+      : null,
+    config.state === "checked" && config.view.autoPaused
+      ? { id: "auto-paused", priority: 4, text: AUTO_PAUSED[config.view.autoPaused], tone: "warn", action: { label: "打开设置", run: panel.openOptions } }
       : null,
   ];
 }

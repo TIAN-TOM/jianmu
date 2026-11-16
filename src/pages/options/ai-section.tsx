@@ -40,7 +40,7 @@ const CONSENT_HEADINGS: readonly [DataConsentKind, string][] = [
 const FULL_CONSENT = noticeStatus(DATA_CONSENT_TABLE, {});
 const FULL_CONSENT_ITEMS = FULL_CONSENT.state === "needed" ? FULL_CONSENT.items : [];
 
-function ConsentLines({ items }: { readonly items: readonly NoticeItem<DataConsentKind>[] }) {
+export function ConsentLines({ items }: { readonly items: readonly NoticeItem<DataConsentKind>[] }) {
   const lines = noticeLines(items);
   return (
     <dl class="consent-lines">

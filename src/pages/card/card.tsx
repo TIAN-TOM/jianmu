@@ -5,7 +5,7 @@ import type { OfficialSummaryView, OutlineSectionView } from "../../shared/messa
 import { ChapterList, type ChapterItem } from "../shared/ui/chapter-list.tsx";
 import { VerdictBlock } from "../shared/ui/verdict-block.tsx";
 import type { BasisSource } from "../shared/ui/verdict.ts";
-import { hasOverview, type CardView } from "./model.ts";
+import { hasOverview, type CardView, type TaskProgress } from "./model.ts";
 
 const SETUP_HINT = "还没设置 AI 服务（或没勾选数据说明、密钥已随浏览器重启清空），生成概览要先填服务商和密钥。";
 
@@ -98,6 +98,13 @@ function Overview({ analysis, pending, onSeek }: { readonly analysis: LearningAn
   );
 }
 
+function progressText(task: TaskProgress): string {
+  if (task.canceling) return "正在停止…";
+  const text = task.message || (task.total > 0 ? `${task.done}/${task.total} 块完成` : "");
+  if (task.auto) return text ? `自动生成：${text}` : "正在自动生成概览…";
+  return text || "正在准备…";
+}
+
 export interface CardActions {
   readonly toggle: () => void;
   readonly generate: (event: ClickEvent) => void;
@@ -141,7 +148,7 @@ export function Card({ view, aiReady, actions }: { readonly view: CardView; read
           <div class="card-track">
             <div class="card-bar" style={{ width: `${percent}%` }} />
           </div>
-          <span class="card-progress-text">{task.canceling ? "正在停止…" : task.message || (task.total > 0 ? `${task.done}/${task.total} 块完成` : "正在准备…")}</span>
+          <span class="card-progress-text">{progressText(task)}</span>
           <button type="button" class="button" data-variant="text" disabled={task.canceling} onClick={actions.cancel}>
             停止
           </button>

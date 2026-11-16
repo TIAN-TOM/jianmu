@@ -1,4 +1,4 @@
-// 设置页。确认启用之前只显示启用说明，和确认前就允许的导出备份、清除本机数据；确认之后才有外观、播放页卡片和 AI 服务。
+// 设置页。确认启用之前只显示启用说明，和确认前就允许的导出备份、清除本机数据；确认之后才有外观、播放页卡片、AI 服务和打开就出结论。
 // 状态和动作都在 state.ts，这里只渲染。
 import { useId, useRef } from "preact/hooks";
 import { ACTIVATION_TABLE, noticeLines, noticeStatus, type ActivationKind, type NoticeItem } from "../../core/consent.ts";
@@ -10,6 +10,7 @@ import { activationSections } from "../shared/ui/activation.ts";
 import { Button } from "../shared/ui/button.tsx";
 import { StateBlock } from "../shared/ui/state-block.tsx";
 import { AiSection } from "./ai-section.tsx";
+import { AutoSection } from "./auto-section.tsx";
 import { Confirmable, StatusLine } from "./controls.tsx";
 import type { OptionsState } from "./state.ts";
 
@@ -212,6 +213,7 @@ export function App({ state, activation }: { readonly state: OptionsState; reado
           <AppearanceSection state={state} />
           <CardSection state={state} />
           <AiSection state={state} />
+          <AutoSection state={state} />
           <TriageSection />
         </>
       ) : null}

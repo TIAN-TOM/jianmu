@@ -14,6 +14,8 @@ type Listener = (changes: object, area: string) => void;
 function world(initial: Record<string, unknown>) {
   let current: LoadedSettings = { ...normalize({ ...DEFAULTS, ...initial }), settingsRevision: "r1" };
   const saves: SettingsInput[] = [];
+  const updates: SettingsInput[] = [];
+  let consentFails = false;
   const listeners = new Set<Listener>();
   const permission = deferred();
   const written = (next: LoadedSettings, previousRevision: string): WrittenSettings => ({ ...next, previousRevision });
@@ -26,12 +28,16 @@ function world(initial: Record<string, unknown>) {
       current = { ...normalize(form), settingsRevision: `${before}+save` };
       return written(current, before);
     },
-    async update() {
-      return written(current, current.settingsRevision);
+    async update(patch: SettingsInput) {
+      const before = current.settingsRevision;
+      updates.push(patch);
+      current = { ...normalize({ ...current, ...patch }), settingsRevision: before };
+      return written(current, before);
     },
     async setDataConsent(given: boolean) {
       const before = current.settingsRevision;
       await nextTurn();
+      if (consentFails) throw new Error("存储写满了");
       current = { ...current, ...(given ? DATA_CONSENT_CONFIRMED : { dataConsentVersion: 0, dataConsentFingerprint: "" }), settingsRevision: `${before}+consent` };
       return written(current, before);
     },
@@ -51,7 +57,7 @@ function world(initial: Record<string, unknown>) {
     current = { ...normalize({ ...current, ...next }), settingsRevision: `${current.settingsRevision}+other` };
     for (const listener of listeners) listener({ [SETTINGS_REVISION_KEY]: { newValue: current.settingsRevision } }, "local");
   };
-  return { state, saves, permission, external, current: () => current };
+  return { state, saves, updates, permission, external, current: () => current, failConsent: () => void (consentFails = true) };
 }
 
 const GATEWAY = { presetId: "custom", protocol: "openai", aiBaseUrl: "https://gateway.example.com/v1", aiModel: "m" };
@@ -79,4 +85,22 @@ test("刚勾的同意还没落地就点保存：保存排在它后面，同意�
   assert.equal(await saving, true);
   assert.equal(w.saves.length, 1);
   assert.equal(w.current().dataConsentVersion, DATA_CONSENT_CONFIRMED.dataConsentVersion);
+});
+
+test("打开就出结论：没同意时先同意当前的数据说明，同意存上了才打开开关；同意没存上就不打开", async () => {
+  const w = world({ ...GATEWAY });
+  await w.state.load();
+  await w.state.enableAuto();
+  assert.equal(w.current().dataConsentVersion, DATA_CONSENT_CONFIRMED.dataConsentVersion);
+  assert.deepEqual(w.updates, [{ autoOverview: true }]);
+  assert.equal(w.current().autoOverview, true);
+  assert.equal(w.state.saved.value?.autoOverview, true);
+
+  const broken = world({ ...GATEWAY });
+  await broken.state.load();
+  broken.failConsent();
+  await broken.state.enableAuto();
+  assert.deepEqual(broken.updates, [], "同意没存上，开关不动");
+  assert.equal(broken.current().autoOverview, false);
+  assert.match(broken.state.autoStatus.value?.text ?? "", /没有打开/);
 });

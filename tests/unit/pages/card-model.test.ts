@@ -91,6 +91,25 @@ test("同一视频已经有任务在跑：接上它看进度，结束后重读",
   assert.deepEqual(model.view.value.analysis, ANALYSIS);
 });
 
+test("打开就出结论自动起的任务：卡片不点也跟上进度、标出是自动的，结束后摆出结论；没有任务时和平时一样", async () => {
+  const { fake, model } = setup();
+  model.configChanged();
+  await model.start();
+  const following = () => model.view.value.task;
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  assert.equal(following(), null);
+
+  fake.broadcast({ type: "task.changed", task: { ...task("auto-1"), origin: "auto" } });
+  assert.ok(await until(() => following()?.id === "auto-1"));
+  assert.equal(following()?.auto, true);
+  assert.equal(following()?.external, true);
+
+  fake.reply("transcript.get", { value: guides(KEY, { overview: { analysis: ANALYSIS, analysisFailures: [] } }) });
+  fake.broadcast({ type: "task.changed", task: { ...task("auto-1", "completed"), origin: "auto" } });
+  assert.ok(await until(() => model.view.value.task === null && model.view.value.analysis?.verdict?.summary === "样例结论"));
+  assert.equal(fake.attempts("task.start"), 0, "卡片自己没有发起");
+});
+
 test("收起只管当前视频：换了视频回到展开，接着读新视频", async () => {
   const { fake, model } = setup();
   fake.reply("card.setOverride", { value: { ok: true, value: { session: {} } } });
