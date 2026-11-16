@@ -186,6 +186,7 @@ test("补失败块只请求失败区间，成功后清空记录", async () => {
   const before = h.chunkAsks().length;
   const result = value(await h.retry().result);
   assert.equal(result.failedChunks, 0);
+  assert.equal(result.recoveredChunks, 1, "这次补上了一块");
   assert.equal(h.chunkAsks().length - before, 1, "只补失败的那一块");
   assert.equal((await h.record())?.analysisFailures, undefined);
 });
@@ -630,7 +631,8 @@ test("点「补失败块」遇到确定性失败：一次点击只发一次", as
   const { h, calls } = failingChunk(() => coded("还是不够", { code: "EMPTY_AI_RESPONSE", reason: "TRUNCATED" }));
   await h.generate().result;
   const before = calls();
-  assert.equal(value(await h.retry().result).failedChunks, 1);
+  const retried = value(await h.retry().result);
+  assert.deepEqual([retried.failedChunks, retried.recoveredChunks], [1, 0], "又失败了：一块也没补上");
   assert.equal(calls() - before, 1);
 });
 

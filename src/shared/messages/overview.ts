@@ -41,6 +41,8 @@ export interface OverviewResultView {
   readonly chunkCount?: number;
   /** 停在中途：已经完成的块存下了几块。 */
   readonly savedChunks?: number;
+  /** 补失败块：这次真的补上了几块，全部又失败时是 0。 */
+  readonly recoveredChunks?: number;
   readonly canceled?: true;
   /** 结论那一步被停掉了，章节照常存着。 */
   readonly verdictCanceled?: true;

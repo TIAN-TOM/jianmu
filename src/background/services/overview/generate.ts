@@ -279,7 +279,8 @@ export function createGenerator(deps: GenerateDeps) {
         }
         run.progress({ done: selected.length, total: selected.length, phase: "merging", message: remaining.length ? "失败块仍未全部补上" : "正在合并概览…" });
         const finishing = { fields: fieldsOf(job, view), analysis, failures: remaining, basis: basisOf(view), common, totalDuration, chunkCount: selected.length, regenerating: false, conclude: parts.length > 0 };
-        return await finish(job, finishing);
+        const done = await finish(job, finishing);
+        return done.ok ? ok({ ...done.value, recoveredChunks: parts.length }) : done;
       } catch (error) {
         logFailure("补失败块", error, run.signal);
         return failureOf(error);

@@ -2,7 +2,7 @@
 // 卡片只能开始生成，只认登记时拿到的一次性令牌，不能重新生成，登记时已经过了卡片开关和限频。
 // 手动生成或补失败块成功一次，打开就出结论就从额度用完、密钥不对的暂停里恢复。
 import { fail } from "../../core/errors.ts";
-import type { OverviewGetRequest, OverviewRetryRequest, OverviewStartRequest } from "../../shared/messages/overview.ts";
+import type { OverviewGetRequest, OverviewResultView, OverviewRetryRequest, OverviewStartRequest } from "../../shared/messages/overview.ts";
 import type { CardLimits } from "../limits.ts";
 import type { Route } from "../router.ts";
 import type { AutoGenerate } from "../services/auto-generate.ts";
@@ -42,12 +42,14 @@ function isGetRequest(req: unknown): req is OverviewGetRequest {
 }
 
 export function overviewRoutes({ overview, cardLimits, auto }: OverviewRouteDeps): OverviewRoutes {
-  // 真的发了请求、拿到了结果才算：本机已有的直接交回、中途停下的都不算。
-  const generated = async (pending: ReturnType<OverviewService["generate"]>): ReturnType<OverviewService["generate"]> => {
+  // 真的拿到了模型的结果才算：本机已有的直接交回、中途停下的都不算；补失败块要至少补上一块。
+  const resumeAfter = async (pending: ReturnType<OverviewService["generate"]>, succeeded: (value: OverviewResultView) => boolean): ReturnType<OverviewService["generate"]> => {
     const result = await pending;
-    if (result.ok && !result.value.fromCache && !result.value.canceled) await auto?.resume().catch(() => undefined);
+    if (result.ok && !result.value.canceled && succeeded(result.value)) await auto?.resume().catch(() => undefined);
     return result;
   };
+  const generated = (pending: ReturnType<OverviewService["generate"]>) => resumeAfter(pending, (value) => !value.fromCache);
+  const retried = (pending: ReturnType<OverviewService["retryFailed"]>) => resumeAfter(pending, (value) => (value.recoveredChunks ?? 0) > 0);
   return {
     "overview.start": {
       senders: ["panel", "card"],
@@ -67,7 +69,7 @@ export function overviewRoutes({ overview, cardLimits, auto }: OverviewRouteDeps
       senders: ["panel", "page"],
       pages: ["options", "triage"],
       validate: isRetryRequest,
-      handler: (req) => generated(overview.retryFailed(req.taskId, req.video)),
+      handler: (req) => retried(overview.retryFailed(req.taskId, req.video)),
     },
     "overview.get": {
       senders: ["panel", "page"],

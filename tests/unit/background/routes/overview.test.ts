@@ -100,18 +100,21 @@ test("读概览只给生效中的那份：重新生成写到一半的草稿和�
   assert.deepEqual(result.value, { video: KEY, overview: { analysis: draft.analysis, analysisFailures: [] } });
 });
 
-test("手动补失败块真的发了请求、拿到了结果：打开就出结论从暂停里恢复；本机已有的直接交回、中途停下的都不算", async () => {
+test("手动补失败块至少补上一块：打开就出结论从暂停里恢复；全部又失败的、本机已有的直接交回、中途停下的都不算", async () => {
   let resumed = 0;
-  let value: { fromCache: boolean; canceled?: true } = { fromCache: false };
+  let value: { fromCache: boolean; recoveredChunks?: number; canceled?: true } = { fromCache: false, recoveredChunks: 1 };
   const overview = { retryFailed: async () => ({ ok: true, value }) } as unknown as OverviewService;
   const routes = overviewRoutes({ overview, cardLimits: { redeemToken: () => null }, auto: { resume: async () => void (resumed += 1) } });
   const retry = () => routes["overview.retryFailed"].handler({ taskId: "t", video: KEY }, {} as Parameters<(typeof routes)["overview.retryFailed"]["handler"]>[1]);
 
   assert.equal((await retry()).ok, true);
   assert.equal(resumed, 1);
+  value = { fromCache: false, recoveredChunks: 0 };
+  await retry();
+  assert.equal(resumed, 1, "全部又失败了不恢复");
   value = { fromCache: true };
   await retry();
-  value = { fromCache: false, canceled: true };
+  value = { fromCache: false, recoveredChunks: 1, canceled: true };
   await retry();
   assert.equal(resumed, 1, "本机已有的、中途停下的不恢复");
 });
