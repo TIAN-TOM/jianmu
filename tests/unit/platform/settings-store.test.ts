@@ -255,13 +255,15 @@ test("改外观这类即改即存的设置，不会把旧密钥写回 storage.lo
     { [SETTINGS_STORAGE_KEY]: WITH_STRAY_KEY },
     { [API_KEY_SESSION_KEY]: { key: "sk-ds", origin: DEEPSEEK_ORIGIN } },
   );
-  await storeOn(world).update({ accentTheme: "graphite", themeMode: "dark", uiFontScale: 125, inPageCard: false });
+  await storeOn(world).update({ accentTheme: "graphite", themeMode: "dark", uiFontScale: 125, inPageCard: false, autoOverview: true, autoOverviewMinutes: 25 });
 
   const local = savedSettings(world);
   assert.equal(local["accentTheme"], "graphite");
   assert.equal(local["themeMode"], "dark");
   assert.equal(local["uiFontScale"], 125);
   assert.equal(local["inPageCard"], false);
+  assert.equal(local["autoOverview"], true);
+  assert.equal(local["autoOverviewMinutes"], 25);
   assertNoKeyFields(local);
   assert.deepEqual(world.session.data[API_KEY_SESSION_KEY], { key: "sk-ds", origin: DEEPSEEK_ORIGIN });
 });

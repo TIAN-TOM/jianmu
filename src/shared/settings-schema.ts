@@ -92,6 +92,9 @@ export const EFFORT_TIMEOUT_SECONDS: Readonly<Record<Effort, number>> = Object.f
 
 const MAX_MODEL_CHARS = 200;
 
+/** 打开就出结论的时长门槛，按分钟：默认 10 分钟，可调到 0（所有视频）到 180。 */
+export const AUTO_OVERVIEW_MINUTES = Object.freeze({ default: 10, min: 0, max: 180 } as const);
+
 export const UI_FONT_SCALES = Object.freeze([100, 112, 125] as const);
 export type UiFontScale = (typeof UI_FONT_SCALES)[number];
 
@@ -179,6 +182,8 @@ export interface SettingsInput {
   readonly accentTheme?: unknown;
   readonly themeMode?: unknown;
   readonly inPageCard?: unknown;
+  readonly autoOverview?: unknown;
+  readonly autoOverviewMinutes?: unknown;
   readonly rememberApiKey?: unknown;
   readonly dataConsentVersion?: unknown;
   readonly dataConsentFingerprint?: unknown;
@@ -199,6 +204,10 @@ export interface NormalizedSettings extends AiSettings {
   readonly themeMode: ThemeMode;
   /** 播放页右栏的总结卡片。 */
   readonly inPageCard: boolean;
+  /** 打开就出结论：新安装默认关。 */
+  readonly autoOverview: boolean;
+  /** 超过这么多分钟的视频才自动生成。 */
+  readonly autoOverviewMinutes: number;
   /** 「在这台电脑上记住密钥」。默认关，打开只走设置页的保存，见 settings-store。 */
   readonly rememberApiKey: boolean;
   /** 用户确认过的数据说明版本和指纹，0 和空串是还没确认。 */
@@ -223,6 +232,8 @@ export const DEFAULTS: NormalizedSettings = Object.freeze({
   accentTheme: "ink",
   themeMode: THEME_MODES.SYSTEM,
   inPageCard: true,
+  autoOverview: false,
+  autoOverviewMinutes: AUTO_OVERVIEW_MINUTES.default,
   rememberApiKey: false,
   dataConsentVersion: 0,
   dataConsentFingerprint: "",
@@ -257,6 +268,13 @@ const stringOrEmpty = (value: unknown): string => (typeof value === "string" ? v
 
 export function normalizeAccentTheme(value: unknown): AccentTheme {
   return isKeyOf(ACCENT_THEMES, value) ? value : DEFAULTS.accentTheme;
+}
+
+/** 取整、限在范围里；不是数字就用默认的 10 分钟。 */
+export function normalizeAutoMinutes(value: unknown): number {
+  const number = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : Number.NaN;
+  if (!Number.isFinite(number)) return AUTO_OVERVIEW_MINUTES.default;
+  return Math.min(AUTO_OVERVIEW_MINUTES.max, Math.max(AUTO_OVERVIEW_MINUTES.min, Math.round(number)));
 }
 
 /** 归到最近的一档，正好在两档中间时取大的那档；不是数字就用标准档。 */
@@ -347,6 +365,9 @@ export function normalize(input: unknown = {}): NormalizedSettings {
     themeMode: isThemeMode(source.themeMode) ? source.themeMode : DEFAULTS.themeMode,
     // 只认真正的布尔值：没有这一项、或被写成了别的类型时按默认开启。
     inPageCard: typeof source.inPageCard === "boolean" ? source.inPageCard : DEFAULTS.inPageCard,
+    // 花额度的开关只认 true：没有这一项、或写成别的值，都按关着。
+    autoOverview: source.autoOverview === true,
+    autoOverviewMinutes: normalizeAutoMinutes(source.autoOverviewMinutes),
     // 只认 true：没有这一项、或写成别的值，都按没选记住。
     rememberApiKey: source.rememberApiKey === true,
     // 同意和启用的版本、指纹只核对形状就存下：对不对得上当前说明由校验和 activationStatus 判断，

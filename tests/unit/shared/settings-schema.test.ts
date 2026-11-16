@@ -463,6 +463,26 @@ test("播放页总结卡片默认开启，只认真正的布尔值", () => {
   assert.equal(SETTINGS.normalize({ ...saved, accentTheme: "ochre" }).inPageCard, false);
 });
 
+test("打开就出结论：新安装默认关，只认真正的 true；时长门槛默认 10 分钟，取整、限在 0 到 180 分钟", () => {
+  assert.equal(SETTINGS.DEFAULTS.autoOverview, false);
+  assert.equal(SETTINGS.DEFAULTS.autoOverviewMinutes, 10);
+  assert.equal(SETTINGS.normalize({}).autoOverview, false);
+  assert.equal(SETTINGS.normalize({ autoOverview: true }).autoOverview, true);
+  for (const value of ["true", 1, "on", null, {}]) assert.equal(SETTINGS.normalize({ autoOverview: value }).autoOverview, false, String(value));
+  const minutes = (value: unknown): number => SETTINGS.normalize({ autoOverviewMinutes: value }).autoOverviewMinutes;
+  assert.equal(minutes(undefined), 10);
+  assert.equal(minutes(25), 25);
+  assert.equal(minutes("15"), 15, "表单里的数字字符串照认");
+  assert.equal(minutes(4.6), 5);
+  assert.equal(minutes(0), 0, "调到 0：所有视频都生成");
+  assert.equal(minutes(-3), 0);
+  assert.equal(minutes(1000), 180);
+  for (const value of ["", "abc", null, Number.NaN, Number.POSITIVE_INFINITY]) assert.equal(minutes(value), 10, String(value));
+  // 改别的设置时这两项留着。
+  const saved = SETTINGS.normalize({ autoOverview: true, autoOverviewMinutes: 30 });
+  assert.deepEqual(SETTINGS.normalize({ ...saved, accentTheme: "ochre" }), { ...saved, accentTheme: "ochre" });
+});
+
 test("主题只有三套，默认宣纸墨青", () => {
   assert.deepEqual(Object.keys(SETTINGS.ACCENT_THEMES), ["ink", "graphite", "ochre"]);
   assert.equal(SETTINGS.DEFAULTS.accentTheme, "ink");

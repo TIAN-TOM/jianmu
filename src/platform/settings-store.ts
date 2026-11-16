@@ -40,7 +40,7 @@ export interface WrittenSettings extends LoadedSettings {
 }
 
 /** 即改即存的设置。 */
-const INSTANT_FIELDS = ["accentTheme", "themeMode", "uiFontScale", "inPageCard"] as const;
+const INSTANT_FIELDS = ["accentTheme", "themeMode", "uiFontScale", "inPageCard", "autoOverview", "autoOverviewMinutes"] as const;
 
 /**
  * update 能改的字段，加上清空密钥、关掉记住这两个收回的动作。
