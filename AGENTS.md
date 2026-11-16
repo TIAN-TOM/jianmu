@@ -31,8 +31,6 @@ npm run release -- candidate   # 发布候选：要在远端 main 的最新提�
 
 ## 改代码时要知道的
 
-`PRIVACY.md` 还没写，提到它的那条是先定的规矩。
-
 - 依赖只能往下：`pages`、`content`、`background` → `sites` → `platform` → `core`、`shared`。结构规则见架构设计第 5.2 节，`tests/structure.test.ts` 会查。
 - 相对导入写 `.ts` 扩展名；不用 `enum`、`namespace`、参数属性、路径别名、装饰器。`.tsx` 不进单元测试，渲染放到无头 Chrome 里测。
 - Node 跑测试只剥类型不查类型，类型错误靠 `npm run typecheck` 拦。
