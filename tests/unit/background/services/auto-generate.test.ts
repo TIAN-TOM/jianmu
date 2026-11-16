@@ -94,7 +94,7 @@ function setup(options: Setup = {}) {
     configReady: async () => options.configReady ?? true,
     running: () => started.filter((run) => !run.settled).length,
     hasOverview: async () => options.overview ?? false,
-    knownDuration: async () => {
+    duration: async () => {
       calls.known += 1;
       return options.known ?? null;
     },

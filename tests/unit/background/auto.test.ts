@@ -96,12 +96,12 @@ test("只认地址变了或加载完成、在前台的标签页更新；焦点�
   assert.ok(await until(() => fake.calls.storageReads.length > 0));
 });
 
-test("短视频和 YouTube 视频不生成；焦点不在 Chrome 时也不生成", async () => {
+test("短视频（不读字幕）和 YouTube 视频不生成；焦点不在 Chrome 时也不生成", async () => {
   const short = appOn();
   short.windows.activeTabs[FOCUSED] = { id: 3, url: watchUrl(SHORT_ID) };
   short.app.onTabActivated();
-  assert.ok(await until(() => short.site.count("readCaptions") > 0 || short.site.count("readVideoInfo") > 0));
-  assert.ok(await stillFalse(() => short.ai.posts().length > 0), "读到的时长不够，不发模型请求");
+  assert.ok(await until(() => short.site.count("readVideoInfo") > 0));
+  assert.ok(await stillFalse(() => short.site.count("readCaptions") + short.ai.posts().length > 0), "本机不知道时长先做轻量读取：时长不够，不读字幕、不发模型请求");
 
   const tube = appOn();
   tube.windows.activeTabs[FOCUSED] = { id: 3, url: tubeUrl() };

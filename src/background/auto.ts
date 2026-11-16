@@ -1,6 +1,5 @@
 // 打开就出结论的接线：设置、窗口和标签页、本机概览、取字幕和任务登记都从这里交给自动生成服务。
 // 自动任务和用户点的「生成概览」登记成同一种任务、取定同样的配置，侧边栏和卡片再点就接上它。
-import { hasAnalysisContent } from "../core/ai/verdict.ts";
 import type { ClearGuard } from "../core/clear-guard.ts";
 import type { VideoRef } from "../core/video-ref.ts";
 import type { SettingsStore } from "../platform/settings-store.ts";
@@ -25,7 +24,7 @@ export interface AutoWiringDeps {
   readonly ai: Pick<AiWiring, "configCheck" | "freeze">;
   readonly tasks: Pick<TaskRunner, "register" | "list">;
   readonly overviews: Pick<OverviewStore, "find">;
-  readonly transcript: Pick<TranscriptService, "knownDuration" | "ensure">;
+  readonly transcript: Pick<TranscriptService, "knownDuration" | "light" | "ensure">;
   readonly overview: Pick<OverviewService, "generate">;
   /** 会话存储：尝试记录放在这里。 */
   readonly storage: StorageArea;
@@ -59,8 +58,14 @@ export function createAutoWiring(deps: AutoWiringDeps): AutoGenerate {
     parseWatchUrl,
     configReady: async () => (await ai.configCheck()).ready,
     running: () => tasks.list().filter((task) => task.origin === "auto" && task.state === "running").length,
-    hasOverview: async (video) => hasAnalysisContent((await deps.overviews.find(video))?.analysis),
-    knownDuration: (ref) => deps.transcript.knownDuration(ref),
+    hasOverview: async (video) => (await deps.overviews.find(video)) !== null,
+    async duration(ref) {
+      const known = await deps.transcript.knownDuration(ref);
+      if (known !== null) return known;
+      // 本机不知道：做一次卡片那样的轻量读取，卡片正在读就接上它，不为短视频去读字幕。
+      await deps.transcript.light(ref).catch(() => undefined);
+      return deps.transcript.knownDuration(ref);
+    },
     async readTranscript(ref) {
       const snapshot = await deps.transcript.ensure(ref);
       return snapshot.ok ? { durationSec: snapshot.value.view.info.durationSec } : null;
