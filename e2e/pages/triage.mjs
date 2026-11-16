@@ -2,12 +2,13 @@
 // 排在侧边栏之后：那时已经确认启用、登录了模拟的 B 站；页面测试里没有设置模型服务的密钥。
 import assert from "node:assert/strict";
 import { PAGE_PATHS } from "../../src/shared/names.ts";
-import { FOURTH_VIDEO, VIDEOS } from "../fixtures.mjs";
+import { FOURTH_VIDEO, watchLaterData } from "../fixtures.mjs";
 import { scenario } from "./harness.mjs";
 
 const test = scenario(import.meta.url);
 const WIDTH = 900;
-const TITLES = Object.values(VIDEOS).map((video) => video.title);
+// 只数稍后再看列表里的：样例视频表里还有别的步骤用的视频。
+const TITLES = watchLaterData().list.map((item) => item.title);
 
 /** 按文字找按钮，真实点击它中间。 */
 async function clickButton(page, text) {
