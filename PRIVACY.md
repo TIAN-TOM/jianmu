@@ -17,7 +17,7 @@
 
 ### 数据从哪来
 
-- **B 站**：你正在看的视频页，以及简幕替你向 B 站读取的视频信息、字幕、官方总结和稍后再看列表。只在你已登录 B 站时读，没登录时不读平台内容。付费和充电专属的内容不读，确认不了是不是付费内容时也不读。不下载音频和视频。
+- **B 站**：你正在看的视频页，以及简幕替你向 B 站读取的视频信息、字幕、官方总结和稍后再看列表。每次向 B 站读取新内容之前都先确认你已登录，没登录时不向 B 站读。本机已经存着的内容和你导入的字幕，不登录也照常显示；播放页上的播放状态（播放、暂停、时长）由页面自己提供，不论是否登录都会读。付费和充电专属的内容不读，确认不了是不是付费内容时也不读。不下载音频和视频。
 - **你自己**：你输入的问题、选中的文字、记的笔记，导入的字幕文件和备份文件，填的 API 密钥和各项设置。
 - **模型服务**：服务商返回的概览、结论、译文、回答和解释。
 
@@ -47,7 +47,7 @@
 
 ### 什么时候发给模型服务
 
-前提是你先在设置页「AI 服务」一节读数据说明，勾选同意。没勾选时，简幕不发任何 AI 请求，拉取模型列表和测试连接也不发。取消勾选马上生效。
+前提是你先读数据说明并同意：在设置页「AI 服务」一节勾选，或者在「打开就出结论」一节点「同意并打开」。没同意时，简幕不发任何 AI 请求，拉取模型列表和测试连接也不发。取消勾选马上生效：还没发出的请求不再发，已经发出的那一次照常等它回来。
 
 **会发送的内容**，只发当前功能用得到的：
 
@@ -57,6 +57,7 @@
 - 视频标题和时长
 - UP 主名和简介
 - 「用官方总结写结论」和粗筛写结论时用到的 B 站官方总结
+- 写一句话结论时，这次已经生成的章节标题、摘要和金句
 - 你的 API 密钥：每个请求都带着，服务商靠它认出是你的账户
 
 **用来做什么**：翻译、概览、一句话结论、划词解释、笔记润色、问答，以及粗筛时写一句话结论。
@@ -94,7 +95,7 @@
 所有资料都存在这台电脑上、这个 Chrome 个人资料的扩展存储里，不随浏览器账号同步。简幕不另外加密这些资料。每一项的名称见文末的「存储明细」。
 
 - **长期保存，直到你删掉**：概览和一句话结论、问答、笔记、译文、导入的字幕、按频道记住的模式、设置。
-- **缓存，有期限和条数上限**：字幕、视频信息、B 站官方总结和 UP 主分段；粗筛读到的稍后再看列表和官方总结；各个模型能做什么，比如能不能看图。字幕文件的地址不存。
+- **缓存**：字幕、视频信息、B 站官方总结和 UP 主分段最多留 60 个视频，超过 30 天或超出条数的，在下次存新内容时删掉。粗筛读到的稍后再看列表和官方总结、各个模型能做什么（比如能不能看图），过了有效期就不再使用，但要等重新读取或你清除缓存时才从存储里删掉。字幕文件的地址不存。
 - **只留到浏览器关闭**：正在看的视频用哪个模式、播放了多久，「打开就出结论」试过哪些视频，以及默认方式下的 API 密钥（见「API 密钥」一节）。B 站限流以后要等多久，也只留到浏览器关闭。
 
 ### 删除和备份
@@ -194,7 +195,7 @@ YouTube 版加上以后，补上在 YouTube 上读什么、发什么。
 
 ### Where the data comes from
 
-- **Bilibili**: the video page you are watching, plus the video details, subtitles, official summaries and Watch Later list that Jianmu reads from Bilibili for you. It only reads while you are signed in to Bilibili, and reads no platform content when you are signed out. It does not read paid or supporter-only content, or anything it cannot confirm is free. It never downloads audio or video.
+- **Bilibili**: the video page you are watching, plus the video details, subtitles, official summaries and Watch Later list that Jianmu reads from Bilibili for you. Before each new request to Bilibili it checks that you are signed in, and it requests nothing from Bilibili while you are signed out. Content already stored on this computer and subtitles you imported still show when you are signed out. Playback state on the video page (playing, paused, duration) comes from the page itself and is read whether or not you are signed in. It does not read paid or supporter-only content, or anything it cannot confirm is free. It never downloads audio or video.
 - **You**: the questions you type, text you select, notes you take, subtitle files and backups you import, your API key and your settings.
 - **The model service**: the overviews, verdicts, translations, answers and explanations the service sends back.
 
@@ -224,7 +225,7 @@ These are two separate things:
 
 ### When content is sent to a model service
 
-First you need to read the data notice in the AI 服务 (AI service) section of Settings and tick the box to agree. Until you do, Jianmu sends no AI requests at all, including fetching the model list and testing the connection. Unticking the box takes effect straight away.
+First you need to read the data notice and agree, either by ticking the box in the AI 服务 (AI service) section of Settings or by clicking 同意并打开 (agree and turn on) in the 打开就出结论 (conclusion on open) section. Until you do, Jianmu sends no AI requests at all, including fetching the model list and testing the connection. Unticking the box takes effect straight away: requests not yet sent are not sent, and a request already on its way is allowed to finish.
 
 **What may be sent**, limited to what the current feature needs:
 
@@ -234,6 +235,7 @@ First you need to read the data notice in the AI 服务 (AI service) section of 
 - Video title and duration
 - Uploader name and video description
 - Bilibili's official summary, used by 用官方总结写结论 (verdict from the official summary) and when triage writes verdicts
+- When writing the one-line verdict, the chapter titles, summaries and key quotes already generated for that video
 - Your API key, which goes with every request so the service knows it is your account
 
 **What it is used for**: translation, overviews, one-line verdicts, explaining selected text, tidying up notes, answering questions, and writing one-line verdicts during triage.
@@ -271,7 +273,7 @@ Privacy policies of the preset services:
 Everything is kept in the extension storage of this Chrome profile on this computer, and none of it is synced with your browser account. Jianmu does not add its own encryption to this data. The name of each item is listed under "Storage details" at the end.
 
 - **Kept until you delete it**: overviews and one-line verdicts, Q&A, notes, translations, imported subtitles, the mode remembered for each channel, and settings.
-- **Caches with a time limit and a size limit**: subtitles, video details, Bilibili official summaries and chapter markers; the Watch Later list and official summaries read for triage; and what each model can do, for example whether it accepts images. Subtitle file addresses are not stored.
+- **Caches**: subtitles, video details, Bilibili official summaries and chapter markers are kept for up to 60 videos. Entries older than 30 days, or beyond that number, are deleted the next time something new is cached. The Watch Later list and official summaries read for triage, and what each model can do (for example whether it accepts images), stop being used once they expire, but stay in storage until they are read again or you clear the cache. Subtitle file addresses are not stored.
 - **Kept only until the browser closes**: which mode each video you are watching uses and how long it has played, which videos 打开就出结论 has already tried, and your API key in the default setup (see "API key"). How long to wait after Bilibili rate-limits requests is also kept only until the browser closes.
 
 ### Deleting data and backups
