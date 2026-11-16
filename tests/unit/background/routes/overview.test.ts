@@ -3,6 +3,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createApp } from "../../../../src/background/app.ts";
+import { overviewRoutes } from "../../../../src/background/routes/overview.ts";
+import type { OverviewService } from "../../../../src/background/services/overview/index.ts";
 import { PROTOCOLS } from "../../../../src/core/ai/provider/index.ts";
 import type { OverviewRecord } from "../../../../src/core/notes/records.ts";
 import { createObjectStoreDriver } from "../../../../src/platform/idb.ts";
@@ -96,4 +98,20 @@ test("读概览只给生效中的那份：重新生成写到一半的草稿和�
   const result = (await app.dispatch({ type: "overview.get", req: { video: KEY } }, senders.panel())) as { ok: true; value: unknown };
   assert.ok(result.ok);
   assert.deepEqual(result.value, { video: KEY, overview: { analysis: draft.analysis, analysisFailures: [] } });
+});
+
+test("手动补失败块真的发了请求、拿到了结果：打开就出结论从暂停里恢复；本机已有的直接交回、中途停下的都不算", async () => {
+  let resumed = 0;
+  let value: { fromCache: boolean; canceled?: true } = { fromCache: false };
+  const overview = { retryFailed: async () => ({ ok: true, value }) } as unknown as OverviewService;
+  const routes = overviewRoutes({ overview, cardLimits: { redeemToken: () => null }, auto: { resume: async () => void (resumed += 1) } });
+  const retry = () => routes["overview.retryFailed"].handler({ taskId: "t", video: KEY }, {} as Parameters<(typeof routes)["overview.retryFailed"]["handler"]>[1]);
+
+  assert.equal((await retry()).ok, true);
+  assert.equal(resumed, 1);
+  value = { fromCache: true };
+  await retry();
+  value = { fromCache: false, canceled: true };
+  await retry();
+  assert.equal(resumed, 1, "本机已有的、中途停下的不恢复");
 });

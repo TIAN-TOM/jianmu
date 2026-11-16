@@ -1,6 +1,6 @@
 // 概览：开始生成、补失败块、读本机已有的概览。生成和补块认领的是先经任务登记的任务，服务核对任务的种类和视频；
 // 卡片只能开始生成，只认登记时拿到的一次性令牌，不能重新生成，登记时已经过了卡片开关和限频。
-// 侧边栏或卡片手动生成成功一次，打开就出结论就从额度用完、密钥不对的暂停里恢复。
+// 手动生成或补失败块成功一次，打开就出结论就从额度用完、密钥不对的暂停里恢复。
 import { fail } from "../../core/errors.ts";
 import type { OverviewGetRequest, OverviewRetryRequest, OverviewStartRequest } from "../../shared/messages/overview.ts";
 import type { CardLimits } from "../limits.ts";
@@ -67,7 +67,7 @@ export function overviewRoutes({ overview, cardLimits, auto }: OverviewRouteDeps
       senders: ["panel", "page"],
       pages: ["options", "triage"],
       validate: isRetryRequest,
-      handler: (req) => overview.retryFailed(req.taskId, req.video),
+      handler: (req) => generated(overview.retryFailed(req.taskId, req.video)),
     },
     "overview.get": {
       senders: ["panel", "page"],
