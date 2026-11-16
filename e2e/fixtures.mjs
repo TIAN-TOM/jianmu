@@ -34,8 +34,30 @@ export const THIRD_VIDEO = { bvid: "BV1Sample003", aid: 1003, cid: 2003, mid: 30
 /** 没有官方总结的那个。 @type {Video} */
 export const FOURTH_VIDEO = { bvid: "BV1Sample004", aid: 1004, cid: 2004, mid: 3004, title: "没有官方总结的样例视频", owner: "第四位样例作者", duration: 600 };
 
+/** 打开就出结论用的三个，别的步骤不碰：两个超过门槛的、一个不到门槛的。 @type {Video} */
+export const AUTO_LONG = { bvid: "BV1Sample005", aid: 1005, cid: 2005, mid: 3005, title: "自动生成的样例长视频", owner: "第五位样例作者", duration: 1500 };
+/** @type {Video} */
+export const AUTO_SHORT = { bvid: "BV1Sample006", aid: 1006, cid: 2006, mid: 3006, title: "自动生成的样例短视频", owner: "第六位样例作者", duration: 720 };
+/** @type {Video} */
+export const AUTO_BACKGROUND = { bvid: "BV1Sample007", aid: 1007, cid: 2007, mid: 3007, title: "后台打开的样例长视频", owner: "第七位样例作者", duration: 1500 };
+
+/**
+ * 打开就出结论的端到端步骤用：只带编号和标题，步骤脚本里不写平台的字段名。
+ * @param {Video} video
+ */
+const sample = (video) => Object.freeze({ id: video.bvid, title: video.title });
+export const AUTO_SAMPLES = Object.freeze({ long: sample(AUTO_LONG), short: sample(AUTO_SHORT), background: sample(AUTO_BACKGROUND) });
+
 /** @type {Readonly<Record<string, Video>>} */
-export const VIDEOS = { [FIRST_VIDEO.bvid]: FIRST_VIDEO, [SECOND_VIDEO.bvid]: SECOND_VIDEO, [THIRD_VIDEO.bvid]: THIRD_VIDEO, [FOURTH_VIDEO.bvid]: FOURTH_VIDEO };
+export const VIDEOS = {
+  [FIRST_VIDEO.bvid]: FIRST_VIDEO,
+  [SECOND_VIDEO.bvid]: SECOND_VIDEO,
+  [THIRD_VIDEO.bvid]: THIRD_VIDEO,
+  [FOURTH_VIDEO.bvid]: FOURTH_VIDEO,
+  [AUTO_LONG.bvid]: AUTO_LONG,
+  [AUTO_SHORT.bvid]: AUTO_SHORT,
+  [AUTO_BACKGROUND.bvid]: AUTO_BACKGROUND,
+};
 
 /** 写结论时模拟服务判「可以跳过」的视频，粗筛分组用；其余判「看概览就够」。 */
 export const SKIPPED_VIDEO = THIRD_VIDEO.bvid;
@@ -142,7 +164,7 @@ export function watchLaterData({ paid = false } = {}) {
   return { count: list.length, list };
 }
 
-// 两个样例视频共用这一份。时间轴要和两个视频的时长都对得上（不超出 15 分钟那个，也覆盖 30 分钟那个的三成以上），
+// 样例视频共用这一份。时间轴要和各个视频的时长都对得上（不超出最短的 10 分钟那个，也覆盖 30 分钟那个的三成以上），
 // 否则取字幕服务当它挂错了视频，不写缓存。
 export function captionFile() {
   return {
