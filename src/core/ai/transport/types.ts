@@ -150,6 +150,11 @@ export interface CompletionRequest {
    * 没有取消信号的请求（侧边栏的官方总结结论）靠它在清除本机数据之后不再发、不再重发。
    */
   readonly stillWanted?: (() => boolean) | null | undefined;
+  /**
+   * 和 stillWanted 一样每一次真正发出之前问，可以是异步的：查能力、核对同意都做完以后才问，问完就发。
+   * 回 false 就按取消结束，不发。打开就出结论靠它在视频离开前台以后不发第一个请求。
+   */
+  readonly beforeSend?: (() => Promise<boolean>) | null | undefined;
 }
 
 export interface CompletionResult {

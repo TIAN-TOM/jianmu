@@ -93,6 +93,7 @@ export function createAiTransport({
     onRetry,
     selfRetry = true,
     stillWanted = null,
+    beforeSend = null,
   }: CompletionRequest): Promise<CompletionResult> {
     throwIfTaskCanceled(signal);
     const configured = await getSettings();
@@ -131,6 +132,7 @@ export function createAiTransport({
       await assertConsentStillGiven();
       throwIfTaskCanceled(retrySignal);
       if (stillWanted && !stillWanted()) throw taskCanceledError();
+      if (beforeSend && !(await beforeSend())) throw taskCanceledError();
       sends += 1;
       return sendAiRequest(settings, request, signal);
     };

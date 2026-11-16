@@ -1,6 +1,5 @@
 // 任务运行：登记、认领、登记后没人认领就收尾、互斥键和等价键、跟着页面走的任务在页面都断开时停下，
 // 整个任务和每次模型请求两层保活。任务表只在内存里：service worker 被终止后不恢复、不重发。
-import { taskCanceledError } from "../core/ai/transport/index.ts";
 import { fail, type Result } from "../core/errors.ts";
 import type { Basis } from "../core/notes/records.ts";
 import { equivalenceKey, mutexKey } from "../core/task-keys.ts";
@@ -40,7 +39,7 @@ export const SEND_DECLINED = Object.freeze({ code: "SEND_DECLINED" });
 
 /** 登记时交的两个钩子，只给新起的任务用；接上已有任务时不换。 */
 export interface SendHooks {
-  /** 每次发模型请求之前调，回 false 就不发。vouched：用户自己点的请求接上了这个任务。 */
+  /** 每次真正发出模型请求之前调（传输层查完能力、核对完同意以后），回 false 就不发。vouched：用户自己点的请求接上了这个任务。 */
   readonly beforeSend: (vouched: boolean) => Promise<boolean>;
   /** 一次模型请求失败了，交给它看是什么错。 */
   readonly failed?: (error: unknown) => void;
@@ -270,14 +269,19 @@ export function createTaskRunner(deps: TaskRunnerDeps): TaskRunner {
         if (!hooks) return { requestAiCompletion: send };
         return {
           async requestAiCompletion(request) {
-            if (!(await hooks.beforeSend(meta.vouched))) {
-              cancel(taskId, SEND_DECLINED);
-              throw taskCanceledError();
-            }
+            // 钩子交给传输层，在真正发出那一刻之前问：查能力这类异步准备期间切走了也拦得下。
+            let declined = false;
+            const gate = async (): Promise<boolean> => {
+              if (request.beforeSend && !(await request.beforeSend())) return false;
+              if (await hooks.beforeSend(meta.vouched)) return true;
+              declined = true;
+              return false;
+            };
             try {
-              return await send(request);
+              return await send({ ...request, beforeSend: gate });
             } catch (error) {
-              hooks.failed?.(error);
+              if (declined) cancel(taskId, SEND_DECLINED);
+              else hooks.failed?.(error);
               throw error;
             }
           },

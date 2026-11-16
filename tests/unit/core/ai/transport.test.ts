@@ -2054,6 +2054,30 @@ test("stillWanted 回 false：传输层准备完、真正发出之前拦下，�
   assert.equal(requests.length, 0);
 });
 
+test("beforeSend：查完模型能力、真正发出之前才问，回 false 就按取消结束、不发请求", async () => {
+  const requests: ChatRequestBody[] = [];
+  const order: string[] = [];
+  const t = makeTransport(
+    async (_url, init) => {
+      requests.push(bodyOf(init));
+      return openaiReply("{}");
+    },
+    {
+      getModelCapabilities: async () => {
+        order.push("capabilities");
+        return null;
+      },
+    },
+  );
+  const beforeSend = async () => {
+    order.push("beforeSend");
+    return false;
+  };
+  await assert.rejects(() => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, beforeSend }), { code: "TASK_CANCELED" });
+  assert.deepEqual(order, ["capabilities", "beforeSend"]);
+  assert.equal(requests.length, 0);
+});
+
 test("stillWanted 在首发之后变成 false：限流后的重发不再发出", async () => {
   const requests: ChatRequestBody[] = [];
   let wanted = true;

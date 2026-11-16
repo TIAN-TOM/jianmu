@@ -60,6 +60,8 @@ export function createFakeAi(options: FakeAiOptions = {}): FakeAi {
 
   async function complete(request: CompletionRequest, frozen?: FrozenGen): Promise<CompletionResult> {
     const feature = request.feature;
+    // 和真的传输层一样：真正发出之前问一次，回 false 就按取消结束，不算发出。
+    if (request.beforeSend && !(await request.beforeSend())) throw taskCanceledError();
     calls.push(frozen ? { feature, frozen, request } : { feature, request });
     if (request.signal?.aborted) throw taskCanceledError();
     const gate = held.get(feature ?? "");
