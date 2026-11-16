@@ -13,6 +13,7 @@ import type { Api, Broadcast, BroadcastType, PortEvent, PortMessage, PortName, R
 export const IDEMPOTENT_ROUTES: ReadonlySet<RouteName> = new Set<RouteName>([
   "activation.get",
   "appearance.get",
+  "build.id",
   "config.check",
   "notes.list",
   "overview.get",

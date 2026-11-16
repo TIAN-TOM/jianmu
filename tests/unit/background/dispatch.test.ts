@@ -58,20 +58,22 @@ function route(overrides: Partial<AnyRoute> = {}) {
 test("认不出的发送方、不是信封的消息、不在表里的消息、发送方不放行：当场同步拒绝，不读启用状态，不登记标签页", () => {
   const plain = route({ senders: ["panel"] });
   const { router, checks, contentTabs } = setup({ routes: { "plain.do": plain.route } });
-  const cases: readonly [unknown, Parameters<typeof router.dispatch>[1]][] = [
-    [{ type: "plain.do", req: {} }, senders.foreign()],
-    [{ type: "plain.do", req: {} }, undefined],
-    ["plain.do", senders.panel()],
-    [{ type: "plain.do" }, senders.panel()],
-    [{ type: "unknown.route", req: {} }, senders.panel()],
-    [{ type: "toString", req: {} }, senders.panel()],
-    [{ type: "plain.do", req: {} }, senders.content()],
-    [{ type: "plain.do", req: {} }, senders.otherPage()],
+  const cases: readonly [unknown, Parameters<typeof router.dispatch>[1], string][] = [
+    [{ type: "plain.do", req: {} }, senders.foreign(), "FORBIDDEN"],
+    [{ type: "plain.do", req: {} }, undefined, "FORBIDDEN"],
+    ["plain.do", senders.panel(), "FORBIDDEN"],
+    [{ type: "plain.do" }, senders.panel(), "FORBIDDEN"],
+    // 不认识的请求单独回码，页面据此提示后台旧了；认不出的发送方问不认识的请求，照样只回 FORBIDDEN。
+    [{ type: "unknown.route", req: {} }, senders.panel(), "UNKNOWN_ROUTE"],
+    [{ type: "toString", req: {} }, senders.panel(), "UNKNOWN_ROUTE"],
+    [{ type: "unknown.route", req: {} }, senders.foreign(), "FORBIDDEN"],
+    [{ type: "plain.do", req: {} }, senders.content(), "FORBIDDEN"],
+    [{ type: "plain.do", req: {} }, senders.otherPage(), "FORBIDDEN"],
   ];
-  for (const [message, sender] of cases) {
+  for (const [message, sender, code] of cases) {
     const reply = router.dispatch(message, sender);
     assert.equal(reply instanceof Promise, false, JSON.stringify(message));
-    assert.deepEqual(reply, { ok: false, code: "FORBIDDEN" }, JSON.stringify(message));
+    assert.deepEqual(reply, { ok: false, code }, JSON.stringify(message));
   }
   assert.deepEqual(checks, { enabled: 0, cardEnabled: 0 });
   assert.deepEqual(contentTabs.list(), []);

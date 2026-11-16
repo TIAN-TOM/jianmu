@@ -1,8 +1,9 @@
-// 后台路由自己的错误码：发送方、启用闸门、请求形状、卡片开关、存储写满和没料到的失败；
+// 后台路由自己的错误码：发送方、不认识的请求、启用闸门、请求形状、卡片开关、存储写满和没料到的失败；
 // 另有两个由页面的消息客户端给出：请求没送到后台，送到以后等回复时断了。
 
 export type RoutingErrorCode =
   | "FORBIDDEN"
+  | "UNKNOWN_ROUTE"
   | "NOT_ENABLED"
   | "INVALID_REQUEST"
   | "CARD_DISABLED"
@@ -13,6 +14,7 @@ export type RoutingErrorCode =
 
 export const ROUTING_ERROR_TEXT: Readonly<Record<RoutingErrorCode, string>> = {
   FORBIDDEN: "这个页面不能做这件事。",
+  UNKNOWN_ROUTE: "简幕的后台还是旧版本，不认识这个请求，什么都没做。请重新加载简幕后再试，笔记和概览不会丢。",
   NOT_ENABLED: "还没启用简幕，先在侧边栏或设置页点「启用简幕」。",
   INVALID_REQUEST: "请求的内容不对，没有处理。",
   CARD_DISABLED: "播放页卡片已在设置里关闭。",

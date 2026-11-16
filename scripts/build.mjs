@@ -1,6 +1,7 @@
 // 构建：esbuild 打包入口、复制 static/、写入清单版本号。不压缩、不带 source map，方便用户和贡献者审阅发布包。
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { createHash } from "node:crypto";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build, context } from "esbuild";
 
@@ -21,6 +22,29 @@ const promptText = {
   },
 };
 
+// 构建标识：按进包的源码、提示词、页面外壳、清单模板和依赖版本的内容算，同一份源码两次构建得到同一个，
+// 后台和各页面注入同一个值。监听模式只在启动时算一次，各包各自重建时不会对不上。
+const BUILD_INPUTS = ["src", "prompts", "static", "manifest.template.json", "package.json", "package-lock.json"];
+
+/** @param {string} path */
+function filesUnder(path) {
+  if (!existsSync(path)) return [];
+  if (statSync(path).isFile()) return [path];
+  const entries = readdirSync(path, { withFileTypes: true, recursive: true });
+  return entries.filter((entry) => entry.isFile()).map((entry) => join(entry.parentPath, entry.name));
+}
+
+function buildId() {
+  const hash = createHash("sha256");
+  const files = BUILD_INPUTS.flatMap((input) => filesUnder(join(ROOT, input)))
+    .map((path) => relative(ROOT, path).split("\\").join("/"))
+    // 点开头的文件（比如系统留下的目录记录）不进包，也不算进标识，免得同一个提交在两台机器上算出两个。
+    .filter((file) => !file.split("/").some((part) => part.startsWith(".")))
+    .sort();
+  for (const file of files) hash.update(`${file}\0`).update(readFileSync(join(ROOT, file))).update("\0");
+  return hash.digest("hex").slice(0, 16);
+}
+
 /** @type {import("esbuild").BuildOptions} */
 const shared = {
   absWorkingDir: ROOT,
@@ -34,6 +58,7 @@ const shared = {
   jsxImportSource: "preact",
   logLevel: "warning",
   plugins: [promptText],
+  define: { __JIANMU_BUILD_ID__: JSON.stringify(buildId()) },
 };
 
 // 页面各打一个自包含的 ESM 包，不开代码拆分，产物清单才稳定。首帧外观脚本在页面 <head> 里同步加载，打成经典脚本。

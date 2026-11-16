@@ -1,12 +1,14 @@
 /// <reference types="chrome" />
-// 卡片页入口：接上消息、配置检查、外观、标签页地址和高度上报。父页面的来源按所在标签页的地址算，高度只报给它。
+// 卡片页入口：先核对后台是不是同一次构建，再接上消息、配置检查、外观、标签页地址和高度上报。父页面的来源按所在标签页的地址算，高度只报给它。
 import { effect, signal } from "@preact/signals";
 import { render } from "preact";
 import { INJECTED } from "../../shared/names.ts";
 import { siteRules } from "../../sites/rules.ts";
-import { createPageApi } from "../shared/api.ts";
+import { createPageApi, type PageApi } from "../shared/api.ts";
+import { startWhenCurrent } from "../shared/build-check.ts";
 import { createConfigWatch } from "../shared/config.ts";
 import { pageAppearanceSources, watchAppearance } from "../shared/theme.ts";
+import { renderStaleBackground } from "../shared/ui/stale-background.tsx";
 import { Card } from "./card.tsx";
 import { createCardModel, type CardTab } from "./model.ts";
 
@@ -32,8 +34,21 @@ function originOf(url: string): string | null {
   }
 }
 
-function start(root: HTMLElement): void {
-  const api = createPageApi();
+// 后台旧了：只显示重新加载的提示，高度照常报给父页面，提示才露得出来。
+function stale(root: HTMLElement): void {
+  renderStaleBackground(root);
+  void currentTab().then((tab) => {
+    const parentOrigin = tab ? originOf(tab.url) : null;
+    if (!parentOrigin) return;
+    const report = (): void => {
+      const height = Math.ceil(root.getBoundingClientRect().height);
+      window.parent.postMessage({ source: INJECTED.cardMessage, type: "resize", height }, parentOrigin);
+    };
+    new ResizeObserver(() => requestAnimationFrame(report)).observe(root);
+  });
+}
+
+function start(root: HTMLElement, api: PageApi): void {
   void watchAppearance(pageAppearanceSources(api), document.documentElement);
   const config = createConfigWatch({ api, enabled: signal(true), storageChanged: chrome.storage.onChanged });
   const model = createCardModel({
@@ -121,4 +136,7 @@ function start(root: HTMLElement): void {
 
 // 扩展重新加载的那一刻，还没撤下的旧卡片会重新载入，这时拿不到扩展接口，什么都不做。
 const root = document.getElementById("app");
-if (root && globalThis.chrome?.runtime?.id) start(root);
+if (root && globalThis.chrome?.runtime?.id) {
+  const api = createPageApi();
+  void startWhenCurrent(api, () => start(root, api), () => stale(root));
+}

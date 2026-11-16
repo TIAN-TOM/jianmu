@@ -122,20 +122,22 @@ for (const [state, local] of [
   });
 }
 
-test("不在端口表里的端口名、端口不收的发送方、认不出的发送方：当场断开，不回通知、不读存储", () => {
+test("不在端口表里的端口名、端口不收的发送方：先回一条带码的通知再当场断开；认不出的发送方不回通知；都不读存储", () => {
   const { fake, probe } = setup(confirmed());
-  for (const [name, sender] of [
-    ["unknown", senders.panel()],
-    ["toString", senders.panel()],
-    ["probe", senders.options()],
-    ["probe", senders.card()],
-    ["probe", senders.content()],
-    ["probe", senders.foreign()],
-    ["probe", senders.stray()],
+  const notice = (code: string) => [{ type: "port.error", code }];
+  for (const [name, sender, posted] of [
+    ["unknown", senders.panel(), notice("UNKNOWN_ROUTE")],
+    ["toString", senders.panel(), notice("UNKNOWN_ROUTE")],
+    ["probe", senders.options(), notice("FORBIDDEN")],
+    ["probe", senders.card(), notice("FORBIDDEN")],
+    ["probe", senders.content(), notice("FORBIDDEN")],
+    ["probe", senders.foreign(), []],
+    ["probe", senders.stray(), []],
+    ["unknown", senders.foreign(), []],
   ] as const) {
     const port = fake.connect(name, sender);
     assert.equal(port.disconnected, true, `${name}：同步断开`);
-    assert.deepEqual(port.posted, [], name);
+    assert.deepEqual(port.posted, posted, name);
   }
   assert.deepEqual(fake.calls.storageReads, []);
   assert.equal(probe.connected, 0);

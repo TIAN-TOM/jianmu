@@ -30,6 +30,7 @@ const PANEL_ONLY = { panel: true, options: false, triage: false } as const;
 
 /** 认不出的扩展页面一律不放行，所以表里没有这一列。 */
 export const ROUTE_MATRIX: readonly MatrixRow[] = [
+  ...row(["build.id"], { ...PAGES, card: true, content: [], beforeEnable: true }),
   ...row(["activation.get"], { ...PAGES, card: false, content: BOTH, beforeEnable: true }),
   ...row(["activation.confirm"], { panel: true, options: true, triage: false, card: false, content: [], beforeEnable: true }),
   ...row(["appearance.get"], { ...PAGES, card: false, content: BOTH, beforeEnable: true }),

@@ -1,4 +1,4 @@
-// 消息分发。顺序是：认发送方、认消息、按路由表放行发送方、核对请求形状、要手势的先打开侧边栏、
+// 消息分发。顺序是：认发送方、认消息（不认识的单独回码）、按路由表放行发送方、核对请求形状、要手势的先打开侧边栏、
 // 过启用闸门、这时才按地址认内容脚本的站点和视频、卡片开关、处理。闸门之前不读任何网页地址。
 // 端口走同一套发送方核对和启用闸门；连上以后启用失效就断开，会发起工作的消息每条再查一次启用。
 import { fail, type ErrorCode, type Failure, type Result } from "../core/errors.ts";
@@ -99,7 +99,7 @@ export interface RouterDeps {
 export interface Router {
   /** 能当场拒绝的同步回，其余回 Promise；不会抛错，也不会拒绝。 */
   readonly dispatch: (message: unknown, sender: MessageSender | undefined) => Failure | Promise<Result<unknown>>;
-  /** 端口连接：认不出、不在端口表里、发送方不放行的当场断开；没确认启用的回一条通知再断开。 */
+  /** 端口连接：认不出发送方的当场断开；不在端口表里、发送方不放行、没确认启用的，回一条带码的通知再断开。 */
   readonly connect: (port: PortLike) => void;
   /** 启用失效（比如清除全部数据）：每个业务端口发一条通知再断开。 */
   readonly closeBusinessPorts: (code: ErrorCode) => void;
@@ -142,6 +142,11 @@ function quietly(action: () => void): void {
   }
 }
 
+function refuse(port: PortLike, code: ErrorCode): void {
+  quietly(() => port.postMessage({ type: "port.error", code } satisfies PortNotice));
+  quietly(() => port.disconnect());
+}
+
 export function createRouter(deps: RouterDeps): Router {
   const { routes, ports, senders, contentTabs, log } = deps;
   /** 连上了、不是确认前放行的端口，启用失效时要断开的那些。 */
@@ -160,11 +165,14 @@ export function createRouter(deps: RouterDeps): Router {
 
   function connect(port: PortLike): void {
     const ctx = senders.authenticate(port.sender as MessageSender | undefined);
-    const spec = ctx && Object.hasOwn(ports, port.name) ? ports[port.name] : undefined;
-    if (!ctx || !spec || !senderAllowed(spec, ctx)) {
+    if (!ctx) {
       quietly(() => port.disconnect());
       return;
     }
+    const spec = Object.hasOwn(ports, port.name) ? ports[port.name] : undefined;
+    // 认得出的发送方被拒时先说原因再断开，页面才分得清是被拒还是中途断了。
+    if (!spec) return refuse(port, "UNKNOWN_ROUTE");
+    if (!senderAllowed(spec, ctx)) return refuse(port, "FORBIDDEN");
     openPort(port, spec, ctx);
   }
 
@@ -270,9 +278,11 @@ export function createRouter(deps: RouterDeps): Router {
     dispatch(message, sender) {
       const ctx = senders.authenticate(sender);
       if (!ctx || !sender) return fail("FORBIDDEN");
-      if (!isEnvelope(message) || !Object.hasOwn(routes, message.type)) return fail("FORBIDDEN");
-      const route = routes[message.type];
-      if (!route || !senderAllowed(route, ctx)) return fail("FORBIDDEN");
+      if (!isEnvelope(message)) return fail("FORBIDDEN");
+      // 不认识的请求单独回一个码：多半是页面比后台新，页面据此提示重新加载。
+      const route = Object.hasOwn(routes, message.type) ? routes[message.type] : undefined;
+      if (!route) return fail("UNKNOWN_ROUTE");
+      if (!senderAllowed(route, ctx)) return fail("FORBIDDEN");
       // 认得出、放行了的内容脚本才登记它的标签页编号，只记编号。
       if (ctx.kind === "content" && ctx.tabId !== undefined) contentTabs.add(ctx.tabId);
       if (!route.validate(message.req, ctx)) return fail("INVALID_REQUEST");

@@ -97,9 +97,9 @@ const CONTRAST_SCRIPT = `(selector) => {
 
 /**
  * @param {{ cdp: { send: (method: string, params?: object, sessionId?: string, timeoutMs?: number) => Promise<any> },
- *           extensionId: string, sessions: Map<string, { type: string, url: string, targetId: string }> }} deps
+ *           extensionId: string, extensionDir: string, sessions: Map<string, { type: string, url: string, targetId: string }> }} deps
  */
-export function createHarness({ cdp, extensionId, sessions }) {
+export function createHarness({ cdp, extensionId, extensionDir, sessions }) {
   const findSession = (/** @type {(info: { type: string, url: string }) => boolean} */ match) => {
     for (const [sessionId, info] of sessions) if (match(info)) return sessionId;
     return null;
@@ -211,7 +211,8 @@ export function createHarness({ cdp, extensionId, sessions }) {
       for (const targetId of opened.splice(0)) await cdp.send("Target.closeTarget", { targetId }).catch(() => {});
     }
 
-    return { open, openSidePanel, close, extensionId };
+    // 装上的扩展在磁盘上的目录：改这里的页面文件、不重新加载扩展，就是「旧后台、新页面」。
+    return { open, openSidePanel, close, extensionId, extensionDir };
   }
 
   return { context };

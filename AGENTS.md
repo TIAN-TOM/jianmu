@@ -51,6 +51,7 @@ npm run release -- candidate   # 发布候选：要在远端 main 的最新提�
 - 清单模板里的 `key` 是扩展身份，决定扩展 ID（快照在 `tests/fixtures/extension-id.txt`），不要改：改了已装用户的资料就接不上。私钥不进仓库，公开结构检查拦 `.pem`、`.crx`、`.key`。
 - 文本文件一律 LF。
 - 新增或升级依赖，在 PR 里写明是什么、为什么要。`.npmrc` 开了 `ignore-scripts`，`npm run` 不跑 pre、post 脚本，别依赖它们。
+- 新的扩展页面入口也先过 `src/pages/shared/build-check.ts` 的 `startWhenCurrent`：后台和页面不是同一次构建时只显示重新加载的提示。后台不认识的请求和端口回 `UNKNOWN_ROUTE`，发送方不放行回 `FORBIDDEN`，端口被拒时先发带码的通知再断开。
 - 读写设置一律经 settings store 的锁，不直接写整份设置，否则密钥可能落盘。
 - 删掉的设置项不留界面也不留存储；改设置结构时，旧值要么安全忽略，要么迁移，并补测试。
 - 发给模型的数据类别、用途、接收方、发送的触发方式或范围有实质变化，同步改设置页的数据说明、首次启用说明、同意表、`PRIVACY.md`、README；超出原同意范围的升版，开发期间也一样。规则见 PRD 第 9.2 节，版本号见方案第 7.3 节。

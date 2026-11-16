@@ -243,3 +243,10 @@ test("清单带固定的 key，算出的扩展 ID 等于快照", () => {
   const expected = readFileSync(join(ROOT, "tests/fixtures/extension-id.txt"), "utf8").trim();
   assert.equal(extensionIdOf(key), expected, "key 换了：已装用户的资料会接不上");
 });
+
+test("后台和各页面包注入的是同一个构建标识，由内容算出", () => {
+  const idOf = (file: string): string | undefined => readBuild(file).match(/BUILD_ID = [^;]*?"([0-9a-f]{16})"/)?.[1];
+  const background = idOf("background.js");
+  assert.ok(background, "后台包里有构建标识");
+  for (const file of ["pages/sidepanel.js", "pages/options.js", "pages/triage.js", "pages/card.js"]) assert.equal(idOf(file), background, file);
+});

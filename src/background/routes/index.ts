@@ -4,6 +4,7 @@ import { activationRoutes, type ActivationRouteDeps } from "./activation.ts";
 import { aiRoutes, type AiRouteDeps } from "./ai.ts";
 import { appearanceRoutes, type AppearanceRouteDeps } from "./appearance.ts";
 import { batchPort, batchRoutes, type BatchRouteDeps } from "./batch.ts";
+import { buildRoutes } from "./build.ts";
 import { dataRoutes, type DataRouteDeps } from "./data.ts";
 import { grantRoutes, type GrantRouteDeps } from "./grants.ts";
 import { importRoutes, type ImportRouteDeps } from "./imports.ts";
@@ -35,6 +36,7 @@ export type RouteDeps = ActivationRouteDeps &
 
 export function createRoutes(deps: RouteDeps): Routes {
   return {
+    ...buildRoutes(),
     ...activationRoutes(deps),
     ...appearanceRoutes(deps),
     ...pageRoutes(deps),

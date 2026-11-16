@@ -1,4 +1,4 @@
-// 启用、外观和打开页面这几条消息的请求和回复。
+// 启用、外观、打开页面和构建标识这几条消息的请求和回复。
 import type { ActivationKind, NoticeStatus } from "../../core/consent.ts";
 import type { AccentTheme } from "../settings-schema.ts";
 
@@ -17,7 +17,13 @@ export type PanelOpenReply = { readonly opened: true } | { readonly opened: fals
 /** 确认启用的回复，另带补注入没补上的标签页：侧边栏在这些页面上提示刷新。 */
 export type ActivationConfirmReply = NoticeStatus<ActivationKind> & { readonly unreachableTabs: readonly number[] };
 
+/** 后台这次构建的标识，页面拿来和自己的比。 */
+export interface BuildView {
+  readonly build: string;
+}
+
 export interface CoreApi {
+  "build.id": { req: EmptyRequest; res: BuildView };
   "activation.get": { req: EmptyRequest; res: NoticeStatus<ActivationKind> };
   "activation.confirm": { req: EmptyRequest; res: ActivationConfirmReply };
   "appearance.get": { req: EmptyRequest; res: AppearanceView };

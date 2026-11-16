@@ -1,5 +1,5 @@
 /// <reference types="chrome" />
-// 粗筛页入口：接上消息客户端、启用状态和外观，渲染页面。设置页清除本机数据时回到还没读取的样子。
+// 粗筛页入口：先核对后台是不是同一次构建，再接上启用状态和外观，渲染页面。设置页清除本机数据时回到还没读取的样子。
 import { effect } from "@preact/signals";
 import { render } from "preact";
 import { parseVideoKey } from "../../core/video-ref.ts";
@@ -7,7 +7,9 @@ import { PAGE_PATHS } from "../../shared/names.ts";
 import { siteRules } from "../../sites/rules.ts";
 import { createActivation } from "../shared/activation.ts";
 import { createPageApi } from "../shared/api.ts";
+import { startWhenCurrent } from "../shared/build-check.ts";
 import { pageAppearanceSources, watchAppearance } from "../shared/theme.ts";
+import { renderStaleBackground } from "../shared/ui/stale-background.tsx";
 import { App } from "./app.tsx";
 import { createTriageState } from "./state.ts";
 
@@ -36,24 +38,29 @@ function download(filename: string, text: string): void {
 }
 
 const api = createPageApi();
-const activation = createActivation({ api });
-const state = createTriageState({ api, videoBase, videoUrl: (item) => videoUrl(item.videoKey), download });
-
-void activation.load();
-void watchAppearance(pageAppearanceSources(api), document.documentElement);
-// 启用以后才读粗筛的结果；启用失效时页面只剩说明。
-let loaded = false;
-effect(() => {
-  if (!activation.enabled.value) {
-    loaded = false;
-    return;
-  }
-  if (loaded) return;
-  loaded = true;
-  void state.load();
-});
-api.on("data.cleared", () => state.cleared());
-window.addEventListener("pagehide", () => state.dispose());
-
 const root = document.getElementById("app");
-if (root) render(<App state={state} activation={activation} optionsUrl={chrome.runtime.getURL(PAGE_PATHS.options)} />, root);
+
+function start(): void {
+  const activation = createActivation({ api });
+  const state = createTriageState({ api, videoBase, videoUrl: (item) => videoUrl(item.videoKey), download });
+
+  void activation.load();
+  void watchAppearance(pageAppearanceSources(api), document.documentElement);
+  // 启用以后才读粗筛的结果；启用失效时页面只剩说明。
+  let loaded = false;
+  effect(() => {
+    if (!activation.enabled.value) {
+      loaded = false;
+      return;
+    }
+    if (loaded) return;
+    loaded = true;
+    void state.load();
+  });
+  api.on("data.cleared", () => state.cleared());
+  window.addEventListener("pagehide", () => state.dispose());
+
+  if (root) render(<App state={state} activation={activation} optionsUrl={chrome.runtime.getURL(PAGE_PATHS.options)} />, root);
+}
+
+void startWhenCurrent(api, start, () => root && renderStaleBackground(root));
