@@ -132,7 +132,13 @@ export function createAiTransport({
       await assertConsentStillGiven();
       throwIfTaskCanceled(retrySignal);
       if (stillWanted && !stillWanted()) throw taskCanceledError();
-      if (beforeSend && !(await beforeSend())) throw taskCanceledError();
+      if (beforeSend) {
+        if (!(await beforeSend())) throw taskCanceledError();
+        // 钩子里还要等别的（比如写记录）：等的工夫撤回了同意、停掉了任务，都不发。
+        await assertConsentStillGiven();
+        throwIfTaskCanceled(retrySignal);
+        if (stillWanted && !stillWanted()) throw taskCanceledError();
+      }
       sends += 1;
       return sendAiRequest(settings, request, signal);
     };

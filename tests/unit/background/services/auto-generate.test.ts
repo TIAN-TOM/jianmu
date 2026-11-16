@@ -266,6 +266,59 @@ test("尝试在第一个模型请求发出之前才记：那时前台变了就�
   }
 });
 
+test("写尝试记录的工夫关掉了开关：不发，记录照留；用户点的请求接上了就照发", async () => {
+  const off = setup();
+  await off.auto.consider();
+  const pending = off.started[0]?.hooks.beforeSend(false);
+  off.state.on = false;
+  assert.equal(await pending, false);
+  assert.deepEqual(off.ledger().tried, [triedKey("overview", VIDEO)], "记录照留，这次会话不再为它试");
+  assert.equal(await off.started[0]?.hooks.beforeSend(false), false, "同一任务后面的块也不发");
+
+  const vouched = setup();
+  await vouched.auto.consider();
+  const asked = vouched.started[0]?.hooks.beforeSend(true);
+  vouched.state.on = false;
+  assert.equal(await asked, true);
+});
+
+test("额度用完或密钥不对以后，同一个任务里还没发的块不再发", async () => {
+  for (const error of [{ status: 429, quotaExhausted: true }, { status: 401 }]) {
+    const { auto, started } = setup();
+    await auto.consider();
+    const [run] = started;
+    assert.ok(run);
+    assert.equal(await run.hooks.beforeSend(false), true);
+    run.hooks.failed(Object.assign(new Error("失败"), error));
+    assert.equal(await run.hooks.beforeSend(false), false, JSON.stringify(error));
+  }
+  const { auto, started } = setup();
+  await auto.consider();
+  assert.equal(await started[0]?.hooks.beforeSend(false), true);
+  started[0]?.hooks.failed(Object.assign(new Error("服务出错"), { status: 500 }));
+  assert.equal(await started[0]?.hooks.beforeSend(false), true, "别的错误不拦");
+});
+
+test("清除全部数据以后，内存里记着的试过、读不成字幕的视频一起忘掉", async () => {
+  const tried = setup();
+  await tried.auto.consider();
+  await tried.started[0]?.hooks.beforeSend(false);
+  tried.started[0]?.finish();
+  assert.deepEqual(await tried.auto.consider(), { skipped: "tried" });
+  await tried.guard.clear("all", () => tried.storage.remove(AUTO_LEDGER_KEY));
+  // 前一个收尾后自己也会再判断一次，和这里的谁先谁后不定：只看清除以后又开始了一次。
+  await tried.auto.consider();
+  assert.ok(await until(() => tried.started.length === 2), "清除以后重新判断，又开始一次");
+
+  const missing = setup({ read: null });
+  assert.deepEqual(await missing.auto.consider(), { skipped: "no-captions" });
+  assert.deepEqual(await missing.auto.consider(), { skipped: "unavailable" });
+  await missing.guard.clear("all", () => missing.storage.remove(AUTO_LEDGER_KEY));
+  const reads = missing.calls.reads;
+  assert.deepEqual(await missing.auto.consider(), { skipped: "no-captions" });
+  assert.equal(missing.calls.reads, reads + 1, "清除以后重新读");
+});
+
 test("读字幕的工夫换了前台：不登记任务，等它下次到前台再判断", async () => {
   const { auto, state, started } = setup();
   state.onRead = () => state.tabs.set(WINDOW, { id: 4, windowId: WINDOW, url: videoPageUrl(OTHER_ID) });

@@ -2078,6 +2078,24 @@ test("beforeSend：查完模型能力、真正发出之前才问，回 false 就
   assert.equal(requests.length, 0);
 });
 
+test("beforeSend 里等的工夫撤回了同意：问完钩子再核对一次，不发请求", async () => {
+  const requests: ChatRequestBody[] = [];
+  let settings = makeSettings();
+  const t = makeTransport(
+    async (_url, init) => {
+      requests.push(bodyOf(init));
+      return openaiReply("{}");
+    },
+    { getSettings: async () => settings },
+  );
+  const beforeSend = async () => {
+    settings = makeSettings({ dataConsentVersion: 0 });
+    return true;
+  };
+  await assert.rejects(() => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, beforeSend }), { code: "NO_AI_CONFIG" });
+  assert.equal(requests.length, 0);
+});
+
 test("stillWanted 在首发之后变成 false：限流后的重发不再发出", async () => {
   const requests: ChatRequestBody[] = [];
   let wanted = true;

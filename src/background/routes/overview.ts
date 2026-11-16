@@ -42,10 +42,10 @@ function isGetRequest(req: unknown): req is OverviewGetRequest {
 }
 
 export function overviewRoutes({ overview, cardLimits, auto }: OverviewRouteDeps): OverviewRoutes {
-  // 真的拿到了模型的结果才算：本机已有的直接交回、中途停下的都不算；补失败块要至少补上一块。
+  // 真的拿到了模型的结果才算：本机已有的直接交回、中途停下的（包括结论那一步被停）都不算；补失败块要至少补上一块。
   const resumeAfter = async (pending: ReturnType<OverviewService["generate"]>, succeeded: (value: OverviewResultView) => boolean): ReturnType<OverviewService["generate"]> => {
     const result = await pending;
-    if (result.ok && !result.value.canceled && succeeded(result.value)) await auto?.resume().catch(() => undefined);
+    if (result.ok && !result.value.canceled && !result.value.verdictCanceled && succeeded(result.value)) await auto?.resume().catch(() => undefined);
     return result;
   };
   const generated = (pending: ReturnType<OverviewService["generate"]>) => resumeAfter(pending, (value) => !value.fromCache);

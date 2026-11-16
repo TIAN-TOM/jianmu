@@ -118,3 +118,14 @@ test("手动补失败块至少补上一块：打开就出结论从暂停里恢�
   await retry();
   assert.equal(resumed, 1, "本机已有的、中途停下的不恢复");
 });
+
+test("手动生成或补失败块在结论那一步被停：不算成功，不解除打开就出结论的暂停", async () => {
+  let resumed = 0;
+  const stopped = { fromCache: false, recoveredChunks: 1, verdictCanceled: true };
+  const overview = { generate: async () => ({ ok: true, value: stopped }), retryFailed: async () => ({ ok: true, value: stopped }) } as unknown as OverviewService;
+  const routes = overviewRoutes({ overview, cardLimits: { redeemToken: () => null }, auto: { resume: async () => void (resumed += 1) } });
+  const ctx = { sender: { kind: "panel" } } as unknown as Parameters<(typeof routes)["overview.start"]["handler"]>[1];
+  await routes["overview.start"].handler({ video: KEY, taskId: "t" }, ctx);
+  await routes["overview.retryFailed"].handler({ taskId: "t", video: KEY }, ctx);
+  assert.equal(resumed, 0);
+});
