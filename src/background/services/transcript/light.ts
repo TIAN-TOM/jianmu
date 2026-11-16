@@ -63,6 +63,8 @@ export interface Light {
   read(ref: VideoRef, video: VideoKey): Promise<GuidesReply>;
   /** 给完整读取接着用：还在读的等它读完，交回记着的官方总结；没有时是 null。 */
   remembered(video: VideoKey): Promise<RememberedOfficial | null>;
+  /** 记着的视频时长：还在读的等它读完，不另发请求；不知道时是 null。 */
+  durationOf(video: VideoKey): Promise<number | null>;
   /** 这个视频的缓存或字幕变了：记着的不再用。 */
   drop(video: VideoKey): void;
   /** 清除本机数据时：记着的全忘掉，在途的回来也不记。 */
@@ -243,6 +245,13 @@ export function createLight(deps: LightDeps): Light {
           if (memo.get(video) === entry) memo.set(video, { ...entry, official: fresh });
         },
       };
+    },
+
+    async durationOf(video) {
+      const pending = requests.get(video);
+      if (pending) await pending.catch(() => null);
+      const seconds = memo.get(video)?.info.durationSec;
+      return typeof seconds === "number" && seconds > 0 ? seconds : null;
     },
 
     drop(video) {

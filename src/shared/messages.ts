@@ -5,7 +5,7 @@ import type { SessionView } from "../core/mode/types.ts";
 import type { LearningAnalysis } from "../core/notes/markdown.ts";
 import type { TaskView } from "../core/tasks.ts";
 import type { VideoKey } from "../core/video-ref.ts";
-import type { AiApi } from "./messages/ai.ts";
+import type { AiApi, AutoPauseReason } from "./messages/ai.ts";
 import type { BatchApi, BatchIn, BatchOut } from "./messages/batch.ts";
 import type { CoreApi } from "./messages/core.ts";
 import type { DataApi } from "./messages/data.ts";
@@ -55,7 +55,8 @@ export type Broadcast =
   | { readonly type: "data.cleared"; readonly scope: "cache" | "all" }
   | { readonly type: "panel.follow"; readonly tabId: number }
   | { readonly type: "appearance.changed"; readonly accentTheme: AccentTheme; readonly inPageCard: boolean }
-  | { readonly type: "activation.changed"; readonly confirmed: boolean };
+  | { readonly type: "activation.changed"; readonly confirmed: boolean }
+  | { readonly type: "auto.changed"; readonly paused: AutoPauseReason | null };
 
 export type BroadcastType = Broadcast["type"];
 

@@ -23,14 +23,17 @@ before(() => {
   assert.ok(existsSync(join(BUILD, "manifest.json")), "先跑 npm run build");
 });
 
-// 后台的全部顶层监听，都在入口一次注册。标签页激活、更新和窗口焦点不在里面：没有开关时注册它们只会让后台白白醒来。
+// 后台的全部顶层监听，都在入口一次注册。标签页激活、更新和窗口焦点给打开就出结论用，开关关着时醒来只读一次设置就返回。
 const TOP_LEVEL_LISTENERS = [
   "runtime.onConnect",
   "runtime.onInstalled",
   "runtime.onMessage",
   "runtime.onStartup",
   "storage.onChanged",
+  "tabs.onActivated",
   "tabs.onRemoved",
+  "tabs.onUpdated",
+  "windows.onFocusChanged",
 ];
 
 test("后台包在替身环境里求值不抛错，监听都注册上", () => {
@@ -39,7 +42,8 @@ test("后台包在替身环境里求值不抛错，监听都注册上", () => {
   // 求值时只给事件：入口在顶层碰了存储、标签页或别的接口就会抛错。
   const chrome = {
     runtime: Object.fromEntries(["onConnect", "onInstalled", "onMessage", "onStartup"].map((name) => [name, event(`runtime.${name}`)])),
-    tabs: { onRemoved: event("tabs.onRemoved") },
+    tabs: Object.fromEntries(["onActivated", "onRemoved", "onUpdated"].map((name) => [name, event(`tabs.${name}`)])),
+    windows: { onFocusChanged: event("windows.onFocusChanged") },
     storage: { onChanged: event("storage.onChanged") },
   };
   vm.runInNewContext(readBuild("background.js"), { chrome, console, TextEncoder, AbortController }, { filename: "background.js" });

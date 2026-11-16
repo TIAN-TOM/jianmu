@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createApp } from "../../../src/background/app.ts";
-import { CLAIM_MS, createTaskRunner, PAGES_LEFT, type TaskRunner, type TaskSpec } from "../../../src/background/tasks.ts";
+import { CLAIM_MS, createTaskRunner, PAGES_LEFT, type SendHooks, type TaskRunner, type TaskSpec } from "../../../src/background/tasks.ts";
 import { ok } from "../../../src/core/errors.ts";
 import type { Basis } from "../../../src/core/notes/records.ts";
 import type { FrozenGen, TaskView } from "../../../src/core/tasks.ts";
@@ -299,6 +299,44 @@ test("模型请求只经任务的入口发：按冻结的配置发", async () =>
   assert.deepEqual(result, { ok: true, value: { text: "回复", model: "frozen-model" } });
   assert.equal(h.fake.calls[0]?.frozen?.model, "frozen-model");
   assert.equal(h.fake.calls[0]?.feature, "analysis");
+});
+
+test("登记时带的发送钩子：每次发请求之前问，回 false 就不发、按取消收尾；请求失败交给它；接上别人的任务不换钩子", async () => {
+  const h = harness();
+  const asked: boolean[] = [];
+  let allow = false;
+  const failures: unknown[] = [];
+  const hooks: SendHooks = {
+    async beforeSend(vouched) {
+      asked.push(vouched);
+      return allow;
+    },
+    failed: (error) => void failures.push(error),
+  };
+  const declined = await h.tasks.register(spec({ origin: "auto" }), {}, { send: hooks });
+  assert.ok("task" in declined);
+  const result = await h.tasks.run(declined.task.id, async ({ ai }) => ok(await ai.requestAiCompletion({ messages: MESSAGES, maxTokens: 64 })), { autoFinish: true });
+  assert.deepEqual(result, { ok: false, code: "TASK_CANCELED" });
+  assert.deepEqual(asked, [false]);
+  assert.equal(h.fake.calls.length, 0, "没过核对不发请求");
+  assert.deepEqual(h.tasks.list(), [], "按取消收了尾");
+
+  // 用户点的同一个请求接上了它：之后问的时候带 vouched。
+  allow = true;
+  const auto = await h.tasks.register(spec({ origin: "auto" }), {}, { send: hooks });
+  assert.ok("task" in auto && !auto.joined);
+  const joined = await h.tasks.register(spec({ origin: "user" }), {}, { send: { beforeSend: async () => false } });
+  assert.ok("task" in joined && joined.joined && joined.task.id === auto.task.id);
+  const sent = await h.tasks.run(auto.task.id, async ({ ai }) => ok((await ai.requestAiCompletion({ messages: MESSAGES, maxTokens: 64 })).text), { autoFinish: true });
+  assert.deepEqual(sent, { ok: true, value: "回复" });
+  assert.deepEqual(asked, [false, true], "接上时交的钩子不替换原来的");
+
+  const broken = createFakeAi({ replies: { "*": Object.assign(new Error("额度用完"), { status: 429, quotaExhausted: true }) } });
+  const failing = createTaskRunner({ ai: broken.ai, keepAlive: createKeepAlive({ ping: () => {}, now: h.timers.now, setTimeout: h.timers.setTimeout, clearTimeout: h.timers.clearTimeout }), timers: h.timers, broadcast: () => {}, newId: () => "failing" });
+  const task = await failing.register(spec({ origin: "auto" }), {}, { send: hooks });
+  assert.ok("task" in task);
+  await failing.run(task.task.id, async ({ ai }) => ok(await ai.requestAiCompletion({ messages: MESSAGES, maxTokens: 64 })), { autoFinish: true });
+  assert.equal((failures[0] as { quotaExhausted?: boolean } | undefined)?.quotaExhausted, true);
 });
 
 // 两层保活分开证明：模型请求挂着时两层同时在场，分不出是谁在撑。

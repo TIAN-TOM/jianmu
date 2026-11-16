@@ -73,6 +73,8 @@ export interface TranscriptService {
   ensure(ref: VideoRef): Promise<Result<TranscriptSnapshot>>;
   /** 卡片的轻量读取：视频信息、官方总结和本机已有的概览，不读字幕。 */
   light(ref: VideoRef): Promise<GuidesReply>;
+  /** 后台自己读到过的视频时长：只看缓存、内存和轻量读取记着的，不发请求；不知道时是 null。 */
+  knownDuration(ref: VideoRef): Promise<number | null>;
   /** 原视频还在不在：只有平台明确说找不到才算不在，别的失败都放行。 */
   checkAvailable(ref: VideoRef): Promise<boolean>;
   /** 导入字幕文件：解析、存下，作废缓存里原来的字幕。不向平台发请求。 */
@@ -347,6 +349,19 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
       const changing = imports.pending(video);
       if (changing) await changing;
       return light.read(ref, video);
+    },
+
+    async knownDuration(ref) {
+      const video = keyOf(ref);
+      if (!video) return null;
+      const known = (seconds: number | undefined): number | null => (typeof seconds === "number" && seconds > 0 ? seconds : null);
+      try {
+        const cached = known((await cache.load(video))?.info.durationSec);
+        if (cached !== null) return cached;
+      } catch (error) {
+        log.warn("读字幕缓存里的时长失败", errorLabel(error));
+      }
+      return known(memory.get(video, "")?.info.durationSec) ?? (await light.durationOf(video));
     },
 
     async checkAvailable(ref) {

@@ -62,7 +62,7 @@ function asReply<K extends RouteName>(raw: unknown): Reply<K> {
 
 export type BroadcastOf<T extends BroadcastType> = Extract<Broadcast, { readonly type: T }>;
 
-/** 每种广播能按什么过滤。清除、外观、启用这几种不带这些，总是送到。 */
+/** 每种广播能按什么过滤。清除、外观、启用、自动生成停没停这几种不带这些，总是送到。 */
 export type BroadcastFilter<T extends BroadcastType> = T extends "task.changed" | "overview.preview"
   ? { readonly taskId?: string; readonly video?: VideoKey }
   : T extends "overview.updated" | "notes.changed"
@@ -92,6 +92,7 @@ const BROADCAST_SHAPES: Readonly<Record<BroadcastType, (message: Readonly<Record
   "panel.follow": ({ tabId }) => isTabId(tabId),
   "appearance.changed": ({ accentTheme, inPageCard }) => isText(accentTheme) && typeof inPageCard === "boolean",
   "activation.changed": ({ confirmed }) => typeof confirmed === "boolean",
+  "auto.changed": ({ paused }) => paused === null || paused === "quota" || paused === "key",
 };
 
 function isBroadcast(message: unknown): message is Broadcast {

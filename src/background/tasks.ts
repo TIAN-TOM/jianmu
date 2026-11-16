@@ -1,5 +1,6 @@
 // 任务运行：登记、认领、登记后没人认领就收尾、互斥键和等价键、跟着页面走的任务在页面都断开时停下，
 // 整个任务和每次模型请求两层保活。任务表只在内存里：service worker 被终止后不恢复、不重发。
+import { taskCanceledError } from "../core/ai/transport/index.ts";
 import { fail, type Result } from "../core/errors.ts";
 import type { Basis } from "../core/notes/records.ts";
 import { equivalenceKey, mutexKey } from "../core/task-keys.ts";
@@ -33,6 +34,17 @@ export const holdsKeyAfterCancel = (task: Pick<Task, "kind" | "origin">): boolea
 
 /** 跟着页面走的任务，订阅它的页面都断开了：只停还没开始的部分，已经发出的请求由服务决定等不等。 */
 export const PAGES_LEFT = Object.freeze({ code: "PAGES_LEFT" });
+
+/** 发请求之前的核对没过（比如自动生成时视频已经不在前台）：这次放弃，按取消收尾。 */
+export const SEND_DECLINED = Object.freeze({ code: "SEND_DECLINED" });
+
+/** 登记时交的两个钩子，只给新起的任务用；接上已有任务时不换。 */
+export interface SendHooks {
+  /** 每次发模型请求之前调，回 false 就不发。vouched：用户自己点的请求接上了这个任务。 */
+  readonly beforeSend: (vouched: boolean) => Promise<boolean>;
+  /** 一次模型请求失败了，交给它看是什么错。 */
+  readonly failed?: (error: unknown) => void;
+}
 
 export interface TaskSpec {
   readonly kind: TaskKind;
@@ -77,8 +89,8 @@ export interface TaskRun {
 }
 
 export interface TaskRunner {
-  /** admit 只在真要新起一个任务时问，接上在跑的、撞上互斥键的都不问。 */
-  register(spec: TaskSpec, subscriber: Subscriber, options?: { readonly admit?: () => boolean }): Promise<Registration>;
+  /** admit 只在真要新起一个任务时问，接上在跑的、撞上互斥键的都不问。send 只挂在新起的任务上。 */
+  register(spec: TaskSpec, subscriber: Subscriber, options?: { readonly admit?: () => boolean; readonly send?: SendHooks }): Promise<Registration>;
   /** 依据定下以后按完整的等价键再核对：和别的在跑的任务等价时交回那个任务。 */
   rekey(taskId: string, basis: Basis): Promise<{ readonly ok: true } | { readonly ok: false; readonly conflict?: TaskView }>;
   run<T>(taskId: string, work: (run: TaskRun) => Promise<Result<T>>, options?: { readonly autoFinish?: boolean }): Promise<Result<T>>;
@@ -114,6 +126,9 @@ interface Meta {
   /** 有不记端口的订阅方：页面都断开也照常跑完。 */
   pinned: boolean;
   claimTimer: unknown;
+  readonly send?: SendHooks | undefined;
+  /** 用户或卡片发起的同一个请求接上了它。 */
+  vouched: boolean;
 }
 
 const defaultBudget = (gen: FrozenGen): number => keepAliveBudget(EFFORT_TIMEOUT_SECONDS[gen.effort] * 1000);
@@ -180,7 +195,7 @@ export function createTaskRunner(deps: TaskRunnerDeps): TaskRunner {
   }
 
   return {
-    async register(spec, subscriber, { admit } = {}) {
+    async register(spec, subscriber, { admit, send } = {}) {
       const equivalence = await equivalenceKey(spec);
       const mutex = mutexKey(spec);
       // 从这里起没有等待：判断和登记之间不会插进别的登记。
@@ -188,6 +203,7 @@ export function createTaskRunner(deps: TaskRunnerDeps): TaskRunner {
         const meta = metas.get(task.id);
         if (task.state !== "running" || meta?.equivalence !== equivalence) continue;
         subscribe(meta, subscriber);
+        if (spec.origin === "user" || spec.origin === "card") meta.vouched = true;
         return { task: shown(task), joined: true };
       }
       const holder = mutex === null ? null : manager.occupant(mutex);
@@ -197,7 +213,7 @@ export function createTaskRunner(deps: TaskRunnerDeps): TaskRunner {
       }
       if (admit && !admit()) return { refused: true };
       const id = newId();
-      const meta: Meta = { spec, equivalence, ports: new Set(), pinned: false, claimTimer: null };
+      const meta: Meta = { spec, equivalence, ports: new Set(), pinned: false, claimTimer: null, send, vouched: false };
       subscribe(meta, subscriber);
       metas.set(id, meta);
       const started = manager.start({ id, kind: spec.kind, origin: spec.origin, key: mutex ?? `${spec.kind}#${id}` });
@@ -246,10 +262,26 @@ export function createTaskRunner(deps: TaskRunnerDeps): TaskRunner {
       }
       const { gen } = meta.spec;
       const budget = budgetFor(gen);
+      const hooks = meta.send;
       const entry = (frozen: FrozenGen): TaskAi => {
         const bound = deps.ai.forTask(frozen);
         const ceiling = Math.max(budget, budgetFor(frozen));
-        return { requestAiCompletion: (request) => keepAlive.during(ceiling, () => bound.requestAiCompletion(request)) };
+        const send: TaskAi["requestAiCompletion"] = (request) => keepAlive.during(ceiling, () => bound.requestAiCompletion(request));
+        if (!hooks) return { requestAiCompletion: send };
+        return {
+          async requestAiCompletion(request) {
+            if (!(await hooks.beforeSend(meta.vouched))) {
+              cancel(taskId, SEND_DECLINED);
+              throw taskCanceledError();
+            }
+            try {
+              return await send(request);
+            } catch (error) {
+              hooks.failed?.(error);
+              throw error;
+            }
+          },
+        };
       };
       const ai = entry(gen);
       const stages = new Map((meta.spec.stages ?? []).map((frozen) => [frozen.feature, { ai: entry(frozen), gen: frozen }] as const));

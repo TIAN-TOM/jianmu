@@ -563,3 +563,24 @@ test("缓存写入之后才发起的轻量读取不并进写之前的那一次�
   assert.equal(early.ok, true);
   assert.equal(guides(late).official?.summary, "刚写进缓存的官方摘要");
 });
+
+// 打开就出结论按后台自己读到的时长先判断：只看缓存和轻量读取记着的，在路上的轻量读取等它回来，一个请求都不另发。
+test("本机知道的时长：缓存里的、轻量读取记着的都算，不知道时是 null，问它不发任何请求", async () => {
+  const cached = rig({ seed: [cachedRow(undefined, { info: sampleInfo(REF, { durationSec: 1800 }) })] });
+  assert.equal(await cached.service.knownDuration(REF), 1800);
+  assert.equal(cached.site.calls.length, 0);
+
+  const blank = rig();
+  assert.equal(await blank.service.knownDuration(REF), null);
+  assert.equal(blank.site.calls.length, 0);
+
+  const gate = deferred();
+  const light = rig({ site: { videoInfo: async (ref) => (await gate.promise, ok(sampleInfo(ref, { durationSec: 900 }))) } });
+  const reading = light.service.light(REF);
+  const known = light.service.knownDuration(REF);
+  assert.ok(await stillFalse(async () => light.site.count("readVideoInfo") > 1));
+  gate.resolve();
+  await reading;
+  assert.equal(await known, 900, "在路上的轻量读取等它回来");
+  assert.equal(light.site.count("readVideoInfo"), 1);
+});

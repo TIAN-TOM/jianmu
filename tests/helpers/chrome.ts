@@ -1,4 +1,4 @@
-// chrome.* 的替身：runtime、tabs、sidePanel、scripting、storage 和它们的事件，外加造发送方的几个函数。
+// chrome.* 的替身：runtime、tabs、windows、sidePanel、scripting、storage 和它们的事件，外加造发送方的几个函数。
 // 消息回复过一遍 JSON、存储读写用 structuredClone，和浏览器一致；地址都是自造的，不是任何真实网站。
 import type { ModelServiceFetch } from "../../src/background/ai.ts";
 import type { AppDeps } from "../../src/background/app.ts";
@@ -74,6 +74,10 @@ export interface FakeChromeOptions {
   readonly site?: SiteService;
   /** tabs.get 回的标题。 */
   readonly tabTitles?: Readonly<Record<number, string>>;
+  /** windows.getLastFocused 回的窗口；null 是焦点不在 Chrome。不给时是 null。 */
+  readonly focusedWindow?: number | null;
+  /** 每个窗口的活动标签页：按 active 和 windowId 查时回它。 */
+  readonly activeTabs?: Readonly<Record<number, { readonly id: number; readonly url?: string }>>;
 }
 
 /** 一次调用，记下当时存储里的启用确认算不算数：确认之后查标签页是允许的，之前不行。 */
@@ -137,6 +141,8 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     broadcasts: [] as unknown[],
     tabMessages: [] as { readonly tabId: number; readonly message: unknown }[],
     tabQueries: [] as Call<unknown>[],
+    /** 问了几次获得焦点的窗口。 */
+    windowQueries: [] as Call<null>[],
     tabGets: [] as Call<number>[],
     siteParses: [] as Call<string>[],
     panelOpens: [] as number[],
@@ -185,8 +191,12 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     onStartup: event(),
   };
   const tabs = {
-    async query(info: { url: string[] }) {
+    async query(info: { url?: string[]; active?: boolean; windowId?: number }) {
       record(calls.tabQueries, structuredClone(info));
+      if (info.active === true) {
+        const tab = info.windowId === undefined ? undefined : options.activeTabs?.[info.windowId];
+        return tab ? [{ ...tab, windowId: info.windowId, active: true }] : [];
+      }
       return (options.openTabs ?? []).map((id) => ({ id }));
     },
     async get(tabId: number) {
@@ -198,6 +208,16 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
       calls.tabMessages.push({ tabId, message: copy(message) });
     },
     onRemoved: event(),
+    onActivated: event(),
+    onUpdated: event(),
+  };
+  const windows = {
+    async getLastFocused() {
+      record(calls.windowQueries, null);
+      const focused = options.focusedWindow ?? null;
+      return focused === null ? { id: 1, focused: false } : { id: focused, focused: true };
+    },
+    onFocusChanged: event(),
   };
   const sidePanel = {
     open({ windowId }: { windowId: number }) {
@@ -231,7 +251,7 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     if (options.fetch) return options.fetch(url, init);
     throw new Error("测试里没有准备模型服务的回复");
   };
-  const chrome = { runtime, tabs, sidePanel, scripting, permissions, storage: { local, session, onChanged: storageChanged } };
+  const chrome = { runtime, tabs, windows, sidePanel, scripting, permissions, storage: { local, session, onChanged: storageChanged } };
 
   // 两个自造站点的地址规则，记下每次解析，看闸门之前有没有读地址。
   const rule = (platform: VideoRef["platform"], prefix: string): SiteRules => ({
@@ -313,6 +333,9 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     indexedDB,
     fireStartup: () => fire(runtime.onStartup),
     fireTabRemoved: (tabId: number) => fire(tabs.onRemoved, tabId, {}),
+    fireTabActivated: (tabId: number, windowId: number) => fire(tabs.onActivated, { tabId, windowId }),
+    fireTabUpdated: (tabId: number, change: Record<string, unknown>, tab: Record<string, unknown>) => fire(tabs.onUpdated, tabId, change, tab),
+    fireFocusChanged: (windowId: number) => fire(windows.onFocusChanged, windowId),
     fireStorageChanged: (changes: Record<string, unknown>, area: string) => fire(storageChanged, changes, area),
     /** 直接交给 createApp 的依赖。 */
     deps: (log: AppDeps["log"] = console): AppDeps => ({
@@ -320,6 +343,7 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
       tabs,
       sidePanel,
       scripting,
+      windows,
       permissions,
       storage: { local, session },
       indexedDB: () => indexedDB,

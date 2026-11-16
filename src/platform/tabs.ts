@@ -2,9 +2,13 @@
 // 标签页、侧边栏、设置页和往页面里注入脚本的薄封装。下面的接口只列用到的方法，真实的接口和测试替身都按结构满足它们。
 
 export interface TabsApi {
-  query(info: { url: string[]; windowId?: number }): Promise<readonly { readonly id?: number; readonly url?: string; readonly title?: string }[]>;
+  query(info: { url?: string[]; windowId?: number; active?: boolean }): Promise<readonly { readonly id?: number; readonly url?: string; readonly title?: string }[]>;
   get(tabId: number): Promise<{ readonly title?: string }>;
   sendMessage(tabId: number, message: unknown): Promise<unknown>;
+}
+
+export interface WindowsApi {
+  getLastFocused(): Promise<{ readonly id?: number; readonly focused?: boolean }>;
 }
 
 export interface SidePanelApi {
@@ -51,6 +55,8 @@ export interface TabsDeps {
   readonly sidePanel: SidePanelApi;
   readonly runtime: RuntimePages;
   readonly scripting: ScriptingApi;
+  /** 不给时当作焦点不在任何 Chrome 窗口上。 */
+  readonly windows?: WindowsApi;
 }
 
 export interface Tabs {
@@ -75,6 +81,10 @@ export interface Tabs {
   readonly title: (tabId: number) => Promise<string | null>;
   /** 一个窗口里地址匹配得上这几条规则的标签页：编号、地址和标题，按标签页的顺序。只在确认启用之后调。 */
   readonly windowTabs: (windowId: number, matches: readonly string[]) => Promise<readonly WindowTab[]>;
+  /** 现在获得焦点的 Chrome 窗口；焦点不在 Chrome、或者读不到时是 null。 */
+  readonly focusedWindow: () => Promise<number | null>;
+  /** 一个窗口的活动标签页。没有主机权限的网站看不到地址。只在确认启用之后调。 */
+  readonly activeTab: (windowId: number) => Promise<{ readonly id: number; readonly url?: string } | null>;
 }
 
 /** 窗口里开着的一个标签页。 */
@@ -85,9 +95,9 @@ export interface WindowTab {
 }
 
 export function createTabs(
-  deps: TabsDeps = { tabs: chrome.tabs, sidePanel: chrome.sidePanel, runtime: chrome.runtime, scripting: chrome.scripting },
+  deps: TabsDeps = { tabs: chrome.tabs, sidePanel: chrome.sidePanel, runtime: chrome.runtime, scripting: chrome.scripting, windows: chrome.windows },
 ): Tabs {
-  const { tabs, sidePanel, runtime, scripting } = deps;
+  const { tabs, sidePanel, runtime, scripting, windows } = deps;
   async function tabsMatching(matches: readonly string[]): Promise<readonly number[]> {
     if (matches.length === 0) return [];
     const found = await tabs.query({ url: [...matches] });
@@ -129,6 +139,20 @@ export function createTabs(
       if (matches.length === 0) return [];
       const found = await tabs.query({ url: [...matches], windowId });
       return found.flatMap(({ id, url, title }) => (typeof id === "number" && typeof url === "string" ? [{ tabId: id, url, title: title ?? "" }] : []));
+    },
+    async focusedWindow() {
+      if (!windows) return null;
+      try {
+        const { id, focused } = await windows.getLastFocused();
+        return focused === true && typeof id === "number" ? id : null;
+      } catch {
+        return null;
+      }
+    },
+    async activeTab(windowId) {
+      const [tab] = await tabs.query({ active: true, windowId });
+      if (typeof tab?.id !== "number") return null;
+      return typeof tab.url === "string" ? { id: tab.id, url: tab.url } : { id: tab.id };
     },
     async inject(tabId, { js, css, allFrames }) {
       const target = allFrames ? { tabId, allFrames } : { tabId };

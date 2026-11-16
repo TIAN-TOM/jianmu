@@ -2,10 +2,14 @@
 import type { FeatureSlotId } from "../settings-schema.ts";
 import type { EmptyRequest } from "./core.ts";
 
-/** 配置够不够发起一次请求；errors 是给用户看的提示。 */
+/** 打开就出结论为什么停着：额度用完、密钥不对。 */
+export type AutoPauseReason = "quota" | "key";
+
+/** 配置够不够发起一次请求；errors 是给用户看的提示。autoPaused：打开就出结论停着，只在停着时带。 */
 export interface ConfigCheckView {
   readonly ready: boolean;
   readonly errors: readonly string[];
+  readonly autoPaused?: AutoPauseReason;
 }
 
 export interface ModelListView {

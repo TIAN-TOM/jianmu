@@ -1,15 +1,18 @@
 // 概览：开始生成、补失败块、读本机已有的概览。生成和补块认领的是先经任务登记的任务，服务核对任务的种类和视频；
 // 卡片只能开始生成，只认登记时拿到的一次性令牌，不能重新生成，登记时已经过了卡片开关和限频。
+// 侧边栏或卡片手动生成成功一次，打开就出结论就从额度用完、密钥不对的暂停里恢复。
 import { fail } from "../../core/errors.ts";
 import type { OverviewGetRequest, OverviewRetryRequest, OverviewStartRequest } from "../../shared/messages/overview.ts";
 import type { CardLimits } from "../limits.ts";
 import type { Route } from "../router.ts";
+import type { AutoGenerate } from "../services/auto-generate.ts";
 import type { OverviewService } from "../services/overview/index.ts";
 import { isVideoKey } from "./validate.ts";
 
 export interface OverviewRouteDeps {
   readonly overview: OverviewService;
   readonly cardLimits: Pick<CardLimits, "redeemToken">;
+  readonly auto?: Pick<AutoGenerate, "resume">;
 }
 
 type OverviewRoutes = { readonly [K in "overview.start" | "overview.retryFailed" | "overview.get"]: Route<K> };
@@ -38,7 +41,13 @@ function isGetRequest(req: unknown): req is OverviewGetRequest {
   return isPlainObject(req) && onlyKeys(req, ["video"]) && isVideoKey(req.video);
 }
 
-export function overviewRoutes({ overview, cardLimits }: OverviewRouteDeps): OverviewRoutes {
+export function overviewRoutes({ overview, cardLimits, auto }: OverviewRouteDeps): OverviewRoutes {
+  // 真的发了请求、拿到了结果才算：本机已有的直接交回、中途停下的都不算。
+  const generated = async (pending: ReturnType<OverviewService["generate"]>): ReturnType<OverviewService["generate"]> => {
+    const result = await pending;
+    if (result.ok && !result.value.fromCache && !result.value.canceled) await auto?.resume().catch(() => undefined);
+    return result;
+  };
   return {
     "overview.start": {
       senders: ["panel", "card"],
@@ -48,10 +57,10 @@ export function overviewRoutes({ overview, cardLimits }: OverviewRouteDeps): Ove
           // 卡片不收任务号、不能重新生成：只认登记时换到的令牌，用一次就作废。
           if (req.taskId !== undefined || req.token === undefined || req.fresh) return fail("FORBIDDEN");
           const taskId = cardLimits.redeemToken(req.token);
-          return taskId ? overview.generate(taskId, req.video, { fresh: false }) : fail("TASK_NOT_FOUND");
+          return taskId ? generated(overview.generate(taskId, req.video, { fresh: false })) : fail("TASK_NOT_FOUND");
         }
         if (req.taskId === undefined) return fail("FORBIDDEN");
-        return overview.generate(req.taskId, req.video, { fresh: req.fresh === true });
+        return generated(overview.generate(req.taskId, req.video, { fresh: req.fresh === true }));
       },
     },
     "overview.retryFailed": {

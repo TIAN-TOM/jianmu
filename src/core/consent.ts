@@ -101,6 +101,21 @@ export const DATA_CONSENT_TABLE: NoticeTable<DataConsentKind> = [
     version: 3,
     items: [{ kind: "category", id: "video-duration", text: "视频时长", shownWith: { id: "video-title", combined: "视频标题和时长" } }],
   },
+  {
+    version: 4,
+    items: [
+      {
+        kind: "trigger",
+        id: "auto-on-open",
+        text: "打开「打开就出结论」以后，在 B 站打开超过设定时长的视频，会自动发送字幕、视频标题和时长、UP 主名和简介，生成概览和一句话结论；YouTube 不自动发",
+        shownWith: {
+          id: "on-click",
+          combined:
+            "平时只在你点按钮时发出；打开「打开就出结论」以后，在 B 站打开超过设定时长的视频，会自动发送字幕、视频标题和时长、UP 主名和简介，生成概览和一句话结论（YouTube 不自动发）",
+        },
+      },
+    ],
+  },
 ];
 
 export const ACTIVATION_TABLE: NoticeTable<ActivationKind> = [
@@ -127,6 +142,10 @@ export const ACTIVATION_TABLE: NoticeTable<ActivationKind> = [
       { kind: "read", id: "bili-login-state", text: "B 站登录状态：只看是否已登录，不读 Cookie 内容" },
       { kind: "read", id: "watch-later-progress", text: "粗筛读到的稍后再看列表里，每个视频看到哪里" },
     ],
+  },
+  {
+    version: 3,
+    items: [{ kind: "read", id: "foreground-tab", text: "打开「打开就出结论」以后，当前窗口前台标签页的地址，用来认出刚打开的 B 站视频" }],
   },
 ];
 

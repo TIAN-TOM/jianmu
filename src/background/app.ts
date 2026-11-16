@@ -18,6 +18,7 @@ import type { NoteRecord, OverviewRecord, QaRecord } from "../core/notes/records
 import type { StoreName } from "../shared/names.ts";
 import type { SiteRules } from "../sites/types.ts";
 import { createAiWiring, type AiWiring, type ModelServiceFetch, type PromptTable } from "./ai.ts";
+import { autoSwitchToggled, createAutoWiring } from "./auto.ts";
 import { createContentTabs, type ContentTabs } from "./content-tabs.ts";
 import { createGrants, siteOriginsFromSettings, type Grants } from "./grants.ts";
 import { createCardLimits, createPlaybackLimits, createPlayerNoteLimit, type CardLimits, type PlaybackLimits } from "./limits.ts";
@@ -28,6 +29,7 @@ import { activationDropped, activationLost } from "./routes/activation.ts";
 import { appearanceChange, type StorageChange } from "./routes/appearance.ts";
 import { createPorts, createRoutes } from "./routes/index.ts";
 import { createSenders } from "./senders.ts";
+import type { AutoGenerate } from "./services/auto-generate.ts";
 import { createTranscriptService, type SiteAccess, type TranscriptService } from "./services/transcript/index.ts";
 import { OFFICIAL_CAPTIONS_FALLBACK } from "./services/transcript/official.ts";
 import type { CachedTranscript } from "./services/transcript/write.ts";
@@ -56,6 +58,7 @@ export interface AppDeps {
   readonly tabs: TabsDeps["tabs"];
   readonly sidePanel: TabsDeps["sidePanel"];
   readonly scripting: TabsDeps["scripting"];
+  readonly windows?: TabsDeps["windows"];
   readonly permissions: PermissionsApi;
   readonly storage: ExtensionStorage;
   /** 数据库。用到仓储时才取，没有时那次读写报错。 */
@@ -83,7 +86,14 @@ export interface App {
   readonly onStartup: () => Promise<void>;
   readonly onTabRemoved: (tabId: number) => void;
   readonly onStorageChanged: (changes: Readonly<Record<string, StorageChange>>, area: string) => Promise<void>;
+  /** 标签页激活、前台标签页地址变了或加载完成、窗口焦点变了：打开就出结论按那一刻的前台判断一次。 */
+  readonly onTabActivated: () => void;
+  readonly onTabUpdated: (change: { readonly url?: string; readonly status?: string }, tab: { readonly active?: boolean }) => void;
+  readonly onFocusChanged: (windowId: number) => void;
 }
+
+/** 焦点离开了全部 Chrome 窗口。 */
+const NO_WINDOW = -1;
 
 /** 浏览器里的真实依赖。只在第一个事件来了以后调；提示词由入口交进来，构建时内联。 */
 export function chromeDeps(prompts: PromptTable): AppDeps {
@@ -92,6 +102,7 @@ export function chromeDeps(prompts: PromptTable): AppDeps {
     tabs: chrome.tabs,
     sidePanel: chrome.sidePanel,
     scripting: chrome.scripting,
+    windows: chrome.windows,
     permissions: chrome.permissions,
     storage: extensionStorage(),
     indexedDB: () => globalThis.indexedDB,
@@ -144,6 +155,8 @@ interface Core {
   readonly data: DataService;
   /** 稍后再看粗筛和本窗口全部生成。 */
   readonly batch: BatchService;
+  /** 打开就出结论。 */
+  readonly auto: AutoGenerate;
 }
 
 function assembleAi(deps: AppDeps, settings: SettingsStore, clearGuard: ClearGuard): AiWiring {
@@ -374,7 +387,7 @@ function assembleData(deps: AppDeps, parts: OverviewParts, stores: ReturnType<ty
 }
 
 function assembleCore(deps: AppDeps): Core {
-  const tabs = createTabs({ tabs: deps.tabs, sidePanel: deps.sidePanel, runtime: deps.runtime, scripting: deps.scripting });
+  const tabs = createTabs({ tabs: deps.tabs, sidePanel: deps.sidePanel, runtime: deps.runtime, scripting: deps.scripting, ...(deps.windows ? { windows: deps.windows } : {}) });
   const contentTabs = createContentTabs();
   const settings = createSettingsStore({ storage: deps.storage, locks: deps.locks });
   const clearGuard = createClearGuard();
@@ -389,6 +402,7 @@ function assembleCore(deps: AppDeps): Core {
   const studyStores = assembleStudyStores(deps, clearGuard);
   const overview = assembleOverview(deps, generation);
   const verdict = assembleVerdict(deps, generation);
+  const autoParts = { settings, tabs, rules: deps.siteRules, ai, tasks, overviews, transcript, overview, storage: deps.storage.session, guard: clearGuard };
   return {
     settings,
     clearGuard,
@@ -411,6 +425,7 @@ function assembleCore(deps: AppDeps): Core {
     translate: assembleTranslate(deps, generation),
     data: assembleData(deps, generation, studyStores),
     batch: assembleBatch(deps, generation, tabs, keepAlive, { overview, verdict }),
+    auto: createAutoWiring({ ...autoParts, now: deps.timers.now, broadcast: (message) => void messenger.toPages(message), log: deps.log }),
   };
 }
 
@@ -442,6 +457,7 @@ export function createApp(deps: AppDeps): App {
     core.tabs.setPanelBehavior().catch((error: unknown) => {
       deps.log.error("设置侧边栏的打开方式失败", errorLabel(error));
     });
+  const consider = () => void core.auto.consider().catch((error: unknown) => deps.log.error("打开就出结论的判断失败", errorLabel(error)));
   return {
     dispatch: router.dispatch,
     connect: router.connect,
@@ -451,6 +467,13 @@ export function createApp(deps: AppDeps): App {
       await Promise.all([setPanelBehavior(), reloaded ? core.reinject() : undefined]);
     },
     onStartup: setPanelBehavior,
+    onTabActivated: () => consider(),
+    onTabUpdated(change, tab) {
+      if (tab.active === true && (Object.hasOwn(change, "url") || change.status === "complete")) consider();
+    },
+    onFocusChanged(windowId) {
+      if (windowId !== NO_WINDOW) consider();
+    },
     onTabRemoved(tabId) {
       core.contentTabs.remove(tabId);
       core.playbackLimits.forget(tabId);
@@ -459,6 +482,7 @@ export function createApp(deps: AppDeps): App {
       });
     },
     async onStorageChanged(changes, area) {
+      if (autoSwitchToggled(changes, area)) await core.auto.resume().catch((error: unknown) => deps.log.error("恢复自动生成失败", errorLabel(error)));
       // 先断端口：启用失效以后，连着的页面不能再发起新的读取和模型请求。
       if (activationLost(changes, area)) router.closeBusinessPorts("NOT_ENABLED");
       // 只发给发过消息的内容脚本：启用已经失效，不再按地址查标签页。
