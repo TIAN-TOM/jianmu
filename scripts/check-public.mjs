@@ -15,7 +15,7 @@ const TOP_LEVEL = new Set([
 ]);
 
 const NOTES = new Set([
-  "notes/architecture.md", "notes/dual-site-launch-plan.md", "notes/manual-checklist.md", "notes/product-prd.md",
+  "notes/architecture.md", "notes/manual-checklist.md", "notes/product-prd.md",
 ]);
 
 // 允许出现 JSON 的位置；其余的 JSON 按实验导出处理。
