@@ -1,6 +1,6 @@
 // 笔记和学习稿的 Markdown 导出。视频地址的前缀由调用方传入，链接只从视频键现拼。
 import { groupQuotesIntoChapters, type ChapterPart, type QuotePart } from "../ai/chunking.ts";
-import { keyChapterStarts, type OfficialSummary } from "../ai/verdict.ts";
+import { keyChapterStarts, verdictLabelOf, type OfficialSummary } from "../ai/verdict.ts";
 import { formatTimestamp } from "../transcript/segment.ts";
 import { parseVideoKey, type VideoKey } from "../video-ref.ts";
 import {
@@ -338,7 +338,8 @@ export function learningAsMarkdown(
 
   // 一句话结论放在最前面，和侧边栏一样先回答「讲了什么、要不要看」。
   if (verdictSummary) {
-    const verdictLabel = escapeMarkdown(String(verdict?.verdict || "").trim());
+    // 旧版改了名的档位按新名字写，「看概览就够」照旧。
+    const verdictLabel = escapeMarkdown(verdictLabelOf(verdict?.verdict));
     const verdictValue = escapeMarkdown(String(verdict?.value || "").trim());
     const verdictReason = escapeMarkdown(String(verdict?.reason || "").trim());
     lines.push("## 一句话结论", "");

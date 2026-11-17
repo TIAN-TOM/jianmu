@@ -154,7 +154,8 @@ function Results({ state }: { readonly state: TriageState }) {
   const filter = state.filter.value;
   const entries: { readonly key: Filter; readonly label: string; readonly count: number }[] = [
     { key: "all", label: "全部", count: items.length },
-    ...GROUPS.map((group) => ({ key: group.key, label: group.label, count: groups[group.key].length })),
+    // 旧判断只在真有的时候列出来，新装的用户看不到这一组。
+    ...GROUPS.filter((group) => group.key !== "legacy" || groups.legacy.length > 0).map((group) => ({ key: group.key, label: group.label, count: groups[group.key].length })),
   ];
   const shown = filter === "all" ? items : groups[filter];
   return (

@@ -138,10 +138,11 @@ function Gallery() {
       </section>
 
       <section id="verdicts" class="gallery-stack">
-        <VerdictBlock label="值得看完整视频" text="样例结论：讲清了问题的来龙去脉，值得从头看。" basis="transcript" menu={<Menu label="更多操作" items={[{ label: "重新生成", hint: "会再调一次模型", onSelect: () => (picked.value = "重新生成") }]} />} />
-        <VerdictBlock label="看概览就够" text="样例结论：要点都在章节里，看概览就够。" basis="official-summary" />
-        <VerdictBlock label="可以跳过" text="样例结论：和标题关系不大，可以跳过。" basis="title-description" staleTranscript />
+        <VerdictBlock label="推荐看" text="样例结论：讲清了问题的来龙去脉，值得从头看。" basis="transcript" menu={<Menu label="更多操作" items={[{ label: "重新生成", hint: "会再调一次模型", onSelect: () => (picked.value = "重新生成") }]} />} />
+        <VerdictBlock label="可以看" text="样例结论：挑标出的两章看就够。" basis="official-summary" />
+        <VerdictBlock label="可以跳过" text="样例结论：存着的旧档位名，按新名字显示。" basis="title-description" staleTranscript />
         <VerdictBlock label="信息不足" text="样例结论：字幕只覆盖了一部分，判断不了。" basis="legacy-unknown" incomplete />
+        <VerdictBlock label="看概览就够" text="样例结论：旧版留下的判断，原样显示。" />
         <VerdictBlock label="还行" text="样例结论：档位认不出来时只写结论句。" />
       </section>
 

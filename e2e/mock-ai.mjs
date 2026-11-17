@@ -64,14 +64,14 @@ function kindOf(prompt) {
 }
 
 /**
- * 概览块的章节和金句放在本块起点那一秒，结论按提示词的格式写（粗筛分组用的那个视频判可以跳过），问答引用字幕第一句的时间点。
+ * 概览块的章节和金句放在本块起点那一秒，结论按提示词的格式写（粗筛分组用的那个视频判可跳过），问答引用字幕第一句的时间点。
  * @param {"analysis" | "verdict" | "qa"} kind @param {string} prompt
  */
 function resultOf(kind, prompt) {
   if (kind === "verdict") {
     // 重点章节标第一章：照提示词的要求抄它开头的时间点。
     const first = /^\[(\d+:\d{2})\]/m.exec(prompt)?.[1];
-    return { summary: "模拟服务写的一句话结论", value: "样例价值", verdict: videoOf(prompt) === SKIPPED_VIDEO ? "可以跳过" : "看概览就够", reason: "样例理由", keyChapters: first ? [first] : [] };
+    return { summary: "模拟服务写的一句话结论", value: "样例价值", verdict: videoOf(prompt) === SKIPPED_VIDEO ? "可跳过" : "可以看", reason: "样例理由", keyChapters: first ? [first] : [] };
   }
   if (kind === "qa") return { answer: "模拟服务的回答，依据在 [0:00]。" };
   // 照提示词的要求抄本段开头的时间；金句里的秒数供端到端核对位置。

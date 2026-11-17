@@ -38,7 +38,7 @@ const OVERVIEW: OverviewRecord = {
   analysis: {
     chapters: [{ title: "开场", summary: "讲了为什么", timestampSeconds: 0, timestamp: "0:00" }],
     keyQuotes: [{ quote: "先想清楚再动手。", timestampSeconds: 12, timestamp: "0:12" }],
-    verdict: { summary: "讲清了做计划的方法。", value: "三步法", verdict: "值得看完整视频", reason: "例子具体" },
+    verdict: { summary: "讲清了做计划的方法。", value: "三步法", verdict: "推荐看", reason: "例子具体" },
   },
   analysisFailures: [{ index: 1, startSeconds: 600, endSeconds: 900, reason: "超时" }],
   updatedAt: 3000,
@@ -262,4 +262,15 @@ test("重点章节随结论往返，不升备份版本；坏的、对不上的�
   }
   const old = read(buildBackup({ overviews: [OVERVIEW] }, EXPORTED_AT)).contents.overviews[0];
   assert.equal(old?.analysis.verdict && "keyStarts" in old.analysis.verdict, false, "没有这个字段的旧记录照常读");
+});
+
+test("新格式里存着旧档位名（新版日用早期写下的）：改了名的按新名字导入，「看概览就够」连同理由原样留成旧判断", () => {
+  const withLabel = (verdict: string): OverviewRecord => ({ ...OVERVIEW, analysis: { ...OVERVIEW.analysis, verdict: { ...OVERVIEW.analysis.verdict, verdict } } });
+  const backup = buildBackup({ overviews: ["值得看完整视频", "可以跳过", "看概览就够"].map(withLabel) }, EXPORTED_AT);
+  const verdicts = read(backup).contents.overviews.map((overview) => [overview.analysis.verdict?.verdict, overview.analysis.verdict?.reason]);
+  assert.deepEqual(verdicts, [
+    ["推荐看", "例子具体"],
+    ["可跳过", "例子具体"],
+    ["看概览就够", "例子具体"],
+  ]);
 });

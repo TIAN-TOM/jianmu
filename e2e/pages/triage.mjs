@@ -70,7 +70,7 @@ test("粗筛页：读列表、第一步取官方总结、没设置模型服务�
 
   await clickButton(page, "还没判断");
   assert.equal((await rows(page)).length, TITLES.length);
-  await clickButton(page, "可以跳过");
+  await clickButton(page, "可跳过");
   await page.waitFor("这一组是空的", `document.querySelector("#triage-results")?.innerText.includes("这一组还没有视频")`);
   assert.equal(await page.overflowsX(), false);
 });

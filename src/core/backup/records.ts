@@ -153,11 +153,12 @@ export function checkDerived(value: unknown): Derived {
 
 /**
  * 结论按生成时的规则重建；依据官方总结写的、正文被截断过的照旧标明。
+ * 旧档位按 verdictLabelOf 读：改了名的换成新名字，「看概览就够」连同理由原样留成旧判断。
  * 重点章节和这条记录的章节对一遍，坏的、对不上的只丢重点；没有这个字段的旧记录按没有重点。
  */
 function checkVerdict(value: unknown, chapterStarts: readonly number[]): LearningVerdict | null {
   if (!isFields(value)) return null;
-  const verdict = validateVerdict(value, { incomplete: value.incomplete === true });
+  const verdict = validateVerdict(value, { incomplete: value.incomplete === true, stored: true });
   if (!verdict) return null;
   const keyStarts = validKeyStarts(value.keyStarts, chapterStarts);
   return {

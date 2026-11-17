@@ -68,10 +68,10 @@ export async function triageFlow({ until, evaluate, cdp, findSession, mock, exte
     return rowOf(list, THIRD_VIDEO)?.group === "skip" ? list : null;
   });
   const groups = LISTED.map((video) => rowOf(grouped, video)?.group);
-  const expected = ["overview", "overview", "skip", "pending"];
+  const expected = ["fair", "fair", "skip", "pending"];
   if (JSON.stringify(groups) !== JSON.stringify(expected)) throw new Error(`分组不对：${JSON.stringify(groups)}`);
-  await click("可以跳过");
-  await until("筛选后只剩可以跳过的", async () => {
+  await click("可跳过");
+  await until("筛选后只剩可跳过的", async () => {
     const list = await rows();
     return list.length === 1 && list[0].text.includes(THIRD_VIDEO.title);
   });
@@ -84,8 +84,8 @@ export async function triageFlow({ until, evaluate, cdp, findSession, mock, exte
     const block = sections[heading];
     if (!block || videos.some((video) => !block.includes(video.title))) throw new Error(`导出的「${heading}」不对：${block ?? "没有这一组"}`);
   };
-  expectSection("看概览就够（2）", [FIRST_VIDEO, SECOND_VIDEO]);
-  expectSection("可以跳过（1）", [THIRD_VIDEO]);
+  expectSection("可以看（2）", [FIRST_VIDEO, SECOND_VIDEO]);
+  expectSection("可跳过（1）", [THIRD_VIDEO]);
   expectSection("还没判断（1）", [FOURTH_VIDEO]);
   console.log("✓ 粗筛：按判断分组、筛选，导出的 Markdown 按组列出");
 }

@@ -1,23 +1,36 @@
 // 判断标记和依据行：每一档都有自己的形状，形状互不相同；认不出的档位不画标记；依据按实际来源写。
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { VERDICT_LABELS } from "../../../../../src/core/ai/verdict.ts";
+import { LEGACY_VERDICT, VERDICT_LABELS } from "../../../../../src/core/ai/verdict.ts";
 import { MARK_PARTS } from "../../../../../src/pages/shared/ui/icons.ts";
-import { basisText, MARK_SHAPES, markOf } from "../../../../../src/pages/shared/ui/verdict.ts";
+import { basisText, labelOf, MARK_SHAPES, markOf } from "../../../../../src/pages/shared/ui/verdict.ts";
 
-test("现有的每一档判断都有标记，形状互不相同；「看概览就够」是方块，不混进圆形那几档", () => {
-  const shapes = VERDICT_LABELS.map((label) => markOf(label));
+test("四档和旧判断都有标记，形状互不相同；旧版的「看概览就够」是方块，不混进圆形那几档", () => {
+  const labels = [...VERDICT_LABELS, LEGACY_VERDICT];
+  const shapes = labels.map((label) => markOf(label));
   assert.ok(shapes.every((shape) => shape !== null), "每一档都有标记");
-  assert.equal(new Set(shapes).size, VERDICT_LABELS.length, "形状互不相同");
+  assert.equal(new Set(shapes).size, labels.length, "形状互不相同");
   assert.deepEqual(
-    Object.fromEntries(VERDICT_LABELS.map((label) => [label, markOf(label)])),
-    { 值得看完整视频: "go", 看概览就够: "square", 可以跳过: "skip", 信息不足: "unknown" },
+    Object.fromEntries(labels.map((label) => [label, markOf(label)])),
+    { 推荐看: "go", 可以看: "fair", 可跳过: "skip", 信息不足: "unknown", 看概览就够: "square" },
   );
 });
 
-test("认不出的档位（空的、模型自创的、对象原型上的名字）不画标记；前后空白不影响", () => {
-  for (const label of ["", "还行", "constructor", "toString", null, undefined]) assert.equal(markOf(label), null, String(label));
+test("存着的旧档位按新名字显示和配标记：值得看完整视频是推荐看，可以跳过是可跳过", () => {
+  assert.equal(markOf("值得看完整视频"), "go");
+  assert.equal(labelOf("值得看完整视频"), "推荐看");
   assert.equal(markOf(" 可以跳过 "), "skip");
+  assert.equal(labelOf("可以跳过"), "可跳过");
+  assert.equal(labelOf("看概览就够"), "看概览就够");
+  assert.equal(labelOf("还行"), "");
+});
+
+test("认不出的档位（空的、模型自创的、对象原型上的名字）不画标记；前后空白不影响", () => {
+  for (const label of ["", "还行", "constructor", "toString", "__proto__", null, undefined]) {
+    assert.equal(markOf(label), null, String(label));
+    assert.equal(labelOf(label), "", String(label));
+  }
+  assert.equal(markOf(" 可跳过 "), "skip");
 });
 
 test("五种标记形状都有绘制数据，没有多出来的", () => {

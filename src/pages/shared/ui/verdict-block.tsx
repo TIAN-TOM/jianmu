@@ -3,10 +3,10 @@
 import type { ComponentChildren } from "preact";
 import { Badge } from "./button.tsx";
 import { VerdictMark } from "./icon.tsx";
-import { basisText, markOf, type BasisSource } from "./verdict.ts";
+import { basisText, labelOf, markOf, type BasisSource } from "./verdict.ts";
 
 export interface VerdictBlockProps {
-  /** 判断档位，照数据写；认不出的档位只写结论句，不画标记。 */
+  /** 判断档位，照数据写；旧版改了名的显示新名字，认不出的档位只写结论句，不画标记。 */
   readonly label: string;
   readonly text: string;
   readonly basis?: BasisSource | null;
@@ -20,7 +20,7 @@ export interface VerdictBlockProps {
 
 export function VerdictBlock({ label, text, basis, staleTranscript = false, incomplete = false, menu }: VerdictBlockProps) {
   const shape = markOf(label);
-  const name = shape ? label.trim() : "";
+  const name = shape ? labelOf(label) : "";
   return (
     <section class="verdict" aria-label="一句话结论" data-shape={shape ?? undefined}>
       <div class="verdict-head">

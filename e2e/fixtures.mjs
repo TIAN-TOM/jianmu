@@ -67,7 +67,7 @@ export const VIDEOS = {
   [BRIEF_VIDEO.bvid]: BRIEF_VIDEO,
 };
 
-/** 写结论时模拟服务判「可以跳过」的视频，粗筛分组用；其余判「看概览就够」。 */
+/** 写结论时模拟服务判「可跳过」的视频，粗筛分组用；其余判「可以看」。 */
 export const SKIPPED_VIDEO = THIRD_VIDEO.bvid;
 
 /** @param {Keys} keys */

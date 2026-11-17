@@ -1,25 +1,30 @@
 // 结论块的显示规则：判断档位配什么标记、依据行怎么写。
 // 形状带信息，颜色只是第二层，色弱和黑白截图下也分得清。档位名照数据写，这里只认现有的几档。
-import { VERDICT_LABELS } from "../../../core/ai/verdict.ts";
+import { verdictLabelOf } from "../../../core/ai/verdict.ts";
 import type { Basis } from "../../../core/notes/records.ts";
 
 export type MarkShape = "go" | "fair" | "skip" | "unknown" | "square";
 
-/** 全部标记形状。半实心圆留给以后加的「可以看」，现在没有档位用它。 */
+/** 全部标记形状。 */
 export const MARK_SHAPES: readonly MarkShape[] = Object.freeze(["go", "fair", "skip", "unknown", "square"]);
 
-// 「看概览就够」不属于推荐、跳过、信息不足这条线，用方块，形状上不混进圆形那几档。
+// 新四档是一条线上的圆：实心、半实心、空心、问号。旧版的「看概览就够」不在这条线上，用方块，形状上不混进去。
 const MARKS: Readonly<Record<string, MarkShape>> = Object.freeze({
-  值得看完整视频: "go",
-  看概览就够: "square",
-  可以跳过: "skip",
+  推荐看: "go",
+  可以看: "fair",
+  可跳过: "skip",
   信息不足: "unknown",
+  看概览就够: "square",
 });
 
-/** 档位配的标记；认不出的档位（模型自创的、空的）不画标记。 */
+/** 档位配的标记，旧版改了名的按新名字配；认不出的档位（模型自创的、空的）不画标记。 */
 export function markOf(label: string | null | undefined): MarkShape | null {
-  const key = String(label ?? "").trim();
-  return VERDICT_LABELS.includes(key) ? (MARKS[key] ?? null) : null;
+  return MARKS[verdictLabelOf(label)] ?? null;
+}
+
+/** 档位显示的名字：旧版改了名的显示新名字，「看概览就够」照旧。 */
+export function labelOf(label: string | null | undefined): string {
+  return verdictLabelOf(label);
 }
 
 export type BasisSource = Basis["source"];

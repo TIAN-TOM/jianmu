@@ -117,20 +117,22 @@ test("组件样张：五种判断标记形状各不相同，档位名用文字�
   assert.deepEqual(
     state.verdicts.map(({ shape, name }) => [shape, name]),
     [
-      ["go", "值得看完整视频"],
-      ["square", "看概览就够"],
-      ["skip", "可以跳过"],
+      ["go", "推荐看"],
+      ["fair", "可以看"],
+      ["skip", "可跳过"],
       ["unknown", "信息不足"],
+      ["square", "看概览就够"],
       [null, null],
     ],
+    "四档各一个形状；存着的旧名字「可以跳过」显示成可跳过，旧判断「看概览就够」是方块",
   );
   assert.ok(state.verdicts.every((verdict) => verdict.label === "一句话结论"));
-  assert.ok(state.verdicts.slice(0, 4).every((verdict) => verdict.markHidden === "true"));
+  assert.ok(state.verdicts.slice(0, 5).every((verdict) => verdict.markHidden === "true"));
   assert.deepEqual(
     state.verdicts.map((verdict) => verdict.basis),
-    ["依据字幕", "依据 B 站官方总结，没有通读字幕", "依据标题和简介基于旧字幕", "依据未知（旧版）不完整", null],
+    ["依据字幕", "依据 B 站官方总结，没有通读字幕", "依据标题和简介基于旧字幕", "依据未知（旧版）不完整", null, null],
   );
-  assert.equal(state.verdicts[4]?.text, "样例结论：档位认不出来时只写结论句。");
+  assert.equal(state.verdicts[5]?.text, "样例结论：档位认不出来时只写结论句。");
 });
 
 test("组件样张：三段式状态块写原因、影响和下一步，一个主按钮、最多两个次按钮", async ({ open }) => {

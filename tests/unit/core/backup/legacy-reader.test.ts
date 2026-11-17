@@ -257,7 +257,7 @@ test("Digest for Bilibili 风格的旧备份：笔记、概览各留 2 条，跳
   assert.deepEqual(imported.contents.overviews[1]?.analysisFailures, [{ index: 2, startSeconds: 300, endSeconds: 420 }]);
 });
 
-test("旧结论：「看概览就够」连同理由原样保留，依据官方总结的照旧标明，缺块的照旧标出不完整", () => {
+test("旧结论：「看概览就够」连同理由原样保留，改了名的两档按新名字读，依据官方总结的照旧标明，缺块的照旧标出不完整", () => {
   const { overviews } = read(fixture("existing-version.json")).contents;
   const [tomato, official, partial] = overviews;
   assert.deepEqual(tomato?.analysis.verdict, {
@@ -267,7 +267,7 @@ test("旧结论：「看概览就够」连同理由原样保留，依据官方�
     reason: "要点都在章节里",
   });
   assert.equal(official?.analysis.verdict?.source, "official");
-  assert.equal(official?.analysis.verdict?.verdict, "值得看完整视频");
+  assert.equal(official?.analysis.verdict?.verdict, "推荐看", "值得看完整视频按推荐看读");
   assert.equal(partial?.analysis.verdict?.incomplete, true);
   assert.deepEqual(partial?.analysisFailures, [{ index: 1, startSeconds: 600, endSeconds: 1170, reason: "服务限流了" }]);
   assert.deepEqual(

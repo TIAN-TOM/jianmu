@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   hasAnalysisContent,
+  LEGACY_VERDICT,
   keyChapterStarts,
   validKeyStarts,
   hasOfficialSummaryContent,
   officialVerdictInputs,
   validateVerdict,
   VERDICT_LABELS,
+  verdictLabelOf,
   verdictInputs,
 } from "../../../../src/core/ai/verdict.ts";
 import { startSecondsOf } from "../../../../src/core/transcript/segment.ts";
@@ -25,17 +27,17 @@ test("结论输入把章节和金句压成一行一条", () => {
   assert.equal(verdictInputs({ chapters: [] }).quotesText, "（无）");
 });
 
-test("结论只认三档判断，没有 summary 就当没生成", () => {
-  assert.deepEqual(validateVerdict({ summary: " 讲了 A ", value: "B", verdict: "可以跳过", reason: "C" }), {
+test("结论只认四档判断，没有 summary 就当没生成", () => {
+  assert.deepEqual(validateVerdict({ summary: " 讲了 A ", value: "B", verdict: "可以看", reason: "C" }), {
     summary: "讲了 A",
     value: "B",
-    verdict: "可以跳过",
+    verdict: "可以看",
     reason: "C",
   });
   const invented = validateVerdict({ summary: "讲了 A", verdict: "还行", reason: "随便" });
   assert.equal(invented?.verdict, "", "模型自创的档位不显示");
   assert.equal(invented?.reason, "", "没有档位时理由也没有意义");
-  assert.equal(validateVerdict({ verdict: "可以跳过" }), null);
+  assert.equal(validateVerdict({ verdict: "可跳过" }), null);
   assert.equal(validateVerdict(null), null);
   assert.equal(validateVerdict({ summary: "字".repeat(500) })?.summary.length, 200);
 });
@@ -91,7 +93,7 @@ test("结论认「信息不足」一档；概览缺块时标成不完整", () =>
   assert.equal(unsure?.reason, "后半缺失");
   assert.equal(unsure?.incomplete, true);
   assert.equal(
-    validateVerdict({ summary: "讲了 A", verdict: "可以跳过" })?.incomplete,
+    validateVerdict({ summary: "讲了 A", verdict: "可跳过" })?.incomplete,
     undefined,
     "完整概览的结论不带不完整标记",
   );
@@ -140,10 +142,10 @@ test("结论的判断档位去掉首尾空白再比对，价值和理由超过 1
   const verdict = validateVerdict({
     summary: "讲了 A",
     value: "值".repeat(121),
-    verdict: " 可以跳过 ",
+    verdict: " 可跳过 ",
     reason: "因".repeat(121),
   });
-  assert.equal(verdict?.verdict, "可以跳过");
+  assert.equal(verdict?.verdict, "可跳过");
   assert.equal(verdict?.value.length, 120);
   assert.equal(verdict?.reason.length, 120);
 });
@@ -172,7 +174,7 @@ test("重点章节：精确对上现有章节才留，去重，最多三个，�
 });
 
 test("结论带重点章节：只在给了章节时收，坏了只丢重点、结论照存", () => {
-  const raw = { summary: "讲了 A", value: "B", verdict: "可以跳过", reason: "C", keyChapters: ["2:30", "8:00"] };
+  const raw = { summary: "讲了 A", value: "B", verdict: "可以看", reason: "C", keyChapters: ["2:30", "8:00"] };
   assert.deepEqual(validateVerdict(raw, { chapterStarts: [0, 150] })?.keyStarts, [150]);
   assert.equal("keyStarts" in (validateVerdict(raw) ?? {}), false, "没给章节时不收");
   const broken = validateVerdict({ ...raw, keyChapters: "全部" }, { chapterStarts: [0, 150] });
@@ -186,4 +188,21 @@ test("交给页面的重点再和当前章节核对：章节换过以后对不�
   assert.deepEqual(keyChapterStarts(analysis), [0]);
   assert.deepEqual(keyChapterStarts({ chapters: [{ timestampSeconds: 0 }], verdict: {} }), [], "旧记录没有这个字段");
   assert.deepEqual(keyChapterStarts(null), []);
+});
+
+test("旧档位的读法：改了名的两档按新名字认，「看概览就够」原样留成旧判断，别的都不认", () => {
+  assert.deepEqual(VERDICT_LABELS, ["推荐看", "可以看", "可跳过", "信息不足"]);
+  assert.equal(verdictLabelOf("值得看完整视频"), "推荐看");
+  assert.equal(verdictLabelOf(" 可以跳过 "), "可跳过");
+  assert.equal(verdictLabelOf("看概览就够"), LEGACY_VERDICT);
+  for (const label of VERDICT_LABELS) assert.equal(verdictLabelOf(label), label);
+  for (const odd of ["还行", "", "constructor", "__proto__", null, 3]) assert.equal(verdictLabelOf(odd), "", String(odd));
+});
+
+test("模型新写的结论不能判「看概览就够」，改了名的旧名字照新名字收；存着的结论（stored）才留旧判断和理由", () => {
+  const legacy = { summary: "讲了 A", value: "B", verdict: "看概览就够", reason: "要点都在" };
+  assert.deepEqual(validateVerdict(legacy), { summary: "讲了 A", value: "B", verdict: "", reason: "" });
+  assert.deepEqual(validateVerdict(legacy, { stored: true }), { summary: "讲了 A", value: "B", verdict: "看概览就够", reason: "要点都在" });
+  assert.equal(validateVerdict({ summary: "讲了 A", verdict: "值得看完整视频" })?.verdict, "推荐看");
+  assert.equal(validateVerdict({ summary: "讲了 A", verdict: "可以跳过" }, { stored: true })?.verdict, "可跳过");
 });

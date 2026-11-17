@@ -183,7 +183,7 @@ test("五份输出结构的名字、字段和顺序逐字节固定", () => {
             summary: text,
             value: text,
             reason: text,
-            verdict: { type: "string", enum: ["值得看完整视频", "看概览就够", "可以跳过", "信息不足"] },
+            verdict: { type: "string", enum: ["推荐看", "可以看", "可跳过", "信息不足"] },
             keyChapters: { type: "array", items: text },
           },
           required: ["summary", "value", "reason", "verdict", "keyChapters"],

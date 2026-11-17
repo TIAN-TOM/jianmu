@@ -1,14 +1,30 @@
 // 一句话结论：判断档位、给模型的输入和结果校验。
 import { formatTimestamp, startSecondsOf } from "../transcript/segment.ts";
 
-// 一句话结论的判断档位，界面按它们配色，导出也原样写出。
-// 「信息不足」留给概览缺块、或已有内容判断不了的情况，不逼模型硬选一档。
+// 一句话结论的判断档位，模型只能在这四档里选，界面按它们配标记，导出也原样写出。
+// 「可以看」是有收获、挑重点章节看就行；「信息不足」留给概览缺块、或已有内容判断不了的情况，不逼模型硬选一档。
 export const VERDICT_LABELS: readonly string[] = Object.freeze([
-  "值得看完整视频",
-  "看概览就够",
-  "可以跳过",
+  "推荐看",
+  "可以看",
+  "可跳过",
   "信息不足",
 ]);
+
+/** 旧版的「看概览就够」：存着的原样留成旧判断，不映射到新四档，重新生成结论后才换掉。 */
+export const LEGACY_VERDICT = "看概览就够";
+
+// 旧版另外两档换了名字，意思没变，读的时候按新名字认。
+const RENAMED: Readonly<Record<string, string>> = Object.freeze({ 值得看完整视频: "推荐看", 可以跳过: "可跳过" });
+
+/**
+ * 存着的档位按现在的说法读：新四档原样，旧版改了名的换成新名字，「看概览就够」原样留下，
+ * 别的（模型自创的、空的）交回空串。只在读的时候认，存储里的旧值不改写。
+ */
+export function verdictLabelOf(raw: unknown): string {
+  const label = String(raw ?? "").trim();
+  if (VERDICT_LABELS.includes(label) || label === LEGACY_VERDICT) return label;
+  return Object.hasOwn(RENAMED, label) ? (RENAMED[label] ?? "") : "";
+}
 
 /** 概览的失败区间，这里只看起止秒数。 */
 export interface CoverageGap {
@@ -210,6 +226,8 @@ const withKeys = (keyStarts: number[]): { keyStarts?: number[] } => (keyStarts.l
 export interface VerdictCheck {
   /** 概览有失败块，结论只基于部分内容，界面和导出都要标出来。 */
   readonly incomplete?: boolean;
+  /** 读存着的结论（本机记录、备份）：旧档位按 verdictLabelOf 认，「看概览就够」留成旧判断。模型的新输出不给。 */
+  readonly stored?: boolean;
   /** 写结论时看到的章节的起始秒。不给时不收重点章节。 */
   readonly chapterStarts?: readonly unknown[] | undefined;
 }
@@ -221,7 +239,7 @@ export interface VerdictCheck {
  */
 export function validateVerdict(
   parsed: unknown,
-  { incomplete = false, chapterStarts }: VerdictCheck = {},
+  { incomplete = false, stored = false, chapterStarts }: VerdictCheck = {},
 ): Verdict | null {
   if (!parsed || typeof parsed !== "object") return null;
   const source = parsed as {
@@ -234,9 +252,9 @@ export function validateVerdict(
   const clip = (value: unknown, max: number): string => String(value || "").trim().slice(0, max);
   const summary = clip(source.summary, 200);
   if (!summary) return null;
-  const verdict = VERDICT_LABELS.includes(String(source.verdict || "").trim())
-    ? String(source.verdict).trim()
-    : "";
+  // 模型只能给新四档；改了名的旧档位也认，只有「看概览就够」不再是模型能给的判断。
+  const label = verdictLabelOf(source.verdict);
+  const verdict = stored || label !== LEGACY_VERDICT ? label : "";
   return {
     summary,
     value: clip(source.value, 120),

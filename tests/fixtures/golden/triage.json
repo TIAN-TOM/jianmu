@@ -25,7 +25,7 @@
      "verdict": "看概览就够"
     }
    ],
-   "result": "overview"
+   "result": "legacy"
   },
   {
    "id": "groupKeyOf#3",
@@ -153,7 +153,8 @@
     }
    ],
    "result": {
-    "overview": [
+    "fair": [],
+    "legacy": [
      {
       "available": true,
       "duration": 3725,
@@ -253,7 +254,8 @@
     ]
    ],
    "result": {
-    "overview": [],
+    "fair": [],
+    "legacy": [],
     "pending": [
      {
       "available": true,
@@ -310,7 +312,8 @@
     {}
    ],
    "result": {
-    "overview": [],
+    "fair": [],
+    "legacy": [],
     "pending": [],
     "skip": [],
     "unknown": [],
@@ -1250,7 +1253,7 @@
      }
     }
    ],
-   "result": "# 稍后再看粗筛\n\n导出于 2026-10-26 07:33，共 5 个视频。\n\n## 值得看完整视频（1）\n\n- [ ] [看完整 \\[精华\\] 版](https://www.bilibili.com/video/BV1GoLDen001) · 菜园 · 3:38\n  - 结论：一句话：值得看完整视频（基于 B站官方总结）\n  - 核心价值：核心价值\n  - 理由：有演示\n\n## 看概览就够（1）\n\n- [ ] [没有结论](https://www.bilibili.com/video/BV1GoLDen002) · UP\\_主 · 1:02:05\n  - 结论：一句话：看概览就够（基于概览）\n  - 核心价值：核心价值\n\n## 信息不足（1）\n\n- [ ] [判断档位认不出](https://www.bilibili.com/video/BV1GoLDen005) · 菜园实验室\n  - 结论：一句话：自创档位（基于概览）\n  - 核心价值：核心价值\n  - 理由：有演示\n\n## 还没判断（2）\n\n- [ ] [官方没有总结](https://www.bilibili.com/video/BV1GoLDen003) · 菜园实验室 · 10:00\n  - 没有官方总结\n- [ ] [失效视频](https://www.bilibili.com/video/BV1GoLDen004) · 菜园实验室 · 10:00\n  - 视频已失效或暂时看不了，没有去取官方总结\n"
+   "result": "# 稍后再看粗筛\n\n导出于 2026-10-26 07:33，共 5 个视频。\n\n## 推荐看（1）\n\n- [ ] [看完整 \\[精华\\] 版](https://www.bilibili.com/video/BV1GoLDen001) · 菜园 · 3:38\n  - 结论：一句话：值得看完整视频（基于 B站官方总结）\n  - 核心价值：核心价值\n  - 理由：有演示\n\n## 信息不足（1）\n\n- [ ] [判断档位认不出](https://www.bilibili.com/video/BV1GoLDen005) · 菜园实验室\n  - 结论：一句话：自创档位（基于概览）\n  - 核心价值：核心价值\n  - 理由：有演示\n\n## 看概览就够（1）\n\n- [ ] [没有结论](https://www.bilibili.com/video/BV1GoLDen002) · UP\\_主 · 1:02:05\n  - 结论：一句话：看概览就够（基于概览）\n  - 核心价值：核心价值\n\n## 还没判断（2）\n\n- [ ] [官方没有总结](https://www.bilibili.com/video/BV1GoLDen003) · 菜园实验室 · 10:00\n  - 没有官方总结\n- [ ] [失效视频](https://www.bilibili.com/video/BV1GoLDen004) · 菜园实验室 · 10:00\n  - 视频已失效或暂时看不了，没有去取官方总结\n"
   },
   {
    "id": "toMarkdown#2",

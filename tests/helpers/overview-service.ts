@@ -114,7 +114,7 @@ export const OFFICIAL: OfficialSummaryView = {
   fingerprint: "official-fingerprint",
 };
 
-export const verdictReply = (summary = "讲了两段", verdict = "看概览就够"): Reply => ({
+export const verdictReply = (summary = "讲了两段", verdict = "可以看"): Reply => ({
   text: JSON.stringify({ summary, value: "有方法", verdict, reason: "要点都在" }),
 });
 

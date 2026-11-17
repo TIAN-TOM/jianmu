@@ -230,7 +230,7 @@ test("章节先存好并广播给侧边栏，结论写好后再补存", async ()
   assert.equal(early?.analysis.verdict, undefined);
 
   gate.resolve();
-  assert.equal(value(await result).analysis.verdict?.verdict, "看概览就够");
+  assert.equal(value(await result).analysis.verdict?.verdict, "可以看");
   assert.equal((await h.record())?.analysis.verdict?.summary, "讲了两段", "结论写好后补存");
   assert.equal(h.updates().at(-1)?.verdictPending, false);
 });
@@ -403,7 +403,7 @@ test("补失败块时补上的那块被截断：记下它，原有的截断记�
 
 test("一句话结论的正文被截断：结论照常用，标上可能不完整", async () => {
   const h = overviewHarness({
-    respond: ({ isVerdict }) => (isVerdict ? { text: '{"summary":"讲了两段","value":"有方法","verdict":"看概览就够","reason":"要点', truncated: true } : undefined),
+    respond: ({ isVerdict }) => (isVerdict ? { text: '{"summary":"讲了两段","value":"有方法","verdict":"可以看","reason":"要点', truncated: true } : undefined),
   });
   const result = value(await h.generate().result);
   assert.equal(result.analysis.verdict?.summary, "讲了两段");
@@ -925,7 +925,7 @@ test("部分概览分块失败会保存失败区间，补失败块只请求失�
   const first = value(await h.generate().result);
   assert.equal(first.failedChunks, 1);
   assert.deepEqual(titles(first), ["章@0"]);
-  assert.equal(first.analysis.verdict?.verdict, "看概览就够", "合并后附上一句话结论");
+  assert.equal(first.analysis.verdict?.verdict, "可以看", "合并后附上一句话结论");
   assert.ok((first.analysisFailures[0]?.startSeconds ?? 0) > 0);
   assert.equal((await h.record())?.analysisFailures?.length, 1);
 
@@ -938,7 +938,7 @@ test("部分概览分块失败会保存失败区间，补失败块只请求失�
   assert.equal(retried.analysis.verdict?.summary, "讲了前半和后半", "补齐后按完整内容重写结论");
   const stored = await h.record();
   assert.equal(stored?.analysisFailures, undefined);
-  assert.equal(stored?.analysis.verdict?.verdict, "看概览就够", "结论随概览一起落库");
+  assert.equal(stored?.analysis.verdict?.verdict, "可以看", "结论随概览一起落库");
 });
 
 test("一句话结论生成失败时，概览照常返回，只是没有结论", async () => {
@@ -1137,7 +1137,7 @@ test("概览分块失败的原因里回显了密钥：给页面的结果和存�
 // ============================================================
 
 const keyedVerdict = (keyChapters: unknown): Reply => ({
-  text: JSON.stringify({ summary: "讲了两段", value: "有方法", verdict: "看概览就够", reason: "要点都在", keyChapters }),
+  text: JSON.stringify({ summary: "讲了两段", value: "有方法", verdict: "可以看", reason: "要点都在", keyChapters }),
 });
 
 test("重点章节随结论落库：只留对得上本次章节的，结论照存", async () => {

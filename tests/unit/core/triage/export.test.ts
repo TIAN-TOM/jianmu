@@ -33,13 +33,13 @@ test("导出：概览写的结论注明来源，没有理由时不写空行", ()
   const markdown = toMarkdown(
     {
       items: [item()],
-      verdicts: { [KEY]: verdictOf("可以跳过", { source: undefined, reason: "", value: "" }) },
+      verdicts: { [KEY]: verdictOf("可跳过", { source: undefined, reason: "", value: "" }) },
       exportedAt: 0,
     },
     VIDEO_BASE,
   );
-  assert.match(markdown, /## 可以跳过（1）/);
-  assert.match(markdown, /结论：讲了 可以跳过（基于概览）\n$/);
+  assert.match(markdown, /## 可跳过（1）/);
+  assert.match(markdown, /结论：讲了 可跳过（基于概览）\n$/);
   assert.doesNotMatch(markdown, /理由|核心价值/);
 });
 
@@ -63,4 +63,22 @@ test("时长、观看进度和官方总结状态的文字", () => {
   assert.equal(officialStatusText({ status: "failed", reason: "TIMEOUT" }), "请求失败，再点开始会重试（TIMEOUT）");
   assert.equal(officialStatusText({ status: "ok", summary: "" }), "没有官方总结");
   assert.equal(officialStatusText({ status: "weird" }), "请求失败，再点开始会重试");
+});
+
+test("导出：旧版留下的「看概览就够」单列一组，排在四档之后；旧名字的两档并进新名字的组", () => {
+  const items = ["001", "002", "003"].map((id) => item({ videoKey: videoKey({ platform: "bilibili", videoId: `BV1Sample${id}` }), title: `标题 ${id}` }));
+  const markdown = toMarkdown(
+    {
+      items,
+      verdicts: {
+        [items[0]!.videoKey]: verdictOf("看概览就够"),
+        [items[1]!.videoKey]: verdictOf("值得看完整视频"),
+        [items[2]!.videoKey]: verdictOf("推荐看"),
+      },
+      exportedAt: 0,
+    },
+    VIDEO_BASE,
+  );
+  const headings = [...markdown.matchAll(/^## (.+)$/gm)].map((match) => match[1]);
+  assert.deepEqual(headings, ["推荐看（2）", "看概览就够（1）"]);
 });

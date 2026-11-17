@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { VERDICT_LABELS } from "../../../../src/core/ai/verdict.ts";
+import { LEGACY_VERDICT, VERDICT_LABELS } from "../../../../src/core/ai/verdict.ts";
 import { toMarkdown } from "../../../../src/core/triage/export.ts";
 import { GROUPS, groupItems, type TriageVerdict } from "../../../../src/core/triage/groups.ts";
 import type { OfficialRecord, TriageItem } from "../../../../src/core/triage/state.ts";
@@ -38,22 +38,22 @@ const verdictOf = (label: string, extra: TriageVerdict = {}): TriageVerdict => (
   ...extra,
 });
 
-test("分组和结论校验的四档判断一致，外加「还没判断」", () => {
-  assert.deepEqual(
-    GROUPS.filter((group) => group.key !== "pending").map((group) => group.label),
-    VERDICT_LABELS,
-  );
-  assert.equal(GROUPS.at(-1)?.label, "还没判断");
+test("分组的前四组和结论校验的四档同序，旧判断单列在四档之后，最后是「还没判断」", () => {
+  assert.deepEqual(GROUPS.slice(0, 4).map((group) => group.label), VERDICT_LABELS);
+  assert.deepEqual(GROUPS.slice(4).map((group) => [group.key, group.label]), [["legacy", LEGACY_VERDICT], ["pending", "还没判断"]]);
 });
 
-test("结论按判断分组：四档各归各的，没有结论的是「还没判断」，档位不在四档里的算「信息不足」", () => {
-  const items = ["W", "O", "S", "U", "P", "BLK", "ODD"].map((name) => item(name));
+test("结论按判断分组：四档各归各的，旧版改了名的按新名字分，「看概览就够」单列，没有结论的是「还没判断」，档位认不出的算「信息不足」", () => {
+  const items = ["W", "OW", "F", "S", "OS", "U", "O", "P", "BLK", "ODD"].map((name) => item(name));
   const verdicts = {
-    [keyOf("W")]: verdictOf("值得看完整视频"),
-    [keyOf("O")]: verdictOf("看概览就够"),
-    [keyOf("S")]: verdictOf("可以跳过"),
+    [keyOf("W")]: verdictOf("推荐看"),
+    [keyOf("OW")]: verdictOf("值得看完整视频"),
+    [keyOf("F")]: verdictOf("可以看"),
+    [keyOf("S")]: verdictOf("可跳过"),
+    [keyOf("OS")]: verdictOf("可以跳过"),
     [keyOf("U")]: verdictOf("信息不足"),
-    [keyOf("BLK")]: { summary: "", verdict: "可以跳过" },
+    [keyOf("O")]: verdictOf("看概览就够"),
+    [keyOf("BLK")]: { summary: "", verdict: "可跳过" },
     [keyOf("ODD")]: verdictOf(""),
   };
   const groups = groupItems(items, verdicts);
@@ -61,10 +61,11 @@ test("结论按判断分组：四档各归各的，没有结论的是「还没�
     Object.entries(groups).map(([key, members]) => [key, members.map((video) => video.videoKey)]),
   );
   assert.deepEqual(keys, {
-    watch: [keyOf("W")],
-    overview: [keyOf("O")],
-    skip: [keyOf("S")],
+    watch: [keyOf("W"), keyOf("OW")],
+    fair: [keyOf("F")],
+    skip: [keyOf("S"), keyOf("OS")],
     unknown: [keyOf("U"), keyOf("ODD")],
+    legacy: [keyOf("O")],
     pending: [keyOf("P"), keyOf("BLK")],
   });
 });
@@ -85,7 +86,7 @@ test("导出 Markdown：按判断分组，空组不写，链接、结论、理�
         [keyOf("003")]: { status: "none" },
       },
       verdicts: {
-        [keyOf("001")]: verdictOf("值得看完整视频", { summary: "番茄搭架子的办法", reason: "有现场演示" }),
+        [keyOf("001")]: verdictOf("推荐看", { summary: "番茄搭架子的办法", reason: "有现场演示" }),
       },
       exportedAt,
     },
@@ -98,7 +99,7 @@ test("导出 Markdown：按判断分组，空组不写，链接、结论、理�
       "",
       "导出于 2026-11-01 07:05，共 4 个视频。",
       "",
-      "## 值得看完整视频（1）",
+      "## 推荐看（1）",
       "",
       `- [ ] [看完整 \\[精华\\] 版](${VIDEO_BASE}BV1Sample001) · 菜园 · 3:38`,
       "  - 结论：番茄搭架子的办法（基于 B站官方总结）",
