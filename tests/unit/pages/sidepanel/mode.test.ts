@@ -157,3 +157,38 @@ test("换视频：清掉上一个视频的选择和时长，按新视频的会�
   store.bind(null, null);
   assert.ok(await until(() => fake.attempts("session.get") === 2), "每次换视频都问一次会话");
 });
+
+test("报视频信息的回复在路上时来了更新的会话广播：不拿回复盖掉广播", async () => {
+  const fake = fakeRuntime();
+  fake.reply("session.get", { value: { ok: true, value: { session: view() } } });
+  const gate = deferred();
+  fake.reply("session.describe", async () => {
+    await gate.promise;
+    return { ok: true, value: { session: view() } };
+  });
+  const api = createPageApi({ runtime: fake.runtime, sleep: async () => {}, reportError: (error) => assert.fail(String(error)) });
+  const store = createModeStore({ api });
+  store.bind(TAB, VIDEO);
+  assert.ok(await until(() => fake.attempts("session.get") === 1));
+  store.describe(20 * 60, "4242");
+  assert.ok(await until(() => fake.attempts("session.describe") === 1));
+  fake.broadcast({ type: "session.changed", tabId: TAB, session: view({ mode: "study", modeSource: "auto", autoSwitched: true, playedSec: 60 }) });
+  gate.resolve();
+  assert.ok(await stillFalse(() => store.view.value.mode !== "study"), "旧回复没把模式盖回速览");
+});
+
+test("主动切换的回复在路上时来了更新的会话广播：按广播显示，不再顶着刚点的", async () => {
+  const { fake, store } = setup(view());
+  const gate = deferred();
+  fake.reply("session.setMode", async () => {
+    await gate.promise;
+    return { ok: true, value: { session: view({ mode: "study", modeSource: "manual" }), remembered: false } };
+  });
+  store.bind(TAB, VIDEO);
+  assert.ok(await until(() => fake.attempts("session.get") === 1));
+  const chosen = store.choose("study");
+  fake.broadcast({ type: "session.changed", tabId: TAB, session: view({ mode: "study", modeSource: "manual", playedSec: 5 }) });
+  gate.resolve();
+  await chosen;
+  assert.deepEqual(store.view.value, { mode: "study", source: "manual", autoSwitched: false });
+});

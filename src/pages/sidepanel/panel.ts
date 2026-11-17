@@ -114,11 +114,11 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
       const info = !current ? undefined : now.state === "ready" ? now.view.info : now.state === "failed" ? now.failure.info : undefined;
       mode.describe(info?.durationSec, info?.channel?.channelId);
     }),
-    // 字幕列表摆着时才每秒问一次播放位置：精读，或者速览里还没有概览、下面接着字幕。
+    // 要跟着播放时才每秒问一次播放位置：精读（当前章节和「存笔记」没有字幕也要用），或者速览里还没有概览、下面接着字幕。
     effect(() => {
       const ready = transcript.state.value.state === "ready";
-      const skimShowsTranscript = mode.view.value.mode === "skim" && !overview.state.value.task && !overview.state.value.saved?.analysis?.chapters?.length;
-      player.setPolling(activation.enabled.value && ready && (mode.view.value.mode === "study" || skimShowsTranscript));
+      const skimShowsTranscript = ready && mode.view.value.mode === "skim" && !overview.state.value.task && !overview.state.value.saved?.analysis?.chapters?.length;
+      player.setPolling(activation.enabled.value && (mode.view.value.mode === "study" || skimShowsTranscript));
     }),
   ];
 

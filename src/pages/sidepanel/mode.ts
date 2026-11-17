@@ -39,9 +39,12 @@ export function createModeStore({ api }: { readonly api: Pick<PageApi, "send" | 
   // 刚点的切换：后台的回复到之前先这样显示，后台没存成也照样按用户选的显示。
   const chosen = signal<Mode | null>(null);
   let generation = 0;
+  // 收到过几次会话广播：请求发出以后来过广播，回复里的会话可能比广播旧，不拿它盖。
+  let updates = 0;
   // 报给后台的视频信息：后台那边会话还是上一个视频时会被拒，等这个视频的会话到了再报一次。
   let described: { readonly durationSec?: number; readonly channelId?: string } | null = null;
-  let describedOk = false;
+  // 后台因为会话还是上一个视频而拒了这次报的信息。
+  let describeRejected = false;
 
   const isCurrent = (tabId: number, view: SessionView): boolean => {
     const now = bound.peek();
@@ -69,21 +72,32 @@ export function createModeStore({ api }: { readonly api: Pick<PageApi, "send" | 
     const target = bound.peek();
     const info = described;
     if (!target || !info || (info.durationSec === undefined && info.channelId === undefined)) return;
+    const seen = updates;
     const reply = await api.send("session.describe", {
       tabId: target.tabId,
       video: target.video,
       ...(info.durationSec === undefined ? {} : { durationSec: info.durationSec }),
       ...(info.channelId === undefined ? {} : { channel: info.channelId }),
     });
-    if (asked !== generation || info !== described || !reply.ok) return;
-    describedOk = true;
-    if (isCurrent(target.tabId, reply.value.session)) session.value = reply.value.session;
+    if (asked !== generation || info !== described) return;
+    if (!reply.ok) {
+      if (reply.code !== "VIDEO_CHANGED") return;
+      // 等的时候这个视频的会话已经到了，马上再报；没到就等它的广播。
+      if (seen !== updates) void sendDescribe(asked);
+      else describeRejected = true;
+      return;
+    }
+    if (seen === updates && isCurrent(target.tabId, reply.value.session)) session.value = reply.value.session;
   }
 
   const off = api.on("session.changed", ({ tabId, session: next }) => {
     if (!isCurrent(tabId, next)) return;
+    updates += 1;
     session.value = next;
-    if (described && !describedOk) void sendDescribe(generation);
+    if (described && describeRejected) {
+      describeRejected = false;
+      void sendDescribe(generation);
+    }
   });
 
   return {
@@ -98,7 +112,7 @@ export function createModeStore({ api }: { readonly api: Pick<PageApi, "send" | 
       chosen.value = null;
       duration.value = undefined;
       described = null;
-      describedOk = false;
+      describeRejected = false;
       if (next) void load(next, generation);
     },
     describe(durationSec, channelId) {
@@ -106,13 +120,14 @@ export function createModeStore({ api }: { readonly api: Pick<PageApi, "send" | 
       duration.value = known;
       if (described?.durationSec === known && described?.channelId === channelId) return;
       described = { ...(known === undefined ? {} : { durationSec: known }), ...(channelId === undefined ? {} : { channelId }) };
-      describedOk = false;
+      describeRejected = false;
       void sendDescribe(generation);
     },
     async choose(mode, channelId) {
       const target = bound.peek();
       if (!target || view.peek().mode === mode) return false;
       const asked = generation;
+      const seen = updates;
       chosen.value = mode;
       const reply = await api.send("session.setMode", {
         tabId: target.tabId,
@@ -122,18 +137,18 @@ export function createModeStore({ api }: { readonly api: Pick<PageApi, "send" | 
         ...(channelId ? { channel: channelId } : {}),
       });
       if (asked !== generation || !reply.ok) return false;
-      if (isCurrent(target.tabId, reply.value.session)) {
-        session.value = reply.value.session;
-        chosen.value = null;
-      }
+      // 后台已经记下这次选的：以后按会话显示。期间来过广播就用广播里的，不拿回复盖。
+      if (seen === updates && isCurrent(target.tabId, reply.value.session)) session.value = reply.value.session;
+      if (chosen.peek() === mode) chosen.value = null;
       return reply.value.remembered;
     },
     async undo() {
       const target = bound.peek();
       if (!target || view.peek().source !== "auto") return;
       const asked = generation;
+      const seen = updates;
       const reply = await api.send("session.setMode", { tabId: target.tabId, video: target.video, intent: "undo-auto" });
-      if (asked === generation && reply.ok && isCurrent(target.tabId, reply.value.session)) session.value = reply.value.session;
+      if (asked === generation && seen === updates && reply.ok && isCurrent(target.tabId, reply.value.session)) session.value = reply.value.session;
     },
     stop() {
       off();
