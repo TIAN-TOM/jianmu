@@ -18,6 +18,7 @@ import {
 } from "../../../src/content/frame.ts";
 import { videoKey, type VideoKey } from "../../../src/core/video-ref.ts";
 import type { MainVideo } from "../../../src/sites/page-types.ts";
+import { until } from "../../helpers/wait-until.ts";
 
 const KEY = videoKey({ platform: "bilibili", videoId: "BV1Sample001", segment: 1 });
 const OTHER = videoKey({ platform: "bilibili", videoId: "BV1Sample002", segment: 1 });
@@ -250,4 +251,26 @@ test("截帧工具：认不出的消息回 null；图标截的是地址上的视
   assert.deepEqual(await tool.capture(), { ok: false, code: "VIDEO_CHANGED" });
   tool.stop();
   assert.deepEqual(stops, ["stop"]);
+});
+
+test("截帧工具停下以后：在途的那次等完下一帧不编码、不回画面，之后来的也不截", async () => {
+  const video = fakeVideo({ paused: false }) as unknown as HTMLVideoElement;
+  const frame: { ready?: (mediaTime: number | null) => void } = {};
+  const encoded: number[] = [];
+  const tool = createFrameTool({
+    currentKey: () => KEY,
+    confirmed: () => true,
+    findMainVideo: () => ({ status: "found", video }),
+    foreground: () => true,
+    sawEncrypted: () => false,
+    nextFrame: () => new Promise((resolve) => void (frame.ready = resolve)),
+    encode: async (_video, width) => (encoded.push(width), JPEG),
+  });
+  const pending = tool.handle({ type: "player.captureFrame", req: { video: KEY, maxEdge: 640 } });
+  assert.ok(await until(() => frame.ready !== undefined));
+  tool.stop();
+  frame.ready?.(42.04);
+  assert.deepEqual(await pending, { ok: false, code: "VIDEO_CHANGED" });
+  assert.deepEqual(await tool.capture(), { ok: false, code: "VIDEO_CHANGED" });
+  assert.deepEqual(encoded, []);
 });

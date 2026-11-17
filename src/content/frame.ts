@@ -129,9 +129,13 @@ export function createFrameCapture(env: FrameEnv): (request: FrameRequest) => Pr
   };
 }
 
-/** 截帧工具：播放器指令和播放页图标共用一套核对。 */
+/**
+ * 截帧工具：播放器指令和播放页图标共用一套核对。停下以后（启用失效、界面撤下）不再截：
+ * 在途的那次等完下一帧、编码完都会再认一次视频，停了就按视频已换收尾，不编码、不回画面。
+ */
 export function createFrameTool(env: FrameEnv, stop: () => void = () => undefined): FrameTool {
-  const capture = createFrameCapture(env);
+  let stopped = false;
+  const capture = createFrameCapture({ ...env, confirmed: () => !stopped && env.confirmed() });
   return {
     handle(message) {
       const request = frameRequestOf(message);
@@ -141,7 +145,10 @@ export function createFrameTool(env: FrameEnv, stop: () => void = () => undefine
       const video = env.currentKey();
       return video ? capture({ video, maxEdge }) : Promise.resolve(refuse("VIDEO_CHANGED"));
     },
-    stop,
+    stop() {
+      stopped = true;
+      stop();
+    },
   };
 }
 
