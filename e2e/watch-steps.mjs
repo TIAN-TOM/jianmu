@@ -4,6 +4,7 @@
 // 宽屏时卡片挪到弹幕列表下面；清掉本机设置让启用失效后，不用刷新就全部撤下。点击和按键都经调试协议发，是真实的用户操作，要穿过页面上那层透明层。
 import { createSettingsStore } from "../src/platform/settings-store.ts";
 import { INJECTED } from "../src/shared/names.ts";
+import { stillFalse } from "../tests/helpers/wait-until.ts";
 import { WATCH_PAGE_AT_SEC } from "./watch-page.mjs";
 
 /** 页面框架激活以后内容脚本还要稳一会儿再插节点；这里多等一截，确认前确实什么都没插。 */
@@ -53,6 +54,12 @@ export function createWatchSteps({ cdp, until, evaluate, findSession, url }) {
         `JSON.stringify({ visibility: getComputedStyle(document.getElementById(${JSON.stringify(INJECTED.noteButton)})).visibility, text: document.getElementById(${JSON.stringify(INJECTED.noteButton)}).textContent })`,
       ),
     );
+  /** 鼠标移到播放器里，等页面收到这一下才回：简幕听的那一层在容器里面，事件冒到容器时它已经处理完。 */
+  async function moveAndWait(x, y) {
+    await evaluate(page, `(window.__playerMoved = new Promise((done) => document.querySelector("${PLAYER}").addEventListener("pointermove", () => done(true), { once: true })), true)`);
+    await moveTo(x, y);
+    await evaluate(page, `window.__playerMoved`);
+  }
   /** 改播放器容器上标的控制栏状态，null 是去掉标记。 */
   const setControlsHidden = (value) =>
     evaluate(page, `(${value === null ? `document.querySelector("${PLAYER}").removeAttribute("data-ctrl-hidden")` : `document.querySelector("${PLAYER}").setAttribute("data-ctrl-hidden", ${JSON.stringify(value)})`}, true)`);
@@ -143,9 +150,8 @@ export function createWatchSteps({ cdp, until, evaluate, findSession, url }) {
       await until("控制栏露出来，图标跟着露", async () => (await icon()).visibility === "visible");
       await setControlsHidden("true");
       await until("控制栏藏了，图标跟着藏", async () => (await icon()).visibility === "hidden");
-      await moveTo(player.x + player.width / 2, player.y + player.height / 2);
-      await sleep(200);
-      if ((await icon()).visibility !== "hidden") throw new Error("页面说控制栏藏着时，鼠标在播放器上动不该让图标露出来");
+      await moveAndWait(player.x + player.width / 2, player.y + player.height / 2);
+      if (!(await stillFalse(async () => (await icon()).visibility !== "hidden", 20))) throw new Error("页面说控制栏藏着时，鼠标在播放器上动不该让图标露出来");
       await moveTo(player.x + player.width + 40, player.y + player.height + 40);
       await setControlsHidden(null);
 
