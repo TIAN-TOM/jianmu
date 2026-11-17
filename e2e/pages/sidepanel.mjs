@@ -100,6 +100,14 @@ test("侧边栏：登录以后长视频进速览，还没有概览时下面接�
     await waitIn(panel, "字幕列出来", `${textOf(".cue-text")}.includes("样例台词二")`);
     assert.deepEqual(await panel.evaluate(modes), SKIM);
     assert.equal(await panel.evaluate(`Boolean(document.querySelector(".skim .skim-transcript .cues"))`), true, "字幕摆在速览里");
+    // 速览里的字幕不跟着播放滚动：知道播放位置以后出「回到当前句」，侧边栏没被拉下去。
+    await waitIn(panel, "知道播放位置", `Boolean(document.querySelector(".follow-pill"))`);
+    assert.equal(await panel.evaluate("scrollY"), 0, "侧边栏没被字幕拉着滚");
+    // 往下滚，模式切换吸在顶上。
+    await panel.evaluate(`(document.querySelector(".panel").style.minHeight = "3000px", scrollTo(0, 2000), true)`);
+    await waitIn(panel, "滚下去了", "scrollY > 0");
+    assert.ok(Math.abs(await panel.evaluate(`document.querySelector(".mode-row").getBoundingClientRect().top`)) < 1, "模式切换吸在顶上");
+    await panel.evaluate(`(document.querySelector(".panel").style.minHeight = "", scrollTo(0, 0), true)`);
     assert.match(await panel.evaluate(textOf(".toolbar-count")), /^共 \d+ 段$/);
     await tap(panel, "[aria-label='搜索字幕']");
     await panel.evaluate(`(() => { const input = document.querySelector(".search-input"); input.value = "台词二"; input.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
@@ -155,6 +163,7 @@ test("侧边栏：头部的笔记按钮打开笔记层，列出本视频的笔�
     await tap(panel, ".note .menu-anchor button");
     assert.ok(await clickText(panel, ".menu-item", "删除"));
     await waitIn(panel, "删完回到空状态", `${appText}.includes("还没有笔记")`);
+    assert.equal(await panel.evaluate(textOf(".layer .layer-toast")), "已删除这条笔记", "层盖住了顶上那一行，结果在层里说");
     await tap(panel, ".layer [aria-label='返回']");
     await waitIn(panel, "笔记层关上", `document.querySelector(".layer")?.open === false`);
   });

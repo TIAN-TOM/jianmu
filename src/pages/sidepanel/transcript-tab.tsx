@@ -113,10 +113,10 @@ function TranslateRow({ panel }: { readonly panel: Panel }) {
   return message ? <p class="progress-row">{message}</p> : null;
 }
 
-function Ready({ panel, view }: { readonly panel: Panel; readonly view: TranscriptView }) {
+function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: TranscriptView; readonly follow: boolean }) {
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
-  const [following, setFollowing] = useState(true);
+  const [following, setFollowing] = useState(follow);
   const [pick, setPick] = useState<{ readonly text: string; readonly context: string; readonly top: number } | null>(null);
   const list = useRef<HTMLOListElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -198,8 +198,8 @@ function Ready({ panel, view }: { readonly panel: Panel; readonly view: Transcri
   );
 }
 
-/** guides 为 false 时读不到字幕也不再摆官方总结和 UP 主分段：外面已经摆了。 */
-export function TranscriptTab({ panel, guides = true }: { readonly panel: Panel; readonly guides?: boolean }) {
+/** guides 为 false 时读不到字幕也不再摆官方总结和 UP 主分段：外面已经摆了。follow 为 false 时一开始不跟着播放滚动，点「回到当前句」才跟。 */
+export function TranscriptTab({ panel, guides = true, follow = true }: { readonly panel: Panel; readonly guides?: boolean; readonly follow?: boolean }) {
   const now = panel.transcript.state.value;
   const fileInput = useRef<HTMLInputElement>(null);
   if (now.state === "idle" || now.state === "loading") {
@@ -228,5 +228,5 @@ export function TranscriptTab({ panel, guides = true }: { readonly panel: Panel;
       </>
     );
   }
-  return <Ready key={now.view.transcript.ref.fingerprint} panel={panel} view={now.view} />;
+  return <Ready key={now.view.transcript.ref.fingerprint} panel={panel} view={now.view} follow={follow} />;
 }

@@ -222,7 +222,8 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
       {hasOverview ? guides : null}
       {!hasOverview && !running ? (
         <section class="skim-transcript" aria-label="字幕">
-          <TranscriptTab panel={panel} guides={false} />
+          {/* 速览里的字幕不跟着播放滚动：不然整个侧边栏会被拉过结论和导读。 */}
+          <TranscriptTab panel={panel} guides={false} follow={false} />
         </section>
       ) : null}
     </div>

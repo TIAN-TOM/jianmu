@@ -86,11 +86,17 @@ function Header({ panel }: { readonly panel: Panel }) {
           )
         ) : null}
       </div>
-      <div class="mode-row">
-        <ModeSwitch value={panel.mode.view.value.mode} onChange={(mode) => void panel.chooseMode(mode)} />
-        <IconButton icon="note" label="笔记" onClick={() => (panel.notesOpen.value = true)} />
-      </div>
     </header>
+  );
+}
+
+/** 模式切换和笔记按钮：放在头部外面，滚动时吸在顶上。 */
+function ModeRow({ panel }: { readonly panel: Panel }) {
+  return (
+    <div class="mode-row">
+      <ModeSwitch value={panel.mode.view.value.mode} onChange={(mode) => void panel.chooseMode(mode)} />
+      <IconButton icon="note" label="笔记" onClick={() => (panel.notesOpen.value = true)} />
+    </div>
   );
 }
 
@@ -183,6 +189,7 @@ export function App({ panel }: { readonly panel: Panel }) {
     <main class="panel" data-mode={mode}>
       <UndoClock panel={panel} shown={pickNotice(lines)?.id === AUTO_SWITCHED} />
       <Header panel={panel} />
+      <ModeRow panel={panel} />
       <Notice notices={lines} />
       <section class="mode-view" aria-label={mode === "study" ? "精读" : "速览"}>
         {mode === "study" ? <StudyView panel={panel} /> : <SkimView panel={panel} />}
@@ -192,6 +199,12 @@ export function App({ panel }: { readonly panel: Panel }) {
         <QaTab panel={panel} />
       </Sheet>
       <Layer open={panel.notesOpen.value} title="笔记" onClose={() => (panel.notesOpen.value = false)}>
+        {/* 层盖住了顶上那一行提示：改笔记、删笔记的结果在层里说。 */}
+        {panel.notesOpen.value && panel.toast.value ? (
+          <p class="layer-toast" role="status">
+            {panel.toast.value.text}
+          </p>
+        ) : null}
         {panel.notesOpen.value ? <NotesTab panel={panel} /> : null}
       </Layer>
     </main>
