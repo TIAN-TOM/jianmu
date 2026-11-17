@@ -610,17 +610,17 @@ test("官方总结结论交给传输层的 stillWanted 跟着清除代数走：�
 const GATEWAY = { presetId: "custom", protocol: PROTOCOLS.OPENAI, aiBaseUrl: "https://gateway.example.com/v1", aiModel: "test-model", analysisChunkMode: "short" };
 const GATEWAY_ORIGIN = "https://gateway.example.com/";
 const readPrompt = (file: string): string => readFileSync(new URL(`../../../../../prompts/${file}`, import.meta.url), "utf8").replaceAll("\r", "");
-const PROMPT_FILES = { "analysis.md": readPrompt("analysis.md"), "verdict.md": readPrompt("verdict.md") };
+const PROMPT_FILES = { "skim/chapters.md": readPrompt("skim/chapters.md"), "skim/verdict.md": readPrompt("skim/verdict.md") };
 const SITE_OFFICIAL: OfficialSummary = { status: "ok", summary: "官方总摘要", outline: [{ title: "第一段", timestamp: 5, points: [{ timestamp: 5, content: "要点" }] }], cues: [] };
 const userOf = (request: SentRequest): string => {
   const messages = (request.body?.messages ?? []) as { readonly role: string; readonly content: string }[];
   return messages.find((message) => message.role === "user")?.content ?? "";
 };
-const isVerdictRequest = (request: SentRequest): boolean => userOf(request).includes("章节摘要");
+const isVerdictRequest = (request: SentRequest): boolean => userOf(request).includes("各章：");
 const VERDICT_ANSWER = chatReply(JSON.stringify({ summary: "官方说讲了开场", value: "", verdict: "看概览就够", reason: "提纲都有" }));
 const chunkAnswer = (request: SentRequest) => {
-  const seconds = Number(/（第 (\d+) 秒）/.exec(userOf(request))?.[1] ?? 0);
-  return chatReply(JSON.stringify({ chapters: [{ title: "开场", timestampSeconds: seconds, summary: "摘要" }], keyQuotes: [] }));
+  const start = /本次范围：(\d+:\d{2})/.exec(userOf(request))?.[1] ?? "0:00";
+  return chatReply(JSON.stringify({ chapters: [{ start, title: "开场", summary: "摘要" }], keyQuotes: [] }));
 };
 
 function background(handler: (request: SentRequest) => ReturnType<typeof chatReply> | Promise<ReturnType<typeof chatReply>>, cues?: Cue[]) {

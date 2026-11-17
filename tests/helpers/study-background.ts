@@ -14,7 +14,7 @@ export const GATEWAY = { presetId: "custom", protocol: PROTOCOLS.OPENAI, aiBaseU
 export const GATEWAY_ORIGIN = "https://gateway.example.com/";
 
 const readPrompt = (file: string): string => readFileSync(new URL(`../../prompts/${file}`, import.meta.url), "utf8").replaceAll("\r", "");
-const PROMPT_FILES = Object.fromEntries(["qa.md", "explain.md", "note-cleanup.md"].map((file) => [file, readPrompt(file)]));
+const PROMPT_FILES = Object.fromEntries(["common/qa.md", "study/explain.md", "study/note-polish.md"].map((file) => [file, readPrompt(file)]));
 
 export interface StudyBackgroundOptions {
   readonly handler?: ServiceHandler;

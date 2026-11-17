@@ -47,7 +47,7 @@ function promptOf(body) {
 
 /** @param {string} prompt */
 function videoOf(prompt) {
-  const title = (/视频标题：(.+)/.exec(prompt) ?? /^视频：(.+)$/m.exec(prompt))?.[1]?.trim();
+  const title = /^视频：(.+?)(?:（全长 [^）]*）)?$/m.exec(prompt)?.[1]?.trim();
   return Object.entries(VIDEOS).find(([, video]) => video.title === title)?.[0] ?? "";
 }
 
@@ -58,8 +58,8 @@ const TEST_PROMPT = "回复两个字：可用";
 function kindOf(prompt) {
   if (prompt.trim() === TEST_PROMPT) return "test";
   if (prompt.includes("用户的问题：")) return "qa";
-  if (prompt.includes("章节摘要：")) return "verdict";
-  if (/（第 \d+ 秒）/.test(prompt) && prompt.includes("字幕：")) return "analysis";
+  if (prompt.includes("各章：")) return "verdict";
+  if (/本次范围：\d+:\d{2}/.test(prompt) && prompt.includes("这一段的字幕：")) return "analysis";
   return "";
 }
 
@@ -74,10 +74,13 @@ function resultOf(kind, prompt) {
     return { summary: "模拟服务写的一句话结论", value: "样例价值", verdict: videoOf(prompt) === SKIPPED_VIDEO ? "可以跳过" : "看概览就够", reason: "样例理由", keyChapters: first ? [first] : [] };
   }
   if (kind === "qa") return { answer: "模拟服务的回答，依据在 [0:00]。" };
-  const seconds = Number(/（第 (\d+) 秒）/.exec(prompt)?.[1] ?? 0);
+  // 照提示词的要求抄本段开头的时间；金句里的秒数供端到端核对位置。
+  const start = /本次范围：(\d+:\d{2})/.exec(prompt)?.[1] ?? "0:00";
+  const [minutes = 0, rest = 0] = start.split(":").map(Number);
+  const seconds = minutes * 60 + rest;
   return {
-    chapters: [{ title: "模拟服务写的章节", timestampSeconds: seconds, summary: "样例摘要" }],
-    keyQuotes: [{ quote: `模拟服务挑的金句（第 ${seconds} 秒）`, timestampSeconds: seconds }],
+    chapters: [{ start, title: "模拟服务写的章节", summary: "样例摘要" }],
+    keyQuotes: [{ start, quote: `模拟服务挑的金句（第 ${seconds} 秒）` }],
   };
 }
 

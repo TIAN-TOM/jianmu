@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import * as SCHEMAS from "../../../../src/core/ai/schemas.ts";
 import type { ResponseSchema, SchemaNode } from "../../../../src/core/ai/schemas.ts";
@@ -100,25 +101,20 @@ test("一句话结论的档位就是界面认得的那几档", () => {
 });
 
 // 下面的样例照抄 prompts/*.md 「输出格式」里的示例：schema 和提示词要的是同一个形状。
+// 示例直接从提示词里取：每份要 JSON 的提示词都写着一行以 {" 开头的示例输出，它得符合要的那份 schema。
 test("各提示词的示例输出都符合对应的 schema", () => {
-  const samples: readonly (readonly [ResponseSchema, unknown])[] = [
-    [
-      SCHEMAS.ANALYSIS_CHUNK,
-      {
-        chapters: [{ title: "章节标题", timestamp: "0:00", timestampSeconds: 0, summary: "这一段讲了什么" }],
-        keyQuotes: [{ quote: "整理后的原话", timestamp: "2:30", timestampSeconds: 150 }],
-      },
-    ],
-    [
-      SCHEMAS.VERDICT,
-      { summary: "这个视频主要讲了什么", value: "核心价值", verdict: "看概览就够", reason: "判断理由", keyChapters: ["12:05"] },
-    ],
-    [SCHEMAS.SEGMENT_BATCH, { segments: [{ id: "s12", text: "修复后的文字。" }] }],
-    [SCHEMAS.QA_ANSWER, { answer: "…[0:32]…" }],
-    [SCHEMAS.NOTE_QUOTE, { quote: "整理后的文字。" }],
+  const samples: readonly (readonly [string, ResponseSchema])[] = [
+    ["skim/chapters.md", SCHEMAS.ANALYSIS_CHUNK],
+    ["skim/verdict.md", SCHEMAS.VERDICT],
+    ["study/translation.md", SCHEMAS.SEGMENT_BATCH],
+    ["common/qa.md", SCHEMAS.QA_ANSWER],
+    ["study/note-polish.md", SCHEMAS.NOTE_QUOTE],
   ];
-  for (const [descriptor, sample] of samples) {
-    assert.ok(conforms(descriptor.schema, sample), descriptor.name);
+  for (const [file, descriptor] of samples) {
+    const markdown = readFileSync(new URL(`../../../../prompts/${file}`, import.meta.url), "utf8");
+    const example = /\{"[^\n]*\}/.exec(markdown.slice(markdown.indexOf("## 系统提示词")))?.[0];
+    assert.ok(example, `${file} 没有示例输出`);
+    assert.ok(conforms(descriptor.schema, JSON.parse(example)), `${file} 的示例不符合 ${descriptor.name}`);
   }
 });
 
@@ -143,7 +139,6 @@ test("schema 拒绝提示词之外的形状：缺字段、多字段、自创档�
 // 只比 deepEqual 拦不住换顺序，这里比序列化后的文字。
 test("五份输出结构的名字、字段和顺序逐字节固定", () => {
   const text = { type: "string" };
-  const seconds = { type: "integer" };
   const expected: readonly (readonly [ResponseSchema, unknown])[] = [
     [
       SCHEMAS.ANALYSIS_CHUNK,
@@ -157,8 +152,8 @@ test("五份输出结构的名字、字段和顺序逐字节固定", () => {
               type: "array",
               items: {
                 type: "object",
-                properties: { title: text, timestamp: text, timestampSeconds: seconds, summary: text },
-                required: ["title", "timestamp", "timestampSeconds", "summary"],
+                properties: { start: text, title: text, summary: text },
+                required: ["start", "title", "summary"],
                 additionalProperties: false,
               },
             },
@@ -166,8 +161,8 @@ test("五份输出结构的名字、字段和顺序逐字节固定", () => {
               type: "array",
               items: {
                 type: "object",
-                properties: { quote: text, timestamp: text, timestampSeconds: seconds },
-                required: ["quote", "timestamp", "timestampSeconds"],
+                properties: { start: text, quote: text },
+                required: ["start", "quote"],
                 additionalProperties: false,
               },
             },
@@ -187,11 +182,11 @@ test("五份输出结构的名字、字段和顺序逐字节固定", () => {
           properties: {
             summary: text,
             value: text,
-            verdict: { type: "string", enum: ["值得看完整视频", "看概览就够", "可以跳过", "信息不足"] },
             reason: text,
+            verdict: { type: "string", enum: ["值得看完整视频", "看概览就够", "可以跳过", "信息不足"] },
             keyChapters: { type: "array", items: text },
           },
-          required: ["summary", "value", "verdict", "reason", "keyChapters"],
+          required: ["summary", "value", "reason", "verdict", "keyChapters"],
           additionalProperties: false,
         },
       },

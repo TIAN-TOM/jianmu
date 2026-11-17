@@ -12,7 +12,7 @@ import { errorLabel, type Log } from "../../log.ts";
 import type { TaskAi } from "../../ai.ts";
 import { promptMessages, type PromptCommon } from "./chunks.ts";
 
-export const VERDICT_PROMPT = "verdict.md";
+export const VERDICT_PROMPT = "skim/verdict.md";
 const VERDICT_MAX_TOKENS = 1024;
 
 /** 模型回的结论：正文被截断、靠补齐括号才解析出来时带标记，摘要或理由可能只有半句。 */

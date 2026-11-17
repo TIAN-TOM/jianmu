@@ -1018,16 +1018,16 @@ test("补失败块也一样：补上的块付过费，存不下也交回，标�
 const GATEWAY = { presetId: "custom", protocol: PROTOCOLS.OPENAI, aiBaseUrl: "https://gateway.example.com/v1", aiModel: "test-model", analysisChunkMode: "short" };
 const GATEWAY_ORIGIN = "https://gateway.example.com/";
 const readPrompt = (file: string): string => readFileSync(new URL(`../../../../../prompts/${file}`, import.meta.url), "utf8").replaceAll("\r", "");
-const PROMPT_FILES = { "analysis.md": readPrompt("analysis.md"), "verdict.md": readPrompt("verdict.md") };
+const PROMPT_FILES = { "skim/chapters.md": readPrompt("skim/chapters.md"), "skim/verdict.md": readPrompt("skim/verdict.md") };
 const userOf = (request: SentRequest): string => {
   const messages = (request.body?.messages ?? []) as { readonly role: string; readonly content: string }[];
   return messages.find((message) => message.role === "user")?.content ?? "";
 };
-const isVerdictRequest = (request: SentRequest): boolean => userOf(request).includes("章节摘要");
-/** 按概览提示词里写的本块起点回一章。 */
+const isVerdictRequest = (request: SentRequest): boolean => userOf(request).includes("各章：");
+/** 按概览提示词里写的本块起点回一章，时间照抄成字符串。 */
 const chunkAnswer = (request: SentRequest, title = "开场") => {
-  const seconds = Number(/（第 (\d+) 秒）/.exec(userOf(request))?.[1] ?? 0);
-  return chatReply(JSON.stringify({ chapters: [{ title, timestampSeconds: seconds, summary: "摘要" }], keyQuotes: [] }));
+  const start = /本次范围：(\d+:\d{2})/.exec(userOf(request))?.[1] ?? "0:00";
+  return chatReply(JSON.stringify({ chapters: [{ start, title, summary: "摘要" }], keyQuotes: [] }));
 };
 const VERDICT_ANSWER = chatReply(JSON.stringify({ summary: "结论", value: "", verdict: "信息不足", reason: "测试" }));
 

@@ -369,14 +369,14 @@ test("任务创建后换了服务地址：按密钥错误收尾，不把密钥�
 });
 
 test("提示词经注入的读取函数交给服务：读不到的文件名直接报错，不发空提示词", () => {
-  const { ai } = setup({ wiring: { prompts: { "explain.md": "## 系统提示词\n解释" } } });
-  assert.equal(ai.prompt("explain.md"), "## 系统提示词\n解释");
+  const { ai } = setup({ wiring: { prompts: { "study/explain.md": "## 系统提示词\n解释" } } });
+  assert.equal(ai.prompt("study/explain.md"), "## 系统提示词\n解释");
   assert.throws(() => ai.prompt("missing.md"), /missing\.md/);
   assert.throws(() => ai.prompt("toString"), /toString/);
 });
 
 test("建任务时取定生成配置：服务地址、这项功能实际要用的模型、档位关、提示词版本跟着提示词全文走；不发请求", async () => {
-  const prompts = { "analysis.md": "概览提示词", "verdict.md": "结论提示词" };
+  const prompts = { "skim/chapters.md": "概览提示词", "skim/verdict.md": "结论提示词" };
   const { ai, service } = setup({ ...keyedStorage({ ...GATEWAY, featureModels: { verdict: "m-verdict" } }, GATEWAY_ORIGIN), wiring: { prompts } });
   const analysis = await ai.freeze("analysis");
   const verdict = await ai.freeze("verdict");
@@ -386,7 +386,7 @@ test("建任务时取定生成配置：服务地址、这项功能实际要用�
   assert.notEqual(analysis.promptVersion, verdict.promptVersion);
   assert.equal(service.posts().length, 0);
 
-  const edited = setup({ ...keyedStorage(GATEWAY, GATEWAY_ORIGIN), wiring: { prompts: { ...prompts, "analysis.md": "改过的概览提示词" } } });
+  const edited = setup({ ...keyedStorage(GATEWAY, GATEWAY_ORIGIN), wiring: { prompts: { ...prompts, "skim/chapters.md": "改过的概览提示词" } } });
   assert.notEqual((await edited.ai.freeze("analysis")).promptVersion, analysis.promptVersion, "改了提示词，版本跟着变");
   await assert.rejects(setup({ wiring: { prompts: {} } }).ai.freeze("qa"), /没有这份提示词/);
 });
@@ -394,7 +394,7 @@ test("建任务时取定生成配置：服务地址、这项功能实际要用�
 const withEfforts = (settings: SETTINGS.SettingsInput, featureEfforts: Readonly<Record<string, string>>) => ({ ...settings, featureEfforts });
 
 // 冻结要算提示词版本，六份都给上。
-const ALL_PROMPTS = { wiring: { prompts: Object.fromEntries(["analysis", "verdict", "translation", "qa", "note-cleanup", "explain"].map((name) => [`${name}.md`, name])) } };
+const ALL_PROMPTS = { wiring: { prompts: Object.fromEntries(["skim/chapters", "skim/verdict", "study/translation", "common/qa", "study/note-polish", "study/explain"].map((name) => [`${name}.md`, name])) } };
 
 test("建任务时把用户选的推理强度冻结成实际档位：做得到的照记，关不掉、退了一档的另记用户选的；不发模型请求", async () => {
   const anthropic = setup({ ...keyedStorage(withEfforts(ANTHROPIC, { analysis: "high" }), ANTHROPIC_ORIGIN), ...ALL_PROMPTS });

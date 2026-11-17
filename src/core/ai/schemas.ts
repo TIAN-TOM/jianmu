@@ -68,38 +68,29 @@ function describe<P extends SchemaProperties>(name: string, schema: ObjectSchema
   return deepFreeze({ type: "json_schema", name, schema });
 }
 
-// 概览分块：prompts/analysis.md 的输出格式。
+// 概览分块：prompts/skim/chapters.md 的输出格式。start 照抄字幕行开头的时间，秒数由本机换算（validate.ts 的 chunkFromModel）。
 export const ANALYSIS_CHUNK = describe(
   "analysis_chunk",
   object({
     chapters: {
       type: "array",
-      items: object({
-        title: string,
-        timestamp: string,
-        timestampSeconds: { type: "integer" },
-        summary: string,
-      }),
+      items: object({ start: string, title: string, summary: string }),
     },
     keyQuotes: {
       type: "array",
-      items: object({
-        quote: string,
-        timestamp: string,
-        timestampSeconds: { type: "integer" },
-      }),
+      items: object({ start: string, quote: string }),
     },
   }),
 );
 
-// 一句话结论：判断档位限定在界面认得的几档里；重点章节写成章节的时间点，由本机对回现有章节。
+// 一句话结论：先写理由再下判断，判断档位限定在界面认得的几档里；重点章节写成章节的时间点，由本机对回现有章节。
 export const VERDICT = describe(
   "verdict",
   object({
     summary: string,
     value: string,
-    verdict: { type: "string", enum: [...VERDICT_LABELS] },
     reason: string,
+    verdict: { type: "string", enum: [...VERDICT_LABELS] },
     keyChapters: { type: "array", items: string },
   }),
 );

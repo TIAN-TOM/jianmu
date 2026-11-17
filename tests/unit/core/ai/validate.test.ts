@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { planTranslationBatches } from "../../../../src/core/ai/chunking.ts";
-import { alignTranslatedSegments, looksLikeTranslation, validateAnalysis } from "../../../../src/core/ai/validate.ts";
+import { alignTranslatedSegments, chunkFromModel, looksLikeTranslation, validateAnalysis } from "../../../../src/core/ai/validate.ts";
 
 test("丢弃超出视频时长的时间戳", () => {
   const result = validateAnalysis(
@@ -344,4 +344,29 @@ test("译成中文：原文 20 个拉丁字母起才检查，译文出现一个�
   assert.equal(looksLikeTranslation(nineteen, nineteen), true, "不到 20 个字母不检查");
   assert.equal(looksLikeTranslation(twenty, twenty), false, "20 个字母原样抄回来算没翻译");
   assert.equal(looksLikeTranslation(`${twenty}好`, twenty), true, "出现一个汉字就算");
+});
+
+test("分块输出以照抄的时间为准：start 优先，其次旧写法的 timestamp，都读不出才用模型算的秒数", () => {
+  const parsed = {
+    chapters: [
+      { start: "75:05", title: "一小时以后", summary: "", timestampSeconds: 4000 },
+      { timestamp: "1:02:03", title: "旧写法", summary: "" },
+      { start: "不是时间", title: "只剩秒数", summary: "", timestampSeconds: 90 },
+    ],
+    keyQuotes: [{ start: "[2:30]", quote: "原话" }],
+  };
+  const { chapters, keyQuotes } = validateAnalysis(chunkFromModel(parsed), 10_000);
+  assert.deepEqual(chapters.map((chapter) => [chapter.title, chapter.timestampSeconds, chapter.timestamp]), [
+    ["只剩秒数", 90, "1:30"],
+    ["旧写法", 3723, "62:03"],
+    ["一小时以后", 4505, "75:05"],
+  ]);
+  assert.deepEqual(keyQuotes.map((quote) => quote.timestampSeconds), [150]);
+});
+
+test("分块输出的宽容读法不改别的形状：缺字段、不是对象原样交给校验", () => {
+  assert.equal(chunkFromModel(null), null);
+  assert.equal(chunkFromModel("文字"), "文字");
+  assert.deepEqual(chunkFromModel({ chapters: "坏的" }), { chapters: "坏的", keyQuotes: undefined });
+  assert.deepEqual(validateAnalysis(chunkFromModel({ chapters: [null, { start: "0:10" }] }), 600), { chapters: [], keyQuotes: [] });
 });

@@ -59,7 +59,7 @@ test("小节不存在或没有代码块时报错", () => {
 test("字幕或简介里恰好写着 {变量} 时不会被再展开一次", () => {
   // 简介排在 chaptersText 前面替换：逐个 split/join 的话，简介里的
   // {chaptersText} 会在下一轮被换成章节正文。
-  const user = extractPromptSection(read("verdict.md"), "用户提示词", {
+  const user = extractPromptSection(read("skim/verdict.md"), "用户提示词", {
     videoTitle: "标题",
     ownerName: "UP 主",
     durationFormatted: "10:00",
@@ -84,44 +84,42 @@ test("变量替换一次扫完：没给值的占位符和 JSON 示例原样保�
  * 输出质量悄悄变差，很难在运行时发现。
  */
 const PROMPTS: Readonly<Record<string, PromptVariables>> = {
-  "analysis.md": {
+  "skim/chapters.md": {
     startFormatted: "0:00",
-    minTimestampSeconds: 0,
     durationFormatted: "10:00",
     lateThreshold: "7:30",
-    maxTimestampSeconds: 600,
     videoTitle: "测试标题",
     ownerName: "测试 UP",
     videoDescription: "测试简介",
     transcriptText: "[0:00] 测试字幕",
-    rangeNote: "这是第 1 / 3 段",
-    contextNote: "前情回顾：[0:00] 上一段的结尾",
+    rangeNote: "（全片切成 3 段，这是第 1 段）",
+    contextNote: "上一段末尾：[0:00] 上一段的结尾",
   },
-  "explain.md": {
+  "study/explain.md": {
     videoTitle: "测试标题",
     selectedText: "测试选中",
     transcriptContext: "测试上下文",
   },
-  "translation.md": {
+  "study/translation.md": {
     targetLangName: "简体中文",
     langRules: "- 测试规则",
     videoTitle: "测试标题",
     segmentsJson: '{"segments":[{"id":"s1","text":"hello"}]}',
   },
-  "note-cleanup.md": {
+  "study/note-polish.md": {
     videoTitle: "测试标题",
     fullContext: "测试上下文",
     beforeText: "前文",
     targetText: "目标",
     afterText: "后文",
   },
-  "qa.md": {
+  "common/qa.md": {
     videoTitle: "测试视频",
     ownerName: "UP 主",
     question: "用户的问题",
     transcriptText: "[0:00] 字幕句子",
   },
-  "verdict.md": {
+  "skim/verdict.md": {
     videoTitle: "测试标题",
     ownerName: "测试 UP",
     durationFormatted: "10:00",
@@ -167,47 +165,38 @@ for (const [file, variables] of Object.entries(PROMPTS)) {
   });
 }
 
-test("translation.md 的两套语言规则小节都存在且非空", () => {
+test("study/translation.md 的两套语言规则小节都存在且非空", () => {
   // 服务按字幕语种在这两节里二选一注入 {langRules}，
   // 调用处不是字面量，上面那条扫描测试逮不到它，这里单独守。
   for (const heading of ["中文规则", "英文规则"]) {
-    const rules = extractPromptSection(read("translation.md"), heading, {});
-    assert.ok(rules.trim().length > 0, `translation.md#${heading} 是空的`);
+    const rules = extractPromptSection(read("study/translation.md"), heading, {});
+    assert.ok(rules.trim().length > 0, `study/translation.md#${heading} 是空的`);
   }
 });
 
 test("分批/分块任务的系统提示词保持稳定前缀，服务商缓存才能命中", () => {
   // 逐批变化的内容一旦混进系统提示词，几十个批次就要为同样的指令
   // 付几十次全价 prefill。segmentsJson 只允许出现在用户提示词里。
-  const translationSystem = extractPromptSection(read("translation.md"), "系统提示词", {});
-  assert.ok(!translationSystem.includes("{segmentsJson}"), "translation.md 的系统提示词不该包含逐批变化的 segmentsJson");
+  const translationSystem = extractPromptSection(read("study/translation.md"), "系统提示词", {});
+  assert.ok(!translationSystem.includes("{segmentsJson}"), "study/translation.md 的系统提示词不该包含逐批变化的 segmentsJson");
   // 概览分块时时长、门槛逐块不同，系统提示词必须全静态。
-  const analysisSystem = extractPromptSection(read("analysis.md"), "系统提示词", {});
+  const analysisSystem = extractPromptSection(read("skim/chapters.md"), "系统提示词", {});
   assert.equal(
     analysisSystem.match(PLACEHOLDER),
     null,
-    `analysis.md 系统提示词应为全静态，发现：${analysisSystem.match(PLACEHOLDER)?.[0]}`,
+    `skim/chapters.md 系统提示词应为全静态，发现：${analysisSystem.match(PLACEHOLDER)?.[0]}`,
   );
 });
 
-const FROM_DIGEST_FOR_BILIBILI = ["analysis.md", "explain.md", "note-cleanup.md", "translation.md"];
-
-test("来自 Digest for Bilibili 的提示词保留了署名", () => {
-  for (const file of FROM_DIGEST_FOR_BILIBILI) {
-    assert.match(read(file), /Digest for Bilibili/, `${file} 应写明来自 Digest for Bilibili`);
-    assert.match(read(file), /youtube-digest/, `${file} 应保留 youtube-digest 的 MIT 署名`);
-  }
-});
-
-test("每份提示词要么标注 Digest for Bilibili 出处，要么标注为原创", () => {
-  for (const file of Object.keys(PROMPTS)) {
-    const isPorted = FROM_DIGEST_FOR_BILIBILI.includes(file);
-    assert.match(read(file), isPorted ? /youtube-digest/ : /原创/, `${file} 的出处没有交代清楚`);
-  }
+test("每份提示词都按模式放：速览的在 skim/，精读的在 study/，两种模式共用的在 common/，后台内联的就是这几份", () => {
+  for (const file of Object.keys(PROMPTS)) assert.match(file, /^(?:skim|study|common)\/[a-z-]+\.md$/, file);
+  const inlined = readFileSync(new URL("../../../../src/background/prompts.ts", import.meta.url), "utf8");
+  const imported = [...inlined.matchAll(/from "prompt:([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(imported.sort(), Object.keys(PROMPTS).sort());
 });
 
 test("prompts/ 的源文件没有 \\r：模板按 \\n 解析", () => {
-  const files = readdirSync(PROMPTS_DIR).filter((name) => name.endsWith(".md"));
+  const files = readdirSync(PROMPTS_DIR, { recursive: true }).map(String).filter((name) => name.endsWith(".md"));
   assert.deepEqual(files.sort(), Object.keys(PROMPTS).sort());
   for (const file of files) assert.ok(!read(file).includes("\r"), `${file} 含有 \\r`);
 });

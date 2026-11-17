@@ -3,7 +3,6 @@ import { test } from "node:test";
 import {
   hasAnalysisContent,
   keyChapterStarts,
-  startSecondsOf,
   validKeyStarts,
   hasOfficialSummaryContent,
   officialVerdictInputs,
@@ -11,6 +10,7 @@ import {
   VERDICT_LABELS,
   verdictInputs,
 } from "../../../../src/core/ai/verdict.ts";
+import { startSecondsOf } from "../../../../src/core/transcript/segment.ts";
 
 test("结论输入把章节和金句压成一行一条", () => {
   const { chaptersText, quotesText } = verdictInputs({

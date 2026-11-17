@@ -210,6 +210,22 @@ export function formatTimestamp(seconds: number | null | undefined): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
+/**
+ * 把一个时间点规范化成整秒：认 [MM:SS]、MM:SS、H:MM:SS 这类写法，也认直接给的秒数。
+ * 认不出的交回 null。
+ */
+export function startSecondsOf(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) && value >= 0 ? Math.floor(value) : null;
+  if (typeof value !== "string") return null;
+  const text = value.trim().replace(/^\[|\]$/g, "").trim();
+  if (/^\d+$/.test(text)) return Number(text);
+  const match = /^(?:(\d+):)?(\d{1,3}):(\d{2})$/.exec(text);
+  if (!match) return null;
+  const [, hours = "0", minutes = "0", seconds = "0"] = match;
+  if (Number(seconds) >= 60 || (match[1] !== undefined && Number(minutes) >= 60)) return null;
+  return Number(hours) * 3600 + Number(minutes) * 60 + Number(seconds);
+}
+
 // 纯文本用于展示和导出；带 [M:SS] 前缀的版本喂给模型，让它能引用真实时间点。
 export function buildTranscriptTexts(entries: CaptionEntries): { plain: string; timestamped: string } {
   const lines: readonly MaybeCaptionEntry[] = Array.isArray(entries) ? entries : [];

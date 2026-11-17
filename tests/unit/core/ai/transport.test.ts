@@ -2488,10 +2488,10 @@ const VARIABLES = {
   segmentsJson: '{"segments":[{"id":"s1","text":"你好"}]}',
 };
 const FEATURES = [
-  ["analysis.md", SCHEMAS.ANALYSIS_CHUNK],
-  ["verdict.md", SCHEMAS.VERDICT],
-  ["qa.md", SCHEMAS.QA_ANSWER],
-  ["translation.md", SCHEMAS.SEGMENT_BATCH],
+  ["skim/chapters.md", SCHEMAS.ANALYSIS_CHUNK],
+  ["skim/verdict.md", SCHEMAS.VERDICT],
+  ["common/qa.md", SCHEMAS.QA_ANSWER],
+  ["study/translation.md", SCHEMAS.SEGMENT_BATCH],
 ] as const;
 const JSON_WORD_ERROR =
   "Response input messages must contain the word 'json' in some form to use 'text.format' of type 'json_object'.";

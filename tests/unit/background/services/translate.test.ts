@@ -758,7 +758,7 @@ function background(handler: (request: SentRequest) => ReturnType<typeof reply> 
     ...keyedStorage(options.settings ?? GATEWAY, origin),
     grantedOrigins: [origin],
     fetch: ai.fetch,
-    prompts: { "translation.md": TRANSLATION_PROMPT },
+    prompts: { "study/translation.md": TRANSLATION_PROMPT },
     site: site.service,
   });
   const app = createApp(fake.deps({ warn() {}, error() {} }));

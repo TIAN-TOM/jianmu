@@ -6,7 +6,7 @@ import { parseLooseJson } from "../../../core/ai/parse.ts";
 import { extractPromptSection, type PromptVariables } from "../../../core/ai/prompt.ts";
 import { ANALYSIS_CHUNK } from "../../../core/ai/schemas.ts";
 import { aiErrorResponse, throwIfTaskCanceled, type RetryNotice, type TransportError } from "../../../core/ai/transport/index.ts";
-import { validateAnalysis, type Analysis } from "../../../core/ai/validate.ts";
+import { chunkFromModel, validateAnalysis, type Analysis } from "../../../core/ai/validate.ts";
 import { mapWithConcurrency, type Limiter } from "../../../core/concurrency.ts";
 import type { LearningAnalysis } from "../../../core/notes/markdown.ts";
 import { formatTimestamp, type TranscriptSegment } from "../../../core/transcript/segment.ts";
@@ -93,13 +93,10 @@ interface ChunkRequest {
 // 时长相关变量按本块区间算，好让模型只覆盖这一段。前情只当上下文，产出靠起点秒数限定在本块区间内。
 async function analyzeChunk(deps: ChunkDeps, chunk: Chunk, chunkCount: number, common: PromptCommon, request: ChunkRequest): Promise<ChunkPart> {
   const timing = analysisTimingVariables(chunk.text, chunk.endSeconds);
-  const rangeNote =
-    chunkCount > 1
-      ? `注意：这是长视频切分后的第 ${chunk.index + 1} / ${chunkCount} 段，覆盖 ${formatTimestamp(chunk.startSeconds)} 到 ` +
-        `${formatTimestamp(chunk.endSeconds)}。只为这一段产出章节与金句，不要涉及其它时间段。`
-      : "";
+  // 措辞跟着 prompts/skim/chapters.md 走：范围后面补一句第几段，上一段末尾单独成块。
+  const rangeNote = chunkCount > 1 ? `（全片切成 ${chunkCount} 段，这是第 ${chunk.index + 1} 段）` : "";
   const contextNote = chunk.contextText
-    ? `\n前情回顾（上一段的结尾，只用来理解本段承接什么，不要为它开章节或挑金句）：\n${chunk.contextText}\n`
+    ? `\n上一段末尾（只帮你接上话题，不要为它写章节或挑金句）：\n${chunk.contextText}\n`
     : "";
   const variables = {
     ...common,
@@ -126,7 +123,7 @@ async function analyzeChunk(deps: ChunkDeps, chunk: Chunk, chunkCount: number, c
     throw coded("ANALYSIS_PARSE_FAILED", "模型没有按要求返回结构化的概览，结果读不出来。", sends);
   }
   // 越界条目会被滤掉；滤完一条不剩不能算成功，否则这一段就悄悄缺了。记成失败块，自动补一轮，补不上就如实标出缺口。
-  const result = validateAnalysis(parsed, timing.maxTimestampSeconds, chunk.startSeconds);
+  const result = validateAnalysis(chunkFromModel(parsed), timing.maxTimestampSeconds, chunk.startSeconds);
   if (!result.chapters.length && !result.keyQuotes.length) throw coded("EMPTY_CHUNK", "这一段没有产出有效的章节或金句。", sends);
   return truncated ? { ...result, truncated: true } : result;
 }

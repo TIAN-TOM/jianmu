@@ -37,7 +37,7 @@ export const VERDICT_GEN: FrozenGen = { feature: "verdict", baseUrl: "https://ai
 
 // 提示词替身：用户提示词里写着本块起点、覆盖情况和正文，替身按它们回复、测试按它们定向。
 export const PROMPTS: Readonly<Record<string, string>> = {
-  "analysis.md": [
+  "skim/chapters.md": [
     "## 系统提示词",
     "```",
     "概览/系统",
@@ -51,7 +51,7 @@ export const PROMPTS: Readonly<Record<string, string>> = {
     "```",
     "",
   ].join("\n"),
-  "verdict.md": [
+  "skim/verdict.md": [
     "## 系统提示词",
     "```",
     "结论/系统",

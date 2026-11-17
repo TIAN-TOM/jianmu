@@ -14,7 +14,7 @@ const tubeVideo = (index: number): VideoKey => videoKey({ platform: "youtube", v
 type Started = { ok: true; value: { task: TaskView; joined: boolean; token?: string } } | { ok: false; code: string };
 
 function appOn(local: Record<string, unknown> = { [SETTINGS_STORAGE_KEY]: CONFIRMED }) {
-  const fake = createFakeChrome({ local, prompts: { "analysis.md": "概览提示词", "verdict.md": "结论提示词" } });
+  const fake = createFakeChrome({ local, prompts: { "skim/chapters.md": "概览提示词", "skim/verdict.md": "结论提示词" } });
   const app = createApp(fake.deps({ warn() {}, error() {} }));
   const start = (video: VideoKey, sender = senders.card()) =>
     app.dispatch({ type: "task.start", req: { kind: "overview", video } }, sender) as Promise<Started>;

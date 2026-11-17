@@ -1,5 +1,5 @@
 // 一句话结论：判断档位、给模型的输入和结果校验。
-import { formatTimestamp } from "../transcript/segment.ts";
+import { formatTimestamp, startSecondsOf } from "../transcript/segment.ts";
 
 // 一句话结论的判断档位，界面按它们配色，导出也原样写出。
 // 「信息不足」留给概览缺块、或已有内容判断不了的情况，不逼模型硬选一档。
@@ -167,22 +167,6 @@ export interface Verdict {
 
 /** 重点章节最多几个。 */
 export const KEY_CHAPTERS_MAX = 3;
-
-/**
- * 把一个时间点规范化成整秒：认 [MM:SS]、MM:SS、H:MM:SS 这类写法，也认直接给的秒数。
- * 认不出的交回 null。
- */
-export function startSecondsOf(value: unknown): number | null {
-  if (typeof value === "number") return Number.isFinite(value) && value >= 0 ? Math.floor(value) : null;
-  if (typeof value !== "string") return null;
-  const text = value.trim().replace(/^\[|\]$/g, "").trim();
-  if (/^\d+$/.test(text)) return Number(text);
-  const match = /^(?:(\d+):)?(\d{1,3}):(\d{2})$/.exec(text);
-  if (!match) return null;
-  const [, hours = "0", minutes = "0", seconds = "0"] = match;
-  if (Number(seconds) >= 60 || (match[1] !== undefined && Number(minutes) >= 60)) return null;
-  return Number(hours) * 3600 + Number(minutes) * 60 + Number(seconds);
-}
 
 /**
  * 重点章节的本机校验：每一项规范成整秒，和现有章节的起始秒精确对上才留；

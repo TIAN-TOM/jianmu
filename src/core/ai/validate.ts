@@ -1,5 +1,5 @@
 // 模型输出的校验：概览的章节和金句，翻译批次的对齐。都当不可信数据重建一遍。
-import { formatTimestamp } from "../transcript/segment.ts";
+import { formatTimestamp, startSecondsOf } from "../transcript/segment.ts";
 
 export interface Chapter {
   title: string;
@@ -28,6 +28,26 @@ interface RawItem {
 
 const rawItems = (value: unknown): readonly (RawItem | null | undefined)[] =>
   Array.isArray(value) ? value : [];
+
+/**
+ * 分块输出的宽容读法：章节和金句的时间以模型照抄的 start（或旧写法的 timestamp）为准，
+ * 换算成秒交给 validateAnalysis；两样都读不出时才用模型自己算的 timestampSeconds。
+ * 照抄字幕行开头的时间比让模型做换算可靠：一小时以上的视频常被算错。
+ */
+export function chunkFromModel(parsed: unknown): unknown {
+  if (!parsed || typeof parsed !== "object") return parsed;
+  const source = parsed as { readonly chapters?: unknown; readonly keyQuotes?: unknown };
+  const withSeconds = (items: unknown): unknown =>
+    Array.isArray(items)
+      ? items.map((item: unknown) => {
+          if (!item || typeof item !== "object") return item;
+          const fields = item as { readonly start?: unknown; readonly timestamp?: unknown; readonly timestampSeconds?: unknown };
+          const seconds = startSecondsOf(fields.start) ?? startSecondsOf(fields.timestamp);
+          return seconds === null ? item : { ...fields, timestampSeconds: seconds };
+        })
+      : items;
+  return { ...source, chapters: withSeconds(source.chapters), keyQuotes: withSeconds(source.keyQuotes) };
+}
 
 /**
  * 把模型输出当作不可信数据重建一遍：模型编造超出视频时长的时间戳是常态，

@@ -28,7 +28,7 @@ test("包输入：会改变 zip 字节的路径才算", () => {
     "src/core/consent.ts",
     "src/pages/sidepanel/main.tsx",
     "static/_locales/zh_CN/messages.json",
-    "prompts/analysis.md",
+    "prompts/skim/chapters.md",
     "manifest.template.json",
     "package.json",
     "package-lock.json",

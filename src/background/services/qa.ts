@@ -26,7 +26,7 @@ import type { TaskRun, TaskRunner } from "../tasks.ts";
 import { createClaim } from "./claim.ts";
 import type { TranscriptService } from "./transcript/index.ts";
 
-export const QA_PROMPT = "qa.md";
+export const QA_PROMPT = "common/qa.md";
 export const QUESTION_MAX = 500;
 // 回答控制在 300 字内，2048 个 token 加上结构和引用的开销绰绰有余。
 const ANSWER_MAX_TOKENS = 2048;

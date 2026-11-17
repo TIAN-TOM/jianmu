@@ -27,7 +27,7 @@ export const PATIENT = 20_000;
 export const REF: VideoRef = { platform: "bilibili", videoId: SAMPLE_ID, segment: 1 };
 export const VIDEO: VideoKey = videoKey(REF);
 
-export const TRANSLATION_PROMPT = readFileSync(new URL("../../prompts/translation.md", import.meta.url), "utf8").replaceAll("\r", "");
+export const TRANSLATION_PROMPT = readFileSync(new URL("../../prompts/study/translation.md", import.meta.url), "utf8").replaceAll("\r", "");
 
 export const cue = (start: number, text: string, duration = 10): CueView => ({ start, duration, text });
 
@@ -119,7 +119,7 @@ export interface TranslateHarness {
 
 export function translateHarness(view: TranscriptView, options: TranslateHarnessOptions = {}): TranslateHarness {
   const timers = manualTimers(START);
-  const fake = createFakeAi({ prompts: { "translation.md": TRANSLATION_PROMPT }, replies: { rewrite: options.reply ?? echo() } });
+  const fake = createFakeAi({ prompts: { "study/translation.md": TRANSLATION_PROMPT }, replies: { rewrite: options.reply ?? echo() } });
   const guard = options.guard ?? createClearGuard();
   const broadcasts: Broadcast[] = [];
   const logs: string[] = [];

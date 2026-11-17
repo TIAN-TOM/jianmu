@@ -27,7 +27,7 @@ import { PAGES_LEFT, type TaskRun, type TaskRunner, type Timers } from "../tasks
 import { isTransientChunkFailure, promptMessages } from "./overview/chunks.ts";
 import type { TranscriptService } from "./transcript/index.ts";
 
-export const TRANSLATE_PROMPT = "translation.md";
+export const TRANSLATE_PROMPT = "study/translation.md";
 /** 设置里「翻译」这一项的模型槽，沿用旧名。 */
 export const TRANSLATE_FEATURE = "rewrite";
 /** 偶发失败（限流、超时抖动）补一轮之前的等待。太短会撞回同一次限流窗口。 */

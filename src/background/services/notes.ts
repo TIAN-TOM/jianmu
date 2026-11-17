@@ -23,7 +23,7 @@ import type { NoteStore, NoteView } from "../stores/notes.ts";
 import { promptMessages } from "./overview/chunks.ts";
 import type { TranscriptService } from "./transcript/index.ts";
 
-export const NOTE_PROMPT = "note-cleanup.md";
+export const NOTE_PROMPT = "study/note-polish.md";
 export const NOTE_TEXT_MAX = 3000;
 const TITLE_MAX = 500;
 const AUTHOR_MAX = 300;

@@ -112,12 +112,12 @@ const AI_CODES: ReadonlySet<string> = new Set(Object.keys(AI_ERROR_TEXT));
 
 // 每项功能用哪份提示词；提示词的版本就是它全文的指纹，改了提示词，旧任务的结果不算等价。
 const FEATURE_PROMPTS: Readonly<Record<FeatureSlotId, string>> = {
-  analysis: "analysis.md",
-  verdict: "verdict.md",
-  rewrite: "translation.md",
-  qa: "qa.md",
-  notes: "note-cleanup.md",
-  explain: "explain.md",
+  analysis: "skim/chapters.md",
+  verdict: "skim/verdict.md",
+  rewrite: "study/translation.md",
+  qa: "common/qa.md",
+  notes: "study/note-polish.md",
+  explain: "study/explain.md",
 };
 
 function codedError(code: AiErrorCode, message: string): ProviderError {

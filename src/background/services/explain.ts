@@ -11,7 +11,7 @@ import { createClaim } from "./claim.ts";
 import { promptMessages } from "./overview/chunks.ts";
 import type { TranscriptService } from "./transcript/index.ts";
 
-export const EXPLAIN_PROMPT = "explain.md";
+export const EXPLAIN_PROMPT = "study/explain.md";
 const SELECTION_MAX = 1000;
 const CONTEXT_MAX = 4000;
 const EXPLAIN_MAX_TOKENS = 1024;

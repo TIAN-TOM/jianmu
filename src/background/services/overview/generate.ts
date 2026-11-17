@@ -23,7 +23,7 @@ import { analyzePlannedChunks, describeChunkFailure, mergeChunks, partsOf, previ
 import { concludeOverview, VERDICT_PROMPT } from "./conclude.ts";
 import { CLEARED, createPersist, type ChapterWrite, type Saved, type SnapshotFields } from "./persist.ts";
 
-export const ANALYSIS_PROMPT = "analysis.md";
+export const ANALYSIS_PROMPT = "skim/chapters.md";
 const VERDICT_FEATURE = "verdict";
 
 export interface GenerateDeps {

@@ -25,7 +25,7 @@ function appOn() {
     ...keyedStorage(GATEWAY, ORIGIN),
     grantedOrigins: [ORIGIN],
     fetch: ai.fetch,
-    prompts: { "analysis.md": PROMPT, "verdict.md": PROMPT },
+    prompts: { "skim/chapters.md": PROMPT, "skim/verdict.md": PROMPT },
     site: fakeSiteService().service,
   });
   const app = createApp(fake.deps({ warn() {}, error() {} }));
