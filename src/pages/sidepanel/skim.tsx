@@ -2,6 +2,7 @@
 // 还没有概览时先摆官方总结和 UP 主分段，下面是「生成概览」和字幕。长视频边生成边显示，能停止、补失败块、重新生成；
 // 没有结论时可以只用官方总结写一句。
 import { groupQuotesIntoChapters, type ChapterPart, type QuotePart } from "../../core/ai/chunking.ts";
+import { keyChapterStarts } from "../../core/ai/verdict.ts";
 import { learningAsMarkdown, type LearningAnalysis } from "../../core/notes/markdown.ts";
 import { formatTimestamp, type TranscriptSegment } from "../../core/transcript/segment.ts";
 import { useState } from "preact/hooks";
@@ -70,6 +71,7 @@ function Chapters({ panel, analysis, segments }: { readonly panel: Panel; readon
     <>
       {chapters.length > 0 ? (
         <ChapterList
+          keyStarts={keyChapterStarts(analysis)}
           chapters={chapters.map((chapter) => ({ startSec: chapter.timestampSeconds, title: text(chapter.title) || formatTimestamp(chapter.timestampSeconds) }))}
           expanded={expanded}
           onToggle={(index) => setExpanded(expanded.includes(index) ? expanded.filter((item) => item !== index) : [...expanded, index])}

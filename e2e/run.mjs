@@ -142,7 +142,8 @@ async function panelFlow(launcher, panelUrl, videoId) {
   await until("生成概览可以点", () => clickIn(panel, "button", "生成概览"));
   await until("概览生成完", async () => (await textOf(panel, ".chapter-name")).includes("模拟服务写的章节"));
   await until("结论写好", async () => (await textOf(panel, ".verdict-text")).includes("模拟服务写的一句话结论"));
-  console.log("✓ 生成概览：章节和一句话结论都显示出来");
+  await until("结论标的重点章节前面有圆点", () => evaluate(panel, `Boolean(document.querySelector(".skim .chapter[data-key] .key-dot[aria-label='重点']"))`));
+  console.log("✓ 生成概览：章节和一句话结论都显示出来，重点章节标出来");
 
   await until("展开章节", () => clickIn(panel, ".chapter-toggle"));
   await until("把金句存为笔记", () => clickIn(panel, ".quote button", "存为笔记"));
@@ -168,8 +169,10 @@ async function panelFlow(launcher, panelUrl, videoId) {
   const card = await until("这个视频页的卡片", () => cardOf(watchUrl));
   const cardCollapsed = () => evaluate(card, `document.getElementById("card")?.dataset.collapsed ?? ""`);
   await until("速览时卡片展开", async () => (await cardCollapsed()) === "false");
+  await until("卡片上的重点章节也标出来", () => evaluate(card, `Boolean(document.querySelector("#card-overview .chapter[data-key] .key-dot"))`));
   await until("切到精读", () => clickIn(panel, ".mode", "精读"));
   await until("精读显示当前章节", async () => (await textOf(panel, ".chapter-bar-title")).includes("模拟服务写的章节"));
+  await until("当前章节是重点，条上也标出来", () => evaluate(panel, `Boolean(document.querySelector(".chapter-bar .key-dot"))`));
   await until("说记住了这个频道", async () => (await textOf(panel, ".notice-text")).includes("以后先进精读"));
   await until("精读时卡片收起", async () => (await cardCollapsed()) === "true");
   await until("切回速览", () => clickIn(panel, ".mode", "速览"));

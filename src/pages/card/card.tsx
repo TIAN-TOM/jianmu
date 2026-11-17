@@ -2,6 +2,7 @@
 import type { LearningAnalysis } from "../../core/notes/markdown.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
 import type { OfficialSummaryView, OutlineSectionView } from "../../shared/messages/transcript.ts";
+import { keyChapterStarts } from "../../core/ai/verdict.ts";
 import { ChapterList, type ChapterItem } from "../shared/ui/chapter-list.tsx";
 import { VerdictBlock } from "../shared/ui/verdict-block.tsx";
 import type { BasisSource } from "../shared/ui/verdict.ts";
@@ -93,7 +94,7 @@ function Overview({ analysis, pending, onSeek }: { readonly analysis: LearningAn
       ) : summary ? (
         <VerdictBlock label={text(verdict?.verdict)} text={summary} basis={basisOf(analysis)} incomplete={verdict?.incomplete === true} />
       ) : null}
-      {chapters.length ? <ChapterList chapters={chapters} heading={false} onSeek={onSeek} /> : null}
+      {chapters.length ? <ChapterList chapters={chapters} keyStarts={keyChapterStarts(analysis)} heading={false} onSeek={onSeek} /> : null}
     </section>
   );
 }

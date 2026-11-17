@@ -8,7 +8,7 @@ test("有重点时小标题写重点几章，没有重点时只写章节数", ()
   assert.equal(chapterHeading(6, 0), "章节 6");
 });
 
-test("重点按起始秒精确匹配，每一章对应一个标记；没有字段、空数组、坏值都按没有重点", () => {
+test("重点按整秒匹配，每一章对应一个标记；没有字段、空数组、坏值都按没有重点", () => {
   const chapters = [{ startSec: 0 }, { startSec: 95 }, { startSec: 240 }];
   assert.deepEqual(keyFlags(chapters, [0, 240]), [true, false, true]);
   assert.deepEqual(keyFlags(chapters, [96]), [false, false, false]);
@@ -16,4 +16,10 @@ test("重点按起始秒精确匹配，每一章对应一个标记；没有字�
   assert.deepEqual(keyFlags(chapters, []), [false, false, false]);
   const junk = [Number.NaN, -1, "95", null] as unknown as number[];
   assert.deepEqual([...keyStartSet(junk)], []);
+});
+
+test("章节起点带小数时按整秒对：结论里记的是舍去小数的秒数", () => {
+  const chapters = [{ startSec: 0 }, { startSec: 95.6 }, { startSec: 240.2 }];
+  assert.deepEqual(keyFlags(chapters, [95]), [false, true, false]);
+  assert.deepEqual(keyFlags(chapters, [96, 241]), [false, false, false], "不往上取整，也不猜最近的");
 });

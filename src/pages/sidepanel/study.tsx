@@ -1,5 +1,6 @@
 // 精读：上面一条当前章节，跟着播放走；下面是跟着播放滚动、高亮当前句的字幕，能搜索、翻译、划词解释。
-// 章节用模型生成的概览，没有时用 UP 主分段，都没有时不显示这一条。
+// 章节用模型生成的概览（结论标了重点的这一章前面一个圆点），没有时用 UP 主分段，都没有时不显示这一条。
+import { keyChapterStarts } from "../../core/ai/verdict.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
 import type { Panel } from "./panel.ts";
 import { chapterAt } from "./reading.ts";
@@ -8,14 +9,21 @@ import { TranscriptTab } from "./transcript-tab.tsx";
 interface BarChapter {
   readonly startSec: number;
   readonly title: string;
+  /** 结论里标的重点章节。 */
+  readonly key?: boolean;
 }
 
 function chaptersOf(panel: Panel): readonly BarChapter[] {
   const overview = panel.overview.state.value;
   const analysis = overview.task && overview.preview ? overview.preview.analysis : overview.saved?.analysis;
+  const keys = new Set(keyChapterStarts(analysis));
   const generated = (analysis?.chapters ?? [])
     .filter((chapter) => Number.isFinite(chapter.timestampSeconds))
-    .map((chapter) => ({ startSec: chapter.timestampSeconds, title: typeof chapter.title === "string" ? chapter.title.trim() : "" }));
+    .map((chapter) => ({
+      startSec: chapter.timestampSeconds,
+      title: typeof chapter.title === "string" ? chapter.title.trim() : "",
+      key: keys.has(Math.floor(chapter.timestampSeconds)),
+    }));
   if (generated.length > 0) return [...generated].sort((a, b) => a.startSec - b.startSec);
   const now = panel.transcript.state.value;
   const creator = now.state === "ready" ? now.view.chapters : now.state === "failed" ? (now.failure.chapters ?? []) : [];
@@ -36,6 +44,7 @@ function ChapterBar({ panel }: { readonly panel: Panel }) {
       <span class="chapter-bar-count">
         {index + 1}/{chapters.length}
       </span>
+      {chapter.key ? <span class="key-dot" role="img" aria-label="重点" /> : null}
       <span class="chapter-bar-title">{chapter.title || time}</span>
       <button type="button" class="stamp" aria-label={`跳到这一章开头 ${time}`} onClick={() => void panel.seek(chapter.startSec)}>
         {time}

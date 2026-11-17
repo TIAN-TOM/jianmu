@@ -83,7 +83,7 @@ function chapterPieces(input: RailInput, durationSec: number, positionSec: numbe
       start: chapter.startSec / durationSec,
       size: (endSec - chapter.startSec) / durationSec,
       played: playedWithin(chapter.startSec, endSec, positionSec),
-      key: keys.has(chapter.startSec),
+      key: keys.has(Math.floor(chapter.startSec)),
       focus: input.focusIndex === index,
       title: String(chapter.title ?? ""),
     };

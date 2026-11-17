@@ -48,7 +48,7 @@ test("乱序、重复、越界和不是数的起点：排好序，同一秒只�
   ]);
 });
 
-test("重点只认起始秒精确对上的章节，对不上的不猜最近的一章；第 0 秒也算", () => {
+test("重点只认整秒对上的章节，对不上的不猜最近的一章；第 0 秒也算", () => {
   const { pieces } = railLayout({ durationSec: 600, chapters: CHAPTERS, keyStarts: [0, 300, 123, Number.NaN] });
   assert.deepEqual(
     pieces.map((piece) => piece.key),
@@ -107,4 +107,9 @@ test("比例写成样式里的百分数，限在 0 到 100，保留三位小数"
   assert.equal(percent(1 / 3), "33.333%");
   assert.equal(percent(-1), "0%");
   assert.equal(percent(2), "100%");
+});
+
+test("时间轨和章节列表一样按整秒认重点：起点 120.7 的那一章对 120", () => {
+  const { pieces } = railLayout({ durationSec: 600, chapters: [{ startSec: 0, title: "一" }, { startSec: 120.7, title: "二" }], keyStarts: [120] });
+  assert.deepEqual(pieces.map((piece) => piece.key), [false, true]);
 });

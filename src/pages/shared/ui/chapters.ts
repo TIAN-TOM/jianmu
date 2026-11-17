@@ -1,5 +1,5 @@
 // 章节列表和时间轨共用的规则：哪几章是重点、章节小标题怎么写。
-// 重点只按起始秒精确匹配现有章节，对不上的直接忽略，不猜最近的一章。
+// 重点按整秒匹配现有章节（章节起点不足一秒的部分舍去，和结论里记的一样），对不上的直接忽略，不猜最近的一章。
 
 export interface ChapterStart {
   readonly startSec: number;
@@ -13,7 +13,7 @@ export function keyStartSet(keyStarts: readonly number[] | null | undefined): Re
 /** 每一章是不是重点，和 chapters 一一对应。 */
 export function keyFlags(chapters: readonly ChapterStart[], keyStarts: readonly number[] | null | undefined): boolean[] {
   const keys = keyStartSet(keyStarts);
-  return chapters.map((chapter) => keys.has(chapter.startSec));
+  return chapters.map((chapter) => keys.has(Math.floor(chapter.startSec)));
 }
 
 /** 「章节 6，重点 2」，没有重点时只写「章节 6」。 */
