@@ -160,17 +160,84 @@ export interface Verdict {
   value: string;
   verdict: string;
   reason: string;
+  /** 重点章节的起始秒，按时间先后；一个都没有时不写这个字段。 */
+  keyStarts?: number[];
   incomplete?: true;
+}
+
+/** 重点章节最多几个。 */
+export const KEY_CHAPTERS_MAX = 3;
+
+/**
+ * 把一个时间点规范化成整秒：认 [MM:SS]、MM:SS、H:MM:SS 这类写法，也认直接给的秒数。
+ * 认不出的交回 null。
+ */
+export function startSecondsOf(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) && value >= 0 ? Math.floor(value) : null;
+  if (typeof value !== "string") return null;
+  const text = value.trim().replace(/^\[|\]$/g, "").trim();
+  if (/^\d+$/.test(text)) return Number(text);
+  const match = /^(?:(\d+):)?(\d{1,3}):(\d{2})$/.exec(text);
+  if (!match) return null;
+  const [, hours = "0", minutes = "0", seconds = "0"] = match;
+  if (Number(seconds) >= 60 || (match[1] !== undefined && Number(minutes) >= 60)) return null;
+  return Number(hours) * 3600 + Number(minutes) * 60 + Number(seconds);
+}
+
+/**
+ * 重点章节的本机校验：每一项规范成整秒，和现有章节的起始秒精确对上才留；
+ * 去重，最多三个，允许第 0 秒，按时间先后排。缺字段、格式错、对不上的只是丢掉，不连累结论。
+ * 超过三个时留模型先给的那几个。
+ */
+export function validKeyStarts(raw: unknown, chapterStarts: readonly unknown[] | null | undefined): number[] {
+  if (!Array.isArray(raw)) return [];
+  const items: readonly unknown[] = raw;
+  const known = new Set(
+    (Array.isArray(chapterStarts) ? chapterStarts : [])
+      .map((start) => startSecondsOf(start))
+      .filter((start): start is number => start !== null),
+  );
+  const kept: number[] = [];
+  for (const item of items) {
+    if (kept.length >= KEY_CHAPTERS_MAX) break;
+    const start = startSecondsOf(item);
+    if (start === null || !known.has(start) || kept.includes(start)) continue;
+    kept.push(start);
+  }
+  return kept.sort((a, b) => a - b);
+}
+
+interface KeyedAnalysis {
+  readonly chapters?: readonly ({ readonly timestampSeconds?: unknown } | null | undefined)[] | null;
+  readonly verdict?: { readonly keyStarts?: unknown } | null;
+}
+
+/**
+ * 交给页面标重点用：结论里记着的重点再和当前章节核对一遍。
+ * 章节被重新生成过、结论还是旧的时，对不上的那几个不标。
+ */
+export function keyChapterStarts(analysis: KeyedAnalysis | null | undefined): number[] {
+  const chapters = Array.isArray(analysis?.chapters) ? analysis.chapters : [];
+  return validKeyStarts(analysis?.verdict?.keyStarts, chapters.map((chapter) => chapter?.timestampSeconds));
+}
+
+const withKeys = (keyStarts: number[]): { keyStarts?: number[] } => (keyStarts.length ? { keyStarts } : {});
+
+export interface VerdictCheck {
+  /** 概览有失败块，结论只基于部分内容，界面和导出都要标出来。 */
+  readonly incomplete?: boolean;
+  /** 写结论时看到的章节的起始秒。不给时不收重点章节。 */
+  readonly chapterStarts?: readonly unknown[] | undefined;
 }
 
 /**
  * 结论同样当不可信数据处理：没有 summary 就当没生成；判断不在几档里就不显示，
  * 免得模型自创一档「还行」。字段按提示词的字数要求留些余量再截断。
- * incomplete：概览有失败块，结论只基于部分内容，界面和导出都要标出来。
+ * 重点章节（模型输出里的 keyChapters）按 validKeyStarts 过滤，坏了只丢重点。
  */
 export function validateVerdict(
   parsed: unknown,
-  { incomplete = false }: { readonly incomplete?: boolean } = {},
+  { incomplete = false, chapterStarts }: VerdictCheck = {},
 ): Verdict | null {
   if (!parsed || typeof parsed !== "object") return null;
   const source = parsed as {
@@ -178,6 +245,7 @@ export function validateVerdict(
     readonly value?: unknown;
     readonly verdict?: unknown;
     readonly reason?: unknown;
+    readonly keyChapters?: unknown;
   };
   const clip = (value: unknown, max: number): string => String(value || "").trim().slice(0, max);
   const summary = clip(source.summary, 200);
@@ -190,6 +258,7 @@ export function validateVerdict(
     value: clip(source.value, 120),
     verdict,
     reason: verdict ? clip(source.reason, 120) : "",
+    ...withKeys(chapterStarts ? validKeyStarts(source.keyChapters, chapterStarts) : []),
     ...(incomplete ? { incomplete: true as const } : {}),
   };
 }

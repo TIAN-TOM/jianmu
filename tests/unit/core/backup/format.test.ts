@@ -244,3 +244,22 @@ test("校验途中抛错的记录只跳过这一条，同一份里的其他记�
   );
   assert.deepEqual(imported.skipped, { notes: 0, overviews: 1, qa: 0 });
 });
+
+test("重点章节随结论往返，不升备份版本；坏的、对不上的按生成时的规则只丢重点，概览保留", () => {
+  const chapters = [...(OVERVIEW.analysis.chapters ?? []), { title: "做法", summary: "三步", timestampSeconds: 300, timestamp: "5:00" }];
+  const keyed: OverviewRecord = { ...OVERVIEW, analysis: { ...OVERVIEW.analysis, chapters, verdict: { ...OVERVIEW.analysis.verdict, keyStarts: [0, 300] } } };
+  const backup = buildBackup({ overviews: [keyed] }, EXPORTED_AT);
+  assert.equal(backup.version, BACKUP_VERSION);
+  assert.deepEqual(read(backup).contents.overviews, [keyed]);
+
+  const verdictWith = (keyStarts: unknown) => ({ ...keyed.analysis.verdict, keyStarts });
+  const broken = [verdictWith([300, 120, 300, "0:00", -1]), verdictWith("全部"), verdictWith([1, 2, 3, 4])].map((verdict) => ({ ...keyed, analysis: { ...keyed.analysis, verdict } }));
+  const [mixed, wrongType, unmatched] = read(buildBackup({ overviews: broken }, EXPORTED_AT)).contents.overviews;
+  assert.deepEqual(mixed?.analysis.verdict?.keyStarts, [0, 300], "对上的留下，去重，按时间先后");
+  for (const overview of [wrongType, unmatched]) {
+    assert.equal(overview?.analysis.verdict?.summary, "讲清了做计划的方法。");
+    assert.equal(overview?.analysis.verdict && "keyStarts" in overview.analysis.verdict, false);
+  }
+  const old = read(buildBackup({ overviews: [OVERVIEW] }, EXPORTED_AT)).contents.overviews[0];
+  assert.equal(old?.analysis.verdict && "keyStarts" in old.analysis.verdict, false, "没有这个字段的旧记录照常读");
+});

@@ -1131,3 +1131,40 @@ test("概览分块失败的原因里回显了密钥：给页面的结果和存�
   assert.equal((stored.value as { readonly overview?: { readonly analysisFailures: readonly unknown[] } }).overview?.analysisFailures.length, 1);
   assert.ok(!JSON.stringify(bg.logged).includes(SAMPLE_KEY), "后台日志里也没有密钥");
 });
+
+// ============================================================
+// 重点章节
+// ============================================================
+
+const keyedVerdict = (keyChapters: unknown): Reply => ({
+  text: JSON.stringify({ summary: "讲了两段", value: "有方法", verdict: "看概览就够", reason: "要点都在", keyChapters }),
+});
+
+test("重点章节随结论落库：只留对得上本次章节的，结论照存", async () => {
+  const h = overviewHarness({ respond: ({ isVerdict }) => (isVerdict ? keyedVerdict(["2:30", "3:00", "0:00"]) : undefined) });
+  const result = value(await h.generate().result);
+  assert.deepEqual(result.analysis.verdict?.keyStarts, [0, 150]);
+  const stored = await h.record();
+  assert.deepEqual(stored?.analysis.verdict?.keyStarts, [0, 150]);
+  assert.equal(stored?.analysis.verdict?.summary, "讲了两段");
+});
+
+test("重点章节格式不对：只丢重点，结论照存，不为补标重发", async () => {
+  const h = overviewHarness({ respond: ({ isVerdict }) => (isVerdict ? keyedVerdict({ first: "2:30" }) : undefined) });
+  value(await h.generate().result);
+  const stored = await h.record();
+  assert.equal(stored?.analysis.verdict?.summary, "讲了两段");
+  assert.equal(stored?.analysis.verdict && "keyStarts" in stored.analysis.verdict, false);
+  assert.equal(h.verdictAsks().length, 1, "结论只请求一次");
+});
+
+test("重新生成后这次一个重点都没有：清掉上一版的重点", async () => {
+  let keys: unknown = ["2:30"];
+  const h = overviewHarness({ respond: ({ isVerdict }) => (isVerdict ? keyedVerdict(keys) : undefined) });
+  value(await h.generate().result);
+  assert.deepEqual((await h.record())?.analysis.verdict?.keyStarts, [150]);
+  keys = [];
+  value(await h.generate({ fresh: true }).result);
+  const stored = await h.record();
+  assert.equal(stored?.analysis.verdict && "keyStarts" in stored.analysis.verdict, false);
+});

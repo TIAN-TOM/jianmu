@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   hasAnalysisContent,
+  keyChapterStarts,
+  startSecondsOf,
+  validKeyStarts,
   hasOfficialSummaryContent,
   officialVerdictInputs,
   validateVerdict,
@@ -143,4 +146,44 @@ test("结论的判断档位去掉首尾空白再比对，价值和理由超过 1
   assert.equal(verdict?.verdict, "可以跳过");
   assert.equal(verdict?.value.length, 120);
   assert.equal(verdict?.reason.length, 120);
+});
+
+test("时间点规范成整秒：认方括号、分秒、时分秒和秒数，认不出的不算", () => {
+  assert.equal(startSecondsOf("[2:30]"), 150);
+  assert.equal(startSecondsOf(" 75:05 "), 4505);
+  assert.equal(startSecondsOf("1:02:03"), 3723);
+  assert.equal(startSecondsOf("0:00"), 0);
+  assert.equal(startSecondsOf("150"), 150);
+  assert.equal(startSecondsOf(150.9), 150);
+  for (const bad of ["2:61", "1:60:00", "两分半", "", "-5", -5, Number.NaN, null, undefined, {}]) {
+    assert.equal(startSecondsOf(bad), null, String(bad));
+  }
+});
+
+test("重点章节：精确对上现有章节才留，去重，最多三个，按时间先后，允许第 0 秒", () => {
+  const starts = [0, 150, 300, 450, 600];
+  assert.deepEqual(validKeyStarts(["5:00", "0:00"], starts), [0, 300]);
+  assert.deepEqual(validKeyStarts(["2:30", "[2:30]", 150], starts), [150], "同一章写法不同也算重复");
+  assert.deepEqual(validKeyStarts(["10:00", "7:30", "5:00", "2:30"], starts), [300, 450, 600], "超过三个时留先给的三个");
+  assert.deepEqual(validKeyStarts(["2:31", "9:99", "开头", null], starts), [], "对不上的、格式错的都丢");
+  assert.deepEqual(validKeyStarts(["2:31", "2:30"], starts), [150], "坏的不占三个的名额");
+  assert.deepEqual(validKeyStarts("2:30", starts), [], "不是数组按没有");
+  assert.deepEqual(validKeyStarts(["2:30"], []), []);
+});
+
+test("结论带重点章节：只在给了章节时收，坏了只丢重点、结论照存", () => {
+  const raw = { summary: "讲了 A", value: "B", verdict: "可以跳过", reason: "C", keyChapters: ["2:30", "8:00"] };
+  assert.deepEqual(validateVerdict(raw, { chapterStarts: [0, 150] })?.keyStarts, [150]);
+  assert.equal("keyStarts" in (validateVerdict(raw) ?? {}), false, "没给章节时不收");
+  const broken = validateVerdict({ ...raw, keyChapters: "全部" }, { chapterStarts: [0, 150] });
+  assert.equal(broken?.summary, "讲了 A");
+  assert.equal(broken && "keyStarts" in broken, false, "一个都没有时不写这个字段");
+  assert.equal(validateVerdict({ keyChapters: ["0:00"] }, { chapterStarts: [0] }), null, "重点救不了没有结论的输出");
+});
+
+test("交给页面的重点再和当前章节核对：章节换过以后对不上的不标", () => {
+  const analysis = { chapters: [{ timestampSeconds: 0 }, { timestampSeconds: 200 }], verdict: { keyStarts: [0, 150] } };
+  assert.deepEqual(keyChapterStarts(analysis), [0]);
+  assert.deepEqual(keyChapterStarts({ chapters: [{ timestampSeconds: 0 }], verdict: {} }), [], "旧记录没有这个字段");
+  assert.deepEqual(keyChapterStarts(null), []);
 });

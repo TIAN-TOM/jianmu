@@ -34,6 +34,8 @@ export interface VerdictRequest {
   readonly queueSignal?: AbortSignal | undefined;
   /** 结论只基于部分内容：概览有失败块。 */
   readonly incomplete?: boolean;
+  /** 喂给模型的章节的起始秒，重点章节只认这些。不给时不收重点。 */
+  readonly chapterStarts?: readonly number[] | undefined;
   /** 每一次真正发出之前问一次，回 false 就按取消结束。 */
   readonly stillWanted?: (() => boolean) | undefined;
 }
@@ -66,7 +68,7 @@ export async function requestVerdict(deps: VerdictRequestDeps, request: VerdictR
   } catch (error) {
     deps.log.error("一句话结论读不出来", errorLabel(error));
   }
-  const verdict = validateVerdict(parsed, { incomplete: request.incomplete ?? false });
+  const verdict = validateVerdict(parsed, { incomplete: request.incomplete ?? false, chapterStarts: request.chapterStarts });
   return verdict && truncated ? { ...verdict, truncated: true } : verdict;
 }
 
@@ -100,7 +102,8 @@ export async function concludeOverview(
   try {
     throwIfTaskCanceled(stage.signal);
     const variables = { ...stage.common, durationFormatted: formatTimestamp(stage.totalDuration), ...verdictInputs(verdictMaterial(analysis), { failures }) };
-    const verdict = await requestVerdict(deps, { variables, signal: stage.signal, incomplete: failures.length > 0 });
+    const chapterStarts = (analysis.chapters ?? []).map((chapter) => chapter.timestampSeconds);
+    const verdict = await requestVerdict(deps, { variables, signal: stage.signal, incomplete: failures.length > 0, chapterStarts });
     return verdict ? { verdict } : { failed: true };
   } catch (error) {
     if ((error as { readonly code?: unknown } | null)?.code === "TASK_CANCELED" || stage.signal.aborted) return { canceled: true };

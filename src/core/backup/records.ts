@@ -2,7 +2,7 @@
 // 概览过一遍和生成时相同的校验，必填的字段不对就整条丢掉，交给调用方计数。草稿不进备份。
 import type { TimeRange } from "../ai/chunking.ts";
 import { validateAnalysis } from "../ai/validate.ts";
-import { validateVerdict } from "../ai/verdict.ts";
+import { validateVerdict, validKeyStarts } from "../ai/verdict.ts";
 import type { LearningAnalysis, LearningVerdict } from "../notes/markdown.ts";
 import {
   normalizeAnalysisFailures,
@@ -151,13 +151,18 @@ export function checkDerived(value: unknown): Derived {
   return gen ? { basis, gen } : UNKNOWN_BASIS;
 }
 
-/** 结论按生成时的规则重建；依据官方总结写的、正文被截断过的照旧标明。 */
-function checkVerdict(value: unknown): LearningVerdict | null {
+/**
+ * 结论按生成时的规则重建；依据官方总结写的、正文被截断过的照旧标明。
+ * 重点章节和这条记录的章节对一遍，坏的、对不上的只丢重点；没有这个字段的旧记录按没有重点。
+ */
+function checkVerdict(value: unknown, chapterStarts: readonly number[]): LearningVerdict | null {
   if (!isFields(value)) return null;
   const verdict = validateVerdict(value, { incomplete: value.incomplete === true });
   if (!verdict) return null;
+  const keyStarts = validKeyStarts(value.keyStarts, chapterStarts);
   return {
     ...verdict,
+    ...(keyStarts.length ? { keyStarts } : {}),
     ...(value.source === "official" ? { source: "official" } : {}),
     ...(value.truncated === true ? { truncated: true } : {}),
   };
@@ -180,7 +185,7 @@ export type CheckedAnalysis = LearningAnalysis & { readonly truncatedRanges?: re
 
 function checkAnalysis(value: Fields): CheckedAnalysis {
   const { chapters, keyQuotes } = validateAnalysis(value, undefined);
-  const verdict = checkVerdict(value.verdict);
+  const verdict = checkVerdict(value.verdict, chapters.map((chapter) => chapter.timestampSeconds));
   const truncatedRanges = truncatedRangesOf(value.truncatedRanges);
   return {
     chapters,

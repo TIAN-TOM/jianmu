@@ -1,6 +1,6 @@
 // 笔记和学习稿的 Markdown 导出。视频地址的前缀由调用方传入，链接只从视频键现拼。
 import { groupQuotesIntoChapters, type ChapterPart, type QuotePart } from "../ai/chunking.ts";
-import type { OfficialSummary } from "../ai/verdict.ts";
+import { keyChapterStarts, type OfficialSummary } from "../ai/verdict.ts";
 import { formatTimestamp } from "../transcript/segment.ts";
 import { parseVideoKey, type VideoKey } from "../video-ref.ts";
 import {
@@ -22,6 +22,8 @@ export interface LearningVerdict {
   readonly reason?: unknown;
   readonly source?: unknown;
   readonly incomplete?: unknown;
+  /** 重点章节的起始秒，只认和现有章节对得上的。 */
+  readonly keyStarts?: unknown;
   /** 模型的正文被截断，靠补齐读出来：摘要或理由可能只有半句。 */
   readonly truncated?: unknown;
 }
@@ -351,9 +353,12 @@ export function learningAsMarkdown(
 
   const chapterLink = (chapter: ChapterPart): string =>
     mdLink(escapeMarkdown(formatStamp(chapter.timestampSeconds, chapter.timestamp)), hrefOf(chapter.timestampSeconds));
+  // 结论标出的重点章节在标题后注明，和侧边栏的标记对应。
+  const keyStarts = new Set(keyChapterStarts(analysis));
+  const keyMark = (chapter: ChapterPart): string => (keyStarts.has(Math.floor(chapter.timestampSeconds)) ? "（重点）" : "");
   const chapterHeading = (chapter: ChapterPart): string =>
-    escapeMarkdown(String(chapter.title || "").trim()) ||
-    escapeMarkdown(formatStamp(chapter.timestampSeconds, chapter.timestamp));
+    (escapeMarkdown(String(chapter.title || "").trim()) ||
+      escapeMarkdown(formatStamp(chapter.timestampSeconds, chapter.timestamp))) + keyMark(chapter);
   const quoteLink = (quote: QuotePart): string =>
     mdLink(escapeMarkdown(formatStamp(quote.timestampSeconds, quote.timestamp)), hrefOf(quote.timestampSeconds));
 

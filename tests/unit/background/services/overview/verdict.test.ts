@@ -701,3 +701,12 @@ test("后台里概览和用官方总结写结论排同一道并发闸门：合�
   assert.equal((await verdict).ok, true);
   assert.ok(bg.ai.posts().some((request) => userOf(request).includes("全片概述")), "官方总结写的结论请求最后也发了");
 });
+
+test("用官方总结写的结论不带重点章节：没有生成的章节可对", async () => {
+  const keyed: Respond = ({ isVerdict }) =>
+    isVerdict ? { text: JSON.stringify({ summary: "官方说讲了两段", value: "有方法", verdict: "看概览就够", reason: "要点都在", keyChapters: ["1:05"] }) } : undefined;
+  const h = overviewHarness({ respond: keyed });
+  const done = value(await h.officialVerdict().result);
+  assert.equal(done.analysis.verdict?.summary, "官方说讲了两段");
+  assert.equal(done.analysis.verdict && "keyStarts" in done.analysis.verdict, false);
+});

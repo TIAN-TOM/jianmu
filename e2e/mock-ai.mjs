@@ -68,7 +68,11 @@ function kindOf(prompt) {
  * @param {"analysis" | "verdict" | "qa"} kind @param {string} prompt
  */
 function resultOf(kind, prompt) {
-  if (kind === "verdict") return { summary: "模拟服务写的一句话结论", value: "样例价值", verdict: videoOf(prompt) === SKIPPED_VIDEO ? "可以跳过" : "看概览就够", reason: "样例理由" };
+  if (kind === "verdict") {
+    // 重点章节标第一章：照提示词的要求抄它开头的时间点。
+    const first = /^\[(\d+:\d{2})\]/m.exec(prompt)?.[1];
+    return { summary: "模拟服务写的一句话结论", value: "样例价值", verdict: videoOf(prompt) === SKIPPED_VIDEO ? "可以跳过" : "看概览就够", reason: "样例理由", keyChapters: first ? [first] : [] };
+  }
   if (kind === "qa") return { answer: "模拟服务的回答，依据在 [0:00]。" };
   const seconds = Number(/（第 (\d+) 秒）/.exec(prompt)?.[1] ?? 0);
   return {

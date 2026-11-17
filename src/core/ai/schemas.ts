@@ -92,7 +92,7 @@ export const ANALYSIS_CHUNK = describe(
   }),
 );
 
-// 一句话结论：判断档位限定在界面认得的几档里。
+// 一句话结论：判断档位限定在界面认得的几档里；重点章节写成章节的时间点，由本机对回现有章节。
 export const VERDICT = describe(
   "verdict",
   object({
@@ -100,6 +100,7 @@ export const VERDICT = describe(
     value: string,
     verdict: { type: "string", enum: [...VERDICT_LABELS] },
     reason: string,
+    keyChapters: { type: "array", items: string },
   }),
 );
 

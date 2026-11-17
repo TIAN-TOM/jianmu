@@ -526,3 +526,23 @@ test("笔记的时间点缺失时按 0:00 排在最前，夹着的坏记录跳�
     [`# ${ID_A}`, "", `${VIDEO_BASE}${ID_A}`, "", `- [0:00](${VIDEO_BASE}${ID_A}) 前`, `- [0:05](${VIDEO_BASE}${ID_A}?t=5) 后`, ""].join("\n"),
   );
 });
+
+test("学习稿在重点章节的标题后注明「重点」，和当前章节对不上的不标", () => {
+  const markdown = learning({
+    title: "标题",
+    videoKey: KEY_A,
+    analysis: {
+      chapters: [
+        { timestamp: "0:00", timestampSeconds: 0, title: "开场", summary: "" },
+        { timestamp: "2:30", timestampSeconds: 150, title: "做法", summary: "三步" },
+      ],
+      keyQuotes: [],
+      verdict: { summary: "讲了 A", value: "", verdict: "看概览就够", reason: "", keyStarts: [150, 400] },
+    },
+    notes: [],
+  });
+  assert.match(markdown, /^- \[2:30\]\(.+\) 做法（重点）$/m);
+  assert.match(markdown, /^### \[2:30\]\(.+\) 做法（重点）$/m);
+  assert.match(markdown, /^- \[0:00\]\(.+\) 开场$/m);
+  assert.equal((markdown.match(/（重点）/g) ?? []).length, 2, "对不上的 400 秒不出现");
+});

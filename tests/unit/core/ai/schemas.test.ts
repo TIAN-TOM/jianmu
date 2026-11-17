@@ -111,7 +111,7 @@ test("各提示词的示例输出都符合对应的 schema", () => {
     ],
     [
       SCHEMAS.VERDICT,
-      { summary: "这个视频主要讲了什么", value: "核心价值", verdict: "看概览就够", reason: "判断理由" },
+      { summary: "这个视频主要讲了什么", value: "核心价值", verdict: "看概览就够", reason: "判断理由", keyChapters: ["12:05"] },
     ],
     [SCHEMAS.SEGMENT_BATCH, { segments: [{ id: "s12", text: "修复后的文字。" }] }],
     [SCHEMAS.QA_ANSWER, { answer: "…[0:32]…" }],
@@ -126,7 +126,7 @@ test("schema 拒绝提示词之外的形状：缺字段、多字段、自创档�
   assert.equal(conforms(SCHEMAS.NOTE_QUOTE.schema, {}), false);
   assert.equal(conforms(SCHEMAS.QA_ANSWER.schema, { answer: "a", citations: [] }), false);
   assert.equal(
-    conforms(SCHEMAS.VERDICT.schema, { summary: "s", value: "v", verdict: "还行", reason: "r" }),
+    conforms(SCHEMAS.VERDICT.schema, { summary: "s", value: "v", verdict: "还行", reason: "r", keyChapters: [] }),
     false,
   );
   assert.equal(
@@ -189,8 +189,9 @@ test("五份输出结构的名字、字段和顺序逐字节固定", () => {
             value: text,
             verdict: { type: "string", enum: ["值得看完整视频", "看概览就够", "可以跳过", "信息不足"] },
             reason: text,
+            keyChapters: { type: "array", items: text },
           },
-          required: ["summary", "value", "verdict", "reason"],
+          required: ["summary", "value", "verdict", "reason", "keyChapters"],
           additionalProperties: false,
         },
       },
