@@ -1,4 +1,4 @@
-// 播放计时（PRD 6.3）：按实际播放累计，暂停不清零，拖动跳过的不算，广告不算，倍速按真实时间算，单次采样最多计 1.5 秒，刷新后接着计。
+// 播放计时（PRD 6.3）：按实际播放累计，暂停不清零，缓冲卡住不算，拖动跳过的不算，广告不算，倍速按真实时间算，单次采样最多计 1.5 秒，刷新后接着计。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createPlayClock, MAX_STEP_SEC, type PlaySample } from "../../../../src/core/mode/play-clock.ts";
@@ -74,4 +74,17 @@ test("刷新同一个视频：从后台回的累计秒数接着计；时间倒�
   backwards.sample({ at: 5000, position: 0, rate: 1, playing: true });
   backwards.sample({ at: 4000, position: 0, rate: 1, playing: true });
   assert.equal(backwards.playedSec(), 0);
+});
+
+test("缓冲卡住：报在播、有画面，但播放位置不动或走得慢，只算真的播过去的那段", () => {
+  const clock = createPlayClock();
+  clock.sample({ at: 0, position: 10, rate: 1, playing: true });
+  for (let i = 1; i <= 75; i += 1) clock.sample({ at: i * 800, position: 10, rate: 1, playing: true });
+  assert.equal(clock.playedSec(), 0, "卡了一分钟，一秒都不算");
+  clock.sample({ at: 61_000, position: 10.3, rate: 1, playing: true });
+  assert.ok(Math.abs(clock.playedSec() - 0.3) < 1e-9, "这一步只走了 0.3 秒");
+  const fast = createPlayClock();
+  fast.sample({ at: 0, position: 0, rate: 2, playing: true });
+  fast.sample({ at: 1000, position: 1, rate: 2, playing: true });
+  assert.equal(fast.playedSec(), 0.5, "两倍速只走了 1 秒画面，算 0.5 秒真实时间");
 });

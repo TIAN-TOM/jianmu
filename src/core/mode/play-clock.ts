@@ -1,5 +1,6 @@
 // 播放计时：按实际播放累计这次观看看了多久，满 1 分钟时后台可能自动切到精读。纯函数，内容脚本只喂采样。
-// 两次采样都在播时累加中间的真实经过时间，单次最多 1.5 秒；暂停不清零，倍速按真实时间算；
+// 两次采样都在播时累加中间的真实经过时间，但不超过播放位置实际走的那段（按倍速折回真实时间），单次最多 1.5 秒：
+// 缓冲卡住时位置不动，不算；暂停不清零，倍速按真实时间算；
 // 播放位置比按倍速推算的多走或少走超过 2 秒算拖动，这一段不计；广告、没画面、在拖动时报不在播。
 
 /** 单次采样最多计这么久：标签页被节流、机器卡住时不一下子记一大段。 */
@@ -39,7 +40,8 @@ export function createPlayClock(startSec = 0): PlayClock {
       const rate = Number.isFinite(previous.rate) && previous.rate > 0 ? previous.rate : 1;
       const moved = next.position - previous.position;
       if (!Number.isFinite(moved) || Math.abs(moved - elapsed * rate) > SEEK_TOLERANCE_SEC) return played;
-      played += Math.min(elapsed, MAX_STEP_SEC);
+      // 卡在缓冲里时位置不动或走得慢，只算真的播过去的那段。
+      played += Math.min(elapsed, Math.max(0, moved) / rate, MAX_STEP_SEC);
       return played;
     },
     playedSec: () => played,
