@@ -1,5 +1,5 @@
 // 取不到内容时替换内容区的状态块：标题写原因，一行写影响，下面是下一步。
-// 下一步最多一个主按钮、两个次按钮，按钮写清点了会发生什么。
+// 下一步是一句提示，加最多一个主按钮、两个次按钮，按钮写清点了会发生什么。
 import { useId } from "preact/hooks";
 import { Button } from "./button.tsx";
 
@@ -13,11 +13,12 @@ export interface StateAction {
 export interface StateBlockProps {
   readonly title: string;
   readonly impact?: string | undefined;
+  readonly next?: string | undefined;
   readonly primary?: StateAction;
   readonly secondary?: readonly [] | readonly [StateAction] | readonly [StateAction, StateAction];
 }
 
-export function StateBlock({ title, impact, primary, secondary = [] }: StateBlockProps) {
+export function StateBlock({ title, impact, next, primary, secondary = [] }: StateBlockProps) {
   const id = useId();
   const hasActions = primary !== undefined || secondary.length > 0;
   return (
@@ -26,6 +27,7 @@ export function StateBlock({ title, impact, primary, secondary = [] }: StateBloc
         {title}
       </h2>
       {impact ? <p class="state-impact">{impact}</p> : null}
+      {next ? <p class="state-next">{next}</p> : null}
       {hasActions ? (
         <div class="state-actions">
           {primary ? (

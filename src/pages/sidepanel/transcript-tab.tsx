@@ -1,7 +1,6 @@
 // 字幕列表：精读的主体，速览里还没有概览时也摆在下面。逐段字幕，点一段跳到那里，跟着播放位置滚动；搜索高亮、换原文译文双语、导入导出字幕文件。
 // 读不到字幕时说明原因，视频网站给的导读照样摆出来；选中一段文字可以请模型解释。
 import { useEffect, useRef, useState } from "preact/hooks";
-import { describe } from "../../core/errors.ts";
 import { hasMatch, splitMatches } from "../../core/highlight.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
 import type { TranscriptView } from "../../shared/messages/transcript.ts";
@@ -10,6 +9,7 @@ import { Icon } from "../shared/ui/icon.tsx";
 import { Menu, type MenuItem } from "../shared/ui/menu.tsx";
 import { Sheet } from "../shared/ui/overlay.tsx";
 import { StateBlock } from "../shared/ui/state-block.tsx";
+import { stateCopy } from "../shared/ui/state.ts";
 import { downloadText, safeFileName } from "./files.ts";
 import { CreatorChapters, OfficialSummary } from "./guides.tsx";
 import type { Panel } from "./panel.ts";
@@ -214,11 +214,13 @@ export function TranscriptTab({ panel, guides = true, follow = true }: { readonl
   }
   if (now.state === "failed") {
     const { failure, video } = now;
+    const copy = stateCopy(failure.code, failure.detail);
+    const guided = guides && failure.official?.status === "ok";
     return (
       <>
         <StateBlock
-          title={describe(failure.code, failure.detail)}
-          {...(guides && failure.official?.status === "ok" ? { impact: "下面是视频网站给的导读。" } : {})}
+          {...copy}
+          {...(guided ? { impact: `${copy.impact ?? ""}下面是视频网站给的导读。` } : {})}
           primary={{ label: "重试", onClick: () => void panel.transcript.load(video, panel.follow.target.peek().tabId, { fresh: true }) }}
           secondary={[{ label: "导入字幕文件", onClick: () => fileInput.current?.click() }]}
         />

@@ -1,7 +1,7 @@
 // 共用组件里的几条小规则：方向键在一组控件里移动、一行提示按优先级挑一条、菜单的位置、状态块的文案。
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { describe as describeError } from "../../../../../src/core/errors.ts";
+import { errorCopy } from "../../../../../src/core/errors.ts";
 import { rovingTarget } from "../../../../../src/pages/shared/ui/keys.ts";
 import { MENU_GAP, menuPlacement, VIEWPORT_MARGIN } from "../../../../../src/pages/shared/ui/menu.ts";
 import { pickNotice } from "../../../../../src/pages/shared/ui/notice.ts";
@@ -62,7 +62,9 @@ test("菜单不出视口：左边贴着边距，太高的贴着上边距", () =>
   assert.equal(wide.left, VIEWPORT_MARGIN, "比视口还宽时左边贴着边距");
 });
 
-test("状态块的文案：现在每个错误码只有一句话，写在原因那一段，影响先留空", () => {
-  assert.deepEqual(stateCopy("NO_CAPTIONS"), { title: describeError("NO_CAPTIONS") });
-  assert.equal(stateCopy("RATE_LIMITED").impact, undefined);
+test("状态块的文案：原因当标题，影响当说明，下一步单独一段；没有的那段不出现", () => {
+  const copy = errorCopy("NO_CAPTIONS");
+  assert.deepEqual(stateCopy("NO_CAPTIONS"), { title: copy.cause, impact: copy.impact, next: copy.next });
+  assert.deepEqual(stateCopy("NOTE_NOT_FOUND"), { title: errorCopy("NOTE_NOT_FOUND").cause });
+  assert.deepEqual(stateCopy("UNPLAYABLE", "paid"), { title: "这是付费内容。", impact: errorCopy("UNPLAYABLE", "paid").impact });
 });

@@ -32,15 +32,15 @@ export const ROUTING_ERROR_TEXT: Readonly<Record<RoutingErrorCode, ErrorCopy>> =
   },
   BACKGROUND_FAILED: { cause: "简幕的后台出了问题。", impact: "这件事没有做完。", next: "稍后再试。" },
   BACKGROUND_UNREACHABLE: {
-    cause: `简幕的后台没有响应，请求没发出去。${NOT_ABOUT_ACCOUNTS}`,
-    impact: "没发给模型，不花额度。",
+    cause: "简幕的后台没有响应，请求没发出去。",
+    impact: `没发给模型，不花额度。${NOT_ABOUT_ACCOUNTS}`,
     next:
       "到浏览器的扩展管理页把简幕关掉再打开，这样不会删掉笔记和概览，然后再试一次。"
       + "还不行、要卸载重装的话，先在设置页点「导出备份」存成文件：卸载会清空这台电脑上的全部笔记和概览，重装后再用「恢复备份」导回来。",
   },
   BACKGROUND_DROPPED: {
-    cause: `简幕的后台处理到一半断开了，没收到结果。${NOT_ABOUT_ACCOUNTS}`,
-    impact: "请求可能已经发给了模型，用到模型的操作可能照样计费。",
+    cause: "简幕的后台处理到一半断开了，没收到结果。",
+    impact: `请求可能已经发给了模型，用到模型的操作可能照样计费。${NOT_ABOUT_ACCOUNTS}`,
     next: "先别急着重试，过一会儿重新打开这个视频，看看结果有没有存下来。",
   },
 };

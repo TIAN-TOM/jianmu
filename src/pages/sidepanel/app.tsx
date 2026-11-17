@@ -1,7 +1,7 @@
 // 侧边栏外壳：没确认启用时只有启用说明；没有视频时说明怎么用；有视频时是头部（含模式切换）、一行提示、
 // 当前模式的内容（速览或精读）和底部工具条。问答抽屉和笔记层挂在最外面，切模式时不卸载，草稿和在途回答都留着。
 // 视频页没连上扩展、还没设置 AI 服务、字幕和视频对不上、打开就出结论停着，都放在头部下面的一行提示里。
-import { describe } from "../../core/errors.ts";
+import { describe, errorCopy } from "../../core/errors.ts";
 import { noticeLines, noticeStatus, ACTIVATION_TABLE } from "../../core/consent.ts";
 import type { AutoPauseReason } from "../../shared/messages/ai.ts";
 import { ActivationNotice } from "../shared/ui/activation-notice.tsx";
@@ -14,6 +14,7 @@ import { Notice } from "../shared/ui/notice.tsx";
 import { pickNotice, type NoticeEntry } from "../shared/ui/notice.ts";
 import { useEffect } from "preact/hooks";
 import { StateBlock } from "../shared/ui/state-block.tsx";
+import { stateCopy } from "../shared/ui/state.ts";
 import { Layer, Sheet } from "../shared/ui/overlay.tsx";
 import { NotesTab } from "./notes-tab.tsx";
 import type { Panel } from "./panel.ts";
@@ -36,7 +37,7 @@ function Activation({ panel }: { readonly panel: Panel }) {
   const view = panel.activation.view.value;
   if (view.state === "loading") return <p class="panel-loading">正在读取…</p>;
   if (view.state === "failed") {
-    return <StateBlock title={describe(view.failure.code, view.failure.detail)} primary={{ label: "重试", onClick: () => void panel.activation.load() }} />;
+    return <StateBlock {...stateCopy(view.failure.code, view.failure.detail)} primary={{ label: "重试", onClick: () => void panel.activation.load() }} />;
   }
   if (view.state !== "needed") return null;
   const failure = panel.activation.confirmFailure.value;
@@ -148,7 +149,7 @@ function notices(panel: Panel): (NoticeEntry | null)[] {
     panel.undoLine.shown.value
       ? { id: AUTO_SWITCHED, priority: 1.5, text: "已切到精读", tone: "accent", action: { label: "回到速览", run: () => void panel.mode.undo() } }
       : null,
-    now.state === "ready" && now.view.subtitleMismatch ? { id: "mismatch", priority: 2, text: describe("SUBTITLE_MISMATCH"), tone: "warn" } : null,
+    now.state === "ready" && now.view.subtitleMismatch ? { id: "mismatch", priority: 2, text: errorCopy("SUBTITLE_MISMATCH").cause, tone: "warn" } : null,
     config.state === "checked" && !config.view.ready
       ? { id: "config", priority: 3, text: "字幕不用设置就能看；概览和问答要先设置 AI 服务", tone: "plain", action: { label: "打开设置", run: panel.openOptions } }
       : null,

@@ -110,5 +110,5 @@ test("后台拒了确认时回到空闲并说原因；连接断了时说一句�
   fake.emit({ type: "window.state", windowId: 7, run: { stopping: false, entries: [{ video: video(1), title: "一", status: "running" }] } });
   fake.drop();
   assert.equal(phaseOf(store), "idle");
-  assert.match(store.error.value, /连接断了/);
+  assert.match(store.error.value, /^这一批停下了。简幕的后台/);
 });

@@ -38,6 +38,12 @@ function codeOf(reply: { readonly ok: boolean; readonly code?: ErrorCode }): Err
   return reply.code;
 }
 
+/** 状态块上三段合起来的文字。 */
+function blockText(code: ErrorCode): string {
+  const { title, impact = "", next = "" } = stateCopy(code);
+  return title + impact + next;
+}
+
 function assertDroppedText(text: string): void {
   assert.match(text, /处理到一半断开/);
   assert.match(text, /可能已经发给了模型/);
@@ -133,10 +139,10 @@ test("后台始终不可达时，不再把它伪装成字幕失败", async () =>
   assert.deepEqual(reply, { ok: false, code: "BACKGROUND_UNREACHABLE" }, "浏览器的原文也不夹在结果里");
   const code = codeOf(reply);
   assert.equal(Object.hasOwn(TRANSCRIPT_ERROR_TEXT, code), false, "不是字幕那一类的码，页面不会摆登录、导入这些按钮");
-  const { title } = stateCopy(code);
+  const { title, impact = "" } = stateCopy(code);
   assert.match(title, /^简幕的后台没有响应/);
-  assert.match(title, /和视频网站的账号、模型服务的密钥和网络都无关/, "用户会照着提示去折腾密钥和网络，先把这条路堵死");
-  assertUnreachableText(title);
+  assert.match(impact, /和视频网站的账号、模型服务的密钥和网络都无关/, "用户会照着提示去折腾密钥和网络，先把这条路堵死");
+  assertUnreachableText(blockText(code));
 });
 
 test("后台无响应时先建议停用再启用；提到重装时先说怎么备份", () => {
@@ -164,7 +170,7 @@ test("侧边栏：生成概览时断线，提示可能已经发给了模型，�
   const { fake, api } = client();
   fake.reply("task.start", throwing(BROWSER_ERRORS.channelClosed));
   const code = codeOf(await startOverview(api));
-  assertDroppedText(stateCopy(code).title);
+  assertDroppedText(blockText(code));
 });
 
 test("侧边栏：取字幕一直断线时，错误页写中文标题和说明", async () => {
@@ -174,9 +180,8 @@ test("侧边栏：取字幕一直断线时，错误页写中文标题和说明",
   assert.equal(fake.attempts("transcript.get"), 2);
   assert.deepEqual(reply, { ok: false, code: "BACKGROUND_DROPPED" }, "浏览器的原文也不夹在结果里");
   const code = codeOf(reply);
-  const { title } = stateCopy(code);
-  assert.match(title, /^简幕的后台处理到一半断开了/);
-  assertDroppedText(title);
+  assert.match(stateCopy(code).title, /^简幕的后台处理到一半断开了/);
+  assertDroppedText(blockText(code));
 });
 
 test("侧边栏：问答时断线，提示条写中文说明", async () => {
@@ -198,7 +203,7 @@ test("侧边栏：根本没送到后台的，照旧说没发出去，并给不�
   const code = codeOf(await startOverview(api));
   assert.equal(code, "BACKGROUND_UNREACHABLE");
   assert.equal(fake.attempts("task.start"), 1, "不是幂等的就不重试");
-  assertUnreachableText(stateCopy(code).title);
+  assertUnreachableText(blockText(code));
 });
 
 test("卡片：生成概览时断线，状态行写中文说明，可能已经发给了模型", async () => {

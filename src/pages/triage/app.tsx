@@ -7,6 +7,7 @@ import type { TriageItem } from "../../core/triage/state.ts";
 import type { Activation } from "../shared/activation.ts";
 import { Button } from "../shared/ui/button.tsx";
 import { StateBlock } from "../shared/ui/state-block.tsx";
+import { stateCopy } from "../shared/ui/state.ts";
 import { VerdictBlock } from "../shared/ui/verdict-block.tsx";
 import { officialRecordText, type Filter, type Status, type TriageState } from "./state.ts";
 
@@ -199,14 +200,14 @@ export function App({ state, activation, optionsUrl }: { readonly state: TriageS
       <p class="lede">先用 B 站官方总结快速看每个视频讲了什么，再决定要不要花 API 额度写一句话结论。只读取你自己的稍后再看列表，不改动 B 站上的任何数据。</p>
       {view.state === "loading" ? <p class="hint">正在读取启用状态……</p> : null}
       {view.state === "failed" ? (
-        <StateBlock title="读不到启用状态" impact="刷新这一页再试。" primary={{ label: "重试", onClick: () => void activation.load() }} />
+        <StateBlock {...stateCopy(view.failure.code, view.failure.detail)} primary={{ label: "重试", onClick: () => void activation.load() }} />
       ) : null}
       {view.state === "needed" ? (
         <StateBlock title="还没启用简幕" impact="先在侧边栏或设置页读一下启用说明，点「启用简幕」，再回到这一页。" />
       ) : null}
       {activation.enabled.value ? (
         <>
-          {loadFailure ? <StateBlock title="读不出粗筛的结果" impact={loadFailure} primary={{ label: "重试", onClick: () => void state.load() }} /> : null}
+          {loadFailure ? <StateBlock {...stateCopy(loadFailure.code, loadFailure.detail)} primary={{ label: "重试", onClick: () => void state.load() }} /> : null}
           <section class="card" id="triage-list">
             <h2>读取列表</h2>
             <p class="hint">

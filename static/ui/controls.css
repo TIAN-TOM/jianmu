@@ -291,6 +291,10 @@
   color: var(--text-muted);
 }
 
+.state-next {
+  color: var(--text);
+}
+
 .state-actions {
   display: flex;
   flex-wrap: wrap;

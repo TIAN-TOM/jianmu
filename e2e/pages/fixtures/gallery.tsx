@@ -3,6 +3,7 @@
 import { signal } from "@preact/signals";
 import { render } from "preact";
 import { ACTIVATION_TABLE, noticeStatus } from "../../../src/core/consent.ts";
+import type { ErrorCode } from "../../../src/core/errors.ts";
 import type { Mode } from "../../../src/core/mode/types.ts";
 import { ActivationNotice } from "../../../src/pages/shared/ui/activation-notice.tsx";
 import { activationSections } from "../../../src/pages/shared/ui/activation.ts";
@@ -85,6 +86,18 @@ const fullStatus = noticeStatus(ACTIVATION_TABLE, {});
 const FULL_SECTIONS = activationSections(fullStatus.state === "needed" ? fullStatus.items : []);
 const NEW_SECTIONS = activationSections([{ kind: "read", text: "示例：说明新增的一项读取" }]);
 const noCaptions = stateCopy("NO_CAPTIONS");
+// 各类错误各挑一个，看三段在状态块里怎么排。
+const ERROR_SAMPLES: readonly (readonly [ErrorCode, string?])[] = [
+  ["NEED_LOGIN"],
+  ["UNPLAYABLE", "paid"],
+  ["NO_AI_CONFIG"],
+  ["AI_RATE_LIMITED"],
+  ["AI_HARD_TIMEOUT"],
+  ["BACKGROUND_UNREACHABLE"],
+  ["BACKGROUND_DROPPED"],
+  ["STORAGE_FULL"],
+  ["NOTE_NOT_FOUND"],
+];
 
 function Gallery() {
   return (
@@ -134,14 +147,21 @@ function Gallery() {
 
       <section id="state-demo">
         <StateBlock
-          title={noCaptions.title}
-          impact="读不到字幕，生成不了完整概览。可以导入字幕文件。"
+          {...noCaptions}
           primary={{ label: "导入字幕文件", onClick: () => (picked.value = "导入字幕文件") }}
           secondary={[
             { label: "只用标题和简介写结论", onClick: () => (picked.value = "只用标题和简介写结论"), note: "会调用一次模型" },
             { label: "重新读取", onClick: () => (picked.value = "重新读取") },
           ]}
         />
+      </section>
+
+      <section id="errors-demo">
+        {ERROR_SAMPLES.map(([code, detail]) => (
+          <div key={`${code}/${detail ?? ""}`} data-code={code}>
+            <StateBlock {...stateCopy(code, detail)} primary={{ label: "重试", onClick: () => (picked.value = code) }} />
+          </div>
+        ))}
       </section>
 
       <section id="controls" class="gallery-wrap">

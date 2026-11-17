@@ -1,7 +1,7 @@
 // 粗筛页的状态和动作。三步都经长连接 batch 交给后台做：读列表、逐个取官方总结、写一句话结论；后台做完一个推一个。
 // 页面开着连接就开着，关掉页面连接断开，后台撤掉还在排队的。开始前就地确认，写清数量、跳过规则和费用。
 import { computed, signal, type ReadonlySignal } from "@preact/signals";
-import { describe, type ErrorCode } from "../../core/errors.ts";
+import { describe, errorCopy, type ErrorCode, type Failure } from "../../core/errors.ts";
 import { hasOfficialContent, isOfficialDone, OFFICIAL_INTERVAL_MS, officialTodo, verdictTodo } from "../../core/triage/batch.ts";
 import { formatDateTime, toMarkdown } from "../../core/triage/export.ts";
 import { hasVerdict, type GroupKey } from "../../core/triage/groups.ts";
@@ -39,7 +39,7 @@ export interface TriageDeps {
 export interface TriageState {
   /** 还没问到是 null。 */
   readonly snapshot: ReadonlySignal<TriageSnapshot | null>;
-  readonly loadFailure: ReadonlySignal<string | null>;
+  readonly loadFailure: ReadonlySignal<Failure | null>;
   /** 后台正在跑的一步：这一页发起的，或者别的页面发起、这一页接上的。 */
   readonly running: ReadonlySignal<TriageStep | null>;
   readonly stopping: ReadonlySignal<boolean>;
@@ -84,7 +84,7 @@ export function officialRecordText(record: OfficialRecord | undefined, item: Tri
       return "要先在这个浏览器里登录 B 站";
     default:
       if (record.reason === "RATE_LIMITED") return "被 B 站限流了，过几分钟再点开始会重试";
-      return `没取到：${describe((record.reason ?? "BACKGROUND_FAILED") as ErrorCode)}再点开始会重试`;
+      return `没取到：${errorCopy((record.reason ?? "BACKGROUND_FAILED") as ErrorCode).cause}再点开始会重试`;
   }
 }
 
@@ -141,7 +141,7 @@ export function createTriageState(deps: TriageDeps): TriageState {
   const { api } = deps;
   const now = deps.now ?? Date.now;
   const snapshot = signal<TriageSnapshot | null>(null);
-  const loadFailure = signal<string | null>(null);
+  const loadFailure = signal<Failure | null>(null);
   const running = signal<TriageStep | null>(null);
   const stopping = signal(false);
   const pending = signal<Pending | null>(null);
@@ -168,7 +168,7 @@ export function createTriageState(deps: TriageDeps): TriageState {
   async function load(): Promise<void> {
     const reply = await api.send("triage.state", {});
     if (!reply.ok) {
-      loadFailure.value = describe(reply.code, reply.detail);
+      loadFailure.value = reply;
       return;
     }
     loadFailure.value = null;
@@ -194,7 +194,7 @@ export function createTriageState(deps: TriageDeps): TriageState {
       if (event.verdict) tally = { ...tally, written: tally.written + 1 };
       else if (event.failure && event.failure.code !== "TASK_CANCELED" && event.failure.code !== "TASK_ALREADY_RUNNING") {
         tally = { ...tally, failed: tally.failed + 1 };
-        errors.value = { ...errors.peek(), [event.video]: `结论没写成：${failureText(event.failure)}` };
+        errors.value = { ...errors.peek(), [event.video]: `结论没写成：${errorCopy(event.failure.code).cause}` };
       }
     }
     if (!stopping.peek()) statusOf(event.step).value = { text: `${event.step === "official" ? "正在取" : "正在写"} ${event.done} / ${runningTotal}…` };
@@ -272,7 +272,7 @@ export function createTriageState(deps: TriageDeps): TriageState {
       onClose(code) {
         port = null;
         const step = running.peek();
-        if (step) statusOf(step).value = { text: `和后台的连接断了，这一步停下了：${describe(code)}`, tone: "error" };
+        if (step) statusOf(step).value = { text: `这一步停下了。${describe(code)}`, tone: "error" };
         running.value = null;
         stopping.value = false;
       },

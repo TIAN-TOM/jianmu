@@ -141,7 +141,7 @@ export function createWindowBatch({ api, windowId: readWindowId = realWindowId }
     port = null;
     if (!enabled) return;
     // 后台被回收或重新加载：这一批在后台已经没了，界面回到能重新开始的样子。
-    if (state.peek().phase !== "idle") error.value = `和后台的连接断了：${describe(code)}`;
+    if (state.peek().phase !== "idle") error.value = `这一批停下了。${describe(code)}`;
     state.value = IDLE;
   }
 

@@ -9,6 +9,7 @@ import { ActivationNotice } from "../shared/ui/activation-notice.tsx";
 import { activationSections } from "../shared/ui/activation.ts";
 import { Button } from "../shared/ui/button.tsx";
 import { StateBlock } from "../shared/ui/state-block.tsx";
+import { stateCopy } from "../shared/ui/state.ts";
 import type { PageApi } from "../shared/api.ts";
 import { AiSection } from "./ai-section.tsx";
 import { AutoSection } from "./auto-section.tsx";
@@ -26,7 +27,7 @@ function ActivationGate({ activation }: { readonly activation: Activation }) {
   const view = activation.view.value;
   if (view.state === "loading") return <p class="hint">正在读取启用状态……</p>;
   if (view.state === "failed") {
-    return <StateBlock title="读不到启用状态" impact={describe(view.failure.code, view.failure.detail)} primary={{ label: "重试", onClick: () => void activation.load() }} />;
+    return <StateBlock {...stateCopy(view.failure.code, view.failure.detail)} primary={{ label: "重试", onClick: () => void activation.load() }} />;
   }
   if (view.state !== "needed") return null;
   const failure = activation.confirmFailure.value;

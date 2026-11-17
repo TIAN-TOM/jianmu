@@ -2,7 +2,7 @@
 // 以及两档宽度乘三套主题、两种明暗、三档字号下不出横向滚动条、关键文字对比度达标。
 import assert from "node:assert/strict";
 import { ACTIVATION_TABLE } from "../../src/core/consent.ts";
-import { describe as describeError } from "../../src/core/errors.ts";
+import { errorCopy } from "../../src/core/errors.ts";
 import { APPEARANCES, PANEL_WIDTHS, scenario } from "./harness.mjs";
 
 const test = scenario(import.meta.url);
@@ -142,13 +142,16 @@ test("组件样张：三段式状态块写原因、影响和下一步，一个�
       labelled: root.getAttribute("aria-labelledby") === title.id,
       title: title.textContent,
       impact: root.querySelector(".state-impact").textContent,
+      next: root.querySelector(".state-next").textContent,
       buttons: [...root.querySelectorAll(".state-actions button")].map((button) => [button.dataset.variant, button.textContent]),
       notes: [...root.querySelectorAll(".control-note")].map((note) => note.textContent),
     };
   })()`);
   assert.equal(block.labelled, true);
-  assert.equal(block.title, describeError("NO_CAPTIONS"));
-  assert.equal(block.impact, "读不到字幕，生成不了完整概览。可以导入字幕文件。");
+  const copy = errorCopy("NO_CAPTIONS");
+  assert.equal(block.title, copy.cause);
+  assert.equal(block.impact, copy.impact);
+  assert.equal(block.next, copy.next);
   assert.deepEqual(block.buttons, [
     ["primary", "导入字幕文件"],
     ["secondary", "只用标题和简介写结论"],
@@ -325,6 +328,7 @@ const CONTRAST_TARGETS = [
   "#notice-demo .notice-action",
   "#state-demo .state-title",
   "#state-demo .state-impact",
+  "#state-demo .state-next",
   "#state-demo .button[data-variant='primary']",
   "#state-demo .control-note",
   "#controls .button[data-variant='danger']",
