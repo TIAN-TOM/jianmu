@@ -57,11 +57,16 @@ function textBlock(protocol: Protocol, part: Extract<MessagePart, { type: "text"
   return { type: "text", text: part.text };
 }
 
-/** 一条消息的内容按协议换写法。图片排在文字前面，同类之间保持原来的先后。 */
+/**
+ * 一条消息的内容按协议换写法。图片排在文字前面，同类之间保持原来的先后。
+ * 只有文字时，Anthropic 以外的协议拼回一个字符串：缓存标记在那边本来就不发，
+ * 有的兼容网关只收字符串内容，拼回去请求体和纯文本时一样。
+ */
 export function toProtocolContent(protocol: Protocol, content: unknown): unknown {
   if (!isMessageParts(content)) return content;
   const images = content.filter((part) => part.type === "image");
   const texts = content.filter((part) => part.type === "text");
+  if (!images.length && protocol !== PROTOCOLS.ANTHROPIC) return texts.map((part) => part.text).join("\n\n");
   return [
     ...images.map((part) => imageBlock(protocol, part.dataUrl)),
     ...texts.map((part) => textBlock(protocol, part)),

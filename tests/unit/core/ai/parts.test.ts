@@ -138,9 +138,35 @@ test("要 JSON 输出时，用部件写的最后一条用户消息补一个文�
 
   const mentioned = provider.buildChatRequest({
     settings: { ...SETTINGS[PROTOCOLS.RESPONSES], aiModel: "gpt-4.1" },
-    messages: [{ role: "user", content: [{ type: "text", text: "按 JSON 回答" }] }],
+    messages: [{ role: "user", content: [{ type: "image", dataUrl: IMAGE_URL }, { type: "text", text: "按 JSON 回答" }] }],
     maxTokens: 512,
     responseFormat: SCHEMAS.QA_ANSWER,
   }).body;
-  assert.deepEqual(mentioned.input?.[0]?.content, [{ type: "input_text", text: "按 JSON 回答" }]);
+  assert.deepEqual(mentioned.input?.[0]?.content, [
+    { type: "input_image", image_url: IMAGE_URL },
+    { type: "input_text", text: "按 JSON 回答" },
+  ]);
+});
+
+test("只有文字的部件：Anthropic 照旧分块并带缓存标记，其余协议拼回一个字符串", () => {
+  const texts = [
+    { type: "text", text: "视频信息" },
+    { type: "text", text: "字幕", cache: true },
+    { type: "text", text: "问题" },
+  ];
+  assert.deepEqual(provider.toProtocolContent(PROTOCOLS.ANTHROPIC, texts), [
+    { type: "text", text: "视频信息" },
+    { type: "text", text: "字幕", cache_control: { type: "ephemeral" } },
+    { type: "text", text: "问题" },
+  ]);
+  assert.equal(provider.toProtocolContent(PROTOCOLS.OPENAI, texts), "视频信息\n\n字幕\n\n问题");
+  assert.equal(provider.toProtocolContent(PROTOCOLS.RESPONSES, texts), "视频信息\n\n字幕\n\n问题");
+  // 要 JSON 时补的那句跟在最后，和纯文本消息补的位置一样。
+  const body = provider.buildChatRequest({
+    settings: { ...SETTINGS[PROTOCOLS.RESPONSES], aiModel: "gpt-4.1" },
+    messages: [{ role: "user", content: texts }],
+    maxTokens: 512,
+    responseFormat: SCHEMAS.QA_ANSWER,
+  }).body;
+  assert.equal(body.input?.[0]?.content, "视频信息\n\n字幕\n\n问题\n\n请只输出 JSON。");
 });

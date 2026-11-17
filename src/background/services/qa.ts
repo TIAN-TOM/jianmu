@@ -4,6 +4,8 @@
 import type { ChunkPlanOptions } from "../../core/ai/chunking.ts";
 import { planAnalysisChunks } from "../../core/ai/chunking.ts";
 import { parseLooseJson } from "../../core/ai/parse.ts";
+import { extractPromptSection, type PromptVariables } from "../../core/ai/prompt.ts";
+import type { ChatMessage, MessagePart } from "../../core/ai/provider/index.ts";
 import { QA_ANSWER } from "../../core/ai/schemas.ts";
 import { throwIfTaskCanceled } from "../../core/ai/transport/index.ts";
 import type { ClearEpoch, ClearGuard } from "../../core/clear-guard.ts";
@@ -22,7 +24,6 @@ import type { OverviewStore } from "../stores/overviews.ts";
 import { QA_ID_PREFIX, type QaStore } from "../stores/qa.ts";
 import type { TaskRun, TaskRunner } from "../tasks.ts";
 import { createClaim } from "./claim.ts";
-import { promptMessages } from "./overview/chunks.ts";
 import type { TranscriptService } from "./transcript/index.ts";
 
 export const QA_PROMPT = "qa.md";
@@ -32,6 +33,26 @@ const ANSWER_MAX_TOKENS = 2048;
 
 /** 零有效引用时整条替换：宁可少答，不可编造。 */
 export const FALLBACK_ANSWER = "未能从字幕中找到足够的依据来回答这个问题。可以换个说法再问一次，或先确认这个视频里是否有你想问的内容。";
+
+/** 用户消息的三块，按发出的先后。 */
+export const QA_USER_SECTIONS = ["用户消息：视频信息", "用户消息：字幕", "用户消息：问题"] as const;
+
+/**
+ * 问答的消息：系统提示词，加一条分三块的用户消息，顺序是视频信息、字幕、问题。
+ * 字幕那块打缓存标记：同一个视频接着问、送的字幕相同时，问题之前的前缀都能命中缓存。
+ */
+export function qaMessages(markdown: string, variables: PromptVariables): ChatMessage[] {
+  const [info, transcript, question] = QA_USER_SECTIONS.map((heading) => extractPromptSection(markdown, heading, variables));
+  const content: MessagePart[] = [
+    { type: "text", text: info ?? "" },
+    { type: "text", text: transcript ?? "", cache: true },
+    { type: "text", text: question ?? "" },
+  ];
+  return [
+    { role: "system", content: extractPromptSection(markdown, "系统提示词", variables) },
+    { role: "user", content },
+  ];
+}
 
 /** 登记问答任务时交的功能输入。 */
 export interface QaInput {
@@ -180,7 +201,7 @@ export function createQaService(deps: QaServiceDeps): QaService {
       signal: run.signal,
       // 服务限流或过载时传输层会等几秒重发一次，进度说清在等什么。
       onRetry: ({ message }) => run.progress({ phase: "generating", message }),
-      messages: promptMessages(deps.prompt(QA_PROMPT), variables),
+      messages: qaMessages(deps.prompt(QA_PROMPT), variables),
     });
     throwIfTaskCanceled(run.signal);
     const raw = parseAnswer(text);

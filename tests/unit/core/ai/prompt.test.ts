@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
+import { QA_PROMPT, QA_USER_SECTIONS } from "../../../../src/background/services/qa.ts";
 import { extractPromptSection, fillPromptVariables, type PromptVariables } from "../../../../src/core/ai/prompt.ts";
 
 const PROMPTS_DIR = new URL("../../../../prompts/", import.meta.url);
@@ -131,13 +132,16 @@ const PROMPTS: Readonly<Record<string, PromptVariables>> = {
   },
 };
 
+// 每份模板拼消息要读的小节：问答的用户消息分三块（见 services/qa.ts），其余是一段系统提示词加一段用户提示词。
+const sectionsOf = (file: string): readonly string[] => ["系统提示词", ...(file === QA_PROMPT ? QA_USER_SECTIONS : ["用户提示词"])];
+
 // 形如 {videoTitle} 的占位符。提示词里的 JSON 示例都以引号开头（{"chapters"），不会误伤。
 const PLACEHOLDER = /\{[A-Za-z][A-Za-z0-9_]*\}/;
 
 for (const [file, variables] of Object.entries(PROMPTS)) {
-  test(`${file} 含有系统与用户两个提示词小节`, () => {
+  test(`${file} 含有系统提示词和用户消息的小节`, () => {
     const markdown = read(file);
-    for (const heading of ["系统提示词", "用户提示词"]) {
+    for (const heading of sectionsOf(file)) {
       const section = extractPromptSection(markdown, heading, variables);
       assert.ok(section.trim().length > 0, `${file}#${heading} 是空的`);
     }
@@ -145,7 +149,7 @@ for (const [file, variables] of Object.entries(PROMPTS)) {
 
   test(`${file} 的占位符能被完全替换`, () => {
     const markdown = read(file);
-    for (const heading of ["系统提示词", "用户提示词"]) {
+    for (const heading of sectionsOf(file)) {
       const section = extractPromptSection(markdown, heading, variables);
       const leftover = section.match(PLACEHOLDER);
       assert.equal(leftover, null, `${file}#${heading} 残留未替换的占位符：${leftover?.[0]}`);
@@ -154,7 +158,7 @@ for (const [file, variables] of Object.entries(PROMPTS)) {
 
   test(`${file} 里的每个变量都真的被用到了`, () => {
     const markdown = read(file);
-    const both = ["系统提示词", "用户提示词"]
+    const both = sectionsOf(file)
       .map((heading) => extractPromptSection(markdown, heading, {}))
       .join("\n");
     for (const key of Object.keys(variables)) {

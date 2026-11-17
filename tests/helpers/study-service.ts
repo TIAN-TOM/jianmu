@@ -34,7 +34,13 @@ export const INTERVAL = 20_000;
 
 // 提示词替身：用户提示词里带着各变量，测试按它们核对送了什么。
 export const PROMPTS: Readonly<Record<string, string>> = {
-  "qa.md": ["## 系统提示词", "```", "问答/系统", "```", "## 用户提示词", "```", "标题：{videoTitle}", "问题：{question}", "{transcriptText}", "```", ""].join("\n"),
+  "qa.md": [
+    "## 系统提示词", "```", "问答/系统", "```",
+    "## 用户消息：视频信息", "```", "标题：{videoTitle}", "```",
+    "## 用户消息：字幕", "```", "{transcriptText}", "```",
+    "## 用户消息：问题", "```", "问题：{question}", "```",
+    "",
+  ].join("\n"),
   "explain.md": ["## 系统提示词", "```", "解释/系统", "```", "## 用户提示词", "```", "视频：{videoTitle}", "选中：{selectedText}", "上下文：{transcriptContext}", "```", ""].join("\n"),
   "note-cleanup.md": ["## 系统提示词", "```", "润色/系统", "```", "## 用户提示词", "```", "目标：{targetText}", "```", ""].join("\n"),
 };

@@ -1,4 +1,5 @@
 // 传输层：配置检查、自愈重发、截断、超时、错误翻译、限流重发，以及带密钥请求的约定。
+import { QA_PROMPT, qaMessages } from "../../../../src/background/services/qa.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import http from "node:http";
@@ -2516,10 +2517,14 @@ const lastUser = (input: readonly ChatMessage[] | undefined): ChatMessage | unde
 for (const model of ["gpt-4.1", "gpt-6-sol"]) {
   test(`不在兼容表里的 ${model}：四个 JSON 功能退回 JSON 模式时，最后一条用户消息里有 JSON 这个词`, () => {
     for (const [file, schema] of FEATURES) {
-      const messages = [
-        { role: "system", content: prompt(file, "系统提示词") },
-        { role: "user", content: prompt(file, "用户提示词") },
-      ];
+      // 问答的用户消息分三块，照服务拼的样子拼。
+      const messages =
+        file === QA_PROMPT
+          ? qaMessages(readFileSync(new URL(`../../../../prompts/${file}`, import.meta.url), "utf8"), VARIABLES)
+          : [
+              { role: "system", content: prompt(file, "系统提示词") },
+              { role: "user", content: prompt(file, "用户提示词") },
+            ];
       const { body } = PROVIDER.buildChatRequest({
         settings: responsesSettings(model),
         messages,
@@ -2530,7 +2535,9 @@ for (const model of ["gpt-4.1", "gpt-6-sol"]) {
       const content = String(lastUser(body.input)?.content);
       assert.match(content, /\bjson\b/i, `${file} 的 input 里要有 JSON`);
       // 只在末尾补一句，原来的提示词一字不动，系统提示照旧放在 instructions。
-      assert.ok(content.startsWith(messages[1]!.content), file);
+      const sent = messages[1]!.content;
+      const original = typeof sent === "string" ? sent : (sent as readonly { readonly text?: string }[]).map((part) => part.text ?? "").join("\n\n");
+      assert.ok(content.startsWith(original), file);
       assert.equal(body.instructions, messages[0]!.content, file);
     }
   });

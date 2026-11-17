@@ -2,7 +2,8 @@
 // 回答只写进发起时那个视频的历史。
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { FALLBACK_ANSWER } from "../../../../src/background/services/qa.ts";
+import { readFileSync } from "node:fs";
+import { FALLBACK_ANSWER, QA_PROMPT, QA_USER_SECTIONS } from "../../../../src/background/services/qa.ts";
 import { QA_ANSWER } from "../../../../src/core/ai/schemas.ts";
 import { describe, type Result } from "../../../../src/core/errors.ts";
 import type { QaRecord } from "../../../../src/core/notes/records.ts";
@@ -20,8 +21,15 @@ const answerOf = (result: Result<QaAnswerView>): QaRecord => {
   return result.value.entry;
 };
 
-const userMessage = (request: { readonly messages?: readonly { readonly role: string; readonly content: unknown }[] | null }): string =>
-  String(request.messages?.find((message) => message.role === "user")?.content ?? "");
+type Sent = { readonly messages?: readonly { readonly role: string; readonly content: unknown }[] | null };
+
+/** 用户消息的几块，按发出的先后。 */
+const userParts = (request: Sent): readonly { readonly type: string; readonly text?: string; readonly cache?: true }[] => {
+  const content = request.messages?.find((message) => message.role === "user")?.content;
+  return Array.isArray(content) ? content : [{ type: "text", text: String(content ?? "") }];
+};
+
+const userMessage = (request: Sent): string => userParts(request).map((part) => part.text ?? "").join("\n\n");
 
 // ============================================================
 // 走真实后台分发
@@ -324,4 +332,34 @@ test("只挑了部分块时：紧挨着没送进去的块，它起点那一秒�
   assert.deepEqual(mixed.citations.map((citation) => citation.startSeconds), [899]);
   assert.match(mixed.citations[0]?.quote ?? "", /^第15条/, "第 14 分 59 秒对到送进去的最后一句");
   assert.deepEqual(mixed.clickable, [899], "没送进去的那一秒不能点");
+});
+
+test("问答模板的用户消息按视频信息、字幕、问题排，问题在字幕之后", () => {
+  const markdown = readFileSync(new URL(`../../../../prompts/${QA_PROMPT}`, import.meta.url), "utf8");
+  const at = QA_USER_SECTIONS.map((heading) => markdown.indexOf(`## ${heading}\n`));
+  assert.ok(at.every((index) => index > 0), "三块都在");
+  assert.deepEqual([...at].sort((a, b) => a - b), at, "按视频信息、字幕、问题的先后写");
+  const sectionAt = (start: number | undefined): string => {
+    const from = start ?? 0;
+    const next = markdown.indexOf("\n## ", from + 1);
+    return markdown.slice(from, next === -1 ? undefined : next);
+  };
+  const transcript = sectionAt(at[1]);
+  const question = sectionAt(at[2]);
+  assert.match(transcript, /\{transcriptText\}/);
+  assert.doesNotMatch(transcript, /\{question\}/);
+  assert.match(question, /\{question\}/);
+  assert.doesNotMatch(question, /\{transcriptText\}/);
+});
+
+test("发出的问答：字幕单独一块并打缓存标记，问题在最后一块", async () => {
+  const h = studyHarness({ ai: { replies: { qa: JSON.stringify({ answer: "结论 [0:02]" }) } } });
+  answerOf(await h.ask("竹竿插多深").result);
+  const parts = userParts(h.fake.calls[0]!.request);
+  assert.equal(parts.length, 3);
+  assert.deepEqual(parts.map((part) => part.cache === true), [false, true, false], "只有字幕那块带缓存标记");
+  assert.doesNotMatch(parts[0]?.text ?? "", /竹竿插多深/);
+  assert.match(parts[1]?.text ?? "", /\[0:0\d\]/, "字幕那块带时间点");
+  assert.doesNotMatch(parts[1]?.text ?? "", /竹竿插多深/, "问题不进字幕那块");
+  assert.match(parts[2]?.text ?? "", /竹竿插多深/);
 });
