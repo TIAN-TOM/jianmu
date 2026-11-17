@@ -9,8 +9,10 @@ import { ActivationNotice } from "../shared/ui/activation-notice.tsx";
 import { activationSections } from "../shared/ui/activation.ts";
 import { Button } from "../shared/ui/button.tsx";
 import { StateBlock } from "../shared/ui/state-block.tsx";
+import type { PageApi } from "../shared/api.ts";
 import { AiSection } from "./ai-section.tsx";
 import { AutoSection } from "./auto-section.tsx";
+import { ModeSection } from "./mode-section.tsx";
 import { Confirmable, StatusLine } from "./controls.tsx";
 import type { OptionsState } from "./state.ts";
 
@@ -200,7 +202,7 @@ function DataSection({ state, enabled }: { readonly state: OptionsState; readonl
   );
 }
 
-export function App({ state, activation }: { readonly state: OptionsState; readonly activation: Activation }) {
+export function App({ state, activation, api }: { readonly state: OptionsState; readonly activation: Activation; readonly api: Pick<PageApi, "send"> }) {
   const enabled = activation.enabled.value;
   const loadError = state.loadError.value;
   return (
@@ -214,6 +216,7 @@ export function App({ state, activation }: { readonly state: OptionsState; reado
           <CardSection state={state} />
           <AiSection state={state} />
           <AutoSection state={state} />
+          <ModeSection api={api} />
           <TriageSection />
         </>
       ) : null}

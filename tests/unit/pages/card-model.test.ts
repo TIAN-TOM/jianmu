@@ -1,5 +1,6 @@
 // 卡片：没启用、卡片关着时不显示也不读；读数据只用轻量读取；生成概览只认真实点击，凭登记换到的令牌开始；
 // 侧边栏为同一视频起的任务就跟着看进度，结束后重读；换了视频，迟到的结果不渲染。
+// 展开收起跟着模式（PRD 6.5）：速览展开、精读收起，手动展开收起过的为准；收起时不读，后台标签页第一次到前台才读。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { signal } from "@preact/signals";
@@ -8,7 +9,7 @@ import { createPageApi } from "../../../src/pages/shared/api.ts";
 import type { ConfigState } from "../../../src/pages/shared/config.ts";
 import { videoKey, type VideoRef } from "../../../src/core/video-ref.ts";
 import { fakeRuntime } from "../../helpers/fake-runtime.ts";
-import { until } from "../../helpers/wait-until.ts";
+import { stillFalse, until } from "../../helpers/wait-until.ts";
 
 const FIRST: VideoRef = { platform: "bilibili", videoId: "BV1Sample001", segment: 1 };
 const SECOND: VideoRef = { platform: "bilibili", videoId: "BV1Sample002", segment: 1 };
@@ -22,7 +23,7 @@ const guides = (video = KEY, extra: object = {}) => ({
 const task = (id: string, state = "running", video = KEY) => ({ id, kind: "overview", origin: "card", video, state, done: 0, total: 2, phase: "", message: "", createdAt: 1, updatedAt: 1 });
 const ANALYSIS = { chapters: [{ title: "样例章节", timestampSeconds: 0 }], verdict: { verdict: "值得看完整视频", summary: "样例结论" } };
 
-function setup(config: ConfigState = READY) {
+function setup(config: ConfigState = READY, page?: { visible(): boolean; onVisible(run: () => void): () => void }) {
   const fake = fakeRuntime();
   fake.reply("transcript.get", { value: guides() });
   fake.reply("task.list", { value: { ok: true, value: { tasks: [] } } });
@@ -38,6 +39,7 @@ function setup(config: ConfigState = READY) {
     parseVideo: (value) => (value.includes("BV1Sample002") ? SECOND : value.includes("BV1Sample001") ? FIRST : null),
     seek: () => undefined,
     timers: { every: () => () => undefined, timeout: (work) => work },
+    ...(page ? { page } : {}),
   });
   return { fake, model, state, setUrl: (next: string) => void (url = next) };
 }
@@ -138,4 +140,83 @@ test("换了视频以后，上一个视频迟到的读取结果不渲染", async
   assert.equal(model.view.value.title, "样例长视频");
   const last = fake.sent.filter(({ type }) => type === "transcript.get").at(-1);
   assert.equal((last?.req as { readonly video?: string } | undefined)?.video, videoKey(SECOND));
+});
+
+const session = (patch: object = {}) => ({ video: KEY, mode: "skim", modeSource: "default", autoSwitched: false, playedSec: 0, ...patch });
+
+test("模式决定展开收起：精读（含短视频）收起成一行、不读；速览展开、读", async () => {
+  const study = setup();
+  study.fake.reply("session.get", { value: { ok: true, value: { session: session({ mode: "study", modeSource: "short" }) } } });
+  study.model.configChanged();
+  await study.model.start();
+  assert.ok(await until(() => study.model.view.value.collapsed));
+  assert.ok(await stillFalse(() => study.fake.attempts("transcript.get") > 0), "收起时不读");
+
+  const skim = setup();
+  skim.fake.reply("session.get", { value: { ok: true, value: { session: session() } } });
+  skim.model.configChanged();
+  await skim.model.start();
+  assert.ok(await until(() => skim.model.view.value.phase === "loaded"));
+  assert.equal(skim.model.view.value.collapsed, false);
+});
+
+test("这个视频里手动展开收起过的为准：精读时手动展开的照样展开，速览时手动收起的照样收起", async () => {
+  const opened = setup();
+  opened.fake.reply("session.get", { value: { ok: true, value: { session: session({ mode: "study", modeSource: "manual", cardOverride: "expanded" }) } } });
+  opened.model.configChanged();
+  await opened.model.start();
+  assert.ok(await until(() => opened.model.view.value.phase === "loaded"));
+  assert.equal(opened.model.view.value.collapsed, false);
+
+  const closed = setup();
+  closed.fake.reply("session.get", { value: { ok: true, value: { session: session({ cardOverride: "collapsed" }) } } });
+  closed.model.configChanged();
+  await closed.model.start();
+  assert.ok(await until(() => closed.model.view.value.collapsed));
+  assert.equal(closed.fake.attempts("transcript.get"), 0);
+});
+
+test("自动切到精读：卡片跟着收起；手动展开过的不动；别的标签页同一视频切了不算", async () => {
+  const { fake, model } = setup();
+  let mine = session();
+  fake.reply("session.get", () => ({ ok: true, value: { session: mine } }));
+  fake.reply("card.setOverride", { value: { ok: true, value: { session: {} } } });
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+
+  // 别的标签页同一视频切到精读：广播里的视频一样，但自己标签页的会话还是速览。
+  fake.broadcast({ type: "session.changed", tabId: 99, session: session({ mode: "study", modeSource: "auto", autoSwitched: true }) });
+  assert.ok(await until(() => fake.attempts("session.get") === 2));
+  assert.ok(await stillFalse(() => model.view.value.collapsed));
+
+  mine = session({ mode: "study", modeSource: "auto", autoSwitched: true });
+  fake.broadcast({ type: "session.changed", tabId: 3, session: mine });
+  assert.ok(await until(() => model.view.value.collapsed), "跟着收起");
+
+  await model.toggle();
+  assert.equal(model.view.value.collapsed, false);
+  mine = { ...mine, cardOverride: "expanded" } as typeof mine;
+  fake.broadcast({ type: "session.changed", tabId: 3, session: mine });
+  assert.ok(await until(() => fake.attempts("session.get") === 4));
+  assert.ok(await stillFalse(() => model.view.value.collapsed), "手动展开过的不再跟着收");
+});
+
+test("后台打开的标签页：第一次切到前台才读", async () => {
+  let visible = false;
+  let wake: () => void = () => undefined;
+  const { fake, model } = setup(READY, {
+    visible: () => visible,
+    onVisible(run) {
+      wake = run;
+      return () => undefined;
+    },
+  });
+  model.configChanged();
+  await model.start();
+  assert.ok(await stillFalse(() => fake.attempts("transcript.get") > 0), "还在后台，不读");
+  visible = true;
+  wake();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  assert.equal(fake.attempts("transcript.get"), 1);
 });

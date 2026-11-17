@@ -45,7 +45,7 @@ function start(): void {
     if (scope === "all") void state.load();
   });
 
-  if (root) render(<App state={state} activation={activation} />, root);
+  if (root) render(<App state={state} activation={activation} api={api} />, root);
 }
 
 void startWhenCurrent(api, start, () => root && renderStaleBackground(root));

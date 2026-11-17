@@ -230,7 +230,7 @@ test("侧边栏：不到 5 分钟的短视频打开就进精读，跟着播放�
 });
 
 // 这个测试会记住第一个样例视频的频道，做完从设置页清掉，免得影响后面打开同一个视频的测试。
-test("侧边栏：主动切到精读立刻换、说一声记住了；同一频道再打开就进精读；设置页清掉以后回到按时长进速览", async (ctx) => {
+test("侧边栏：主动切到精读立刻换、说一声记住了；同一频道再打开就进精读；设置页「清除记住的 UP 主」以后回到按时长进速览", async (ctx) => {
   try {
     await withVideo(ctx, async (panel) => {
       await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
@@ -244,9 +244,12 @@ test("侧边栏：主动切到精读立刻换、说一声记住了；同一频�
       await waitIn(panel, "按频道进精读", `JSON.stringify(${modes}) === ${JSON.stringify(JSON.stringify(STUDY))}`);
     });
   } finally {
+    // 从设置页「速览和精读」一节清掉记住的 UP 主。
     const options = await ctx.open("pages/options.html");
-    const cleared = await options.evaluate(`chrome.runtime.sendMessage({ type: "channels.clear", req: {} })`);
-    assert.equal(cleared?.ok, true, JSON.stringify(cleared));
+    await options.waitFor("速览和精读一节", `Boolean(document.querySelector("#modes .button"))`);
+    await options.evaluate(`(document.querySelector("#modes .button").click(), true)`);
+    await options.evaluate(`([...document.querySelectorAll("#modes .button")].find((node) => node.textContent === "清除").click(), true)`);
+    await options.waitFor("清除好了", `document.querySelector("#modes .status")?.textContent.startsWith("已清除")`);
   }
   await withVideo(ctx, async (panel) => {
     await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);

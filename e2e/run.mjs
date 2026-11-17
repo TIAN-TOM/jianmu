@@ -98,6 +98,17 @@ const clickIn = (session, selector, text = "") =>
 
 const textOf = (session, selector) => evaluate(session, `[...document.querySelectorAll(${JSON.stringify(selector)})].map((node) => node.textContent).join("\\n")`);
 
+/** 嵌在某个视频页里的卡片框架：卡片框架都是同一个地址，按它所在的标签页认。 */
+async function cardOf(watchUrl) {
+  const { targetInfos } = await cdp.send("Target.getTargets");
+  for (const info of targetInfos.filter((item) => item.type === "iframe" && item.url.includes("/pages/card.html"))) {
+    const { sessionId } = await cdp.send("Target.attachToTarget", { targetId: info.targetId, flatten: true });
+    await cdp.send("Runtime.runIfWaitingForDebugger", {}, sessionId).catch(() => {});
+    if ((await evaluate(sessionId, "chrome.tabs.getCurrent().then((tab) => tab?.url ?? '')")) === watchUrl) return sessionId;
+  }
+  return null;
+}
+
 /** 在真实的侧边栏里走主流程。启动用的扩展页面带着用户手势打开侧边栏，再在同一个窗口里打开视频页。 */
 async function panelFlow(launcher, panelUrl, videoId) {
   const stored = await storedSettings(ANTHROPIC);
@@ -154,12 +165,17 @@ async function panelFlow(launcher, panelUrl, videoId) {
 
   // 问答抽屉开着时切到精读：抽屉留着；关上以后精读跟着播放显示当前章节。
   await evaluate(panel, `(() => { const sheet = [...document.querySelectorAll(".sheet")].find((node) => node.open); sheet?.querySelector(".overlay-head [aria-label='关闭']")?.click(); return true; })()`);
+  const card = await until("这个视频页的卡片", () => cardOf(watchUrl));
+  const cardCollapsed = () => evaluate(card, `document.getElementById("card")?.dataset.collapsed ?? ""`);
+  await until("速览时卡片展开", async () => (await cardCollapsed()) === "false");
   await until("切到精读", () => clickIn(panel, ".mode", "精读"));
   await until("精读显示当前章节", async () => (await textOf(panel, ".chapter-bar-title")).includes("模拟服务写的章节"));
   await until("说记住了这个频道", async () => (await textOf(panel, ".notice-text")).includes("以后先进精读"));
+  await until("精读时卡片收起", async () => (await cardCollapsed()) === "true");
   await until("切回速览", () => clickIn(panel, ".mode", "速览"));
   await until("回到速览的章节", async () => (await textOf(panel, ".chapter-name")).includes("模拟服务写的章节"));
-  console.log("✓ 速览和精读：主动切到精读显示当前章节，记住频道，再切回速览");
+  await until("回到速览卡片展开", async () => (await cardCollapsed()) === "false");
+  console.log("✓ 速览和精读：主动切到精读显示当前章节、卡片跟着收起，记住频道，再切回速览、卡片展开");
 }
 
 let failed = false;

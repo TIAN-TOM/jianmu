@@ -60,6 +60,17 @@ function start(root: HTMLElement, api: PageApi): void {
     seek(tabId, video, atSec) {
       void chrome.tabs.sendMessage(tabId, { type: "player.seek", req: { video, atSec } }, { frameId: 0 }).catch(() => undefined);
     },
+    // 卡片框架跟着所在的标签页显隐：后台打开的标签页第一次切到前台才读。
+    page: {
+      visible: () => document.visibilityState === "visible",
+      onVisible(run) {
+        const check = (): void => {
+          if (document.visibilityState === "visible") run();
+        };
+        document.addEventListener("visibilitychange", check);
+        return () => document.removeEventListener("visibilitychange", check);
+      },
+    },
   });
   effect(() => {
     void config.state.value;

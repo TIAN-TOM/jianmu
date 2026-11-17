@@ -1,8 +1,10 @@
 // 卡片的状态和操作。认哪个视频只看所在标签页的地址；读数据只用轻量读取（官方总结和本机已有的概览）；
 // 生成概览只认真实点击，登记时换到一次性令牌才开始；侧边栏为同一视频起的、打开就出结论自动起的任务就跟着看进度。
-// 没启用、卡片关着时什么都不显示。
+// 没启用、卡片关着时什么都不显示。展开收起跟着本标签页的观看会话：用户在这个视频里手动展开收起过的为准，
+// 否则速览展开、精读收起（短视频进精读，所以默认收起）；收起时不读，后台打开的标签页第一次到前台才读。
 import { computed, signal, type ReadonlySignal } from "@preact/signals";
 import { describe, type ErrorCode } from "../../core/errors.ts";
+import type { CardOverride, Mode, SessionView } from "../../core/mode/types.ts";
 import type { LearningAnalysis } from "../../core/notes/markdown.ts";
 import type { TaskView } from "../../core/tasks.ts";
 import { videoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
@@ -25,6 +27,8 @@ export interface CardDeps {
   /** 让本标签页的播放器跳到这里。 */
   readonly seek: (tabId: number, video: VideoKey, atSec: number) => void;
   readonly timers?: { every(ms: number, run: () => void): () => void; timeout<T>(work: Promise<T>, ms: number): Promise<T | "timeout"> };
+  /** 卡片所在的标签页在不在前台；不给时当一直在前台。 */
+  readonly page?: { visible(): boolean; onVisible(run: () => void): () => void };
 }
 
 export type Tone = "" | "warn" | "error";
@@ -111,6 +115,12 @@ export function createCardModel(deps: CardDeps) {
   let loadedTicket = -1;
   let saved: LearningAnalysis | null = null;
   const settled = new Set<string>();
+  // 这个视频的手动展开收起和模式，从会话里读；会话还没有时按速览算，展开。
+  let override: CardOverride | null = null;
+  let mode: Mode | null = null;
+  let sessionAsk = 0;
+  // 标签页到过前台：后台打开的标签页第一次切到前台才读。
+  let seen = deps.page?.visible() ?? true;
 
   const patch = (next: Partial<CardView>): void => {
     view.value = { ...view.peek(), ...next };
@@ -140,16 +150,42 @@ export function createCardModel(deps: CardDeps) {
     const changed = next !== video;
     video = next;
     reset(next ? "loading" : "not-video");
-    // 手动展开收起只管这一个视频：换了视频回到默认，再看新视频的会话里有没有记着。
-    if (changed) patch({ collapsed: false });
+    // 手动展开收起只管这一个视频：换了视频回到默认，先看新视频的会话定展开收起，再决定读不读。
+    if (changed) {
+      override = null;
+      mode = null;
+      patch({ collapsed: false });
+    }
     if (!next) patch(notice("这里不是视频播放页。"));
-    void load();
-    if (changed && next) void restoreCollapse();
+    if (changed && next) void readSession().then(() => load());
+    else void load();
+  }
+
+  const collapsedNow = (): boolean => (override ? override === "collapsed" : mode === "study");
+
+  function applySession(session: SessionView | null): void {
+    if (!session || session.video !== video) return;
+    override = session.cardOverride ?? null;
+    mode = session.mode;
+    const collapsed = collapsedNow();
+    if (collapsed === view.peek().collapsed) return;
+    patch({ collapsed });
+    if (!collapsed) void load();
+  }
+
+  /** 读本标签页的会话：卡片只读得到自己所在的标签页。 */
+  async function readSession(): Promise<void> {
+    sessionAsk += 1;
+    const asked = sessionAsk;
+    const current = video;
+    const reply = await api.send("session.get", {});
+    if (asked !== sessionAsk || current !== video || !reply.ok) return;
+    applySession(reply.value.session);
   }
 
   async function load(quiet = false): Promise<void> {
     const v = view.peek();
-    if (!visible.peek() || v.collapsed || !video || (!quiet && loadedTicket === ticket)) return;
+    if (!visible.peek() || !seen || v.collapsed || !video || (!quiet && loadedTicket === ticket)) return;
     const asked = ticket;
     const current = video;
     loadedTicket = asked;
@@ -282,16 +318,10 @@ export function createCardModel(deps: CardDeps) {
 
   async function toggle(): Promise<void> {
     const collapsed = !view.peek().collapsed;
+    override = collapsed ? "collapsed" : "expanded";
     patch({ collapsed });
     if (!collapsed) void load();
-    if (video) await api.send("card.setOverride", { video, value: collapsed ? "collapsed" : "expanded" });
-  }
-
-  async function restoreCollapse(): Promise<void> {
-    const reply = await api.send("session.get", {});
-    if (!reply.ok || !reply.value.session || reply.value.session.video !== video) return;
-    const override = reply.value.session.cardOverride;
-    if (override) patch({ collapsed: override === "collapsed" });
+    if (video) await api.send("card.setOverride", { video, value: override });
   }
 
   async function recheck(): Promise<void> {
@@ -326,12 +356,21 @@ export function createCardModel(deps: CardDeps) {
         if (view.peek().task && message.verdictPending) patch({ analysis: saved, verdictPending: true });
       });
     }),
+    // 本视频的模式变了（侧边栏里切的、播满 1 分钟自动切的）：重读自己标签页的会话，别的标签页同一视频的不算。
+    api.on("session.changed", ({ session }) => {
+      if (session.video === video) void readSession();
+    }),
     api.on("data.cleared", ({ scope }) => {
       reset(video ? "loading" : "not-video");
       if (scope === "cache") void load();
     }),
   ];
   let stopTimer: (() => void) | null = null;
+  const stopWatching = deps.page?.onVisible(() => {
+    if (seen) return;
+    seen = true;
+    void load();
+  });
 
   return {
     view,
@@ -369,6 +408,7 @@ export function createCardModel(deps: CardDeps) {
     tabId: () => tab?.id ?? null,
     stop(): void {
       stopTimer?.();
+      stopWatching?.();
       for (const off of subscriptions) off();
     },
   };
