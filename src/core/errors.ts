@@ -1,5 +1,6 @@
-// 错误码汇总和统一的结果形状。各领域的码和文案在 errors/ 下各一份，这里拼成一张表；漏写文案编译就报错。
+// 错误码汇总和统一的结果形状。各领域的码和三段文案在 errors/ 下各一份，这里拼成一张表；漏写文案编译就报错。
 import { AI_ERROR_TEXT, type AiErrorCode } from "./errors/ai.ts";
+import type { ErrorCopy } from "./errors/copy.ts";
 import { BACKUP_ERROR_TEXT, type BackupErrorCode } from "./errors/backup.ts";
 import { BATCH_ERROR_TEXT, type BatchErrorCode } from "./errors/batch.ts";
 import { DATA_ERROR_TEXT, type DataErrorCode } from "./errors/data.ts";
@@ -15,6 +16,7 @@ import { TRANSCRIPT_DETAIL_TEXT, TRANSCRIPT_ERROR_TEXT, type TranscriptErrorCode
 import { TRANSLATE_ERROR_TEXT, type TranslateErrorCode } from "./errors/translate.ts";
 
 export type {
+  ErrorCopy,
   AiErrorCode,
   BackupErrorCode,
   BatchErrorCode,
@@ -56,7 +58,7 @@ export interface Failure {
 
 export type Result<T> = { readonly ok: true; readonly value: T } | Failure;
 
-const TEXT: Readonly<Record<ErrorCode, string>> = {
+const TEXT: Readonly<Record<ErrorCode, ErrorCopy>> = {
   ...SITE_ERROR_TEXT,
   ...SETTINGS_ERROR_TEXT,
   ...ROUTING_ERROR_TEXT,
@@ -73,13 +75,19 @@ const TEXT: Readonly<Record<ErrorCode, string>> = {
   ...BATCH_ERROR_TEXT,
 };
 
-const DETAIL_TEXT: Readonly<Partial<Record<ErrorCode, Readonly<Record<string, string>>>>> = { ...SITE_DETAIL_TEXT, ...TRANSCRIPT_DETAIL_TEXT };
+const DETAIL_TEXT: Readonly<Partial<Record<ErrorCode, Readonly<Record<string, ErrorCopy>>>>> = { ...SITE_DETAIL_TEXT, ...TRANSCRIPT_DETAIL_TEXT };
 
-/** 给用户看的一句话。有的码按 detail 换说法，认不出的 detail 用码本身的说法。 */
-export function describe(code: ErrorCode, detail?: string): string {
+/** 给用户看的三段：原因、影响、下一步。有的码按 detail 换说法，认不出的 detail 用码本身的说法。 */
+export function errorCopy(code: ErrorCode, detail?: string): ErrorCopy {
   const byDetail = DETAIL_TEXT[code];
   if (detail !== undefined && byDetail && Object.hasOwn(byDetail, detail)) return byDetail[detail] ?? TEXT[code];
   return TEXT[code];
+}
+
+/** 三段拼成的一段话，给只放得下一段文字的地方。 */
+export function describe(code: ErrorCode, detail?: string): string {
+  const { cause, impact = "", next = "" } = errorCopy(code, detail);
+  return cause + impact + next;
 }
 
 /** 码在不在这张表里：从消息或存储里读出来的码要先过它。 */

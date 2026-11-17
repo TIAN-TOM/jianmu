@@ -1,4 +1,5 @@
-// 站点读取的错误码、失败的影响范围和给用户看的一句话。站点适配层和后台都用这一份，页面也要认得。
+// 站点读取的错误码、失败的影响范围和给用户看的三段话。站点适配层和后台都用这一份，页面也要认得。
+import type { ErrorCopy } from "./copy.ts";
 
 export type SiteErrorCode =
   | "NEED_LOGIN"
@@ -17,25 +18,33 @@ export type SiteErrorCode =
 /** 读取失败波及多大：item 只是这一个视频这次读不成，批量处理记这一项、接着下一项；source 是这条读取路线这会儿整体读不了，批量处理停下。由读取实现判定，调用方据此分流时不解析 detail。 */
 export type SiteFailureReach = "item" | "source";
 
-export const SITE_ERROR_TEXT: Readonly<Record<SiteErrorCode, string>> = {
-  NEED_LOGIN: "要先在这个浏览器里登录视频网站。",
-  NO_CAPTIONS: "这个视频没有可用的字幕。",
-  EMPTY_CAPTION_FILE: "字幕文件是空的。",
-  RATE_LIMITED: "视频网站暂时限制了读取，稍后再试。",
-  UNPLAYABLE: "这个视频现在不可用。",
-  NOT_FOUND: "找不到这个视频。",
-  SEGMENT_OUT_OF_RANGE: "视频里没有这一部分。",
-  VIDEO_CHANGED: "页面上的视频已经换了。",
-  TAB_NOT_READY: "视频页还没准备好，稍后再试。",
-  MALFORMED: "视频网站返回的内容读不懂。",
-  NETWORK: "网络连不上。",
-  TIMEOUT: "读取超时了。",
+// 读视频网站在调模型之前，读不到就不会往下走。
+const NOT_READ = "这次没读到，也没发给模型，不花额度。";
+const IMPORT_FILE = "手上有这个视频的字幕的话，在字幕页签点「导入字幕文件」。";
+
+export const SITE_ERROR_TEXT: Readonly<Record<SiteErrorCode, ErrorCopy>> = {
+  NEED_LOGIN: { cause: "这个浏览器还没登录视频网站。", impact: "简幕只给已登录的用户读，这次什么都没读。", next: "登录以后再试，或者导入自己的字幕文件。" },
+  NO_CAPTIONS: { cause: "这个视频没有可用的字幕。", impact: NOT_READ, next: IMPORT_FILE },
+  EMPTY_CAPTION_FILE: { cause: "视频网站给的字幕文件是空的。", impact: NOT_READ, next: `稍后再试。${IMPORT_FILE}` },
+  RATE_LIMITED: { cause: "视频网站暂时限制了读取。", impact: "简幕先停下，不会反复去试，这次没花额度。", next: "过几分钟再试。" },
+  UNPLAYABLE: { cause: "这个视频现在看不了。", impact: "简幕没有读它的内容。" },
+  NOT_FOUND: { cause: "找不到这个视频，可能已经删掉或者不公开了。", impact: "简幕没有读它的内容。" },
+  SEGMENT_OUT_OF_RANGE: { cause: "视频里没有这一 P。", impact: "简幕没有读它的内容。", next: "刷新视频页，从分 P 列表里重新选。" },
+  VIDEO_CHANGED: {
+    cause: "页面上的视频已经换了。",
+    impact: "这次读到的内容没有用，免得记到别的视频上。",
+    next: "回到原来的视频再试，或者在新视频上重新开始。",
+  },
+  TAB_NOT_READY: { cause: "视频页还没加载好。", impact: NOT_READ, next: "等页面加载完再试，还不行就刷新视频页。" },
+  MALFORMED: { cause: "视频网站返回的内容简幕读不懂。", impact: NOT_READ, next: "稍后再试；一直这样，可能是网站改版了，等简幕更新。" },
+  NETWORK: { cause: "连不上视频网站。", impact: NOT_READ, next: "检查一下网络再试。" },
+  TIMEOUT: { cause: "读取视频网站超时了。", impact: NOT_READ, next: "稍后再试。" },
 };
 
 /** 同一个码按读取实现给的 detail 换说法：付费内容和确认不了可读范围要分开提示。 */
-export const SITE_DETAIL_TEXT: Readonly<Partial<Record<SiteErrorCode, Readonly<Record<string, string>>>>> = {
+export const SITE_DETAIL_TEXT: Readonly<Partial<Record<SiteErrorCode, Readonly<Record<string, ErrorCopy>>>>> = {
   UNPLAYABLE: {
-    paid: "这是付费内容，简幕不读。",
-    "paid-unknown": "暂时无法确认这个视频的可读范围，先不读。",
+    paid: { cause: "这是付费内容。", impact: "简幕不读付费内容，什么都没读，也没发给模型。" },
+    "paid-unknown": { cause: "暂时没法确认这个视频是不是付费内容。", impact: "确认不了就先不读，什么都没读。", next: "过一会儿刷新视频页再试。" },
   },
 };

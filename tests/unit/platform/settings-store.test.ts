@@ -405,7 +405,7 @@ const REMEMBERED_RECORD = { version: 1, key: "sk-ds", origin: DEEPSEEK_ORIGIN };
 // 访问限制只挡内容脚本，报错不能写成只有扩展读得到：记住的密钥在磁盘上是原文。
 const UNPROTECTED = {
   code: "REMEMBER_KEY_UNPROTECTED",
-  message: "没能限制本机存储的访问范围，密钥没有记到这台电脑上。",
+  message: "没能限制本机存储的访问范围。密钥没有记到这台电脑上，这次的修改也没有保存。先取消勾选「在这台电脑上记住密钥」再保存，密钥只留在这次会话里。",
 };
 
 /** 访问限制申请不下来的环境。 */

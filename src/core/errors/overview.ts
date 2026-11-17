@@ -1,4 +1,5 @@
 // 概览的错误码：没有可用的字幕、模型没产出有效内容或读不出结果、补失败块时没有概览或对不上；用官方总结写结论时没有官方总结、模型没写出结论。
+import type { ErrorCopy } from "./copy.ts";
 
 export type OverviewErrorCode =
   | "NO_TRANSCRIPT"
@@ -9,12 +10,27 @@ export type OverviewErrorCode =
   | "NO_OFFICIAL_SUMMARY"
   | "EMPTY_VERDICT";
 
-export const OVERVIEW_ERROR_TEXT: Readonly<Record<OverviewErrorCode, string>> = {
-  NO_TRANSCRIPT: "没有可用的字幕。",
-  EMPTY_ANALYSIS: "模型没有产出有效的章节或金句，请重试。",
-  ANALYSIS_PARSE_FAILED: "模型没有按要求返回结构化的概览，结果读不出来。可以重试一次，或者在设置页「按功能选模型」里给「概览」另选一个型号。",
-  NO_ANALYSIS: "还没有可补的概览，请先生成。",
-  FAILED_CHUNKS_MISMATCH: "当前字幕和这份概览的分块对不上，请重新生成整份概览。",
-  NO_OFFICIAL_SUMMARY: "这个视频没有官方总结，没法据此写结论。",
-  EMPTY_VERDICT: "模型没有写出有效的结论，请重试。",
+const MAYBE_BILLED = "这次没拿到结果，请求已经发出去了，可能照样计费；原来存下的内容都还在。";
+const SWITCH_MODEL = "再试一次；老是这样，就到设置页「按功能选模型」给「概览」换个模型。";
+
+export const OVERVIEW_ERROR_TEXT: Readonly<Record<OverviewErrorCode, ErrorCopy>> = {
+  NO_TRANSCRIPT: {
+    cause: "这个视频没有可用的字幕。",
+    impact: "没法生成概览，也没花额度。",
+    next: "手上有这个视频的字幕的话，在字幕页签点「导入字幕文件」。",
+  },
+  EMPTY_ANALYSIS: { cause: "模型没有写出有效的章节或金句。", impact: MAYBE_BILLED, next: SWITCH_MODEL },
+  ANALYSIS_PARSE_FAILED: { cause: "模型没有按要求的格式返回概览，结果读不出来。", impact: MAYBE_BILLED, next: SWITCH_MODEL },
+  NO_ANALYSIS: { cause: "还没有可以补的概览。", next: "先点「生成概览」。" },
+  FAILED_CHUNKS_MISMATCH: {
+    cause: "当前的字幕和这份概览的分块对不上。",
+    impact: "没法只补失败的部分，这次没花额度。",
+    next: "点「重新生成」生成整份概览。",
+  },
+  NO_OFFICIAL_SUMMARY: {
+    cause: "这个视频没有官方总结。",
+    impact: "没法据此写结论，这次没花额度。",
+    next: "可以在侧边栏点「生成概览」，从字幕写结论。",
+  },
+  EMPTY_VERDICT: { cause: "模型没有写出有效的结论。", impact: MAYBE_BILLED, next: "再试一次。" },
 };

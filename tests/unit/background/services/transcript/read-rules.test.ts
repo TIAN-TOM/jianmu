@@ -2,7 +2,7 @@
 // 换语言和刷新都重新列轨；一次读取一个读取环境，只用这次核对过的视频信息；本机已有的内容不登录也照常用。
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { describe } from "../../../../../src/core/errors.ts";
+import { describe, errorCopy } from "../../../../../src/core/errors.ts";
 import type { CaptionTrack, Chapter, SiteResult } from "../../../../../src/sites/types.ts";
 import { deferred } from "../../../../helpers/deferred.ts";
 import { failed, sampleInfo } from "../../../../helpers/fake-site-service.ts";
@@ -256,10 +256,11 @@ test("原视频查得到吗：只有平台说找不到才算不在，没登录�
   }
 });
 
-test("看不了的视频按原因给一句话：付费内容不读、确认不了可读范围、其余是视频不可用", () => {
-  assert.equal(describe("UNPLAYABLE", "paid"), "这是付费内容，简幕不读。");
-  assert.equal(describe("UNPLAYABLE", "paid-unknown"), "暂时无法确认这个视频的可读范围，先不读。");
-  assert.equal(describe("UNPLAYABLE"), "这个视频现在不可用。");
-  assert.equal(describe("UNPLAYABLE", "something-else"), "这个视频现在不可用。");
+test("看不了的视频按原因换说法：付费内容不读、确认不了可读范围、其余是视频不可用", () => {
+  assert.equal(errorCopy("UNPLAYABLE", "paid").cause, "这是付费内容。");
+  assert.match(errorCopy("UNPLAYABLE", "paid").impact ?? "", /不读付费内容/);
+  assert.equal(errorCopy("UNPLAYABLE", "paid-unknown").cause, "暂时没法确认这个视频是不是付费内容。");
+  assert.equal(errorCopy("UNPLAYABLE").cause, "这个视频现在看不了。");
+  assert.equal(describe("UNPLAYABLE", "something-else"), describe("UNPLAYABLE"));
   assert.equal(describe("NETWORK", "paid"), describe("NETWORK"), "别的码不认这几个说明");
 });

@@ -1,7 +1,8 @@
 // 本机数据的错误码：操作途中设置页清除了本机数据，这次的结果没有存。
+import type { ErrorCopy } from "./copy.ts";
 
 export type DataErrorCode = "LOCAL_DATA_CLEARED";
 
-export const DATA_ERROR_TEXT: Readonly<Record<DataErrorCode, string>> = {
-  LOCAL_DATA_CLEARED: "设置页清除了本机数据，这次没有保存。",
+export const DATA_ERROR_TEXT: Readonly<Record<DataErrorCode, ErrorCopy>> = {
+  LOCAL_DATA_CLEARED: { cause: "设置页刚清除了本机数据。", impact: "这次的结果没有保存。", next: "要的话重新做一次。" },
 };

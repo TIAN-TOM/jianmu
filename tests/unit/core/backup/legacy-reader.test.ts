@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { describe } from "../../../../src/core/errors.ts";
+import { errorCopy } from "../../../../src/core/errors.ts";
 import { readBackup } from "../../../../src/core/backup/format.ts";
 import { LEGACY_BACKUP_KIND } from "../../../../src/core/backup/legacy-reader.ts";
 import { mergeBackup, mergeNotes } from "../../../../src/core/backup/merge.ts";
@@ -152,7 +152,7 @@ test("备份的报错用简幕的名字；旧格式的备份照常认", () => {
     assert.equal(result.ok, false, JSON.stringify(payload));
     if (!result.ok) {
       assert.equal(result.code, "BACKUP_UNRECOGNIZED");
-      assert.equal(describe(result.code), "这不是简幕的备份文件。");
+      assert.equal(errorCopy(result.code).cause, "这不是简幕的备份文件。");
     }
   }
   assert.equal(read(legacyBackup()).format, "legacy", "Digest for Bilibili 和以前的版本导出的备份照常导入");

@@ -39,15 +39,15 @@ function codeOf(reply: { readonly ok: boolean; readonly code?: ErrorCode }): Err
 }
 
 function assertDroppedText(text: string): void {
-  assert.match(text, /处理途中断开/);
+  assert.match(text, /处理到一半断开/);
   assert.match(text, /可能已经发给了模型/);
-  assert.doesNotMatch(text, /没能发出去/, "后台已经收到了，不能说没发出去");
+  assert.doesNotMatch(text, /没发出去/, "后台已经收到了，不能说没发出去");
   assert.doesNotMatch(text, /message channel closed|message port closed/i, "不显示浏览器的英文原文");
 }
 
 function assertUnreachableText(text: string): void {
-  assert.match(text, /没能发出去/);
-  assert.match(text, /不会删除你的笔记和概览/);
+  assert.match(text, /请求没发出去/);
+  assert.match(text, /不会删掉笔记和概览/);
   assert.doesNotMatch(text, /Receiving end|Could not establish/i, "浏览器的英文原文对用户没有指导意义");
 }
 
@@ -134,19 +134,19 @@ test("后台始终不可达时，不再把它伪装成字幕失败", async () =>
   const code = codeOf(reply);
   assert.equal(Object.hasOwn(TRANSCRIPT_ERROR_TEXT, code), false, "不是字幕那一类的码，页面不会摆登录、导入这些按钮");
   const { title } = stateCopy(code);
-  assert.match(title, /扩展后台没有响应/);
+  assert.match(title, /^简幕的后台没有响应/);
   assert.match(title, /和视频网站的账号、模型服务的密钥和网络都无关/, "用户会照着提示去折腾密钥和网络，先把这条路堵死");
   assertUnreachableText(title);
 });
 
 test("后台无响应时先建议停用再启用；提到重装时先说怎么备份", () => {
   const text = describeError("BACKGROUND_UNREACHABLE");
-  assert.match(text, /关闭再重新开启/);
-  assert.match(text, /不会删除你的笔记和概览/);
+  assert.match(text, /关掉再打开/);
+  assert.match(text, /不会删掉笔记和概览/);
   const backupAt = text.indexOf("导出备份");
   assert.ok(backupAt > 0, "要告诉用户怎么备份");
   assert.ok(backupAt < text.indexOf("卸载会清空"), "备份方法放在重装之前");
-  assert.ok(text.indexOf("关闭再重新开启") < text.indexOf("卸载"), "先给不丢数据的办法");
+  assert.ok(text.indexOf("关掉再打开") < text.indexOf("卸载"), "先给不丢数据的办法");
 });
 
 test("侧边栏：新版 Chrome 的断线报错，只读请求重发，写操作不重发", async () => {
@@ -175,7 +175,7 @@ test("侧边栏：取字幕一直断线时，错误页写中文标题和说明",
   assert.deepEqual(reply, { ok: false, code: "BACKGROUND_DROPPED" }, "浏览器的原文也不夹在结果里");
   const code = codeOf(reply);
   const { title } = stateCopy(code);
-  assert.match(title, /^扩展后台在处理途中断开了/);
+  assert.match(title, /^简幕的后台处理到一半断开了/);
   assertDroppedText(title);
 });
 
@@ -192,7 +192,7 @@ test("侧边栏：问答时断线，提示条写中文说明", async () => {
   }
 });
 
-test("侧边栏：根本没送到后台的，照旧说「没能发出去」，并给不丢数据的办法", async () => {
+test("侧边栏：根本没送到后台的，照旧说没发出去，并给不丢数据的办法", async () => {
   const { fake, api } = client();
   fake.reply("task.start", throwing(BROWSER_ERRORS.unreachable));
   const code = codeOf(await startOverview(api));
@@ -209,11 +209,11 @@ test("卡片：生成概览时断线，状态行写中文说明，可能已经�
   assertDroppedText(describeError(code));
 });
 
-test("卡片：后台一直够不着时，说没能发出去，不显示英文原文", async () => {
+test("卡片：后台一直够不着时，说没发出去，不显示英文原文", async () => {
   const { fake, api } = client();
   fake.reply("task.start", throwing(BROWSER_ERRORS.unreachable));
   const text = describeError(codeOf(await startOverview(api)));
-  assert.match(text, /没能发出去/);
+  assert.match(text, /请求没发出去/);
   assert.doesNotMatch(text, /Receiving end/);
 });
 

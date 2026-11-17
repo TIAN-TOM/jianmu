@@ -2,7 +2,8 @@
 // 一次保存分几步写，失败还要把密钥换回去，交错起来会互相冲掉，所以写都排在同一把独占锁里；
 // 读用共享锁，不会读到保存做到一半的状态。
 import type { ActivationKind, NoticeStatus } from "../core/consent.ts";
-import { SETTINGS_ERROR_CODES, SETTINGS_ERROR_TEXT, type SettingsErrorCode } from "../core/errors/settings.ts";
+import { describe } from "../core/errors.ts";
+import { SETTINGS_ERROR_CODES, type SettingsErrorCode } from "../core/errors/settings.ts";
 import {
   API_KEY_LOCAL_KEY,
   API_KEY_SESSION_KEY,
@@ -113,7 +114,7 @@ const fieldsOf = (value: unknown): Readonly<Record<string, unknown>> =>
   typeof value === "object" && value !== null ? { ...value } : {};
 
 function settingsError(code: SettingsErrorCode, cause?: unknown): SettingsError {
-  return Object.assign(new Error(SETTINGS_ERROR_TEXT[code], { cause }), { code });
+  return Object.assign(new Error(describe(code), { cause }), { code });
 }
 
 const remembers = ({ stored }: Snapshot): boolean => fieldsOf(stored)["rememberApiKey"] === true;
