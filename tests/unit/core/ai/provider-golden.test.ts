@@ -1,4 +1,5 @@
 // 协议层的黄金样本重放：样本的 args 原样传给被测函数，输出编码后和 result、thrown 逐字节比。
+// 构造请求体的样本再按推理强度选关重放一遍：传输层发请求时总带着档位的算法结果，选关时请求体也得逐字节一样。
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -9,6 +10,7 @@ import {
   canRaiseBudget,
   claudeRequestTraits,
   diagnoseEmptyResponse,
+  hostOf,
   isOfficialAnthropic,
   isOpenAiReasoningModel,
   isTruncated,
@@ -18,12 +20,14 @@ import {
   parseClaudeModel,
   parseErrorMessage,
   parseModelsResponse,
+  planEffort,
   redactSecret,
   refusalOf,
   relaxRejectedParams,
   splitSystemMessages,
   vendorExtras,
 } from "../../../../src/core/ai/provider/index.ts";
+import { resolveCapabilities } from "../../../../src/core/ai/capabilities.ts";
 
 interface GoldenCase {
   readonly id: string;
@@ -115,3 +119,19 @@ for (const item of cases) {
     assert.equal(JSON.stringify(outcomeOf(item, replay)), JSON.stringify(expected));
   });
 }
+
+// 样本里没有 Google 模型服务的兼容端点：那里选关会显式关思考，是有意的差别，见 effort.test.ts。
+test("推理强度选关：构造请求体的样本按传输层的算法带上关的档位，结果和样本逐字节一样", () => {
+  const builds = cases.filter((item) => item.fn === "buildChatRequest" && "result" in item);
+  assert.ok(builds.length > 100, `构造请求体的样本只有 ${builds.length} 个`);
+  for (const item of builds) {
+    const [input, ...rest] = argumentsOf(item) as [{ settings: { protocol: string; aiBaseUrl: string; aiModel: string }; relax?: unknown }, ...unknown[]];
+    assert.equal(rest.length, 0, item.id);
+    const { protocol, aiBaseUrl, aiModel } = input.settings;
+    const host = hostOf(aiBaseUrl);
+    const caps = resolveCapabilities({ protocol: protocol as never, host, model: aiModel, claude: null, relax: input.relax as never });
+    const effort = planEffort({ protocol: protocol as never, host, model: aiModel, requested: "off", caps });
+    const built = encode(buildChatRequest({ ...input, effort } as never));
+    assert.equal(JSON.stringify(built), JSON.stringify(item.result), `${item.id} ${item.label}`);
+  }
+});

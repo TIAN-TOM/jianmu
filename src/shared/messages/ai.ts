@@ -1,4 +1,6 @@
-// 模型服务这几条消息的请求和回复：配置检查、拉模型列表、测试连接。回复里都不带密钥。
+// 模型服务这几条消息的请求和回复：配置检查、拉模型列表、测试连接、推理强度预览。回复里都不带密钥。
+import type { EffortNote } from "../../core/ai/provider/index.ts";
+import type { Effort } from "../../core/notes/records.ts";
 import type { FeatureSlotId } from "../settings-schema.ts";
 import type { EmptyRequest } from "./core.ts";
 
@@ -29,8 +31,28 @@ export interface TestConnectionView {
   readonly truncated?: true;
 }
 
+/** 表单上还没保存的档位；没给的功能按已保存的设置。 */
+export interface EffortPreviewRequest {
+  readonly efforts?: Readonly<Partial<Record<FeatureSlotId, Effort>>>;
+}
+
+export interface EffortPreviewItem {
+  readonly feature: FeatureSlotId;
+  /** 这项功能实际要用的模型。 */
+  readonly model: string;
+  readonly requested: Effort;
+  readonly effective: Effort;
+  /** 实际档位和选的不一样、或者扩展设不了时的原因。 */
+  readonly note?: EffortNote;
+}
+
+export interface EffortPreviewView {
+  readonly items: readonly EffortPreviewItem[];
+}
+
 export interface AiApi {
   "config.check": { req: EmptyRequest; res: ConfigCheckView };
   "models.list": { req: EmptyRequest; res: ModelListView };
   "ai.testConnection": { req: TestConnectionRequest; res: TestConnectionView };
+  "ai.effortPreview": { req: EffortPreviewRequest; res: EffortPreviewView };
 }

@@ -1,4 +1,5 @@
 // AI 任务生命周期：去重、进度、取消与状态广播。保活在 platform/keepalive.ts。
+import { EFFORTS } from "./ai/provider/effort.ts";
 import type { Effort, FeatureId } from "./notes/records.ts";
 import type { VideoKey } from "./video-ref.ts";
 
@@ -26,13 +27,24 @@ export interface TaskView {
   readonly finishing?: boolean;
 }
 
-/** 任务创建时取定的生成配置，跑到一半改设置也不影响这个任务。 */
+/** 任务创建时取定的生成配置，跑到一半改设置也不影响这个任务。effort 是实际生效的档位。 */
 export interface FrozenGen {
   readonly feature: FeatureId;
   readonly baseUrl: string;
   readonly model: string;
   readonly effort: Effort;
+  /** 用户选的档位，和实际生效的不一样时才有（关不掉、退了一档）；请求按它发。 */
+  readonly requestedEffort?: Effort;
   readonly promptVersion: string;
+}
+
+/**
+ * 硬超时和保活按哪一档放宽：选的和实际的取高的那档。实际档位是建任务时只看本机缓存算的，
+ * 发请求时按拉到的能力重算，可能比它高；宁可多等，不在模型还在想的时候掐断。
+ */
+export function budgetEffort(gen: Pick<FrozenGen, "effort" | "requestedEffort">): Effort {
+  const requested = gen.requestedEffort ?? gen.effort;
+  return EFFORTS.indexOf(requested) > EFFORTS.indexOf(gen.effort) ? requested : gen.effort;
 }
 
 export interface Task {

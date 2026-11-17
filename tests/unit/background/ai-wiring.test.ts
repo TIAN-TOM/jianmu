@@ -390,3 +390,135 @@ test("建任务时取定生成配置：服务地址、这项功能实际要用�
   assert.notEqual((await edited.ai.freeze("analysis")).promptVersion, analysis.promptVersion, "改了提示词，版本跟着变");
   await assert.rejects(setup({ wiring: { prompts: {} } }).ai.freeze("qa"), /没有这份提示词/);
 });
+
+const withEfforts = (settings: SETTINGS.SettingsInput, featureEfforts: Readonly<Record<string, string>>) => ({ ...settings, featureEfforts });
+
+// 冻结要算提示词版本，六份都给上。
+const ALL_PROMPTS = { wiring: { prompts: Object.fromEntries(["analysis", "verdict", "translation", "qa", "note-cleanup", "explain"].map((name) => [`${name}.md`, name])) } };
+
+test("建任务时把用户选的推理强度冻结成实际档位：做得到的照记，关不掉、退了一档的另记用户选的；不发请求", async () => {
+  const anthropic = setup({ ...keyedStorage(withEfforts(ANTHROPIC, { analysis: "high" }), ANTHROPIC_ORIGIN), ...ALL_PROMPTS });
+  const analysis = await anthropic.ai.freeze("analysis");
+  assert.equal(analysis.effort, "high");
+  assert.equal("requestedEffort" in analysis, false);
+  assert.equal((await anthropic.ai.freeze("verdict")).effort, "off");
+
+  const opus = setup({ ...keyedStorage({ ...ANTHROPIC, aiModel: "claude-opus-5-5" }, ANTHROPIC_ORIGIN), ...ALL_PROMPTS });
+  const always = await opus.ai.freeze("qa");
+  assert.deepEqual([always.effort, always.requestedEffort], ["low", "off"], "关不掉思考，按最低档记");
+
+  const deepseek = setup({ ...keyedStorage(withEfforts(DEEPSEEK, { qa: "medium" }), DEEPSEEK_ORIGIN), ...ALL_PROMPTS });
+  const qa = await deepseek.ai.freeze("qa");
+  assert.deepEqual([qa.effort, qa.requestedEffort], ["low", "medium"], "没有中档，退到低档");
+
+  for (const built of [anthropic, opus, deepseek]) assert.equal(built.service.sent.length, 0, "冻结只看本机，不拉模型列表");
+});
+
+test("任务按冻结的档位发：请求带上档位和给思考留的余量；跑到一半把档位改成关，这个任务照旧", async () => {
+  const { ai, service, fake } = setup({ ...keyedStorage(withEfforts(DEEPSEEK, { qa: "high" }), DEEPSEEK_ORIGIN), handler: () => chatReply("好"), ...ALL_PROMPTS });
+  const task = ai.forTask(await ai.freeze("qa"));
+  await task.requestAiCompletion(EXPLAIN);
+
+  (fake.local.data[SETTINGS_STORAGE_KEY] as Record<string, unknown>)["featureEfforts"] = { qa: "off" };
+  await task.requestAiCompletion(EXPLAIN);
+  const fresh = ai.forTask(await ai.freeze("qa"));
+  await fresh.requestAiCompletion(EXPLAIN);
+
+  const bodies = service.posts().map((request) => request.body);
+  assert.deepEqual(
+    bodies.map((body) => [body?.reasoning_effort ?? null, body?.max_tokens]),
+    [["high", 512 + 16384], ["high", 512 + 16384], [null, 512]],
+  );
+  assert.deepEqual(bodies[0]?.thinking, { type: "enabled" });
+  assert.deepEqual(bodies[2]?.thinking, { type: "disabled" }, "新任务按改过的设置：关");
+});
+
+test("关不掉思考时任务按用户选的关发，请求和以前一样；退了一档的按实际那档发", async () => {
+  const opus = setup({
+    ...keyedStorage({ ...ANTHROPIC, aiModel: "claude-opus-5-5" }, ANTHROPIC_ORIGIN),
+    handler: ({ url }) => (isModelList(url) ? reply({ data: [] }) : anthropicReply("好")),
+    ...ALL_PROMPTS,
+  });
+  await opus.ai.forTask(await opus.ai.freeze("qa")).requestAiCompletion(EXPLAIN);
+  const body = opus.service.posts()[0]?.body;
+  assert.equal(body?.max_tokens, 512, "选关不加余量");
+  assert.equal(body && "thinking" in body, false);
+  assert.deepEqual(body?.output_config, { effort: "low" });
+
+  const deepseek = setup({ ...keyedStorage(withEfforts(DEEPSEEK, { qa: "medium" }), DEEPSEEK_ORIGIN), handler: () => chatReply("好"), ...ALL_PROMPTS });
+  await deepseek.ai.forTask(await deepseek.ai.freeze("qa")).requestAiCompletion(EXPLAIN);
+  const fallback = deepseek.service.posts()[0]?.body;
+  assert.deepEqual([fallback?.reasoning_effort, fallback?.max_tokens], ["low", 512 + 2048]);
+});
+
+test("任务的硬超时跟着冻结的档位：中档 180 秒、高档 300 秒，关和低档用默认的；选的比实际的高时按选的", async (t: TestContext) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const cases = [
+    [{ effort: "off" }, SETTINGS.AI_TIMEOUT_SECONDS],
+    [{ effort: "low" }, SETTINGS.AI_TIMEOUT_SECONDS],
+    [{ effort: "medium" }, 180],
+    [{ effort: "high" }, 300],
+    [{ effort: "low", requestedEffort: "medium" }, 180],
+  ] as const;
+  for (const [efforts, seconds] of cases) {
+    const effort = JSON.stringify(efforts);
+    const { ai, service } = setup({ ...keyedStorage(DEEPSEEK, DEEPSEEK_ORIGIN), handler: hangUntilAborted });
+    const task = ai.forTask({ ...frozenFor("deepseek-flash", "https://api.deepseek.com"), ...efforts });
+    let settled: TransportError | "resolved" | undefined;
+    void task.requestAiCompletion(EXPLAIN).then(
+      () => (settled = "resolved"),
+      (error: TransportError) => (settled = error),
+    );
+    const outcome = () => settled;
+    assert.ok(await until(() => service.sent.length === 1), effort);
+
+    t.mock.timers.tick(seconds * 1000 - 1);
+    await nextTurn();
+    assert.equal(outcome(), undefined, `${effort}：还没到 ${seconds} 秒`);
+    t.mock.timers.tick(1);
+    assert.ok(await until(() => outcome() !== undefined), `${effort}：到 ${seconds} 秒就停`);
+    const error = outcome() as TransportError;
+    assert.equal(error.code, "AI_HARD_TIMEOUT");
+    assert.ok(error.message.includes(`${seconds} 秒`), error.message);
+  }
+});
+
+const previewOf = async (ask: (type: string, sender?: ReturnType<typeof senders.options>, req?: unknown) => unknown, req: unknown = {}) => {
+  const answer = (await ask("ai.effortPreview", senders.options(), req)) as { ok: boolean; value: { items: { feature: string; effective: string; requested: string; note?: string }[] } };
+  assert.equal(answer.ok, true);
+  return Object.fromEntries(answer.value.items.map(({ feature, ...rest }) => [feature, rest]));
+};
+
+test("推理强度预览只用本机的映射表和已缓存的能力：没缓存时按型号名算，不拉模型列表，一个请求都不发", async () => {
+  const { ask, service, fake } = setup({ ...keyedStorage(withEfforts(ANTHROPIC, { qa: "high" }), ANTHROPIC_ORIGIN), handler: () => modelPage(["claude-sonnet-5-5"]) });
+  const preview = await previewOf(ask);
+  assert.deepEqual(Object.keys(preview), SETTINGS.FEATURE_MODEL_SLOTS.map(({ id }) => id));
+  assert.deepEqual(preview["qa"], { model: "claude-sonnet-5-5", requested: "high", effective: "high" });
+  assert.deepEqual(preview["analysis"], { model: "claude-sonnet-5-5", requested: "off", effective: "off" });
+  // 表单上还没保存的档位。
+  assert.deepEqual((await previewOf(ask, { efforts: { analysis: "medium" } }))["analysis"], { model: "claude-sonnet-5-5", requested: "medium", effective: "medium" });
+  assert.equal(service.sent.length, 0);
+  assert.equal(Object.hasOwn(fake.local.data, CAPABILITY_STORAGE_KEY), false);
+
+  // 缓存里有模型列表读到的能力时按它算：只有低、高两档，中档退到低档。
+  fake.local.data[CAPABILITY_STORAGE_KEY] = {
+    "https://api.anthropic.com": {
+      fetchedAt: Date.now(),
+      models: { "claude-sonnet-5-5": { maxTokens: 64000, thinking: { betweenTools: true, adaptive: true }, efforts: ["low", "high"], structuredOutputs: true } },
+    },
+  };
+  assert.deepEqual((await previewOf(ask, { efforts: { qa: "medium" } }))["qa"], { model: "claude-sonnet-5-5", requested: "medium", effective: "low", note: "fallback" });
+  assert.equal(service.sent.length, 0);
+});
+
+test("换服务商保留选的档位，按新的服务重新算实际档位", async () => {
+  const { ask, fake } = setup(keyedStorage(withEfforts(DEEPSEEK, { qa: "medium" }), DEEPSEEK_ORIGIN));
+  assert.deepEqual((await previewOf(ask))["qa"], { model: "deepseek-v4-flash", requested: "medium", effective: "low", note: "fallback" });
+
+  const stored = fake.local.data[SETTINGS_STORAGE_KEY] as Record<string, unknown>;
+  fake.local.data[SETTINGS_STORAGE_KEY] = { ...stored, ...ANTHROPIC };
+  assert.deepEqual((await previewOf(ask))["qa"], { model: "claude-sonnet-5-5", requested: "medium", effective: "medium" });
+
+  fake.local.data[SETTINGS_STORAGE_KEY] = { ...stored, ...GATEWAY };
+  assert.deepEqual((await previewOf(ask))["qa"], { model: "m-default", requested: "medium", effective: "off", note: "unknown" });
+});

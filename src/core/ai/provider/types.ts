@@ -1,6 +1,7 @@
 // 协议层用到的形状。响应和报错来自服务方，形状不可信：这里只写读得到时的样子，
 // 读取的地方都留着 ?. 和 Array.isArray 的判断。
 import type { ClearEpoch } from "../../clear-guard.ts";
+import type { Effort } from "../../notes/records.ts";
 import type { ResponseSchema } from "../schemas.ts";
 import type { Protocol } from "./endpoint.ts";
 
@@ -53,6 +54,36 @@ export interface ClaudeTraits {
   readonly maxTokens: number;
 }
 
+/**
+ * 三种协议统一的模型能力，推理强度和看图都只读它（capabilities.ts 的 resolveCapabilities 算出）。
+ * efforts 按从低到高列出这个服务和型号做得到的档位；关不掉思考的不含 off。
+ */
+export interface ModelCapabilities {
+  readonly canDisableThinking: boolean | "unknown";
+  readonly efforts: readonly Effort[];
+  readonly imageInput: boolean | "unknown";
+  readonly jsonSchema: boolean;
+  readonly maxOutput?: number;
+}
+
+/** 关不掉思考、按最低档发；做不到、退到了最接近的一档；扩展设不了这个服务的推理强度，由服务自己决定。 */
+export type EffortNote = "cannot-disable" | "fallback" | "unknown";
+
+/** 一个档位落到请求上的样子，见 effort.ts 的 planEffort。 */
+export interface EffortPlan {
+  /** 用户选的档位，放宽记忆按它分开记。 */
+  readonly requested: Effort;
+  /** 实际生效的档位：任务的生成配置记这个，设置页也显示这个。 */
+  readonly effective: Effort;
+  readonly note?: EffortNote;
+  /** 按合并补丁的规则并进请求体：值为 null 的键删掉，对象逐层合并。选关时多半是空的，请求和以前一样。 */
+  readonly patch: Readonly<Record<string, unknown>>;
+  /** 给思考留的输出余量，加在调用方给的预算上。 */
+  readonly outputHeadroom: number;
+  /** 单次请求的硬超时，秒。 */
+  readonly timeoutSec: number;
+}
+
 export interface ChatRequestInput {
   readonly settings: AiSettings;
   readonly messages?: readonly ChatMessage[] | null | undefined;
@@ -61,6 +92,8 @@ export interface ChatRequestInput {
   readonly responseFormat?: ResponseFormat | null | undefined;
   readonly relax?: RelaxState | undefined;
   readonly capabilities?: ClaudeCapabilities | null | undefined;
+  /** 推理强度。不传就是关，请求和以前一样。 */
+  readonly effort?: Pick<EffortPlan, "requested" | "patch"> | null | undefined;
 }
 
 export interface OutputFormat {
@@ -84,6 +117,7 @@ export interface ChatRequestBody {
   temperature?: number;
   thinking?: { readonly type: string };
   reasoning?: { readonly effort: string };
+  reasoning_effort?: string;
   output_config?: { effort?: string; format?: OutputFormat };
   response_format?: OutputFormat;
   text?: { format: OutputFormat };
@@ -166,12 +200,14 @@ export interface RelaxStorage {
 
 export interface RememberOptions {
   readonly since?: ClearEpoch | undefined;
+  /** 用户选的档位。关和以前一样记，别的档位分开记：一个档位被拒的参数，换个档位不一定被拒。 */
+  readonly effort?: Effort | undefined;
 }
 
 export interface RelaxMemory {
   readonly ready?: () => Promise<void>;
   readonly epoch?: () => ClearEpoch | undefined;
-  readonly recall: (settings: AiSettings) => RelaxState;
+  readonly recall: (settings: AiSettings, effort?: Effort) => RelaxState;
   readonly remember: (
     settings: AiSettings,
     relax: RelaxState,

@@ -1,5 +1,6 @@
 // 传输层对外的形状：注入的依赖、入参、结果和错误。
 import type { StoredDataConsent } from "../../consent.ts";
+import type { Effort } from "../../notes/records.ts";
 import type {
   AiSettings,
   ChatRequest,
@@ -155,6 +156,11 @@ export interface CompletionRequest {
    * 回 false 就按取消结束，不发。打开就出结论靠它在视频离开前台以后不发第一个请求。
    */
   readonly beforeSend?: (() => Promise<boolean>) | null | undefined;
+  /**
+   * 用户给这项功能选的推理强度，不传就是关。请求体和给思考留的输出余量按它和模型能力算；
+   * 硬超时按传输层建的时候给的，任务的传输层按冻结的档位给（见后台的 forTask）。
+   */
+  readonly effort?: Effort | undefined;
 }
 
 export interface CompletionResult {

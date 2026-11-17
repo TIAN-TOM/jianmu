@@ -4,7 +4,9 @@ import { signal, type ReadonlySignal } from "@preact/signals";
 import type { ClearScope } from "../../core/clear-guard.ts";
 import { describe, isErrorCode, type Failure } from "../../core/errors.ts";
 import { AI_ERROR_TEXT } from "../../core/errors/ai.ts";
+import type { Effort } from "../../core/notes/records.ts";
 import type { LoadedSettings, SettingsPatch, SettingsStore, WrittenSettings } from "../../platform/settings-store.ts";
+import type { EffortPreviewItem } from "../../shared/messages/ai.ts";
 import type { BackupImportReply } from "../../shared/messages/data.ts";
 import { SETTINGS_REVISION_KEY } from "../../shared/names.ts";
 import { FEATURE_MODEL_SLOTS, originOf, validate, validateForSave, type FeatureSlotId } from "../../shared/settings-schema.ts";
@@ -43,10 +45,15 @@ export interface OptionsState {
   readonly dataStatus: ReadonlySignal<Status | null>;
   readonly busy: ReadonlySignal<Busy>;
   readonly models: ReadonlySignal<readonly string[]>;
+  /** 每项功能实际生效的推理档位，后台按已保存的服务和模型、表单上选的档位算；问不到时是 null。 */
+  readonly efforts: ReadonlySignal<readonly EffortPreviewItem[] | null>;
   load(): Promise<void>;
   edit(patch: Partial<Pick<AiForm, "aiModel" | "analysisChunkMode" | "rememberApiKey">>): void;
   editKey(key: string): void;
   editFeatureModel(id: FeatureSlotId, model: string): void;
+  editEffort(id: FeatureSlotId, effort: Effort): void;
+  /** 重问实际档位，只在本机算，不发模型请求。 */
+  refreshEfforts(): Promise<void>;
   choosePreset(presetId: string): void;
   editAddress(patch: Pick<AiForm, "aiBaseUrl"> | Pick<AiForm, "protocol">): void;
   save(): Promise<boolean>;
@@ -101,6 +108,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
   const dataStatus = signal<Status | null>(null);
   const busy = signal<Busy>(null);
   const models = signal<readonly string[]>([]);
+  const efforts = signal<readonly EffortPreviewItem[] | null>(null);
   // 表单打开时的修订号：保存时在锁里核对，即改即存后比对，别的页面改过就重新载入。
   let revision = "";
   let ownWrites = 0;
@@ -114,6 +122,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       saved.value = settings;
       form.value = formOf(settings);
       loadError.value = null;
+      void refreshEfforts();
       const check = validateForSave(settings);
       if (!check.ok) aiStatus.value = { text: check.errors.join(" "), tone: "error" };
     } catch (error) {
@@ -167,6 +176,17 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
     form.value = next;
   };
 
+  // 连着改档位时回复可能乱序，只认最后一问。
+  let effortAsk = 0;
+  async function refreshEfforts(): Promise<void> {
+    const current = form.peek();
+    if (!current || stopped) return;
+    const ask = ++effortAsk;
+    const reply = await api.send("ai.effortPreview", { efforts: { ...current.featureEfforts } }).catch(() => null);
+    if (ask !== effortAsk || stopped) return;
+    efforts.value = reply?.ok && Array.isArray(reply.value.items) ? reply.value.items : null;
+  }
+
   async function save(): Promise<boolean> {
     const current = form.peek();
     const before = saved.peek();
@@ -218,6 +238,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       });
       if (!written) return false;
       form.value = formOf(written);
+      void refreshEfforts();
       // 回收是尽力而为：失败只是多留几条授权。
       await api.send("grants.release", {});
       const ready = validate(written);
@@ -254,6 +275,8 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       await work();
     } finally {
       busy.value = null;
+      // 拉到的模型能力、测试时服务拒掉的参数都会改变实际档位。
+      void refreshEfforts();
     }
   }
 
@@ -266,6 +289,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
     dataStatus,
     busy,
     models,
+    efforts,
     load,
     edit(patch) {
       const current = form.peek();
@@ -279,6 +303,13 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       const current = form.peek();
       if (current) setForm({ ...current, featureModels: { ...current.featureModels, [id]: model } });
     },
+    editEffort(id, effort) {
+      const current = form.peek();
+      if (!current) return;
+      setForm({ ...current, featureEfforts: { ...current.featureEfforts, [id]: effort } });
+      void refreshEfforts();
+    },
+    refreshEfforts,
     choosePreset(presetId) {
       const current = form.peek();
       const before = saved.peek();

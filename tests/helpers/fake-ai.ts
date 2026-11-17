@@ -6,7 +6,7 @@ import { taskCanceledError } from "../../src/core/ai/transport/index.ts";
 import { fail, ok } from "../../src/core/errors.ts";
 import type { FrozenGen } from "../../src/core/tasks.ts";
 import type { ConfigCheckView } from "../../src/shared/messages/ai.ts";
-import { normalize } from "../../src/shared/settings-schema.ts";
+import { FEATURE_MODEL_SLOTS, normalize } from "../../src/shared/settings-schema.ts";
 import { deferred, type Deferred } from "./deferred.ts";
 
 /** 传输层交回的正文；被截断、靠补齐才读出来的带标记。 */
@@ -79,6 +79,9 @@ export function createFakeAi(options: FakeAiOptions = {}): FakeAi {
     requestAiCompletion: (request) => complete(request),
     freeze: async (feature) => ({ feature, baseUrl: settings.aiBaseUrl, model, effort: "off", promptVersion: "fake-prompt" }),
     forTask: (frozen): TaskAi => ({ requestAiCompletion: (request) => complete({ ...request, feature: frozen.feature }, frozen) }),
+    effortPreview: async () => ({
+      items: FEATURE_MODEL_SLOTS.map(({ id }) => ({ feature: id, model, requested: "off" as const, effective: "off" as const })),
+    }),
     listModels: async () => ok({ ids: [...(options.models ?? [model])] }),
     async testConnection(feature) {
       try {

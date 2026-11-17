@@ -1,5 +1,7 @@
-// 设置页「AI 服务」表单的纯逻辑：从存着的设置填表、换服务商、拼出保存用的设置。不碰存储和浏览器接口。
+// 设置页「AI 服务」表单的纯逻辑：从存着的设置填表、换服务商、拼出保存用的设置、推理强度旁边的说明。不碰存储和浏览器接口。
+import type { Effort } from "../../core/notes/records.ts";
 import type { LoadedSettings } from "../../platform/settings-store.ts";
+import type { EffortPreviewItem } from "../../shared/messages/ai.ts";
 import {
   CUSTOM_PRESET_ID,
   featureModelsOwnerOf,
@@ -21,6 +23,8 @@ export interface AiForm {
   readonly keyTyped: boolean;
   readonly aiModel: string;
   readonly featureModels: Readonly<Partial<Record<FeatureSlotId, string>>>;
+  /** 每项功能选的推理强度。换服务商时保留，只有按功能选的模型跟着清空。 */
+  readonly featureEfforts: Readonly<Record<FeatureSlotId, Effort>>;
   readonly analysisChunkMode: AnalysisChunkMode;
   readonly rememberApiKey: boolean;
 }
@@ -34,6 +38,7 @@ export function formOf(settings: LoadedSettings): AiForm {
     keyTyped: false,
     aiModel: settings.aiModel,
     featureModels: { ...settings.featureModels },
+    featureEfforts: { ...settings.featureEfforts },
     analysisChunkMode: settings.analysisChunkMode,
     rememberApiKey: settings.rememberApiKey,
   };
@@ -96,4 +101,33 @@ export function showsRegionChooser(saved: LoadedSettings): boolean {
   if (saved.aiApiKey) return false;
   if (Object.keys(saved.featureModels).length > 0) return false;
   return REGION_PRESETS.some((region) => region.presetId === saved.presetId);
+}
+
+export const EFFORT_LABELS: Readonly<Record<Effort, string>> = Object.freeze({ off: "关", low: "低", medium: "中", high: "高" });
+
+const trimmedModels = (models: AiForm["featureModels"]): string =>
+  JSON.stringify(FEATURE_MODEL_SLOTS.map(({ id }) => (models[id] ?? "").trim()));
+
+/**
+ * 表单上的服务商、地址、协议或模型和已保存的不一样。实际档位是后台按已保存的服务和模型算的，
+ * 这时算出来的对不上表单，先不标。
+ */
+export function serviceChanged(form: AiForm, saved: LoadedSettings): boolean {
+  return (
+    form.presetId !== saved.presetId ||
+    form.protocol !== saved.protocol ||
+    form.aiBaseUrl !== saved.aiBaseUrl ||
+    form.aiModel.trim() !== saved.aiModel.trim() ||
+    trimmedModels(form.featureModels) !== trimmedModels(saved.featureModels)
+  );
+}
+
+/** 实际生效的档位和选的不一样时，旁边那一句；一样、或者选关而服务说不准时不说。 */
+export function effortNoteText(item: Pick<EffortPreviewItem, "requested" | "effective" | "note">): string | null {
+  const { requested, effective, note } = item;
+  if (note === "cannot-disable") return `这个模型关不掉思考，实际按最低的「${EFFORT_LABELS[effective]}」档`;
+  if (note === "unknown") return requested === "off" ? null : "这个服务调不了推理强度，由服务自己决定";
+  if (requested !== effective && effective === "off") return "这个模型调不了推理强度，实际按「关」";
+  if (requested !== effective) return `这个模型没有「${EFFORT_LABELS[requested]}」档，实际按「${EFFORT_LABELS[effective]}」档`;
+  return null;
 }

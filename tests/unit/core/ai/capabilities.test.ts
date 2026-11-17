@@ -398,3 +398,78 @@ test("2xx 的响应体读失败时抛出，不当成空列表", async () => {
   }));
   await assert.rejects(() => send({ url: "https://api.example.com/v1/models", headers: {} }, undefined), SyntaxError);
 });
+
+test("统一能力形状：Anthropic 有模型列表的能力时按能力，没有时按型号名；关不掉、能调的档位、结构化输出和输出上限", () => {
+  const claude = {
+    maxTokens: 64000,
+    thinking: { disabled: false, betweenTools: true, adaptive: true },
+    efforts: ["low", "medium", "high", "xhigh", "max"],
+    structuredOutputs: true,
+  };
+  const official = { protocol: PROTOCOLS.ANTHROPIC, host: "api.anthropic.com" } as const;
+  assert.deepEqual(CAPS.resolveCapabilities({ ...official, model: "claude-sonnet-5-5", claude }), {
+    canDisableThinking: true,
+    efforts: ["off", "low", "medium", "high"],
+    imageInput: true,
+    jsonSchema: true,
+    maxOutput: 64000,
+  });
+  assert.deepEqual(CAPS.resolveCapabilities({ ...official, model: "claude-opus-5-5" }), {
+    canDisableThinking: false,
+    efforts: ["low", "medium", "high"],
+    imageInput: true,
+    jsonSchema: true,
+  });
+  // 兼容地址不按型号名开结构化输出；认不出的型号什么都不知道。
+  const relay = { protocol: PROTOCOLS.ANTHROPIC, host: "gateway.example.com" } as const;
+  assert.equal(CAPS.resolveCapabilities({ ...relay, model: "claude-opus-5-5" }).jsonSchema, false);
+  assert.deepEqual(CAPS.resolveCapabilities({ ...relay, model: "relay-x" }), {
+    canDisableThinking: "unknown",
+    efforts: [],
+    imageInput: "unknown",
+    jsonSchema: false,
+  });
+});
+
+test("统一能力形状：放宽记忆和探测结果算进去，关思考被拒过的算关不掉，结构化输出被拒过的不再算", () => {
+  const input = { protocol: PROTOCOLS.ANTHROPIC, host: "api.anthropic.com", model: "claude-sonnet-5" } as const;
+  const relaxed = CAPS.resolveCapabilities({ ...input, relax: { thinking: true, format: true } });
+  assert.equal(relaxed.canDisableThinking, false);
+  assert.deepEqual(relaxed.efforts, ["low", "medium", "high"]);
+  assert.equal(relaxed.jsonSchema, false);
+  assert.equal(CAPS.resolveCapabilities({ ...input, probed: { imageInput: false } }).imageInput, false);
+
+  const responses = { protocol: PROTOCOLS.RESPONSES, host: "api.openai.com" } as const;
+  assert.deepEqual(CAPS.resolveCapabilities({ ...responses, model: "gpt-5.5" }), {
+    canDisableThinking: true,
+    efforts: ["off", "low", "medium", "high"],
+    imageInput: true,
+    jsonSchema: true,
+  });
+  assert.deepEqual(CAPS.resolveCapabilities({ ...responses, model: "gpt-5.5", relax: { effort: true } }).efforts, [], "档位参数被拒过");
+});
+
+test("统一能力形状：兼容协议按域名和型号，DeepSeek 只有低高两档，Google 的新型号关不掉，别的服务不知道", () => {
+  const chat = (host: string, model: string) => CAPS.resolveCapabilities({ protocol: PROTOCOLS.OPENAI, host, model });
+  assert.deepEqual(chat("api.deepseek.com", "deepseek-flash"), {
+    canDisableThinking: true,
+    efforts: ["off", "low", "high"],
+    imageInput: "unknown",
+    jsonSchema: false,
+  });
+  const google = "generativelanguage.googleapis.com";
+  assert.deepEqual(chat(google, "gemini-3.8-flash"), {
+    canDisableThinking: false,
+    efforts: ["low", "medium", "high"],
+    imageInput: true,
+    jsonSchema: false,
+  });
+  assert.deepEqual(chat(google, "gemini-2.5-flash").efforts, ["off", "low", "medium", "high"]);
+  assert.deepEqual(chat("notdeepseek.com", "deepseek-flash").efforts, [], "形近的域名不算");
+  assert.deepEqual(chat("gateway.example.com", "gemini-3.8-flash"), {
+    canDisableThinking: "unknown",
+    efforts: [],
+    imageInput: "unknown",
+    jsonSchema: false,
+  });
+});

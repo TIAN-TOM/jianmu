@@ -1,6 +1,7 @@
 // 参数放宽：模型因某个参数返回 400 时算出下一轮怎么发，记住放宽项，并把放宽重发收成一个函数。
 import { NO_CLEAR_GUARD, type ClearGuard } from "../../clear-guard.ts";
 import { RELAX_STORAGE_KEY } from "../../../shared/names.ts";
+import type { Effort } from "../../notes/records.ts";
 import { apiVersionFor } from "./anthropic.ts";
 import { PROTOCOLS, type Protocol } from "./endpoint.ts";
 import { buildChatRequest } from "./request.ts";
@@ -117,12 +118,14 @@ export function createRelaxMemory({
   clearGuard = NO_CLEAR_GUARD,
 }: { storage?: RelaxStorage; clearGuard?: ClearGuard } = {}): Required<RelaxMemory> {
   const entries = new Map<string, RelaxState>();
-  const keyOf = (settings: AiSettings): string =>
+  // 选关时的键和加推理强度之前一样，记过的放宽项照旧用得上；别的档位各记各的。
+  const keyOf = (settings: AiSettings, effort?: Effort): string =>
     JSON.stringify([
       settings.protocol,
       settings.aiBaseUrl,
       settings.aiModel,
       apiVersionFor(settings),
+      ...(effort && effort !== "off" ? [effort] : []),
     ]);
   let loading: Promise<void> | null = null;
   // forget() 加一：清除之前发起、清除之后才读回来的那份存储内容不再填进内存。
@@ -158,13 +161,13 @@ export function createRelaxMemory({
       }
       return loading;
     },
-    recall: (settings) => ({ ...entries.get(keyOf(settings)) }),
+    recall: (settings, effort) => ({ ...entries.get(keyOf(settings, effort)) }),
     epoch: () => clearGuard.epoch(),
     // since：请求开始时 epoch() 的返回值。这期间清除过缓存就不记。
-    remember(settings, relax, { since }: RememberOptions = {}) {
+    remember(settings, relax, { since, effort }: RememberOptions = {}) {
       if (!Object.keys(relax).length) return undefined;
       if (clearGuard.clearedSince(since, "cache")) return undefined;
-      const key = keyOf(settings);
+      const key = keyOf(settings, effort);
       // 放宽项没变就不写存储：成功的请求每次都会走到这里。
       if (JSON.stringify(entries.get(key)) === JSON.stringify(relax)) return undefined;
       entries.delete(key);
@@ -194,6 +197,7 @@ export function createRelaxMemory({
  * 失败抛出带 status 和 message 的错误（用 keyedHttpError 构造）。返回值里的 relax 是本次实际生效的放宽项，
  * 调用方后续轮次接着传回来，就不用再挨一次 400。传了 memory 就从记住的放宽项
  * 开始发，放宽后请求成功了再记下来。capabilities 是当前模型的能力，没有时传 null。
+ * effort 是这次的推理强度（effort.ts 的 planEffort 算出），放宽项按用户选的档位分开记。
  */
 export async function sendChatWithRelax({
   settings,
@@ -203,13 +207,15 @@ export async function sendChatWithRelax({
   responseFormat,
   relax = {},
   capabilities = null,
+  effort = null,
   memory,
   send,
   onRelax = () => {},
 }: SendChatInput): Promise<{ data: unknown; relax: RelaxState }> {
   await memory?.ready?.();
   const since = memory?.epoch?.();
-  let current: RelaxState = { ...memory?.recall(settings), ...relax };
+  const level = effort?.requested;
+  let current: RelaxState = { ...memory?.recall(settings, level), ...relax };
   for (;;) {
     const request = buildChatRequest({
       settings,
@@ -219,10 +225,11 @@ export async function sendChatWithRelax({
       responseFormat,
       relax: current,
       capabilities,
+      effort,
     });
     try {
       const data = await send(request, settings);
-      await memory?.remember(settings, current, { since });
+      await memory?.remember(settings, current, level && level !== "off" ? { since, effort: level } : { since });
       return { data, relax: current };
     } catch (error) {
       const next = relaxRejectedParams(settings.protocol, error as RejectedError, current, request.body);

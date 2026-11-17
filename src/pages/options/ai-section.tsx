@@ -1,5 +1,5 @@
-// 设置页「AI 服务」一节：服务商、地址、密钥和记住密钥、默认模型和按功能选模型、概览分块、数据说明和同意、保存和测试。
-import { useId } from "preact/hooks";
+// 设置页「AI 服务」一节：服务商、地址、密钥和记住密钥、默认模型和按功能选模型、推理强度、概览分块、数据说明和同意、保存和测试。
+import { useEffect, useId } from "preact/hooks";
 import { DATA_CONSENT_TABLE, noticeLines, noticeStatus, type DataConsentKind, type NoticeItem } from "../../core/consent.ts";
 import {
   ANALYSIS_CHUNK_MODES,
@@ -8,11 +8,12 @@ import {
   PRESETS,
   presetById,
   REGION_PRESETS,
+  EFFORTS,
   type AnalysisChunkMode,
 } from "../../shared/settings-schema.ts";
 import { Button } from "../shared/ui/button.tsx";
 import { Confirmable, StatusLine } from "./controls.tsx";
-import { showsRegionChooser } from "./form.ts";
+import { EFFORT_LABELS, effortNoteText, serviceChanged, showsRegionChooser } from "./form.ts";
 import type { OptionsState } from "./state.ts";
 
 const MODEL_LIST_ID = "model-options";
@@ -83,6 +84,51 @@ function ConsentBox({ state }: { readonly state: OptionsState }) {
       </label>
       <span class="field-hint">没勾选时不发任何 AI 请求。取消勾选马上生效。</span>
     </div>
+  );
+}
+
+function EffortBlock({ state }: { readonly state: OptionsState }) {
+  const form = state.form.value;
+  const saved = state.saved.value;
+  const items = state.efforts.value;
+  // 启用以后这一节才挂上，挂上时再问一次：启用之前后台不回。
+  useEffect(() => void state.refreshEfforts(), [state]);
+  if (!form || !saved) return null;
+  const pending = serviceChanged(form, saved);
+  return (
+    <fieldset class="field effort-block" id="featureEfforts">
+      <legend class="field-label">推理强度</legend>
+      <span class="field-hint">档位越高，模型想得越久，越贵也越慢。服务或模型做不到的档位，按最接近的一档发，并在旁边标出。</span>
+      {FEATURE_MODEL_SLOTS.map((slot) => {
+        const item = pending ? undefined : items?.find((entry) => entry.feature === slot.id && entry.requested === form.featureEfforts[slot.id]);
+        const note = item ? effortNoteText(item) : null;
+        return (
+          <label key={slot.id} class="feature-row">
+            <span class="feature-label">{slot.label}</span>
+            <span class="effort-choice">
+              <select
+                class="input"
+                data-effort={slot.id}
+                value={form.featureEfforts[slot.id]}
+                onChange={(event) => state.editEffort(slot.id, event.currentTarget.value as (typeof EFFORTS)[number])}
+              >
+                {EFFORTS.map((effort) => (
+                  <option key={effort} value={effort}>
+                    {EFFORT_LABELS[effort]}
+                  </option>
+                ))}
+              </select>
+              {note ? (
+                <span class="field-hint effort-note" data-effort-note={slot.id}>
+                  {note}
+                </span>
+              ) : null}
+            </span>
+          </label>
+        );
+      })}
+      {pending ? <span class="field-hint">改了服务商或模型，保存以后再标实际档位。</span> : null}
+    </fieldset>
   );
 }
 
@@ -252,6 +298,8 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
         ))}
       </details>
 
+      <EffortBlock state={state} />
+
       <label class="field">
         <span class="field-label">概览分块</span>
         <select class="input" id="analysisChunkMode" value={form.analysisChunkMode} onChange={(event) => state.edit({ analysisChunkMode: event.currentTarget.value as AnalysisChunkMode })}>
@@ -261,7 +309,7 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
             </option>
           ))}
         </select>
-        <span class="field-hint">多数模型用自动就好。上下文窗口小、内容有遗漏，或者长视频的请求超时（单次上限 120 秒）时选「较短」。</span>
+        <span class="field-hint">多数模型用自动就好。上下文窗口小、内容有遗漏，或者长视频的请求超时（单次上限 120 秒，推理强度选中、高时放宽到 180、300 秒）时选「较短」。</span>
       </label>
 
       <ConsentBox state={state} />

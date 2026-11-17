@@ -1,8 +1,8 @@
 // 设置页表单的纯逻辑：换服务商时密钥只跟着它所属的来源走，按功能选的模型换了归属就清空；
-// 拼出的保存设置写明密钥来源和模型归属，规整以后密钥不会落到别家的地址上。
+// 拼出的保存设置写明密钥来源和模型归属，规整以后密钥不会落到别家的地址上；推理强度换服务商时保留，实际档位和选的不一样时才说。
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { formOf, settingsInput, showsRegionChooser, withAddress, withPreset } from "../../../../src/pages/options/form.ts";
+import { effortNoteText, formOf, serviceChanged, settingsInput, showsRegionChooser, withAddress, withPreset } from "../../../../src/pages/options/form.ts";
 import type { LoadedSettings } from "../../../../src/platform/settings-store.ts";
 import { DEFAULTS, featureModelsOwnerOf, normalize } from "../../../../src/shared/settings-schema.ts";
 
@@ -48,4 +48,36 @@ test("快捷选择只给还没填密钥、停在快捷预设上、没另选模�
   assert.equal(showsRegionChooser(DEEPSEEK), false);
   assert.equal(showsRegionChooser(savedWith({ presetId: "openai" })), false);
   assert.equal(showsRegionChooser(savedWith({ featureModels: { qa: "x" } })), false);
+});
+
+test("推理强度：从设置填进表单，换服务商和地址时保留，保存时原样写回", () => {
+  const saved = savedWith({ ...DEEPSEEK, featureEfforts: { qa: "high", analysis: "low" } });
+  const form = formOf(saved);
+  assert.equal(form.featureEfforts.qa, "high");
+  assert.equal(form.featureEfforts.verdict, "off");
+  const moved = withPreset(form, "openai", saved);
+  assert.deepEqual(moved.featureEfforts, form.featureEfforts);
+  const custom = withAddress(withPreset(form, "custom", saved), { aiBaseUrl: "https://gateway.example.com/v1" }, saved);
+  assert.deepEqual(custom.featureEfforts, form.featureEfforts);
+  assert.deepEqual(normalize(settingsInput(moved, saved)).featureEfforts, saved.featureEfforts);
+});
+
+test("推理强度：表单上的服务商、地址、模型和保存的不一样时，先不标实际档位；只改档位不算", () => {
+  const saved = savedWith({ presetId: "deepseek", aiApiKey: "sk-deep" });
+  const form = formOf(saved);
+  assert.equal(serviceChanged(form, saved), false);
+  assert.equal(serviceChanged({ ...form, featureEfforts: { ...form.featureEfforts, qa: "high" } }, saved), false);
+  assert.equal(serviceChanged({ ...form, aiModel: ` ${saved.aiModel} ` }, saved), false, "前后空格不算改");
+  assert.equal(serviceChanged({ ...form, aiModel: "other" }, saved), true);
+  assert.equal(serviceChanged({ ...form, featureModels: { qa: "other" } }, saved), true);
+  assert.equal(serviceChanged(withPreset(form, "openai", saved), saved), true);
+});
+
+test("推理强度旁边那一句：一样时不说；退了一档、关不掉、服务调不了各说一句；选关而服务说不准时不说", () => {
+  assert.equal(effortNoteText({ requested: "high", effective: "high" }), null);
+  assert.equal(effortNoteText({ requested: "medium", effective: "low", note: "fallback" }), "这个模型没有「中」档，实际按「低」档");
+  assert.equal(effortNoteText({ requested: "high", effective: "off", note: "fallback" }), "这个模型调不了推理强度，实际按「关」");
+  assert.equal(effortNoteText({ requested: "off", effective: "low", note: "cannot-disable" }), "这个模型关不掉思考，实际按最低的「低」档");
+  assert.equal(effortNoteText({ requested: "high", effective: "off", note: "unknown" }), "这个服务调不了推理强度，由服务自己决定");
+  assert.equal(effortNoteText({ requested: "off", effective: "off", note: "unknown" }), null);
 });

@@ -6,25 +6,75 @@
 // 这里只负责把它的型号名列出来。
 //
 // 设置页「拉取模型列表」和后台都会写这份缓存：后台在缓存过期或缺失时自己拉一次，
-// 免得用户没点过拉取就一直用不上能力数据。
+// 免得用户没点过拉取就一直用不上能力数据。resolveCapabilities 把三种协议的能力合成同一个形状。
 import { NO_CLEAR_GUARD, type ClearEpoch, type ClearGuard } from "../clear-guard.ts";
 import { dataConsentGiven, type DataConsentRules, type StoredDataConsent } from "../consent.ts";
 import { CAPABILITY_STORAGE_KEY } from "../../shared/names.ts";
 import {
   buildModelsRequest,
+  claudeRequestTraits,
+  effortSupport,
   KEYED_FETCH_REDIRECT,
   keyedHttpError,
+  openAiModelTraits,
+  parseClaudeModel,
   parseModelsResponse,
   PROTOCOLS,
   rejectRedirect,
   type AiSettings,
   type ClaudeCapabilities,
+  type ModelCapabilities,
   type ModelsRequest,
   type ProviderError,
+  type Protocol,
   type RedirectProbe,
+  type RelaxState,
 } from "./provider/index.ts";
 
 export { CAPABILITY_STORAGE_KEY };
+export type { ModelCapabilities };
+
+export interface CapabilityInput {
+  readonly protocol: Protocol;
+  /** API 地址的主机名，小写。 */
+  readonly host: string;
+  readonly model: string;
+  /** 从 Anthropic 模型列表读到的能力，没有时按型号名判断。 */
+  readonly claude?: ClaudeCapabilities | null | undefined;
+  /** 设置页探测过的结果。 */
+  readonly probed?: { readonly imageInput?: boolean } | undefined;
+  /** 这组设置记住的放宽项：服务拒过的写法算做不到。 */
+  readonly relax?: RelaxState | undefined;
+}
+
+// 看图：认得出的型号按型号名判断，其余等设置页探测。
+function imageInputByName(protocol: Protocol, host: string, model: string): boolean | "unknown" {
+  if (protocol === PROTOCOLS.ANTHROPIC) return parseClaudeModel(model) ? true : "unknown";
+  if (protocol === PROTOCOLS.RESPONSES) return openAiModelTraits(model).known ? true : "unknown";
+  return host === "generativelanguage.googleapis.com" && /^(?:models\/)?gemini-/i.test(model) ? true : "unknown";
+}
+
+/**
+ * 三种协议统一的模型能力：能从服务商读到的读（Anthropic 的模型列表），其余靠型号表、探测结果和放宽记忆。
+ * 纯函数，不发请求；推理强度和看图都只读它。
+ */
+export function resolveCapabilities({ protocol, host, model, claude = null, probed, relax }: CapabilityInput): ModelCapabilities {
+  const effort = effortSupport({ protocol, host, model, claude, relax });
+  let jsonSchema = false;
+  if (protocol === PROTOCOLS.ANTHROPIC) {
+    jsonSchema = claudeRequestTraits(model, { official: host === "api.anthropic.com", capabilities: claude }).structuredOutputs;
+  } else if (protocol === PROTOCOLS.RESPONSES) {
+    jsonSchema = openAiModelTraits(model).structuredOutputs;
+  }
+  const maxOutput = Number(claude?.maxTokens) > 0 ? Number(claude?.maxTokens) : 0;
+  return {
+    canDisableThinking: effort.canDisableThinking,
+    efforts: effort.efforts,
+    imageInput: typeof probed?.imageInput === "boolean" ? probed.imageInput : imageInputByName(protocol, host, model),
+    jsonSchema: jsonSchema && !relax?.format,
+    ...(maxOutput ? { maxOutput } : {}),
+  };
+}
 // 能力很少变，但新型号上线、旧型号调整都要能跟上，一天刷新一次。
 export const TTL_MS = 24 * 60 * 60 * 1000;
 // 拉取失败（比如兼容网关没有模型列表）时先别每个请求都重试，一小时后再试。

@@ -2,7 +2,14 @@
 //
 // 双重超时各管一段，边界是「响应头是否已到达」：之前是模型在生成，
 // 归硬超时管；之后 body 应连续到达，静默即视为连接出了问题。
-import { KEYED_FETCH_REDIRECT, keyedHttpError, rejectRedirect, type ChatRequest, type Protocol } from "../provider/index.ts";
+import {
+  errorBodyOf,
+  KEYED_FETCH_REDIRECT,
+  keyedHttpError,
+  rejectRedirect,
+  type ChatRequest,
+  type Protocol,
+} from "../provider/index.ts";
 import { parseErrorEnvelope, parseResponseEnvelope, streamFailureStatus } from "./envelope.ts";
 import { taskCanceledError } from "./errors.ts";
 import { BUSY_RETRY_MAX_WAIT_MS, BUSY_RETRY_STATUSES, MODEL_UNAVAILABLE, QUOTA_EXHAUSTED, retryAfterMsOf } from "./policy.ts";
@@ -84,7 +91,7 @@ export function createAiSender({
         const error: TransportError = keyedHttpError(data, status, settings);
         const retryAfterMs = retryAfterMsOf(response.headers);
         if (retryAfterMs !== undefined) error.retryAfterMs = retryAfterMs;
-        const body = data as ErrorBody | null | undefined;
+        const body = errorBodyOf(data) as ErrorBody | null | undefined;
         const kind = [body?.error?.code, body?.error?.type, error.message].join(" ");
         if (QUOTA_EXHAUSTED.test(kind)) error.quotaExhausted = true;
         // 限流、过载里马上重发也没用的几种：额度用完、服务要求等得比上限还久、中转站没有这个模型。

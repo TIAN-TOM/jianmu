@@ -1,4 +1,4 @@
-// 模型服务的三条路由：配置检查、拉模型列表、测试连接。请求形状、回复里有什么、发出去的请求有多大。
+// 模型服务的路由：配置检查、拉模型列表、测试连接、推理强度预览。请求形状、回复里有什么、发出去的请求有多大。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createApp } from "../../../../src/background/app.ts";
@@ -116,4 +116,48 @@ test("拉模型列表按已保存的设置拉，Anthropic 的能力顺带存下�
     assert.deepEqual(await listed.ask("models.list", sender), { ok: false, code: "FORBIDDEN" });
     assert.deepEqual(await listed.ask("ai.testConnection", sender), { ok: false, code: "FORBIDDEN" });
   }
+});
+
+test("推理强度预览只收设置页；请求只能是空的或一张认得的功能和档位的表，别的形状不交给接线", async () => {
+  const fake = createFakeAi();
+  const received: unknown[] = [];
+  const ai: typeof fake.ai = {
+    ...fake.ai,
+    async effortPreview(efforts) {
+      received.push(efforts);
+      return { items: [] };
+    },
+  };
+  const chrome = createFakeChrome();
+  const router = createRouter({
+    routes: aiRoutes({ ai }),
+    ports: {},
+    senders: createSenders({ extensionId: EXTENSION_ID, extensionUrl, rules: chrome.siteRules }),
+    enabled: async () => true,
+    cardEnabled: async () => true,
+    contentTabs: createContentTabs(),
+    openPanel: async () => true,
+    log: { warn() {}, error() {} },
+  });
+  const probe = (req: unknown, sender = senders.options()) => router.dispatch({ type: "ai.effortPreview", req }, sender);
+
+  for (const req of [
+    { efforts: { qa: "max" } },
+    { efforts: { frame: "low" } },
+    { efforts: ["low"] },
+    { efforts: { qa: "low" }, extra: 1 },
+    { feature: "qa" },
+    [],
+    null,
+  ]) {
+    assert.deepEqual(await probe(req), { ok: false, code: "INVALID_REQUEST" }, JSON.stringify(req));
+  }
+  for (const sender of [senders.panel(), senders.card(), senders.triage(), senders.content()]) {
+    assert.equal((await probe({}, sender)).ok, false);
+  }
+  assert.equal(received.length, 0);
+
+  assert.deepEqual(await probe({}), { ok: true, value: { items: [] } });
+  assert.deepEqual(await probe({ efforts: { qa: "high", analysis: "off" } }), { ok: true, value: { items: [] } });
+  assert.deepEqual(received, [undefined, { qa: "high", analysis: "off" }]);
 });

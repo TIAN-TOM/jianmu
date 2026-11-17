@@ -6,11 +6,20 @@ import {
   createConsentGuardedGetter,
   createJsonGetter,
   listModels as listModelPages,
+  resolveCapabilities,
   type JsonFetch,
   type JsonFetchInit,
   type JsonResponse,
 } from "../core/ai/capabilities.ts";
-import { PROTOCOLS, createRelaxMemory, type AiSettings, type ProviderError } from "../core/ai/provider/index.ts";
+import {
+  PROTOCOLS,
+  createRelaxMemory,
+  hostOf,
+  planEffort,
+  type AiSettings,
+  type EffortPlan,
+  type ProviderError,
+} from "../core/ai/provider/index.ts";
 import {
   aiErrorResponse,
   createAiTransport,
@@ -24,13 +33,23 @@ import {
 import type { ClearGuard } from "../core/clear-guard.ts";
 import { fail, ok, type Failure, type Result } from "../core/errors.ts";
 import { AI_ERROR_TEXT, type AiErrorCode } from "../core/errors/ai.ts";
+import type { Effort } from "../core/notes/records.ts";
 import { sha256Hex } from "../core/task-keys.ts";
-import type { FrozenGen } from "../core/tasks.ts";
+import { budgetEffort, type FrozenGen } from "../core/tasks.ts";
 import type { Permissions } from "../platform/permissions.ts";
 import type { LoadedSettings, SettingsStore } from "../platform/settings-store.ts";
 import type { ExtensionStorage } from "../platform/storage.ts";
-import type { ConfigCheckView, ModelListView, TestConnectionView } from "../shared/messages/ai.ts";
+import type {
+  ConfigCheckView,
+  EffortPreviewItem,
+  EffortPreviewView,
+  ModelListView,
+  TestConnectionView,
+} from "../shared/messages/ai.ts";
 import {
+  EFFORT_TIMEOUT_SECONDS,
+  effortForFeature,
+  FEATURE_MODEL_SLOTS,
   modelForFeature,
   originOf,
   settingsRules as SETTINGS_RULES,
@@ -64,12 +83,17 @@ export interface TaskAi {
 export interface AiWiring {
   /** 配置够不够发起一次请求。只回能不能用和给用户看的提示，不带设置和密钥。 */
   readonly configCheck: () => Promise<ConfigCheckView>;
-  /** 按当前设置发一次模型请求，功能另选了模型就用那个。 */
+  /** 按当前设置发一次模型请求，功能另选了模型就用那个；推理强度按请求里给的，不给就是关。 */
   readonly requestAiCompletion: (request: CompletionRequest) => Promise<CompletionResult>;
-  /** 建任务时取定这项功能的生成配置：服务地址、实际要用的模型、推理档位、提示词版本。 */
+  /** 建任务时取定这项功能的生成配置：服务地址、实际要用的模型、实际生效的推理档位、提示词版本。 */
   readonly freeze: (feature: FeatureSlotId) => Promise<FrozenGen>;
-  /** 给一个任务的入口：地址、模型按冻结的那份，跑到一半改设置不跟着变。 */
+  /** 给一个任务的入口：地址、模型、推理档位按冻结的那份，跑到一半改设置不跟着变。 */
   readonly forTask: (frozen: FrozenGen) => TaskAi;
+  /**
+   * 每项功能实际生效的推理档位，设置页显示用。只用本机的映射表、已缓存的模型能力和放宽记忆算，
+   * 不发任何请求。requested 是表单上还没保存的选择，没给的功能按已保存的设置。
+   */
+  readonly effortPreview: (requested?: Readonly<Partial<Record<FeatureSlotId, Effort>>>) => Promise<EffortPreviewView>;
   /** 按已保存的设置拉模型列表，顺带把模型能力存起来。 */
   readonly listModels: () => Promise<Result<ModelListView>>;
   /** 发一个很小的请求看模型能不能回话。只发一次，不加码重试，参数被拒时照样放宽。 */
@@ -109,6 +133,11 @@ export function aiFailure(error: unknown): Failure {
   return AI_CODES.has(code) && code !== "AI_REQUEST_FAILED" ? fail(code as AiErrorCode, message) : fail("AI_REQUEST_FAILED");
 }
 
+// 硬超时随档位放宽，和任务的保活预算用同一张表；关和低档用设置规则里的默认值。
+function taskTimeoutMs(effort: Effort): number | undefined {
+  return EFFORT_TIMEOUT_SECONDS[effort] > EFFORT_TIMEOUT_SECONDS.off ? EFFORT_TIMEOUT_SECONDS[effort] * 1000 : undefined;
+}
+
 // 冻结的地址和现在的对不上：密钥属于现在的地址，按冻结的地址取不到，当作没填，按配置错误收尾。
 function frozenSettings(current: LoadedSettings, frozen: FrozenGen): LoadedSettings {
   const key = current.aiBaseUrl === frozen.baseUrl ? {} : { aiApiKey: "", aiApiKeyOrigin: "" };
@@ -140,8 +169,20 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
     relaxMemory: createRelaxMemory({ storage: storage.session, clearGuard }),
     getModelCapabilities: createCapabilityResolver({ storage: storage.local, send: consentedGet, clearGuard, now }),
   };
-  const build = (getSettings: () => Promise<AiSettings>): AiTransport => createAiTransport({ ...shared, getSettings });
+  const build = (getSettings: () => Promise<AiSettings>, timeoutMs?: number): AiTransport =>
+    createAiTransport({ ...shared, getSettings, timeoutMs });
   const transport = build(load);
+
+  // 只读本机：模型能力只看缓存（过期或没有就按型号名判断），不像发请求前那样去拉列表。
+  async function localPlan(current: LoadedSettings, model: string, requested: Effort): Promise<EffortPlan> {
+    const settings = { ...current, aiModel: model };
+    const claude = current.protocol === PROTOCOLS.ANTHROPIC ? (await capabilityCache.lookup(settings)).model : null;
+    await shared.relaxMemory.ready();
+    const host = hostOf(current.aiBaseUrl);
+    const relax = shared.relaxMemory.recall(settings, requested);
+    const caps = resolveCapabilities({ protocol: current.protocol, host, model, claude, relax });
+    return planEffort({ protocol: current.protocol, host, model, requested, caps });
+  }
 
   async function listModels(): Promise<Result<ModelListView>> {
     try {
@@ -198,18 +239,32 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
     requestAiCompletion: (request) => transport.requestAiCompletion(request),
     async freeze(feature) {
       const current = await load();
-      // 推理档位的设置还没有，冻结的是用户选的档位：关。
+      const model = modelForFeature(current, feature);
+      const requested = effortForFeature(current, feature);
+      const { effective } = await localPlan(current, model, requested);
       return {
         feature,
         baseUrl: current.aiBaseUrl,
-        model: modelForFeature(current, feature),
-        effort: "off",
+        model,
+        effort: effective,
+        ...(effective === requested ? {} : { requestedEffort: requested }),
         promptVersion: await promptVersion(FEATURE_PROMPTS[feature]),
       };
     },
     forTask(frozen) {
-      const bound = build(async () => frozenSettings(await load(), frozen));
-      return { requestAiCompletion: (request) => bound.requestAiCompletion({ ...request, feature: frozen.feature }) };
+      const effort = frozen.requestedEffort ?? frozen.effort;
+      const bound = build(async () => frozenSettings(await load(), frozen), taskTimeoutMs(budgetEffort(frozen)));
+      return { requestAiCompletion: (request) => bound.requestAiCompletion({ ...request, feature: frozen.feature, effort }) };
+    },
+    async effortPreview(requested = {}) {
+      const current = await load();
+      const items: EffortPreviewItem[] = [];
+      for (const { id } of FEATURE_MODEL_SLOTS) {
+        const model = modelForFeature(current, id);
+        const plan = await localPlan(current, model, requested[id] ?? effortForFeature(current, id));
+        items.push({ feature: id, model, requested: plan.requested, effective: plan.effective, ...(plan.note ? { note: plan.note } : {}) });
+      }
+      return { items };
     },
     listModels,
     testConnection,

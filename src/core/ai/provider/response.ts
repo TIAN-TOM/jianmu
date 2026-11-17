@@ -55,8 +55,14 @@ interface ErrorBody {
   readonly message?: string;
 }
 
+/** 有的兼容端点把错误体包成数组，取第一项；其余原样返回。 */
+export function errorBodyOf(data: unknown): unknown {
+  return Array.isArray(data) ? data[0] : data;
+}
+
 export function parseErrorMessage(data: unknown, status: number): string {
-  const payload = (data && typeof data === "object" ? data : {}) as ErrorBody;
+  const body = errorBodyOf(data);
+  const payload = (body && typeof body === "object" ? body : {}) as ErrorBody;
   const detail = payload.error as Exclude<ErrorBody["error"], string> | undefined;
   const message =
     detail?.message ||

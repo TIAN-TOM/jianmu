@@ -907,3 +907,33 @@ test("启用确认和数据同意分开判断：确认了一边不等于确认�
   const onlyActivated = { presetId: "deepseek", aiApiKey: "sk-test", ...SETTINGS.ACTIVATION_CONFIRMED };
   assert.deepEqual(SETTINGS.validate(onlyActivated).errors, [DATA_CONSENT_ERROR]);
 });
+
+test("推理强度：新安装六项功能全是关；只认已知功能下的四档，别的值按关，认不出的功能不写出来", () => {
+  const off = Object.fromEntries(SETTINGS.FEATURE_MODEL_SLOTS.map(({ id }) => [id, "off"]));
+  assert.deepEqual(SETTINGS.DEFAULTS.featureEfforts, off);
+  assert.deepEqual(SETTINGS.normalize({}).featureEfforts, off);
+  for (const bad of [null, "high", ["high"], 3]) assert.deepEqual(SETTINGS.normalize({ featureEfforts: bad }).featureEfforts, off);
+
+  const normalized = SETTINGS.normalize({
+    featureEfforts: { analysis: "high", qa: "medium", verdict: "max", notes: "LOW", frame: "high", explain: "low" },
+  });
+  assert.deepEqual(normalized.featureEfforts, { ...off, analysis: "high", qa: "medium", explain: "low" });
+  assert.deepEqual(SETTINGS.normalize(normalized).featureEfforts, normalized.featureEfforts, "再规整一遍不变");
+  assert.equal(SETTINGS.effortForFeature(normalized, "analysis"), "high");
+  assert.equal(SETTINGS.effortForFeature(normalized, "verdict"), "off");
+  assert.equal(SETTINGS.effortForFeature(normalized, "unknown-feature"), "off");
+  assert.equal(SETTINGS.effortForFeature(normalized, undefined), "off");
+});
+
+test("推理强度换服务商和地址时保留，按功能选的模型照旧清空", () => {
+  const saved = SETTINGS.normalize({
+    presetId: "anthropic",
+    featureModels: { qa: "claude-opus-5-5" },
+    featureEfforts: { qa: "high", analysis: "medium" },
+  });
+  const switched = SETTINGS.normalize({ ...saved, presetId: "deepseek", aiModel: "" });
+  assert.deepEqual(switched.featureModels, {});
+  assert.deepEqual(switched.featureEfforts, saved.featureEfforts);
+  const custom = SETTINGS.normalize({ ...switched, presetId: SETTINGS.CUSTOM_PRESET_ID, aiBaseUrl: "https://gateway.example.com/v1" });
+  assert.deepEqual(custom.featureEfforts, saved.featureEfforts);
+});

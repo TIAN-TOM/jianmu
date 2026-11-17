@@ -11,6 +11,7 @@ import {
   type KnownEndpointPreset,
   type PresetId,
 } from "../core/ai/provider/endpoint.ts";
+import { EFFORT_BUDGETS, EFFORTS, isEffort } from "../core/ai/provider/effort.ts";
 import type { AiSettings } from "../core/ai/provider/index.ts";
 import type { TransportSettingsRules } from "../core/ai/transport/index.ts";
 import type { Effort } from "../core/notes/records.ts";
@@ -82,12 +83,12 @@ export const REGION_PRESETS: readonly { readonly id: string; readonly label: str
 // 单次请求超时 120 秒，长视频超时就把概览分块改成「较短」。
 export const AI_CONCURRENCY = 3;
 export const AI_TIMEOUT_SECONDS = 120;
-// 推理档位越高，单次请求允许等得越久（初值）；关和低档就是上面那个值。保活的上限跟着算。
+// 推理档位越高，单次请求允许等得越久（初值，数值在档位映射表里）；关和低档就是上面那个值。保活的上限跟着算。
 export const EFFORT_TIMEOUT_SECONDS: Readonly<Record<Effort, number>> = Object.freeze({
-  off: AI_TIMEOUT_SECONDS,
-  low: AI_TIMEOUT_SECONDS,
-  medium: 180,
-  high: 300,
+  off: EFFORT_BUDGETS.off.timeoutSec,
+  low: EFFORT_BUDGETS.low.timeoutSec,
+  medium: EFFORT_BUDGETS.medium.timeoutSec,
+  high: EFFORT_BUDGETS.high.timeoutSec,
 });
 
 const MAX_MODEL_CHARS = 200;
@@ -167,6 +168,11 @@ export const FEATURE_MODEL_SLOTS = Object.freeze([
 ] as const);
 export type FeatureSlotId = (typeof FEATURE_MODEL_SLOTS)[number]["id"];
 
+/** 每项功能用户选的推理强度。和按功能选的模型不同，换服务商或地址时保留，按新的服务重新解析实际档位。 */
+export type FeatureEfforts = Readonly<Record<FeatureSlotId, Effort>>;
+
+export { EFFORTS };
+
 /** 来自存储或表单，形状不可信，规整时逐项核对。 */
 export interface SettingsInput {
   readonly presetId?: unknown;
@@ -177,6 +183,7 @@ export interface SettingsInput {
   readonly aiModel?: unknown;
   readonly featureModels?: unknown;
   readonly featureModelsOwner?: unknown;
+  readonly featureEfforts?: unknown;
   readonly analysisChunkMode?: unknown;
   readonly uiFontScale?: unknown;
   readonly accentTheme?: unknown;
@@ -198,6 +205,8 @@ export interface NormalizedSettings extends AiSettings {
   readonly featureModels: Readonly<Partial<Record<FeatureSlotId, string>>>;
   /** 上面这组模型属于哪个服务商和地址，见 bindFeatureModels。 */
   readonly featureModelsOwner: string;
+  /** 新安装全是关。 */
+  readonly featureEfforts: FeatureEfforts;
   readonly analysisChunkMode: AnalysisChunkMode;
   readonly uiFontScale: UiFontScale;
   readonly accentTheme: AccentTheme;
@@ -227,6 +236,7 @@ export const DEFAULTS: NormalizedSettings = Object.freeze({
   aiModel: DEFAULT_PRESET.model,
   featureModels: Object.freeze({}),
   featureModelsOwner: "",
+  featureEfforts: normalizeFeatureEfforts(undefined),
   analysisChunkMode: "auto",
   uiFontScale: UI_FONT_SCALES[0],
   accentTheme: "ink",
@@ -318,6 +328,17 @@ export function normalizeFeatureModels(input: unknown): FeatureModels {
   return out;
 }
 
+/** 六项功能都有一档：认不出的功能不写出来，认不出的档位按关。 */
+export function normalizeFeatureEfforts(input: unknown): FeatureEfforts {
+  const table: Readonly<Record<string, unknown>> = input && typeof input === "object" && !Array.isArray(input) ? { ...input } : {};
+  const out = {} as Record<FeatureSlotId, Effort>;
+  for (const { id } of FEATURE_MODEL_SLOTS) {
+    const value = table[id];
+    out[id] = isEffort(value) ? value : "off";
+  }
+  return Object.freeze(out);
+}
+
 function featureModelsOwner(presetId: string, checked: BaseUrlCheck): string {
   return checked.ok ? `${presetId}|${checked.origin}` : "";
 }
@@ -357,6 +378,7 @@ export function normalize(input: unknown = {}): NormalizedSettings {
     aiModel: model.slice(0, MAX_MODEL_CHARS),
     featureModels: featureModels.models,
     featureModelsOwner: featureModels.owner,
+    featureEfforts: normalizeFeatureEfforts(source.featureEfforts),
     analysisChunkMode: isKeyOf(ANALYSIS_CHUNK_MODES, source.analysisChunkMode)
       ? source.analysisChunkMode
       : DEFAULTS.analysisChunkMode,
@@ -389,6 +411,12 @@ export function featureModelsOwnerOf(settings: unknown): string {
 export function modelForFeature(settings: unknown, feature: string | undefined): string {
   const normalized = normalize(settings);
   return (isKeyOf(normalized.featureModels, feature) ? normalized.featureModels[feature] : "") || normalized.aiModel;
+}
+
+/** 某项功能用户选的推理强度：功能名认不出时按关。实际生效的档位还要看服务和模型，见 core/ai/provider/effort.ts。 */
+export function effortForFeature(settings: unknown, feature: string | undefined): Effort {
+  const { featureEfforts } = normalize(settings);
+  return isKeyOf(featureEfforts, feature) ? featureEfforts[feature] : "off";
 }
 
 /** 把 aiModel 换成这项功能实际要用的模型。请求构造、能力查询和放宽记忆都按 aiModel 区分，换掉这一项就全部跟着走。 */

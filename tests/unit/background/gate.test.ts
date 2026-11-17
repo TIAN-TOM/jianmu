@@ -51,6 +51,7 @@ const realRoutes = (): Readonly<Record<string, AnyRoute>> =>
       configCheck: async () => assert.fail(),
       listModels: async () => assert.fail(),
       testConnection: async () => assert.fail(),
+      effortPreview: async () => assert.fail(),
       freeze: async () => assert.fail(),
     },
     tasks: { register: async () => assert.fail(), cancel: () => assert.fail(), list: () => assert.fail() },

@@ -136,6 +136,29 @@ details.field[open] {
   color: var(--text-muted);
 }
 
+.effort-block {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.effort-block legend {
+  margin-bottom: var(--space-2);
+  padding: 0;
+}
+
+.effort-choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.effort-choice select.input {
+  min-width: 5rem;
+}
+
 .theme-picker {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));

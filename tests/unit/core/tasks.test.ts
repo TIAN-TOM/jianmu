@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createTaskManager, type Task } from "../../../src/core/tasks.ts";
+import { budgetEffort, createTaskManager, type Task } from "../../../src/core/tasks.ts";
 import { videoKey } from "../../../src/core/video-ref.ts";
 
 const PART_1 = videoKey({ platform: "bilibili", videoId: "BV1Sample000", segment: 1 });
@@ -249,4 +249,11 @@ test("留下的已中止信号最多 50 条，超出时丢掉最早的", () => {
   assert.equal(manager.claim("task-0"), null, "第 51 条挤掉最早的一条");
   assert.equal(manager.claim("task-1")?.aborted, true);
   assert.equal(manager.claim("task-50")?.aborted, true);
+});
+
+test("超时和保活按选的和实际的两档中高的那档放宽：退了一档按选的，关不掉思考按实际的最低档", () => {
+  assert.equal(budgetEffort({ effort: "medium" }), "medium");
+  assert.equal(budgetEffort({ effort: "low", requestedEffort: "medium" }), "medium");
+  assert.equal(budgetEffort({ effort: "off", requestedEffort: "high" }), "high");
+  assert.equal(budgetEffort({ effort: "low", requestedEffort: "off" }), "low");
 });

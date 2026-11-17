@@ -1159,3 +1159,16 @@ test("redactSecret 替换每一处密钥，太短的密钥不动", () => {
   assert.equal(provider.redactSecret("abc abc", "abc"), "abc abc");
   assert.equal(provider.redactSecret("no secret here", ""), "no secret here");
 });
+
+test("数组形状的错误体取第一项读出原因和参数，空数组按状态码报", () => {
+  const body = [{ error: { code: 400, message: "Invalid value at 'reasoning_effort'", status: "INVALID_ARGUMENT", param: "reasoning_effort" } }];
+  assert.equal(provider.parseErrorMessage(body, 400), "Invalid value at 'reasoning_effort'");
+  assert.equal(provider.parseErrorMessage([], 503), "服务返回 503");
+  assert.equal(provider.parseErrorMessage([{ message: "顶层的说明" }], 500), "顶层的说明");
+
+  const secret = "sk-array-body-secret-0001";
+  const error = provider.keyedHttpError([{ error: { message: `bad key ${secret}`, param: "model" } }], 400, { aiApiKey: secret });
+  assert.equal(error.status, 400);
+  assert.equal(error.param, "model");
+  assert.equal(error.message.includes(secret), false);
+});

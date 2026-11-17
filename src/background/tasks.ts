@@ -4,6 +4,7 @@ import { fail, type Result } from "../core/errors.ts";
 import type { Basis } from "../core/notes/records.ts";
 import { equivalenceKey, mutexKey } from "../core/task-keys.ts";
 import {
+  budgetEffort,
   createTaskManager,
   type FrozenGen,
   type Task,
@@ -130,7 +131,7 @@ interface Meta {
   vouched: boolean;
 }
 
-const defaultBudget = (gen: FrozenGen): number => keepAliveBudget(EFFORT_TIMEOUT_SECONDS[gen.effort] * 1000);
+const defaultBudget = (gen: FrozenGen): number => keepAliveBudget(EFFORT_TIMEOUT_SECONDS[budgetEffort(gen)] * 1000);
 
 const SKIPPED = "同一个视频已经有任务在跑，这次跳过";
 

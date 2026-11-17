@@ -15,6 +15,40 @@ import type {
   ResponseFormat,
 } from "./types.ts";
 
+type Patch = Readonly<Record<string, unknown>>;
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+// 合并补丁：值为 null 的键删掉，两边都是对象的逐层合并，其余直接换上。不改动传进来的对象。
+function mergePatch(target: Record<string, unknown>, patch: Patch): void {
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === null) {
+      delete target[key];
+    } else if (isPlainObject(value)) {
+      const next: Record<string, unknown> = isPlainObject(target[key]) ? { ...target[key] } : {};
+      mergePatch(next, value);
+      target[key] = next;
+    } else {
+      target[key] = value;
+    }
+  }
+}
+
+/**
+ * 推理强度的补丁并进请求体（档位映射见 effort.ts）。补丁是空的就什么都不动，请求和以前一样。
+ * 这个档位下记住的放宽项最后再生效：服务拒过的写法不再发。
+ */
+function withEffort(protocol: string, body: ChatRequestBody, patch: Patch | undefined, relax: RelaxState): void {
+  if (!patch || !Object.keys(patch).length) return;
+  mergePatch(body as Record<string, unknown>, patch);
+  if (protocol === PROTOCOLS.ANTHROPIC) {
+    if (relax.thinking === true) delete body.thinking;
+    else if (relax.thinking) body.thinking = { type: relax.thinking };
+  }
+  if (protocol === PROTOCOLS.RESPONSES && relax.effort) delete body.reasoning;
+}
+
 // 不支持结构化输出时退回的 JSON 模式，靠提示词约束字段。
 const JSON_OBJECT_FORMAT = Object.freeze({ type: "json_object" });
 
@@ -118,6 +152,8 @@ export function buildChatRequest({
   relax = {},
   // 当前模型的能力（capabilities.ts），目前只有 Anthropic 用得上。
   capabilities = null,
+  // 推理强度，不传就是关。
+  effort = null,
 }: ChatRequestInput): ChatRequest {
   const url = chatCompletionsUrl(settings);
   if (!url) throw new Error("API 地址不合法，请到设置页检查。");
@@ -168,6 +204,7 @@ export function buildChatRequest({
     ) {
       body.temperature = temperature;
     }
+    withEffort(settings.protocol, body, effort?.patch, relax);
 
     return {
       url,
@@ -183,13 +220,15 @@ export function buildChatRequest({
   }
 
   if (settings.protocol === PROTOCOLS.RESPONSES) {
+    const body = buildResponsesBody({ settings, messages, maxTokens, temperature, responseFormat, relax });
+    withEffort(settings.protocol, body, effort?.patch, relax);
     return {
       url,
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${settings.aiApiKey}`,
       },
-      body: buildResponsesBody({ settings, messages, maxTokens, temperature, responseFormat, relax }),
+      body,
     };
   }
 
@@ -211,6 +250,7 @@ export function buildChatRequest({
   // 有的网关连 json_object 也拒收：放宽后不发这个参数，在最后一条用户消息里补一句只输出 JSON。
   if (responseFormat && !relax.responseFormat) body.response_format = JSON_OBJECT_FORMAT;
   else if (responseFormat) body.messages = withProtocolContent(PROTOCOLS.OPENAI, withJsonMention(list));
+  withEffort(settings.protocol, body, effort?.patch, relax);
 
   return {
     url,

@@ -390,10 +390,19 @@ test("每次模型请求另一份保活：整个任务那份过了上限、请�
   await running;
 });
 
-test("保活上限按冻结的推理档位的硬超时算：关和低档 11 分钟，中档 16 分钟，高档 26 分钟", async () => {
-  for (const [effort, minutes] of [["off", 11], ["low", 11], ["medium", 16], ["high", 26]] as const) {
+test("保活上限按冻结的推理档位的硬超时算：关和低档 11 分钟，中档 16 分钟，高档 26 分钟；选的比实际的高时按选的", async () => {
+  const cases = [
+    [{ effort: "off" }, 11],
+    [{ effort: "low" }, 11],
+    [{ effort: "medium" }, 16],
+    [{ effort: "high" }, 26],
+    [{ effort: "low", requestedEffort: "high" }, 26],
+    [{ effort: "low", requestedEffort: "off" }, 11],
+  ] as const;
+  for (const [efforts, minutes] of cases) {
+    const effort = JSON.stringify(efforts);
     const h = harness();
-    const task = await started(h.tasks, spec({ gen: { ...GEN, effort } }));
+    const task = await started(h.tasks, spec({ gen: { ...GEN, ...efforts } }));
     const waiting = deferred();
     const running = h.tasks.run(task.id, async () => {
       await waiting.promise;

@@ -1,5 +1,5 @@
 // 允许矩阵：每条路由和端口收哪些发送方、确认启用之前放不放行。和架构设计第 10.2 节的表是同一张。
-// 后台全部路由和端口一次写全，加路由时只照这里实现，不改这里；路由表的逐条测试对照它断言。
+// 移植时的路由和端口一次写全，照这里实现；之后新加的路由同一个提交在这里和架构设计里各加一行。路由表的逐条测试对照它断言。
 
 export type Site = "bilibili" | "youtube";
 
@@ -38,6 +38,7 @@ export const ROUTE_MATRIX: readonly MatrixRow[] = [
   ...row(["panel.open"], { panel: false, options: true, triage: true, card: true, content: [], beforeEnable: true }),
   ...row(["config.check"], { ...PAGES, card: true, content: [], beforeEnable: false }),
   ...row(["models.list", "ai.testConnection"], { ...OPTIONS_ONLY, card: false, content: [], beforeEnable: false }),
+  ...row(["ai.effortPreview"], { ...OPTIONS_ONLY, card: false, content: [], beforeEnable: false }),
   ...row(["task.list", "task.cancel", "task.start"], { ...PAGES, card: true, content: [], beforeEnable: false }),
   ...row(["transcript.get"], { ...PAGES, card: true, content: [], beforeEnable: false }),
   ...row(["video.checkAvailable"], { ...PAGES, card: false, content: [], beforeEnable: false }),

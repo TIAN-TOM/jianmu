@@ -1,5 +1,5 @@
 // 带密钥的请求：模型调用、模型能力、设置页的测试连接和模型列表共用这几条约定。
-import { parseErrorMessage } from "./response.ts";
+import { errorBodyOf, parseErrorMessage } from "./response.ts";
 import type { AiSettings, ProviderError } from "./types.ts";
 
 /**
@@ -74,7 +74,7 @@ export function keyedHttpError(
   const error: ProviderError = new Error(raw);
   error.status = status;
   // OpenAI 把出问题的参数单独放在 param 里，参数放宽要靠它认出是哪一项。
-  const param = (data as ParamBody | null | undefined)?.error?.param;
+  const param = (errorBodyOf(data) as ParamBody | null | undefined)?.error?.param;
   if (param) error.param = redactSecret(param, secret);
   return error;
 }

@@ -1,11 +1,14 @@
 // 一次模型调用的完整过程：校验配置、查能力、发送，以及空响应、截断、限流各自的自愈。
 import { dataConsentGiven } from "../../consent.ts";
+import { resolveCapabilities } from "../capabilities.ts";
 import {
   canRaiseBudget,
   createRelaxMemory,
   diagnoseEmptyResponse,
+  hostOf,
   isTruncated,
   parseChatResponse,
+  planEffort,
   redactSecret,
   refusalOf,
   sendChatWithRelax,
@@ -94,6 +97,7 @@ export function createAiTransport({
     selfRetry = true,
     stillWanted = null,
     beforeSend = null,
+    effort: requested = "off",
   }: CompletionRequest): Promise<CompletionResult> {
     throwIfTaskCanceled(signal);
     const configured = await getSettings();
@@ -110,9 +114,14 @@ export function createAiTransport({
       .then(() => getModelCapabilities(settings))
       .catch(() => null);
     const ceiling = ceilingFor(capabilities);
+    // 推理强度：按模型能力算出补丁和给思考留的余量，选关时什么都不加。放宽记忆只由 sendChatWithRelax 读写，
+    // 服务拒过的写法在那边拼请求时去掉。
+    const host = hostOf(settings.aiBaseUrl);
+    const caps = resolveCapabilities({ protocol: settings.protocol, host, model: settings.aiModel, claude: capabilities });
+    const effort = planEffort({ protocol: settings.protocol, host, model: settings.aiModel, requested, caps });
 
     let format = responseFormat;
-    let tokens = Math.min(maxTokens, ceiling);
+    let tokens = Math.min(maxTokens + effort.outputHeadroom, ceiling);
     let diagnosis: EmptyDiagnosis | null = null;
     let relax: RelaxState = {};
     let attempt = 0;
@@ -169,6 +178,7 @@ export function createAiTransport({
           responseFormat: format,
           relax,
           capabilities,
+          effort,
           memory: relaxMemory,
           send,
           onRelax: (next) => log("[jianmu] 模型拒绝了请求参数，放宽后重发：", next),

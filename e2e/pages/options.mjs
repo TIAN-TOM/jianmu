@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { videoKey } from "../../src/core/video-ref.ts";
 import { API_KEY_SESSION_KEY, PAGE_PATHS, SETTINGS_STORAGE_KEY } from "../../src/shared/names.ts";
+import { FEATURE_MODEL_SLOTS } from "../../src/shared/settings-schema.ts";
 import { ANTHROPIC, VIDEOS } from "../fixtures.mjs";
 import { scenario } from "./harness.mjs";
 
@@ -182,4 +183,39 @@ test("设置页：导出的备份清除全部数据后能再导回来", async ({
     notes.value.notes.map((note) => note.text),
     ["页面测试写的笔记"],
   );
+});
+
+test("设置页：推理强度新安装全关；每项功能单独选，实际档位和选的不一样时旁边标出，保存后重新打开照旧", async ({ open }) => {
+  const page = await freshOptions(open);
+  await enable(page);
+  const efforts = () => page.evaluate(`Object.fromEntries([...document.querySelectorAll("[data-effort]")].map((node) => [node.dataset.effort, node.value]))`);
+  const noteOf = (feature) => page.evaluate(`document.querySelector('[data-effort-note="${feature}"]')?.textContent ?? ""`);
+  const initial = await efforts();
+  assert.deepEqual(Object.keys(initial), FEATURE_MODEL_SLOTS.map(({ id }) => id), "每项用到模型的功能一行");
+  assert.ok(Object.values(initial).every((value) => value === "off"), JSON.stringify(initial));
+  assert.match(await page.evaluate(`document.getElementById("featureEfforts").textContent`), /越贵也越慢/);
+
+  await fill(page, "#preset", ANTHROPIC.presetId);
+  await fill(page, "#aiApiKey", ANTHROPIC.key);
+  await fill(page, "#aiModel", "claude-sonnet-5-5");
+  await page.evaluate(`document.querySelector("#featureModels").open = true`);
+  await fill(page, '[data-feature="notes"]', "claude-haiku-4-5");
+  await page.waitFor("改了模型还没保存时先不标", `document.getElementById("featureEfforts").textContent.includes("保存以后再标")`);
+  await clickButton(page, "保存并授权");
+  await statusStarts(page, "ai-service", "已保存");
+
+  await fill(page, '[data-effort="qa"]', "high");
+  await fill(page, '[data-effort="notes"]', "high");
+  await page.waitFor("笔记润色标出实际档位", `document.querySelector('[data-effort-note="notes"]') !== null`);
+  assert.equal(await noteOf("notes"), "这个模型调不了推理强度，实际按「关」");
+  assert.equal(await noteOf("qa"), "", "做得到的档位不标");
+  await clickButton(page, "保存并授权");
+  // 状态行还是上一次保存的那句，直接等存储。
+  const storedEfforts = `chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)}).then((items) => items[${JSON.stringify(SETTINGS_STORAGE_KEY)}].featureEfforts)`;
+  await page.waitFor("档位存下", `${storedEfforts}.then((efforts) => efforts.qa === "high")`);
+  assert.deepEqual(await page.evaluate(storedEfforts), { ...initial, qa: "high", notes: "high" });
+
+  const reopened = await open(PAGE_PATHS.options, { width: WIDTH });
+  await reopened.waitFor("重新打开后档位填回来、照样标出", `document.querySelector('[data-effort="qa"]')?.value === "high" && document.querySelector('[data-effort-note="notes"]') !== null`);
+  assert.equal(await reopened.overflowsX(), false);
 });

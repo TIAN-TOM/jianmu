@@ -10,6 +10,17 @@ export {
   parseClaudeModel,
 } from "./anthropic.ts";
 export { diagnoseEmptyResponse } from "./diagnose.ts";
+export {
+  EFFORT_BUDGETS,
+  EFFORTS,
+  effortSupport,
+  hostOf,
+  isEffort,
+  planEffort,
+  type EffortPlanInput,
+  type EffortSupport,
+  type EffortTarget,
+} from "./effort.ts";
 export { PROTOCOLS, type Protocol } from "./endpoint.ts";
 export {
   isRedirectResponse,
@@ -31,6 +42,7 @@ export { createRelaxMemory, RELAX_STORAGE_KEY, relaxRejectedParams, sendChatWith
 export { buildChatRequest, buildModelsRequest, splitSystemMessages } from "./request.ts";
 export {
   canRaiseBudget,
+  errorBodyOf,
   isTruncated,
   parseChatResponse,
   parseErrorMessage,
@@ -46,7 +58,10 @@ export type {
   ChatRequestInput,
   ClaudeCapabilities,
   ClaudeTraits,
+  EffortNote,
+  EffortPlan,
   EmptyDiagnosis,
+  ModelCapabilities,
   ModelsRequest,
   ProviderError,
   RelaxMemory,
