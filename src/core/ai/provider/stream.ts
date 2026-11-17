@@ -110,9 +110,16 @@ function statusOf(type: string, code: string): number {
 
 const stringOf = (value: unknown): string => (typeof value === "string" || typeof value === "number" ? String(value) : "");
 
-// 三种协议的错误事件都认：type 为 error 的事件，或带着顶层 error 的数据块。
+// Responses 以失败收尾时，错误在收尾带的响应里；没写原因也算失败，不把前面的增量当成功的正文交出去。
+function responseFailure(payload: Payload): unknown {
+  const response = isObject(payload.response) ? payload.response : {};
+  return response.error ?? {};
+}
+
+// 三种协议的错误事件都认：type 为 error 的事件，Responses 的失败收尾，或带着顶层 error 的数据块。
 function failureOf(payload: Payload): StreamAssembly | null {
-  const raw = payload.type === "error" ? (payload.error ?? payload) : payload.error;
+  const raw =
+    payload.type === "error" ? (payload.error ?? payload) : payload.type === "response.failed" ? responseFailure(payload) : payload.error;
   if (raw === undefined || raw === null || raw === false || raw === "") return null;
   const detail: Payload = isObject(raw) ? raw : { message: stringOf(raw) };
   const type = stringOf(detail.type === "error" ? "" : detail.type);

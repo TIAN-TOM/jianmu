@@ -191,6 +191,19 @@ test("Responses：中途的错误事件拼成服务方报错，断在半截的�
     sse([created, textDelta("前"), ["error", { type: "error", code: "rate_limit_exceeded", message: "too fast, wait a bit", param: null, sequence_number: 3 }]]),
   );
   assert.deepEqual(failed, { ok: false, status: 429, message: "too fast, wait a bit", code: "rate_limit_exceeded" });
+  // 以失败收尾：错误在收尾带的响应里，前面已经有的增量不当成功的正文交出去。
+  const ended = provider.assembleEventStream(
+    PROTOCOLS.RESPONSES,
+    sse([created, textDelta("前"), finished("response.failed", RESP.baseResponse({ status: "failed", error: { code: "server_error", message: "The server had an error" } }))]),
+  );
+  assert.deepEqual(ended, { ok: false, status: 500, message: "The server had an error", code: "server_error" });
+  const overloaded = provider.assembleEventStream(
+    PROTOCOLS.RESPONSES,
+    sse([created, finished("response.failed", RESP.baseResponse({ status: "failed", error: { code: "rate_limit_exceeded", message: "slow down" } }))]),
+  );
+  assert.equal(overloaded.ok === false && overloaded.status, 429, "限流照样交给忙碌重发");
+  const silent = provider.assembleEventStream(PROTOCOLS.RESPONSES, sse([created, textDelta("前"), finished("response.failed", RESP.baseResponse({ status: "failed", error: null }))]));
+  assert.equal(silent.ok, false, "没写原因也算失败");
   const cut = assembled(PROTOCOLS.RESPONSES, sse([created, textDelta("前"), textDelta("半")]));
   assert.equal(cut.complete, false);
   assert.equal(provider.parseChatResponse(PROTOCOLS.RESPONSES, cut.data), "前半");
