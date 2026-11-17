@@ -302,3 +302,13 @@ test("构建开关：关着的开关保护的内容整段裁掉，打开哪个�
     for (const name of Object.values(FEATURE_GLOBALS)) assert.ok(!bundle.includes(name), `${label}：${name} 没换成字面量`);
   }
 });
+
+test("构建标识带上开关取值：只换开关重新构建，标识跟着变，同一组开关算出同一个", () => {
+  const idOf = (features: FeatureSet): string[] => bundleOptions(features).map((options) => String(options.define?.["__JIANMU_BUILD_ID__"]));
+  const release = idOf(RELEASE_FEATURES);
+  assert.equal(new Set(release).size, 1, "各包同一个标识");
+  assert.deepEqual(idOf(RELEASE_FEATURES), release);
+  const ids = new Set([release[0], ...FEATURE_NAMES.map((name) => idOf({ ...RELEASE_FEATURES, [name]: true })[0]), idOf(TEST_BUILD_FEATURES)[0]]);
+  assert.equal(ids.size, FEATURE_NAMES.length + 2, "每种构建的标识都不一样");
+  assert.ok(readBuild("background.js").includes(release[0] ?? "-"), "build/ 里的发行构建用的是发行开关算出的标识");
+});

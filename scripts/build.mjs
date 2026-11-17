@@ -6,7 +6,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build, context } from "esbuild";
 import { featureDefines, FEATURE_GLOBALS, FEATURE_NAMES } from "../src/shared/features.ts";
-import { clearBuildFlags, featuresFromArgs, writeBuildFlags } from "./lib/build-flags.mjs";
+import { buildFlagsRecord, clearBuildFlags, featuresFromArgs, writeBuildFlags } from "./lib/build-flags.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = join(ROOT, "build");
@@ -25,8 +25,9 @@ const promptText = {
   },
 };
 
-// 构建标识：按进包的源码、提示词、页面外壳、清单模板和依赖版本的内容算，同一份源码两次构建得到同一个，
-// 后台和各页面注入同一个值。监听模式只在启动时算一次，各包各自重建时不会对不上。
+// 构建标识：按进包的源码、提示词、页面外壳、清单模板和依赖版本的内容，加上这次构建开关的取值算，
+// 同一份源码、同一组开关两次构建得到同一个，后台和各页面注入同一个值。只换开关重新构建，标识也会变，
+// 页面才认得出后台是另一种构建。监听模式只在启动时算一次，各包各自重建时不会对不上。
 const BUILD_INPUTS = ["src", "prompts", "static", "manifest.template.json", "package.json", "package-lock.json"];
 
 /** @param {string} path */
@@ -37,7 +38,8 @@ function filesUnder(path) {
   return entries.filter((entry) => entry.isFile()).map((entry) => join(entry.parentPath, entry.name));
 }
 
-function buildId() {
+/** @param {import("../src/shared/features.ts").FeatureSet} features */
+export function buildId(features) {
   const hash = createHash("sha256");
   const files = BUILD_INPUTS.flatMap((input) => filesUnder(join(ROOT, input)))
     .map((path) => relative(ROOT, path).split("\\").join("/"))
@@ -45,6 +47,7 @@ function buildId() {
     .filter((file) => !file.split("/").some((part) => part.startsWith(".")))
     .sort();
   for (const file of files) hash.update(`${file}\0`).update(readFileSync(join(ROOT, file))).update("\0");
+  hash.update(JSON.stringify(buildFlagsRecord(features)));
   return hash.digest("hex").slice(0, 16);
 }
 
@@ -61,7 +64,6 @@ const shared = {
   jsxImportSource: "preact",
   logLevel: "warning",
   plugins: [promptText],
-  define: { __JIANMU_BUILD_ID__: JSON.stringify(buildId()) },
 };
 
 // 页面各打一个自包含的 ESM 包，不开代码拆分，产物清单才稳定。首帧外观脚本在页面 <head> 里同步加载，打成经典脚本。
@@ -83,8 +85,8 @@ const bundles = [
  * @returns {import("esbuild").BuildOptions[]}
  */
 export function bundleOptions(features) {
-  const define = featureDefines(features);
-  return bundles.map((bundle) => ({ ...shared, ...bundle, define: { ...shared.define, ...define } }));
+  const define = { __JIANMU_BUILD_ID__: JSON.stringify(buildId(features)), ...featureDefines(features) };
+  return bundles.map((bundle) => ({ ...shared, ...bundle, define }));
 }
 
 function writeManifest() {
