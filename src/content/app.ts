@@ -4,6 +4,7 @@ import type { VideoKey } from "../core/video-ref.ts";
 import type { Broadcast } from "../shared/messages.ts";
 import type { AppearanceView } from "../shared/messages/core.ts";
 import type { SitePage } from "../sites/page-types.ts";
+import type { FrameIdentity, FrameTool } from "./frame.ts";
 import { createGate, type Activation, type Gate, type GateTimers } from "./gate.ts";
 import { createPlaybackReporter, createPlayer, type Player } from "./player.ts";
 import type { ContentRuntime } from "./runtime.ts";
@@ -21,6 +22,8 @@ export interface Surface {
 
 export interface SurfaceEnv {
   readonly player: Player;
+  /** 截帧工具，构建开关打开时才有。 */
+  readonly frame?: FrameTool;
   /** 扩展断了联系：交给生命周期收场。 */
   readonly retire: () => void;
 }
@@ -33,6 +36,8 @@ export interface ContentAppDeps {
   readonly visibility: { readonly hidden: () => boolean; readonly onChange: (run: () => void) => () => void };
   /** 媒体元素开始加载新内容。 */
   readonly onMediaLoading: (run: () => void) => () => void;
+  /** 截帧工具的工厂，构建开关打开时才传：挂界面时建，撤下时停。 */
+  readonly frame?: (identity: FrameIdentity) => FrameTool;
   readonly every?: (ms: number, run: () => void) => () => void;
   readonly gateTimers?: GateTimers;
 }
@@ -66,6 +71,7 @@ export function createContentApp(deps: ContentAppDeps): ContentApp {
   const { runtime, page, every = repeat } = deps;
   let session: AbortController | null = null;
   let player: Player | null = null;
+  let frame: FrameTool | null = null;
   let surface: Surface | null = null;
   let retired = false;
   let appearanceVersion = 0;
@@ -97,13 +103,16 @@ export function createContentApp(deps: ContentAppDeps): ContentApp {
     const current = createPlayer({ currentRef: () => page.currentRef(), findMainVideo: () => page.findMainVideo() });
     player = current;
     cleanups.push(deps.onMediaLoading(() => current.mediaLoading()));
+    const tool = deps.frame?.({ currentKey: current.currentKey, confirmed: current.confirmed, findMainVideo: () => page.findMainVideo() }) ?? null;
+    frame = tool;
+    if (tool) cleanups.push(() => tool.stop());
     try {
       await page.whenPageReady(controller.signal);
     } catch {
       return;
     }
     if (session !== controller || retired) return;
-    surface = deps.createSurface({ player: current, retire });
+    surface = deps.createSurface({ player: current, retire, ...(tool ? { frame: tool } : {}) });
     const report = createPlaybackReporter({
       player: current,
       findMainVideo: () => page.findMainVideo(),
@@ -131,6 +140,7 @@ export function createContentApp(deps: ContentAppDeps): ContentApp {
     surface?.remove();
     surface = null;
     player = null;
+    frame = null;
   }
 
   const gate = createGate({
@@ -155,6 +165,12 @@ export function createContentApp(deps: ContentAppDeps): ContentApp {
     } else if (!broadcast && player && gate.isOpen() && !retired) {
       const answer = player.handle(message);
       if (answer) reply(answer);
+      // 截帧要等下一帧、编码，异步回；回 true 让消息通道等着。
+      const pending = answer ? null : frame?.handle(message);
+      if (pending) {
+        void pending.then(reply, () => reply({ ok: false, code: "FRAME_NOT_READY" }));
+        return true;
+      }
     }
     return false;
   }

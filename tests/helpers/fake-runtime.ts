@@ -115,9 +115,13 @@ export function fakeRuntime(options: FakeRuntimeOptions = {}) {
     reply(type: string, answer: FakeReply | { readonly value: unknown }) {
       replies.set(type, typeof answer === "function" ? answer : () => answer.value);
     },
-    /** 发一条广播。默认发送方是本扩展的后台。 */
-    broadcast(message: unknown, sender: { readonly id?: string; readonly tab?: unknown } = { id: EXTENSION_ID }) {
-      for (const listener of [...listeners]) listenerResults.push(listener(copy(message), sender));
+    /** 发一条广播。默认发送方是本扩展的后台。要看监听怎么回的，传 reply。 */
+    broadcast(message: unknown, sender: { readonly id?: string; readonly tab?: unknown } = { id: EXTENSION_ID }, reply?: (value: unknown) => void) {
+      for (const listener of [...listeners]) {
+        // 内容脚本的监听多收一个回复函数，页面的不收。
+        const withReply = listener as (message: unknown, from: typeof sender, answer?: (value: unknown) => void) => unknown;
+        listenerResults.push(reply ? withReply(copy(message), sender, reply) : listener(copy(message), sender));
+      }
     },
     listeners: () => listeners.size,
     attempts: (type: string) => sent.filter((item) => item.type === type).length,

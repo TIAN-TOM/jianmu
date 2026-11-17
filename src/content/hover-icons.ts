@@ -1,4 +1,5 @@
-// 播放器右上角的笔记图标：平时藏着，播放器的控制栏露出来时才露（什么时候露见 reveal.ts），只有图标没有字，保存的结果在图标旁边闪一句。
+// 播放器右上角的悬停图标：一个浮层里竖着排几个图标（笔记，构建开关打开时还有解释当前画面）。平时藏着，
+// 播放器的控制栏露出来时才露（什么时候露见 reveal.ts），只有图标没有字，结果在图标旁边闪一句。
 // 挂在不直接包着视频的那一层，只认真实点击，点的时候再核对一次没被页面改成透明、铺满。
 // 鼠标移上去和闪提示时用设置里的主题色，不跟扩展页面的明暗走。小窗时让开，见 mini-player.ts。
 import { INJECTED } from "../shared/names.ts";
@@ -21,30 +22,57 @@ const OVERLAY_STYLE = `position:absolute;top:12px;right:12px;z-index:9999;displa
   visibility:hidden;pointer-events:none;`;
 
 const SVG_NS = "http://www.w3.org/2000/svg";
-const ICON_PATHS = ["M8.6 2.4H4.1c-.6 0-1.1.5-1.1 1.1v8.9c0 .6.5 1.1 1.1 1.1h6.2c.6 0 1.1-.5 1.1-1.1V7.9", "M11.2 2.2a1.4 1.4 0 0 1 2 2L9.1 8.3l-2.5.5.5-2.5Z"];
 
 // 防点击劫持：自己的按钮从不设透明度，也不会大过一行字。
 const MAX_WIDTH = 320;
 const MAX_HEIGHT = 96;
 const MIN_OPACITY = 0.5;
 
-export interface NoteButtonDeps {
-  readonly document: Document;
-  /** 挂按钮的那一层，没有时这一轮不挂。 */
-  readonly anchor: () => Element | null;
+/** 一个图标：节点标识、悬停提示、16×16 的线条图形。 */
+export interface IconSpec {
+  readonly id: string;
+  readonly labelClass: string;
+  readonly title: string;
+  readonly paths: readonly string[];
+}
+
+export const NOTE_ICON: IconSpec = {
+  id: INJECTED.noteButton,
+  labelClass: INJECTED.noteLabel,
+  title: NOTE_TITLE,
+  paths: ["M8.6 2.4H4.1c-.6 0-1.1.5-1.1 1.1v8.9c0 .6.5 1.1 1.1 1.1h6.2c.6 0 1.1-.5 1.1-1.1V7.9", "M11.2 2.2a1.4 1.4 0 0 1 2 2L9.1 8.3l-2.5.5.5-2.5Z"],
+};
+
+export interface HoverIconEntry {
+  readonly spec: IconSpec;
   readonly onPress: () => void;
 }
 
-export interface NoteButton {
+export interface HoverIcon {
+  /** 在图标旁边闪一句提示，闪着的时候浮层一直露着；ms 为 0 时一直挂着，直到下一次提示。 */
+  readonly flash: (text: string, ms?: number) => void;
+  readonly setTitle: (title: string) => void;
+}
+
+export interface HoverIconsDeps {
+  readonly document: Document;
+  /** 挂浮层的那一层，没有时这一轮不挂。 */
+  readonly anchor: () => Element | null;
+  /** 从上往下的顺序。 */
+  readonly icons: readonly HoverIconEntry[];
+}
+
+export interface HoverIcons {
   /** 定时自查时调：被页面重渲染摘掉了就补回去。 */
   readonly ensure: () => void;
   readonly overlay: () => HTMLElement | null;
   readonly setAccent: (theme: unknown) => void;
   /** 页面的控制栏露没露着；null 是页面这会儿没给信号。 */
   readonly setControls: (visible: boolean | null) => void;
-  /** 在图标旁边闪一句提示，闪着的时候图标一直露着；ms 为 0 时一直挂着，直到下一次提示。 */
-  readonly flash: (text: string, ms?: number) => void;
-  readonly setTitle: (title: string) => void;
+  /** 按节点标识取图标，不在这个浮层里时是 null。 */
+  readonly icon: (id: string) => HoverIcon | null;
+  /** 在图标下面摆一块附加内容（null 撤掉），摆着的时候浮层一直露着。 */
+  readonly attach: (node: HTMLElement | null) => void;
   readonly remove: () => void;
 }
 
@@ -53,28 +81,45 @@ interface Look {
   readonly visibility: string;
 }
 
+interface IconState {
+  readonly entry: HoverIconEntry;
+  button: HTMLButtonElement | null;
+  label: HTMLSpanElement | null;
+  flashTimer: ReturnType<typeof setTimeout> | null;
+  title: string;
+  over: boolean;
+  hinting: boolean;
+  onClick: ((event: MouseEvent) => void) | null;
+}
+
 function rgbOf(swatch: string): string {
   const value = Number.parseInt(swatch.slice(1), 16);
   return `${(value >> 16) & 255},${(value >> 8) & 255},${value & 255}`;
 }
 
-export function createNoteButton({ document, anchor, onPress }: NoteButtonDeps): NoteButton {
+export function createHoverIcons({ document, anchor, icons }: HoverIconsDeps): HoverIcons {
   const view = document.defaultView;
   let accent = rgbOf(swatchOf(undefined));
   let overlay: HTMLElement | null = null;
-  let button: HTMLButtonElement | null = null;
-  let label: HTMLSpanElement | null = null;
-  let flashTimer: ReturnType<typeof setTimeout> | null = null;
-  let title = NOTE_TITLE;
-  let over = false;
-  let hinting = false;
+  let extra: HTMLElement | null = null;
+  let overOverlay = false;
   let watched: Element | null = null;
   const looks = new WeakMap<Element, Look>();
+  const states: IconState[] = icons.map((entry) => ({
+    entry,
+    button: null,
+    label: null,
+    flashTimer: null,
+    title: entry.spec.title,
+    over: false,
+    hinting: false,
+    onClick: null,
+  }));
 
-  const paint = (): void => {
-    if (!button) return;
-    const lit = over || hinting;
-    button.style.cssText = `${BUTTON_BASE}background:${lit ? `rgba(${accent},.92);box-shadow:0 2px 8px rgba(0,0,0,.24)` : REST_BACKGROUND};`;
+  const paint = (state: IconState): void => {
+    if (!state.button) return;
+    const lit = state.over || state.hinting;
+    state.button.style.cssText = `${BUTTON_BASE}background:${lit ? `rgba(${accent},.92);box-shadow:0 2px 8px rgba(0,0,0,.24)` : REST_BACKGROUND};`;
   };
 
   function show(shown: boolean): void {
@@ -87,30 +132,38 @@ export function createNoteButton({ document, anchor, onPress }: NoteButtonDeps):
   }
   const reveal = createReveal({ onChange: show });
 
-  function setOver(next: boolean): void {
-    if (over === next) return;
-    over = next;
-    paint();
+  const syncHold = (): void => reveal.hold(extra !== null || states.some((state) => state.hinting));
+
+  function setOverOverlay(next: boolean): void {
+    if (overOverlay === next) return;
+    overOverlay = next;
+    if (!next) for (const state of states) setOver(state, false);
     reveal.hover(next);
   }
 
-  function setHint(text: string): void {
-    hinting = text !== "";
-    if (label) {
-      label.textContent = text;
-      label.style.display = hinting ? "inline" : "none";
+  function setOver(state: IconState, next: boolean): void {
+    if (state.over === next) return;
+    state.over = next;
+    paint(state);
+  }
+
+  function setHint(state: IconState, text: string): void {
+    state.hinting = text !== "";
+    if (state.label) {
+      state.label.textContent = text;
+      state.label.style.display = state.hinting ? "inline" : "none";
     }
-    paint();
-    reveal.hold(hinting);
+    paint(state);
+    syncHold();
   }
 
   const onPlayerMove = (): void => reveal.pointerMoved();
   const onPlayerLeave = (): void => {
-    setOver(false);
+    setOverOverlay(false);
     reveal.pointerLeft();
   };
-  const onOverlayEnter = (): void => setOver(true);
-  const onOverlayLeave = (): void => setOver(false);
+  const onOverlayEnter = (): void => setOverOverlay(true);
+  const onOverlayLeave = (): void => setOverOverlay(false);
 
   // 页面没给控制栏信号时靠鼠标在播放器上动没动；播放器那一层被页面换掉了就改听新的。
   function watch(player: Element | null): void {
@@ -146,13 +199,13 @@ export function createNoteButton({ document, anchor, onPress }: NoteButtonDeps):
     return box.width <= MAX_WIDTH && box.height <= MAX_HEIGHT;
   }
 
-  function icon(): SVGSVGElement {
+  function iconOf(spec: IconSpec): SVGSVGElement {
     // 逐个节点建，不用 innerHTML：页面开了 Trusted Types 时 innerHTML 会被拦。
     const svg = document.createElementNS(SVG_NS, "svg");
     for (const [name, value] of Object.entries({ viewBox: "0 0 16 16", width: "16", height: "16", fill: "none", stroke: "currentColor", "stroke-width": "1.5", "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" })) {
       svg.setAttribute(name, value);
     }
-    for (const d of ICON_PATHS) {
+    for (const d of spec.paths) {
       const path = document.createElementNS(SVG_NS, "path");
       path.setAttribute("d", d);
       svg.appendChild(path);
@@ -166,7 +219,7 @@ export function createNoteButton({ document, anchor, onPress }: NoteButtonDeps):
     watch(player);
     if (overlay?.isConnected && overlay.parentElement === player) return overlay;
     overlay?.remove();
-    setOver(false);
+    setOverOverlay(false);
     // 浮动定位要一个定位上下文；只在还是 static 时写，小窗时页面自己改成的 fixed 不动。
     if (view?.getComputedStyle(player).position === "static") (player as HTMLElement).style.position = "relative";
     const node = document.createElement("div");
@@ -175,81 +228,118 @@ export function createNoteButton({ document, anchor, onPress }: NoteButtonDeps):
     node.addEventListener("pointerenter", onOverlayEnter);
     node.addEventListener("pointerleave", onOverlayLeave);
     player.appendChild(node);
+    remember(node);
     overlay = node;
     show(reveal.shown());
     return node;
   }
 
-  function onClick(event: MouseEvent): void {
-    // 页面脚本能对按钮调 click() 或派发合成点击；记笔记会请模型润色、花用户的额度。
-    if (!event.isTrusted || !button) return;
-    event.preventDefault();
-    event.stopPropagation();
-    if (looksInjected(button)) onPress();
-  }
-
-  function create(): HTMLButtonElement {
+  function create(state: IconState): HTMLButtonElement {
+    const { spec, onPress } = state.entry;
     const node = document.createElement("button");
-    node.id = INJECTED.noteButton;
+    node.id = spec.id;
     node.type = "button";
-    node.title = title;
-    node.setAttribute("aria-label", title);
+    node.title = state.title;
+    node.setAttribute("aria-label", state.title);
     const text = document.createElement("span");
-    text.className = INJECTED.noteLabel;
+    text.className = spec.labelClass;
     text.style.display = "none";
-    node.append(icon(), text);
-    node.addEventListener("click", onClick);
-    button = node;
-    label = text;
-    paint();
+    node.append(iconOf(spec), text);
+    // 页面脚本能对按钮调 click() 或派发合成点击；图标背后的操作会花用户的额度。
+    state.onClick = (event: MouseEvent): void => {
+      if (!event.isTrusted || !state.button) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (looksInjected(state.button)) onPress();
+    };
+    node.addEventListener("click", state.onClick);
+    node.addEventListener("pointerenter", () => setOver(state, true));
+    node.addEventListener("pointerleave", () => setOver(state, false));
+    state.button = node;
+    state.label = text;
+    paint(state);
     return node;
   }
+
+  function placeAll(host: HTMLElement): void {
+    // 按顺序排：被摘掉补回来的也回到原位，附加内容总在最下面。
+    const buttons = states.map((state) => state.button ?? create(state));
+    [...buttons, ...(extra ? [extra] : [])].forEach((node, index) => {
+      if (host.children[index] === node) return;
+      host.insertBefore(node, host.children[index] ?? null);
+      // 按钮插进去那一刻的样子记下来，点击时拿来比。
+      if (buttons.includes(node as HTMLButtonElement)) remember(node);
+    });
+  }
+
+  function remember(element: Element): void {
+    const look = lookOf(element);
+    if (look) looks.set(element, look);
+  }
+
+  function flashOf(state: IconState): HoverIcon["flash"] {
+    return (text, ms = FLASH_MS) => {
+      if (!state.label) return;
+      if (state.flashTimer !== null) clearTimeout(state.flashTimer);
+      state.flashTimer = null;
+      setHint(state, text);
+      if (ms > 0) {
+        state.flashTimer = setTimeout(() => {
+          state.flashTimer = null;
+          setHint(state, "");
+        }, ms);
+      }
+    };
+  }
+
+  const handles = new Map<string, HoverIcon>(
+    states.map((state) => [
+      state.entry.spec.id,
+      {
+        flash: flashOf(state),
+        setTitle(next: string) {
+          state.title = next;
+          state.button?.setAttribute("aria-label", next);
+          if (state.button) state.button.title = next;
+        },
+      },
+    ]),
+  );
 
   return {
     ensure() {
       const host = ensureOverlay();
       if (!host) return;
       // 图标在鼠标底下被藏起来（进了小窗）时收不到移出事件，这里补认一次。
-      if (over && !host.matches(":hover")) setOver(false);
-      if (button?.isConnected && button.parentElement === host) return;
-      host.appendChild(button ?? create());
-      for (const element of [host, button]) {
-        const look = element && lookOf(element);
-        if (element && look) looks.set(element, look);
-      }
+      if (overOverlay && !host.matches(":hover")) setOverOverlay(false);
+      placeAll(host);
     },
     overlay: () => (overlay?.isConnected ? overlay : null),
     setAccent(theme) {
       accent = rgbOf(swatchOf(theme));
-      paint();
+      for (const state of states) paint(state);
     },
     setControls: (visible) => reveal.controls(visible),
-    flash(text, ms = FLASH_MS) {
-      if (!label) return;
-      if (flashTimer !== null) clearTimeout(flashTimer);
-      flashTimer = null;
-      setHint(text);
-      if (ms > 0) {
-        flashTimer = setTimeout(() => {
-          flashTimer = null;
-          setHint("");
-        }, ms);
-      }
-    },
-    setTitle(next) {
-      title = next;
-      button?.setAttribute("aria-label", next);
-      if (button) button.title = next;
+    icon: (id) => handles.get(id) ?? null,
+    attach(node) {
+      extra?.remove();
+      extra = node;
+      syncHold();
+      if (overlay?.isConnected) placeAll(overlay);
     },
     remove() {
-      if (flashTimer !== null) clearTimeout(flashTimer);
+      for (const state of states) {
+        if (state.flashTimer !== null) clearTimeout(state.flashTimer);
+        if (state.onClick) state.button?.removeEventListener("click", state.onClick);
+        state.button?.remove();
+        state.button = null;
+        state.label = null;
+      }
       reveal.stop();
       watch(null);
-      button?.removeEventListener("click", onClick);
-      button?.remove();
+      extra?.remove();
+      extra = null;
       overlay?.remove();
-      button = null;
-      label = null;
       overlay = null;
     },
   };

@@ -1,11 +1,13 @@
-// 播放页上的一套界面：悬停才露的笔记图标、快捷键、小窗避让和卡片。记笔记只发视频和时间点，存不存、润不润色由后台定。
+// 播放页上的一套界面：悬停才露的图标（笔记，构建开关打开时还有解释当前画面）、快捷键、小窗避让和卡片。
+// 记笔记只发视频和时间点，存不存、润不润色由后台定。
 import { describe, type ErrorCode } from "../core/errors.ts";
 import type { AppearanceView } from "../shared/messages/core.ts";
 import type { SitePage } from "../sites/page-types.ts";
 import type { Surface, SurfaceEnv } from "./app.ts";
 import { createCardFrame, type CardFrame } from "./card-frame.ts";
+import { createFramePress, frameIconEntries } from "./frame-icon.ts";
+import { createHoverIcons, NOTE_ICON, NOTE_TITLE, type HoverIconEntry } from "./hover-icons.ts";
 import { createMiniPlayer, type MiniPlayerDeps } from "./mini-player.ts";
-import { createNoteButton, NOTE_TITLE } from "./note-button.ts";
 import type { ContentRuntime } from "./runtime.ts";
 import { listenShortcut } from "./shortcut.ts";
 
@@ -30,15 +32,36 @@ const SHORT_FAILURES: Partial<Record<ErrorCode, string>> = {
   NOT_ENABLED: "未启用",
 };
 
-export function createSurface({ document, page, runtime, player, retire, cardPath, miniPlayer, shadowRootOf }: SurfaceDeps): Surface {
+export function createSurface({ document, page, runtime, player, frame, retire, cardPath, miniPlayer, shadowRootOf }: SurfaceDeps): Surface {
   let retired = false;
   let saving = false;
   let card: CardFrame | null = null;
   let cardEnabled = false;
 
-  const button = createNoteButton({ document, anchor: () => page.hoverIconAnchor(), onPress: () => void saveNote() });
-  const stopControls = page.watchControls?.((visible) => button.setControls(visible)) ?? (() => undefined);
-  const mini = createMiniPlayer({ document, overlay: () => button.overlay(), ...miniPlayer });
+  let pressFrame: (() => Promise<void>) | null = null;
+  // 解释当前画面的图标只写在裸开关的分支里：发行构建连同图标一起裁掉，不留点了没反应的按钮。
+  const entries: HoverIconEntry[] = [
+    { spec: NOTE_ICON, onPress: () => void saveNote() },
+    ...(FEATURE_FRAME_EXPLAIN ? frameIconEntries(frame, () => void pressFrame?.()) : []),
+  ];
+  const icons = createHoverIcons({ document, anchor: () => page.hoverIconAnchor(), icons: entries });
+  const button = icons.icon(NOTE_ICON.id) ?? { flash: () => undefined, setTitle: () => undefined };
+  pressFrame = FEATURE_FRAME_EXPLAIN
+    ? frame
+      ? createFramePress({
+          document,
+          icons,
+          tool: frame,
+          clickedAt: () => {
+            const main = page.findMainVideo();
+            return main.status === "found" ? Number(main.video.currentTime) || 0 : null;
+          },
+          gone: () => retired || !runtime.alive(),
+        })
+      : null
+    : null;
+  const stopControls = page.watchControls?.((visible) => icons.setControls(visible)) ?? (() => undefined);
+  const mini = createMiniPlayer({ document, overlay: () => icons.overlay(), ...miniPlayer });
   const stopShortcut = page.noteShortcut ? listenShortcut({ document, key: page.noteShortcut, onPress: () => void saveNote(), ...(shadowRootOf ? { shadowRootOf } : {}) }) : () => undefined;
 
   function showReloadHint(): void {
@@ -91,7 +114,7 @@ export function createSurface({ document, page, runtime, player, retire, cardPat
   return {
     tick() {
       if (retired) return;
-      button.ensure();
+      icons.ensure();
       mini.sync();
       try {
         syncCard();
@@ -103,7 +126,7 @@ export function createSurface({ document, page, runtime, player, retire, cardPat
       card?.videoChanged();
     },
     setAppearance(view: AppearanceView) {
-      button.setAccent(view.accentTheme);
+      icons.setAccent(view.accentTheme);
       cardEnabled = view.inPageCard;
       if (!retired) syncCard();
     },
@@ -120,7 +143,7 @@ export function createSurface({ document, page, runtime, player, retire, cardPat
       mini.stop();
       card?.remove();
       card = null;
-      button.remove();
+      icons.remove();
     },
   };
 }

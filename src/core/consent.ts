@@ -1,6 +1,8 @@
 // 两份说明的版本表和指纹。数据同意管发给模型服务的内容，首次启用说明管在本机读取和保存的内容，分开记、分开判断。
 // 表里每个版本只写相对上一版新增或扩大了什么。指纹只算条目的 kind 和 id，改 text 的措辞、并显示的写法都不用重新同意；
 // 条目变了就要升版，tests/fixtures/consent-fingerprints.json 的快照拦下忘了升版的改动。
+// 带开关的版本放在单独的模块里，只从开关分支引用：开关关着的构建连措辞都不进包。
+import { FRAME_ACTIVATION_VERSION } from "./consent-frame.ts";
 
 /** 构建时开关。带开关的版本只在开关打开的构建里进说明和指纹，关着的构建停在不含它的版本上。 */
 export type NoticeFeature = "frameExplain";
@@ -147,6 +149,7 @@ export const ACTIVATION_TABLE: NoticeTable<ActivationKind> = [
     version: 3,
     items: [{ kind: "read", id: "foreground-tab", text: "打开「打开就出结论」以后，当前窗口前台标签页的地址，用来认出刚打开的 B 站视频" }],
   },
+  ...(FEATURE_FRAME_EXPLAIN ? [FRAME_ACTIVATION_VERSION] : []),
 ];
 
 // 当前构建打开了哪些开关，取值见 shared/features.ts。

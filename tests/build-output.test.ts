@@ -312,3 +312,36 @@ test("构建标识带上开关取值：只换开关重新构建，标识跟着�
   assert.equal(ids.size, FEATURE_NAMES.length + 2, "每种构建的标识都不一样");
   assert.ok(readBuild("background.js").includes(release[0] ?? "-"), "build/ 里的发行构建用的是发行开关算出的标识");
 });
+
+// 解释当前画面挂在开关下的内容：截帧代码、播放页图标和预览、首次启用说明里读取当前一帧那一条。
+const FRAME_MARKERS: Readonly<Record<string, readonly string[]>> = {
+  "build/content/bilibili.js": ["requestVideoFrameCallback", "convertToBlob", "player.captureFrame", "解释当前画面", "画面验证", "src/content/frame"],
+  "build/background.js": ["current-frame", "解释当前画面"],
+  "build/pages/sidepanel.js": ["current-frame", "解释当前画面"],
+  "build/pages/options.js": ["current-frame", "解释当前画面"],
+};
+
+async function bundlesWith(features: FeatureSet): Promise<Map<string, string>> {
+  const wanted = bundleOptions(features).filter((options) => typeof options.outfile === "string" && options.outfile in FRAME_MARKERS);
+  const built = await Promise.all(wanted.map(async (options) => [String(options.outfile), (await build({ ...options, write: false })).outputFiles.map((output) => output.text).join("\n")] as const));
+  return new Map(built);
+}
+
+test("解释当前画面：发行构建的包里没有截帧代码、图标、预览和读取当前一帧的说明，打开开关的构建里都有", async () => {
+  const release = await bundlesWith(RELEASE_FEATURES);
+  const frame = await bundlesWith({ ...RELEASE_FEATURES, frameExplain: true });
+  assert.equal(release.size, Object.keys(FRAME_MARKERS).length);
+  for (const [file, markers] of Object.entries(FRAME_MARKERS)) {
+    for (const marker of markers) {
+      assert.ok(!release.get(file)?.includes(marker), `发行构建的 ${file} 里有 ${marker}`);
+      assert.ok(!readBuild(file.replace(/^build\//, "")).includes(marker), `build/ 里的 ${file} 有 ${marker}`);
+    }
+  }
+  const content = frame.get("build/content/bilibili.js") ?? "";
+  for (const marker of FRAME_MARKERS["build/content/bilibili.js"] ?? []) {
+    assert.ok(content.includes(marker), `打开开关的内容脚本里没有 ${marker}`);
+  }
+  for (const file of ["build/background.js", "build/pages/sidepanel.js", "build/pages/options.js"]) {
+    assert.ok(frame.get(file)?.includes("current-frame"), `打开开关的 ${file} 的启用说明里没有读取当前一帧`);
+  }
+});

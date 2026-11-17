@@ -2,7 +2,7 @@
 // 时长每个视频只报一次，两次上报之间隔够时间。另核对笔记图标抄的主题色和设置里的主题表一致。
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ACCENT_SWATCHES } from "../../../src/content/note-button.ts";
+import { ACCENT_SWATCHES } from "../../../src/content/hover-icons.ts";
 import { createPlaybackReporter, createPlayer, MEDIA_SWITCH_WINDOW_MS, PLAYBACK_INFO_INTERVAL_MS } from "../../../src/content/player.ts";
 import { videoKey, type VideoRef } from "../../../src/core/video-ref.ts";
 import { ACCENT_THEMES } from "../../../src/shared/settings-schema.ts";

@@ -22,6 +22,7 @@ import {
   ACTIVATION_FINGERPRINT,
   ACTIVATION_TABLE,
   ACTIVATION_VERSION,
+  BUILD_FEATURES,
   currentStamp,
   DATA_CONSENT_ERROR,
   DATA_CONSENT_FINGERPRINT,
@@ -268,12 +269,31 @@ test("「版本 → 指纹」快照：改了条目没升版就失败，两种开
   assert.deepEqual(versionMap(ACTIVATION_TABLE, true), snapshot["frameExplainOn"]?.activation);
 });
 
+test("解释当前画面：开关打开的构建，启用说明多一版只加读取当前一帧；关着的构建停在上一版，同意表不变", () => {
+  const off = versionStamps(ACTIVATION_TABLE, FRAME_OFF);
+  const on = versionStamps(ACTIVATION_TABLE, FRAME_ON);
+  assert.deepEqual(on.slice(0, -1), off, "前几版两种构建一样");
+  assert.equal(on.at(-1)?.version, (off.at(-1)?.version ?? 0) + 1);
+  const frameRow = ACTIVATION_TABLE.find((row) => row.requires === "frameExplain");
+  assert.deepEqual(frameRow?.items.map(({ kind, id }) => `${kind}:${id}`), ["read:current-frame"]);
+  assert.deepEqual(versionStamps(DATA_CONSENT_TABLE, FRAME_ON), versionStamps(DATA_CONSENT_TABLE, FRAME_OFF), "这一段不发画面给模型");
+
+  // 在开关关着的构建里确认过的人，换到开关打开的构建：说明有更新，只列读取当前一帧这一条。
+  const lastOff = off.at(-1);
+  const status = noticeStatus(ACTIVATION_TABLE, { version: lastOff?.version, fingerprint: lastOff?.fingerprint }, FRAME_ON);
+  assert.equal(status.state, "needed");
+  assert.deepEqual(status.state === "needed" ? [status.updated, status.items.map(({ id }) => id)] : null, [true, ["current-frame"]]);
+  // 反过来，从开关打开的构建换回发行构建：认不出确认过哪一版，按说明有更新给完整说明。
+  const back = noticeStatus(ACTIVATION_TABLE, { version: on.at(-1)?.version, fingerprint: on.at(-1)?.fingerprint }, FRAME_OFF);
+  assert.equal(back.state === "needed" && back.updated, true);
+});
+
 test("当前版本和指纹取自表里最新的一版，启用说明从第 1 版起", () => {
-  assert.deepEqual(currentStamp(DATA_CONSENT_TABLE, FRAME_OFF), {
+  assert.deepEqual(currentStamp(DATA_CONSENT_TABLE, BUILD_FEATURES), {
     version: DATA_CONSENT_VERSION,
     fingerprint: DATA_CONSENT_FINGERPRINT,
   });
-  assert.deepEqual(currentStamp(ACTIVATION_TABLE, FRAME_OFF), {
+  assert.deepEqual(currentStamp(ACTIVATION_TABLE, BUILD_FEATURES), {
     version: ACTIVATION_VERSION,
     fingerprint: ACTIVATION_FINGERPRINT,
   });
@@ -334,9 +354,9 @@ test("没存过的显示完整说明，算从没同意过，不是说明有更�
 
 test("存过当前版本和指纹的放行，这才算确认过", () => {
   const current = { version: DATA_CONSENT_VERSION, fingerprint: DATA_CONSENT_FINGERPRINT };
-  assert.deepEqual(noticeStatus(DATA_CONSENT_TABLE, current, FRAME_OFF), { state: "current" });
+  assert.deepEqual(noticeStatus(DATA_CONSENT_TABLE, current, BUILD_FEATURES), { state: "current" });
   const enabled = { version: ACTIVATION_VERSION, fingerprint: ACTIVATION_FINGERPRINT };
-  assert.deepEqual(noticeStatus(ACTIVATION_TABLE, enabled, FRAME_OFF), { state: "current" });
+  assert.deepEqual(noticeStatus(ACTIVATION_TABLE, enabled, BUILD_FEATURES), { state: "current" });
 });
 
 test("存过旧版本的只列之后新增的内容", () => {
@@ -467,7 +487,7 @@ test("启用说明第 2 版加了 B 站登录状态和稍后再看的观看进�
 test("启用说明第 3 版加了前台标签页的地址：确认过第 2 版的只看到这一条，前两版的指纹不变", () => {
   const stamps = versionStamps(ACTIVATION_TABLE, FRAME_OFF);
   assert.deepEqual(stamps.at(-1), { version: 3, fingerprint: "32a7ecce69a08c6a" });
-  assert.equal(ACTIVATION_VERSION, 3);
+  assert.equal(currentStamp(ACTIVATION_TABLE, FRAME_OFF).version, 3, "发行构建停在第 3 版");
   const second = stamps[1];
   assert.ok(second);
   const status = noticeStatus(ACTIVATION_TABLE, second, FRAME_OFF);
@@ -484,12 +504,12 @@ test("版本相同指纹不同、认不出的版本：确认失效，认不出�
   for (const [table, version, fingerprint] of cases) {
     const everything = table.flatMap((row) => row.items);
     const expected = { state: "needed", updated: true, items: everything };
-    assert.deepEqual(noticeStatus(table, { version, fingerprint: OLD_FINGERPRINT }, FRAME_OFF), expected);
-    assert.deepEqual(noticeStatus(table, { version, fingerprint: "" }, FRAME_OFF), expected);
-    assert.deepEqual(noticeStatus(table, { version }, FRAME_OFF), expected);
-    assert.deepEqual(noticeStatus(table, { version: version + 1, fingerprint }, FRAME_OFF), expected);
+    assert.deepEqual(noticeStatus(table, { version, fingerprint: OLD_FINGERPRINT }, BUILD_FEATURES), expected);
+    assert.deepEqual(noticeStatus(table, { version, fingerprint: "" }, BUILD_FEATURES), expected);
+    assert.deepEqual(noticeStatus(table, { version }, BUILD_FEATURES), expected);
+    assert.deepEqual(noticeStatus(table, { version: version + 1, fingerprint }, BUILD_FEATURES), expected);
   }
-  assert.equal(noticeStatus(DATA_CONSENT_TABLE, { version: "2", fingerprint: DATA_CONSENT_FINGERPRINT }, FRAME_OFF).state, "needed");
+  assert.equal(noticeStatus(DATA_CONSENT_TABLE, { version: "2", fingerprint: DATA_CONSENT_FINGERPRINT }, BUILD_FEATURES).state, "needed");
 });
 
 test("带开关的版本只在开关打开时进说明和指纹，关着的构建停在不含它的版本", () => {

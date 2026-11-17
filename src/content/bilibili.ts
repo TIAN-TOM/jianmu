@@ -3,6 +3,7 @@
 import { INJECTED, PAGE_PATHS } from "../shared/names.ts";
 import { createBilibiliPage } from "../sites/bilibili/page.ts";
 import { createContentApp, type ContentApp } from "./app.ts";
+import { createBrowserFrameTool } from "./frame.ts";
 import { createContentRuntime } from "./runtime.ts";
 import { createSurface } from "./surface.ts";
 
@@ -47,6 +48,8 @@ const app = createContentApp({
     document.addEventListener("loadstart", run, true);
     return () => document.removeEventListener("loadstart", run, true);
   },
+  // 发行构建里这一支连同截帧代码一起裁掉。
+  ...(FEATURE_FRAME_EXPLAIN ? { frame: (identity) => createBrowserFrameTool(document, identity) } : {}),
 });
 registry[INJECTED.instance] = app;
 app.start();

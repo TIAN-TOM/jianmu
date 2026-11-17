@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createContentApp, type Surface } from "../../../src/content/app.ts";
+import type { FrameIdentity, FrameTool } from "../../../src/content/frame.ts";
 import { ASK_RETRY_MS } from "../../../src/content/gate.ts";
 import { createContentRuntime, type RuntimeLike } from "../../../src/content/runtime.ts";
 import type { VideoRef } from "../../../src/core/video-ref.ts";
@@ -16,7 +17,7 @@ const VIDEO: VideoRef = { platform: "bilibili", videoId: "BV1Sample001", segment
 const NEEDED = { ok: true, value: { state: "needed", updated: false, items: [] } };
 const CURRENT = { ok: true, value: { state: "current" } };
 
-function setup() {
+function setup(options: { readonly frame?: (identity: FrameIdentity) => FrameTool } = {}) {
   const fake = fakeRuntime();
   let activation: unknown = NEEDED;
   fake.reply("activation.get", (_req) => activation);
@@ -48,14 +49,14 @@ function setup() {
     cardSlot: () => (pageReads.push("cardSlot"), null),
   };
 
-  const surfaces: { removed: boolean; ticks: number; appearance: unknown[] }[] = [];
+  const surfaces: { removed: boolean; ticks: number; appearance: unknown[]; frame: FrameTool | undefined }[] = [];
   const hooks: string[] = [];
   const timers = manualTimers();
   const app = createContentApp({
     runtime,
     page,
-    createSurface() {
-      const record = { removed: false, ticks: 0, appearance: [] as unknown[] };
+    createSurface(env) {
+      const record = { removed: false, ticks: 0, appearance: [] as unknown[], frame: env.frame };
       surfaces.push(record);
       const surface: Surface = {
         tick: () => void (record.ticks += 1),
@@ -70,6 +71,7 @@ function setup() {
     onMediaLoading: () => (hooks.push("media"), () => undefined),
     every: () => (hooks.push("every"), () => undefined),
     gateTimers: { set: (run, ms) => timers.setTimeout(run, ms), clear: (timer) => timers.clearTimeout(timer) },
+    ...(options.frame ? { frame: options.frame } : {}),
   });
   return {
     fake,
@@ -189,4 +191,70 @@ test("新注入的一份接手时，旧的一份整套撤下、不再响应广�
   app.stop();
   assert.equal(surfaces[0]?.removed, true);
   assert.equal(fake.listeners(), 0);
+});
+
+test("截帧指令：确认以后才建截帧工具、交给它，等它异步回；播放器指令照旧同步回；撤下时停掉截帧工具", async () => {
+  const identities: FrameIdentity[] = [];
+  const stops: number[] = [];
+  const tool: FrameTool = {
+    handle: (message) =>
+      typeof message === "object" && message !== null && (message as { type?: unknown }).type === "player.captureFrame"
+        ? Promise.resolve({ ok: false, code: "FRAME_NOT_READY" })
+        : null,
+    capture: () => Promise.resolve({ ok: false, code: "FRAME_NOT_READY" }),
+    stop: () => void stops.push(1),
+  };
+  const { fake, app, surfaces, setActivation, pageReady } = setup({
+    frame(identity) {
+      identities.push(identity);
+      return tool;
+    },
+  });
+  const capture = { type: "player.captureFrame", req: { video: "bilibili:BV1Sample001:p1", maxEdge: 1456 } };
+  const replies: unknown[] = [];
+  const reply = (value: unknown): void => void replies.push(value);
+
+  app.start();
+  assert.ok(await until(() => fake.attempts("activation.get") === 1));
+  fake.broadcast(capture, undefined, reply);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(replies, [], "确认前不回");
+  assert.equal(fake.listenerResults.at(-1), false);
+  assert.equal(identities.length, 0, "确认前不建截帧工具");
+
+  setActivation(CURRENT);
+  fake.broadcast({ type: "activation.changed", confirmed: true });
+  assert.ok(await until(() => identities.length === 1));
+  pageReady();
+  assert.ok(await until(() => surfaces.length === 1));
+  assert.equal(surfaces[0]?.frame, tool, "播放页图标拿到同一个截帧工具");
+  assert.equal(identities[0]?.currentKey(), "bilibili:BV1Sample001:p1");
+
+  fake.broadcast(capture, undefined, reply);
+  assert.equal(fake.listenerResults.at(-1), true, "异步回：占着消息通道");
+  assert.ok(await until(() => replies.length === 1));
+  assert.deepEqual(replies, [{ ok: false, code: "FRAME_NOT_READY" }]);
+
+  fake.broadcast({ type: "player.getState", req: { video: "bilibili:BV1Sample001:p1" } }, undefined, reply);
+  assert.equal(fake.listenerResults.at(-1), false);
+  assert.deepEqual(replies.at(-1), { ok: false, code: "NO_VIDEO" }, "播放器指令同步回");
+
+  setActivation(NEEDED);
+  fake.broadcast({ type: "activation.changed", confirmed: false });
+  assert.deepEqual(stops, [1]);
+});
+
+test("构建开关关着时没有截帧工具：截帧指令没人回，界面也拿不到", async () => {
+  const { fake, app, pageReads, surfaces, setActivation, pageReady } = setup();
+  setActivation(CURRENT);
+  app.start();
+  assert.ok(await until(() => pageReads.includes("whenPageReady")));
+  pageReady();
+  assert.ok(await until(() => surfaces.length === 1));
+  assert.equal(surfaces[0]?.frame, undefined);
+  const replies: unknown[] = [];
+  fake.broadcast({ type: "player.captureFrame", req: { video: "bilibili:BV1Sample001:p1", maxEdge: 1456 } }, undefined, (value) => void replies.push(value));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(replies, []);
+  assert.equal(fake.listenerResults.at(-1), false);
 });

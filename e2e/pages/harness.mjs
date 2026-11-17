@@ -195,6 +195,15 @@ export function createHarness({ cdp, extensionId, extensionDir, sessions }) {
       return page;
     }
 
+    /** 打开一个网页（站点请求都到本机模拟服务器），按桌面宽度；新开的标签页在前台。 */
+    async function openPage(url, { width = 1280 } = {}) {
+      const { targetId } = await cdp.send("Target.createTarget", { url });
+      opened.push(targetId);
+      const page = await attach(url, targetId);
+      await page.setWidth(width);
+      return page;
+    }
+
     /** 在一个扩展页面里带用户手势打开真实的侧边栏，按地址接上它。 */
     async function openSidePanel(from) {
       await from.evaluate("chrome.tabs.getCurrent().then((tab) => chrome.sidePanel.open({ windowId: tab.windowId })).then(() => true)", { userGesture: true });
@@ -212,7 +221,7 @@ export function createHarness({ cdp, extensionId, extensionDir, sessions }) {
     }
 
     // 装上的扩展在磁盘上的目录：改这里的页面文件、不重新加载扩展，就是「旧后台、新页面」。
-    return { open, openSidePanel, close, extensionId, extensionDir };
+    return { open, openPage, openSidePanel, close, extensionId, extensionDir };
   }
 
   return { context };
