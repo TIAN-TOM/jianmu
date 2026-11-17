@@ -1,8 +1,8 @@
-// 小窗避让：播放器进了页面内的小窗，或者笔记按钮盖住了小窗的关闭按钮，就把按钮那一层藏起来。
+// 小窗避让：播放器进了页面内的小窗，或者笔记图标盖住了小窗的关闭按钮，就把图标那一层藏起来。
 // 页面在播放器容器上标着屏幕状态时信它；看不到标记时，按「固定定位、很小」的样子兜底。
 export interface MiniPlayerDeps {
   readonly document: Document;
-  /** 笔记按钮那一层。 */
+  /** 笔记图标那一层。 */
   readonly overlay: () => HTMLElement | null;
   /** 观察 class 和屏幕状态变化的播放器容器。 */
   readonly container: () => Element | null;

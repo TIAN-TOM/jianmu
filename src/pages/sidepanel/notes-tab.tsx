@@ -116,7 +116,7 @@ export function NotesTab({ panel }: { readonly panel: Panel }) {
         needle ? (
           <p class="empty-line">没有找到「{needle}」</p>
         ) : (
-          <StateBlock title="还没有笔记" impact="在概览里把金句存为笔记；视频页上的笔记按钮也会记到这里。" />
+          <StateBlock title="还没有笔记" impact="在概览里把金句存为笔记；鼠标移到播放器上，点右上角出现的笔记图标或按 n，也会记到这里。" />
         )
       ) : (
         <ol class="note-list">

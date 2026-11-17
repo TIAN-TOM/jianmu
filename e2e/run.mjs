@@ -200,7 +200,7 @@ try {
   if (peeked.length > 0) throw new Error(`没登录时读了视频内容：${JSON.stringify(peeked)}`);
   console.log("✓ 确认以后、没登录时取字幕只报要登录，没读任何视频内容");
   await watch.afterActivation();
-  console.log("✓ 确认启用以后不刷新页面，播放页挂上了笔记按钮和卡片");
+  console.log("✓ 确认启用以后不刷新页面，播放页挂上了笔记图标和卡片");
 
   const readLogin = () =>
     evaluate(worker, `fetch(${JSON.stringify(PROBE.account)}, { credentials: "include", cache: "no-store" }).then((response) => response.json()).then(${PROBE.loginOf})`);
@@ -232,7 +232,7 @@ try {
   console.log("✓ 付费视频读完视频信息就停下，报看不了");
 
   const { card } = await watch.notesAndOfficial(ask, FIRST);
-  console.log("✓ 卡片显示官方总结，没配模型服务时摆「打开设置」；穿过透明层点笔记按钮、按 n 各存下一条笔记");
+  console.log("✓ 卡片显示官方总结，没配模型服务时摆「打开设置」；笔记图标平时藏着、悬停才露、跟着控制栏信号走，穿过透明层点图标、按 n 各存下一条笔记");
   await watch.generate(card, page, ANTHROPIC);
   console.log("✓ 配好模型服务后卡片换回「生成概览」，点一下出了章节和结论");
   await watch.wideScreen();
@@ -252,7 +252,7 @@ try {
   });
   await autoFlow({ until, evaluate, cdp, launcher: page, mock });
   await watch.afterClear(page);
-  console.log("✓ 清掉本机设置让启用失效，播放页上的笔记按钮和卡片不用刷新就全部撤下");
+  console.log("✓ 清掉本机设置让启用失效，播放页上的笔记图标和卡片不用刷新就全部撤下");
 
   // 启动期的报错可能晚一点才到，等一小会再查。
   await new Promise((done) => setTimeout(done, 500));

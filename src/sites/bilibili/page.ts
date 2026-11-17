@@ -27,6 +27,9 @@ const CARD_COLUMN_SELECTORS = [
 const SCREEN_CONTAINER = ".bpx-player-container";
 const SCREEN_ATTRIBUTE = "data-screen";
 const FILLING_SCREENS = new Set(["web", "full"]);
+// 同一个容器还标着控制栏这会儿藏没藏。
+const CONTROLS_ATTRIBUTE = "data-ctrl-hidden";
+const CONTROLS_CHECK_MS = 800;
 
 const SERVER_RENDERED_ROOT = "[data-server-rendered]";
 const READY_POLL_MS = 200;
@@ -38,6 +41,7 @@ export interface BilibiliPageDeps {
   location: Pick<Location, "href">;
   sleep?: (ms: number, signal: AbortSignal) => Promise<void>; // 中止时要拒绝
   every?: (ms: number, run: () => void) => () => void; // 返回停止函数
+  observeAttribute?: (element: Element, name: string, run: () => void) => () => void; // 属性变了就调，返回停止函数
 }
 
 function waitFor(ms: number, signal: AbortSignal): Promise<void> {
@@ -60,13 +64,20 @@ function repeat(ms: number, run: () => void): () => void {
   return () => clearInterval(timer);
 }
 
+function watchAttribute(element: Element, name: string, run: () => void): () => void {
+  if (typeof MutationObserver !== "function") return () => undefined;
+  const observer = new MutationObserver(run);
+  observer.observe(element, { attributes: true, attributeFilter: [name] });
+  return () => observer.disconnect();
+}
+
 const keyOf = (ref: VideoRef | null): string | null => (ref ? videoKey(ref) : null);
 
 // 播放器自己管着直接包视频的那一层，插进外来节点会让它重建，视频加载两遍。
 const holdsVideoDirectly = (element: Element): boolean =>
   Array.from(element.children).some((child) => child.tagName === "VIDEO");
 
-export function createBilibiliPage({ document, location, sleep = waitFor, every = repeat }: BilibiliPageDeps): SitePage {
+export function createBilibiliPage({ document, location, sleep = waitFor, every = repeat, observeAttribute = watchAttribute }: BilibiliPageDeps): SitePage {
   const currentRef = (): VideoRef | null => bilibiliRules.parseWatchUrl(location.href);
 
   function firstMatch<T extends Element>(selectors: readonly string[]): T | null {
@@ -126,6 +137,35 @@ export function createBilibiliPage({ document, location, sleep = waitFor, every 
         if (element && !holdsVideoDirectly(element)) return element;
       }
       return null;
+    },
+
+    // 容器会被页面换掉，定时重认一次；没标或标了认不出的值都按没给信号报。
+    watchControls(cb) {
+      let container: Element | null = null;
+      let unobserve = (): void => undefined;
+      let last: boolean | null = null;
+      const read = (): void => {
+        const hidden = container?.getAttribute(CONTROLS_ATTRIBUTE);
+        const visible = hidden === "false" ? true : hidden === "true" ? false : null;
+        if (visible === last) return;
+        last = visible;
+        cb(visible);
+      };
+      const attach = (): void => {
+        const found = document.querySelector(SCREEN_CONTAINER);
+        if (found !== container) {
+          unobserve();
+          container = found;
+          unobserve = found ? observeAttribute(found, CONTROLS_ATTRIBUTE, read) : () => undefined;
+        }
+        read();
+      };
+      attach();
+      const stop = every(CONTROLS_CHECK_MS, attach);
+      return () => {
+        stop();
+        unobserve();
+      };
     },
 
     cardSlot() {

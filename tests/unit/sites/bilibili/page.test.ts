@@ -16,10 +16,13 @@ interface FakeNode {
   parentElement: FakeNode | null;
   firstChild: FakeNode | null;
   nextSibling: FakeNode | null;
+  attributes: Map<string, string>;
+  getAttribute(name: string): string | null;
 }
 
 function node(tagName: string, children: FakeNode[] = []): FakeNode {
-  const self: FakeNode = { tagName, children, parentElement: null, firstChild: children[0] ?? null, nextSibling: null };
+  const attributes = new Map<string, string>();
+  const self: FakeNode = { tagName, children, parentElement: null, firstChild: children[0] ?? null, nextSibling: null, attributes, getAttribute: (name) => attributes.get(name) ?? null };
   children.forEach((child, index) => {
     child.parentElement = self;
     child.nextSibling = children[index + 1] ?? null;
@@ -62,7 +65,14 @@ function pageWith(href = WATCH_URL) {
   const location = { href };
   const running = new Set<() => void>();
   const waits: Wait[] = [];
+  // 属性监听的替身：记下在听哪个节点，测试自己触发。
+  const observed = new Map<FakeNode, () => void>();
   const page = createBilibiliPage({
+    observeAttribute: (element, _name, run) => {
+      const target = element as unknown as FakeNode;
+      observed.set(target, run);
+      return () => void observed.delete(target);
+    },
     document: document as unknown as Document,
     location,
     every: (_ms, run) => {
@@ -78,7 +88,11 @@ function pageWith(href = WATCH_URL) {
   const tick = (): void => {
     for (const run of running) run();
   };
-  return { page, document, location, running, waits, tick };
+  const setAttribute = (target: FakeNode, name: string, value: string): void => {
+    target.attributes.set(name, value);
+    observed.get(target)?.();
+  };
+  return { page, document, location, running, waits, tick, observed, setAttribute };
 }
 
 // 替身之间结构相同，所以挂载点按身份比。
@@ -312,6 +326,62 @@ test("悬停图标的候选都直接包着视频或都不在时没有挂载点",
   document.matches.set("#bilibili-player", node("DIV", [node("VIDEO")]));
   document.matches.set("#playerWrap", node("DIV", [node("DIV"), node("VIDEO")]));
   assert.equal(page.hoverIconAnchor(), null);
+});
+
+test("控制栏信号：容器上标着藏没藏，变了才回调，订阅时先报一次现在的", () => {
+  const { page, document, setAttribute } = pageWith();
+  const container = node("DIV");
+  container.attributes.set("data-ctrl-hidden", "true");
+  document.matches.set(".bpx-player-container", container);
+  const seen: (boolean | null)[] = [];
+  page.watchControls?.((visible) => void seen.push(visible));
+  assert.deepEqual(seen, [false]);
+
+  setAttribute(container, "data-ctrl-hidden", "false");
+  setAttribute(container, "data-ctrl-hidden", "false");
+  assert.deepEqual(seen, [false, true]);
+  setAttribute(container, "data-ctrl-hidden", "true");
+  assert.deepEqual(seen, [false, true, false]);
+});
+
+test("控制栏信号：容器没标、标了认不出的值都不当信号，标过又没了报 null", () => {
+  const { page, document, setAttribute } = pageWith();
+  const container = node("DIV");
+  document.matches.set(".bpx-player-container", container);
+  const seen: (boolean | null)[] = [];
+  page.watchControls?.((visible) => void seen.push(visible));
+  setAttribute(container, "data-ctrl-hidden", "maybe");
+  assert.deepEqual(seen, []);
+
+  setAttribute(container, "data-ctrl-hidden", "false");
+  container.attributes.delete("data-ctrl-hidden");
+  setAttribute(container, "data-screen", "wide");
+  assert.deepEqual(seen, [true, null]);
+});
+
+test("控制栏信号：容器晚出现、被页面换掉都接得上，停了以后不再听", () => {
+  const { page, document, tick, observed, running } = pageWith();
+  const seen: (boolean | null)[] = [];
+  const stop = page.watchControls?.((visible) => void seen.push(visible));
+  assert.deepEqual(seen, []);
+
+  const first = node("DIV");
+  first.attributes.set("data-ctrl-hidden", "false");
+  document.matches.set(".bpx-player-container", first);
+  tick();
+  assert.deepEqual(seen, [true]);
+  assert.deepEqual([...observed.keys()], [first]);
+
+  const second = node("DIV");
+  second.attributes.set("data-ctrl-hidden", "true");
+  document.matches.set(".bpx-player-container", second);
+  tick();
+  assert.deepEqual(seen, [true, false]);
+  assert.deepEqual([...observed.keys()], [second]);
+
+  stop?.();
+  assert.equal(observed.size, 0);
+  assert.equal(running.size, 0);
 });
 
 test("卡片插槽在弹幕列表前面", () => {

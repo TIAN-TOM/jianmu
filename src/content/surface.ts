@@ -1,4 +1,4 @@
-// 播放页上的一套界面：笔记按钮、快捷键、小窗避让和卡片。记笔记只发视频和时间点，存不存、润不润色由后台定。
+// 播放页上的一套界面：悬停才露的笔记图标、快捷键、小窗避让和卡片。记笔记只发视频和时间点，存不存、润不润色由后台定。
 import { describe, type ErrorCode } from "../core/errors.ts";
 import type { AppearanceView } from "../shared/messages/core.ts";
 import type { SitePage } from "../sites/page-types.ts";
@@ -37,6 +37,7 @@ export function createSurface({ document, page, runtime, player, retire, cardPat
   let cardEnabled = false;
 
   const button = createNoteButton({ document, anchor: () => page.hoverIconAnchor(), onPress: () => void saveNote() });
+  const stopControls = page.watchControls?.((visible) => button.setControls(visible)) ?? (() => undefined);
   const mini = createMiniPlayer({ document, overlay: () => button.overlay(), ...miniPlayer });
   const stopShortcut = page.noteShortcut ? listenShortcut({ document, key: page.noteShortcut, onPress: () => void saveNote(), ...(shadowRootOf ? { shadowRootOf } : {}) }) : () => undefined;
 
@@ -95,7 +96,7 @@ export function createSurface({ document, page, runtime, player, retire, cardPat
       try {
         syncCard();
       } catch {
-        // 卡片出问题不能连累笔记按钮的自查。
+        // 卡片出问题不能连累笔记图标的自查。
       }
     },
     videoChanged() {
@@ -115,6 +116,7 @@ export function createSurface({ document, page, runtime, player, retire, cardPat
     remove() {
       retired = true;
       stopShortcut();
+      stopControls();
       mini.stop();
       card?.remove();
       card = null;

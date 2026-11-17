@@ -1,5 +1,5 @@
 // 内容脚本的生命周期：过了启用闸门才读页面，页面激活稳定后才挂界面，之后定时自查；启用失效时整套撤下、重新等确认。
-// 扩展重新加载后旧脚本和扩展断了联系：撤卡片，笔记按钮留着只提示刷新页面。
+// 扩展重新加载后旧脚本和扩展断了联系：撤卡片，笔记图标留着只提示刷新页面。
 import type { VideoKey } from "../core/video-ref.ts";
 import type { Broadcast } from "../shared/messages.ts";
 import type { AppearanceView } from "../shared/messages/core.ts";

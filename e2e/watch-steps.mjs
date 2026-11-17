@@ -1,5 +1,6 @@
-// 端到端里播放页的几步：确认启用前内容脚本什么都不挂；确认后不刷新页面就挂上笔记按钮和卡片；
-// 登录后卡片显示模拟的官方总结，点笔记按钮、按快捷键各存一条笔记，配好模型服务后在卡片里点「生成概览」出结果；
+// 端到端里播放页的几步：确认启用前内容脚本什么都不挂；确认后不刷新页面就挂上笔记图标和卡片；
+// 登录后卡片显示模拟的官方总结，笔记图标平时藏着、鼠标移上播放器才露、页面给了控制栏信号就跟着信号，
+// 点图标、按快捷键各存一条笔记，配好模型服务后在卡片里点「生成概览」出结果；
 // 宽屏时卡片挪到弹幕列表下面；清掉本机设置让启用失效后，不用刷新就全部撤下。点击和按键都经调试协议发，是真实的用户操作，要穿过页面上那层透明层。
 import { createSettingsStore } from "../src/platform/settings-store.ts";
 import { INJECTED } from "../src/shared/names.ts";
@@ -41,6 +42,20 @@ export function createWatchSteps({ cdp, until, evaluate, findSession, url }) {
   const mounted = () => evaluate(page, `JSON.stringify({ injected: document.querySelectorAll('[id^="jianmu-"]').length, frames: document.querySelectorAll("iframe").length })`);
   const rectOf = (session, selector) =>
     evaluate(session, `(() => { const box = document.querySelector(${JSON.stringify(selector)})?.getBoundingClientRect(); return box && box.width > 0 ? { x: box.x, y: box.y, width: box.width, height: box.height } : null; })()`);
+
+  const PLAYER = ".bpx-player-container";
+  const moveTo = (x, y) => cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y }, page);
+  /** 笔记图标这会儿露没露、上面有没有字。 */
+  const icon = async () =>
+    JSON.parse(
+      await evaluate(
+        page,
+        `JSON.stringify({ visibility: getComputedStyle(document.getElementById(${JSON.stringify(INJECTED.noteButton)})).visibility, text: document.getElementById(${JSON.stringify(INJECTED.noteButton)}).textContent })`,
+      ),
+    );
+  /** 改播放器容器上标的控制栏状态，null 是去掉标记。 */
+  const setControlsHidden = (value) =>
+    evaluate(page, `(${value === null ? `document.querySelector("${PLAYER}").removeAttribute("data-ctrl-hidden")` : `document.querySelector("${PLAYER}").setAttribute("data-ctrl-hidden", ${JSON.stringify(value)})`}, true)`);
 
   async function click(x, y) {
     await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y }, page);
@@ -84,15 +99,15 @@ export function createWatchSteps({ cdp, until, evaluate, findSession, url }) {
       if (found.injected !== 0 || found.frames !== 0) throw new Error(`确认启用前播放页上挂了东西：${JSON.stringify(found)}`);
     },
 
-    /** 确认启用以后不用刷新页面，笔记按钮和卡片就挂上。 */
+    /** 确认启用以后不用刷新页面，笔记图标和卡片就挂上。 */
     async afterActivation() {
-      await until("确认后挂上笔记按钮和卡片", async () => {
+      await until("确认后挂上笔记图标和卡片", async () => {
         const found = JSON.parse(await mounted());
         return found.injected >= 3 && found.frames === 1;
       });
     },
 
-    /** 登录后：卡片显示官方总结，按钮和快捷键各存一条笔记。返回模型服务配好之前卡片的文字。 */
+    /** 登录后：卡片显示官方总结，笔记图标悬停才露，图标和快捷键各存一条笔记。返回模型服务配好之前卡片的文字。 */
     async notesAndOfficial(ask, video) {
       await cdp.send("Page.reload", {}, page);
       await until("刷新后页面框架激活", () => evaluate(page, `document.readyState === "complete" && !document.querySelector("[data-server-rendered]")`));
@@ -103,17 +118,50 @@ export function createWatchSteps({ cdp, until, evaluate, findSession, url }) {
         return value.includes("自造的样例总结") && value.includes("打开设置") ? value : null;
       });
 
-      const button = await until("笔记按钮可见", () => rectOf(page, `#${INJECTED.noteButton}`));
+      // 鼠标没碰播放器：图标挂着但藏着，上面没有字。
+      const player = await until("播放器有了尺寸", () => rectOf(page, PLAYER));
+      const button = await until("笔记图标挂上", () => rectOf(page, `#${INJECTED.noteButton}`));
+      await until("图标平时藏着", async () => (await icon()).visibility === "hidden");
+      const resting = await icon();
+      if (resting.text !== "" || button.width > 40) throw new Error(`笔记图标平时不该带字：${JSON.stringify({ ...resting, width: button.width })}`);
+
+      await moveTo(player.x + player.width / 2, player.y + player.height / 2);
+      await until("鼠标移上播放器，图标露出来", async () => (await icon()).visibility === "visible");
       await click(button.x + button.width / 2, button.y + button.height / 2);
-      await until("按钮存下一条笔记", async () => {
+      await until("图标存下一条笔记", async () => {
         const reply = await ask("notes.list", { video });
         return reply?.ok && reply.value.notes.some((note) => note.atSec === WATCH_PAGE_AT_SEC);
       });
+      await moveTo(player.x + player.width + 40, player.y + player.height + 40);
+      await until("鼠标移出播放器、提示闪完，图标收起", async () => {
+        const now = await icon();
+        return now.visibility === "hidden" && now.text === "";
+      });
+
+      // 页面给了控制栏信号就跟着信号，鼠标在不在播放器上都不算；信号没了退回看鼠标。
+      await setControlsHidden("false");
+      await until("控制栏露出来，图标跟着露", async () => (await icon()).visibility === "visible");
+      await setControlsHidden("true");
+      await until("控制栏藏了，图标跟着藏", async () => (await icon()).visibility === "hidden");
+      await moveTo(player.x + player.width / 2, player.y + player.height / 2);
+      await sleep(200);
+      if ((await icon()).visibility !== "hidden") throw new Error("页面说控制栏藏着时，鼠标在播放器上动不该让图标露出来");
+      await moveTo(player.x + player.width + 40, player.y + player.height + 40);
+      await setControlsHidden(null);
+
       await evaluate(page, `(document.querySelector("video").currentTime = 100, true)`);
       await press("n", "KeyN", 78);
+      await until("按快捷键时图标带着提示露出来", async () => {
+        const now = await icon();
+        return now.visibility === "visible" && now.text !== "";
+      });
       await until("快捷键存下第二条笔记", async () => {
         const reply = await ask("notes.list", { video });
         return reply?.ok && reply.value.notes.some((note) => note.atSec === 100);
+      });
+      await until("提示闪完，图标收起", async () => {
+        const now = await icon();
+        return now.visibility === "hidden" && now.text === "";
       });
       return { card, text };
     },

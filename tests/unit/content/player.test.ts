@@ -1,5 +1,5 @@
 // 播放器指令：视频身份要和地址一致，地址变了以后要等播放器换上新视频；正在播广告时不给时间、不跳转；
-// 时长每个视频只报一次，两次上报之间隔够时间。另核对笔记按钮抄的主题色和设置里的主题表一致。
+// 时长每个视频只报一次，两次上报之间隔够时间。另核对笔记图标抄的主题色和设置里的主题表一致。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ACCENT_SWATCHES } from "../../../src/content/note-button.ts";
@@ -108,6 +108,6 @@ test("时长每个视频报一次，等播放器换上、读得到时长、不�
   assert.deepEqual(reports.at(-1), [videoKey(SECOND), 600]);
 });
 
-test("笔记按钮抄的主题色和设置里的主题表一致", () => {
+test("笔记图标抄的主题色和设置里的主题表一致", () => {
   assert.deepEqual(ACCENT_SWATCHES, Object.fromEntries(Object.entries(ACCENT_THEMES).map(([name, theme]) => [name, theme.swatch])));
 });

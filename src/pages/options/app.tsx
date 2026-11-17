@@ -108,7 +108,7 @@ function CardSection({ state }: { readonly state: OptionsState }) {
     <section class="card">
       <h2>播放页</h2>
       <p class="hint">
-        卡片放在弹幕列表上方，显示 B 站官方总结和已经生成的概览，可以收起，也可以从它打开侧边栏。关掉以后播放页只留笔记按钮，打开侧边栏要点浏览器工具栏里的扩展图标。改了马上生效。
+        卡片放在弹幕列表上方，显示 B 站官方总结和已经生成的概览，可以收起，也可以从它打开侧边栏。关掉以后播放页只留笔记图标（鼠标移到播放器上才出现），打开侧边栏要点浏览器工具栏里的扩展图标。改了马上生效。
       </p>
       <label class="check">
         <input id="inPageCard" type="checkbox" checked={saved.inPageCard} onChange={(event) => void state.saveInstant({ inPageCard: event.currentTarget.checked })} />
