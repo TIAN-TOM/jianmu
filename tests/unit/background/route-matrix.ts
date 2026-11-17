@@ -54,7 +54,7 @@ export const ROUTE_MATRIX: readonly MatrixRow[] = [
   ...row(["triage.state"], { ...PAGES, card: false, content: [], beforeEnable: false }),
   ...row(["playback.info", "playback.milestone"], { ...NO_PAGES, card: false, content: BOTH, beforeEnable: false }),
   ...row(["session.get"], { ...PANEL_ONLY, card: true, content: [], beforeEnable: false }),
-  ...row(["session.setMode"], { ...PANEL_ONLY, card: false, content: [], beforeEnable: false }),
+  ...row(["session.setMode", "session.describe"], { ...PANEL_ONLY, card: false, content: [], beforeEnable: false }),
   ...row(["card.setOverride"], { ...NO_PAGES, card: true, content: [], beforeEnable: false }),
   ...row(["channels.clear"], { ...OPTIONS_ONLY, card: false, content: [], beforeEnable: false }),
   ...row(["grants.release"], { ...OPTIONS_ONLY, card: false, content: [], beforeEnable: true }),

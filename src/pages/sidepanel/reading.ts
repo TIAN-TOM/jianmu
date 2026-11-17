@@ -53,3 +53,16 @@ export function explainable(text: string): boolean {
   const trimmed = text.trim();
   return trimmed.length > 0 && trimmed.length <= MAX_SELECTION;
 }
+
+/** 播放到的那一章：开始时间不晚于播放位置的最后一章，章节要按开始时间排好。还没到第一章或没有章节时是 -1。 */
+export function chapterAt(chapters: readonly { readonly startSec: number }[], atSec: number | null): number {
+  return activeIndex(
+    chapters.map((chapter) => ({ start: chapter.startSec })),
+    atSec,
+  );
+}
+
+/** 一章里的字幕：从这一章开始到下一章开始之前；最后一章到结尾。 */
+export function segmentsBetween<T extends Pick<TranscriptSegment, "start">>(segments: readonly T[], startSec: number, endSec: number | null): T[] {
+  return segments.filter((segment) => segment.start >= startSec && (endSec === null || segment.start < endSec));
+}

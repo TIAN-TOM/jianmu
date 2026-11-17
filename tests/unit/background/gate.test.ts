@@ -62,6 +62,7 @@ const realRoutes = (): Readonly<Record<string, AnyRoute>> =>
     sessions: {
       onPlaybackInfo: async () => assert.fail(),
       onMilestone: async () => assert.fail(),
+      describe: async () => assert.fail(),
       get: async () => assert.fail(),
       setMode: async () => assert.fail(),
       setCardOverride: async () => assert.fail(),

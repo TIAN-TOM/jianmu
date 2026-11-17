@@ -212,6 +212,40 @@ test("主动切换模式记住频道，同一频道的新视频按它打开；�
   assert.equal(world.sessions()[String(CONTENT_TAB + 3)]?.modeSource, "default");
 });
 
+test("播放页还没报频道时，侧边栏带上读到的频道编号切换模式，回复说明记住了；同一频道的新视频按它打开", async () => {
+  const world = appOn();
+  const manual = { tabId: CONTENT_TAB, video: VIDEO, intent: "manual", mode: "study", channel: "4242" };
+  const reply = (await world.send("session.setMode", manual, senders.panel())) as { ok: boolean; value?: { remembered: boolean; session: { modeSource: string } } };
+  assert.equal(reply.ok, true);
+  assert.equal(reply.value?.remembered, true);
+  assert.equal(reply.value?.session.modeSource, "manual");
+  await world.send("playback.info", { video: OTHER, durationSec: LONG, channel: "4242" }, content(CONTENT_TAB + 1, OTHER_ID));
+  assert.equal(world.sessions()[String(CONTENT_TAB + 1)]?.mode, "study");
+  assert.equal(world.sessions()[String(CONTENT_TAB + 1)]?.modeSource, "channel");
+});
+
+test("侧边栏报视频信息：只收侧边栏，时长和频道编号形状不对的不收；收下的按频道偏好定模式", async () => {
+  const world = appOn();
+  for (const req of [
+    { tabId: CONTENT_TAB, video: VIDEO, durationSec: 0 },
+    { tabId: CONTENT_TAB, video: VIDEO, durationSec: -5 },
+    { tabId: CONTENT_TAB, video: VIDEO, channel: "带空格 的编号" },
+    { tabId: CONTENT_TAB, video: VIDEO, mode: "study" },
+    { video: VIDEO, durationSec: LONG },
+  ]) {
+    assert.deepEqual(await world.send("session.describe", req, senders.panel()), { ok: false, code: "INVALID_REQUEST" }, JSON.stringify(req));
+  }
+  for (const sender of [senders.card(), senders.options(), senders.triage()]) {
+    assert.deepEqual(await world.send("session.describe", { tabId: CONTENT_TAB, video: VIDEO, durationSec: LONG }, sender), { ok: false, code: "FORBIDDEN" });
+  }
+  const reply = (await world.send("session.describe", { tabId: CONTENT_TAB, video: VIDEO, durationSec: 120, channel: "4242" }, senders.panel())) as {
+    ok: boolean;
+    value?: { session: { mode: string; modeSource: string } };
+  };
+  assert.deepEqual(reply.value?.session.mode, "study");
+  assert.deepEqual(reply.value?.session.modeSource, "short");
+});
+
 test("切换模式只收侧边栏，请求形状不对的不收", async () => {
   const world = appOn();
   for (const sender of [senders.card(), content(), senders.options(), senders.triage()]) {
@@ -224,6 +258,9 @@ test("切换模式只收侧边栏，请求形状不对的不收", async () => {
     { tabId: CONTENT_TAB, video: VIDEO, intent: "undo-auto", mode: "skim" },
     { tabId: CONTENT_TAB, video: VIDEO, intent: "auto", mode: "study" },
     { video: VIDEO, intent: "manual", mode: "study" },
+    { tabId: CONTENT_TAB, video: VIDEO, intent: "manual", mode: "study", channel: "带空格 的编号" },
+    { tabId: CONTENT_TAB, video: VIDEO, intent: "manual", mode: "study", channel: 4242 },
+    { tabId: CONTENT_TAB, video: VIDEO, intent: "undo-auto", channel: "4242" },
   ]) {
     assert.deepEqual(await world.send("session.setMode", req, senders.panel()), { ok: false, code: "INVALID_REQUEST" }, JSON.stringify(req));
   }

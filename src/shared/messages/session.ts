@@ -1,4 +1,4 @@
-// 观看会话、播放上报、模式切换、卡片手动展开收起和清除频道偏好这几条消息的请求和回复。
+// 观看会话、播放上报、侧边栏报视频信息、模式切换、卡片手动展开收起和清除频道偏好这几条消息的请求和回复。
 import type { CardOverride, Mode, SessionView } from "../../core/mode/types.ts";
 import type { VideoKey } from "../../core/video-ref.ts";
 import type { EmptyRequest } from "./core.ts";
@@ -26,6 +26,14 @@ export interface PlaybackMilestoneReply {
   readonly report: boolean;
 }
 
+/** 侧边栏报适配层读到的这个视频的时长和频道编号，读不到的不带。 */
+export interface SessionDescribeRequest {
+  readonly tabId: number;
+  readonly video: VideoKey;
+  readonly durationSec?: number;
+  readonly channel?: string;
+}
+
 /** 侧边栏按标签页读；卡片只读自己所在的标签页，不带参数。 */
 export type SessionGetRequest = { readonly tabId: number } | EmptyRequest;
 
@@ -33,13 +41,18 @@ export interface SessionReply {
   readonly session: SessionView | null;
 }
 
-/** 主动点模式切换记成手动并记住频道；撤销自动切换回到打开时的模式，不记频道。 */
+/** 主动点模式切换记成手动并记住频道；撤销自动切换回到打开时的模式，不记频道。channel 是侧边栏读到的这个站上的频道编号。 */
 export type SessionSetModeRequest =
-  | { readonly tabId: number; readonly video: VideoKey; readonly intent: "manual"; readonly mode: Mode }
+  | { readonly tabId: number; readonly video: VideoKey; readonly intent: "manual"; readonly mode: Mode; readonly channel?: string }
   | { readonly tabId: number; readonly video: VideoKey; readonly intent: "undo-auto" };
 
 export interface SessionChangedReply {
   readonly session: SessionView;
+}
+
+export interface SessionSetModeReply extends SessionChangedReply {
+  /** 这次切换记住了频道，以后这个频道先进这个模式。 */
+  readonly remembered: boolean;
 }
 
 /** 卡片在自己所在的标签页上手动展开或收起，换视频即失效。 */
@@ -52,7 +65,8 @@ export interface SessionApi {
   "playback.info": { req: PlaybackInfoRequest; res: PlaybackInfoReply };
   "playback.milestone": { req: PlaybackMilestoneRequest; res: PlaybackMilestoneReply };
   "session.get": { req: SessionGetRequest; res: SessionReply };
-  "session.setMode": { req: SessionSetModeRequest; res: SessionChangedReply };
+  "session.describe": { req: SessionDescribeRequest; res: SessionChangedReply };
+  "session.setMode": { req: SessionSetModeRequest; res: SessionSetModeReply };
   "card.setOverride": { req: CardOverrideRequest; res: SessionChangedReply };
   "channels.clear": { req: EmptyRequest; res: EmptyRequest };
 }

@@ -1,12 +1,13 @@
-// 观看会话：内容脚本报时长、频道和播放进度，侧边栏读会话、切换模式，卡片读自己所在标签页的会话、手动展开收起，
+// 观看会话：内容脚本报时长、频道和播放进度，侧边栏读会话、报适配层读到的时长和频道、切换模式，卡片读自己所在标签页的会话、手动展开收起，
 // 设置页清除记住的频道。内容脚本报的视频必须等于它所在标签页地址上的视频，地址过了启用闸门才读。
 import { fail, ok } from "../../core/errors.ts";
 import { isMode } from "../../core/mode/decide.ts";
 import type { CardOverride } from "../../core/mode/types.ts";
-import { videoKey, type Platform, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
+import { parseVideoKey, videoKey, type Platform, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
 import type {
   CardOverrideRequest,
   PlaybackInfoRequest,
+  SessionDescribeRequest,
   PlaybackMilestoneRequest,
   SessionGetRequest,
   SessionSetModeRequest,
@@ -25,7 +26,7 @@ export interface SessionRouteDeps {
 }
 
 type SessionRoutes = {
-  readonly [K in "playback.info" | "playback.milestone" | "session.get" | "session.setMode" | "card.setOverride" | "channels.clear"]: Route<K>;
+  readonly [K in "playback.info" | "playback.milestone" | "session.get" | "session.describe" | "session.setMode" | "card.setOverride" | "channels.clear"]: Route<K>;
 };
 
 // 一周：比任何正常的视频和累计播放都长，挡掉离谱的数。
@@ -65,9 +66,24 @@ function isGetRequest(req: unknown, ctx: SenderCtx): req is SessionGetRequest {
   return isPlainObject(req) && keysWithin(req, ["tabId"]) && isTabId(req.tabId);
 }
 
+const isChannelId = (value: unknown): boolean => typeof value === "string" && CHANNEL_ID.test(value);
+
+function isDescribeRequest(req: unknown): req is SessionDescribeRequest {
+  return (
+    isPlainObject(req) &&
+    keysWithin(req, ["tabId", "video"], ["durationSec", "channel"]) &&
+    isTabId(req.tabId) &&
+    isVideoKey(req.video) &&
+    (req.durationSec === undefined || (isSeconds(req.durationSec) && req.durationSec > 0)) &&
+    (req.channel === undefined || isChannelId(req.channel))
+  );
+}
+
 function isSetModeRequest(req: unknown): req is SessionSetModeRequest {
   if (!isPlainObject(req) || !isTabId(req.tabId) || !isVideoKey(req.video)) return false;
-  if (req.intent === "manual") return keysWithin(req, ["tabId", "video", "intent", "mode"]) && isMode(req.mode);
+  if (req.intent === "manual") {
+    return keysWithin(req, ["tabId", "video", "intent", "mode"], ["channel"]) && isMode(req.mode) && (req.channel === undefined || isChannelId(req.channel));
+  }
   return req.intent === "undo-auto" && keysWithin(req, ["tabId", "video", "intent"]);
 }
 
@@ -132,13 +148,29 @@ export function sessionRoutes({ sessions, channels, playbackLimits }: SessionRou
         return ok({ session: await sessions.get(tabId) });
       },
     },
+    "session.describe": {
+      senders: ["panel"],
+      validate: isDescribeRequest,
+      async handler(req) {
+        const platform = parseVideoKey(req.video)?.platform;
+        const result = await sessions.describe(req.tabId, req.video, {
+          ...(req.durationSec === undefined ? {} : { durationSec: req.durationSec }),
+          ...(req.channel && platform ? { channel: { platform, channelId: req.channel } } : {}),
+        });
+        return result.ok ? ok({ session: result.value }) : result;
+      },
+    },
     "session.setMode": {
       senders: ["panel"],
       validate: isSetModeRequest,
       async handler(req) {
-        const change = req.intent === "manual" ? { intent: "manual" as const, mode: req.mode } : { intent: "undo-auto" as const };
-        const result = await sessions.setMode(req.tabId, req.video, change);
-        return result.ok ? ok({ session: result.value }) : result;
+        // 侧边栏带来的频道按标签页上视频所在的站算。
+        const platform = parseVideoKey(req.video)?.platform;
+        const change =
+          req.intent === "manual"
+            ? { intent: "manual" as const, mode: req.mode, ...(req.channel && platform ? { channel: { platform, channelId: req.channel } } : {}) }
+            : { intent: "undo-auto" as const };
+        return sessions.setMode(req.tabId, req.video, change);
       },
     },
     "card.setOverride": {

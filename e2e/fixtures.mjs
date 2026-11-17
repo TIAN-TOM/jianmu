@@ -41,12 +41,17 @@ export const AUTO_SHORT = { bvid: "BV1Sample006", aid: 1006, cid: 2006, mid: 300
 /** @type {Video} */
 export const AUTO_BACKGROUND = { bvid: "BV1Sample007", aid: 1007, cid: 2007, mid: 3007, title: "后台打开的样例长视频", owner: "第七位样例作者", duration: 1500 };
 
+/** 不到 5 分钟的短视频：打开就进精读。 @type {Video} */
+export const BRIEF_VIDEO = { bvid: "BV1Sample008", aid: 1008, cid: 2008, mid: 3008, title: "样例短片", owner: "第八位样例作者", duration: 180 };
+
 /**
  * 打开就出结论的端到端步骤用：只带编号和标题，步骤脚本里不写平台的字段名。
  * @param {Video} video
  */
 const sample = (video) => Object.freeze({ id: video.bvid, title: video.title });
 export const AUTO_SAMPLES = Object.freeze({ long: sample(AUTO_LONG), short: sample(AUTO_SHORT), background: sample(AUTO_BACKGROUND) });
+/** 页面测试里打开就进精读的短视频。 */
+export const BRIEF_SAMPLE = sample(BRIEF_VIDEO);
 
 /** @type {Readonly<Record<string, Video>>} */
 export const VIDEOS = {
@@ -57,6 +62,7 @@ export const VIDEOS = {
   [AUTO_LONG.bvid]: AUTO_LONG,
   [AUTO_SHORT.bvid]: AUTO_SHORT,
   [AUTO_BACKGROUND.bvid]: AUTO_BACKGROUND,
+  [BRIEF_VIDEO.bvid]: BRIEF_VIDEO,
 };
 
 /** 写结论时模拟服务判「可以跳过」的视频，粗筛分组用；其余判「看概览就够」。 */

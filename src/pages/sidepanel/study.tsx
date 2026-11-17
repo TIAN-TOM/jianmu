@@ -1,0 +1,54 @@
+// 精读：上面一条当前章节，跟着播放走；下面是跟着播放滚动、高亮当前句的字幕，能搜索、翻译、划词解释。
+// 章节用模型生成的概览，没有时用 UP 主分段，都没有时不显示这一条。
+import { formatTimestamp } from "../../core/transcript/segment.ts";
+import type { Panel } from "./panel.ts";
+import { chapterAt } from "./reading.ts";
+import { TranscriptTab } from "./transcript-tab.tsx";
+
+interface BarChapter {
+  readonly startSec: number;
+  readonly title: string;
+}
+
+function chaptersOf(panel: Panel): readonly BarChapter[] {
+  const overview = panel.overview.state.value;
+  const analysis = overview.task && overview.preview ? overview.preview.analysis : overview.saved?.analysis;
+  const generated = (analysis?.chapters ?? [])
+    .filter((chapter) => Number.isFinite(chapter.timestampSeconds))
+    .map((chapter) => ({ startSec: chapter.timestampSeconds, title: typeof chapter.title === "string" ? chapter.title.trim() : "" }));
+  if (generated.length > 0) return [...generated].sort((a, b) => a.startSec - b.startSec);
+  const now = panel.transcript.state.value;
+  const creator = now.state === "ready" ? now.view.chapters : now.state === "failed" ? (now.failure.chapters ?? []) : [];
+  return creator.map((chapter) => ({ startSec: chapter.start, title: chapter.title.trim() }));
+}
+
+function ChapterBar({ panel }: { readonly panel: Panel }) {
+  const chapters = chaptersOf(panel);
+  const { video } = panel.follow.target.value;
+  const position = panel.player.position.value;
+  const at = position && position.video === video ? position.atSec : null;
+  const index = chapterAt(chapters, at);
+  const chapter = chapters[index];
+  if (!chapter) return null;
+  const time = formatTimestamp(chapter.startSec);
+  return (
+    <div class="chapter-bar" aria-label="当前章节">
+      <span class="chapter-bar-count">
+        {index + 1}/{chapters.length}
+      </span>
+      <span class="chapter-bar-title">{chapter.title || time}</span>
+      <button type="button" class="stamp" aria-label={`跳到这一章开头 ${time}`} onClick={() => void panel.seek(chapter.startSec)}>
+        {time}
+      </button>
+    </div>
+  );
+}
+
+export function StudyView({ panel }: { readonly panel: Panel }) {
+  return (
+    <div class="study">
+      <ChapterBar panel={panel} />
+      <TranscriptTab panel={panel} />
+    </div>
+  );
+}

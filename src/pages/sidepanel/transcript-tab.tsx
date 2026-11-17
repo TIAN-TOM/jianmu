@@ -1,4 +1,4 @@
-// 字幕页签：逐段字幕，点一段跳到那里，跟着播放位置滚动；搜索高亮、换原文译文双语、导入导出字幕文件。
+// 字幕列表：精读的主体，速览里还没有概览时也摆在下面。逐段字幕，点一段跳到那里，跟着播放位置滚动；搜索高亮、换原文译文双语、导入导出字幕文件。
 // 读不到字幕时说明原因，视频网站给的导读照样摆出来；选中一段文字可以请模型解释。
 import { useEffect, useRef, useState } from "preact/hooks";
 import { describe } from "../../core/errors.ts";
@@ -198,7 +198,8 @@ function Ready({ panel, view }: { readonly panel: Panel; readonly view: Transcri
   );
 }
 
-export function TranscriptTab({ panel }: { readonly panel: Panel }) {
+/** guides 为 false 时读不到字幕也不再摆官方总结和 UP 主分段：外面已经摆了。 */
+export function TranscriptTab({ panel, guides = true }: { readonly panel: Panel; readonly guides?: boolean }) {
   const now = panel.transcript.state.value;
   const fileInput = useRef<HTMLInputElement>(null);
   if (now.state === "idle" || now.state === "loading") {
@@ -217,13 +218,13 @@ export function TranscriptTab({ panel }: { readonly panel: Panel }) {
       <>
         <StateBlock
           title={describe(failure.code, failure.detail)}
-          {...(failure.official?.status === "ok" ? { impact: "下面是视频网站给的导读。" } : {})}
+          {...(guides && failure.official?.status === "ok" ? { impact: "下面是视频网站给的导读。" } : {})}
           primary={{ label: "重试", onClick: () => void panel.transcript.load(video, panel.follow.target.peek().tabId, { fresh: true }) }}
           secondary={[{ label: "导入字幕文件", onClick: () => fileInput.current?.click() }]}
         />
         <ImportInput panel={panel} inputRef={fileInput} />
-        <OfficialSummary official={failure.official} onSeek={(at) => void panel.seek(at)} />
-        <CreatorChapters chapters={failure.chapters} onSeek={(at) => void panel.seek(at)} />
+        {guides ? <OfficialSummary official={failure.official} onSeek={(at) => void panel.seek(at)} /> : null}
+        {guides ? <CreatorChapters chapters={failure.chapters} onSeek={(at) => void panel.seek(at)} /> : null}
       </>
     );
   }

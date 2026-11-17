@@ -1,9 +1,9 @@
-// 侧边栏的纯规则：播放到哪一段、原文译文双语怎么显示和导出、划词解释的长度、导出的文件名和链接前缀、导入前的文件核对。
+// 侧边栏的纯规则：播放到哪一段和哪一章、速览里一章的字幕、原文译文双语怎么显示和导出、划词解释的长度、导出的文件名和链接前缀、导入前的文件核对。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { videoKey } from "../../../../src/core/video-ref.ts";
 import { safeFileName, videoBaseOf } from "../../../../src/pages/sidepanel/files.ts";
-import { activeIndex, explainable, linesOf, MAX_SELECTION, srtOf } from "../../../../src/pages/sidepanel/reading.ts";
+import { activeIndex, chapterAt, explainable, linesOf, MAX_SELECTION, segmentsBetween, srtOf } from "../../../../src/pages/sidepanel/reading.ts";
 import { fileProblem } from "../../../../src/pages/sidepanel/transcript.ts";
 
 const segment = (id: string, start: number, text: string) => ({ id, start, text, texts: [text] });
@@ -52,4 +52,21 @@ test("导入字幕文件之前：只收 .srt、.vtt，太大和空文件先拦�
   assert.ok(fileProblem("a.ass", 10));
   assert.ok(fileProblem("a.srt", 0));
   assert.ok(fileProblem("a.srt", 3 * 1024 * 1024));
+});
+
+test("精读的当前章节：开始时间不晚于播放位置的最后一章；还没到第一章、没有章节或不知道位置时是 -1", () => {
+  const chapters = [{ startSec: 0 }, { startSec: 120 }, { startSec: 300 }];
+  assert.equal(chapterAt(chapters, null), -1);
+  assert.equal(chapterAt([], 50), -1);
+  assert.equal(chapterAt([{ startSec: 30 }], 10), -1);
+  assert.equal(chapterAt(chapters, 0), 0);
+  assert.equal(chapterAt(chapters, 119.9), 0);
+  assert.equal(chapterAt(chapters, 120), 1);
+  assert.equal(chapterAt(chapters, 9999), 2);
+});
+
+test("速览里一章的字幕：从这一章开始到下一章开始之前，最后一章到结尾", () => {
+  assert.deepEqual(segmentsBetween(SEGMENTS, 0, 10).map((item) => item.id), ["s0"]);
+  assert.deepEqual(segmentsBetween(SEGMENTS, 10, null).map((item) => item.id), ["s1", "s2"]);
+  assert.deepEqual(segmentsBetween(SEGMENTS, 30, null), []);
 });

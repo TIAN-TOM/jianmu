@@ -1,10 +1,10 @@
-/* 侧边栏自己的版面：头部、页签、字幕列表、概览、笔记和问答。共用组件的样式在 ui/ 下，这里只用 theme.css 的变量。 */
+/* 侧边栏自己的版面：头部和模式切换、速览、精读、底部工具条、字幕列表、笔记和问答。共用组件的样式在 ui/ 下，这里只用 theme.css 的变量。 */
 
 .panel {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  padding: 0 var(--panel-pad) var(--space-6);
+  padding: 0 var(--panel-pad);
 }
 
 .panel-gate {
@@ -53,42 +53,119 @@
   border-radius: var(--radius-pill);
 }
 
-.tabs {
+/* 模式切换压在头部的分隔线上，滚动时吸顶。 */
+.mode-row {
+  --mode-row-h: 40px;
   position: sticky;
   top: 0;
   z-index: 2;
   display: flex;
-  gap: var(--space-1);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: var(--mode-row-h);
   margin: var(--space-2) calc(-1 * var(--panel-pad)) 0;
   padding: 0 var(--panel-pad);
   border-bottom: 1px solid var(--border);
   background: var(--bg);
 }
 
-.tab {
-  padding: var(--space-2) var(--space-3);
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
+.mode-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) 0 var(--space-6);
 }
 
-.tab:hover {
-  color: var(--text);
+.skim,
+.study {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
-.tab[aria-selected="true"] {
-  border-bottom-color: var(--accent);
-  color: var(--text);
-  font-weight: var(--fw-medium);
-}
-
-.tab-panel {
+.skim-transcript {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+/* ---------- 精读的当前章节 ---------- */
+
+.chapter-bar {
+  position: sticky;
+  top: 40px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 calc(-1 * var(--panel-pad));
+  padding: var(--space-2) var(--panel-pad);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  font-size: var(--fs-meta);
+}
+
+.chapter-bar-count {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.chapter-bar-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-weight: var(--fw-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- 速览里一章的字幕 ---------- */
+
+.chapter-cues {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  padding: 0 0 0 var(--space-2);
+  border-left: 2px solid var(--border);
+  list-style: none;
+}
+
+.chapter-cue {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  line-height: var(--lh-body);
+}
+
+/* ---------- 底部工具条 ---------- */
+
+.panel > .dock {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin: 0 calc(-1 * var(--panel-pad));
+}
+
+.ask-entry {
+  flex: 1;
+  min-width: 10rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--bg);
+  color: var(--text-muted);
+  font-size: var(--fs-body);
+  text-align: left;
+  cursor: text;
+}
+
+.ask-entry:hover {
+  border-color: var(--accent);
 }
 
 /* ---------- 工具条、搜索、进度 ---------- */
@@ -339,7 +416,7 @@
 
 .follow-pill {
   position: fixed;
-  bottom: var(--space-4);
+  bottom: calc(var(--dock-h) + var(--space-3));
   left: 50%;
   z-index: 3;
   display: inline-flex;

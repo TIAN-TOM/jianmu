@@ -1,11 +1,12 @@
-// 侧边栏：确认启用前只有启用说明；没有视频时说明怎么用；视频页上读不到字幕、读到字幕、四个页签的主要状态。
+// 侧边栏：确认启用前只有启用说明；没有视频时说明怎么用；视频页上读不到字幕、读到字幕，速览和精读、问答抽屉、笔记层的主要状态；
+// 打开时按时长定模式，主动切换记住频道，设置页清掉以后回到按时长。
 // 页面测试里没有设置模型服务的密钥：概览和问答停在要先设置 AI 服务。
 // 几个测试按顺序共用同一个浏览器：第一个确认启用，第二个还没登录，第三个起已登录。
 import assert from "node:assert/strict";
 import { describe as describeError } from "../../src/core/errors.ts";
 import { videoKey } from "../../src/core/video-ref.ts";
 import { API_KEY_SESSION_KEY, AUTO_LEDGER_KEY, SETTINGS_STORAGE_KEY } from "../../src/shared/names.ts";
-import { ANTHROPIC, VIDEOS } from "../fixtures.mjs";
+import { ANTHROPIC, BRIEF_SAMPLE, VIDEOS } from "../fixtures.mjs";
 import { PROBE, watchPage } from "../mock-server.mjs";
 import { storedSettings } from "../settings.mjs";
 import { scenario } from "./harness.mjs";
@@ -24,20 +25,30 @@ const openTab = (page, url, active = true) =>
   page.evaluate(`chrome.windows.getCurrent().then((win) => chrome.tabs.create({ windowId: win.id, url: ${JSON.stringify(url)}, active: ${active} })).then((tab) => tab.id)`);
 const closeTab = (from, tabId) => from.evaluate(`chrome.tabs.remove(${tabId}).then(() => true, () => true)`);
 
-/** 侧边栏开在启动页的窗口里，再在侧边栏所在的窗口里打开视频页；做完关掉视频页。 */
-async function withVideo({ open, openSidePanel }, fn) {
+/** 侧边栏开在启动页的窗口里，再在侧边栏所在的窗口里打开视频页；做完关掉视频页。每次新开的标签页是一次新的观看。 */
+async function withVideo({ open, openSidePanel }, fn, videoId = FIRST_ID) {
   const from = await open(LAUNCHER);
   const panel = await openSidePanel(from);
-  const tabId = await openTab(panel, watchPage(FIRST_ID));
+  const tabId = await openTab(panel, watchPage(videoId));
   try {
-    // 同一个窗口的侧边栏会留到下一个测试，停在上一个测试的页签上，先回到字幕页签。
-    await waitIn(panel, "页签出来", `Boolean(document.querySelector("#tab-transcript"))`);
-    await tap(panel, "#tab-transcript");
+    await waitIn(panel, "模式切换出来", `Boolean(document.querySelector(".modes"))`);
     await fn(panel, from);
   } finally {
     await closeTab(from, tabId);
   }
 }
+
+const modes = `[...document.querySelectorAll(".mode")].map((node) => [node.textContent, node.getAttribute("aria-checked")])`;
+/** 问答抽屉：字幕列表里还有一个划词解释的抽屉，按标题认。 */
+const qaSheet = `[...document.querySelectorAll(".sheet")].find((node) => node.querySelector(".overlay-title")?.textContent === "问答")`;
+const SKIM = [
+  ["速览", "true"],
+  ["精读", "false"],
+];
+const STUDY = [
+  ["速览", "false"],
+  ["精读", "true"],
+];
 
 /** 按条件等；等不到时把侧边栏上的文字带进报错，看得出停在哪。 */
 async function waitIn(panel, label, expression) {
@@ -62,36 +73,33 @@ test("侧边栏：确认启用前只有启用说明，点启用以后说明怎�
   const from = await open(LAUNCHER);
   const panel = await openSidePanel(from);
   await waitIn(panel, "启用说明", `${appText}.includes("先看看简幕会读什么")`);
-  assert.equal(await panel.evaluate(`document.querySelectorAll("[role='tab']").length`), 0, "确认前没有页签");
+  assert.equal(await panel.evaluate(`document.querySelectorAll(".mode").length`), 0, "确认前没有模式切换");
   await tap(panel, ".activation .button");
   await waitIn(panel, "没有视频时的说明", `${appText}.includes("打开一个 B 站视频")`);
 });
 
-test("侧边栏：没登录时字幕页签说明原因，给重试和导入字幕文件，标题用标签页的", async (ctx) => {
+test("侧边栏：没登录时时长不知道，按长视频进速览；字幕那块说明原因，给重试和导入字幕文件，标题用标签页的", async (ctx) => {
   await withVideo(ctx, async (panel) => {
     await waitIn(panel, "要登录的说明", `${appText}.includes(${JSON.stringify(describeError("NEED_LOGIN"))})`);
     const state = await panel.evaluate(`({
-      tabs: [...document.querySelectorAll("[role='tab']")].map((tab) => [tab.textContent, tab.getAttribute("aria-selected")]),
+      modes: ${modes},
       actions: [...document.querySelectorAll(".state-block .button")].map((button) => button.textContent),
       title: document.querySelector(".video-title")?.textContent ?? "",
     })`);
-    assert.deepEqual(state.tabs, [
-      ["字幕", "true"],
-      ["概览", "false"],
-      ["笔记", "false"],
-      ["问答", "false"],
-    ]);
+    assert.deepEqual(state.modes, SKIM);
     assert.deepEqual(state.actions, ["重试", "导入字幕文件"]);
     assert.ok(state.title.includes(FIRST_TITLE), `视频信息读不到时用标签页的标题：${state.title}`);
   });
 });
 
-test("侧边栏：登录以后字幕页签列出字幕，搜索只留命中的段落并高亮", async (ctx) => {
+test("侧边栏：登录以后长视频进速览，还没有概览时下面接着字幕；搜索只留命中的段落并高亮", async (ctx) => {
   const from = await ctx.open(LAUNCHER);
   const login = await openTab(from, PROBE.login, false);
   await closeTab(from, login);
   await withVideo(ctx, async (panel) => {
     await waitIn(panel, "字幕列出来", `${textOf(".cue-text")}.includes("样例台词二")`);
+    assert.deepEqual(await panel.evaluate(modes), SKIM);
+    assert.equal(await panel.evaluate(`Boolean(document.querySelector(".skim .skim-transcript .cues"))`), true, "字幕摆在速览里");
     assert.match(await panel.evaluate(textOf(".toolbar-count")), /^共 \d+ 段$/);
     await tap(panel, "[aria-label='搜索字幕']");
     await panel.evaluate(`(() => { const input = document.querySelector(".search-input"); input.value = "台词二"; input.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
@@ -100,37 +108,42 @@ test("侧边栏：登录以后字幕页签列出字幕，搜索只留命中的�
   });
 });
 
-test("侧边栏：概览页签先摆官方总结；没设置 AI 服务时生成概览停用并写明原因", async (ctx) => {
+test("侧边栏：速览还没有概览时先摆官方总结；没设置 AI 服务时生成概览停用并写明原因", async (ctx) => {
   await withVideo(ctx, async (panel) => {
     await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
-    await tap(panel, "#tab-overview");
     await waitIn(panel, "官方总结", `${textOf(".guide-summary")}.includes("这是自造的样例总结。")`);
     await waitIn(panel, "生成概览停用", `(() => { const button = [...document.querySelectorAll(".button")].find((node) => node.textContent === "生成概览"); return button?.disabled === true; })()`);
     assert.ok((await panel.evaluate(textOf(".control-reason"))).includes("先在设置页设置 AI 服务"));
-    assert.equal(await panel.evaluate(`document.querySelector("#panel-overview")?.getAttribute("aria-labelledby")`), "tab-overview");
+    assert.equal(await panel.evaluate(`document.querySelector(".mode-view")?.getAttribute("aria-label")`), "速览");
     assert.ok((await panel.evaluate(textOf(".outline-title"))).includes("样例小节"), "官方总结的提纲也在");
   });
 });
 
-test("侧边栏：问答页签没设置 AI 服务时提问停用，还没有问答时说明怎么用", async (ctx) => {
+test("侧边栏：底部的提问入口只打开问答抽屉，不切模式、不发请求；没设置 AI 服务时提问停用，还没有问答时说明怎么用", async (ctx) => {
   await withVideo(ctx, async (panel) => {
     await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
-    await tap(panel, "#tab-qa");
+    assert.equal(await panel.evaluate(`${qaSheet}?.open`), false);
+    await tap(panel, ".ask-entry");
+    await waitIn(panel, "问答抽屉打开", `${qaSheet}?.open === true`);
     await waitIn(panel, "问答的空状态", `${appText}.includes("还没有问答")`);
     assert.equal(await panel.evaluate(`document.querySelector(".qa-form .button").disabled`), true);
     assert.ok((await panel.evaluate(textOf(".qa-form .control-reason"))).includes("先在设置页设置 AI 服务"));
+    assert.deepEqual(await panel.evaluate(modes), SKIM, "开抽屉不切模式");
+    await panel.evaluate(`(${qaSheet}).querySelector(".overlay-head [aria-label='关闭']").click(), true`);
+    await waitIn(panel, "抽屉关上", `${qaSheet}?.open === false`);
   });
 });
 
-test("侧边栏：笔记页签列出本视频的笔记，能改能删，删完回到空状态", async (ctx) => {
+test("侧边栏：头部的笔记按钮打开笔记层，列出本视频的笔记，能改能删，删完回到空状态", async (ctx) => {
   await withVideo(ctx, async (panel) => {
     await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
-    await tap(panel, "#tab-notes");
+    await tap(panel, ".mode-row [aria-label='笔记']");
+    await waitIn(panel, "笔记层打开", `document.querySelector(".layer")?.open === true`);
     await waitIn(panel, "笔记的空状态", `${appText}.includes("还没有笔记")`);
     const saved = await panel.evaluate(`chrome.runtime.sendMessage({ type: "notes.save", req: { video: ${JSON.stringify(VIDEO)}, atSec: 1, text: "页面测试记的一条" } })`);
     assert.equal(saved?.ok, true, JSON.stringify(saved));
     await waitIn(panel, "列出这条", `${textOf(".note-text")} === "页面测试记的一条"`);
-    assert.equal(await panel.evaluate(textOf(".toolbar-count")), "1 条");
+    assert.equal(await panel.evaluate(textOf(".layer .toolbar-count")), "1 条");
 
     await tap(panel, ".note .menu-anchor button");
     assert.ok(await clickText(panel, ".menu-item", "编辑"));
@@ -142,13 +155,14 @@ test("侧边栏：笔记页签列出本视频的笔记，能改能删，删完�
     await tap(panel, ".note .menu-anchor button");
     assert.ok(await clickText(panel, ".menu-item", "删除"));
     await waitIn(panel, "删完回到空状态", `${appText}.includes("还没有笔记")`);
+    await tap(panel, ".layer [aria-label='返回']");
+    await waitIn(panel, "笔记层关上", `document.querySelector(".layer")?.open === false`);
   });
 });
 
 test("侧边栏：没设置 AI 服务时本窗口全部生成停用；设置好以后清点写清几个视频、要新生成几个，取消回到按钮", async (ctx) => {
   await withVideo(ctx, async (panel) => {
     await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
-    await tap(panel, "#tab-overview");
     const batchButton = `[...document.querySelectorAll(".batch-bar .button")].find((node) => node.textContent.startsWith("本窗口全部生成"))`;
     await waitIn(panel, "批量按钮停用", `${batchButton}?.disabled === true`);
     assert.ok((await panel.evaluate(textOf(".batch-bar .control-reason"))).includes("先在设置页设置 AI 服务"));
@@ -198,5 +212,44 @@ test("侧边栏：打开就出结论因为额度用完停着时，顶上一行�
         `Promise.all([chrome.storage.local.set(${JSON.stringify(before)}), chrome.storage.session.remove([${JSON.stringify(API_KEY_SESSION_KEY)}, ${JSON.stringify(AUTO_LEDGER_KEY)}])]).then(() => true)`,
       );
     }
+  });
+});
+
+test("侧边栏：不到 5 分钟的短视频打开就进精读，跟着播放的字幕在，不摆生成概览", async (ctx) => {
+  await withVideo(
+    ctx,
+    async (panel) => {
+      await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
+      await waitIn(panel, "进了精读", `JSON.stringify(${modes}) === ${JSON.stringify(JSON.stringify(STUDY))}`);
+      assert.equal(await panel.evaluate(`document.querySelector(".mode-view")?.getAttribute("aria-label")`), "精读");
+      assert.equal(await panel.evaluate(`[...document.querySelectorAll(".button")].some((node) => node.textContent === "生成概览")`), false);
+      assert.ok(await panel.evaluate(`[...document.querySelectorAll(".dock .button")].some((node) => node.textContent === "存笔记")`), "精读的工具条有存笔记");
+    },
+    BRIEF_SAMPLE.id,
+  );
+});
+
+// 这个测试会记住第一个样例视频的频道，做完从设置页清掉，免得影响后面打开同一个视频的测试。
+test("侧边栏：主动切到精读立刻换、说一声记住了；同一频道再打开就进精读；设置页清掉以后回到按时长进速览", async (ctx) => {
+  try {
+    await withVideo(ctx, async (panel) => {
+      await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
+      assert.deepEqual(await panel.evaluate(modes), SKIM);
+      assert.ok(await clickText(panel, ".mode", "精读"));
+      await waitIn(panel, "换成精读", `document.querySelector(".mode-view")?.getAttribute("aria-label") === "精读"`);
+      assert.deepEqual(await panel.evaluate(modes), STUDY);
+      await waitIn(panel, "说记住了", `${textOf(".notice-text")}.includes("已记住：样例作者的视频以后先进精读")`);
+    });
+    await withVideo(ctx, async (panel) => {
+      await waitIn(panel, "按频道进精读", `JSON.stringify(${modes}) === ${JSON.stringify(JSON.stringify(STUDY))}`);
+    });
+  } finally {
+    const options = await ctx.open("pages/options.html");
+    const cleared = await options.evaluate(`chrome.runtime.sendMessage({ type: "channels.clear", req: {} })`);
+    assert.equal(cleared?.ok, true, JSON.stringify(cleared));
+  }
+  await withVideo(ctx, async (panel) => {
+    await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
+    assert.deepEqual(await panel.evaluate(modes), SKIM, "清掉以后回到按时长");
   });
 });

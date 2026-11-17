@@ -126,7 +126,8 @@ async function panelFlow(launcher, panelUrl, videoId) {
   if (`${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}` !== label) throw new Error(`点的是 ${label}，视频页跳到了 ${seeked} 秒`);
   console.log("✓ 侧边栏跟着视频页读到字幕，点一句跳到了那里");
 
-  await until("切到概览页签", () => clickIn(panel, "#tab-overview"));
+  // 长视频打开进速览，还没有概览时字幕接在下面。
+  await until("长视频进速览", async () => (await evaluate(panel, `document.querySelector(".mode-view")?.getAttribute("aria-label")`)) === "速览");
   await until("生成概览可以点", () => clickIn(panel, "button", "生成概览"));
   await until("概览生成完", async () => (await textOf(panel, ".chapter-name")).includes("模拟服务写的章节"));
   await until("结论写好", async () => (await textOf(panel, ".verdict-text")).includes("模拟服务写的一句话结论"));
@@ -135,11 +136,12 @@ async function panelFlow(launcher, panelUrl, videoId) {
   await until("展开章节", () => clickIn(panel, ".chapter-toggle"));
   await until("把金句存为笔记", () => clickIn(panel, ".quote button", "存为笔记"));
   await until("存好笔记", async () => (await textOf(panel, ".notice-text")).includes("已存为笔记"));
-  await until("切到笔记页签", () => clickIn(panel, "#tab-notes"));
-  await until("笔记页签列出这条", async () => (await textOf(panel, ".note-text")).includes("模拟服务挑的金句"));
-  console.log("✓ 金句存成笔记，笔记页签列出来");
+  await until("打开笔记层", () => clickIn(panel, ".mode-row [aria-label='笔记']"));
+  await until("笔记层列出这条", async () => (await textOf(panel, ".layer .note-text")).includes("模拟服务挑的金句"));
+  await until("关上笔记层", () => clickIn(panel, ".layer [aria-label='返回']"));
+  console.log("✓ 金句存成笔记，笔记层列出来");
 
-  await until("切到问答页签", () => clickIn(panel, "#tab-qa"));
+  await until("打开问答抽屉", () => clickIn(panel, ".ask-entry"));
   await until("提问框可以用", () =>
     evaluate(panel, `(() => { const input = document.querySelector(".qa-form input"); if (!input) return false; input.value = "这个视频讲了什么"; input.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`),
   );
@@ -149,6 +151,15 @@ async function panelFlow(launcher, panelUrl, videoId) {
   await until("点回答里的引用", () => clickIn(panel, ".qa-answer .stamp"));
   await until("视频页跳到引用的时间点", async () => (await evaluate(video, `document.querySelector("video")?.currentTime`)) === 0);
   console.log("✓ 问答：回答带引用，点引用跳到视频里的时间点");
+
+  // 问答抽屉开着时切到精读：抽屉留着；关上以后精读跟着播放显示当前章节。
+  await evaluate(panel, `(() => { const sheet = [...document.querySelectorAll(".sheet")].find((node) => node.open); sheet?.querySelector(".overlay-head [aria-label='关闭']")?.click(); return true; })()`);
+  await until("切到精读", () => clickIn(panel, ".mode", "精读"));
+  await until("精读显示当前章节", async () => (await textOf(panel, ".chapter-bar-title")).includes("模拟服务写的章节"));
+  await until("说记住了这个频道", async () => (await textOf(panel, ".notice-text")).includes("以后先进精读"));
+  await until("切回速览", () => clickIn(panel, ".mode", "速览"));
+  await until("回到速览的章节", async () => (await textOf(panel, ".chapter-name")).includes("模拟服务写的章节"));
+  console.log("✓ 速览和精读：主动切到精读显示当前章节，记住频道，再切回速览");
 }
 
 let failed = false;

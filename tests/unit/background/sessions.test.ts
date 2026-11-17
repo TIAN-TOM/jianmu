@@ -137,14 +137,15 @@ test("撤销自动切换回到速览、不记频道，这次观看不再切；�
   await play(world, VIDEO, 60);
 
   const undone = await world.sessions.setMode(TAB, VIDEO, { intent: "undo-auto" });
-  assert.deepEqual(undone, { ok: true, value: { video: VIDEO, mode: "skim", modeSource: "default", autoSwitched: true, playedSec: 60 } });
+  assert.deepEqual(undone, { ok: true, value: { session: { video: VIDEO, mode: "skim", modeSource: "default", autoSwitched: true, playedSec: 60 }, remembered: false } });
   assert.deepEqual(await world.driver.getAll(), [], "撤销不记频道");
 
   await play(world, VIDEO, 200, 60);
   assert.equal((await world.sessions.get(TAB))?.mode, "skim", "这次观看不再自动切");
 
   const manual = await world.sessions.setMode(TAB, VIDEO, { intent: "manual", mode: "study" });
-  assert.equal(manual.ok && manual.value.modeSource, "manual");
+  assert.equal(manual.ok && manual.value.session.modeSource, "manual");
+  assert.equal(manual.ok && manual.value.remembered, true);
   assert.deepEqual(
     (await world.driver.getAll()).map(({ channelKey: key, mode }) => ({ key, mode })),
     [{ key: CHANNEL, mode: "study" }],
@@ -156,7 +157,8 @@ test("频道还不知道时主动选模式：不记频道；之后报上来的�
   const early = harness({ channels: [{ channelKey: CHANNEL, mode: "skim", updatedAt: 1 }] });
   // 播放上报还没到，侧边栏里先选了精读。
   const picked = await early.sessions.setMode(TAB, VIDEO, { intent: "manual", mode: "study" });
-  assert.equal(picked.ok && picked.value.modeSource, "manual");
+  assert.equal(picked.ok && picked.value.session.modeSource, "manual");
+  assert.equal(picked.ok && picked.value.remembered, false);
   await early.sessions.onPlaybackInfo(TAB, VIDEO, { durationSec: LONG, channel: CHANNEL_REF });
   assert.deepEqual(await early.sessions.get(TAB), { video: VIDEO, mode: "study", modeSource: "manual", autoSwitched: false, playedSec: 0 }, "频道偏好不盖掉这次选的");
   assert.deepEqual(
@@ -169,6 +171,27 @@ test("频道还不知道时主动选模式：不记频道；之后报上来的�
   await unknown.sessions.onPlaybackInfo(TAB, VIDEO, { durationSec: LONG });
   assert.equal((await unknown.sessions.setMode(TAB, VIDEO, { intent: "manual", mode: "study" })).ok, true);
   assert.deepEqual(await unknown.driver.getAll(), [], "这个视频没报频道：主动选了也没有可记的");
+});
+
+test("播放页还没报频道时主动选模式：用侧边栏带来的频道记住；之后播放页报的频道偏好不盖掉这次选的", async () => {
+  const world = harness();
+  const picked = await world.sessions.setMode(TAB, VIDEO, { intent: "manual", mode: "study", channel: CHANNEL_REF });
+  assert.equal(picked.ok && picked.value.remembered, true);
+  assert.deepEqual(
+    (await world.driver.getAll()).map(({ channelKey: key, mode }) => ({ key, mode })),
+    [{ key: CHANNEL, mode: "study" }],
+  );
+  await world.sessions.onPlaybackInfo(TAB, VIDEO, { durationSec: LONG, channel: CHANNEL_REF });
+  assert.equal((await world.sessions.get(TAB))?.modeSource, "manual");
+
+  // 播放页已经报了频道：以它为准，侧边栏带来的不同频道不记。
+  const other = harness();
+  await other.sessions.onPlaybackInfo(TAB, VIDEO, { durationSec: LONG, channel: CHANNEL_REF });
+  await other.sessions.setMode(TAB, VIDEO, { intent: "manual", mode: "skim", channel: { platform: "bilibili", channelId: "999" } });
+  assert.deepEqual(
+    (await other.driver.getAll()).map(({ channelKey: key }) => key),
+    [CHANNEL],
+  );
 });
 
 test("这次手动选过模式：播多久都不自动切；没有切过可撤销的时候撤销什么都不改", async () => {
@@ -299,4 +322,50 @@ test("清除全部数据之前开始、清除之后才轮到写的会话改动�
 
   assert.equal((await world.sessions.onPlaybackInfo(TAB, VIDEO, { durationSec: LONG })).ok, true);
   assert.deepEqual(Object.keys(world.table()), [String(TAB)]);
+});
+
+test("侧边栏报视频信息：还没有会话时开一个；短视频进精读，记过的频道按频道偏好；之后播放页报的只补空着的", async () => {
+  const short = harness();
+  const described = await short.sessions.describe(TAB, VIDEO, { durationSec: 200 });
+  assert.deepEqual(described, { ok: true, value: { video: VIDEO, mode: "study", modeSource: "short", autoSwitched: false, playedSec: 0 } });
+  assert.deepEqual(short.broadcasts, [{ type: "session.changed", tabId: TAB, session: described.ok && described.value }]);
+
+  const remembered = harness({ channels: [{ channelKey: CHANNEL, mode: "study", updatedAt: 1 }] });
+  assert.equal((await remembered.sessions.describe(TAB, VIDEO, { durationSec: LONG, channel: CHANNEL_REF })).ok, true);
+  assert.equal((await remembered.sessions.get(TAB))?.modeSource, "channel");
+  // 播放页后报的不同时长和频道不盖掉侧边栏的。
+  await remembered.sessions.onPlaybackInfo(TAB, VIDEO, { durationSec: 100, channel: { platform: "bilibili", channelId: "999" } });
+  assert.deepEqual(await remembered.sessions.get(TAB), { video: VIDEO, mode: "study", modeSource: "channel", autoSwitched: false, playedSec: 0 });
+  assert.equal(remembered.table()[String(TAB)]?.durationSec, LONG);
+});
+
+test("侧边栏报视频信息以它为准：播放页报的频道没记过、侧边栏读到的记过，按侧边栏的；信息没变不写不广播", async () => {
+  const world = harness({ channels: [{ channelKey: CHANNEL, mode: "study", updatedAt: 1 }] });
+  await world.sessions.onPlaybackInfo(TAB, VIDEO, { channel: { platform: "bilibili", channelId: "999" } });
+  assert.equal((await world.sessions.get(TAB))?.mode, "skim");
+  await world.sessions.describe(TAB, VIDEO, { durationSec: LONG, channel: CHANNEL_REF });
+  assert.equal((await world.sessions.get(TAB))?.modeSource, "channel");
+
+  const writes = world.counts.writes;
+  const broadcasts = world.broadcasts.length;
+  await world.sessions.describe(TAB, VIDEO, { durationSec: LONG, channel: CHANNEL_REF });
+  assert.equal(world.counts.writes, writes);
+  assert.equal(world.broadcasts.length, broadcasts);
+});
+
+test("侧边栏报视频信息不动手动选的和自动切过的；标签页里的会话已经是别的视频时不改", async () => {
+  const world = harness();
+  await world.sessions.setMode(TAB, VIDEO, { intent: "manual", mode: "skim" });
+  await world.sessions.describe(TAB, VIDEO, { durationSec: 200 });
+  assert.equal((await world.sessions.get(TAB))?.modeSource, "manual", "这次选过就不按短视频改");
+
+  const auto = harness();
+  await auto.sessions.onPlaybackInfo(TAB, VIDEO, { durationSec: LONG });
+  await play(auto, VIDEO, 60);
+  await auto.sessions.describe(TAB, VIDEO, { durationSec: LONG + 1, channel: CHANNEL_REF });
+  assert.equal((await auto.sessions.get(TAB))?.modeSource, "auto");
+
+  const moved = harness();
+  await moved.sessions.onPlaybackInfo(TAB, NEXT, { durationSec: LONG });
+  assert.deepEqual(await moved.sessions.describe(TAB, VIDEO, { durationSec: 200 }), { ok: false, code: "VIDEO_CHANGED" });
 });

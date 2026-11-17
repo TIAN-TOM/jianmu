@@ -1,20 +1,21 @@
-// 侧边栏的各块数据拼在一起：启用、配置、跟随的标签页、播放器，四个页签的数据。
-// 启用以后才跟着当前视频读取；换了视频，各页签一起换，没启用或没有视频时全部清空。
+// 侧边栏的各块数据拼在一起：启用、配置、跟随的标签页、播放器、模式，速览、精读、问答和笔记的数据。
+// 启用以后才跟着当前视频读取；换了视频，各块一起换，没启用或没有视频时全部清空。
+// 问答抽屉和笔记层的开关和模式是两层：切模式不动抽屉，开抽屉也不切模式。
 // 打开就出结论停下或恢复时重问一次配置，顶上那一行跟着变。
 import { computed, effect, signal, type Signal } from "@preact/signals";
+import type { Mode } from "../../core/mode/types.ts";
 import type { PageApi } from "../shared/api.ts";
 import { createActivation, type Activation } from "../shared/activation.ts";
 import { createConfigWatch, type ConfigWatch } from "../shared/config.ts";
 import { createWindowBatch, type WindowBatchStore } from "./batch.ts";
 import { createFollow, type Follow } from "./follow.ts";
+import { createModeStore, type ModeStore } from "./mode.ts";
 import { createNotesStore, type NotesStore } from "./notes.ts";
 import { createOverviewStore, type OverviewStore } from "./overview.ts";
 import { createPlayer, playerFailureText, type Player } from "./player.ts";
 import { createQaStore, type QaStore } from "./qa.ts";
 import { createTranscriptStore, type TranscriptStore } from "./transcript.ts";
 import { createTranslation, type Translation } from "./translate.ts";
-
-export type TabId = "transcript" | "overview" | "notes" | "qa";
 
 export interface Toast {
   readonly id: number;
@@ -27,6 +28,7 @@ export interface Panel {
   readonly config: ConfigWatch;
   readonly follow: Follow;
   readonly player: Player;
+  readonly mode: ModeStore;
   readonly transcript: TranscriptStore;
   readonly translation: Translation;
   readonly overview: OverviewStore;
@@ -34,8 +36,13 @@ export interface Panel {
   readonly qa: QaStore;
   /** 本窗口全部生成。 */
   readonly batch: WindowBatchStore;
-  readonly tab: Signal<TabId>;
+  /** 问答抽屉开着。 */
+  readonly qaOpen: Signal<boolean>;
+  /** 笔记层开着。 */
+  readonly notesOpen: Signal<boolean>;
   readonly toast: Signal<Toast | null>;
+  /** 主动切换模式：记住这个频道，记住了就说一声。 */
+  chooseMode(mode: Mode): Promise<void>;
   /** 一闪而过的一句提示：存好了、导出了、跳转失败的原因。 */
   say(text: string): void;
   /** 跳到当前视频的这一秒；跳不了时提示原因。 */
@@ -51,13 +58,15 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
   const config = createConfigWatch({ api, enabled: activation.enabled, ...(storageChanged ? { storageChanged } : {}) });
   const follow = createFollow({ api, enabled: activation.enabled });
   const player = createPlayer();
+  const mode = createModeStore({ api });
   const transcript = createTranscriptStore({ api });
   const translation = createTranslation({ api });
   const overview = createOverviewStore({ api });
   const notes = createNotesStore({ api });
   const qa = createQaStore({ api });
   const batch = createWindowBatch({ api });
-  const tab = signal<TabId>("transcript");
+  const qaOpen = signal(false);
+  const notesOpen = signal(false);
   const toast = signal<Toast | null>(null);
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
   let toastId = 0;
@@ -82,6 +91,7 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
       const { tabId, video } = follow.target.peek();
       const active = enabled ? video : null;
       player.watch(enabled ? tabId : null, active);
+      mode.bind(enabled ? tabId : null, active);
       overview.bind(active);
       notes.bind(active);
       qa.bind(active);
@@ -97,9 +107,18 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
     // 启用以后才连上批次端口，接上本窗口已有的一批。
     effect(() => batch.setEnabled(activation.enabled.value)),
     api.on("auto.changed", () => void config.check()),
-    // 字幕页签开着时才每秒问一次播放位置。
+    // 适配层读到的时长和频道报给观看会话，后台按频道偏好和时长定模式。
     effect(() => {
-      player.setPolling(activation.enabled.value && tab.value === "transcript" && transcript.state.value.state === "ready");
+      const now = transcript.state.value;
+      const current = (now.state === "ready" || now.state === "failed") && now.video === follow.target.value.video;
+      const info = !current ? undefined : now.state === "ready" ? now.view.info : now.state === "failed" ? now.failure.info : undefined;
+      mode.describe(info?.durationSec, info?.channel?.channelId);
+    }),
+    // 字幕列表摆着时才每秒问一次播放位置：精读，或者速览里还没有概览、下面接着字幕。
+    effect(() => {
+      const ready = transcript.state.value.state === "ready";
+      const skimShowsTranscript = mode.view.value.mode === "skim" && !overview.state.value.task && !overview.state.value.saved?.analysis?.chapters?.length;
+      player.setPolling(activation.enabled.value && ready && (mode.view.value.mode === "study" || skimShowsTranscript));
     }),
   ];
 
@@ -111,15 +130,23 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
     config,
     follow,
     player,
+    mode,
     transcript,
     translation,
     overview,
     notes,
     qa,
     batch,
-    tab,
+    qaOpen,
+    notesOpen,
     toast,
     say,
+    async chooseMode(next) {
+      const now = transcript.state.peek();
+      const info = now.state === "ready" ? now.view.info : now.state === "failed" ? now.failure.info : undefined;
+      const remembered = await mode.choose(next, info?.channel?.channelId);
+      if (remembered) say(`已记住：${info?.author ? `${info.author}的视频` : "这个频道的视频"}以后先进${next === "study" ? "精读" : "速览"}`);
+    },
     async seek(atSec) {
       const { tabId, video } = follow.target.peek();
       if (tabId === null || video === null) return;
@@ -137,6 +164,7 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
       config.stop();
       follow.stop();
       player.stop();
+      mode.stop();
       translation.stop();
       overview.stop();
       notes.stop();

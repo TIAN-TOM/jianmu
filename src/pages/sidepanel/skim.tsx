@@ -1,8 +1,9 @@
-// 概览页签：一句话结论在最上面，然后是视频网站的官方总结和 UP 主分段，再是模型生成的章节和金句。
-// 长视频边生成边显示，能停止、补失败块、重新生成；没有结论时可以只用官方总结写一句。
+// 速览：一句话结论在最上面，然后是模型生成的章节，每章展开看要点、金句和这一段的字幕，再是视频网站的官方总结和 UP 主分段。
+// 还没有概览时先摆官方总结和 UP 主分段，下面是「生成概览」和字幕。长视频边生成边显示，能停止、补失败块、重新生成；
+// 没有结论时可以只用官方总结写一句。
 import { groupQuotesIntoChapters, type ChapterPart, type QuotePart } from "../../core/ai/chunking.ts";
 import { learningAsMarkdown, type LearningAnalysis } from "../../core/notes/markdown.ts";
-import { formatTimestamp } from "../../core/transcript/segment.ts";
+import { formatTimestamp, type TranscriptSegment } from "../../core/transcript/segment.ts";
 import { useState } from "preact/hooks";
 import { Button } from "../shared/ui/button.tsx";
 import { ChapterList } from "../shared/ui/chapter-list.tsx";
@@ -12,6 +13,8 @@ import { BatchBar } from "./batch-bar.tsx";
 import { downloadText, safeFileName, videoBaseOf } from "./files.ts";
 import { CreatorChapters, OfficialSummary } from "./guides.tsx";
 import type { Panel } from "./panel.ts";
+import { segmentsBetween } from "./reading.ts";
+import { TranscriptTab } from "./transcript-tab.tsx";
 
 const BASIS: readonly BasisSource[] = ["transcript", "official-summary", "title-description", "legacy-unknown"];
 
@@ -41,7 +44,23 @@ function Quote({ panel, quote }: { readonly panel: Panel; readonly quote: QuoteP
   );
 }
 
-function Chapters({ panel, analysis }: { readonly panel: Panel; readonly analysis: LearningAnalysis }) {
+function ChapterTranscript({ panel, segments }: { readonly panel: Panel; readonly segments: readonly TranscriptSegment[] }) {
+  if (segments.length === 0) return null;
+  return (
+    <ol class="chapter-cues" aria-label="这一段的字幕">
+      {segments.map((segment) => (
+        <li key={segment.id} class="chapter-cue">
+          <button type="button" class="stamp" aria-label={`跳到 ${formatTimestamp(segment.start)}`} onClick={() => void panel.seek(segment.start)}>
+            {formatTimestamp(segment.start)}
+          </button>
+          <span class="chapter-cue-text">{segment.text}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function Chapters({ panel, analysis, segments }: { readonly panel: Panel; readonly analysis: LearningAnalysis; readonly segments: readonly TranscriptSegment[] }) {
   const [expanded, setExpanded] = useState<readonly number[]>([]);
   const chapters = (analysis.chapters ?? []).filter((chapter): chapter is ChapterPart => Number.isFinite(chapter.timestampSeconds));
   const quotes = (analysis.keyQuotes ?? []).filter((quote) => text(quote.quote));
@@ -63,6 +82,7 @@ function Chapters({ panel, analysis }: { readonly panel: Panel; readonly analysi
                   {groups[index]?.map((quote) => <Quote key={quote.quote} panel={panel} quote={quote} />)}
                 </ul>
               ) : null}
+              <ChapterTranscript panel={panel} segments={segmentsBetween(segments, chapters[index]?.timestampSeconds ?? 0, chapters[index + 1]?.timestampSeconds ?? null)} />
             </>
           )}
         />
@@ -109,7 +129,7 @@ function Verdict({ panel, analysis, canOffer, failures }: { readonly panel: Pane
   );
 }
 
-export function OverviewTab({ panel }: { readonly panel: Panel }) {
+export function SkimView({ panel }: { readonly panel: Panel }) {
   const state = panel.overview.state.value;
   const transcript = panel.transcript.state.value;
   const config = panel.config.state.value;
@@ -122,8 +142,15 @@ export function OverviewTab({ panel }: { readonly panel: Panel }) {
   const analysis = running && state.preview ? state.preview.analysis : (state.saved?.analysis ?? null);
   const failures = state.saved?.analysisFailures.length ?? 0;
   const hasChapters = Boolean(analysis?.chapters?.length);
+  const hasOverview = Boolean(analysis && (hasChapters || analysis.keyQuotes?.length));
   const notReady = ready ? undefined : "先在设置页设置 AI 服务";
   const seek = (at: number): void => void panel.seek(at);
+  const guides = (
+    <>
+      <OfficialSummary official={official} onSeek={seek} />
+      <CreatorChapters chapters={chapters} onSeek={seek} />
+    </>
+  );
 
   const exportLearning = (): void => {
     const notes = panel.notes.state.peek();
@@ -146,7 +173,7 @@ export function OverviewTab({ panel }: { readonly panel: Panel }) {
   };
 
   return (
-    <div class="overview">
+    <div class="overview skim">
       <BatchBar panel={panel} ready={ready} />
       <Verdict panel={panel} analysis={state.saved?.analysis ?? null} canOffer={ready && official?.status === "ok" && !running} failures={failures} />
       {running ? (
@@ -165,10 +192,9 @@ export function OverviewTab({ panel }: { readonly panel: Panel }) {
       {state.result?.failedChunks ? <p class="note-line">有 {state.result.failedChunks} 块没生成成功，可以只补这几块。</p> : null}
       {state.result?.saveFailed ? <p class="note-line">概览已经生成，但没能存进本机。</p> : null}
       {state.result?.canceled ? <p class="note-line">停在中途，已完成的 {state.result.savedChunks ?? 0} 块存下了。</p> : null}
-      <OfficialSummary official={official} onSeek={seek} />
-      <CreatorChapters chapters={chapters} onSeek={seek} />
+      {hasOverview ? null : guides}
       <section class="ai-overview" aria-label="模型生成的概览">
-        {analysis && (hasChapters || analysis.keyQuotes?.length) ? <Chapters panel={panel} analysis={analysis} /> : null}
+        {analysis && hasOverview ? <Chapters panel={panel} analysis={analysis} segments={view?.transcript.segments ?? []} /> : null}
         {!running && state.loaded ? (
           <div class="state-actions">
             {hasChapters ? (
@@ -193,6 +219,12 @@ export function OverviewTab({ panel }: { readonly panel: Panel }) {
           </div>
         ) : null}
       </section>
+      {hasOverview ? guides : null}
+      {!hasOverview && !running ? (
+        <section class="skim-transcript" aria-label="字幕">
+          <TranscriptTab panel={panel} guides={false} />
+        </section>
+      ) : null}
     </div>
   );
 }

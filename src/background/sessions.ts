@@ -40,7 +40,14 @@ export interface PlaybackInfo {
   readonly channel?: ChannelRef;
 }
 
-export type ModeChange = { readonly intent: "manual"; readonly mode: Mode } | { readonly intent: "undo-auto" };
+/** 主动切换可以带上侧边栏读到的频道：播放页还没报频道时，靠它记住这个频道。 */
+export type ModeChange = { readonly intent: "manual"; readonly mode: Mode; readonly channel?: ChannelRef } | { readonly intent: "undo-auto" };
+
+export interface ModeOutcome {
+  readonly session: SessionView;
+  /** 这次切换记住了频道。 */
+  readonly remembered: boolean;
+}
 
 export interface SessionsDeps {
   readonly storage: Pick<StorageArea, "get" | "set">;
@@ -56,8 +63,10 @@ export interface Sessions {
   readonly onPlaybackInfo: (tabId: number, video: VideoKey, info: PlaybackInfo) => Promise<Result<{ playedSec: number; report: boolean }>>;
   /** 报累计播放秒数：只增不减、不超过真实经过的时间，满 1 分钟时可能自动切到精读。 */
   readonly onMilestone: (tabId: number, video: VideoKey, playedSec: number) => Promise<Result<{ report: boolean }>>;
+  /** 侧边栏报适配层读到的时长和频道：以它为准，补上或改掉播放页报的；变了就按新信息重新定打开时的模式。 */
+  readonly describe: (tabId: number, video: VideoKey, info: PlaybackInfo) => Promise<Result<SessionView>>;
   readonly get: (tabId: number) => Promise<SessionView | null>;
-  readonly setMode: (tabId: number, video: VideoKey, change: ModeChange) => Promise<Result<SessionView>>;
+  readonly setMode: (tabId: number, video: VideoKey, change: ModeChange) => Promise<Result<ModeOutcome>>;
   readonly setCardOverride: (tabId: number, video: VideoKey, value: CardOverride) => Promise<Result<SessionView>>;
   readonly onTabRemoved: (tabId: number) => Promise<void>;
 }
@@ -169,11 +178,12 @@ export function createSessions({ storage, channels, guard, now, broadcast, log }
     }
   }
 
-  async function remember(channel: string, mode: Mode): Promise<void> {
+  async function remember(channel: string, mode: Mode): Promise<boolean> {
     try {
-      await channels.put(channel, mode);
+      return await channels.put(channel, mode);
     } catch (error) {
       log.warn("记住频道的模式失败", errorLabel(error));
+      return false;
     }
   }
 
@@ -182,13 +192,15 @@ export function createSessions({ storage, channels, guard, now, broadcast, log }
       const result = await mutate(tabId, async (current) => {
         const base = current?.video === video ? current : fresh(video);
         if (base.reported) return ok(base);
-        const channel = info.channel ? channelKey(info.channel) : undefined;
-        const channelMode = channel === undefined ? undefined : await channelModeOf(channel);
+        // 侧边栏已经报过的以侧边栏为准，播放页报的只补空着的。
+        const channel = base.channel ?? (info.channel ? channelKey(info.channel) : undefined);
+        const channelMode = base.channel !== undefined ? base.channelMode : channel === undefined ? undefined : await channelModeOf(channel);
+        const durationSec = base.durationSec ?? info.durationSec;
         return ok(
           settle({
             ...base,
             reported: true,
-            ...(info.durationSec === undefined ? {} : { durationSec: info.durationSec }),
+            ...(durationSec === undefined ? {} : { durationSec }),
             ...(channel === undefined ? {} : { channel }),
             ...(channelMode === undefined ? {} : { channelMode }),
           }),
@@ -208,6 +220,27 @@ export function createSessions({ storage, channels, guard, now, broadcast, log }
       return result.ok ? ok({ report: reports(result.value) }) : result;
     },
 
+    async describe(tabId, video, info) {
+      const result = await mutate(tabId, async (current) => {
+        if (current && current.video !== video) return fail("VIDEO_CHANGED");
+        const base = current ?? fresh(video);
+        const channel = info.channel ? channelKey(info.channel) : base.channel;
+        const durationSec = info.durationSec ?? base.durationSec;
+        if (channel === base.channel && durationSec === base.durationSec) return ok(base);
+        const channelMode = channel === base.channel ? base.channelMode : channel === undefined ? undefined : await channelModeOf(channel);
+        const { channelMode: _old, ...rest } = base;
+        return ok(
+          settle({
+            ...rest,
+            ...(durationSec === undefined ? {} : { durationSec }),
+            ...(channel === undefined ? {} : { channel }),
+            ...(channelMode === undefined ? {} : { channelMode }),
+          }),
+        );
+      });
+      return result.ok ? ok(sessionView(result.value)) : result;
+    },
+
     async get(tabId) {
       const session = (await load())[String(tabId)];
       return session ? sessionView(session) : null;
@@ -224,12 +257,15 @@ export function createSessions({ storage, channels, guard, now, broadcast, log }
           return ok({ ...current, mode: opening.mode, modeSource: opening.source });
         }
         const base = current ?? fresh(video);
-        return ok({ ...base, mode: change.mode, modeSource: "manual", manualThisWatch: true });
+        // 播放页报的频道在先；还没报时用侧边栏带来的。
+        const channel = base.channel ?? (change.channel ? channelKey(change.channel) : undefined);
+        return ok({ ...base, mode: change.mode, modeSource: "manual", manualThisWatch: true, ...(channel === undefined ? {} : { channel }) });
       });
       if (!result.ok) return result;
       // 只有主动切换记住频道；撤销自动切换不记。
-      if (change.intent === "manual" && result.value.channel !== undefined) await remember(result.value.channel, change.mode);
-      return ok(sessionView(result.value));
+      const channel = change.intent === "manual" ? result.value.channel : undefined;
+      const remembered = change.intent === "manual" && channel !== undefined ? await remember(channel, change.mode) : false;
+      return ok({ session: sessionView(result.value), remembered });
     },
 
     async setCardOverride(tabId, video, value) {
