@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ACCENT_SWATCHES } from "../../../src/content/hover-icons.ts";
-import { createPlaybackReporter, createPlayer, MEDIA_SWITCH_WINDOW_MS, PLAYBACK_INFO_INTERVAL_MS } from "../../../src/content/player.ts";
+import { createPlayer, MEDIA_SWITCH_WINDOW_MS } from "../../../src/content/player.ts";
 import { videoKey, type VideoRef } from "../../../src/core/video-ref.ts";
 import { ACCENT_THEMES } from "../../../src/shared/settings-schema.ts";
 import type { MainVideo } from "../../../src/sites/page-types.ts";
@@ -82,30 +82,6 @@ test("标签页在后台时播放器先换上了新视频，回到前台才发�
   player.videoChanged();
   assert.equal(player.confirmed(), true);
   assert.equal(player.handle({ type: "player.getState", req: { video: videoKey(SECOND) } })?.ok, true);
-});
-
-test("时长每个视频报一次，等播放器换上、读得到时长、不在播广告；两次上报至少隔一段时间", () => {
-  let main: MainVideo = { status: "ad" };
-  let ref: VideoRef = FIRST;
-  let clock = 0;
-  const player = createPlayer({ currentRef: () => ref, findMainVideo: () => main, now: () => clock });
-  const reports: [string, number][] = [];
-  const report = createPlaybackReporter({ player, findMainVideo: () => main, report: (video, sec) => void reports.push([video, sec]), now: () => clock });
-  report();
-  main = { status: "found", video: fakeVideo({ duration: Number.NaN }) as unknown as HTMLVideoElement };
-  report();
-  main = { status: "found", video: fakeVideo({ duration: 600 }) as unknown as HTMLVideoElement };
-  report();
-  report();
-  assert.deepEqual(reports, [[videoKey(FIRST), 600]]);
-
-  ref = SECOND;
-  player.mediaLoading();
-  report();
-  assert.equal(reports.length, 1, "离上一次太近");
-  clock += PLAYBACK_INFO_INTERVAL_MS;
-  report();
-  assert.deepEqual(reports.at(-1), [videoKey(SECOND), 600]);
 });
 
 test("笔记图标抄的主题色和设置里的主题表一致", () => {

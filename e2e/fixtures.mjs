@@ -50,6 +50,8 @@ export const BRIEF_VIDEO = { bvid: "BV1Sample008", aid: 1008, cid: 2008, mid: 30
  */
 const sample = (video) => Object.freeze({ id: video.bvid, title: video.title });
 export const AUTO_SAMPLES = Object.freeze({ long: sample(AUTO_LONG), short: sample(AUTO_SHORT), background: sample(AUTO_BACKGROUND) });
+/** 页面测试里真的播放、播满 1 分钟自动切到精读的长视频，带频道编号。 */
+export const PLAYING_SAMPLE = Object.freeze({ id: SECOND_VIDEO.bvid, channel: String(SECOND_VIDEO.mid) });
 /** 页面测试里打开就进精读的短视频。 */
 export const BRIEF_SAMPLE = sample(BRIEF_VIDEO);
 

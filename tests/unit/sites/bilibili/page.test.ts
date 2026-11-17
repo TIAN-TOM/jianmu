@@ -44,6 +44,12 @@ class FakeDocument extends EventTarget {
     return this.matches.get(selector) ?? null;
   }
 
+  readonly lists = new Map<string, FakeNode[]>();
+
+  querySelectorAll(selector: string): FakeNode[] {
+    return this.lists.get(selector) ?? [];
+  }
+
   override addEventListener(...args: Parameters<EventTarget["addEventListener"]>): void {
     this.listeners += 1;
     super.addEventListener(...args);
@@ -423,4 +429,24 @@ test("没有弹幕列表时卡片插槽在右栏最上面，右栏依次找", ()
   const empty = node("DIV");
   document.matches.set(".playlist-container--right", empty);
   assertSlot(page.cardSlot?.(), empty, null);
+});
+
+test("UP 主编号：从作者栏的空间链接读；合作投稿取第一位能认出的；认不出或没有时是 null", () => {
+  const link = (href: string | null) => {
+    const anchor = node("A");
+    if (href !== null) anchor.attributes.set("href", href);
+    return anchor;
+  };
+  const { page, document } = pageWith();
+  assert.equal(page.channelId?.(), null);
+  document.lists.set("a.up-name", [link(null), link("//space.bilibili.com/3001?spm_id_from=x")]);
+  assert.equal(page.channelId?.(), "3001");
+  document.lists.set(".up-info-container a.up-name", [link("https://space.bilibili.com/3002")]);
+  assert.equal(page.channelId?.(), "3002", "作者栏的在先");
+  const crew = pageWith();
+  crew.document.lists.set(".membersinfo-upcard a", [link("//example.com/3003"), link("//space.bilibili.com/3004/")]);
+  assert.equal(crew.page.channelId?.(), "3004");
+  const odd = pageWith();
+  odd.document.lists.set("a.up-name", [link("//space.bilibili.com/abc"), link("//space.bilibili.com/30051x")]);
+  assert.equal(odd.page.channelId?.(), null);
 });

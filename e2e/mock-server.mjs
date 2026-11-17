@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { createServer } from "node:https";
 import { join } from "node:path";
 import { createModelServices, MODEL_HOSTS } from "./mock-ai.mjs";
-import { watchPageHtml } from "./watch-page.mjs";
+import { QUIET_MEDIA_PATH, quietWav, watchPageHtml } from "./watch-page.mjs";
 import {
   COVER_SVG,
   FOURTH_VIDEO,
@@ -27,7 +27,7 @@ import {
 
 /**
  * @typedef {{ host: string, path: string, query: URLSearchParams, cookie: string, now?: number }} MockRequest
- * @typedef {{ status: number, headers?: Record<string, string>, body?: string, unexpected?: true }} MockResponse
+ * @typedef {{ status: number, headers?: Record<string, string>, body?: string, bytes?: Buffer, unexpected?: true }} MockResponse
  * @typedef {import("./fixtures.mjs").Keys} Keys
  * @typedef {import("./fixtures.mjs").Video} Video
  * @typedef {{ query: URLSearchParams, scenario: string, now: number }} Read
@@ -58,6 +58,9 @@ export const PROBE = Object.freeze({
 
 /** 播放页的地址：侧边栏跟着它认视频。 @param {string} bvid */
 export const watchPage = (bvid) => `https://${PAGE_HOST}/video/${bvid}`;
+/** 视频真的在播的播放页：视频元素放一段静音，自动播放。 */
+/** @param {string} bvid */
+export const playingWatchPage = (bvid) => `${watchPage(bvid)}?e2e-playing=1`;
 
 /** @param {string} host */
 export const apiHost = (host) => host === API_HOST;
@@ -255,15 +258,20 @@ function fileRoute(path, cookie, scenario) {
   return unexpected();
 }
 
-/** @param {string} path @returns {MockResponse} */
-function pageRoute(path) {
+/** @param {string} path @param {URLSearchParams} query @returns {MockResponse} */
+function pageRoute(path, query) {
   if (path === "/e2e/login") {
     const cookie = `${LOGIN_COOKIE}; Domain=.bilibili.com; Path=/; Secure; SameSite=Lax`;
     return text(200, "text/html; charset=utf-8", "<title>login</title>", { "Set-Cookie": cookie });
   }
   if (path === "/favicon.ico") return { status: 204 };
+  if (path === QUIET_MEDIA_PATH) {
+    // 带上长度，浏览器才把它当成有时长的文件，不当成直播流。
+    const bytes = quietWav();
+    return { status: 200, headers: { "Content-Type": "audio/wav", "Content-Length": String(bytes.length), "Cache-Control": "no-store" }, bytes };
+  }
   const watched = VIDEOS[/^\/video\/(BV\w+)\/?$/.exec(path)?.[1] ?? ""];
-  if (watched) return text(200, "text/html; charset=utf-8", watchPageHtml(watched));
+  if (watched) return text(200, "text/html; charset=utf-8", watchPageHtml(watched, { playing: query.get("e2e-playing") === "1" }));
   return unexpected();
 }
 
@@ -274,7 +282,7 @@ function pageRoute(path) {
  * @returns {MockResponse}
  */
 export function route({ host, path, query, cookie, now = Date.now() }, scenario = "") {
-  if (host === PAGE_HOST) return pageRoute(path);
+  if (host === PAGE_HOST) return pageRoute(path, query);
   if (apiHost(host)) return apiRoute(path, isLoggedIn(cookie, scenario), { query, scenario, now });
   if (fileHost(host)) return fileRoute(path, cookie, scenario);
   return unexpected();
@@ -313,7 +321,7 @@ export async function startMockServer({ dir }) {
       return;
     }
     res.writeHead(answer.status, answer.headers);
-    res.end(answer.body);
+    res.end(answer.bytes ?? answer.body);
     entry.answeredAt = Date.now();
   }
 

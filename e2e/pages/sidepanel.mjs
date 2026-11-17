@@ -4,10 +4,10 @@
 // 几个测试按顺序共用同一个浏览器：第一个确认启用，第二个还没登录，第三个起已登录。
 import assert from "node:assert/strict";
 import { describe as describeError } from "../../src/core/errors.ts";
-import { videoKey } from "../../src/core/video-ref.ts";
-import { API_KEY_SESSION_KEY, AUTO_LEDGER_KEY, SETTINGS_STORAGE_KEY } from "../../src/shared/names.ts";
-import { ANTHROPIC, BRIEF_SAMPLE, VIDEOS } from "../fixtures.mjs";
-import { PROBE, watchPage } from "../mock-server.mjs";
+import { channelKey, videoKey } from "../../src/core/video-ref.ts";
+import { API_KEY_SESSION_KEY, AUTO_LEDGER_KEY, SETTINGS_STORAGE_KEY, WATCH_SESSIONS_KEY } from "../../src/shared/names.ts";
+import { ANTHROPIC, BRIEF_SAMPLE, PLAYING_SAMPLE, VIDEOS } from "../fixtures.mjs";
+import { playingWatchPage, PROBE, watchPage } from "../mock-server.mjs";
 import { storedSettings } from "../settings.mjs";
 import { scenario } from "./harness.mjs";
 
@@ -26,13 +26,13 @@ const openTab = (page, url, active = true) =>
 const closeTab = (from, tabId) => from.evaluate(`chrome.tabs.remove(${tabId}).then(() => true, () => true)`);
 
 /** 侧边栏开在启动页的窗口里，再在侧边栏所在的窗口里打开视频页；做完关掉视频页。每次新开的标签页是一次新的观看。 */
-async function withVideo({ open, openSidePanel }, fn, videoId = FIRST_ID) {
+async function withVideo({ open, openSidePanel }, fn, videoId = FIRST_ID, url = watchPage(videoId)) {
   const from = await open(LAUNCHER);
   const panel = await openSidePanel(from);
-  const tabId = await openTab(panel, watchPage(videoId));
+  const tabId = await openTab(panel, url);
   try {
     await waitIn(panel, "模式切换出来", `Boolean(document.querySelector(".modes"))`);
-    await fn(panel, from);
+    await fn(panel, from, tabId);
   } finally {
     await closeTab(from, tabId);
   }
@@ -51,9 +51,9 @@ const STUDY = [
 ];
 
 /** 按条件等；等不到时把侧边栏上的文字带进报错，看得出停在哪。 */
-async function waitIn(panel, label, expression) {
+async function waitIn(panel, label, expression, timeoutMs) {
   try {
-    return await panel.waitFor(label, expression);
+    return await panel.waitFor(label, expression, timeoutMs);
   } catch (error) {
     const shown = await panel.evaluate(appText).catch(() => "");
     throw new Error(`${error.message}\n侧边栏上显示：${shown.slice(0, 400)}`);
@@ -253,3 +253,33 @@ test("侧边栏：主动切到精读立刻换、说一声记住了；同一频�
     assert.deepEqual(await panel.evaluate(modes), SKIM, "清掉以后回到按时长");
   });
 });
+
+// 要真的播满 1 分钟，这个测试要一分多钟。
+test("侧边栏：长视频在速览里连续播满 1 分钟切到精读，问答抽屉和草稿都留着；顶上一行「已切到精读」，点一下回速览、这次不再切", async (ctx) => {
+  await withVideo(
+    ctx,
+    async (panel, _from, tabId) => {
+      await waitIn(panel, "长视频进速览", `document.querySelector(".mode-view")?.getAttribute("aria-label") === "速览"`);
+      await tap(panel, ".ask-entry");
+      await waitIn(panel, "问答抽屉打开", `${qaSheet}?.open === true`);
+      await panel.evaluate(`(() => { const input = document.querySelector(".qa-form input"); input.value = "还没发出去的草稿"; input.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+      await waitIn(panel, "播满 1 分钟切到精读", `document.querySelector(".mode-view")?.getAttribute("aria-label") === "精读"`, 120_000);
+      assert.equal(await panel.evaluate(`${qaSheet}?.open`), true, "切模式不关抽屉");
+      assert.equal(await panel.evaluate(`document.querySelector(".qa-form input").value`), "还没发出去的草稿", "草稿留着");
+      const stored = await panel.evaluate(`chrome.storage.session.get(${JSON.stringify(WATCH_SESSIONS_KEY)})`);
+      const session = stored[WATCH_SESSIONS_KEY]?.[String(tabId)];
+      assert.equal(session?.modeSource, "auto");
+      assert.equal(session?.channel, channelKey({ platform: "bilibili", channelId: PLAYING_SAMPLE.channel }), "会话记着频道");
+
+      await panel.evaluate(`(${qaSheet}).querySelector(".overlay-head [aria-label='关闭']").click(), true`);
+      await waitIn(panel, "顶上一行", `${textOf(".notice-text")} === "已切到精读"`);
+      assert.ok(await clickText(panel, ".notice-action", "回到速览"));
+      await waitIn(panel, "回到速览", `document.querySelector(".mode-view")?.getAttribute("aria-label") === "速览"`);
+      await waitIn(panel, "这一行消失", `!${textOf(".notice-text")}.includes("已切到精读")`);
+      const after = await panel.evaluate(`chrome.storage.session.get(${JSON.stringify(WATCH_SESSIONS_KEY)})`);
+      assert.equal(after[WATCH_SESSIONS_KEY]?.[String(tabId)]?.autoSwitched, true, "这次观看记着切过，不再切");
+    },
+    PLAYING_SAMPLE.id,
+    playingWatchPage(PLAYING_SAMPLE.id),
+  );
+}, { timeoutMs: 150_000 });

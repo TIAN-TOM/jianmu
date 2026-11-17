@@ -11,7 +11,8 @@ import { Dock } from "../shared/ui/dock.tsx";
 import { Menu, type MenuItem } from "../shared/ui/menu.tsx";
 import { ModeSwitch } from "../shared/ui/mode-switch.tsx";
 import { Notice } from "../shared/ui/notice.tsx";
-import type { NoticeEntry } from "../shared/ui/notice.ts";
+import { pickNotice, type NoticeEntry } from "../shared/ui/notice.ts";
+import { useEffect } from "preact/hooks";
 import { StateBlock } from "../shared/ui/state-block.tsx";
 import { Layer, Sheet } from "../shared/ui/overlay.tsx";
 import { NotesTab } from "./notes-tab.tsx";
@@ -119,6 +120,8 @@ function Toolbar({ panel }: { readonly panel: Panel }) {
   );
 }
 
+const AUTO_SWITCHED = "auto-switched";
+
 function notices(panel: Panel): (NoticeEntry | null)[] {
   const { tabId } = panel.follow.target.value;
   const toast = panel.toast.value;
@@ -136,6 +139,9 @@ function notices(panel: Panel): (NoticeEntry | null)[] {
           action: { label: "刷新视频页", run: () => void chrome.tabs.reload(tabId).catch(() => undefined) },
         }
       : null,
+    panel.undoLine.shown.value
+      ? { id: AUTO_SWITCHED, priority: 1.5, text: "已切到精读", tone: "accent", action: { label: "回到速览", run: () => void panel.mode.undo() } }
+      : null,
     now.state === "ready" && now.view.subtitleMismatch ? { id: "mismatch", priority: 2, text: describe("SUBTITLE_MISMATCH"), tone: "warn" } : null,
     config.state === "checked" && !config.view.ready
       ? { id: "config", priority: 3, text: "字幕不用设置就能看；概览和问答要先设置 AI 服务", tone: "plain", action: { label: "打开设置", run: panel.openOptions } }
@@ -144,6 +150,14 @@ function notices(panel: Panel): (NoticeEntry | null)[] {
       ? { id: "auto-paused", priority: 4, text: AUTO_PAUSED[config.view.autoPaused], tone: "warn", action: { label: "打开设置", run: panel.openOptions } }
       : null,
   ];
+}
+
+/** 「已切到精读」只在看得见、点得到时计时：显示的正是这一行，侧边栏在前台，没被抽屉、层或划词解释盖住。 */
+function UndoClock({ panel, shown }: { readonly panel: Panel; readonly shown: boolean }) {
+  const counting = shown && panel.pageVisible.value && !panel.qaOpen.value && !panel.notesOpen.value && panel.qa.explain.value.phase === "idle";
+  useEffect(() => panel.undoLine.setCounting(counting), [counting]);
+  useEffect(() => () => panel.undoLine.setCounting(false), []);
+  return null;
 }
 
 export function App({ panel }: { readonly panel: Panel }) {
@@ -164,10 +178,12 @@ export function App({ panel }: { readonly panel: Panel }) {
     );
   }
   const mode = panel.mode.view.value.mode;
+  const lines = notices(panel);
   return (
     <main class="panel" data-mode={mode}>
+      <UndoClock panel={panel} shown={pickNotice(lines)?.id === AUTO_SWITCHED} />
       <Header panel={panel} />
-      <Notice notices={notices(panel)} />
+      <Notice notices={lines} />
       <section class="mode-view" aria-label={mode === "study" ? "精读" : "速览"}>
         {mode === "study" ? <StudyView panel={panel} /> : <SkimView panel={panel} />}
       </section>

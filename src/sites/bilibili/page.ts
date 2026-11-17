@@ -1,4 +1,4 @@
-// B 站播放页：认当前视频、等页面激活、找主视频和两个挂载点。只读页面结构，不插节点，不发请求。
+// B 站播放页：认当前视频、等页面激活、找主视频和两个挂载点、读作者栏上的 UP 主编号。只读页面结构，不插节点，不发请求。
 import { videoKey, type VideoRef } from "../../core/video-ref.ts";
 import type { MainVideo, SitePage } from "../page-types.ts";
 import { bilibiliRules } from "./url.ts";
@@ -30,6 +30,10 @@ const FILLING_SCREENS = new Set(["web", "full"]);
 // 同一个容器还标着控制栏这会儿藏没藏。
 const CONTROLS_ATTRIBUTE = "data-ctrl-hidden";
 const CONTROLS_CHECK_MS = 800;
+
+// UP 主的空间链接：单人投稿在作者栏，合作投稿取第一位。
+const CREATOR_LINK_SELECTORS = [".up-info-container a.up-name", ".up-detail-top a.up-name", "a.up-name", ".membersinfo-upcard a", ".up-panel-container a"];
+const CREATOR_ID = /space\.bilibili\.com\/(\d{1,20})(?:[/?#]|$)/;
 
 const SERVER_RENDERED_ROOT = "[data-server-rendered]";
 const READY_POLL_MS = 200;
@@ -174,6 +178,16 @@ export function createBilibiliPage({ document, location, sleep = waitFor, every 
       if (anchor && parent) return { parent, before: pushedBelowPlayer(anchor) ? anchor.nextSibling : anchor };
       const column = firstMatch(CARD_COLUMN_SELECTORS);
       return column ? { parent: column, before: column.firstChild } : null;
+    },
+
+    channelId() {
+      for (const selector of CREATOR_LINK_SELECTORS) {
+        for (const link of document.querySelectorAll<HTMLAnchorElement>(selector)) {
+          const id = CREATOR_ID.exec(link.getAttribute("href") ?? "")?.[1];
+          if (id) return id;
+        }
+      }
+      return null;
     },
 
     fillsScreen() {

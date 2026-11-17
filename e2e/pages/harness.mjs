@@ -10,7 +10,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 export const STEP_TIMEOUT_MS = 10_000;
 
 /** @typedef {ReturnType<ReturnType<typeof createHarness>["context"]>} TestContext */
-/** @typedef {{ file: string, title: string, fn: (ctx: TestContext) => Promise<void> }} RegisteredTest */
+/** timeoutMs 不给时用页面测试的默认时限。 @typedef {{ file: string, title: string, fn: (ctx: TestContext) => Promise<void>, timeoutMs?: number }} RegisteredTest */
 
 /** @type {RegisteredTest[]} */
 const registry = [];
@@ -18,9 +18,9 @@ const registry = [];
 /** 场景文件开头调一次：const test = scenario(import.meta.url)。报告里按文件记每个测试。 */
 export function scenario(fileUrl) {
   const file = relative(ROOT, fileURLToPath(fileUrl)).split(sep).join("/");
-  return (/** @type {string} */ title, /** @type {RegisteredTest["fn"]} */ fn) => {
+  return (/** @type {string} */ title, /** @type {RegisteredTest["fn"]} */ fn, /** @type {{ timeoutMs?: number }} */ options = {}) => {
     if (registry.some((entry) => entry.title === title)) throw new Error(`页面测试标题重复：${title}`);
-    registry.push({ file, title, fn });
+    registry.push({ file, title, fn, ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}) });
   };
 }
 

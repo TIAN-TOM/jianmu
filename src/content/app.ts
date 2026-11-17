@@ -1,12 +1,12 @@
 // 内容脚本的生命周期：过了启用闸门才读页面，页面激活稳定后才挂界面，之后定时自查；启用失效时整套撤下、重新等确认。
 // 扩展重新加载后旧脚本和扩展断了联系：撤卡片，笔记图标留着只提示刷新页面。
-import type { VideoKey } from "../core/video-ref.ts";
 import type { Broadcast } from "../shared/messages.ts";
 import type { AppearanceView } from "../shared/messages/core.ts";
 import type { SitePage } from "../sites/page-types.ts";
 import type { FrameIdentity, FrameTool } from "./frame.ts";
 import { createGate, type Activation, type Gate, type GateTimers } from "./gate.ts";
-import { createPlaybackReporter, createPlayer, type Player } from "./player.ts";
+import { createPlaybackReporter } from "./play-reporter.ts";
+import { createPlayer, type Player } from "./player.ts";
 import type { ContentRuntime } from "./runtime.ts";
 
 /** 挂在页面上的一套界面。 */
@@ -116,7 +116,9 @@ export function createContentApp(deps: ContentAppDeps): ContentApp {
     const report = createPlaybackReporter({
       player: current,
       findMainVideo: () => page.findMainVideo(),
-      report: (video: VideoKey, durationSec: number) => void runtime.send("playback.info", { video, durationSec }),
+      ...(page.channelId ? { channelId: () => page.channelId?.() ?? null } : {}),
+      sendInfo: (req) => runtime.send("playback.info", req),
+      sendMilestone: (req) => runtime.send("playback.milestone", req),
     });
     cleanups.push(
       page.onVideoChange(() => {

@@ -10,6 +10,7 @@ import { createConfigWatch, type ConfigWatch } from "../shared/config.ts";
 import { createWindowBatch, type WindowBatchStore } from "./batch.ts";
 import { createFollow, type Follow } from "./follow.ts";
 import { createModeStore, type ModeStore } from "./mode.ts";
+import { createUndoLine, type UndoLine } from "./undo-line.ts";
 import { createNotesStore, type NotesStore } from "./notes.ts";
 import { createOverviewStore, type OverviewStore } from "./overview.ts";
 import { createPlayer, playerFailureText, type Player } from "./player.ts";
@@ -29,6 +30,10 @@ export interface Panel {
   readonly follow: Follow;
   readonly player: Player;
   readonly mode: ModeStore;
+  /** 「已切到精读」那一行。 */
+  readonly undoLine: UndoLine;
+  /** 侧边栏这会儿在前台、看得见。 */
+  readonly pageVisible: Signal<boolean>;
   readonly transcript: TranscriptStore;
   readonly translation: Translation;
   readonly overview: OverviewStore;
@@ -59,6 +64,10 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
   const follow = createFollow({ api, enabled: activation.enabled });
   const player = createPlayer();
   const mode = createModeStore({ api });
+  const undoLine = createUndoLine({ mode: mode.view });
+  const pageVisible = signal(typeof document === "undefined" || document.visibilityState === "visible");
+  const onVisibility = (): void => void (pageVisible.value = document.visibilityState === "visible");
+  if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibility);
   const transcript = createTranscriptStore({ api });
   const translation = createTranslation({ api });
   const overview = createOverviewStore({ api });
@@ -92,6 +101,7 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
       const active = enabled ? video : null;
       player.watch(enabled ? tabId : null, active);
       mode.bind(enabled ? tabId : null, active);
+      undoLine.bind(enabled && active && tabId !== null ? `${tabId}\n${active}` : null);
       overview.bind(active);
       notes.bind(active);
       qa.bind(active);
@@ -131,6 +141,8 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
     follow,
     player,
     mode,
+    undoLine,
+    pageVisible,
     transcript,
     translation,
     overview,
@@ -165,6 +177,8 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
       follow.stop();
       player.stop();
       mode.stop();
+      undoLine.stop();
+      if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVisibility);
       translation.stop();
       overview.stop();
       notes.stop();

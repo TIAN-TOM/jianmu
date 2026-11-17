@@ -20,4 +20,5 @@ export interface SitePage {
   noteShortcut: string | null;
   cardSlot?(): { parent: Element; before: Node | null } | null;
   fillsScreen?(): boolean; // 播放器占满屏幕或网页，页面临时改了布局
+  channelId?(): string | null; // 页面上已经显示的频道编号，记模式偏好用；读不到是 null
 }

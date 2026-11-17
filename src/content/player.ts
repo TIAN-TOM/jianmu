@@ -92,30 +92,3 @@ export function createPlayer({ currentRef, findMainVideo, now = Date.now }: Play
     handle,
   };
 }
-
-/** 每个视频报一次时长，两次上报至少隔这么久。 */
-export const PLAYBACK_INFO_INTERVAL_MS = 10_000;
-
-export interface PlaybackReporterDeps {
-  readonly player: Pick<Player, "currentKey" | "confirmed">;
-  readonly findMainVideo: () => MainVideo;
-  readonly report: (video: VideoKey, durationSec: number) => void;
-  readonly now?: () => number;
-}
-
-/** 定时自查时调一次：播放器换上了视频、读得到时长、不在播广告，才报这个视频的时长。 */
-export function createPlaybackReporter({ player, findMainVideo, report, now = Date.now }: PlaybackReporterDeps): () => void {
-  let reported: VideoKey | null = null;
-  let lastAt = Number.NEGATIVE_INFINITY;
-  return () => {
-    const key = player.currentKey();
-    if (!key || key === reported || !player.confirmed() || now() - lastAt < PLAYBACK_INFO_INTERVAL_MS) return;
-    const main = findMainVideo();
-    if (main.status !== "found") return;
-    const duration = main.video.duration;
-    if (!Number.isFinite(duration) || duration <= 0) return;
-    reported = key;
-    lastAt = now();
-    report(key, duration);
-  };
-}
