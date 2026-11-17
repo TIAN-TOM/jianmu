@@ -6,7 +6,19 @@ import { dirname, join, resolve } from "node:path";
 import { before, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
+import { build } from "esbuild";
+import { bundleOptions } from "../scripts/build.mjs";
+import { buildFlagsRecord, readBuildFlags } from "../scripts/lib/build-flags.mjs";
 import { extractPromptSection } from "../src/core/ai/prompt.ts";
+import {
+  FEATURE_GLOBALS,
+  FEATURE_NAMES,
+  RELEASE_FEATURES,
+  TEST_BUILD_FEATURES,
+  type FeatureName,
+  type FeatureSet,
+} from "../src/shared/features.ts";
+import { FRAME_EXPLAIN_PROBE, YOUTUBE_OPEN_PANEL_PROBE, YOUTUBE_SWITCH_LANG_PROBE } from "./fixtures/build-flags/gated.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BUILD = join(ROOT, "build");
@@ -253,4 +265,40 @@ test("后台和各页面包注入的是同一个构建标识，由内容算出",
   const background = idOf("background.js");
   assert.ok(background, "后台包里有构建标识");
   for (const file of ["pages/sidepanel.js", "pages/options.js", "pages/triage.js", "pages/card.js"]) assert.equal(idOf(file), background, file);
+});
+
+test("发行构建：开关记录里每个开关都是关的，包里没有留下没换掉的开关常量", () => {
+  assert.deepEqual(readBuildFlags(), buildFlagsRecord(RELEASE_FEATURES), "build/ 不是发行构建，先跑 npm run build");
+  for (const file of BUNDLES) {
+    const bundle = readBuild(file);
+    for (const name of Object.values(FEATURE_GLOBALS)) assert.ok(!bundle.includes(name), `${file} 里留着 ${name}`);
+  }
+});
+
+// 产品代码还没有挂在开关下的内容，先用探针核对裁剪本身：选项和真实的后台包一样，只换入口。
+const PROBES: Readonly<Record<FeatureName, string>> = {
+  frameExplain: FRAME_EXPLAIN_PROBE,
+  youtubeOpenPanel: YOUTUBE_OPEN_PANEL_PROBE,
+  youtubeSwitchLang: YOUTUBE_SWITCH_LANG_PROBE,
+};
+
+async function probeBundle(features: FeatureSet): Promise<string> {
+  const [background] = bundleOptions(features);
+  assert.ok(background, "没有后台包的构建选项");
+  const result = await build({ ...background, entryPoints: [join(ROOT, "tests/fixtures/build-flags/probe.ts")], write: false });
+  return result.outputFiles.map((output) => output.text).join("\n");
+}
+
+test("构建开关：关着的开关保护的内容整段裁掉，打开哪个开关才放进哪段", async () => {
+  const variants: [string, FeatureSet][] = [
+    ["发行构建", RELEASE_FEATURES],
+    ["测试构建", TEST_BUILD_FEATURES],
+    ...FEATURE_NAMES.map((name): [string, FeatureSet] => [`只开 ${name}`, { ...RELEASE_FEATURES, [name]: true }]),
+  ];
+  for (const [label, features] of variants) {
+    const bundle = await probeBundle(features);
+    for (const name of FEATURE_NAMES) assert.equal(bundle.includes(PROBES[name]), features[name], `${label}：${name} 保护的内容`);
+    assert.equal(bundle.includes(":route"), features.frameExplain, `${label}：只从开关分支引用的函数`);
+    for (const name of Object.values(FEATURE_GLOBALS)) assert.ok(!bundle.includes(name), `${label}：${name} 没换成字面量`);
+  }
 });

@@ -177,7 +177,7 @@ jianmu/
 | --- | --- |
 | `manifest.template.json` | 清单模板，手写；版本号由构建写入 |
 | `src/core/` | 纯逻辑，不碰 `chrome.*` 和 DOM：视频身份、并发、任务（`task-keys.ts` 是互斥键和等价键）、清除闸门、高亮、同意表和启用说明，`errors.ts` 错误码和结果形状（各领域的码在 `errors/`），`mode/` 模式和观看会话的类型、`decide.ts` 模式规则，`backup/` 备份的新格式、旧格式读取器和合并，以及 `transcript/`、`qa/`、`triage/`、`ai/`（`provider/` 里有消息部件、强制流式的拼回）、`notes/` |
-| `src/shared/` | `names.ts` 存储键和扩展页面路径，`storage-plan.ts` 每份本机数据的清除和备份归属，`settings-schema.ts` 设置的结构、规整和校验，`messages.ts` 消息类型（各领域在 `messages/`，发给内容脚本的指令在 `messages/content.ts`），`build-id.ts` 构建时注入的构建标识 |
+| `src/shared/` | `names.ts` 存储键和扩展页面路径，`storage-plan.ts` 每份本机数据的清除和备份归属，`settings-schema.ts` 设置的结构、规整和校验，`features.ts` 构建开关的发行默认值（`build-flags.d.ts` 声明对应的全局常量），`messages.ts` 消息类型（各领域在 `messages/`，发给内容脚本的指令在 `messages/content.ts`），`build-id.ts` 构建时注入的构建标识 |
 | `src/platform/` | `idb.ts` IndexedDB 驱动，`storage.ts`、`locks.ts`、`permissions.ts`、`messaging.ts`、`tabs.ts` 是扩展存储、Web Locks、主机权限、消息、标签页和窗口焦点、侧边栏和脚本注入的薄封装，`settings-store.ts` 设置读写、会话密钥、记住密钥的本机记录和设置修订号，`site-backoff.ts` 站点限速和退避，`keepalive.ts` 任务在跑时撑着 service worker 不被回收 |
 | `src/sites/` | 站点适配层：`types.ts`、`page-types.ts` 是契约，`rules.ts` 是地址规则，`bilibili/` 是 B 站的地址解析、播放页和读取实现，`services.ts` 是后台用的服务注册表 |
 | `src/background/`、`src/pages/` | 内联的提示词、`grants.ts` 回收用不上的主机授权 |
@@ -201,7 +201,7 @@ jianmu/
 | `src/background/stores/` | 字幕缓存、导入的字幕、笔记、概览、问答、译文、频道偏好七个仓储，粗筛的列表和官方总结另存在扩展本机存储里（`triage.ts`，30 天期限），`write-gate.ts` 是它们共用的写入关口，`drivers.ts` 第一次读写时才建数据库驱动 |
 | `prompts/` | 提示词模板，构建时内联进后台包 |
 | `static/` | 原样复制进构建产物：`theme.css` 是扩展页面共用的设计变量（三套主题、两种明暗，界面字号改根字号），`ui.css` 引进 `ui/` 下按用途分开的共用组件样式，`icons/` 是 16、48、128 三档扩展图标，`pages/` 是页面外壳 |
-| `scripts/` | `build.mjs` 构建（按源码内容算构建标识，注入后台和各页面），`package.mjs` 打包和校验（同一个提交打两次得到同一个 zip，旁边写校验值文件），`release.mjs` 发布候选、候选之后的核对、发布说明草稿和发布前检查，`check-public.mjs` 公开结构检查 |
+| `scripts/` | `build.mjs` 构建（按源码内容算构建标识，注入后台和各页面），`package.mjs` 打包和校验（同一个提交打两次得到同一个 zip，旁边写校验值文件；开着构建开关的产物不打包），`lib/release-globals.mjs` 给直接读产品模块的脚本按发行取值定义开关常量，`release.mjs` 发布候选、候选之后的核对、发布说明草稿和发布前检查，`check-public.mjs` 公开结构检查 |
 | `tests/` | `unit/` 单元测试，`structure.test.ts` 结构规则，`build-output.test.ts` 构建产物检查，`fixtures/golden/` 黄金样本，`helpers/` 替身（`fake-ai.ts` 是后台各服务测试共用的模型服务替身，`fake-site-service.ts` 是站点读取服务的替身，`overview-service.ts` 是概览和用官方总结写结论的测试架子，`study-service.ts`、`study-background.ts` 是问答、划词解释和笔记的服务架子和走真实后台分发的架子，`manual-timers.ts` 是手动推进的计时器） |
 | `e2e/` | 把打好的包装进 Chrome for Testing 跑冒烟，站点和两家模型服务的请求都指向本机模拟服务器（能中途切场景、拖慢读取、挂住模型请求），其余域名解析失败；`lifecycle.mjs` 单独看任务跨过 service worker 空闲回收、被强行终止时的样子；`pages.mjs` 是页面测试的入口，场景按页面分在 `pages/`，`pages/harness.mjs` 是公共部分，`pages/fixtures/` 的组件样张只在测试时编进扩展副本；`run.mjs` 在播放页步骤之后，在真实的侧边栏里走主流程 |
 | `notes/` | 公开的设计文档，走白名单 |
@@ -698,9 +698,9 @@ export const ROUTES: { [K in keyof Api]: Route<K> } = { /* … */ };   // 漏一
 - 构建标识按 `src/`、`prompts/`、`static/`、清单模板和依赖版本的内容算，后台和各页面注入同一个值，同一个提交两次构建得到同一个。从文件夹加载的扩展，页面每次打开都读磁盘上的新文件，后台要重新加载扩展才换；页面打开时先和后台比标识，对不上就提示重新加载（第 5.3 节 `src/pages/shared/`）。监听模式只在启动时算一次。
 - `manifest.template.json` 带固定的 `key`，第 12 步打候选包之前加好。它是公钥，扩展身份靠它稳定（PRD 第 3 节）；私钥不进任何仓库，用文件夹加载不需要它。
 - 提示词用文本加载器内联进后台包，构建时去掉 `\r`，另有测试检查 `prompts/` 源文件没有 `\r`。运行时不再读提示词文件；Node 测试从磁盘读，经注入的读取函数交给服务。
-- 构建时开关用 esbuild 的 `define`，例如 `FEATURE_FRAME_EXPLAIN`。「画面验证构建」指显式打开 `FEATURE_FRAME_EXPLAIN` 的本机构建，「发行构建」指默认关闭、代码被裁出包的构建，两者用同一份产品代码。发行构建不留死按钮；画面验证构建不打成发布包。发行开关要等第 11 步的验证通过才打开：满足 PRD F11 的拒绝条件（加密内容、正在播广告、视频身份对不上、不在前台等情况都能拒绝），并在真实页面上验证过，之后在最终候选包上回归。画面验证失败或缺少关键证据，发行开关保持关闭，首发先停下，由开发者本人决定等它还是移除后先发。测试构建也打开这个开关，只用于测试，不打成发布包（第 11.3 节）。开发时 `build.mjs --watch` 加 `dev-reload.mjs`，开发者本人的 Chrome 加载 `build/` 目录。「本机开发构建」指字幕路线用的产品开发构建。
+- 构建时开关用 esbuild 的 `define`，例如 `FEATURE_FRAME_EXPLAIN`。发行默认值只写在 `src/shared/features.ts` 一处，构建、打包、发布脚本和测试都从那里读；要裁的代码只写裸常量的分支，开关保护的内容放进只从这些分支引用的单独模块。「画面验证构建」指显式打开 `FEATURE_FRAME_EXPLAIN` 的本机构建（`build.mjs --frame-explain`），「发行构建」指默认关闭、代码被裁出包的构建，两者用同一份产品代码。发行构建不留死按钮；画面验证构建不打成发布包。发行开关要等第 11 步的验证通过才打开：满足 PRD F11 的拒绝条件（加密内容、正在播广告、视频身份对不上、不在前台等情况都能拒绝），并在真实页面上验证过，之后在最终候选包上回归。画面验证失败或缺少关键证据，发行开关保持关闭，首发先停下，由开发者本人决定等它还是移除后先发。测试构建（`build.mjs --test-build`，页面测试用）也打开这个开关，只用于测试，不打成发布包（第 11.3 节）。开发时 `build.mjs --watch` 加 `dev-reload.mjs`，开发者本人的 Chrome 加载 `build/` 目录。「本机开发构建」指字幕路线用的产品开发构建。
 - YouTube 代操作也用构建时开关：`FEATURE_YOUTUBE_OPEN_PANEL`（第 2 档）、`FEATURE_YOUTUBE_SWITCH_LANG`（代换语言），两个分开，可以分别失败。发行构建默认关闭，代码、路由和按钮都被裁出包；第 10 步验证用的本机开发构建显式打开，这种构建不打成发布包。发行开关要等第 10 步验证通过才打开，之后在最终候选包上回归。相应的启用说明条目只在开关打开时进说明和指纹。
-- `npm run package` 从 `build/` 打 `dist/jianmu-<版本>.zip` 并校验：后缀白名单；拒绝 `.map`、`.ts`、点开头的文件、测试文件；没有 `eval(`、`new Function`、远程脚本地址；没有 CRLF；清单引用、开放资源、动态注册脚本、每个页面的脚本和样式都在包里；文件清单和 `tests/fixtures/package-files.txt` 一致，新增文件要在 PR 里显式改快照。
+- `npm run package` 从 `build/` 打 `dist/jianmu-<版本>.zip` 并校验：后缀白名单；拒绝 `.map`、`.ts`、点开头的文件、测试文件；没有 `eval(`、`new Function`、远程脚本地址；没有 CRLF；清单引用、开放资源、动态注册脚本、每个页面的脚本和样式都在包里；文件清单和 `tests/fixtures/package-files.txt` 一致，新增文件要在 PR 里显式改快照。构建把这次每个开关的取值记在 `build/` 之外，开着任何开关的构建（测试构建、本机验证构建）拒绝打包。
 
 ### 11.3 测试分层
 

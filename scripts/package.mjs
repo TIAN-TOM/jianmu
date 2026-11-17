@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, posix, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { buildFlagProblems, readBuildFlags } from "./lib/build-flags.mjs";
 import { checksumLine, resolveSourceDateEpoch, sortZipEntries } from "./lib/zip-order.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -48,12 +49,12 @@ function pageReferences(file, html) {
 }
 
 /**
- * 纯校验，方便测试。
- * @param {{ files: readonly string[], read: (file: string) => string, expectedFiles: readonly string[], version: string }} input
+ * 纯校验，方便测试。buildFlags 是构建留下的开关记录（lib/build-flags.mjs），开着任何开关都不出包。
+ * @param {{ files: readonly string[], read: (file: string) => string, expectedFiles: readonly string[], version: string, buildFlags: unknown }} input
  * @returns {string[]}
  */
-export function findPackageProblems({ files, read, expectedFiles, version }) {
-  const problems = [];
+export function findPackageProblems({ files, read, expectedFiles, version, buildFlags }) {
+  const problems = [...buildFlagProblems(buildFlags)];
   const present = new Set(files);
   for (const file of files) {
     const name = posix.basename(file);
@@ -125,12 +126,13 @@ export function writeZip({ dir, files, output }) {
 
 /**
  * 校验一个目录，过了就打包。发布脚本打只改版本号的测试包也走这里。
- * @param {{ dir: string, version: string, expectedFiles: readonly string[], output: string, epoch: number }} input
+ * @param {{ dir: string, version: string, expectedFiles: readonly string[], output: string, epoch: number, buildFlags: unknown }} input
  * @returns {{ sha256: string, files: string[] }}
  */
-export function packageDirectory({ dir, version, expectedFiles, output, epoch }) {
+export function packageDirectory({ dir, version, expectedFiles, output, epoch, buildFlags }) {
   const files = listFiles(dir);
-  const problems = findPackageProblems({ files, read: (file) => readFileSync(join(dir, file), "utf8"), expectedFiles, version });
+  const read = (/** @type {string} */ file) => readFileSync(join(dir, file), "utf8");
+  const problems = findPackageProblems({ files, read, expectedFiles, version, buildFlags });
   if (problems.length > 0) {
     throw new Error(`打包校验没过，共 ${problems.length} 项：\n${problems.map((problem) => `  ${problem}`).join("\n")}`);
   }
@@ -157,7 +159,14 @@ function main() {
   const { version } = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
   const output = join(ROOT, "dist", `jianmu-${version}.zip`);
   try {
-    const { sha256 } = packageDirectory({ dir: BUILD, version, expectedFiles: readExpectedFiles(), output, epoch: sourceDateEpoch() });
+    const { sha256 } = packageDirectory({
+      dir: BUILD,
+      version,
+      expectedFiles: readExpectedFiles(),
+      output,
+      epoch: sourceDateEpoch(),
+      buildFlags: readBuildFlags(),
+    });
     console.log(`打包完成：${relative(ROOT, output)}\nSHA-256：${sha256}`);
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);

@@ -8,6 +8,8 @@
 //
 // 单独成一个脚本，不放进 run.mjs：那边给 service worker 挂了调试器，挂着调试器 Chrome 就不回收 worker，
 // 这里要看它被回收、被终止的样子。所以只附加扩展页面，从不附加 worker。
+// 第一个加载：装的是发行包，之后导入的产品模块按发行构建的开关取值算。
+import "../scripts/lib/release-globals.mjs";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";

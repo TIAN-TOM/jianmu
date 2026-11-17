@@ -1,9 +1,12 @@
 // 构建：esbuild 打包入口、复制 static/、写入清单版本号。不压缩、不带 source map，方便用户和贡献者审阅发布包。
+// 不带参数是发行构建，构建开关全部关着；--test-build、--youtube-ops 见 lib/build-flags.mjs，这两种都不打包。
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build, context } from "esbuild";
+import { featureDefines, FEATURE_GLOBALS, FEATURE_NAMES } from "../src/shared/features.ts";
+import { clearBuildFlags, featuresFromArgs, writeBuildFlags } from "./lib/build-flags.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = join(ROOT, "build");
@@ -73,6 +76,17 @@ const bundles = [
   { entryPoints: ["src/content/bilibili.ts"], outfile: "build/content/bilibili.js", format: "iife" },
 ];
 
+/**
+ * 每个包的完整选项。开关换成字面量以后，只从关着的分支引用的模块整段摇掉；不开 minifySyntax，
+ * 直接写在死分支里的字面量会留在包里，所以开关保护的内容要放进单独的模块。
+ * @param {import("../src/shared/features.ts").FeatureSet} features
+ * @returns {import("esbuild").BuildOptions[]}
+ */
+export function bundleOptions(features) {
+  const define = featureDefines(features);
+  return bundles.map((bundle) => ({ ...shared, ...bundle, define: { ...shared.define, ...define } }));
+}
+
 function writeManifest() {
   const { version } = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
   const manifest = JSON.parse(readFileSync(join(ROOT, "manifest.template.json"), "utf8"));
@@ -91,6 +105,7 @@ function writeLicenses() {
 }
 
 function prepareOutput() {
+  clearBuildFlags();
   rmSync(OUT, { recursive: true, force: true });
   mkdirSync(OUT, { recursive: true });
   if (existsSync(join(ROOT, "static"))) cpSync(join(ROOT, "static"), OUT, { recursive: true });
@@ -98,15 +113,37 @@ function prepareOutput() {
   writeLicenses();
 }
 
-prepareOutput();
-if (process.argv.includes("--watch")) {
-  // 只盯打包入口；改 static/ 或清单模板要重新运行。
-  for (const bundle of bundles) {
-    const watcher = await context({ ...shared, ...bundle });
-    await watcher.watch();
+/** @param {import("../src/shared/features.ts").FeatureSet} features */
+function describeFeatures(features) {
+  const on = FEATURE_NAMES.filter((name) => features[name]).map((name) => FEATURE_GLOBALS[name]);
+  return on.length === 0 ? "发行构建" : `开着 ${on.join("、")}，不能打包`;
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  const features = featuresFromArgs(args);
+  prepareOutput();
+  if (args.includes("--watch")) {
+    // 只盯打包入口；改 static/ 或清单模板要重新运行。
+    for (const options of bundleOptions(features)) {
+      const watcher = await context(options);
+      await watcher.watch();
+    }
+    writeBuildFlags(features);
+    console.log(`正在监听源码变化（${describeFeatures(features)}），开发者模式里加载 build/ 目录`);
+  } else {
+    await Promise.all(bundleOptions(features).map((options) => build(options)));
+    // 构建完才写记录：没跑完的构建没有记录，打包不认。
+    writeBuildFlags(features);
+    console.log(`构建完成：build/（${describeFeatures(features)}）`);
   }
-  console.log("正在监听源码变化，开发者模式里加载 build/ 目录");
-} else {
-  await Promise.all(bundles.map((bundle) => build({ ...shared, ...bundle })));
-  console.log("构建完成：build/");
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  try {
+    await main();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
 }

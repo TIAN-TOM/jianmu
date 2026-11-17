@@ -4,8 +4,10 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, wri
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
+import { buildFlagsRecord } from "../../../scripts/lib/build-flags.mjs";
 import { checksumLine, parseChecksumLine, resolveSourceDateEpoch, sortZipEntries } from "../../../scripts/lib/zip-order.mjs";
 import { findPackageProblems, normalizeEntries, writeZip } from "../../../scripts/package.mjs";
+import { FEATURE_NAMES, RELEASE_FEATURES, TEST_BUILD_FEATURES } from "../../../src/shared/features.ts";
 
 const manifest = JSON.stringify({ version: "1.2.3", background: { service_worker: "background.js" }, side_panel: { default_path: "pages/a.html" } });
 const good: Record<string, string> = {
@@ -15,14 +17,19 @@ const good: Record<string, string> = {
   "pages/a.js": "console.log(2);\n",
 };
 
-function problems(files: Record<string, string>): string[] {
+const RELEASE_FLAGS = buildFlagsRecord(RELEASE_FEATURES);
+
+function problemsWith(files: Record<string, string>, buildFlags: unknown): string[] {
   return findPackageProblems({
     files: Object.keys(files),
     read: (file) => files[file] ?? "",
     expectedFiles: Object.keys(good),
     version: "1.2.3",
+    buildFlags,
   });
 }
+
+const problems = (files: Record<string, string>): string[] => problemsWith(files, RELEASE_FLAGS);
 
 test("合格的包不报", () => {
   assert.deepEqual(problems(good), []);
@@ -59,6 +66,28 @@ test("拦下各类问题", () => {
   }
   const { "manifest.json": _dropped, ...withoutManifest } = good;
   assert.ok(problems(withoutManifest).some((problem) => /manifest\.json 不在包的顶层/.test(problem)));
+});
+
+test("开着任何构建开关的产物不打包：测试构建、只开一个开关的验证构建、记录缺失或认不出都不出包", () => {
+  const refused: [string, unknown, RegExp][] = [
+    ["测试构建", buildFlagsRecord(TEST_BUILD_FEATURES), /开着 FEATURE_FRAME_EXPLAIN、FEATURE_YOUTUBE_OPEN_PANEL、FEATURE_YOUTUBE_SWITCH_LANG/],
+    ...FEATURE_NAMES.map((name): [string, unknown, RegExp] => [
+      `只开 ${name}`,
+      buildFlagsRecord({ ...RELEASE_FEATURES, [name]: true }),
+      /测试构建和本机验证构建不能打包/,
+    ]),
+    ["记录里多出一个开着的开关", { ...RELEASE_FLAGS, FEATURE_SOMETHING_NEW: true }, /开着 FEATURE_SOMETHING_NEW/],
+    ["取值不是布尔值", { ...RELEASE_FLAGS, FEATURE_YOUTUBE_OPEN_PANEL: "false" }, /没有 FEATURE_YOUTUBE_OPEN_PANEL 的取值/],
+    ["少了一个开关", Object.fromEntries(Object.entries(RELEASE_FLAGS).slice(1)), /没有 FEATURE_FRAME_EXPLAIN 的取值/],
+    ["没有记录", undefined, /找不到这次构建的开关记录/],
+    ["读不成 JSON", null, /形状不对/],
+    ["不是对象", [false, false, false], /形状不对/],
+  ];
+  for (const [label, buildFlags, expected] of refused) {
+    const found = problemsWith(good, buildFlags);
+    assert.ok(found.some((problem) => expected.test(problem)), `${label}：${found.join("；")}`);
+  }
+  assert.deepEqual(problemsWith(good, { ...RELEASE_FLAGS }), [], "全部关着的发行构建照常打包");
 });
 
 test("文件按路径的字节序排，和输入顺序无关", () => {

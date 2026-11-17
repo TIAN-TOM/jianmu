@@ -3,6 +3,8 @@
 // 播放页之后在真实的侧边栏里走一遍主流程：跟着视频页读字幕、点一句跳过去、生成概览、把金句存为笔记、提问并点引用跳转；
 // 再从设置页打开粗筛页，读稍后再看、两步批次、分组和导出；然后在侧边栏里本窗口全部生成，跳过已有的、生成中停止、重开接上；
 // 最后打开就出结论：开着时只为获得焦点的窗口里前台的长视频生成一次，卡片上出结论，关着时不发请求。
+// 第一个加载：装的是发行包，之后导入的产品模块按发行构建的开关取值算。
+import "../scripts/lib/release-globals.mjs";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";

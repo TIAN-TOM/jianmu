@@ -4,6 +4,8 @@
 //   notes --record <candidate.json> [--out <文件>]   从 CHANGELOG 生成发布说明草稿
 //   final-check                         发布前的文字核对：待定标记、本版更新内容、已验证的浏览器版本、存储和权限
 //   upgrade-test [--bump patch] [--out <目录>]       同一份代码只改版本号的测试包，给升级测试用，不进 Releases
+// 第一个加载：之后导入的产品模块按发行构建的开关取值算说明的版本。
+import "./lib/release-globals.mjs";
 import { execFileSync } from "node:child_process";
 import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { arch, release, tmpdir, type } from "node:os";
@@ -13,12 +15,13 @@ import { parseArgs } from "node:util";
 import {
   ACTIVATION_FINGERPRINT,
   ACTIVATION_VERSION,
-  BUILD_FEATURES,
   DATA_CONSENT_FINGERPRINT,
   DATA_CONSENT_VERSION,
 } from "../src/core/consent.ts";
+import { RELEASE_FEATURES } from "../src/shared/features.ts";
 import { DATABASE_NAME } from "../src/shared/names.ts";
 import { STORAGE_PLAN } from "../src/shared/storage-plan.ts";
+import { readBuildFlags } from "./lib/build-flags.mjs";
 import {
   bumpVersion,
   buildReleaseNotes,
@@ -176,7 +179,7 @@ function candidate({ out }) {
     tree: git("rev-parse", `${head}^{tree}`),
     packageInputs: hashPackageInputs(packageInputEntries()),
     zip: { name: zipName, sha256: readZipChecksum(zipPath), bytes: zip.length, files: countZipEntries(zip) },
-    features: { ...BUILD_FEATURES },
+    features: { ...RELEASE_FEATURES },
     notices: {
       activation: { version: ACTIVATION_VERSION, fingerprint: ACTIVATION_FINGERPRINT },
       dataConsent: { version: DATA_CONSENT_VERSION, fingerprint: DATA_CONSENT_FINGERPRINT },
@@ -265,7 +268,14 @@ function upgradeTest({ bump = "patch", out }) {
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
     writeFileSync(manifestPath, `${JSON.stringify({ ...manifest, version: next }, null, 2)}\n`);
     const output = join(out ? resolve(out) : join(DIST, "upgrade-test"), `jianmu-${next}-upgrade-test.zip`);
-    const { sha256 } = packageDirectory({ dir: work, version: next, expectedFiles: readExpectedFiles(), output, epoch: sourceDateEpoch() });
+    const { sha256 } = packageDirectory({
+      dir: work,
+      version: next,
+      expectedFiles: readExpectedFiles(),
+      output,
+      epoch: sourceDateEpoch(),
+      buildFlags: readBuildFlags(),
+    });
     console.log(`升级测试包：${output}\nSHA-256：${sha256}`);
   } finally {
     rmSync(work, { recursive: true, force: true });

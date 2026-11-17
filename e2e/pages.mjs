@@ -1,15 +1,19 @@
 // 页面测试：把 build/ 复制一份、只在副本里加上组件样张，装进断网的 Chrome for Testing，
 // 站点主机都指向本机模拟服务器。按文件跑场景，每个测试打开自己的页面，跑完写报告。
 //
-//   npm run test:pages   先构建再运行；用 CHROME_PATH 指定 Chrome for Testing 的可执行文件
+//   npm run test:pages   先打测试构建（构建开关全开）再运行；用 CHROME_PATH 指定 Chrome for Testing 的可执行文件
 //
 // 报告写到 e2e/artifacts/pages-report.json：每个测试的文件、标题、通过与否、耗时，加上提交号和工作区是否干净。
+// 第一个加载：装的是测试构建，之后导入的产品模块按测试构建的开关取值算。
+import "../tests/helpers/build-flags.ts";
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
+import { buildFlagsRecord, readBuildFlags } from "../scripts/lib/build-flags.mjs";
+import { featureDefines, TEST_BUILD_FEATURES } from "../src/shared/features.ts";
 import { launchChrome } from "./browser.mjs";
 import { MODEL_HOSTS } from "./mock-ai.mjs";
 import { startMockServer } from "./mock-server.mjs";
@@ -35,7 +39,10 @@ const SCENARIOS = [
 
 const executable = process.env.CHROME_PATH;
 if (!executable) throw new Error("用 CHROME_PATH 指定 Chrome for Testing 的可执行文件");
-if (!existsSync(join(BUILD, "manifest.json"))) throw new Error("先跑 npm run build");
+if (!existsSync(join(BUILD, "manifest.json"))) throw new Error("先跑 npm run test:pages，它会先打测试构建");
+if (JSON.stringify(readBuildFlags()) !== JSON.stringify(buildFlagsRecord(TEST_BUILD_FEATURES))) {
+  throw new Error("build/ 不是测试构建，用 npm run test:pages 跑");
+}
 
 const git = (...args) => execFileSync("git", args, { cwd: ROOT, encoding: "utf8" }).trim();
 const startedAt = new Date().toISOString();
@@ -61,6 +68,7 @@ async function prepareExtension(dir) {
     target: "chrome116",
     jsx: "automatic",
     jsxImportSource: "preact",
+    define: featureDefines(TEST_BUILD_FEATURES),
     logLevel: "warning",
   });
 }

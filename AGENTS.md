@@ -27,6 +27,8 @@ npm run release -- candidate   # 发布候选：要在远端 main 的最新提�
 
 单项命令：`npm run typecheck`、`npm test`、`npm run build`、`npm run test:build`、`npm run check:public`。
 
+`npm run build` 是发行构建，构建开关全部关着。`node scripts/build.mjs --test-build` 打开全部开关，只给测试用，`npm run test:pages` 用的就是它；`--frame-explain` 只打开解释当前画面，是画面验证构建；`--youtube-ops` 只打开 YouTube 代开面板和代换语言，给开发者本人在 YouTube 上验证用。这几种可以加 `--watch`，都不能打包。
+
 打完发布候选，在 GitHub Actions 里手动触发「发布前核对」（`.github/workflows/release-check.yml`），填候选的提交号和校验值：它在 Chrome for Testing 116 和当前稳定版上各跑一遍端到端，在 Linux 上重新打包核对校验值。这个工作流不在必需检查里。
 
 ## 改代码时要知道的
@@ -34,6 +36,7 @@ npm run release -- candidate   # 发布候选：要在远端 main 的最新提�
 - 依赖只能往下：`pages`、`content`、`background` → `sites` → `platform` → `core`、`shared`。结构规则见架构设计第 5.2 节，`tests/structure.test.ts` 会查。
 - 相对导入写 `.ts` 扩展名；不用 `enum`、`namespace`、参数属性、路径别名、装饰器。`.tsx` 不进单元测试，渲染放到无头 Chrome 里测。
 - Node 跑测试只剥类型不查类型，类型错误靠 `npm run typecheck` 拦。
+- 要按构建开关裁掉的代码只写裸常量的分支（`FEATURE_X ? … : …`），开关保护的内容放进只从这些分支引用的单独模块；不读 `features.ts` 的对象来裁，也不开 `minifySyntax`。Node 测试经 `--import ./tests/helpers/build-flags.ts` 把开关定义成测试构建的取值，单跑一个测试文件也要带上；在 Node 里直接读产品模块的脚本第一个导入 `scripts/lib/release-globals.mjs`（发行取值）或 `tests/helpers/build-flags.ts`（测试取值），跟它装的包一致。
 - 业务入口写成 `createX(deps)`，测试注入替身。测试不访问真实的模型服务和平台接口；等异步结果按条件等，不固定等几毫秒：等会发生的事用 `tests/helpers/wait-until.ts` 的 `until`，确认没发生用 `stillFalse`；能等到具体事件（比如模拟服务收到请求）的就直接等那件事。
 - 注入 B 站和 YouTube 页面的标识一律以 `jianmu-` 开头，集中定义在 `src/shared/names.ts`。
 - 新增要进包的文件，同一个 PR 改 `tests/fixtures/package-files.txt`。
