@@ -396,7 +396,7 @@ const withEfforts = (settings: SETTINGS.SettingsInput, featureEfforts: Readonly<
 // 冻结要算提示词版本，六份都给上。
 const ALL_PROMPTS = { wiring: { prompts: Object.fromEntries(["analysis", "verdict", "translation", "qa", "note-cleanup", "explain"].map((name) => [`${name}.md`, name])) } };
 
-test("建任务时把用户选的推理强度冻结成实际档位：做得到的照记，关不掉、退了一档的另记用户选的；不发请求", async () => {
+test("建任务时把用户选的推理强度冻结成实际档位：做得到的照记，关不掉、退了一档的另记用户选的；不发模型请求", async () => {
   const anthropic = setup({ ...keyedStorage(withEfforts(ANTHROPIC, { analysis: "high" }), ANTHROPIC_ORIGIN), ...ALL_PROMPTS });
   const analysis = await anthropic.ai.freeze("analysis");
   assert.equal(analysis.effort, "high");
@@ -411,7 +411,32 @@ test("建任务时把用户选的推理强度冻结成实际档位：做得到�
   const qa = await deepseek.ai.freeze("qa");
   assert.deepEqual([qa.effort, qa.requestedEffort], ["low", "medium"], "没有中档，退到低档");
 
-  for (const built of [anthropic, opus, deepseek]) assert.equal(built.service.sent.length, 0, "冻结只看本机，不拉模型列表");
+  for (const built of [anthropic, opus, deepseek]) assert.equal(built.service.posts().length, 0, "冻结不发模型请求");
+  assert.equal(deepseek.service.sent.length, 0, "不是 Anthropic 协议，连模型列表也不拉");
+});
+
+test("建任务时的档位和请求实际用的一致：缓存没有时和发请求前一样先拉一次模型能力，请求直接用缓存", async () => {
+  const lowHigh = {
+    effort: { supported: true, low: { supported: true }, medium: { supported: false }, high: { supported: true } },
+    thinking: { supported: true, types: { adaptive: { supported: true }, disabled: { supported: true } } },
+  };
+  const { ai, service } = setup({
+    ...keyedStorage(withEfforts(ANTHROPIC, { qa: "medium" }), ANTHROPIC_ORIGIN),
+    handler: ({ url }) =>
+      isModelList(url) ? reply({ data: [{ id: ANTHROPIC.aiModel, type: "model", max_tokens: 64000, capabilities: lowHigh }], has_more: false }) : anthropicReply("好"),
+    ...ALL_PROMPTS,
+  });
+  const frozen = await ai.freeze("qa");
+  assert.deepEqual([frozen.effort, frozen.requestedEffort], ["low", "medium"], "按拉到的能力：没有中档，退到低档");
+  await ai.forTask(frozen).requestAiCompletion(EXPLAIN);
+  assert.equal(service.sent.filter((request) => isModelList(request.url)).length, 1, "能力只拉一次，请求直接用缓存");
+  assert.deepEqual(service.posts()[0]?.body?.output_config, { effort: "low" }, "请求按记下的档位发");
+});
+
+test("建任务时没有这个地址的主机权限：不去拉模型能力，按型号名算", async () => {
+  const { ai, service } = setup({ ...keyedStorage(withEfforts(ANTHROPIC, { qa: "high" }), ANTHROPIC_ORIGIN), granted: [], ...ALL_PROMPTS });
+  assert.equal((await ai.freeze("qa")).effort, "high");
+  assert.equal(service.sent.length, 0);
 });
 
 test("任务按冻结的档位发：请求带上档位和给思考留的余量；跑到一半把档位改成关，这个任务照旧", async () => {

@@ -17,6 +17,7 @@ import {
   hostOf,
   planEffort,
   type AiSettings,
+  type ClaudeCapabilities,
   type EffortPlan,
   type ProviderError,
 } from "../core/ai/provider/index.ts";
@@ -85,7 +86,7 @@ export interface AiWiring {
   readonly configCheck: () => Promise<ConfigCheckView>;
   /** 按当前设置发一次模型请求，功能另选了模型就用那个；推理强度按请求里给的，不给就是关。 */
   readonly requestAiCompletion: (request: CompletionRequest) => Promise<CompletionResult>;
-  /** 建任务时取定这项功能的生成配置：服务地址、实际要用的模型、实际生效的推理档位、提示词版本。 */
+  /** 建任务时取定这项功能的生成配置：服务地址、实际要用的模型、实际生效的推理档位、提示词版本。档位按发请求时同一份模型能力算。 */
   readonly freeze: (feature: FeatureSlotId) => Promise<FrozenGen>;
   /** 给一个任务的入口：地址、模型、推理档位按冻结的那份，跑到一半改设置不跟着变。 */
   readonly forTask: (frozen: FrozenGen) => TaskAi;
@@ -173,10 +174,35 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
     createAiTransport({ ...shared, getSettings, timeoutMs });
   const transport = build(load);
 
-  // 只读本机：模型能力只看缓存（过期或没有就按型号名判断），不像发请求前那样去拉列表。
-  async function localPlan(current: LoadedSettings, model: string, requested: Effort): Promise<EffortPlan> {
+  // 本机缓存里的模型能力，过期或没有就是 null，按型号名判断。
+  async function cachedCapabilities(settings: LoadedSettings): Promise<ClaudeCapabilities | null> {
+    return settings.protocol === PROTOCOLS.ANTHROPIC ? (await capabilityCache.lookup(settings)).model : null;
+  }
+
+  // 设置页预览只读本机，不像发请求前那样去拉列表。
+  const localPlan = (current: LoadedSettings, model: string, requested: Effort): Promise<EffortPlan> =>
+    planWith(current, model, requested, cachedCapabilities({ ...current, aiModel: model }));
+
+  // 建任务时和发请求用同一个能力查询：缓存新鲜就用缓存，不新鲜时像发请求前那样拉一次（只有 Anthropic 协议会拉），
+  // 拉回来进缓存，紧接着的请求直接命中，所以记下的档位就是请求实际用的档位。没有主机权限（只查不申请）、
+  // 没同意数据说明、拉不到时按缓存或型号名算。
+  const sendPlan = (current: LoadedSettings, model: string, requested: Effort): Promise<EffortPlan> => {
     const settings = { ...current, aiModel: model };
-    const claude = current.protocol === PROTOCOLS.ANTHROPIC ? (await capabilityCache.lookup(settings)).model : null;
+    const claude = Promise.resolve()
+      .then(() => ensureHostPermission(settings.aiBaseUrl))
+      .then(() => shared.getModelCapabilities(settings))
+      .catch(() => cachedCapabilities(settings));
+    return planWith(current, model, requested, claude);
+  };
+
+  async function planWith(
+    current: LoadedSettings,
+    model: string,
+    requested: Effort,
+    capabilities: Promise<ClaudeCapabilities | null>,
+  ): Promise<EffortPlan> {
+    const settings = { ...current, aiModel: model };
+    const claude = await capabilities;
     await shared.relaxMemory.ready();
     const host = hostOf(current.aiBaseUrl);
     const relax = shared.relaxMemory.recall(settings, requested);
@@ -241,7 +267,7 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
       const current = await load();
       const model = modelForFeature(current, feature);
       const requested = effortForFeature(current, feature);
-      const { effective } = await localPlan(current, model, requested);
+      const { effective } = await sendPlan(current, model, requested);
       return {
         feature,
         baseUrl: current.aiBaseUrl,

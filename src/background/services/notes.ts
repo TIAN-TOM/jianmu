@@ -7,7 +7,7 @@ import { NOTE_QUOTE } from "../../core/ai/schemas.ts";
 import type { ClearEpoch, ClearGuard } from "../../core/clear-guard.ts";
 import { fail, ok, type Failure, type Result } from "../../core/errors.ts";
 import type { Derived, NoteRecord } from "../../core/notes/records.ts";
-import type { FrozenGen } from "../../core/tasks.ts";
+import { budgetEffort, type FrozenGen } from "../../core/tasks.ts";
 import { noteContextAt, type NoteContext } from "../../core/transcript/note-context.ts";
 import { parseVideoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
 import { keepAliveBudget, type KeepAlive } from "../../platform/keepalive.ts";
@@ -83,7 +83,7 @@ const bare = ({ code, detail, retryAfterSec }: Failure): Failure => ({
 
 const genInfo = ({ feature, promptVersion, model, effort }: FrozenGen) => ({ feature, promptVersion, model, effort });
 
-const budgetOf = (gen: FrozenGen): number => keepAliveBudget(EFFORT_TIMEOUT_SECONDS[gen.effort] * 1000);
+const budgetOf = (gen: FrozenGen): number => keepAliveBudget(EFFORT_TIMEOUT_SECONDS[budgetEffort(gen)] * 1000);
 
 export function createNotesService(deps: NotesServiceDeps): NotesService {
   // 润色还在跑的笔记，只在内存里：后台被回收后不会留下一直「润色中」的笔记。
