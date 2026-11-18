@@ -75,5 +75,5 @@ npm run release -- candidate   # 发布候选：要在远端 main 的最新提�
 
 - 提交信息用 Conventional Commits：`type` 用英文，主题行用中文动宾短语，不加句号，`scope` 可选。例如 `feat(字幕): 支持导入 VTT 文件`。
 - 主题行写改了什么，为什么和影响面放正文。提交和 PR 的说明写结果，不写过程。
-- 在功能分支上开发，不直接提交到 `main`。CI 通过以后（改代码的 PR 还要处理完第一轮自动审查），用 GitHub 的 squash 合并：`gh pr merge <编号> --squash --delete-branch`。分支落后 `main` 时先变基、等 CI 再过一遍。服务端合并写出来的作者是账号资料里的名字加 GitHub 的匿名邮箱，提交者是 GitHub，开发者本人 2026-11-18 确认可以这样公开；合并以后本地 `main` 用 `git pull --ff-only` 跟上。
+- 在功能分支上开发，不直接提交到 `main`。CI 通过以后（改代码的 PR 还要处理完第一轮自动审查），用 GitHub 的 squash 合并：`gh pr merge <编号> --squash --delete-branch`。不想守着 CI 时加 `--auto`，检查都通过以后 GitHub 自己合并：只改文档的 PR 开出来就可以加；改代码的 PR 等第一轮自动审查处理完再加，自动合并不等审查。分支落后 `main` 时不会自己合并，用 `gh pr update-branch <编号>` 或变基跟上，等 CI 再过一遍。服务端合并写出来的作者是账号资料里的名字加 GitHub 的匿名邮箱，提交者是 GitHub，开发者本人 2026-11-18 确认可以这样公开；合并以后本地 `main` 用 `git pull --ff-only` 跟上。
 - 一个 PR 只改一件事：移植、改身份、改行为、加功能各自成 PR。移植 PR 的黄金样本必须一致，改行为的 PR 逐条写明差异。
