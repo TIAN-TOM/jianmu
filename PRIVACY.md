@@ -1,8 +1,8 @@
 # 简幕隐私政策 · Jianmu Privacy Policy
 
-> **草稿**：这份政策写于首发之前，按只支持哔哩哔哩（下称 B 站）的首发版来写。和首发时的实际行为对不上的地方，以实际行为为准，首发前会再核对一遍。
+> **草稿**：这份政策写于首发之前，正文按哔哩哔哩（下称 B 站）来写，YouTube 还在验证，单列在「YouTube」一节。和首发时的实际行为对不上的地方，以实际行为为准，首发前会再核对一遍。
 >
-> **Draft**: this policy was written before the first release and describes the first version, which supports Bilibili only. Where it differs from how the released version actually behaves, the actual behaviour applies. It will be checked again before release.
+> **Draft**: this policy was written before the first release. The main text covers Bilibili. YouTube is still being tested and has its own section below. Where it differs from how the released version actually behaves, the actual behaviour applies. It will be checked again before release.
 
 [中文](#中文) · [English](#english)
 
@@ -13,7 +13,7 @@
 - 简幕是一个 Chrome 扩展。没有开发者服务器，不要账号，不放广告，不做统计。开发者收不到你的任何内容。
 - 简幕存的资料都在你这台电脑的浏览器里。
 - 只有在你同意数据说明以后，简幕才会把内容发给模型服务，而且只发给你在设置页自己选的那一家。
-- 现在还不支持 YouTube。以后加上时会更新这份政策。
+- YouTube 还在开发者本人的日常使用里验证，发布的安装包里还没有，见「YouTube」一节。
 
 ### 数据从哪来
 
@@ -179,6 +179,17 @@ IndexedDB 数据库 `jianmu` 里的仓库：
 | `jianmu_appearance` | 外观设置的副本，页面打开时先用它，免得闪一下 | 页面的本地存储 | 留 | 恢复默认 |
 | `jianmu_site_backoff` | B 站限流以后要等多久，只有站点、到期时间和次数 | 会话 | 留 | 留 |
 
+### YouTube（还在验证，发布版里没有）
+
+YouTube 还在开发者本人的日常使用里验证，目前发布的安装包里没有。发布版打开它的时候，下面这些会并进上面各节：
+
+- **怎么启用**：装好以后简幕不碰 YouTube。你在侧边栏或设置页点「在 YouTube 上启用」，浏览器会问你是否允许简幕访问 `www.youtube.com`，允许以后简幕才在 YouTube 的页面上运行。设置页可以停用，停用就是收回这项授权，已经开着的 YouTube 页面里简幕会撤下，本机存的笔记和概览不删。
+- **读什么**：启用以后，在 YouTube 观看页上读视频信息（标题、频道名、时长、简介）和观看状态。字幕只在你点「读取字幕」时读，读的是你自己在页面上打开的文字稿里已经显示的内容，标出是哪种语言、是不是自动生成的。用「本窗口全部生成」时也看 YouTube 标签页的地址和标题，只用来列出来、标成要逐个打开，不读它们的内容。
+- **不做的事**：简幕在 YouTube 上不向平台发任何请求，不替你打开文字稿、不换语言、不动播放器，不读 Cookie，也不碰平台自带的机器翻译字幕。
+- **发什么**：和 B 站一样，要先同意数据说明，而且只在你点按钮时发：字幕、视频标题和时长、频道名和简介，以及你的问题和选中的文字。「打开就出结论」和「本窗口全部生成」不处理 YouTube 视频。
+- **存什么**：读到的字幕和视频信息和 B 站视频一样进缓存，你生成、保存的概览、问答、笔记和译文一样留在本机。
+- **权限**：可选的主机权限 `https://www.youtube.com/*`，只在你点启用时申请；授权以后，简幕用 `scripting` 在 YouTube 页面上注册自己的页面脚本，撤销授权时注销。
+
 ### 待定
 
 首发前要处理的：
@@ -187,7 +198,7 @@ IndexedDB 数据库 `jianmu` 里的仓库：
 - 联系邮箱。
 - 拿最终的安装包把各节和预设服务商的隐私政策链接再核对一遍。<!-- 待定：按最终安装包核对 -->
 
-YouTube 版加上以后，补上在 YouTube 上读什么、发什么。
+- YouTube 在发布版里打开时，把上面那一节并进正文。<!-- 待定：YouTube -->
 
 ## English
 
@@ -196,7 +207,7 @@ YouTube 版加上以后，补上在 YouTube 上读什么、发什么。
 - Jianmu (简幕) is a Chrome extension. There is no developer server, no account, no ads and no analytics. The developer never receives any of your content.
 - Everything Jianmu keeps is stored in the browser on your computer.
 - Jianmu only sends content to a model service after you agree to the data notice, and only to the service you chose yourself in Settings.
-- YouTube is not supported yet. This policy will be updated when it is added.
+- YouTube is still being tested in the developer's own daily use and is not in the published package yet. See the YouTube section.
 
 ### Where the data comes from
 
@@ -362,6 +373,17 @@ Keys in extension storage, none of which go into backups. "Local" is written to 
 | `jianmu_appearance` | A copy of the appearance settings, used first when a page opens so it doesn't flicker | The page's local storage | Kept | Reset to default |
 | `jianmu_site_backoff` | How long to wait after Bilibili rate-limits requests: only the site, an expiry time and a count | Session | Kept | Kept |
 
+### YouTube (still being tested, not in the published version)
+
+YouTube is still being tested in the developer's own daily use and is not in the published package. When the published version turns it on, the points below will move into the sections above:
+
+- **How it is turned on**: after installation Jianmu leaves YouTube alone. When you click 在 YouTube 上启用 (enable on YouTube) in the side panel or in Settings, the browser asks whether Jianmu may access `www.youtube.com`. Only after you allow it does Jianmu run on YouTube pages. You can turn it off in Settings, which withdraws that access. Jianmu then removes itself from YouTube pages that are already open. Notes and overviews kept on your computer stay.
+- **What it reads**: once turned on, it reads the video details on a YouTube watch page (title, channel name, length, description) and the playback state. Subtitles are read only when you click 读取字幕 (read subtitles), and only from the transcript you have opened on the page yourself, as it is already shown there. Jianmu records which language it is and whether it was auto-generated. When you use 本窗口全部生成 (generate for every video in this window), it also looks at the addresses and titles of YouTube tabs, only to list them as ones to open one by one. It does not read their content.
+- **What it does not do**: on YouTube, Jianmu sends no requests to the platform. It does not open the transcript for you, change the language or touch the player. It does not read cookies and never uses the platform's machine-translated subtitles.
+- **What it sends**: as on Bilibili, only after you agree to the data notice, and only when you click a button: the subtitles, the video title and length, the channel name and description, and your question or selected text. 打开就出结论 (verdict on open) and 本窗口全部生成 do not process YouTube videos.
+- **What it keeps**: subtitles and video details go into the same cache as Bilibili videos. Overviews, Q&A, notes and translations you create stay on your computer in the same way.
+- **Permissions**: the optional host permission `https://www.youtube.com/*`, requested only when you click to turn it on. Once granted, Jianmu uses `scripting` to register its page script on YouTube pages, and removes it when access is withdrawn.
+
 ### Still to be settled
 
 To be done before release:
@@ -370,4 +392,4 @@ To be done before release:
 - The contact email.
 - Check every section, and the links to the preset services' privacy policies, against the final release package. <!-- 待定：按最终安装包核对 -->
 
-When the YouTube version ships, this policy will add what Jianmu reads and sends on YouTube.
+- When the published version turns on YouTube, move the section above into the main text. <!-- 待定：YouTube -->
