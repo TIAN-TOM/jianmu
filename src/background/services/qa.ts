@@ -213,8 +213,7 @@ export function createQaService(deps: QaServiceDeps): QaService {
     try {
       reply = await request(context, true);
     } catch (error) {
-      // 模型装不下：被拒的那次不计费。缩到小预算再发一次，这一次不再自己重发；
-      // 第一次已经重发过（noAutoRetry）就不再发，报给用户。
+      // 模型装不下：缩到小预算再发一次，这次不让传输层自己重发；第一次已经重发过就不再发。
       if (!isInputTooLong(error)) throw error;
       const smaller = selectContext({ ...input, budgetChars: budget.fallbackChars });
       const shrinks = smaller.chunks.reduce((sum, chunk) => sum + chunk.text.length, 0) < context.chunks.reduce((sum, chunk) => sum + chunk.text.length, 0);
