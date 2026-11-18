@@ -4,6 +4,7 @@ import { useId, useState } from "preact/hooks";
 import { AUTO_OVERVIEW_MINUTES } from "../../shared/settings-schema.ts";
 import { dataConsentStatus } from "../../shared/consent-status.ts";
 import { Button } from "../shared/ui/button.tsx";
+import { AUTO_MINUTES_HINT, settleAutoMinutes } from "./auto-minutes.ts";
 import { ConsentLines } from "./ai-section.tsx";
 import { StatusLine } from "./controls.tsx";
 import type { OptionsState } from "./state.ts";
@@ -11,6 +12,8 @@ import type { OptionsState } from "./state.ts";
 export function AutoSection({ state }: { readonly state: OptionsState }) {
   const saved = state.saved.value;
   const [asking, setAsking] = useState(false);
+  // 填的数被规整成另一个数时就地说一句，下一次改分钟数时换掉或消失。
+  const [minutesNote, setMinutesNote] = useState<string | null>(null);
   const id = useId();
   if (!saved) return null;
   const consent = dataConsentStatus(saved);
@@ -22,6 +25,7 @@ export function AutoSection({ state }: { readonly state: OptionsState }) {
         开着时，打开超过设定时长的 B 站视频会自动调用 AI 服务生成概览和一句话结论，显示在播放页卡片上。在后台打开、还没切过去看的标签页也会排队生成，打开开关时已经开着的也算，正在看的先生成。
         每个视频都花你的 API 额度，一次开的标签页越多，花得越多；同时最多生成两个，10 分钟最多 40 个。外文视频不自动翻译。
       </p>
+      <p class="field-hint">改了马上生效，不用点「保存并授权」。</p>
       <label class="check">
         <input
           id="autoOverview"
@@ -73,15 +77,19 @@ export function AutoSection({ state }: { readonly state: OptionsState }) {
           value={saved.autoOverviewMinutes}
           onChange={(event) => {
             const input = event.currentTarget;
-            if (input.value.trim() === "") {
+            const settled = settleAutoMinutes(input.value);
+            setMinutesNote(settled?.note ?? null);
+            if (!settled) {
               input.value = String(saved.autoOverviewMinutes);
               return;
             }
-            void state.saveInstant({ autoOverviewMinutes: input.value });
+            input.value = String(settled.minutes);
+            void state.saveInstant({ autoOverviewMinutes: settled.minutes });
           }}
         />
+        <span class="field-hint">{AUTO_MINUTES_HINT}</span>
       </label>
-      <StatusLine status={state.autoStatus.value} />
+      <StatusLine status={state.autoStatus.value ?? (minutesNote ? { text: minutesNote, tone: "warn" } : null)} />
     </section>
   );
 }
