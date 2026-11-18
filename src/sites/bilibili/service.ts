@@ -15,7 +15,7 @@ export function createBilibiliService(deps: BilibiliServiceDeps = {}): Required<
   const http = createBiliHttp(deps);
   return {
     rules: bilibiliRules,
-    readVideoInfo: (ref, ctx) => readVideoInfo(http, ref, ctx),
+    readVideoInfo: (ref, ctx, options) => readVideoInfo(http, ref, ctx, options),
     ...createCaptions(http, deps),
     readOfficialSummary: (info, ctx) => readOfficialSummary(http, info, ctx),
     readWatchLater: (ctx) => readWatchLater(http, ctx),

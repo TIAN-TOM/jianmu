@@ -233,7 +233,7 @@ test("读字幕被限流或者读出错：停下，不截、不发", async () =>
   }
 });
 
-test("付费、确认不了是不是付费、没登录读不到视频信息的：按那个原因拒，不截、不发", async () => {
+test("确认是付费、没登录读不到视频信息的：按那个原因拒，不截、不发", async () => {
   for (const [transcript, code, detail] of [["paid", "UNPLAYABLE", "paid"], ["signed-out", "NEED_LOGIN", undefined]] as const) {
     const h = setup({ transcript });
     const entry = await h.run();

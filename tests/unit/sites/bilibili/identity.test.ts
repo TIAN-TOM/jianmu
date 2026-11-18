@@ -152,7 +152,7 @@ test("登录检查按需发：空闲时时钟推过一小时，一个请求都�
   assert.equal(fake.requests.length, before);
 });
 
-test("没登录时：命中缓存一个请求都不发，连登录检查都不发；没缓存只问一次登录，不读任何内容", async () => {
+test("没登录时：命中缓存一个请求都不发，连登录检查都不发；没缓存只读视频信息、问一次登录，字幕不读", async () => {
   const loggedOut = routes({ [NAV_URL]: () => json(200, navLoggedOut()) });
   const cached = rig(loggedOut, [cachedRow(undefined, {}, A)]);
   assert.equal(view(await cached.service.get(A, { mode: "full" })).fromCache, true);
@@ -161,7 +161,8 @@ test("没登录时：命中缓存一个请求都不发，连登录检查都不�
   const empty = rig(loggedOut);
   const reply = await empty.service.get(A, { mode: "full" });
   assert.equal(!reply.ok && reply.code, "NEED_LOGIN");
-  assert.deepEqual(empty.fake.requests.map((request) => request.endpoint), [NAV_URL]);
+  assert.ok(!reply.ok && reply.info?.title, "带上视频信息");
+  assert.deepEqual(empty.fake.requests.map((request) => request.endpoint), [VIEW_URL, NAV_URL]);
 });
 
 test("没登录时命中缓存、官方总结过了重问时间：后台重问只问一次登录，不读官方总结，记成要登录", async () => {

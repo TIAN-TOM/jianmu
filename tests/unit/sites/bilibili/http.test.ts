@@ -447,3 +447,32 @@ test("类型上：内容格式不对必须标影响范围、不带等待时间�
   assert.deepEqual([malformed, limited].map((result) => result.retryAfterSec), [undefined, 60]);
   assert.deepEqual([unmarked, marked, waiting].map((result) => result.code), ["MALFORMED", "NETWORK", "MALFORMED"]);
 });
+
+test("登录可选只认视频信息：别的地址、带签名的请求带上它也照旧先过登录门", async () => {
+  const routes = { [NAV_URL]: () => json(200, navLoggedOut()), [VIEW_URL]: () => json(200, { code: 0, data: {} }) };
+  const view = fakeSite(routes);
+  value(await createBiliHttp().getData({ ...VIEW, loginOptional: true }, siteCtx(view)));
+  assert.deepEqual(view.requests.map((request) => request.endpoint), [VIEW_URL], "视频信息不问登录");
+
+  for (const request of [
+    { url: WATCH_LATER_URL, loginOptional: true },
+    { url: SUMMARY_URL, params: { bvid: BVID }, loginOptional: true },
+    { ...VIEW, signed: true, loginOptional: true },
+  ] satisfies GetRequest[]) {
+    const fake = fakeSite(routes);
+    assert.equal(failure(await createBiliHttp().getData(request, siteCtx(fake))).code, "NEED_LOGIN", JSON.stringify(request));
+    assert.deepEqual(fake.requests.map((sent) => sent.endpoint), [NAV_URL], JSON.stringify(request));
+  }
+});
+
+test("登录可选的视频信息自己收到未登录信号：作废登录结论，报要登录", async () => {
+  let viewCode = 0;
+  const fake = fakeSite({ [NAV_URL]: () => json(200, navLoggedIn()), [VIEW_URL]: () => json(200, { code: viewCode, data: {} }), [WATCH_LATER_URL]: () => json(200, { code: 0, data: {} }) });
+  const http = createBiliHttp();
+  const ctx = siteCtx(fake);
+  value(await http.getData({ url: WATCH_LATER_URL }, ctx));
+  viewCode = -101;
+  assert.equal(failure(await http.getData({ ...VIEW, loginOptional: true }, ctx)).code, "NEED_LOGIN");
+  value(await http.getData({ url: WATCH_LATER_URL }, ctx));
+  assert.equal(fake.requests.filter((request) => request.endpoint === NAV_URL).length, 2, "登录结论作废，下一个要登录的读取重新确认");
+});

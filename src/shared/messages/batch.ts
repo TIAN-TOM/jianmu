@@ -54,7 +54,7 @@ export type TriageOut =
   /** 这一步开始了。total 是要处理的条目，skipped 是按跳过规则不处理的；joined：接上了别的页面在跑的同一步。 */
   | { readonly type: "triage.started"; readonly step: TriageStep; readonly total: number; readonly skipped: number; readonly joined: boolean }
   /**
-   * 一个条目做完了：取到的官方总结、写好的结论，或者没做成的原因。unavailable：视频看不了（付费、确认不了付费、找不到），
+   * 一个条目做完了：取到的官方总结、写好的结论，或者没做成的原因。unavailable：视频看不了（付费、找不到），
    * 两步之后都跳过它。
    */
   | {

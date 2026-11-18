@@ -13,7 +13,7 @@ import { videoKey } from "../src/core/video-ref.ts";
 import { launchChrome, prepareExtension } from "./browser.mjs";
 import { ANTHROPIC, VIDEOS } from "./fixtures.mjs";
 import { autoFlow } from "./auto-steps.mjs";
-import { apiHost, contentRead, fileHost, PROBE, startMockServer, watchPage } from "./mock-server.mjs";
+import { apiHost, contentRead, fileHost, infoRead, PROBE, startMockServer, watchPage } from "./mock-server.mjs";
 import { storedSettings } from "./settings.mjs";
 import { triageFlow } from "./triage-steps.mjs";
 import { windowFlow } from "./window-steps.mjs";
@@ -236,9 +236,10 @@ try {
   if (!confirmed?.ok || confirmed.value.state !== "current") throw new Error(`确认启用失败：${JSON.stringify(confirmed)}`);
   const loggedOut = await ask("transcript.get", { video: FIRST, mode: "full" });
   if (loggedOut?.code !== "NEED_LOGIN") throw new Error(`没登录时取字幕应该回要登录：${JSON.stringify(loggedOut)}`);
-  const peeked = mock.requests.filter(contentRead);
+  if (!loggedOut.info?.title) throw new Error(`没登录时也该带上视频信息：${JSON.stringify(loggedOut)}`);
+  const peeked = mock.requests.filter((entry) => contentRead(entry) && !infoRead(entry));
   if (peeked.length > 0) throw new Error(`没登录时读了视频内容：${JSON.stringify(peeked)}`);
-  console.log("✓ 确认以后、没登录时取字幕只报要登录，没读任何视频内容");
+  console.log("✓ 确认以后、没登录时取字幕报要登录，只读了视频信息，字幕和官方总结都没读");
   await watch.afterActivation();
   console.log("✓ 确认启用以后不刷新页面，播放页挂上了笔记图标和卡片");
 
