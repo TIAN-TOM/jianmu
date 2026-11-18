@@ -29,9 +29,9 @@ import { createClaim } from "./claim.ts";
 import type { TranscriptService } from "./transcript/index.ts";
 
 export const QA_PROMPT = "common/qa.md";
-export const QUESTION_MAX = 500;
-// 回答控制在 300 字内，2048 个 token 加上结构和引用的开销绰绰有余。
-const ANSWER_MAX_TOKENS = 2048;
+export const QUESTION_MAX = 2000;
+// 回答长短按问题需要；4096 个 token 够写一段带几处引用的长回答，截断时传输层还会放宽重发一次。
+export const ANSWER_MAX_TOKENS = 4096;
 
 /** 零有效引用时整条替换：宁可少答，不可编造。 */
 export const FALLBACK_ANSWER = "未能从字幕中找到足够的依据来回答这个问题。可以换个说法再问一次，或先确认这个视频里是否有你想问的内容。";
