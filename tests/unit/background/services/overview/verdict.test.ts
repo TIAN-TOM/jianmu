@@ -1,6 +1,7 @@
 // 用官方总结写一句话结论：只发一次很小的请求，结论记下依据的那一版官方总结；已有结论不再花钱；依据字幕写的结论优先；
 // 同一视频的等价请求接上在跑的那次；停止只撤还没发出去的；清除本机数据后不写回；和概览共用一道并发闸门。
 // 任务运行器、概览仓储、清除闸门和并发闸门都是真的，模型服务和字幕是替身；走后台分发的几条用真实的路由和接线。
+import { AI_CONCURRENCY } from "../../../../../src/shared/settings-schema.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -686,16 +687,17 @@ test("两个侧边栏同时点：也只发一次", async (t) => {
 test("后台里概览和用官方总结写结论排同一道并发闸门：合起来同时在途的模型请求不超过上限", async (t) => {
   const gate = deferred();
   t.after(() => gate.resolve());
-  const cues: Cue[] = [0, 150, 300, 450].map((start, index) => ({ start, duration: 120, text: `第${index}段。${"字".repeat(1800)}` }));
+  // 分块比并发上限多一块：概览先占满全部名额。
+  const cues: Cue[] = Array.from({ length: AI_CONCURRENCY + 1 }, (_, index) => ({ start: index * 150, duration: 120, text: `第${index}段。${"字".repeat(5800)}` }));
   const bg = background(async (request) => {
     await gate.promise;
     return isVerdictRequest(request) ? VERDICT_ANSWER : chunkAnswer(request);
   }, cues);
   const overviewTask = await bg.start("overview");
   const overview = bg.ask("overview.start", { video: TRANSCRIPT_KEY, taskId: overviewTask.id });
-  assert.ok(await until(() => bg.ai.posts().length === 3), "概览先占满三个名额");
+  assert.ok(await until(() => bg.ai.posts().length === AI_CONCURRENCY), "概览先占满全部名额");
   const verdict = bg.official();
-  assert.ok(await stillFalse(() => bg.ai.posts().length > 3), "结论排在同一道闸门外");
+  assert.ok(await stillFalse(() => bg.ai.posts().length > AI_CONCURRENCY), "结论排在同一道闸门外");
   gate.resolve();
   assert.equal((await overview).ok, true);
   assert.equal((await verdict).ok, true);

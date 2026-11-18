@@ -2,6 +2,7 @@
 // 跟着页面走：订阅的面板都关了才停下还没开始的批次，在途的照常存下；点停止连在途的一起中止。
 // 服务的测试用架子（任务、仓储、闸门是真的，字幕和模型是替身，或换成真实的取字幕服务）；
 // 要看真实传输层和端口的几条走真实的后台分发。
+import { AI_CONCURRENCY } from "../../../../src/shared/settings-schema.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createApp } from "../../../../src/background/app.ts";
@@ -890,23 +891,25 @@ test("端口里发起翻译的消息每条重查启用：确认失效以后再�
 });
 
 test("真实端口：面板关掉后在途的几批照常存下，排着的批次不再发", async () => {
-  const fourteen: Cue[] = Array.from({ length: 14 }, (_, index) => ({ start: index * 30, duration: 5, text: `第${index + 1}段讲的是一件事情，内容比较长一些。` }));
+  // 每批四段：并发上限那么多批在途，后面还排着一批两段的。
+  const full = AI_CONCURRENCY;
+  const cues: Cue[] = Array.from({ length: full * 4 + 2 }, (_, index) => ({ start: index * 30, duration: 5, text: `第${index + 1}段讲的是一件事情，内容比较长一些。` }));
   const gate = deferred();
-  const threeSent = deferred();
+  const allSent = deferred();
   let sent = 0;
   const bg = background(
     async (request) => {
       sent += 1;
-      if (sent === 3) threeSent.resolve();
+      if (sent === full) allSent.resolve();
       await gate.promise;
       return translatedReply(request);
     },
-    { cues: fourteen, durationSec: 450 },
+    { cues, durationSec: cues.length * 30 },
   );
   const port = bg.fake.connect("translate", senders.panel());
   port.send({ type: "translate.start", video: VIDEO });
-  await threeSent.promise;
-  assert.equal(bg.ai.posts().length, 3, "并发上限三批在途");
+  await allSent.promise;
+  assert.equal(bg.ai.posts().length, full, "并发上限那么多批在途");
   const listed = async () => {
     const reply = await bg.app.dispatch({ type: "task.list", req: {} }, senders.panel());
     return reply.ok ? (reply.value as { tasks: unknown[] }).tasks.length : -1;
@@ -915,14 +918,14 @@ test("真实端口：面板关掉后在途的几批照常存下，排着的批�
   gate.resolve();
   assert.ok(await eventually(async () => (await listed()) === 0), "在途的回来以后任务收尾");
   await nextTurn();
-  assert.equal(bg.ai.posts().length, 3, "第四批没发");
+  assert.equal(bg.ai.posts().length, full, "排着的那批没发");
 
-  // 重开面板：在途那三批付过费、存下了，只剩最后两段要译。
+  // 重开面板：在途的几批付过费、存下了，只剩最后两段要译。
   const reopened = bg.fake.connect("translate", senders.panel());
   reopened.send({ type: "translate.start", video: VIDEO });
   assert.ok(await finished(reopened));
   const kept = eventsOf(reopened).find((event) => event.type === "translate.segments" && event.stored);
-  assert.equal(kept?.type === "translate.segments" && Object.keys(kept.translated).length, 12);
+  assert.equal(kept?.type === "translate.segments" && Object.keys(kept.translated).length, full * 4);
   const started = eventsOf(reopened).find((event) => event.type === "translate.started");
   assert.equal(started?.type === "translate.started" && started.pending, 2);
 });
