@@ -145,11 +145,11 @@ test("导入途中清除全部数据：后面几段不再写，页面收到「�
   pageApiOver(bg.fake, bg.app);
   const port = bg.fake.connect("backup.import", senders.options());
   port.send({ type: "part", seq: 0, kind: "notes", records: [NOTE] });
-  await until(() => port.posted.length === 1);
+  assert.ok(await until(() => port.posted.length === 1));
   assert.deepEqual(port.posted[0], { type: "merged", seq: 0, added: [NOTE.id], updated: [], skipped: 0 });
   assert.deepEqual(await bg.send("data.clear", { scope: "all" }, senders.options()), { ok: true, value: {} });
   port.send({ type: "part", seq: 1, kind: "notes", records: [{ ...NOTE, id: "note_later" }] });
-  await until(() => port.disconnected);
+  assert.ok(await until(() => port.disconnected));
   assert.deepEqual(port.posted.at(-1), { type: "port.error", code: "LOCAL_DATA_CLEARED" });
   assert.ok((await bg.send("activation.confirm", {}, senders.options())).ok);
   assert.equal(await noteCount(bg), 0);
@@ -204,7 +204,7 @@ test("合并时存储写满：先告诉页面写满了再断开；已经写进�
   ]);
   assert.equal(closed, true);
   session.onDisconnect?.();
-  await until(() => broadcasts.length === 1);
+  assert.ok(await until(() => broadcasts.length === 1));
 });
 
 test("清除缓存只清能重新取回的，笔记和设置都留着", async () => {
@@ -225,7 +225,7 @@ test("认不出的文件整份拒绝，形状不对的消息不处理", async ()
   for (const message of [{}, { type: "part", seq: 0, kind: "prompts", records: [] }, { type: "part", seq: 0, kind: "notes", records: {} }, { type: "part", seq: 0, kind: "notes", records: [], extra: 1 }]) {
     port.send(message);
   }
-  await until(() => port.posted.length === 4);
+  assert.ok(await until(() => port.posted.length === 4));
   assert.deepEqual(port.posted, Array(4).fill({ type: "port.error", code: "INVALID_REQUEST" }));
   for (const req of [{}, { scope: "everything" }, { scope: "all", extra: 1 }]) {
     assert.deepEqual(await bg.send("data.clear", req, senders.options()), { ok: false, code: "INVALID_REQUEST" });
@@ -237,7 +237,7 @@ test("后台再核对一遍：页面发来的坏记录逐条跳过并计数", as
   pageApiOver(bg.fake, bg.app);
   const port = bg.fake.connect("backup.import", senders.options());
   port.send({ type: "part", seq: 7, kind: "notes", records: [{ id: 1 }, "坏的"] });
-  await until(() => port.posted.length === 1);
+  assert.ok(await until(() => port.posted.length === 1));
   assert.deepEqual(port.posted, [{ type: "merged", seq: 7, added: [], updated: [], skipped: 2 }]);
 });
 
