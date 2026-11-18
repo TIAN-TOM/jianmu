@@ -17,7 +17,8 @@ export type TextPurpose = "tidy";
 export type TranslateIn =
   /** 翻译这个视频现在的字幕。fromSec：从这一秒往后的先译，前面的随后补齐。 */
   /** storedOnly：只交回本机已经存着的，不请求模型（打开视频时取之前整理好的结果）。 */
-  | { readonly type: "translate.start"; readonly video: VideoKey; readonly fromSec?: number; readonly purpose?: TextPurpose; readonly storedOnly?: true }
+  /** tabId：视频所在的标签页，它换了视频或关掉时停下。 */
+  | { readonly type: "translate.start"; readonly video: VideoKey; readonly fromSec?: number; readonly purpose?: TextPurpose; readonly storedOnly?: true; readonly tabId?: number }
   /** 停掉这个页面发起或接上的翻译。 */
   | { readonly type: "translate.stop" };
 

@@ -1,6 +1,7 @@
 // 字幕翻译和整理字幕：经长连接发起，后台每做完一批推过来。只收和眼下这版字幕指纹一致的结果；
 // 换了视频或字幕版本就关掉连接、清空结果，关连接只退订自己，别的页面接着的照常跑。
-// 两样走同一个端口、同一套状态，整理字幕只是多带一个 purpose。
+// 两样走同一个端口、同一套状态，整理字幕只是多带一个 purpose。点了就在后台做完，关掉侧边栏不停；
+// 打开视频时先取本机存着的，同一份还在后台跑的就接上它的进度。
 import { signal, type ReadonlySignal } from "@preact/signals";
 import { describe } from "../../core/errors.ts";
 import type { VideoKey } from "../../core/video-ref.ts";
@@ -22,8 +23,8 @@ export interface Translation {
   readonly state: ReadonlySignal<TranslateState>;
   /** 分段编号 → 译文。 */
   readonly lines: ReadonlySignal<Readonly<Record<string, string>>>;
-  /** 换了视频或字幕版本：之前的译文全部作废。 */
-  bind(video: VideoKey | null, fingerprint: string | null): void;
+  /** 换了视频或字幕版本：之前的译文全部作废，再取本机存着的、接上后台在跑的。tabId 是视频所在的标签页。 */
+  bind(video: VideoKey | null, fingerprint: string | null, tabId?: number | null): void;
   /** 切到译文或双语时，没译过就从这一秒往后开始译。 */
   setMode(mode: TranscriptMode, fromSec?: number): void;
   stopRunning(): void;
@@ -37,7 +38,7 @@ export interface Tidy {
   readonly lines: ReadonlySignal<Readonly<Record<string, string>>>;
   /** 有整理结果时显示整理后的；用户可以切回原始字幕。 */
   readonly show: ReadonlySignal<boolean>;
-  bind(video: VideoKey | null, fingerprint: string | null): void;
+  bind(video: VideoKey | null, fingerprint: string | null, tabId?: number | null): void;
   /** 点「整理字幕」：本机存着的直接用，缺的从这一秒往后先整理。 */
   start(fromSec?: number): void;
   setShow(show: boolean): void;
@@ -59,8 +60,21 @@ const TIDY_WORDS: StreamWords = { unfinished: (batches) => `有 ${batches} 批�
 function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | undefined, words: StreamWords) {
   const state = signal<TranslateState>(IDLE);
   const lines = signal<Readonly<Record<string, string>>>({});
-  let bound: { readonly video: VideoKey; readonly fingerprint: string } | null = null;
+  let bound: { readonly video: VideoKey; readonly fingerprint: string; readonly tabId: number | null } | null = null;
   let port: PagePort<"translate"> | null = null;
+  // 只取本机存着的那一次：不显示进度，取完也不留「完成」的说明。
+  let quiet = false;
+  // 只取存着的那一下还没回来时用户点了开始：取完以后接着发起。null 是没点，数字或 undefined 是点了。
+  let queued: { readonly fromSec: number | undefined } | null = null;
+
+  /** 只取存着的那一下结束了：关掉端口，用户这期间点过开始就接着发起。 */
+  function endQuiet(): void {
+    quiet = false;
+    closePort();
+    const waiting = queued;
+    queued = null;
+    if (waiting) start(waiting.fromSec);
+  }
 
   const closePort = (): void => {
     port?.close();
@@ -70,6 +84,9 @@ function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | unde
   function onEvent(event: TranslateOut | { readonly type: "port.error"; readonly code: Parameters<typeof describe>[0] }): void {
     switch (event.type) {
       case "translate.started":
+        // 取本机存着的时候碰上后台在跑：接上了，从这里起照常显示进度；这期间用户点的开始不用再发。
+        quiet = false;
+        queued = null;
         state.value = { phase: "running", done: 0, total: event.pending, message: "" };
         return;
       case "translate.segments":
@@ -81,11 +98,7 @@ function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | unde
         }
         return;
       case "translate.done": {
-        if (quiet) {
-          quiet = false;
-          closePort();
-          return;
-        }
+        if (quiet) return endQuiet();
         const failed = event.state === "failed";
         const message = event.failure
           ? describe(event.failure.code, event.failure.detail)
@@ -99,11 +112,7 @@ function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | unde
         return;
       }
       case "translate.refused":
-        if (quiet) {
-          quiet = false;
-          closePort();
-          return;
-        }
+        if (quiet) return endQuiet();
         state.value = { ...IDLE, phase: "failed", message: describe(event.failure.code, event.failure.detail) };
         closePort();
         return;
@@ -113,8 +122,6 @@ function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | unde
     }
   }
 
-  // 只取本机存着的那一次：不显示进度，取完也不留「完成」的说明。
-  let quiet = false;
 
   function open(extra: { readonly fromSec?: number; readonly storedOnly?: true }): void {
     if (!bound) return;
@@ -128,29 +135,42 @@ function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | unde
       },
     });
     port = opened;
-    opened.post({ type: "translate.start", video, ...extra, ...(purpose ? { purpose } : {}) });
+    const tabId = bound.tabId;
+    opened.post({ type: "translate.start", video, ...extra, ...(purpose ? { purpose } : {}), ...(tabId !== null ? { tabId } : {}) });
+  }
+
+  function start(fromSec?: number): void {
+    if (!bound) return;
+    if (port?.isOpen()) {
+      // 只取存着的那一下还没回来：记下，取完接着发起；已经在跑的不用再发。
+      if (quiet) queued = { fromSec };
+      return;
+    }
+    quiet = false;
+    state.value = { ...IDLE, phase: "running" };
+    open(fromSec !== undefined && fromSec > 0 ? { fromSec: Math.floor(fromSec) } : {});
   }
 
   return {
     state,
     lines,
-    start(fromSec?: number): void {
-      if (!bound || port?.isOpen()) return;
-      quiet = false;
-      state.value = { ...IDLE, phase: "running" };
-      open(fromSec !== undefined && fromSec > 0 ? { fromSec: Math.floor(fromSec) } : {});
-    },
-    /** 取本机已经存着的结果，不请求模型。 */
+    start,
+    /** 取本机已经存着的结果，不请求模型；同一份正在后台跑就接上。 */
     peek(): void {
       if (!bound || port?.isOpen()) return;
       quiet = true;
       open({ storedOnly: true });
     },
     /** 回 true 表示换了视频或字幕版本。 */
-    bind(video: VideoKey | null, fingerprint: string | null): boolean {
-      const next = video && fingerprint ? { video, fingerprint } : null;
-      if (next?.video === bound?.video && next?.fingerprint === bound?.fingerprint) return false;
+    bind(video: VideoKey | null, fingerprint: string | null, tabId: number | null = null): boolean {
+      const next = video && fingerprint ? { video, fingerprint, tabId } : null;
+      if (next?.video === bound?.video && next?.fingerprint === bound?.fingerprint) {
+        // 同一个视频开在两个标签页里，切过来时记下现在这个标签页，之后发起的算它的。
+        if (bound && next && bound.tabId !== next.tabId) bound = next;
+        return false;
+      }
       closePort();
+      queued = null;
       bound = next;
       lines.value = {};
       state.value = IDLE;
@@ -170,8 +190,10 @@ export function createTranslation({ api }: { readonly api: Pick<PageApi, "connec
     mode,
     state: stream.state,
     lines: stream.lines,
-    bind(video, fingerprint) {
-      if (stream.bind(video, fingerprint)) mode.value = "original";
+    bind(video, fingerprint, tabId) {
+      if (!stream.bind(video, fingerprint, tabId ?? null)) return;
+      mode.value = "original";
+      stream.peek();
     },
     setMode(next, fromSec) {
       mode.value = next;
@@ -190,8 +212,8 @@ export function createTidy({ api }: { readonly api: Pick<PageApi, "connect"> }):
     state: stream.state,
     lines: stream.lines,
     show,
-    bind(video, fingerprint) {
-      if (!stream.bind(video, fingerprint)) return;
+    bind(video, fingerprint, tabId) {
+      if (!stream.bind(video, fingerprint, tabId ?? null)) return;
       show.value = true;
       // 之前整理过的这一版字幕：打开就用上，不花钱。
       stream.peek();

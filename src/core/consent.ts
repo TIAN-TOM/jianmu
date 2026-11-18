@@ -128,6 +128,11 @@ export const DATA_CONSENT_TABLE: NoticeTable<DataConsentKind> = [
         text: "整理字幕：点「整理字幕」时发送字幕和视频标题，给字幕补标点、改明显的同音错字",
         shownWith: { id: "ai-features", combined: "翻译、整理字幕（补标点、改同音错字）、概览、一句话结论、划词解释、笔记润色、问答和粗筛写结论" },
       },
+      {
+        kind: "trigger",
+        id: "keep-running",
+        text: "翻译和整理字幕点了以后在后台把整个视频分批发完，关掉侧边栏也继续，会接着用 API 额度；做完、你点停止，或者视频所在的标签页换了视频或关掉时才停",
+      },
       ...(FEATURE_FRAME_EXPLAIN ? FRAME_DATA_ITEMS : []),
     ],
   },

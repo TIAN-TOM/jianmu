@@ -1,6 +1,5 @@
 /// <reference types="chrome" />
-// 后台的依赖在这里拼起来。第一个事件来了才建，建的时候也不碰存储、数据库和网络。
-// 按领域拆装配函数，这里只汇总；服务还没接上的事件什么都不做。
+// 后台的依赖在这里拼起来：第一个事件来了才建，建的时候也不碰存储、数据库和网络；按领域拆装配函数，这里只汇总，服务还没接上的事件什么都不做。
 import { createClearGuard, type ClearGuard } from "../core/clear-guard.ts";
 import { createLimiter, type Limiter } from "../core/concurrency.ts";
 import type { IdbFactory } from "../platform/idb.ts";
@@ -88,7 +87,7 @@ export interface App {
   readonly onStorageChanged: (changes: Readonly<Record<string, StorageChange>>, area: string) => Promise<void>;
   /** 标签页激活、任何标签页地址变了或加载完成、窗口焦点变了：打开就出结论把开着的视频标签页过一轮，前台的排最前。 */
   readonly onTabActivated: () => void;
-  readonly onTabUpdated: (change: { readonly url?: string; readonly status?: string }) => void;
+  readonly onTabUpdated: (change: { readonly url?: string; readonly status?: string }, tabId?: number) => void;
   readonly onFocusChanged: (windowId: number) => void;
 }
 
@@ -468,12 +467,13 @@ export function createApp(deps: AppDeps): App {
     },
     onStartup: setPanelBehavior,
     onTabActivated: () => consider(),
-    // 后台打开的标签页也算：地址变了或加载完成就把开着的视频标签页再过一遍。
-    onTabUpdated: (change) => (Object.hasOwn(change, "url") || change.status === "complete" ? consider() : undefined),
+    // 后台打开的标签页也算：地址变了或加载完成就把开着的视频标签页再过一遍；从它发起的翻译和整理字幕换了视频就停。
+    onTabUpdated: (change, tabId) => (core.translate.tabChanged(tabId, change.url), Object.hasOwn(change, "url") || change.status === "complete" ? consider() : undefined),
     onFocusChanged(windowId) {
       if (windowId !== NO_WINDOW) consider();
     },
     onTabRemoved(tabId) {
+      core.translate.tabChanged(tabId, null);
       core.contentTabs.remove(tabId);
       core.playbackLimits.forget(tabId);
       void core.sessions.onTabRemoved(tabId).catch((error: unknown) => {
