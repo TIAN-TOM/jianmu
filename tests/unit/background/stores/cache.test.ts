@@ -153,12 +153,13 @@ test("remove 精确删除单条", async () => {
   assert.ok(await store.load(part(2)));
 });
 
-test("不指定上限时留 60 条", async () => {
-  assert.equal(CACHE_MAX_ENTRIES, 60);
+test("不指定上限时留 500 条、存 90 天", async () => {
+  assert.equal(CACHE_MAX_ENTRIES, 500);
+  assert.equal(CACHE_TTL_MS, 90 * 24 * 60 * 60 * 1000);
   const { clock, driver, store } = harness({ seed: ascending(CACHE_MAX_ENTRIES) });
-  clock.now = 100;
+  clock.now = 1000;
 
-  await store.save(part(61), { transcript: [] });
+  await store.save(part(CACHE_MAX_ENTRIES + 1), { transcript: [] });
 
   const keys = await keysIn(driver);
   assert.equal(keys.length, CACHE_MAX_ENTRIES);
@@ -389,4 +390,34 @@ test("清除进行中才开始的写入等清完再写，读—改—写读到�
 
   assert.deepEqual(await keysIn(driver), [part(2)]);
   assert.deepEqual(seen, [null], "清除之前的旧条目读不到，也写不回去");
+});
+
+test("满 500 条时写入只读主键的顺序：超量的直接删，不把全部记录读一遍；过期的只读到最旧那一头", async () => {
+  const counts = { all: 0, byIndex: 0, get: 0 };
+  const { clock, driver, store } = harness({
+    seed: ascending(CACHE_MAX_ENTRIES),
+    wrap: (inner) => ({
+      ...inner,
+      getAll: () => ((counts.all += 1), inner.getAll()),
+      getAllByIndex: (index, key) => ((counts.byIndex += 1), inner.getAllByIndex(index, key)),
+      get: (key) => ((counts.get += 1), inner.get(key)),
+    }),
+  });
+  clock.now = 1000;
+  await store.save(part(CACHE_MAX_ENTRIES + 1), { transcript: [] });
+  assert.deepEqual(counts, { all: 0, byIndex: 0, get: 1 }, "删掉最旧的一条，再看下一条没过期就停");
+  assert.equal((await keysIn(driver)).length, CACHE_MAX_ENTRIES);
+
+  // 最旧的三条过期：读到第四条没过期就停，只读四条。
+  counts.get = 0;
+  const { clock: later, driver: aged, store: agedStore } = harness({
+    seed: [entry(1, 1), entry(2, 2), entry(3, 3), ...Array.from({ length: 10 }, (_, i) => entry(i + 4, CACHE_TTL_MS + 100))],
+    wrap: (inner) => ({ ...inner, get: (key) => ((counts.get += 1), inner.get(key)) }),
+  });
+  later.now = CACHE_TTL_MS + 200;
+  await agedStore.save(part(99), { transcript: [] });
+  assert.equal(counts.get, 4);
+  const left = await keysIn(aged);
+  assert.equal(left.length, 11);
+  for (const gone of [part(1), part(2), part(3)]) assert.ok(!left.includes(gone));
 });

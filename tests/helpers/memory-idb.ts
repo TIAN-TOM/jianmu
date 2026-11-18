@@ -104,6 +104,16 @@ function indexedRows(store: StoreData, keyPath: string, key: IdbKey | undefined)
   return hits.map(({ row }) => structuredClone(row));
 }
 
+/** 按索引值排序的主键，不克隆记录。 */
+function indexedKeys(store: StoreData, keyPath: string): IdbKey[] {
+  const hits: { indexKey: IdbKey; primary: IdbKey }[] = [];
+  for (const [primary, row] of store.rows) {
+    const indexKey = readKey(row, keyPath);
+    if (indexKey !== undefined) hits.push({ indexKey, primary });
+  }
+  return hits.sort((left, right) => compareKeys(left.indexKey, right.indexKey) || compareKeys(left.primary, right.primary)).map(({ primary }) => primary);
+}
+
 function createRequest<T>(): FakeRequest<T> {
   return { result: undefined as T, error: null, onsuccess: null, onerror: null };
 }
@@ -245,7 +255,10 @@ export function createMemoryIndexedDb(): MemoryIndexedDb {
       index(name): IdbIndex {
         const keyPath = store.indexes.get(name);
         if (keyPath === undefined) throw named("NotFoundError", `没有名为 ${name} 的索引`);
-        return { getAll: (key) => place(false, () => indexedRows(store, keyPath, key)) };
+        return {
+          getAll: (key) => place(false, () => indexedRows(store, keyPath, key)),
+          getAllKeys: () => place(false, () => indexedKeys(store, keyPath)),
+        };
       },
       createIndex() {
         throw named("InvalidStateError", "只有升级事务能建索引");
