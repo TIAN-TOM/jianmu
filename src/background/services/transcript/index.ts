@@ -7,6 +7,7 @@ import { videoKey, type VideoKey, type VideoRef } from "../../../core/video-ref.
 import type { EmptyRequest } from "../../../shared/messages/core.ts";
 import type { ImportReceipt } from "../../../shared/messages/imports.ts";
 import type { GuidesReply, TranscriptFailure, VideoInfoView, TranscriptReadMode, TranscriptReply, TranscriptView } from "../../../shared/messages/transcript.ts";
+import type { SiteCtx, VideoInfo } from "../../../sites/types.ts";
 import { errorLabel, type Log } from "../../log.ts";
 import type { ImportRecord, ImportStore } from "../../stores/imports.ts";
 import type { OverviewStore } from "../../stores/overviews.ts";
@@ -289,12 +290,19 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
     }
   }
 
-  // 用着官方总结附带的字幕时再试一次平台字幕：读到了就换掉附带的那份，官方总结沿用缓存里的；读不到交回 null，
-  // 照旧用缓存。站点在退避里时一个请求都不发，也不算试过；别的结果都记下试过的时间，隔一段时间才再试。
+  // 用着官方总结附带的字幕时再试一次平台字幕：读到了就换掉附带的那份；官方总结是同一媒体版本的就沿用缓存里的，
+  // 换了版本按这次读到的视频信息重新问。读不到交回 null，照旧用缓存。站点在退避里时一个请求都不发，也不算试过；
+  // 别的结果都记下试过的时间，隔一段时间才再试。
   async function retryPlatform(ref: VideoRef, video: VideoKey, cached: TranscriptRecord, start: ReadStart, tabId: number | undefined): Promise<TranscriptReply | null> {
     if (await imports.load(video)) return null;
     const site = deps.sites.service(ref.platform);
     if (!site) return null;
+    const ask = site.readOfficialSummary?.bind(site);
+    const kept = cached.official;
+    const official = ask
+      ? (info: VideoInfo, ctx: SiteCtx): Promise<OfficialRead> =>
+          kept && info.mediaVersion === cached.info.mediaVersion ? Promise.resolve({ record: kept, cues: [] }) : officials.lookup(video, info, () => ask(info, ctx))
+      : undefined;
     const read = await readFromSite({
       site,
       ref,
@@ -304,12 +312,13 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
       knownTracks: cached.tracks.length > 0,
       ctx: (signal) => deps.sites.ctx(ref.platform, { signal, tabId }),
       timers,
+      official,
     });
     if (!read.ok && read.failure.code === "RATE_LIMITED" && read.failure.detail === "blocked") return null;
     await markTried(video, cached.transcript.ref.fingerprint, start.since);
     if (!read.ok) return null;
-    const record = cached.official ? { ...read.record, official: cached.official } : read.record;
-    return settle(video, record, "", start, { persist: true });
+    const attached = await officials.attach(video, read.record, read.official, start.since);
+    return settle(video, attached, "", start, { persist: true, late: read.official });
   }
 
   async function load(ref: VideoRef, video: VideoKey, lang: string, fresh: boolean, tabId: number | undefined, reading: InFlight["reading"]): Promise<TranscriptReply> {

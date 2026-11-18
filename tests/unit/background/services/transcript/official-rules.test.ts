@@ -246,3 +246,20 @@ test("缓存里的附带字幕没记过试的时间（旧记录）：打开就�
   assert.equal(h.site.count("readVideoInfo"), 0, "只读缓存不试");
   assert.equal(view(await h.service.get(REF, { mode: "full" })).transcript.ref.kind, "human");
 });
+
+test("用着附带字幕：重试时视频换了媒体版本，读到平台字幕后官方总结按新版本重问，不挂旧版本的", async () => {
+  const h = await withOfficialCaptions();
+  const before = h.site.count("readOfficialSummary");
+  h.site.script.videoInfo = (ref) => ({ ok: true, value: sampleInfo(ref, { mediaVersion: "replaced-version" }) });
+  h.site.script.tracks = () => ok([ZH]);
+  h.site.script.officialSummary = () => ok({ ...SUMMARY, summary: "新版本的官方摘要", cues: [] });
+  h.timers.advance(PLATFORM_RETRY_MS);
+
+  const swapped = view(await h.service.get(REF, { mode: "full" }));
+  assert.equal(swapped.transcript.ref.kind, "human");
+  assert.equal(swapped.official?.summary, "新版本的官方摘要");
+  assert.equal(h.site.count("readOfficialSummary"), before + 1);
+  const [row] = await h.rows();
+  assert.equal(row?.info.mediaVersion, "replaced-version");
+  assert.equal(row?.official?.summary, "新版本的官方摘要");
+});
