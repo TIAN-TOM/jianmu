@@ -3,6 +3,7 @@
 // 关上文字稿（只收起，段落留着），站内跳到另一个视频（改地址和外壳、派发跳转完成的事件，面板留着旧内容）。
 // 另有两个新式面板的视频：有章节的打开的是带「章节」「文字稿」页签的面板，没章节的打开新式文字稿面板；
 // 两个页面上都一直留着关着的旧面板和新式面板空壳，段落是新写法，搜索框是多行文本框，没有语言菜单。
+// 文字稿入口在页面上有两份：简介里一份，一直关着的简介面板里一份；点了后面那份，页面记一笔，测试据此判点错了。
 import { QUIET_MEDIA_PATH } from "./watch-page.mjs";
 
 export const TUBE_HOST = "www.youtube.com";
@@ -160,6 +161,9 @@ function modernPageHtml(id, video) {
     <button id="e2e-close-transcript">关上文字稿</button>
   </ytd-watch-flexy>
   <ytd-engagement-panel-section-list-renderer target-id="engagement-panel-searchable-transcript" visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN"></ytd-engagement-panel-section-list-renderer>
+  <ytd-engagement-panel-section-list-renderer target-id="engagement-panel-structured-description" visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN">
+    <ytd-video-description-transcript-section-renderer><button id="e2e-hidden-entry">Show transcript</button></ytd-video-description-transcript-section-renderer>
+  </ytd-engagement-panel-section-list-renderer>
   ${opened}
 </ytd-app>
 <script>
@@ -194,18 +198,27 @@ function modernPageHtml(id, video) {
     }));
     content.replaceChildren(list);
   }
+  const select = (id) => {
+    for (const tab of panel.querySelectorAll('[role="tab"]')) tab.setAttribute("aria-selected", String(tab.id === id));
+  };
   document.getElementById("e2e-open-transcript").addEventListener("click", () => {
     panel.setAttribute("visibility", "ENGAGEMENT_PANEL_VISIBILITY_EXPANDED");
+    select("e2e-transcript-tab");
     setTimeout(showTranscript, 50);
   });
+  document.getElementById("e2e-hidden-entry").addEventListener("click", () => document.body.setAttribute("data-e2e-wrong-entry", "1"));
   document.getElementById("e2e-close-transcript").addEventListener("click", () => {
     panel.setAttribute("visibility", "ENGAGEMENT_PANEL_VISIBILITY_HIDDEN");
   });
   // 页签：切到章节时文字稿那一块整个拿掉，切回来重新建。
   document.getElementById("e2e-chapters-tab")?.addEventListener("click", () => {
+    select("e2e-chapters-tab");
     content.replaceChildren(Object.assign(document.createElement("div"), { textContent: "Intro 0:00" }));
   });
-  document.getElementById("e2e-transcript-tab")?.addEventListener("click", () => setTimeout(showTranscript, 50));
+  document.getElementById("e2e-transcript-tab")?.addEventListener("click", () => {
+    select("e2e-transcript-tab");
+    setTimeout(showTranscript, 50);
+  });
 </script>
 </body>
 </html>`;

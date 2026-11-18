@@ -7,6 +7,7 @@ import { batchPort, batchRoutes, type BatchRouteDeps } from "./batch.ts";
 import { buildRoutes } from "./build.ts";
 import { dataPorts, dataRoutes, type DataRouteDeps } from "./data.ts";
 import { frameRoutes, type FrameRouteDeps } from "./frame.ts";
+import { youtubeRoutes, type YoutubeRouteDeps } from "./youtube.ts";
 import { grantRoutes, type GrantRouteDeps } from "./grants.ts";
 import { importRoutes, type ImportRouteDeps } from "./imports.ts";
 import { noteRoutes, type NoteRouteDeps } from "./notes.ts";
@@ -37,9 +38,10 @@ export type RouteDeps = ActivationRouteDeps &
   NoteRouteDeps &
   Pick<DataRouteDeps, "data"> &
   BatchRouteDeps &
-  FrameRouteDeps;
+  FrameRouteDeps &
+  YoutubeRouteDeps;
 
-/** 画面那几条路由只在构建开关 FEATURE_FRAME_EXPLAIN 打开时进表。 */
+/** 画面那几条路由只在构建开关 FEATURE_FRAME_EXPLAIN 打开时进表，YouTube 代开文字稿只在 FEATURE_YOUTUBE_OPEN_PANEL 打开时进表。 */
 export function createRoutes(deps: RouteDeps): Routes {
   return {
     ...buildRoutes(),
@@ -59,6 +61,7 @@ export function createRoutes(deps: RouteDeps): Routes {
     ...dataRoutes(deps),
     ...batchRoutes(deps),
     ...(FEATURE_FRAME_EXPLAIN ? frameRoutes(deps) : {}),
+    ...(FEATURE_YOUTUBE_OPEN_PANEL ? youtubeRoutes(deps) : {}),
   };
 }
 

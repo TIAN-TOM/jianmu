@@ -2,36 +2,15 @@
 // 字幕段落最后一次真的变了时页面放的是当前视频才认，同样的内容重建（切页签、关上再开）沿用原来的归属；简幕接上之前
 // 就有的内容认不出是谁的，要用户刷新视频页再开。读到的时间不超过视频时长，超过的整份不用；播广告时不拿时长。
 import type { VideoRef } from "../../../core/video-ref.ts";
+import { advertising, ENTRY, LANGUAGE_LABEL, openPanelOf, PANELS, searching, SEGMENTS, SEGMENT_TEXT, SEGMENT_TIME, transcriptShell, videoOnPage } from "./panel-dom.ts";
 import { PANEL_LIMITS, type PanelCue, type PanelCurrent, type PanelInfo, type PanelRequest, type PanelSnapshot, type PanelState } from "./panel-types.ts";
 
-// 页面上的各种侧栏面板。文字稿可能在旧面板、新面板，或者带「章节」「文字稿」两个页签的面板里；
-// 关着的空壳一直留在页面上，只认展开着、里面有文字稿内容的那个。
-const PANELS = "ytd-engagement-panel-section-list-renderer";
-const PANEL_ID_ATTRIBUTE = "target-id";
-const TRANSCRIPT_PANEL_IDS = ["engagement-panel-searchable-transcript", "PAmodern_transcript_view"];
-const MODERN_TRANSCRIPT = '[data-target-id="PAmodern_transcript_view"]';
-const TABS = '[role="tab"]';
-const EXPANDED_ATTRIBUTE = "visibility";
-const EXPANDED = "ENGAGEMENT_PANEL_VISIBILITY_EXPANDED";
-// 段落和它的时间、正文：旧面板有两个类名；新面板的时间另有类名，正文是给读屏以外的那段文字。
-const SEGMENTS = "ytd-transcript-segment-renderer, transcript-segment-view-model";
-const SEGMENT_TIME = ".segment-timestamp, .ytwTranscriptSegmentViewModelTimestamp";
-const SEGMENT_TEXT = '.segment-text, span[role="text"]';
-const SEARCH_BOXES = "input, textarea";
-const LANGUAGE_LABEL = "ytd-transcript-footer-renderer yt-dropdown-menu #label-text";
-// 视频简介里打开文字稿的那一块：没有它也没有面板，就是页面上没有文字稿入口。
-const ENTRY = "ytd-video-description-transcript-section-renderer";
 // 观看页的标题、作者和简介。
-const WATCH_SHELL = "ytd-watch-flexy";
-const SHELL_VIDEO_ATTRIBUTE = "video-id";
 const TITLE = "ytd-watch-metadata h1";
 const AUTHOR = "ytd-watch-metadata ytd-channel-name a";
 const METADATA = "ytd-watch-metadata";
 const DESCRIPTION = "ytd-watch-metadata #description-inline-expander";
-const PLAYER = "ytd-watch-flexy .html5-video-player";
 const VIDEO = "ytd-watch-flexy .html5-video-player video.html5-main-video";
-// 播放器在播广告时标在自己身上的两种状态：这时视频元素的时长是广告的。
-const AD_CLASSES = ["ad-showing", "ad-interrupting"];
 
 const TIME = /^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})$/;
 // 段落签名的校验和：32 位 FNV-1a。只用来看出变没变，不防伪造。
@@ -97,28 +76,6 @@ function checksumOf(texts: readonly string[]): string {
   return hash.toString(16);
 }
 
-/** 面板上方的搜索框里有字：只显示了一部分段落。 */
-const searching = (panel: Element | null): boolean =>
-  panel !== null && Array.from(panel.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(SEARCH_BOXES)).some((box) => box.value.trim() !== "");
-
-const expanded = (panel: Element): boolean => panel.getAttribute(EXPANDED_ATTRIBUTE) === EXPANDED;
-const transcriptShell = (panel: Element): boolean => TRANSCRIPT_PANEL_IDS.includes(panel.getAttribute(PANEL_ID_ATTRIBUTE) ?? "");
-const holdsTranscript = (panel: Element): boolean => panel.querySelector(SEGMENTS) !== null || panel.querySelector(MODERN_TRANSCRIPT) !== null;
-
-/** 现在打开着的文字稿面板。chapters：打开的是带页签的面板，选的不是文字稿那一页（里面没有文字稿内容）。 */
-interface OpenPanel {
-  readonly panel: Element | null;
-  readonly chapters: boolean;
-}
-
-function openPanelOf(panels: readonly Element[]): OpenPanel {
-  const open = panels.filter(expanded);
-  const withTranscript = open.find(holdsTranscript) ?? open.find(transcriptShell);
-  if (withTranscript) return { panel: withTranscript, chapters: false };
-  const tabbed = open.find((panel) => panel.querySelector(TABS) !== null);
-  return tabbed ? { panel: tabbed, chapters: true } : { panel: null, chapters: false };
-}
-
 /** 一段的时间和文字。时间认不出的段落不要。 */
 function cueOf(segment: Element): PanelCue | null {
   const timeNode = segment.querySelector(SEGMENT_TIME);
@@ -168,11 +125,7 @@ export function createPanelReader({
 
   const panelsNow = (): Element[] => Array.from(document.querySelectorAll(PANELS));
 
-  const videoNow = (): string => {
-    const ref = currentRef();
-    const shell = document.querySelector(WATCH_SHELL);
-    return ref && shell?.getAttribute(SHELL_VIDEO_ATTRIBUTE) === ref.videoId ? ref.videoId : "";
-  };
+  const videoNow = (): string => videoOnPage(document, currentRef());
 
   /** 段落的签名：段数、语言菜单的名字和全部段落文字的校验和。按钮这些别的控件不在里面。 */
   const contentOf = (panel: Element | null): string => {
@@ -254,9 +207,7 @@ export function createPanelReader({
   const stopAttach = every(ATTACH_MS, attach);
 
   function info(videoId: string): PanelInfo {
-    const player = document.querySelector(PLAYER);
-    const advertising = player !== null && AD_CLASSES.some((name) => player.classList.contains(name));
-    const video = videoId && !advertising ? document.querySelector<HTMLVideoElement>(VIDEO) : null;
+    const video = videoId && !advertising(document) ? document.querySelector<HTMLVideoElement>(VIDEO) : null;
     const duration = video && Number.isFinite(video.duration) && video.duration > 0 && video.duration <= PANEL_LIMITS.seconds ? video.duration : 0;
     const title = squash(document.querySelector(TITLE)?.textContent);
     const author = squash(document.querySelector(AUTHOR)?.textContent);

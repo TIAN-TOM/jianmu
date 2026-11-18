@@ -113,3 +113,9 @@ export function panelCurrentOf(value: unknown): PanelCurrent | null {
   if (typeof videoId !== "string" || (videoId !== "" && !VIDEO_ID.test(videoId)) || !isCount(stamp) || !isText(label, PANEL_LIMITS.label)) return null;
   return { videoId, stamp, label };
 }
+
+/**
+ * 替用户点开文字稿面板的结果：already-open 本来就开着；opened 点开了、段落出来了；not-opened 点了没开；
+ * no-entry 页面上没有入口；ad 正在播广告，没点；video-changed 页面上已经不是这个视频；searching 搜索框里有字，没点。
+ */
+export type OpenTranscriptOutcome = "already-open" | "opened" | "not-opened" | "no-entry" | "ad" | "video-changed" | "searching";

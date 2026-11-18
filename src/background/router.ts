@@ -8,6 +8,7 @@ import { isSettingsError } from "../platform/settings-store.ts";
 import { isQuotaError } from "../platform/storage.ts";
 import type { Api, PageName, PortEvent, PortMessage, PortName, PortNotice, RouteName, SenderKind } from "../shared/messages.ts";
 import type { FrameRouteName } from "../shared/messages/frame.ts";
+import type { YoutubeRouteName } from "../shared/messages/youtube.ts";
 import type { ContentTabs } from "./content-tabs.ts";
 import { errorLabel, type Log } from "./log.ts";
 import type { MessageSender, SenderCtx, Senders, SiteSenderCtx } from "./senders.ts";
@@ -36,8 +37,9 @@ export type Route<K extends RouteName> = Gate & {
   readonly handler: (req: Api[K]["req"], ctx: HandlerCtx) => Promise<Result<Api[K]["res"]>>;
 };
 
-/** 解释当前画面的几条只在构建开关打开时有，见 routes/frame.ts。 */
-export type Routes = { readonly [K in Exclude<RouteName, FrameRouteName>]: Route<K> } & { readonly [K in FrameRouteName]?: Route<K> };
+/** 解释当前画面的几条、YouTube 代开文字稿只在各自的构建开关打开时有，见 routes/frame.ts、routes/youtube.ts。 */
+type OptionalRouteName = FrameRouteName | YoutubeRouteName;
+export type Routes = { readonly [K in Exclude<RouteName, OptionalRouteName>]: Route<K> } & { readonly [K in OptionalRouteName]?: Route<K> };
 
 /** 分发只看这些字段，测试可以喂造好的路由表。 */
 export type AnyRoute = Gate & {

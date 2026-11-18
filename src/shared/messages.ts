@@ -10,6 +10,7 @@ import type { BatchApi, BatchIn, BatchOut } from "./messages/batch.ts";
 import type { CoreApi } from "./messages/core.ts";
 import type { BackupExportIn, BackupExportOut, BackupImportIn, BackupImportOut, DataApi } from "./messages/data.ts";
 import type { FrameApi } from "./messages/frame.ts";
+import type { YoutubeApi } from "./messages/youtube.ts";
 import type { GrantsApi } from "./messages/grants.ts";
 import type { ImportsApi } from "./messages/imports.ts";
 import type { NotesApi } from "./messages/notes.ts";
@@ -40,7 +41,8 @@ export interface Api extends
   NotesApi,
   DataApi,
   BatchApi,
-  FrameApi {}
+  FrameApi,
+  YoutubeApi {}
 
 export type RouteName = keyof Api;
 

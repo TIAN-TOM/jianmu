@@ -426,7 +426,7 @@ function assembleCore(deps: AppDeps): Core {
 function assembleRouter(deps: AppDeps, core: Core): Router {
   const { settings, tabs, contentTabs } = core;
   return createRouter({
-    routes: createRoutes({ ...core, frame: FEATURE_FRAME_EXPLAIN ? createFrameParts({ ...core, storage: deps.storage.local, session: deps.storage.session, keepAlive: core.keepAlive, log: deps.log, now: deps.timers.now }) : null }),
+    routes: createRoutes({ ...core, now: deps.timers.now, frame: FEATURE_FRAME_EXPLAIN ? createFrameParts({ ...core, storage: deps.storage.local, session: deps.storage.session, keepAlive: core.keepAlive, log: deps.log, now: deps.timers.now }) : null }),
     ports: deps.ports ?? createPorts({ ...core, log: deps.log }),
     senders: createSenders({ extensionId: deps.runtime.id, extensionUrl: (path) => deps.runtime.getURL(path), rules: deps.siteRules }),
     enabled: async () => (await settings.activation()).state === "current",
