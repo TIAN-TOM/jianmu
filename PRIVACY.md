@@ -178,7 +178,7 @@ IndexedDB 数据库 `jianmu` 里的仓库：
 
 这项功能还在开发者本人的日常使用里验证，目前发布的安装包里没有它。发布版打开它的时候，下面这些会并进上面各节：
 
-- **读什么**：你点播放器上「解释当前画面」的图标，或者侧边栏里的按钮时，读视频当前的一帧画面。只截视频本身，不截整个网页。加密播放（比如番剧、电影）、正在播广告、视频页不在前台时不截。
+- **读什么**：你点播放器上「解释当前画面」的图标，或者侧边栏里的按钮时，读视频当前的一帧画面。只截视频本身，不截整个网页。加密播放（比如番剧、电影）、付费或确认不了是不是付费的视频、正在播广告、视频页不在前台时不截。
 - **发什么**：这一帧画面、这一刻前后几句字幕和视频标题，发给你在设置页「按功能选模型」里给画面分析选的模型。和别的功能一样，要先同意数据说明。
 - **存什么**：截下的画面只用于这一次请求，不存进任何地方，也不进备份。模型回的解释只留在内存里，最多半小时，扩展的后台停下或浏览器关闭就没了。
 - **能不能看图**：简幕要知道画面分析的模型能不能看图。认不出这个模型时，会发一张 8×8 的纯色小图试一次（不是视频画面），把结果记在 `jianmu_image_probe` 里，清除缓存时删掉。
@@ -366,7 +366,7 @@ Keys in extension storage, none of which go into backups. "Local" is written to 
 
 This feature is still being tested in the developer's own daily use and is not in the published package. When the published version turns it on, the points below will move into the sections above:
 
-- **What it reads**: when you click the 解释当前画面 icon on the player, or the button in the side panel, it reads the current frame of the video. It captures only the video itself, never the whole page. It does not capture encrypted playback (anime series and films, for example), ads, or a video page that is not in the foreground.
+- **What it reads**: when you click the 解释当前画面 icon on the player, or the button in the side panel, it reads the current frame of the video. It captures only the video itself, never the whole page. It does not capture encrypted playback (anime series and films, for example), paid videos or videos whose payment status cannot be confirmed, ads, or a video page that is not in the foreground.
 - **What it sends**: that frame, a few subtitle lines either side of that moment and the video title, sent to the model you chose for 画面分析 (frame analysis) under 按功能选模型 in Settings. As with every other feature, you need to agree to the data notice first.
 - **What it keeps**: the captured frame is used for that one request only. It is not stored anywhere and never goes into backups. The model's explanation is held in memory for at most half an hour and is gone once the extension's background stops or the browser closes.
 - **Whether the model accepts images**: Jianmu needs to know whether the frame-analysis model can read images. When it does not recognise the model, it sends one 8×8 single-colour image (not a frame from the video) to find out, and records the answer in `jianmu_image_probe`, which clearing the cache deletes.

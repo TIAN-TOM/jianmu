@@ -1,6 +1,7 @@
 // 解释当前画面：只在构建开关 FEATURE_FRAME_EXPLAIN 打开时进包，只从开关分支引用。
-// 两个入口共用一条路：先查模型配置和看图能力（不能看图就不截、不发），再向那个标签页的内容脚本要当前一帧，
-// 核对截图（前缀、大小、尺寸、视频身份），登记任务，连同这一刻前后几句字幕交给画面分析的模型。
+// 两个入口共用一条路：先查模型配置和看图能力（不能看图就不截、不发），再读视频信息确认不是付费内容
+// （付费、确认不了、没登录读不到的都不截），再向那个标签页的内容脚本要当前一帧，核对截图（前缀、大小、尺寸、
+// 视频身份），登记任务，连同这一刻前后几句字幕交给画面分析的模型。途中清除了本机数据就停下，不截、不发。
 // 截图只在这一次请求里用，不落盘，任务结束就丢；解释的文字记在内存里，按标签页留最近几次，侧边栏来取。
 // 模块顶层只放字面量和函数，理由见 content/frame.ts 开头。
 import { throwIfTaskCanceled } from "../../core/ai/transport/index.ts";
@@ -95,11 +96,17 @@ export function configFailure(errors: readonly string[]): Failure {
   return errors.includes(DATA_CONSENT_ERROR) ? fail("NO_DATA_CONSENT") : fail("NO_AI_CONFIG", errors.join(" ") || undefined);
 }
 
+interface Material {
+  readonly videoTitle: string;
+  readonly cues: readonly Pick<CueView, "start" | "text">[];
+}
+
 export interface FrameExplainDeps {
   readonly tasks: Pick<TaskRunner, "register" | "run">;
   readonly ai: Pick<AiWiring, "freeze" | "configCheck">;
   readonly images: Pick<ImageSupport, "ensure" | "rejected">;
   readonly transcript: Pick<TranscriptService, "get">;
+  readonly clearGuard: Pick<ClearGuard, "epoch" | "clearedSince">;
   readonly ask: (tabId: number, message: unknown) => Promise<unknown>;
   readonly prompt: (file: string) => string;
   readonly broadcast: (message: Broadcast) => void;
@@ -153,20 +160,24 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
   const failed = (id: string, failure: Failure): void =>
     update(id, { state: "failed", phase: "finished", error: failure.detail === undefined ? { code: failure.code } : { code: failure.code, detail: failure.detail } });
 
-  async function titleAndContext(video: VideoKey, tabId: number, atSec: number): Promise<{ videoTitle: string; transcriptContext: string }> {
+  // 截帧之前先读视频信息：读到了才算确认过不是付费内容。没有字幕照样解释，只是不带字幕；
+  // 视频信息都没读到（付费、确认不了是不是付费、没登录、被限流）就按那个原因拒，不截。
+  async function material(video: VideoKey, tabId: number): Promise<Result<Material>> {
     const ref = parseVideoKey(video);
-    if (!ref) return { videoTitle: "未知", transcriptContext: "无" };
+    if (!ref) return fail("FRAME_VIDEO_CHANGED");
+    let reply: Awaited<ReturnType<FrameExplainDeps["transcript"]["get"]>>;
     try {
-      const reply = await deps.transcript.get(ref, { mode: "full", tabId });
-      if (!reply.ok) return { videoTitle: "未知", transcriptContext: "无" };
-      return { videoTitle: reply.value.info.title || "未知", transcriptContext: frameContext(reply.value.transcript.cues, atSec) || "无" };
+      reply = await deps.transcript.get(ref, { mode: "full", tabId });
     } catch (error) {
-      deps.log.warn("读字幕失败，解释画面不带字幕", errorLabel(error));
-      return { videoTitle: "未知", transcriptContext: "无" };
+      deps.log.warn("读视频信息失败，不解释画面", errorLabel(error));
+      return fail("AI_REQUEST_FAILED");
     }
+    if (reply.ok) return ok({ videoTitle: reply.value.info.title || "未知", cues: reply.value.transcript.cues });
+    if (!reply.info) return reply.detail === undefined ? fail(reply.code) : fail(reply.code, reply.detail);
+    return ok({ videoTitle: reply.info.title || "未知", cues: [] });
   }
 
-  async function explain(gen: FrozenGen, tabId: number, video: VideoKey, capture: FrameCapture, id: string): Promise<Result<{ explanation: string; truncated?: true }>> {
+  async function explain(gen: FrozenGen, video: VideoKey, capture: FrameCapture, found: Material, id: string): Promise<Result<{ explanation: string; truncated?: true }>> {
     // 画面时间取到 0.5 秒一档，加上截图内容的哈希：同一帧连点接上同一个任务，播放中截到不同的帧各解释各的。
     const input = { at: Math.round(capture.atSec * 2) / 2, image: await sha256Hex(capture.dataUrl) };
     const registered = await deps.tasks.register({ kind: "frame-explain", origin: "user", video, input, gen, stages: [], followsPage: false }, {});
@@ -178,7 +189,11 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
       registered.task.id,
       async (run) => {
         try {
-          const variables = { ...(await titleAndContext(video, tabId, capture.atSec)), frameTime: formatTimestamp(capture.atSec) };
+          const variables = {
+            videoTitle: found.videoTitle,
+            transcriptContext: frameContext(found.cues, capture.atSec) || "无",
+            frameTime: formatTimestamp(capture.atSec),
+          };
           throwIfTaskCanceled(run.signal);
           const markdown = deps.prompt(FRAME_PROMPT_FILE);
           update(id, { phase: "thinking" });
@@ -217,12 +232,18 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
   }
 
   async function work(id: string, tabId: number, video: VideoKey): Promise<void> {
+    // 清除本机数据会停掉所有任务，这时这一次还没登记任务：每过一道等待查一次，清过就不再往下。
+    const since = deps.clearGuard.epoch();
+    const canceled = (): boolean => deps.clearGuard.clearedSince(since, "cache");
     const config = await deps.ai.configCheck();
     if (!config.ready) return failed(id, configFailure(config.errors));
     const gen = await deps.ai.freeze("frame");
     // 不能看图就不截、不发。说不准时发一张 8×8 的图探一次，结果记在本机。
     const image = requireImage(await deps.images.ensure(gen));
     if (!image.ok) return failed(id, image);
+    const found = await material(video, tabId);
+    if (!found.ok) return failed(id, found);
+    if (canceled()) return failed(id, fail("TASK_CANCELED"));
     update(id, { phase: "capturing" });
     let reply: unknown;
     try {
@@ -232,9 +253,10 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
     }
     const capture = checkCapture(reply, video);
     if (!capture.ok) return failed(id, capture);
+    if (canceled()) return failed(id, fail("TASK_CANCELED"));
     const { atSec, width, height } = capture.value;
     update(id, { atSec, width, height, phase: "thinking" });
-    const result = await explain(gen, tabId, video, capture.value, id);
+    const result = await explain(gen, video, capture.value, found.value, id);
     if (!result.ok) return failed(id, result);
     update(id, { state: "done", phase: "finished", explanation: result.value.explanation, ...(result.value.truncated ? { truncated: true as const } : {}) });
   }
@@ -294,6 +316,7 @@ export function createFrameParts(deps: {
     ai,
     images,
     transcript: deps.transcript,
+    clearGuard: deps.clearGuard,
     ask: deps.tabs.ask,
     prompt: ai.prompt,
     broadcast: (message) => void messenger.toPages(message),

@@ -12,6 +12,7 @@ import {
   KEEP_MS,
 } from "../../../../src/background/services/frame-explain.ts";
 import { createTaskRunner } from "../../../../src/background/tasks.ts";
+import { createClearGuard } from "../../../../src/core/clear-guard.ts";
 import { DATA_CONSENT_ERROR } from "../../../../src/core/consent.ts";
 import { fail, ok, type Result } from "../../../../src/core/errors.ts";
 import { createKeepAlive } from "../../../../src/platform/keepalive.ts";
@@ -31,7 +32,9 @@ interface Options {
   readonly ai?: FakeAiOptions;
   readonly image?: Result<{ readonly imageInput: boolean }>;
   readonly reply?: unknown;
-  readonly transcript?: "missing";
+  readonly transcript?: "no-captions" | "paid" | "signed-out";
+  /** 截帧时同步做一件事：比如清除本机数据。 */
+  readonly duringCapture?: () => Promise<void>;
 }
 
 function setup(options: Options = {}) {
@@ -40,6 +43,7 @@ function setup(options: Options = {}) {
   const keepAlive = createKeepAlive({ ping: () => undefined, now: timers.now, setTimeout: timers.setTimeout, clearTimeout: timers.clearTimeout });
   let ids = 0;
   const broadcasts: Broadcast[] = [];
+  const clearGuard = createClearGuard();
   const tasks = createTaskRunner({ ai: fake.ai, keepAlive, timers, broadcast: () => undefined, newId: () => `task-${(ids += 1)}` });
   const asked: unknown[] = [];
   const rejected: string[] = [];
@@ -57,12 +61,16 @@ function setup(options: Options = {}) {
     transcript: {
       get: async (ref, { mode }) => {
         assert.equal(mode, "full");
-        if (options.transcript === "missing") return fail("NO_CAPTIONS");
+        if (options.transcript === "no-captions") return { ...fail("NO_CAPTIONS"), info: { title: "没有字幕的视频", author: "", description: "", durationSec: 60 } };
+        if (options.transcript === "paid") return fail("UNPLAYABLE", "paid");
+        if (options.transcript === "signed-out") return fail("NEED_LOGIN");
         return ok(transcriptView(VIDEO, [cue(10, "很早的一句"), cue(70, "先看受力"), cue(80, "牛顿第二定律"), cue(90, "加速度和力成正比"), cue(200, "很晚的一句")], { title: "力学入门" }));
       },
     },
+    clearGuard,
     ask: async (tabId, message) => {
       asked.push({ tabId, message });
+      await options.duringCapture?.();
       if (options.reply instanceof Error) throw options.reply;
       return options.reply === undefined ? captured() : options.reply;
     },
@@ -79,7 +87,7 @@ function setup(options: Options = {}) {
     assert.ok(latest);
     return latest;
   };
-  return { fake, service, asked, broadcasts, rejected, timers, run, ensured: () => ensured };
+  return { fake, service, asked, broadcasts, rejected, timers, run, clearGuard, ensured: () => ensured };
 }
 
 test("能看图：向标签页要一帧，图在前、提示词在后发给画面分析的模型；结果记下，带时间和尺寸", async () => {
@@ -173,11 +181,30 @@ test("服务以看不了图拒掉真实请求：报专门的码，记成不能�
   assert.equal(h.fake.calls.length, 1);
 });
 
-test("没有字幕时照样解释，字幕写「无」、标题写「未知」", async () => {
-  const h = setup({ transcript: "missing" });
+test("没有字幕时照样解释，字幕写「无」，标题用读到的视频信息", async () => {
+  const h = setup({ transcript: "no-captions" });
   assert.equal((await h.run()).state, "done");
   const parts = h.fake.calls[0]?.request.messages?.[1]?.content as readonly { readonly text?: string }[];
-  assert.match(parts[1]?.text ?? "", /视频：未知[\s\S]*字幕：\n无$/);
+  assert.match(parts[1]?.text ?? "", /视频：没有字幕的视频[\s\S]*字幕：\n无$/);
+});
+
+test("付费、确认不了是不是付费、没登录读不到视频信息的：按那个原因拒，不截、不发", async () => {
+  for (const [transcript, code, detail] of [["paid", "UNPLAYABLE", "paid"], ["signed-out", "NEED_LOGIN", undefined]] as const) {
+    const h = setup({ transcript });
+    const entry = await h.run();
+    assert.deepEqual([entry.state, entry.error?.code, entry.error?.detail], ["failed", code, detail], transcript);
+    assert.deepEqual(h.asked, [], "没向页面要画面");
+    assert.equal(h.fake.calls.length, 0);
+  }
+});
+
+test("截帧途中清除了本机数据：停下，不登记任务、不发", async () => {
+  let h: ReturnType<typeof setup> | null = null;
+  h = setup({ duringCapture: () => h?.clearGuard.clear("cache", () => undefined) ?? Promise.resolve() });
+  const entry = await h.run();
+  assert.deepEqual([entry.state, entry.error?.code], ["failed", "TASK_CANCELED"]);
+  assert.equal(h.asked.length, 1);
+  assert.equal(h.fake.calls.length, 0);
 });
 
 test("前后字幕：这一刻之前 20 秒到之后 10 秒，太多时以这一刻为中心截到 12 行", () => {
