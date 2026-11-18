@@ -1,6 +1,7 @@
 // 卡片的界面：标题栏（展开收起）、提示、AI 概览（结论在最前，章节默认只露前几章）、B 站官方总结（有概览时收成一行）、进度和按钮。
 // 规则在 model.ts。视频标题不在卡片里再写一遍：页面顶上就是。
-import type { ComponentChildren } from "preact";
+import type { RefObject } from "preact";
+import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { LearningAnalysis } from "../../core/notes/markdown.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
 import type { OfficialSummaryView, OutlineSectionView } from "../../shared/messages/transcript.ts";
@@ -18,9 +19,6 @@ const OFFICIAL_NOTES: Readonly<Partial<Record<OfficialSummaryView["status"], str
   failed: "这次没读到 B 站的官方总结。",
   pending: "正在读 B 站的官方总结…",
 };
-
-/** 官方总结的正文超过这么多字，没展开时只露三行。 */
-const SUMMARY_CLAMP_CHARS = 66;
 
 type ClickEvent = { readonly isTrusted: boolean };
 
@@ -75,14 +73,37 @@ function More({ open, label, onToggle }: { readonly open: boolean; readonly labe
   );
 }
 
-/** 官方总结的正文和提纲。limited 时正文只露三行、提纲只露前几段，more 是下面那个「展开全部」。 */
-function OfficialBody({ official, limited, onSeek, more }: { readonly official: OfficialSummaryView; readonly limited: boolean; readonly onSeek: (atSec: number) => void; readonly more?: ComponentChildren }) {
+/**
+ * 只露三行的正文底下是不是真的藏着字。量出来的，不按字数猜：同样的字数，字号大、卡片窄时三行就放不下。
+ * 字号或宽度变了重新量。watch 变了（换了正文、展开收起）也重新量。
+ */
+function useClipped(watch: string): [RefObject<HTMLParagraphElement>, boolean] {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [clipped, setClipped] = useState(false);
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (!node) return setClipped(false);
+    const measure = (): void => setClipped(node.scrollHeight > node.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [watch]);
+  return [ref, clipped];
+}
+
+/**
+ * 官方总结的正文和提纲。limited 时正文只露三行、提纲只露前几段；给了 onToggleAll，有藏起来的（或者已经展开）时下面摆「展开全部」。
+ */
+function OfficialBody({ official, limited, onSeek, onToggleAll }: { readonly official: OfficialSummaryView; readonly limited: boolean; readonly onSeek: (atSec: number) => void; readonly onToggleAll?: () => void }) {
   const summary = official.summary.trim();
   const outline = cardRows(official.outline, !limited);
+  const outlineCut = cardRows(official.outline, false).length < official.outline.length;
+  const [reading, clipped] = useClipped(`${limited}:${summary}`);
   return (
     <>
       {summary ? (
-        <p class="card-reading" data-clamp={limited ? "true" : undefined}>
+        <p class="card-reading" ref={reading} data-clamp={limited ? "true" : undefined}>
           {summary}
         </p>
       ) : null}
@@ -93,13 +114,10 @@ function OfficialBody({ official, limited, onSeek, more }: { readonly official: 
           ))}
         </ol>
       ) : null}
-      {more}
+      {onToggleAll && (!limited || outlineCut || clipped) ? <More open={!limited} label={outlineCut ? `展开全部 ${official.outline.length} 段` : "展开全部"} onToggle={onToggleAll} /> : null}
     </>
   );
 }
-
-/** 官方总结没展开时有没有藏起来的：提纲被截了，或者正文长到只露三行。 */
-const officialIsCut = (official: OfficialSummaryView): boolean => cardRows(official.outline, false).length < official.outline.length || official.summary.trim().length > SUMMARY_CLAMP_CHARS;
 
 function basisOf(analysis: LearningAnalysis): BasisSource | null {
   const source = text(analysis.verdict?.source);
@@ -200,12 +218,7 @@ export function Card({ view, aiReady, actions }: { readonly view: CardView; read
           ) : official ? (
             <section class="card-block" id="card-official" aria-label="B 站官方总结">
               <h2 class="section-title">B 站官方总结</h2>
-              <OfficialBody
-                official={official}
-                limited={!view.showAll}
-                onSeek={actions.seek}
-                more={officialIsCut(official) ? <More open={view.showAll} label={cardRows(official.outline, false).length < official.outline.length ? `展开全部 ${official.outline.length} 段` : "展开全部"} onToggle={actions.toggleShowAll} /> : null}
-              />
+              <OfficialBody official={official} limited={!view.showAll} onSeek={actions.seek} onToggleAll={actions.toggleShowAll} />
             </section>
           ) : officialNote ? (
             <p class="card-note">{officialNote}</p>

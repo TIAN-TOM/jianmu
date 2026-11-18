@@ -85,6 +85,33 @@ test("卡片：刚打开只露结论和前几章，结论在官方总结前面�
   await page.waitFor("章节收回前几章", `document.querySelectorAll("#card-overview .chapter").length === ${CARD_ROWS}`);
 });
 
+test("卡片：官方总结的正文真被截了才给「展开全部」，按量出来的算不按字数猜；点了全露，再点收回", async ({ open }) => {
+  const page = await open(`${SAMPLE}#official`);
+  const read = () =>
+    page.evaluate(`(() => {
+      const reading = document.querySelector("#card-official .card-reading");
+      return { more: document.querySelector("#card-official .card-more")?.textContent ?? null, hidden: reading.scrollHeight > reading.clientHeight + 1, clamp: reading.dataset.clamp ?? null };
+    })()`);
+
+  // 宽卡片、标准字号：三行放得下，没有藏着的字，也就没有按钮。
+  await page.setWidth(411, CARD_HEIGHT.max);
+  await page.setAppearance({ accentTheme: "ink", themeMode: "light", uiFontScale: Math.min(...UI_FONT_SCALES) });
+  await page.waitFor("量完", `!document.querySelector("#card-official .card-more")`);
+  assert.deepEqual(await read(), { more: null, hidden: false, clamp: "true" });
+
+  // 窄卡片、最大字号：同样的字三行放不下，按钮出现。
+  await page.setWidth(FRAME_WIDTH, CARD_HEIGHT.max);
+  await page.setAppearance({ accentTheme: "ink", themeMode: "light", uiFontScale: Math.max(...UI_FONT_SCALES) });
+  await page.waitFor("按钮出现", `document.querySelector("#card-official .card-more")?.textContent === "展开全部"`);
+  assert.equal((await read()).hidden, true);
+
+  await page.click("#card-official .card-more");
+  await page.waitFor("正文全露", `document.querySelector("#card-official .card-more")?.textContent === "收起"`);
+  assert.deepEqual(await read(), { more: "收起", hidden: false, clamp: null });
+  await page.click("#card-official .card-more");
+  await page.waitFor("收回三行", `document.querySelector("#card-official .card-more")?.textContent === "展开全部"`);
+});
+
 test("卡片：收起时整张卡片和载入前占位的高度一样，载入完右栏不跳", async ({ open }) => {
   const page = await open(`${SAMPLE}#collapsed`);
   await page.setWidth(FRAME_WIDTH, CARD_HEIGHT.max);
