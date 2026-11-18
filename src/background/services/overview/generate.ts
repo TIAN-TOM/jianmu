@@ -67,6 +67,7 @@ const bare = ({ code, detail, retryAfterSec }: Failure): Failure => ({
 
 // 「尽量整份」的块太大时常见的两种失败：等太久被掐断，或者模型一次装不下。
 const TOO_BIG_CODES: ReadonlySet<unknown> = new Set(["AI_HARD_TIMEOUT", "AI_IDLE_TIMEOUT"]);
+const tooBig = (error: unknown): boolean => TOO_BIG_CODES.has((error as { readonly code?: unknown } | null)?.code) || isInputTooLong(error);
 
 /**
  * 抛出来的错误换成结果：概览自己的码照用，其余按模型服务的错误归类。
@@ -74,7 +75,7 @@ const TOO_BIG_CODES: ReadonlySet<unknown> = new Set(["AI_HARD_TIMEOUT", "AI_IDLE
  */
 function failureOf(error: unknown, whole = false): Failure {
   const code = (error as { readonly code?: unknown } | null)?.code;
-  if (whole && (TOO_BIG_CODES.has(code) || isInputTooLong(error))) return fail("WHOLE_CHUNK_TOO_BIG");
+  if (whole && tooBig(error)) return fail("WHOLE_CHUNK_TOO_BIG");
   if (code === "EMPTY_CHUNK") return fail("EMPTY_ANALYSIS");
   if (code === "ANALYSIS_PARSE_FAILED" && isErrorCode(code)) return fail(code);
   return aiFailure(error);
@@ -279,6 +280,10 @@ export function createGenerator(deps: GenerateDeps) {
           retryPartialOnly: false,
         });
         const parts = partsOf(results);
+        // 「尽量整份」补块一块都没补上、又是块太大的那类失败：照样报出来提示换档，存着的概览不动。
+        if (whole && !parts.length && !run.signal.aborted && results.some((result) => result.status === "rejected" && tooBig(result.reason))) {
+          return fail("WHOLE_CHUNK_TOO_BIG");
+        }
         const remaining = chunkFailureRanges(selected, results, describeChunkFailure);
         // 合并只换被重试的区间；截断记录沿用旧的，被重试的区间换成这次的。结论先留着，补全后再重写。
         const previous = (existing.analysis as { readonly truncatedRanges?: readonly StoredRange[] }).truncatedRanges;

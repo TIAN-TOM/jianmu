@@ -1200,3 +1200,25 @@ test("「尽量整份」：两块的字幕一次请求写完章节", async () =>
   assert.equal(result.chunkCount, 1);
   assert.equal(h.asks.filter((ask) => !ask.isVerdict).length, 1);
 });
+
+test("「尽量整份」补失败块又是块太大：报块太大、提示换档，存着的概览不动", async () => {
+  // 十万字：这一档切成两块，第二块带失败标记。
+  const segments = Array.from({ length: 100 }, (_, index) => ({
+    id: `s${index}`,
+    start: index * 60,
+    text: `${index === 90 ? "FAIL标记。" : ""}${"字".repeat(1000)}`,
+    texts: [""],
+  }));
+  const h = overviewHarness({ chunkOptions: WHOLE, segments });
+  h.setFailMode("marker");
+  value(await h.generate().result);
+  h.setFailMode(null);
+  const before = await h.record();
+  assert.equal(before?.analysisFailures?.length, 1);
+  h.setRespond(({ isVerdict }) => {
+    if (!isVerdict) throw Object.assign(new Error("Request Entity Too Large"), { status: 413 });
+    return undefined;
+  });
+  assert.equal(codeOf(await h.retry().result), "WHOLE_CHUNK_TOO_BIG");
+  assert.deepEqual(await h.record(), before, "存着的概览原样留着");
+});
