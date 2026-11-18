@@ -1,8 +1,7 @@
 // 翻译：后台分批请求模型，每批推给页面并按字幕版本存下；原文没变的段换了版本也不再付费。
-// 跟着页面走：订阅的面板都关了才停下还没开始的批次，在途的照常存下；点停止连在途的一起中止。
+// 点了就做完：面板关掉不停，重开面板接上进度；点停止、发起的标签页换了视频或关掉、额度用完或密钥不对时停下。
 // 服务的测试用架子（任务、仓储、闸门是真的，字幕和模型是替身，或换成真实的取字幕服务）；
 // 要看真实传输层和端口的几条走真实的后台分发。
-import { AI_CONCURRENCY } from "../../../../src/shared/settings-schema.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createApp } from "../../../../src/background/app.ts";
@@ -11,6 +10,7 @@ import { TRANSLATE_RETRY_DELAY_MS } from "../../../../src/background/services/tr
 import { TRANSLATION_BATCH_MAX_SEGMENTS } from "../../../../src/core/ai/chunking.ts";
 import { PROTOCOLS } from "../../../../src/core/ai/provider/index.ts";
 import { describe } from "../../../../src/core/errors.ts";
+import { textFingerprint } from "../../../../src/core/transcript/fingerprint.ts";
 import type { FrozenGen } from "../../../../src/core/tasks.ts";
 import { SETTINGS_STORAGE_KEY } from "../../../../src/shared/names.ts";
 import type { TranslateOut } from "../../../../src/shared/messages/translate.ts";
@@ -244,7 +244,7 @@ test("模型回的一条都对不上（编号改了、原文抄回来）：这�
 // 跟着页面走：关面板、停止、接上、互斥
 // ============================================================
 
-test("侧边栏翻译途中关掉：还没开始的批次不再发，任务收尾，重开面板能再翻译", async () => {
+test("侧边栏翻译途中关掉：点了就做完，后面的批次照常发、存下；重开面板直接用存下的，不再请求", async () => {
   const view = await transcriptView(NINE);
   const h = translateHarness(view, { concurrency: 1 });
   const release = h.fake.hold("rewrite");
@@ -254,17 +254,17 @@ test("侧边栏翻译途中关掉：还没开始的批次不再发，任务收�
   h.service.leave(panel.id);
   release();
   await running;
-  assert.equal(h.requests(), 1, "后两批没发");
-  assert.deepEqual(h.tasks.list(), [], "任务收了尾，不占着这个视频");
+  assert.equal(h.requests(), 3, "三批都发了");
+  assert.equal(Object.keys((await h.store.find(view.transcript.ref, "en"))?.segments ?? {}).length, NINE.length);
+  assert.deepEqual(h.tasks.list(), [], "做完收尾");
 
   const reopened = page("panel-again");
   await h.translate(reopened);
-  assert.equal(done(reopened)[0]?.state, "completed");
-  assert.equal(h.requests(), 3, "重开的面板只译剩下的两批");
+  assert.equal(h.requests(), 3, "重开以后不再请求");
   assert.equal(Object.keys(reopened.translated()).length, NINE.length);
 });
 
-test("发起翻译后一批都还没发面板就关了：一批也不发，任务马上收尾", async () => {
+test("发起翻译后一批都还没发面板就关了：照常做完、存下，关掉的面板不再收消息", async () => {
   const view = await transcriptView(FIVE);
   const reading = deferred();
   const h = translateHarness(view, {
@@ -282,7 +282,8 @@ test("发起翻译后一批都还没发面板就关了：一批也不发，任�
   h.service.leave(panel.id);
   reading.resolve();
   await running;
-  assert.equal(h.requests(), 0);
+  assert.equal(h.requests(), 2);
+  assert.equal(Object.keys((await h.store.find(view.transcript.ref, "en"))?.segments ?? {}).length, FIVE.length);
   assert.deepEqual(h.tasks.list(), []);
   assert.deepEqual(panel.events, [], "关掉的面板不再收消息");
 });
@@ -352,14 +353,10 @@ test("这一版已经译了一部分：缺的段先从同一视频的别的版�
   const five = await transcriptView(FIVE);
   const six = await transcriptView([...FIVE, cue((PER_BATCH + 1) * 10, "多出来的一句")]);
   const h = translateHarness(five, { concurrency: 1 });
-  // 这一版译了一批就关了面板。
-  const release = h.fake.hold("rewrite");
-  const panel = page("panel");
-  const partial = h.translate(panel);
-  assert.ok(await h.requested(1));
-  h.service.leave(panel.id);
-  release();
-  await partial;
+  // 这一版先只存下一批的译文。
+  const partial: Record<string, string> = {};
+  for (const item of FIVE.slice(0, PER_BATCH)) partial[await textFingerprint(item.text)] = `译:${item.text}`;
+  await h.store.merge({ transcript: five.transcript.ref, target: "en", segments: partial, derived: { basis: { source: "transcript", transcript: five.transcript.ref }, gen: genOf("rewrite") } });
   assert.equal(Object.keys((await h.store.find(five.transcript.ref, "en"))?.segments ?? {}).length, PER_BATCH);
   // 另一版（多一句）全译完了。
   h.show(six);
@@ -425,7 +422,7 @@ test("从旧版带过来的译文存不下：照样直接用，不为它们再�
   assert.deepEqual(batchOf(h.fake.calls[0]?.request ?? { messages: [], maxTokens: 0 }).map(({ text }) => text), ["第六句"]);
 });
 
-test("面板关掉时还有一批在途：这批照常回来并存下，之后的批次不再发", async () => {
+test("面板关掉时还有一批在途：在途的不中止，之后的批次照常发完", async () => {
   const view = await transcriptView(NINE);
   const h = translateHarness(view, { concurrency: 1 });
   const release = h.fake.hold("rewrite");
@@ -435,10 +432,10 @@ test("面板关掉时还有一批在途：这批照常回来并存下，之后�
   h.service.leave(panel.id);
   release();
   await running;
-  assert.equal(h.requests(), 1, "下一批没发");
+  assert.equal(h.requests(), 3);
   assert.equal(h.fake.calls[0]?.request.signal?.aborted, false, "在途的请求没被中止");
   const stored = await h.store.find(view.transcript.ref, "en");
-  assert.equal(Object.keys(stored?.segments ?? {}).length, PER_BATCH, "在途那批付过费，存下了");
+  assert.equal(Object.keys(stored?.segments ?? {}).length, NINE.length);
 });
 
 test("点停止：在途的请求一起中止，不存也不再发", async () => {
@@ -475,7 +472,7 @@ test("一轮翻译跑完自己收尾；之后关掉那个面板，不会停掉�
   assert.equal(done(second)[0]?.state, "completed");
 });
 
-test("概览、问答这些不跟着页面走的任务，翻译面板关掉也照常跑", async () => {
+test("翻译面板关掉：概览、问答和这次翻译都照常跑", async () => {
   const h = translateHarness(await transcriptView(FIVE));
   for (const kind of ["overview", "qa"] as const) {
     await h.tasks.register({ kind, origin: "user", video: VIDEO, input: kind === "qa" ? { question: "问题" } : undefined, gen: genOf(kind), followsPage: false }, {});
@@ -490,7 +487,7 @@ test("概览、问答这些不跟着页面走的任务，翻译面板关掉也�
     [
       ["overview", "running"],
       ["qa", "running"],
-      ["translate", "canceled"],
+      ["translate", "running"],
     ],
   );
   release();
@@ -897,17 +894,14 @@ test("端口里发起翻译的消息每条重查启用：确认失效以后再�
   assert.equal(bg.ai.posts().length, 0);
 });
 
-test("真实端口：面板关掉后在途的几批照常存下，排着的批次不再发", async () => {
-  // 每批满的：并发上限那么多批在途，后面还排着一批两段的。
-  const full = AI_CONCURRENCY;
-  const cues: Cue[] = Array.from({ length: full * PER_BATCH + 2 }, (_, index) => ({ start: index * 30, duration: 5, text: `第${index + 1}段讲的是一件事情，内容比较长一些。` }));
+test("真实端口：面板关掉后几批照常发完、存下；重开面板直接用存下的", async () => {
+  // 三批满的加两段。
+  const cues: Cue[] = Array.from({ length: PER_BATCH * 3 + 2 }, (_, index) => ({ start: index * 30, duration: 5, text: `第${index + 1}段讲的是一件事情，内容比较长一些。` }));
   const gate = deferred();
-  const allSent = deferred();
-  let sent = 0;
+  const firstSent = deferred();
   const bg = background(
     async (request) => {
-      sent += 1;
-      if (sent === full) allSent.resolve();
+      firstSent.resolve();
       await gate.promise;
       return translatedReply(request);
     },
@@ -915,24 +909,20 @@ test("真实端口：面板关掉后在途的几批照常存下，排着的批�
   );
   const port = bg.fake.connect("translate", senders.panel());
   port.send({ type: "translate.start", video: VIDEO });
-  await allSent.promise;
-  assert.equal(bg.ai.posts().length, full, "并发上限那么多批在途");
+  await firstSent.promise;
   const listed = async () => {
     const reply = await bg.app.dispatch({ type: "task.list", req: {} }, senders.panel());
     return reply.ok ? (reply.value as { tasks: unknown[] }).tasks.length : -1;
   };
   port.close();
   gate.resolve();
-  assert.ok(await eventually(async () => (await listed()) === 0), "在途的回来以后任务收尾");
-  await nextTurn();
-  assert.equal(bg.ai.posts().length, full, "排着的那批没发");
+  assert.ok(await eventually(async () => (await listed()) === 0), "做完以后任务收尾");
+  assert.equal(bg.ai.posts().length, 4, "四批都发了");
 
-  // 重开面板：在途的几批付过费、存下了，只剩最后两段要译。
   const reopened = bg.fake.connect("translate", senders.panel());
   reopened.send({ type: "translate.start", video: VIDEO });
   assert.ok(await finished(reopened));
   const kept = eventsOf(reopened).find((event) => event.type === "translate.segments" && event.stored);
-  assert.equal(kept?.type === "translate.segments" && Object.keys(kept.translated).length, full * PER_BATCH);
-  const started = eventsOf(reopened).find((event) => event.type === "translate.started");
-  assert.equal(started?.type === "translate.started" && started.pending, 2);
+  assert.equal(kept?.type === "translate.segments" && Object.keys(kept.translated).length, cues.length);
+  assert.equal(eventsOf(reopened).some((event) => event.type === "translate.started"), false, "没有要请求的");
 });

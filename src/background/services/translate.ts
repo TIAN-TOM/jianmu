@@ -2,27 +2,30 @@
 // 整理字幕只补标点、改同音错字，本机核对改得太多的段不用，记成原文，照旧显示原文、下次也不再为它花钱。
 // 本机已经存着的段直接交回，不再花钱；换了字幕版本时，原文没变的段从同视频、同目标语言的旧版带过来。
 // 偶发失败的批次静默补一轮，补轮那一批传输层不再自己重发；全军覆没不补，多半是配置不对。
-// 订阅的页面都断开了：还没开始的批次不再发，已经发出的照常等它回来、存下，钱已经花了。点停止、清除本机数据则连在途的一起中止。
+// 用户点了就在后台做完：关掉侧边栏不停，重开侧边栏能接上进度。点停止、清除本机数据、发起的标签页换了视频或关掉、
+// 服务说额度用完或密钥不对时停下，连在途的一起中止。
 // 写回前核对清除代数和字幕代数：等模型的工夫清除了全部数据、换过字幕文件，在途的译文照常交给页面、不存，之后的批次不再发。
 import { estimateOutputTokens, planTranslationBatches, TRANSLATION_BATCH_MAX_SEGMENTS, type TranslationItem } from "../../core/ai/chunking.ts";
 import { parseLooseJson } from "../../core/ai/parse.ts";
 import { extractPromptSection } from "../../core/ai/prompt.ts";
 import { SEGMENT_BATCH } from "../../core/ai/schemas.ts";
-import { taskCanceledError, throwIfTaskCanceled, type TransportError } from "../../core/ai/transport/index.ts";
-import { alignTidiedSegments, alignTranslatedSegments } from "../../core/ai/validate.ts";
+import { taskCanceledError, throwIfTaskCanceled } from "../../core/ai/transport/index.ts";
+import { alignTranslatedSegments } from "../../core/ai/validate.ts";
 import type { ClearEpoch, ClearGuard } from "../../core/clear-guard.ts";
 import { mapWithConcurrency } from "../../core/concurrency.ts";
-import { fail, ok, type Failure, type Result } from "../../core/errors.ts";
+import { fail, ok, type Result } from "../../core/errors.ts";
 import type { Basis, Derived, TranscriptRef } from "../../core/notes/records.ts";
 import type { FrozenGen, TaskOrigin, TaskView } from "../../core/tasks.ts";
 import { textFingerprint } from "../../core/transcript/fingerprint.ts";
-import { isChineseSubtitle } from "../../core/transcript/language.ts";
 import type { TranscriptSegment } from "../../core/transcript/segment.ts";
 import { parseVideoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
-import type { TextPurpose, TextTarget, TranslateFailure, TranslateOut, TranslateTarget } from "../../shared/messages/translate.ts";
+import type { TextPurpose, TextTarget, TranslateFailure, TranslateOut } from "../../shared/messages/translate.ts";
 import { AI_CONCURRENCY } from "../../shared/settings-schema.ts";
-import { aiFailure } from "../ai.ts";
+import { pauseReasonOf } from "./auto-generate.ts";
 import { errorLabel, type Log } from "../log.ts";
+import { bare, failureOf, fromPlayback, genInfo, parseFailed, targetOf, tidiedOf, videoOfUrl, waitOrStop } from "./translate-parts.ts";
+
+export { targetOf };
 import { translationId, type TranslationStore } from "../stores/translations.ts";
 import { PAGES_LEFT, type TaskRun, type TaskRunner, type Timers } from "../tasks.ts";
 import { isTransientChunkFailure, promptMessages } from "./overview/chunks.ts";
@@ -55,8 +58,10 @@ export interface TranslateStart {
   readonly listener?: TranslateListener | undefined;
   /** 不写是翻译；tidy 是整理字幕，只由用户点按钮发起。 */
   readonly purpose?: TextPurpose | undefined;
-  /** 只交回本机已经存着的，不请求模型。 */
+  /** 只交回本机已经存着的，不请求模型；同一份正在后台跑时接上它的进度。 */
   readonly storedOnly?: boolean | undefined;
+  /** 发起的视频所在的标签页：它换了视频或关掉就停。 */
+  readonly tabId?: number | undefined;
 }
 
 export interface TranslateService {
@@ -64,8 +69,10 @@ export interface TranslateService {
   start(video: VideoKey, options: TranslateStart): Promise<void>;
   /** 页面点了停止：停掉它发起或接上的翻译，在途的请求一起中止。 */
   stop(listenerId: string): void;
-  /** 页面断开了：退订，订阅的页面都走了才停下还没开始的批次。 */
+  /** 页面断开了：退订，在跑的照常做完。 */
   leave(listenerId: string): void;
+  /** 标签页换了地址或关掉（url 为 null）：从这个标签页发起、地址上的视频对不上的停下。没给标签页或地址没变（undefined）时什么都不做。 */
+  tabChanged(tabId: number | undefined, url: string | null | undefined): void;
 }
 
 export interface TranslateServiceDeps {
@@ -87,7 +94,14 @@ interface Session {
   readonly listeners: Map<string, TranslateListener>;
   readonly translated: Record<string, string>;
   saveFailed: boolean;
+  /** 在做哪个视频的哪一样，后接上的页面按这个认；登记好才有。 */
+  started?: { readonly video: VideoKey; readonly target: TextTarget; readonly event: Extract<TranslateOut, { type: "translate.started" }> };
+  /** 发起的标签页。 */
+  readonly tabIds: Set<number>;
 }
+
+/** 停下的原因：发起的标签页换了视频或关掉了。 */
+const VIDEO_LEFT = Object.freeze({ code: "VIDEO_CHANGED" });
 
 /** 一轮翻译要用的：这一版字幕、目标语言、每段原文的指纹，以及写回前的核对。 */
 interface Job {
@@ -106,6 +120,10 @@ interface Job {
 /** 一次还在准备的发起：准备期间点了停止就记下。 */
 interface Preparing {
   halted: boolean;
+  /** 发起的标签页和视频：准备的工夫它换了视频或关掉，就不登记、不发。 */
+  readonly tabId?: number | undefined;
+  readonly video?: VideoKey;
+  left: boolean;
 }
 
 interface BatchOutcome {
@@ -117,58 +135,6 @@ interface BatchOutcome {
   readonly first?: unknown;
 }
 
-/** 整理字幕一批的结果：改得太多的段记成原文（照旧显示原文、下次不再请求）；漏的、编号对不上的不记，交给补轮。 */
-function tidiedOf(parsed: unknown, batch: readonly TranslationItem[], job: Pick<Job, "sources">): Record<string, string> {
-  const { tidied, rejected } = alignTidiedSegments(parsed, batch);
-  const kept: Record<string, string> = { ...tidied };
-  for (const { id, reason } of rejected) {
-    const source = job.sources.get(id);
-    if (reason === "REWRITTEN" && source) kept[id] = source;
-  }
-  return kept;
-}
-
-/** 中文字幕译成英文，其他语言的字幕译成简体中文。 */
-export const targetOf = (lang: string): TranslateTarget => (isChineseSubtitle(lang) ? "en" : "zh");
-
-const genInfo = ({ feature, promptVersion, model, effort }: FrozenGen) => ({ feature, promptVersion, model, effort });
-
-function parseFailed(sends: number): TransportError {
-  const error: TransportError = Object.assign(new Error("模型没有按要求返回结果。"), { code: "TRANSLATE_PARSE_FAILED" });
-  // 传输层已经为这一批重发过：额度用掉了，补轮不再发。
-  if (sends > 1) error.noAutoRetry = true;
-  return error;
-}
-
-function failureOf(error: unknown): TranslateFailure {
-  if ((error as { readonly code?: unknown } | null)?.code === "TRANSLATE_PARSE_FAILED") return { code: "TRANSLATE_PARSE_FAILED" };
-  const { code, detail } = aiFailure(error);
-  return detail === undefined ? { code } : { code, detail };
-}
-
-const bare = ({ code, detail }: Failure): TranslateFailure => (detail === undefined ? { code } : { code, detail });
-
-/** 从这一秒往后的先译：眼前的内容几秒内就有结果，前面的随后补齐，总量和费用不变。 */
-function fromPlayback(segments: readonly TranscriptSegment[], fromSec: number | undefined): TranscriptSegment[] {
-  if (fromSec === undefined) return [...segments];
-  return [...segments.filter((segment) => segment.start >= fromSec), ...segments.filter((segment) => segment.start < fromSec)];
-}
-
-function waitOrStop(timers: TranslateServiceDeps["timers"], ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    if (signal.aborted) return resolve();
-    const timer = timers.setTimeout(() => {
-      signal.removeEventListener("abort", stop);
-      resolve();
-    }, ms);
-    const stop = (): void => {
-      timers.clearTimeout(timer);
-      resolve();
-    };
-    signal.addEventListener("abort", stop, { once: true });
-  });
-}
-
 export function createTranslateService(deps: TranslateServiceDeps): TranslateService {
   const { guard, log } = deps;
   const concurrency = deps.concurrency ?? AI_CONCURRENCY;
@@ -177,11 +143,13 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
   const joined = new Map<string, Set<string>>();
   /** 还在准备（读字幕、读本机译文、登记）的发起，按页面记：点停止只停这时已经在准备的那几次，之后再点的翻译不受影响。 */
   const preparing = new Map<string, Set<Preparing>>();
+  /** 还在准备的发起，不分页面：标签页换了视频或关掉时要在这里也认一遍。 */
+  const preparingTabs = new Set<Preparing>();
 
   function sessionOf(taskId: string): Session {
     let session = sessions.get(taskId);
     if (!session) {
-      session = { taskId, listeners: new Map(), translated: {}, saveFailed: false };
+      session = { taskId, listeners: new Map(), translated: {}, saveFailed: false, tabIds: new Set() };
       sessions.set(taskId, session);
     }
     return session;
@@ -304,7 +272,20 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
     else run.signal.addEventListener("abort", stopRequests, { once: true });
     const label = (done: number, total: number): string => `正在处理第 ${done}/${total} 批`;
     run.progress({ done: 0, total: batches.length, phase: "generating", message: label(0, batches.length) });
-    const one = (batch: readonly TranslationItem[], retryRound: boolean) => translateBatch(run, job, session, batch, requests.signal, retryRound);
+    // 额度用完、密钥不对：等多久都不会好，后面的批次不再发，在途的一起中止。
+    let fatal: unknown;
+    const one = async (batch: readonly TranslationItem[], retryRound: boolean): Promise<TranslationItem[]> => {
+      if (fatal !== undefined) throw fatal;
+      try {
+        return await translateBatch(run, job, session, batch, requests.signal, retryRound);
+      } catch (error) {
+        if (fatal === undefined && pauseReasonOf(error)) {
+          fatal = error;
+          requests.abort(error);
+        }
+        throw error;
+      }
+    };
     const results = await mapWithConcurrency(batches, concurrency, (batch) => one(batch, false), (done, total) =>
       run.progress({ done, total, phase: "generating", message: label(done, total) }),
     );
@@ -314,7 +295,7 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
     // 译成了一部分的批次，漏的那几段另外凑成批次补。
     const gaps = planTranslationBatches(results.flatMap((result) => (result.status === "fulfilled" ? result.value : [])));
     let unfinished = 0;
-    if ((retry.length || gaps.length) && rejected() < batches.length && !run.signal.aborted) {
+    if ((retry.length || gaps.length) && rejected() < batches.length && !run.signal.aborted && fatal === undefined) {
       run.progress({ phase: "retrying", message: `正在重试 ${retry.length + gaps.length} 批` });
       await waitOrStop(deps.timers, TRANSLATE_RETRY_DELAY_MS, run.signal);
       const again = await mapWithConcurrency([...retry.map((index) => batches[index] ?? []), ...gaps], concurrency, (batch) => one(batch, true));
@@ -327,7 +308,7 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
       unfinished = gaps.length;
     }
     if (run.signal.aborted || !job.current()) return fail("TASK_CANCELED");
-    const first = results.find((result) => result.status === "rejected");
+    const first = fatal !== undefined ? { status: "rejected" as const, reason: fatal } : results.find((result) => result.status === "rejected");
     const outcome: BatchOutcome = {
       failed: Math.min(batches.length, rejected() + unfinished),
       rejected: rejected(),
@@ -347,6 +328,8 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
         counted.outcome = settled.value;
         // 一批都没成：任务按失败收尾。译成了一部分的不算，页面按没译完的批数提示再点一次补齐。
         const { rejected, total, first } = settled.value;
+        // 额度用完、密钥不对时按失败收尾，原因说清；只是部分批次没成的，页面按没成的批数提示再点一次补齐。
+        if (first !== undefined && pauseReasonOf(first)) return { ok: false as const, ...failureOf(first) };
         return rejected > 0 && rejected === total ? { ok: false as const, ...failureOf(first) } : settled;
       },
       { autoFinish: true },
@@ -367,7 +350,7 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
     for (const tasks of joined.values()) tasks.delete(session.taskId);
   }
 
-  async function start(video: VideoKey, { origin, fromSec, listener, purpose, storedOnly }: TranslateStart, mine: Preparing, prepared: () => void): Promise<void> {
+  async function start(video: VideoKey, { origin, fromSec, listener, purpose, storedOnly, tabId }: TranslateStart, mine: Preparing, prepared: () => void): Promise<void> {
     // 页面已经断开的不再推：断开的端口收不到，也省得把后来的消息记到别的页面头上。
     const post = (event: TranslateOut): void => {
       if (listener && joined.has(listener.id)) listener.post(event);
@@ -405,7 +388,17 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
       if (text) known[segment.id] = text;
     }
     if (Object.keys(known).length) post({ type: "translate.segments", fingerprint: transcript.fingerprint, translated: known, stored: true });
-    if (storedOnly) return post({ type: "translate.done", state: "completed", totalBatches: 0, failedBatches: 0 });
+    if (storedOnly) {
+      // 同一份正在后台跑（比如关掉侧边栏以前点的）：接上它，之后的批次照常推过来。
+      const running = [...sessions.values()].find(
+        (item) => item.started?.video === video && item.started.target === job.target && item.started.event.transcript.fingerprint === transcript.fingerprint,
+      );
+      if (!running?.started) return post({ type: "translate.done", state: "completed", totalBatches: 0, failedBatches: 0 });
+      attach(running.taskId, listener);
+      post({ ...running.started.event, joined: true });
+      if (Object.keys(running.translated).length) post({ type: "translate.segments", taskId: running.taskId, fingerprint: transcript.fingerprint, translated: { ...running.translated } });
+      return;
+    }
     const todo = fromPlayback(
       segments.filter((segment) => !known[segment.id]),
       fromSec,
@@ -419,25 +412,29 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
       log.error("读取翻译或整理字幕的模型配置失败", errorLabel(error));
       return refuse({ code: "BACKGROUND_FAILED" });
     }
-    // 准备的工夫页面点了停止：不登记，一个模型请求都不发。
-    if (mine.halted) return post({ type: "translate.done", state: "canceled", totalBatches: 0, failedBatches: 0 });
+    // 准备的工夫页面点了停止，或者发起的标签页换了视频、关掉了：不登记，一个模型请求都不发。
+    if (mine.halted || mine.left) return post({ type: "translate.done", state: "canceled", totalBatches: 0, failedBatches: 0 });
     const basis: Basis = { source: "transcript", transcript };
-    const followsPage = listener !== undefined && origin === "user";
+    // 点了就做完：不跟着页面走，关掉侧边栏照常跑。
     const registered = await deps.tasks.register(
-      { kind: "translate", origin, video, lang: job.target, basis, gen, followsPage },
+      { kind: "translate", origin, video, lang: job.target, basis, gen, followsPage: false },
       listener ? { port: listener.id } : {},
     );
     if ("refused" in registered) return refuse({ code: "TASK_ALREADY_RUNNING" });
     if ("conflict" in registered) return refuse({ code: "TASK_ALREADY_RUNNING" }, registered.conflict);
     const { task } = registered;
-    // 登记的工夫页面已经关了：退订，订阅的页面都走了这个任务就停下，一批也不发。
+    // 登记的工夫页面已经关了：照常做完，只是不再推给它。
     const departed = listener !== undefined && !joined.has(listener.id);
     const session = attach(task.id, departed ? undefined : listener);
-    if (departed) deps.tasks.unsubscribe(listener.id);
+    if (tabId !== undefined) session.tabIds.add(tabId);
     // 登记的工夫点了停止：和登记好以后点停止一样，停掉这个任务。
-    else if (mine.halted) deps.tasks.cancel(task.id);
+    // 点过停止就停，页面后来关了也一样。
+    if (mine.halted) deps.tasks.cancel(task.id);
+    else if (mine.left) deps.tasks.cancel(task.id, VIDEO_LEFT);
     prepared();
-    post({ type: "translate.started", task, joined: registered.joined, transcript, target: job.target, pending: todo.length });
+    const startedEvent = { type: "translate.started" as const, task, joined: registered.joined, transcript, target: job.target, pending: todo.length };
+    if (!registered.joined) session.started = { video, target: job.target, event: startedEvent };
+    post(startedEvent);
     if (registered.joined) {
       if (Object.keys(session.translated).length) {
         post({ type: "translate.segments", taskId: task.id, fingerprint: transcript.fingerprint, translated: { ...session.translated } });
@@ -450,10 +447,12 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
   return {
     async start(video, options) {
       const id = options.listener?.id;
-      const mine: Preparing = { halted: false };
+      const mine: Preparing = { halted: false, tabId: options.tabId, video, left: false };
       if (id !== undefined) preparing.set(id, (preparing.get(id) ?? new Set()).add(mine));
+      preparingTabs.add(mine);
       // 准备阶段一结束（登记好、或者没登记就结束了）就不再算在准备里，之后的停止按任务来。
       const prepared = (): void => {
+        preparingTabs.delete(mine);
         if (id === undefined) return;
         const pending = preparing.get(id);
         pending?.delete(mine);
@@ -476,6 +475,14 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
       joined.delete(listenerId);
       for (const session of sessions.values()) session.listeners.delete(listenerId);
       deps.tasks.unsubscribe(listenerId);
+    },
+    tabChanged(tabId, url) {
+      if (tabId === undefined || url === undefined) return;
+      const video = videoOfUrl(url);
+      for (const pending of preparingTabs) if (pending.tabId === tabId && pending.video !== video) pending.left = true;
+      for (const session of sessions.values()) {
+        if (session.tabIds.has(tabId) && session.started?.video !== video) deps.tasks.cancel(session.taskId, VIDEO_LEFT);
+      }
     },
   };
 }

@@ -87,6 +87,9 @@ test("翻译端口认整理字幕：purpose 只收 tidy，和 fromSec 可以一�
   assert.equal(spec.validate({ type: "translate.start", video, purpose: "rewrite" }, ctx), false);
   assert.equal(spec.validate({ type: "translate.start", video, purpose: "tidy", extra: 1 }, ctx), false);
   assert.equal(spec.validate({ type: "translate.start", video, fromSec: -1, purpose: "tidy" }, ctx), false);
+  assert.equal(spec.validate({ type: "translate.start", video, purpose: "tidy", tabId: 3, storedOnly: true }, ctx), true, "带上视频所在的标签页");
+  assert.equal(spec.validate({ type: "translate.start", video, tabId: -1 }, ctx), false);
+  assert.equal(spec.validate({ type: "translate.start", video, tabId: "3" }, ctx), false);
   const handlers = spec.onConnect({ id: "p1", post: () => {} } as never, ctx);
   await handlers.onMessage({ type: "translate.start", video, purpose: "tidy" });
   assert.deepEqual(started, ["tidy"]);
