@@ -47,10 +47,13 @@ body {
   background: var(--accent);
 }
 
+/* 行高收紧：收起时整张卡片和内容脚本载入前占位的高度一样，载入完不跳。 */
 .card-name {
   flex: 1;
   color: var(--text-strong);
+  font-size: var(--fs-meta);
   font-weight: 600;
+  line-height: var(--lh-tight);
 }
 
 .card-chevron {
@@ -75,12 +78,88 @@ body {
   max-height: 34rem;
   padding: 0 var(--space-3) var(--space-2);
   overflow-y: auto;
+  /* 滚到头不带着播放页一起滚。 */
+  overscroll-behavior: contain;
+  /* 上面或下面还有内容时，那一边压一道淡影，滚到头就没了：前两层跟着内容走、盖住影子，后两层钉在边上。 */
+  background:
+    linear-gradient(var(--card) 40%, transparent) center top / 100% 1.25rem no-repeat local,
+    linear-gradient(transparent, var(--card) 60%) center bottom / 100% 1.25rem no-repeat local,
+    linear-gradient(color-mix(in srgb, var(--text) 16%, transparent), transparent) center top / 100% 0.5rem no-repeat scroll,
+    linear-gradient(transparent, color-mix(in srgb, var(--text) 16%, transparent)) center bottom / 100% 0.5rem no-repeat scroll;
 }
 
-.card-video-title {
-  color: var(--text-strong);
+/* 卡片比侧边栏窄：结论用正文字号、章节用界面字号，都比侧边栏收一档。 */
+.card .verdict {
+  gap: var(--space-1);
+}
+
+.card .verdict-head {
+  min-height: 0;
+}
+
+.card .verdict-text {
+  font-size: var(--fs-body);
+  line-height: var(--lh-snug);
+}
+
+.card .chapter-title,
+.card .chapter-toggle {
+  font-size: var(--fs-ui);
+}
+
+/* 小标题和下面的内容之间只留块里的那一道间距。 */
+.card .section-title {
+  margin-bottom: 0;
+}
+
+/* 默认只露前几条时列表下面的「展开全部」，和有概览时把官方总结收成的那一行。 */
+.card-more {
+  align-self: flex-start;
+  padding: var(--space-1) 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-text);
   font-size: var(--fs-meta);
-  font-weight: 600;
+  cursor: pointer;
+}
+
+.card-more:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.card-fold-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-1) 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-medium);
+  text-align: start;
+  cursor: pointer;
+}
+
+.card-fold-head:hover {
+  color: var(--text);
+}
+
+.card-fold-head .card-chevron {
+  transform: rotate(-45deg);
+}
+
+.card-fold-head[aria-expanded="true"] .card-chevron {
+  transform: rotate(45deg);
+}
+
+.card-fold-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .card-status,
@@ -105,7 +184,16 @@ body {
 }
 
 .card-reading {
-  line-height: var(--lh-body);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-snug);
+  overflow-wrap: anywhere;
+}
+
+.card-reading[data-clamp] {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
 }
 
 .outline,
@@ -117,19 +205,48 @@ body {
   list-style: none;
 }
 
+/* 时间一列、标题一列：时间列按最长的时间定宽，有没有时间、能不能展开，标题都从同一条线起。 */
 .outline-item,
 .point {
-  display: flex;
+  display: grid;
+  grid-template-columns: calc(var(--time-ch, 4) * 1ch + 2 * var(--space-1)) minmax(0, 1fr);
+  column-gap: var(--space-2);
   align-items: baseline;
-  gap: var(--space-2);
+  font-size: var(--fs-ui);
+}
+
+.outline-title {
+  overflow-wrap: anywhere;
 }
 
 .points {
   margin-top: var(--space-1);
+  color: var(--text-muted);
 }
 
-.outline-details summary {
+/* 能展开的小节：不用浏览器自带的三角，在标题后面画一个小箭头，标题不被顶歪。 */
+.outline-details > summary {
+  list-style: none;
   cursor: pointer;
+}
+
+.outline-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.outline-details > summary::after {
+  content: "";
+  display: inline-block;
+  width: 0.35rem;
+  height: 0.35rem;
+  margin-inline-start: var(--space-2);
+  border-right: 1.5px solid var(--text-muted);
+  border-bottom: 1.5px solid var(--text-muted);
+  transform: translateY(-0.2em) rotate(45deg);
+}
+
+.outline-details[open] > summary::after {
+  transform: translateY(0.05em) rotate(-135deg);
 }
 
 .card-progress {

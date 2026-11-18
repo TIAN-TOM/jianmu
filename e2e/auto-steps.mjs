@@ -33,7 +33,7 @@ export async function autoFlow({ until, evaluate, cdp, launcher, mock }) {
 
   const pages = async (video) => (await cdp.send("Target.getTargets")).targetInfos.filter((info) => info.type === "page" && info.url === watchPage(video.id)).length;
 
-  /** 找到显示这个视频标题、又有这段文字的那张卡片。 */
+  /** 找到这个视频的播放页里、又有这段文字的那张卡片。卡片上不写视频标题，按它所在标签页的地址认。 */
   const attached = new Map();
   async function cardShows(video, text) {
     return until(`「${video.title}」的卡片上出现「${text}」`, async () => {
@@ -46,8 +46,9 @@ export async function autoFlow({ until, evaluate, cdp, launcher, mock }) {
           await cdp.send("Runtime.runIfWaitingForDebugger", {}, session).catch(() => {});
           attached.set(info.targetId, session);
         }
-        const shown = await evaluate(session, `document.getElementById("card")?.textContent ?? ""`).catch(() => "");
-        if (shown.includes(video.title) && shown.includes(text)) return true;
+        const shown = await evaluate(session, `chrome.tabs.getCurrent().then((tab) => JSON.stringify({ url: tab?.url ?? "", text: document.getElementById("card")?.textContent ?? "" }))`).catch(() => "{}");
+        const found = JSON.parse(shown);
+        if (found.url === watchPage(video.id) && String(found.text ?? "").includes(text)) return true;
       }
       return false;
     });

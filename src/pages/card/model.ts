@@ -66,6 +66,18 @@ export interface CardView {
   readonly task: TaskProgress | null;
   readonly settingsError: boolean;
   readonly notice: { readonly text: string; readonly tone: Tone } | null;
+  /** 章节（还没有概览时是官方提纲）默认只露前几条，点了「展开全部」才全露。换了视频回到默认。 */
+  readonly showAll: boolean;
+  /** 有 AI 概览时 B 站官方总结收成一行，点开才露。换了视频回到收着。 */
+  readonly officialOpen: boolean;
+}
+
+/** 章节和官方提纲默认露几条：卡片嵌在右栏里，太高会把下面的选集和推荐顶下去。 */
+export const CARD_ROWS = 5;
+
+/** 默认露出来的那几条。只多出一条时不藏：为一条去点「展开全部」不值当。 */
+export function cardRows<T>(rows: readonly T[], showAll: boolean): readonly T[] {
+  return showAll || rows.length <= CARD_ROWS + 1 ? rows : rows.slice(0, CARD_ROWS);
 }
 
 const INITIAL: CardView = {
@@ -81,6 +93,8 @@ const INITIAL: CardView = {
   task: null,
   settingsError: false,
   notice: null,
+  showAll: false,
+  officialOpen: false,
 };
 
 const LOAD_TIMEOUT_MS = 30_000;
@@ -159,7 +173,7 @@ export function createCardModel(deps: CardDeps) {
     ticket += 1;
     loadedTicket = -1;
     saved = null;
-    patch({ phase, title: "", official: null, analysis: null, verdictPending: false, noCaptions: false, task: null, settingsError: false, notice: null });
+    patch({ phase, title: "", official: null, analysis: null, verdictPending: false, noCaptions: false, task: null, settingsError: false, notice: null, showAll: false, officialOpen: false });
   }
 
   function syncVideo(url: string): void {
@@ -226,7 +240,7 @@ export function createCardModel(deps: CardDeps) {
     if (!quiet) patch({ phase: "loading", ...notice("正在读取这个视频的总结…") });
     const reply = await timers.timeout(api.send("transcript.get", { video: current, mode: "light" }), LOAD_TIMEOUT_MS);
     if (asked !== ticket) return;
-    if (reply === "timeout") return failLoad("读取超时。可以点「重试」，也可以打开完整面板。");
+    if (reply === "timeout") return failLoad("读取超时，没读到这个视频的总结。");
     if (!reply.ok) {
       if (HIDDEN_CODES.has(reply.code)) return void deps.recheckConfig();
       const known = (reply as GuidesFailure).overview;
@@ -234,7 +248,7 @@ export function createCardModel(deps: CardDeps) {
       return failLoad(describe(reply.code, reply.detail));
     }
     const value = reply.value;
-    if (!("mode" in value) || value.video !== current) return failLoad("读到的不是当前视频的数据。可以点「重试」再读一次。");
+    if (!("mode" in value) || value.video !== current) return failLoad("读到的不是当前视频的数据。");
     saved = value.overview?.analysis ?? null;
     const noCaptions = value.hasTranscript ? false : value.transcriptError === "NO_CAPTIONS" || view.peek().noCaptions;
     const needLogin = !value.hasTranscript && value.transcriptError === "NEED_LOGIN";
@@ -328,7 +342,7 @@ export function createCardModel(deps: CardDeps) {
     const text = value.saveFailed
       ? "概览已生成，但没能保存到本机，以后打开可能要重新生成。"
       : value.canceled
-        ? `已停止生成，已保存 ${value.savedChunks ?? 0}/${value.chunkCount ?? 0} 块，可以在完整面板里补失败块。`
+        ? `已停止生成，已保存 ${value.savedChunks ?? 0}/${value.chunkCount ?? 0} 块，可以在侧边栏里补失败块。`
         : "";
     patch({ task: null, analysis: saved, verdictPending: false, ...notice(text, value.saveFailed ? "warn" : "") });
   }
@@ -384,7 +398,8 @@ export function createCardModel(deps: CardDeps) {
 
   function onPreview(message: { readonly taskId: string; readonly video: VideoKey; readonly analysis: LearningAnalysis; readonly done: number; readonly total: number }): void {
     if (message.video !== video || view.peek().task?.id !== message.taskId) return;
-    patch({ analysis: message.analysis, verdictPending: `还在生成，已完成 ${message.done}/${message.total} 块` });
+    // 进度行已经写着完成了几块，这里只说结论什么时候有。
+    patch({ analysis: message.analysis, verdictPending: "章节还在生成，结论最后写。" });
   }
 
   const subscriptions = [
@@ -420,7 +435,7 @@ export function createCardModel(deps: CardDeps) {
     async start(): Promise<void> {
       stopTimer = timers.every(EXTERNAL_CHECK_MS, () => void checkExternal());
       tab = await deps.currentTab();
-      if (!tab) return patch({ phase: "failed", ...notice("没能确认卡片所在的标签页。请打开完整面板查看总结。", "error") });
+      if (!tab) return patch({ phase: "failed", ...notice("没能确认卡片所在的标签页，可以打开侧边栏看总结。", "error") });
       syncVideo(tab.url);
     },
     /** 配置检查有了新结果：卡片从隐藏变成显示时接着读。 */
@@ -443,6 +458,8 @@ export function createCardModel(deps: CardDeps) {
     generate,
     cancel,
     toggle,
+    toggleShowAll: (): void => patch({ showAll: !view.peek().showAll }),
+    toggleOfficial: (): void => patch({ officialOpen: !view.peek().officialOpen }),
     seek(atSec: number): void {
       if (tab && video) deps.seek(tab.id, video, Math.floor(atSec));
     },

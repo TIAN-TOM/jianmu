@@ -1,14 +1,17 @@
-// 卡片样张：页面测试时现编进测试用的扩展副本，不进产品包。数据都是自造的，内容故意很长，
-// 正在生成，进度行、「停止」和「打开完整面板」都在。卡片的界面组件原样用，样式用产品的 card.css。
+// 卡片样张：页面测试时现编进测试用的扩展副本，不进产品包。数据都是自造的，内容故意很长。
+// 地址带 #full 时是全部展开、正在生成的样子（进度行、「停止」和「打开侧边栏」都在），带 #collapsed 时是收起的一行，不带时是刚打开的默认样子；
+// 「展开全部」和官方总结那一行点得动。卡片的界面组件原样用，样式用产品的 card.css。
+import { signal } from "@preact/signals";
 import { render } from "preact";
 import { Card, type CardActions } from "../../../src/pages/card/card.tsx";
 import type { CardView } from "../../../src/pages/card/model.ts";
 
 const LONG = "这是一段自造的样例文字，用来把卡片撑得很高，看底部的按钮会不会被裁掉。";
+const full = location.hash === "#full";
 
-const view: CardView = {
+const view = signal<CardView>({
   visible: true,
-  collapsed: false,
+  collapsed: location.hash === "#collapsed",
   phase: "loaded",
   title: `样例长视频：${LONG}`,
   official: {
@@ -22,18 +25,35 @@ const view: CardView = {
   },
   analysis: {
     chapters: Array.from({ length: 16 }, (_, index) => ({ title: `样例章节 ${index + 1}：${LONG}`, timestampSeconds: index * 90 })),
-    verdict: { verdict: "看概览就够", summary: LONG.repeat(2) },
+    // 重点是第 2 章和第 11 章：一个时间四位、一个五位，章节名要和别的章对齐。
+    verdict: { verdict: "可以看", summary: LONG.repeat(2), keyStarts: [90, 900] },
   },
   verdictPending: false,
   noCaptions: false,
   needLogin: false,
-  task: { id: "sample", external: false, auto: false, canceling: false, done: 3, total: 8, message: "" },
+  task: full ? { id: "sample", external: false, auto: false, canceling: false, done: 3, total: 8, message: "" } : null,
   settingsError: false,
-  notice: { text: LONG, tone: "" },
-};
+  notice: full ? { text: LONG, tone: "" } : null,
+  showAll: full,
+  officialOpen: full,
+});
 
 const noop = (): void => undefined;
-const actions: CardActions = { toggle: noop, generate: noop, cancel: noop, retry: noop, openPanel: noop, openSettings: noop, seek: noop };
+const actions: CardActions = {
+  toggle: noop,
+  generate: noop,
+  cancel: noop,
+  retry: noop,
+  openPanel: noop,
+  openSettings: noop,
+  seek: noop,
+  toggleShowAll: () => void (view.value = { ...view.value, showAll: !view.value.showAll }),
+  toggleOfficial: () => void (view.value = { ...view.value, officialOpen: !view.value.officialOpen }),
+};
+
+function App() {
+  return <Card view={view.value} aiReady={true} actions={actions} />;
+}
 
 const root = document.getElementById("app");
-if (root) render(<Card view={view} aiReady={true} actions={actions} />, root);
+if (root) render(<App />, root);

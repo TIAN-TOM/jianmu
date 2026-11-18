@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { signal } from "@preact/signals";
-import { createCardModel, NEED_LOGIN_TEXT } from "../../../src/pages/card/model.ts";
+import { CARD_ROWS, cardRows, createCardModel, NEED_LOGIN_TEXT } from "../../../src/pages/card/model.ts";
 import { createPageApi } from "../../../src/pages/shared/api.ts";
 import type { ConfigState } from "../../../src/pages/shared/config.ts";
 import { videoKey, type VideoRef } from "../../../src/core/video-ref.ts";
@@ -313,6 +313,41 @@ test("后台打开的标签页：第一次切到前台才读", async () => {
   wake();
   assert.ok(await until(() => model.view.value.phase === "loaded"));
   assert.equal(fake.attempts("transcript.get"), 1);
+});
+
+test("默认只露前几条、官方总结收着：点了才全露，换了视频回到默认；生成中的提示不重复进度行上的块数", async () => {
+  assert.equal(CARD_ROWS, 5);
+  // 多出两条以上才藏；只多一条时全露，不为一条去点「展开全部」。
+  const rows = (count: number) => Array.from({ length: count }, (_, index) => index);
+  assert.deepEqual(cardRows(rows(12), false), [0, 1, 2, 3, 4]);
+  assert.equal(cardRows(rows(7), false).length, 5);
+  assert.equal(cardRows(rows(6), false).length, 6);
+  assert.equal(cardRows(rows(3), false).length, 3);
+  assert.equal(cardRows(rows(12), true).length, 12);
+  const { fake, model } = setup();
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  assert.deepEqual([model.view.value.showAll, model.view.value.officialOpen], [false, false]);
+  model.toggleShowAll();
+  model.toggleOfficial();
+  assert.deepEqual([model.view.value.showAll, model.view.value.officialOpen], [true, true]);
+  model.toggleShowAll();
+  assert.equal(model.view.value.showAll, false);
+  model.toggleShowAll();
+
+  fake.reply("transcript.get", { value: guides(videoKey(SECOND)) });
+  model.urlChanged("https://www.bilibili.com/video/BV1Sample002");
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  assert.deepEqual([model.view.value.showAll, model.view.value.officialOpen], [false, false]);
+
+  // 跟着一个在跑的任务，章节一块块到：结论那一行只说还没写，块数留给进度行。
+  fake.broadcast({ type: "task.changed", task: task("side", "running", videoKey(SECOND)) });
+  assert.ok(await until(() => model.view.value.task?.id === "side"));
+  fake.broadcast({ type: "overview.preview", taskId: "side", video: videoKey(SECOND), analysis: { chapters: ANALYSIS.chapters }, done: 3, total: 8 });
+  assert.ok(await until(() => model.view.value.verdictPending !== false));
+  assert.equal(model.view.value.verdictPending, "章节还在生成，结论最后写。");
+  assert.doesNotMatch(String(model.view.value.verdictPending), /\d/);
 });
 
 test("没登录：摆出标题，提示登录或导入字幕，不摆「生成概览」", async () => {

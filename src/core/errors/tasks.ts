@@ -9,6 +9,6 @@ export const TASK_ERROR_TEXT: Readonly<Record<TaskErrorCode, ErrorCopy>> = {
   CARD_RATE_LIMITED: {
     cause: "卡片上生成得太频繁。",
     impact: "这次没有生成，不花额度。",
-    next: "过一分钟再点，或者点「打开完整面板」在侧边栏生成。",
+    next: "过一分钟再点，或者点「打开侧边栏」在那里生成。",
   },
 };

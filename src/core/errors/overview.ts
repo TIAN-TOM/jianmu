@@ -18,7 +18,7 @@ export const OVERVIEW_ERROR_TEXT: Readonly<Record<OverviewErrorCode, ErrorCopy>>
   NO_TRANSCRIPT: {
     cause: "这个视频没有可用的字幕。",
     impact: "没法生成概览，也没花额度。",
-    next: "手上有这个视频的字幕文件的话，可以在侧边栏点「导入字幕文件」；在播放页卡片上要先点「打开完整面板」。",
+    next: "手上有这个视频的字幕文件的话，可以在侧边栏点「导入字幕文件」；在播放页卡片上要先点「打开侧边栏」。",
   },
   EMPTY_ANALYSIS: { cause: "模型没有写出有效的章节或金句。", impact: MAYBE_BILLED, next: SWITCH_MODEL },
   ANALYSIS_PARSE_FAILED: { cause: "模型没有按要求的格式返回概览，结果读不出来。", impact: MAYBE_BILLED, next: SWITCH_MODEL },
