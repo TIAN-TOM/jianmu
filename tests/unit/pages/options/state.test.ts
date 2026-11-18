@@ -1,6 +1,7 @@
 // 设置页的状态：等授权的工夫别的页面清了密钥，点击时的表单作废，不把清掉的密钥写回去；
 // 本页刚勾的同意还没落地就点保存，保存等它写完，同意不被盖回去；推理强度和概览分块改了马上存，不等保存、不申请权限，
-// 保存也不把它们盖回去；实际档位按存着的档位问，只认最后一问。
+// 保存也不把它们盖回去；实际档位按存着的档位问，只认最后一问；「AI 服务」一节的状态行落在点的那个控件下面；
+// 保存以后那句「还差什么」跟着同意的勾选更新，不留着过时的话。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createOptionsState } from "../../../../src/pages/options/state.ts";
@@ -19,6 +20,8 @@ function world(initial: Record<string, unknown>) {
   let consentFails = false;
   let updateFails = false;
   let hostAsks = 0;
+  let hostGranted = true;
+  let modelsFail = false;
   const listeners = new Set<Listener>();
   const permission = deferred();
   const previews: { efforts: Record<string, string> }[] = [];
@@ -58,6 +61,8 @@ function world(initial: Record<string, unknown>) {
     store,
     api: {
       send: (async (type: string, req: { efforts: Record<string, string> }) => {
+        if (type === "models.list") return modelsFail ? { ok: false, code: "INVALID_AI_KEY" } : { ok: true, value: { ids: ["m", "m2"] } };
+        if (type === "ai.testConnection") return { ok: true, value: { model: "m", reply: "可用", truncated: false } };
         if (type !== "ai.effortPreview") return { ok: true, value: { released: [], failed: [] } };
         previews.push(req);
         if (!hold) return { ok: true, value: { items: echo(req) } };
@@ -69,7 +74,7 @@ function world(initial: Record<string, unknown>) {
     requestHost: async () => {
       hostAsks += 1;
       await permission.promise;
-      return true;
+      return hostGranted;
     },
     download: () => {},
     storageChanged: { addListener: (listener) => void listeners.add(listener), removeListener: (listener) => void listeners.delete(listener) },
@@ -99,6 +104,8 @@ function world(initial: Record<string, unknown>) {
     failConsent: () => void (consentFails = true),
     failUpdates: () => void (updateFails = true),
     hostAsks: () => hostAsks,
+    refuseHost: () => void (hostGranted = false),
+    failModels: () => void (modelsFail = true),
   };
 }
 
@@ -232,6 +239,96 @@ test("推理强度没存上：提示没有保存，页面记着的还是原来�
   assert.match(w.state.aiStatus.value?.text ?? "", /没有保存/);
   assert.equal(w.state.saved.value?.featureEfforts.qa, "off");
   assert.equal(w.current().featureEfforts.qa, "off");
+});
+
+test("AI 服务一节的状态行落在点的那个控件下面：记住密钥、清除密钥、拉取模型各在自己那里，保存和测试连接在按钮下面", async () => {
+  const w = world({ ...GATEWAY, aiApiKey: "sk-old", aiApiKeyOrigin: "https://gateway.example.com/" });
+  w.permission.resolve();
+  await w.state.load();
+  const at = () => w.state.aiStatus.value?.at;
+  const text = () => w.state.aiStatus.value?.text ?? "";
+
+  await w.state.setRemember(true);
+  assert.equal(at(), "remember");
+  assert.match(text(), /保存并授权/);
+  await w.state.setRemember(false);
+  assert.equal(at(), "remember");
+  assert.match(text(), /不再记住/);
+
+  await w.state.fetchModels();
+  assert.equal(at(), "model");
+  assert.match(text(), /拉到 2 个模型/);
+
+  await w.state.testConnection(false);
+  assert.equal(at(), "actions");
+  assert.match(text(), /连接正常/);
+
+  assert.equal(await w.state.save(), true);
+  assert.equal(at(), "actions");
+  assert.match(text(), /已保存并授权/);
+
+  await w.state.clearKey();
+  assert.equal(at(), "key");
+  assert.match(text(), /已删除/);
+});
+
+test("拉取模型没成：服务拒绝、拉取前那次保存没拿到权限，都写在模型框下面", async () => {
+  const refused = world({ ...GATEWAY });
+  refused.permission.resolve();
+  await refused.state.load();
+  refused.failModels();
+  await refused.state.fetchModels();
+  assert.equal(refused.state.aiStatus.value?.at, "model");
+  assert.match(refused.state.aiStatus.value?.text ?? "", /没拉到模型列表/);
+
+  const denied = world({ ...GATEWAY });
+  denied.permission.resolve();
+  await denied.state.load();
+  denied.refuseHost();
+  await denied.state.fetchModels();
+  assert.equal(denied.state.aiStatus.value?.at, "model");
+  assert.match(denied.state.aiStatus.value?.text ?? "", /没有拿到/);
+  assert.equal(denied.state.aiStatus.value?.tone, "error");
+
+  // 直接点保存没拿到权限：还是写在按钮下面。
+  assert.equal(await denied.state.save(), false);
+  assert.equal(denied.state.aiStatus.value?.at, "actions");
+});
+
+test("即改即存没存上：推理强度和概览分块的写在各自下面，别的照旧写在按钮下面", async () => {
+  const w = world({ ...GATEWAY });
+  await w.state.load();
+  w.failUpdates();
+  await w.state.saveInstant({ featureEfforts: { qa: "high" } });
+  assert.equal(w.state.aiStatus.value?.at, "efforts");
+  await w.state.saveInstant({ analysisChunkMode: "short" });
+  assert.equal(w.state.aiStatus.value?.at, "chunk");
+  await w.state.saveInstant({ themeMode: "dark" });
+  assert.equal(w.state.aiStatus.value?.at, "actions");
+  assert.match(w.state.aiStatus.value?.text ?? "", /没有保存/);
+});
+
+test("没勾同意就保存，提示还差同意；勾上以后那句提示跟着变，取消勾选又变回来；别的提示在的时候不去动它", async () => {
+  const w = world({ ...GATEWAY, aiApiKey: "sk-old", aiApiKeyOrigin: "https://gateway.example.com/" });
+  w.permission.resolve();
+  await w.state.load();
+  const status = () => w.state.aiStatus.value;
+
+  assert.equal(await w.state.save(), true);
+  assert.match(status()?.text ?? "", /已保存并授权，但 AI 功能暂时用不了/);
+  assert.equal(status()?.tone, "warn");
+
+  await w.state.setConsent(true);
+  assert.deepEqual(status(), { text: "已保存并授权。", tone: "ok", at: "actions" });
+
+  await w.state.setConsent(false);
+  assert.match(status()?.text ?? "", /暂时用不了/);
+  assert.equal(status()?.tone, "warn");
+
+  await w.state.setRemember(true);
+  await w.state.setConsent(true);
+  assert.equal(status()?.at, "remember", "眼前是别的提示，勾同意不把它换掉");
+  assert.match(status()?.text ?? "", /保存并授权/);
 });
 
 test("恢复备份：读文件的工夫就占着，这期间点导出、清除、另一次恢复都不发；读不出、读不懂、导完都放开", async () => {

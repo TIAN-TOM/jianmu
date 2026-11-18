@@ -58,17 +58,33 @@ const fill = (page, selector, value) =>
     value,
   );
 
-const statusOf = (page, section) => page.evaluate(`document.querySelector("#${section} .status")?.textContent ?? ""`);
+/** 某一节里有字的那条状态行。「AI 服务」一节有好几个位置，同一时间只有一个位置有字。 */
+const statusText = (section) => `([...document.querySelectorAll("#${section} .status")].map((node) => node.textContent).find((text) => text) ?? "")`;
+const statusOf = (page, section) => page.evaluate(statusText(section));
 
 /** 等某一节的状态行以这段文字开头；等不到时把当时的状态行写进报错。 */
 async function statusStarts(page, section, prefix, timeoutMs = undefined) {
   try {
-    await page.waitFor(`状态行出现「${prefix}」`, `(document.querySelector("#${section} .status")?.textContent ?? "").startsWith(${JSON.stringify(prefix)})`, timeoutMs);
+    await page.waitFor(`状态行出现「${prefix}」`, `${statusText(section)}.startsWith(${JSON.stringify(prefix)})`, timeoutMs);
   } catch (error) {
     throw new Error(`${error.message}；状态行是「${await statusOf(page, section)}」`);
   }
   return statusOf(page, section);
 }
+
+/** 「AI 服务」一节里有字的状态行落在哪：跟着哪个控件、离上面那个元素多远、在不在视口里，这一节一共几条有字。 */
+const placedStatus = (page, above) =>
+  page.call(
+    `(above) => {
+      const shown = [...document.querySelectorAll("#ai-service .status")].filter((node) => node.textContent);
+      const [node] = shown;
+      if (!node) return null;
+      const rect = node.getBoundingClientRect();
+      const anchor = document.querySelector(above).getBoundingClientRect();
+      return { at: node.dataset.statusAt, gap: Math.round(rect.top - anchor.bottom), inView: rect.top >= 0 && rect.bottom <= innerHeight, shown: shown.length };
+    }`,
+    above,
+  );
 
 async function enable(page) {
   await clickButton(page, "启用简幕");
@@ -98,19 +114,39 @@ test("设置页：选服务商、填密钥、勾同意后保存，拉模型列�
   await enable(page);
   await fill(page, "#preset", ANTHROPIC.presetId);
   await fill(page, "#aiApiKey", ANTHROPIC.key);
+  // 没勾同意先保存：提示还差同意。勾上以后这句话跟着变，不留着「请勾选」。
+  await clickButton(page, "保存并授权");
+  assert.match(await statusStarts(page, "ai-service", "已保存并授权，但 AI 功能暂时用不了"), /我已了解/);
   await page.click("#dataConsent");
   await page.waitFor("同意记下了", `document.getElementById("dataConsent").checked`);
+  await page.waitFor("那句还差同意的提示换掉了", `${statusText("ai-service")} === "已保存并授权。"`);
 
+  // 状态行跟着点的那个控件走：拉取的结果紧挨在模型框下面，不用滚到这一节最底下找。
   await clickButton(page, "拉取模型列表");
   assert.equal(await statusStarts(page, "ai-service", "拉到"), "拉到 1 个模型，可以在模型框里直接选。");
+  const fetched = await placedStatus(page, "#aiModel");
+  assert.deepEqual({ at: fetched.at, inView: fetched.inView, shown: fetched.shown }, { at: "model", inView: true, shown: 1 });
+  assert.ok(fetched.gap >= 0 && fetched.gap <= 16, `离模型框 ${fetched.gap} 像素`);
   const listed = await page.evaluate(`[...document.querySelectorAll("#model-options option")].map((node) => node.value)`);
   assert.deepEqual(listed, [ANTHROPIC.model]);
   await fill(page, "#aiModel", ANTHROPIC.model);
 
+  // 勾记住密钥：要点保存才算数的那句话写在勾选框下面；取消以后也写在那里。没保存过，密钥还是只在会话里。
+  await page.click("#rememberApiKey");
+  assert.equal(await statusStarts(page, "ai-service", "点「保存并授权」以后"), "点「保存并授权」以后，密钥才会记在这台电脑上。");
+  const remembering = await placedStatus(page, "#rememberApiKey");
+  assert.deepEqual({ at: remembering.at, inView: remembering.inView, shown: remembering.shown }, { at: "remember", inView: true, shown: 1 });
+  assert.ok(remembering.gap >= 0 && remembering.gap <= 16, `离勾选框 ${remembering.gap} 像素`);
+  await page.click("#rememberApiKey");
+  await statusStarts(page, "ai-service", "已不再记住密钥");
+  assert.equal((await placedStatus(page, "#rememberApiKey")).at, "remember");
+
   await clickButton(page, "保存并授权");
   assert.equal(await statusStarts(page, "ai-service", "已保存"), "已保存并授权。");
+  assert.equal((await placedStatus(page, "#aiModel")).at, "actions");
   await clickButton(page, "测试连接");
   assert.equal(await statusStarts(page, "ai-service", "默认模型"), `默认模型（${ANTHROPIC.model}）连接正常，回复「可用」`);
+  assert.deepEqual((({ at, shown }) => ({ at, shown }))(await placedStatus(page, "#aiModel")), { at: "actions", shown: 1 });
 
   const stored = await page.evaluate(`Promise.all([chrome.storage.local.get(null), chrome.storage.session.get(${JSON.stringify(API_KEY_SESSION_KEY)})])`);
   const [local, session] = stored;
