@@ -101,12 +101,13 @@ test("确认启用之前、开关关着时：标签页和窗口事件不问窗�
   }
 });
 
-test("开着时：前台的长视频先生成，后台打开的那个接着生成，结论都存下；再切回来不再生成", async () => {
-  const { app, ai, overviewOf, pumped } = appOn();
+test("开着时：前台的长视频先生成，后台打开的那个也生成，结论都存下；再切回来不再生成", async () => {
+  const { app, ai, overviewOf, pumped, site } = appOn();
   app.onFocusChanged(BACKGROUND);
   assert.ok(await pumped(async () => (await overviewOf())?.verdict?.summary === "自动写的结论"));
-  assert.ok(ai.posts().every((request) => !JSON.stringify(request.body).includes(OTHER_ID)), "前台的先，没跑完不碰后台的");
-  assert.ok(await pumped(async () => (await overviewOf(OTHER))?.verdict?.summary === "自动写的结论"), "后台打开的那个接着生成");
+  assert.ok(await pumped(async () => (await overviewOf(OTHER))?.verdict?.summary === "自动写的结论"), "后台打开的那个也生成");
+  const firstFor = (id: string) => site.calls.findIndex((call) => (call.ref ?? call.info?.ref)?.videoId === id);
+  assert.ok(firstFor(LONG_ID) >= 0 && firstFor(LONG_ID) < firstFor(OTHER_ID), "前台的先读");
   const posts = ai.posts().length;
   assert.equal(ai.posts().filter(isVerdict).length, 2);
 
@@ -141,8 +142,9 @@ test("被限流：整批停下，排着的不接着读", async () => {
 });
 
 test("哪些读取失败算整体读不了、要整批停下", () => {
-  for (const code of ["RATE_LIMITED", "NEED_LOGIN", "MALFORMED"] as const) assert.equal(stopsReading(code), true, code);
-  for (const code of ["NO_CAPTIONS", "UNPLAYABLE", "NOT_FOUND", "NETWORK", "TIMEOUT"] as const) assert.equal(stopsReading(code), false, code);
+  for (const code of ["RATE_LIMITED", "NEED_LOGIN"] as const) assert.equal(stopsReading(code), "stop", code);
+  assert.equal(stopsReading("MALFORMED"), "broken", "读不懂的也停，这个视频另外记下");
+  for (const code of ["NO_CAPTIONS", "UNPLAYABLE", "NOT_FOUND", "NETWORK", "TIMEOUT"] as const) assert.equal(stopsReading(code), null, code);
 });
 
 test("只认地址变了或加载完成的标签页更新，后台的也算；焦点离开 Chrome 时不判断", async () => {

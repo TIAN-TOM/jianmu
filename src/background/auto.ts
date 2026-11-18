@@ -68,13 +68,13 @@ export function createAutoWiring(deps: AutoWiringDeps): AutoGenerate {
     async lightDuration(ref) {
       // 做一次卡片那样的轻量读取，卡片正在读就接上它，不为短视频去读字幕。
       const reply = await deps.transcript.light(ref).catch(() => null);
-      if (reply && !reply.ok && stopsReading(reply.code)) return "stop";
-      return deps.transcript.knownDuration(ref);
+      const stop = reply && !reply.ok ? stopsReading(reply.code) : null;
+      return stop ?? deps.transcript.knownDuration(ref);
     },
     async readTranscript(ref) {
       const snapshot = await deps.transcript.ensure(ref);
       if (snapshot.ok) return { durationSec: snapshot.value.view.info.durationSec };
-      return stopsReading(snapshot.code) ? "stop" : null;
+      return stopsReading(snapshot.code) ?? null;
     },
     async start(_ref, video, hooks) {
       // 和侧边栏、卡片点「生成概览」取定一样的配置：等价的请求接上同一个任务。
@@ -94,9 +94,13 @@ export function createAutoWiring(deps: AutoWiringDeps): AutoGenerate {
   });
 }
 
-/** 这会儿整体读不了平台：被限流或要人机验证、没登录、读不懂。自动生成碰到就整批停下，不一个个去试。 */
-export function stopsReading(code: ErrorCode): boolean {
-  return code === "RATE_LIMITED" || code === "NEED_LOGIN" || code === "MALFORMED";
+/**
+ * 读平台失败以后自动生成要不要整批停下：被限流或要人机验证、没登录是这会儿整体读不了；返回读不懂的也停，
+ * 分不清是整条路线还是这一个视频，这个视频另外记下不再读，免得每次都卡在它身上。其余的只算这个视频读不成。
+ */
+export function stopsReading(code: ErrorCode): "stop" | "broken" | null {
+  if (code === "RATE_LIMITED" || code === "NEED_LOGIN") return "stop";
+  return code === "MALFORMED" ? "broken" : null;
 }
 
 /** 这次存储变化是不是关掉或打开了开关：开关一动就从额度用完、密钥不对的暂停里恢复。 */

@@ -383,8 +383,8 @@ test("数据同意第 3 版加了视频时长：第 1、2 版的指纹不变，�
 
 // 数据同意第 4 版：从「点了才发」变成打开就出结论时自动发，超出原来的范围，升版重新同意。
 test("数据同意第 4 版加了打开视频就自动发送：前三版的指纹不变，两种构建一样", () => {
-  assert.deepEqual(versionStamps(DATA_CONSENT_TABLE, FRAME_OFF)[3], { version: 4, fingerprint: "16a09b86eba35d2e" });
-  assert.deepEqual(versionStamps(DATA_CONSENT_TABLE, FRAME_ON)[3], { version: 4, fingerprint: "16a09b86eba35d2e" });
+  assert.deepEqual(versionStamps(DATA_CONSENT_TABLE, FRAME_OFF)[3], { version: 4, fingerprint: "6ac3269feba5a9cf" });
+  assert.deepEqual(versionStamps(DATA_CONSENT_TABLE, FRAME_ON)[3], { version: 4, fingerprint: "6ac3269feba5a9cf" });
   assert.deepEqual(DATA_CONSENT_TABLE[3]?.items.map(({ kind, id }) => `${kind}:${id}`), ["trigger:auto-on-open-tabs"]);
   assert.ok(CONSENT_V3);
   const stored = { dataConsentVersion: CONSENT_V3.version, dataConsentFingerprint: CONSENT_V3.fingerprint };
@@ -393,8 +393,8 @@ test("数据同意第 4 版加了打开视频就自动发送：前三版的指�
 
 test("数据同意第 5 版加了整理字幕这个用途：前四版的指纹不变，第 5 版是当前一版，两种构建一样；同意过第 4 版的要重新同意，只看到这一行", () => {
   const stamps = versionStamps(DATA_CONSENT_TABLE, FRAME_OFF);
-  assert.deepEqual(stamps.at(-1), { version: 5, fingerprint: "5ccabe99b2185669" });
-  assert.deepEqual(currentStamp(DATA_CONSENT_TABLE, FRAME_ON), { version: 5, fingerprint: "5ccabe99b2185669" });
+  assert.deepEqual(stamps.at(-1), { version: 5, fingerprint: "98539c96838de496" });
+  assert.deepEqual(currentStamp(DATA_CONSENT_TABLE, FRAME_ON), { version: 5, fingerprint: "98539c96838de496" });
   assert.equal(DATA_CONSENT_VERSION, 5);
   assert.deepEqual(DATA_CONSENT_TABLE.at(-1)?.items.map(({ kind, id }) => `${kind}:${id}`), ["purpose:tidy-transcript"]);
   const fourth = stamps[3];

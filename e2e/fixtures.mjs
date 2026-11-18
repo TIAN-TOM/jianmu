@@ -41,8 +41,10 @@ export const AUTO_SHORT = { bvid: "BV1Sample006", aid: 1006, cid: 2006, mid: 300
 /** @type {Video} */
 export const AUTO_BACKGROUND = { bvid: "BV1Sample007", aid: 1007, cid: 2007, mid: 3007, title: "后台打开的样例长视频", owner: "第七位样例作者", duration: 1500 };
 
+/** 打开就出结论两个在跑时排着、等到空位接着生成的那个。 @type {Video} */
+export const AUTO_QUEUED = { bvid: "BV1Sample012", aid: 1012, cid: 2012, mid: 3012, title: "排着的样例长视频", owner: "第九位样例作者", duration: 1500 };
 /** 打开就出结论排着时关掉标签页的那个。 @type {Video} */
-export const AUTO_QUEUED = { bvid: "BV1Sample012", aid: 1012, cid: 2012, mid: 3012, title: "排着就关掉的样例长视频", owner: "第九位样例作者", duration: 1500 };
+export const AUTO_DROPPED = { bvid: "BV1Sample015", aid: 1015, cid: 2015, mid: 3015, title: "排着就关掉的样例长视频", owner: "第十二位样例作者", duration: 1500 };
 /** 打开就出结论被限流时一起开的两个。 @type {Video} */
 export const AUTO_LIMITED_A = { bvid: "BV1Sample013", aid: 1013, cid: 2013, mid: 3013, title: "被限流的样例长视频甲", owner: "第十位样例作者", duration: 1500 };
 /** @type {Video} */
@@ -61,6 +63,7 @@ export const AUTO_SAMPLES = Object.freeze({
   short: sample(AUTO_SHORT),
   background: sample(AUTO_BACKGROUND),
   queued: sample(AUTO_QUEUED),
+  dropped: sample(AUTO_DROPPED),
   limitedA: sample(AUTO_LIMITED_A),
   limitedB: sample(AUTO_LIMITED_B),
 });
@@ -79,6 +82,7 @@ export const VIDEOS = {
   [AUTO_SHORT.bvid]: AUTO_SHORT,
   [AUTO_BACKGROUND.bvid]: AUTO_BACKGROUND,
   [AUTO_QUEUED.bvid]: AUTO_QUEUED,
+  [AUTO_DROPPED.bvid]: AUTO_DROPPED,
   [AUTO_LIMITED_A.bvid]: AUTO_LIMITED_A,
   [AUTO_LIMITED_B.bvid]: AUTO_LIMITED_B,
   [BRIEF_VIDEO.bvid]: BRIEF_VIDEO,
