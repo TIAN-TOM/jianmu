@@ -1,12 +1,13 @@
 // 字幕缓存：视频信息、字幕、官方总结这类能重新取回的数据，一个视频一条，过期和超量的自动淘汰。
 // 缓存出问题不挡主流程：读不出来当作没有，写不进去回 false。
+// 淘汰只读主键的先后顺序，再从最旧的一头逐条看过没过期，碰到没过期的就停：几百条大记录时写入也不慢。
 import type { ClearGuard } from "../../core/clear-guard.ts";
 import type { VideoKey } from "../../core/video-ref.ts";
 import type { ObjectStoreDriver } from "../../platform/idb.ts";
 import { createWriteGate, type WriteOptions } from "./write-gate.ts";
 
-export const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-export const CACHE_MAX_ENTRIES = 60;
+export const CACHE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+export const CACHE_MAX_ENTRIES = 500;
 
 export type CacheEntry<T extends object> = T & {
   readonly videoKey: VideoKey;
@@ -14,7 +15,7 @@ export type CacheEntry<T extends object> = T & {
 };
 
 export interface CacheSaveOptions extends WriteOptions {
-  // 只改已有条目时关掉：淘汰要读全量缓存，一次任务几十批经不起这么读。
+  // 只改已有条目时关掉：一次任务几十批，不用每批都核对一遍总量。
   readonly evict?: boolean;
 }
 
@@ -55,11 +56,16 @@ export function createCacheStore<T extends object>({
   async function sweep(): Promise<VideoKey[]> {
     try {
       const at = now();
-      const rows = await driver.getAllByIndex("byTimestamp");
-      const expired = rows.filter((row) => isExpired(row, at));
-      const fresh = rows.filter((row) => !isExpired(row, at));
-      const stale = fresh.slice(0, Math.max(0, fresh.length - maxEntries));
-      const removals = [...expired, ...stale].map((row) => row.videoKey);
+      // 按写入时间从旧到新的主键；超量的那一截直接删，不用读。
+      const keys = (await driver.keysByIndex("byTimestamp")) as VideoKey[];
+      const overflow = Math.max(0, keys.length - maxEntries);
+      const removals = keys.slice(0, overflow);
+      // 剩下的从最旧的一头逐条看有没有过期，碰到没过期的就停：后面的都更新。
+      for (const key of keys.slice(overflow)) {
+        const row = await driver.get(key);
+        if (!row || !isExpired(row, at)) break;
+        removals.push(key);
+      }
       if (removals.length) await driver.write({ remove: removals });
       return removals;
     } catch (error) {

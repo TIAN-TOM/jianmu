@@ -10,6 +10,7 @@ export function lazyDriver<T>(storeName: StoreName, indexedDB: () => IdbFactory 
     getAll: () => current().getAll(),
     get: (key) => current().get(key),
     getAllByIndex: (index, key) => current().getAllByIndex(index, key),
+    keysByIndex: (index) => current().keysByIndex(index),
     clear: () => current().clear(),
     close: () => driver?.close(),
     write: (change) => current().write(change),

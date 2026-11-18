@@ -391,7 +391,7 @@ type Derived =                                                            // 旧
 | `notes` | `id` | `byVideo`、`byCreated` | 时间戳笔记，带 `kind`（首发只有 `note`）、`origin`、视频和频道快照、`Derived` |
 | `overviews` | `videoKey` | `byUpdated` | 每个视频一份：一句话结论、章节、金句、失败和截断区间。章节部分和结论部分各带一份 `Derived`，并记下写入它的任务的创建时间（第 8.5 节）。结论部分另带可选的重点起始秒和章节指纹（第 7.2 节）。重新生成的进度放在 `draft` 部分，写完才换上（第 8.1 节） |
 | `qa` | `id` | `byVideo`、`byCreated` | 问答，记下后不改 |
-| `cache` | `videoKey` | `byTimestamp` | 视频信息、平台字幕（带 `TranscriptRef`）、官方总结、UP 主分段；30 天、60 条起步（初值，按性能测试定） |
+| `cache` | `videoKey` | `byTimestamp` | 视频信息、平台字幕（带 `TranscriptRef`）、官方总结、UP 主分段；90 天、500 条（开发者本人 2026-11-18 放宽）。存新内容时淘汰只读主键的先后顺序，超量的直接删，过期的从最旧一头逐条看、碰到没过期的就停，不把全部记录读一遍 |
 | `translations` | 字幕版本加目标语言 | `byVideo` | 译文，带依据；不随字幕缓存的条数淘汰，上限按性能测试定 |
 | `imports` | `videoKey` | — | 用户导入的字幕，一个视频一份，后导入的覆盖先导入的 |
 | `channels` | `channelKey` | — | 频道 → 用户选过的模式 |
