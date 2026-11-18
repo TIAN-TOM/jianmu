@@ -9,9 +9,10 @@ import type { CardView } from "../../../src/pages/card/model.ts";
 
 const LONG = "这是一段自造的样例文字，用来把卡片撑得很高，看底部的按钮会不会被裁掉。";
 const full = location.hash === "#full";
-// 只有官方总结：正文五十多个字，提纲 3 段。窄卡片加大字号时三行放不下，宽卡片标准字号时放得下。
+// 只有官方总结：正文一百来个字，提纲 3 段。很窄的卡片加大字号时三行放不下，很宽的卡片标准字号时放得下；
+// 宽窄差得开，换一套字体、字宽不一样也照样成立。
 const officialOnly = location.hash === "#official";
-const SHORT_SUMMARY = "这是一段自造的官方总结，不长也不短，用来看正文被截成三行以后，底下还有没有藏着的字，句子到这里就结束了。";
+const SHORT_SUMMARY = "这是一段自造的官方总结，一共一百来个字，用来看正文被截成三行以后，底下还有没有藏着的字。卡片很宽的时候三行放得下，一个字都不藏；卡片很窄、字号又调大的时候三行放不下，后面的字就被截掉了，这时候要有地方点开看全。";
 
 const view = signal<CardView>({
   visible: true,

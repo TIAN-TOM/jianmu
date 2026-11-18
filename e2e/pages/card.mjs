@@ -93,14 +93,15 @@ test("卡片：官方总结的正文真被截了才给「展开全部」，按�
       return { more: document.querySelector("#card-official .card-more")?.textContent ?? null, hidden: reading.scrollHeight > reading.clientHeight + 1, clamp: reading.dataset.clamp ?? null };
     })()`);
 
-  // 宽卡片、标准字号：三行放得下，没有藏着的字，也就没有按钮。
-  await page.setWidth(411, CARD_HEIGHT.max);
+  // 宽窄故意差得很开：测试机器上的字体和字宽不一定一样，这两档在哪套字体下结论都不变。
+  // 很宽的卡片、标准字号：三行放得下，没有藏着的字，也就没有按钮。
+  await page.setWidth(900, CARD_HEIGHT.max);
   await page.setAppearance({ accentTheme: "ink", themeMode: "light", uiFontScale: Math.min(...UI_FONT_SCALES) });
   await page.waitFor("量完", `!document.querySelector("#card-official .card-more")`);
   assert.deepEqual(await read(), { more: null, hidden: false, clamp: "true" });
 
-  // 窄卡片、最大字号：同样的字三行放不下，按钮出现。
-  await page.setWidth(FRAME_WIDTH, CARD_HEIGHT.max);
+  // 很窄的卡片、最大字号：同样的字三行放不下，按钮出现。
+  await page.setWidth(200, CARD_HEIGHT.max);
   await page.setAppearance({ accentTheme: "ink", themeMode: "light", uiFontScale: Math.max(...UI_FONT_SCALES) });
   await page.waitFor("按钮出现", `document.querySelector("#card-official .card-more")?.textContent === "展开全部"`);
   assert.equal((await read()).hidden, true);
