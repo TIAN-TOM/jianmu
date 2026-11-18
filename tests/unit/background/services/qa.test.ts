@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
-import { FALLBACK_ANSWER, QA_PROMPT, QA_USER_SECTIONS } from "../../../../src/background/services/qa.ts";
+import { ANSWER_MAX_TOKENS, FALLBACK_ANSWER, QA_PROMPT, QA_USER_SECTIONS, QUESTION_MAX } from "../../../../src/background/services/qa.ts";
 import { QA_ANSWER } from "../../../../src/core/ai/schemas.ts";
 import { describe, type Result } from "../../../../src/core/errors.ts";
 import type { QaRecord } from "../../../../src/core/notes/records.ts";
@@ -71,6 +71,7 @@ test("问答端到端：检索、生成、引用校验、历史落库与删除",
   assert.deepEqual(await bg.send("qa.delete", { id: entry.id }), { ok: true, value: {} });
   const emptied = await bg.send<QaHistoryView>("qa.history", { video: FIRST });
   assert.deepEqual(emptied.ok && emptied.value.entries, []);
+  assert.equal(bg.ai.posts()[0]?.body?.max_tokens, ANSWER_MAX_TOKENS, "回答不限字数，输出上限按长回答留");
   const listed = await bg.send<{ readonly tasks: readonly TaskView[] }>("task.list", {});
   assert.deepEqual(listed.ok && listed.value.tasks, [], "问答任务跑完就收尾");
 });
@@ -78,8 +79,9 @@ test("问答端到端：检索、生成、引用校验、历史落库与删除",
 test("空问题与超长问题在入口被拦下，不发起模型请求", async () => {
   const bg = studyBackground({ handler: () => chatReply(JSON.stringify({ answer: "x" })) });
   assert.deepEqual(await startQa(bg.send, "   "), { ok: false, code: "EMPTY_QUESTION" });
-  assert.deepEqual(await startQa(bg.send, "问".repeat(501)), { ok: false, code: "QUESTION_TOO_LONG" });
-  assert.equal((await startQa(bg.send, "问".repeat(500))).ok, true, "500 个字以内照常登记");
+  assert.equal(QUESTION_MAX, 2000);
+  assert.deepEqual(await startQa(bg.send, "问".repeat(2001)), { ok: false, code: "QUESTION_TOO_LONG" });
+  assert.equal((await startQa(bg.send, "问".repeat(2000))).ok, true, "2000 个字以内照常登记");
   assert.equal(bg.ai.posts().length, 0);
   assert.equal(bg.site.calls.length, 0, "登记时不取字幕");
 });
@@ -335,6 +337,14 @@ test("只挑了部分块时：紧挨着没送进去的块，它起点那一秒�
   assert.deepEqual(mixed.citations.map((citation) => citation.startSeconds), [899]);
   assert.match(mixed.citations[0]?.quote ?? "", /^第15条/, "第 14 分 59 秒对到送进去的最后一句");
   assert.deepEqual(mixed.clickable, [899], "没送进去的那一秒不能点");
+});
+
+test("问答模板不限回答字数，简洁为先；引用和找不到依据如实说的要求还在", () => {
+  const markdown = readFileSync(new URL(`../../../../prompts/${QA_PROMPT}`, import.meta.url), "utf8");
+  assert.doesNotMatch(markdown, /\d+ 个字以内/);
+  assert.match(markdown, /简洁为先/);
+  assert.match(markdown, /只写一个时间点/);
+  assert.match(markdown, /给到的字幕里没有讲到这一点/);
 });
 
 test("问答模板的用户消息按视频信息、字幕、问题排，问题在字幕之后", () => {

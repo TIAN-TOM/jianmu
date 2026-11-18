@@ -5,7 +5,7 @@ export type QaErrorCode = "EMPTY_QUESTION" | "QUESTION_TOO_LONG" | "QA_INPUT_TOO
 
 export const QA_ERROR_TEXT: Readonly<Record<QaErrorCode, ErrorCopy>> = {
   EMPTY_QUESTION: { cause: "问题是空的。", next: "先输入问题。" },
-  QUESTION_TOO_LONG: { cause: "问题超过了 500 个字符。", impact: "没有发出去，不花额度。", next: "删短一点再问。" },
+  QUESTION_TOO_LONG: { cause: "问题超过了 2000 个字符。", impact: "没有发出去，不花额度。", next: "删短一点再问。" },
   QA_INPUT_TOO_LONG: {
     cause: "要送的字幕太长，这个模型一次装不下，缩小范围以后还是被服务拒绝了。",
     impact: "这次没拿到回答。",
