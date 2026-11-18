@@ -213,7 +213,7 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
               value={form.aiBaseUrl}
               onChange={(event) => state.editAddress({ aiBaseUrl: event.currentTarget.value })}
             />
-            <span class="field-hint">填到版本号就行，只认 https。</span>
+            <span class="field-hint">填到版本号就行，只认 https。本机跑的服务（localhost、127.0.0.1）可以用 http。</span>
           </label>
         </>
       ) : null}
@@ -241,7 +241,7 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
             onConfirm={() => void state.clearKey()}
           />
         </span>
-        <span class="field-hint">默认只存在本次浏览器会话的内存里，不写入磁盘：重启浏览器，或者扩展停用、重新加载、更新以后，要重新填写。</span>
+        <span class="field-hint">默认只存在本次浏览器会话的内存里，不写入磁盘：重启浏览器，或者扩展停用、重新加载、更新以后，要重新填写。地址是本机的服务不要密钥时，可以留空。</span>
       </div>
 
       <label class="check">

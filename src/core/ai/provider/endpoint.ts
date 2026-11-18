@@ -50,7 +50,22 @@ export type BaseUrlCheck =
   | { readonly ok: true; readonly url: string; readonly origin: string }
   | { readonly ok: false; readonly error: string };
 
-// 密钥会随请求发到这个地址，所以只认 https，本机地址也一样。
+// 本机跑的模型服务多半只开 http。请求不出这台电脑，所以这两个主机名放行 http；
+// 局域网地址和别的域名的 http 会经过别人的网络，一律不认。清单的可选权限只声明这两个来源，和这里一致。
+export const LOOPBACK_HOSTS: readonly string[] = Object.freeze(["localhost", "127.0.0.1"]);
+
+const isLoopback = (url: URL): boolean => LOOPBACK_HOSTS.includes(url.hostname);
+
+/** 地址指向这台电脑上的服务。本机服务通常不要密钥，这时可以不填。 */
+export function isLocalBaseUrl(input: unknown): boolean {
+  try {
+    return isLoopback(new URL(String(input || "").trim()));
+  } catch {
+    return false;
+  }
+}
+
+// 密钥会随请求发到这个地址，所以只认 https；本机地址（localhost、127.0.0.1）也可以用 http。
 export function validateBaseUrl(input: unknown, protocol: Protocol = PROTOCOLS.OPENAI): BaseUrlCheck {
   const text = String(input || "").trim();
   if (!text) return { ok: false, error: "请填写 API 地址。" };
@@ -62,10 +77,10 @@ export function validateBaseUrl(input: unknown, protocol: Protocol = PROTOCOLS.O
     return { ok: false, error: "API 地址不是合法的 URL。" };
   }
 
-  if (parsed.protocol !== "https:") {
+  if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && isLoopback(parsed))) {
     return {
       ok: false,
-      error: "API 地址要以 https:// 开头，本机地址也不能用 http://。",
+      error: "API 地址要以 https:// 开头。只有本机地址（localhost、127.0.0.1）可以用 http://。",
     };
   }
   // Chrome 的 match pattern 不支持 IPv6 字面量，这类地址申请不到访问权限。

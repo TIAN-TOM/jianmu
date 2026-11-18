@@ -1,6 +1,7 @@
 // 设置页：确认启用之前只有启用说明和资料一节；确认以后能保存服务商、密钥和模型，拉模型列表、测试连接对着模拟的模型服务走通，
-// 密钥只进会话存储；导出的备份清除全部数据后能再导回来。各测试开头先清除全部数据，从没启用的状态开始。
+// 密钥只进会话存储；本机 http 地址不填密钥也能保存、拉列表和测试连接；导出的备份清除全部数据后能再导回来。各测试开头先清除全部数据，从没启用的状态开始。
 import assert from "node:assert/strict";
+import { createServer } from "node:http";
 import { videoKey } from "../../src/core/video-ref.ts";
 import { API_KEY_SESSION_KEY, PAGE_PATHS, SETTINGS_STORAGE_KEY } from "../../src/shared/names.ts";
 import { FEATURE_MODEL_SLOTS } from "../../src/shared/settings-schema.ts";
@@ -119,6 +120,62 @@ test("设置页：选服务商、填密钥、勾同意后保存，拉模型列�
   const reopened = await open(PAGE_PATHS.options, { width: WIDTH });
   await reopened.waitFor("重新打开后表单填回来", `document.getElementById("aiModel")?.value === ${JSON.stringify(ANTHROPIC.model)}`);
   assert.equal(await reopened.evaluate(`document.getElementById("aiApiKey").value`), ANTHROPIC.key);
+});
+
+/** 本机的 OpenAI 兼容服务，只开 http、不要密钥。记下每个请求的地址和认证头。 */
+async function startLocalService() {
+  const seen = [];
+  const server = createServer((req, res) => {
+    seen.push({ path: req.url ?? "", authorization: req.headers.authorization ?? null, apiKey: req.headers["x-api-key"] ?? null });
+    req.resume();
+    req.on("end", () => {
+      res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+      if (req.url?.endsWith("/models")) res.end(JSON.stringify({ object: "list", data: [{ id: "local-model", object: "model" }] }));
+      else res.end(JSON.stringify({ id: "local", object: "chat.completion", choices: [{ index: 0, message: { role: "assistant", content: "可用" }, finish_reason: "stop" }] }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(undefined)));
+  const { port } = /** @type {import("node:net").AddressInfo} */ (server.address());
+  return {
+    base: `http://127.0.0.1:${port}/v1`,
+    seen,
+    close: () => new Promise((resolve) => {
+      server.closeAllConnections();
+      server.close(() => resolve(undefined));
+    }),
+  };
+}
+
+test("设置页：自定义填本机 http 地址、密钥留空，保存、拉模型列表和测试连接都发到本机，请求不带密钥", async ({ open }) => {
+  const local = await startLocalService();
+  try {
+    const page = await freshOptions(open);
+    await enable(page);
+    await fill(page, "#preset", "custom");
+    await page.waitFor("出现地址框", `document.getElementById("aiBaseUrl") !== null`);
+    await fill(page, "#protocol", "openai");
+    await fill(page, "#aiBaseUrl", local.base);
+    await page.click("#dataConsent");
+    await page.waitFor("同意记下了", `document.getElementById("dataConsent").checked`);
+
+    // 模型还没填，先保存拿到授权；提示只说缺模型，不要密钥。
+    await clickButton(page, "保存并授权");
+    assert.equal(await statusStarts(page, "ai-service", "已保存"), "已保存并授权，但 AI 功能暂时用不了：请填写模型名称，或点击「拉取模型列表」进行选择。");
+    await clickButton(page, "拉取模型列表");
+    assert.equal(await statusStarts(page, "ai-service", "拉到"), "拉到 1 个模型，可以在模型框里直接选。");
+    await fill(page, "#aiModel", "local-model");
+    await clickButton(page, "保存并授权");
+    await page.waitFor("模型存下", `chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)}).then((items) => items[${JSON.stringify(SETTINGS_STORAGE_KEY)}]?.aiModel === "local-model")`);
+    await clickButton(page, "测试连接");
+    assert.equal(await statusStarts(page, "ai-service", "默认模型"), "默认模型（local-model）连接正常，回复「可用」");
+
+    const stored = await page.evaluate(`chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)}).then((items) => items[${JSON.stringify(SETTINGS_STORAGE_KEY)}])`);
+    assert.equal(stored.aiBaseUrl, local.base);
+    assert.deepEqual(local.seen.map(({ path }) => path), ["/v1/models", "/v1/chat/completions"]);
+    for (const request of local.seen) assert.deepEqual([request.authorization, request.apiKey], [null, null], request.path);
+  } finally {
+    await local.close();
+  }
 });
 
 test("设置页：打开就出结论默认关；没同意时勾开关先列出说明，同意并打开后才开；关掉、改时长不用同意", async ({ open }) => {

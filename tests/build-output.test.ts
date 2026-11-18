@@ -27,7 +27,8 @@ const BUNDLES = ["background.js", "pages/sidepanel.js", "pages/theme-boot.js", "
 // scripting 用来在安装、更新和确认启用后往已开的视频页补注入内容脚本，本身没有安装警告。
 const PERMISSIONS = ["sidePanel", "storage", "scripting"];
 const HOST_PERMISSIONS = ["https://www.bilibili.com/*", "https://api.bilibili.com/*", "https://*.hdslb.com/*"];
-const OPTIONAL_HOST_PERMISSIONS = ["https://*/*"];
+// http 只放行本机的两个来源，不能写成 http://*/*。
+const OPTIONAL_HOST_PERMISSIONS = ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"];
 
 const readBuild = (file: string): string => readFileSync(join(BUILD, file), "utf8");
 

@@ -298,7 +298,7 @@ for (const wide of ["https://*/*", "https://*.video.example/*"]) {
   });
 }
 
-for (const pattern of ["<all_urls>", "file:///*", "http://old.example.org/*", "https://[2001:db8::1]/*"]) {
+for (const pattern of ["<all_urls>", "file:///*", "https://[2001:db8::1]/*"]) {
   test(`认不出写法的规则 ${pattern} 不碰，可能比必需主机还宽`, async () => {
     const { browser, grants } = world({ granted: [pattern] });
 
@@ -307,6 +307,32 @@ for (const pattern of ["<all_urls>", "file:///*", "http://old.example.org/*", "h
     assert.deepEqual(browser.removeCalls, []);
   });
 }
+
+test("本机 http 地址：保存后留着它的授权，换回 https 时收掉；协议不同的同名主机分开算", async () => {
+  const local = world({
+    settings: addressed("http://localhost:11434/v1"),
+    granted: ["http://localhost:11434/*", "https://localhost:11434/*", "http://127.0.0.1:1234/*", "https://api.example.com/*"],
+  });
+  await local.grants.releaseUnused();
+  assert.deepEqual(
+    [...local.browser.removed].sort(),
+    ["http://127.0.0.1:1234/*", "https://api.example.com/*", "https://localhost:11434/*"],
+  );
+  assert.ok(local.browser.origins().includes("http://localhost:11434/*"));
+
+  const back = world({ granted: ["http://localhost:11434/*", "http://127.0.0.1/*", "https://api.example.com/*"] });
+  await back.grants.releaseUnused();
+  assert.deepEqual([...back.browser.removed].sort(), ["http://127.0.0.1/*", "http://localhost:11434/*"]);
+  assert.ok(back.browser.origins().includes("https://api.example.com/*"));
+});
+
+test("协议写 * 的授权同时盖住 http 和 https，盖住必需主机时不收", async () => {
+  const { browser, grants } = world({ granted: ["*://*/*"] });
+
+  await grants.releaseUnused();
+
+  assert.deepEqual(browser.removeCalls, []);
+});
 
 test("保存 AI 设置不影响已启用站点的授权", async () => {
   const site = "https://site.example.net/";

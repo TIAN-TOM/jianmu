@@ -54,9 +54,10 @@ const dirty = git("status", "--porcelain").length > 0;
 async function prepareExtension(dir) {
   cpSync(BUILD, dir, { recursive: true });
   // 模型服务的主机权限要用户在设置页点了才申请，无头 Chrome 里点不了授权框：副本的清单里先写上，申请时直接放行。
+  // 本机 http 的模型服务由设置页的测试自己起，端口不固定，按主机放行。
   const manifestPath = join(dir, "manifest.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  manifest.host_permissions = [...manifest.host_permissions, ...MODEL_HOSTS.map((host) => `https://${host}/*`)];
+  manifest.host_permissions = [...manifest.host_permissions, ...MODEL_HOSTS.map((host) => `https://${host}/*`), "http://127.0.0.1/*"];
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   const fixtures = join(ROOT, "e2e/pages/fixtures");
   for (const name of ["gallery.html", "gallery.css", "card-sample.html"]) cpSync(join(fixtures, name), join(dir, "pages", name));

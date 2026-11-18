@@ -72,7 +72,7 @@
 
 ### 接收方
 
-- 内容只发到你在设置页选的服务商地址。可以选下面的预设，也可以选「自定义」自己填地址。地址只认 https。
+- 内容只发到你在设置页选的服务商地址。可以选下面的预设，也可以选「自定义」自己填地址，包括你自己电脑上跑的模型服务。地址只认 https，本机地址（localhost、127.0.0.1）可以用 http：这样的请求不出你的电脑。
 - 开发者没有服务器，收不到这些内容，也不经手。
 - 带密钥的请求遇到跳转不会跟过去，免得密钥被转到别的地址。
 - 服务商怎么保存、使用这些内容，比如会不会拿去训练模型、存多久，以它的隐私政策、服务条款和你账户里的设置为准。有的服务商在隐私政策里写明，通过 API 发来的内容另按 API 或商业服务条款处理，用之前值得一起看看。
@@ -115,7 +115,7 @@
 | `storage` | 在本机保存资料和设置 |
 | `scripting` | 装好、更新或启用以后，给已经打开的 B 站视频页补上简幕的页面脚本，不用刷新 |
 | 访问 B 站的网页、接口和存放字幕文件的域名 | 在 B 站视频页放播放页卡片和笔记按钮，读播放状态；读视频信息、字幕、官方总结和稍后再看 |
-| 可选：访问你选的 AI 服务地址 | 点「保存并授权」时，浏览器会问你是否允许简幕访问那个域名。清单里把它声明成可选的 https 地址，实际只申请你选的那一个域名 |
+| 可选：访问你选的 AI 服务地址 | 点「保存并授权」时，浏览器会问你是否允许简幕访问那个域名。清单里把它声明成可选的 https 地址，加上本机的 `http://localhost` 和 `http://127.0.0.1`，实际只申请你选的那一个地址 |
 
 简幕不申请 `tabs`、`activeTab`、`cookies`、`downloads`、`debugger`、`tabCapture`、`desktopCapture`，也不申请访问所有网站和麦克风。没有 `tabs` 权限，简幕只看得到已授权网站的标签页的地址和标题。
 
@@ -250,7 +250,7 @@ First you need to read the data notice and agree, either by ticking the box in t
 
 ### Who receives it
 
-- Content only goes to the service address you chose in Settings. You can pick one of the presets below, or choose 自定义 (custom) and enter an address yourself. Only https addresses are accepted.
+- Content only goes to the service address you chose in Settings. You can pick one of the presets below, or choose 自定义 (custom) and enter an address yourself, including a model service running on your own computer. Only https addresses are accepted, except that local addresses (localhost and 127.0.0.1) may use http. Those requests never leave your computer.
 - The developer has no server, so none of this reaches or passes through the developer.
 - Requests that carry your key do not follow redirects, so the key cannot be passed on to another address.
 - How the service stores and uses what it receives, for example whether it trains models on it and how long it keeps it, depends on its privacy policy, its terms and the settings in your account. Some services say in their privacy policy that content sent through the API falls under separate API or business terms instead, so those are worth reading too.
@@ -293,7 +293,7 @@ Everything is kept in the extension storage of this Chrome profile on this compu
 | `storage` | Keeping data and settings on your computer |
 | `scripting` | After installing, updating or enabling, adding Jianmu's page script to Bilibili video pages that are already open, so you don't need to reload them |
 | Access to Bilibili's web pages, its API and the domain where it keeps subtitle files | Placing the card and the note button on Bilibili video pages and reading playback state; reading video details, subtitles, official summaries and Watch Later |
-| Optional: access to the AI service address you chose | When you click 保存并授权 (save and authorise), the browser asks whether Jianmu may access that domain. The manifest declares this as an optional range of https addresses, but Jianmu only ever requests the one domain you chose |
+| Optional: access to the AI service address you chose | When you click 保存并授权 (save and authorise), the browser asks whether Jianmu may access that domain. The manifest declares this as an optional range of https addresses, plus `http://localhost` and `http://127.0.0.1` on your own computer, but Jianmu only ever requests the one address you chose |
 
 Jianmu does not request `tabs`, `activeTab`, `cookies`, `downloads`, `debugger`, `tabCapture` or `desktopCapture`, and does not request access to all websites or to the microphone. Without the `tabs` permission it can only see the addresses and titles of tabs on sites it has permission for.
 

@@ -90,7 +90,7 @@ export const DATA_CONSENT_TABLE: NoticeTable<DataConsentKind> = [
       {
         kind: "recipient",
         id: "chosen-provider",
-        text: "发到你选的服务商地址。开发者没有服务器，收不到这些内容；服务商怎么处理，以它的隐私政策为准",
+        text: "发到你选的服务商地址，也可以是你自己电脑上的服务。开发者没有服务器，收不到这些内容；服务商怎么处理，以它的隐私政策为准",
       },
       { kind: "trigger", id: "on-click", text: "这些请求只在你点按钮时发出" },
     ],

@@ -21,7 +21,7 @@ export {
   type EffortSupport,
   type EffortTarget,
 } from "./effort.ts";
-export { PROTOCOLS, type Protocol } from "./endpoint.ts";
+export { isLocalBaseUrl, PROTOCOLS, type Protocol } from "./endpoint.ts";
 export {
   isRedirectResponse,
   KEYED_FETCH_REDIRECT,

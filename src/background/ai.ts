@@ -14,6 +14,7 @@ import {
 import {
   PROTOCOLS,
   createRelaxMemory,
+  isLocalBaseUrl,
   hostOf,
   planEffort,
   type AiSettings,
@@ -140,10 +141,13 @@ function taskTimeoutMs(effort: Effort): number | undefined {
   return EFFORT_TIMEOUT_SECONDS[effort] > EFFORT_TIMEOUT_SECONDS.off ? EFFORT_TIMEOUT_SECONDS[effort] * 1000 : undefined;
 }
 
-// 冻结的地址和现在的对不上：密钥属于现在的地址，按冻结的地址取不到，当作没填，按配置错误收尾。
+// 冻结的地址和现在的对不上：密钥属于现在的地址，按冻结的地址取不到，按配置错误收尾。
+// 直接报错，不靠清空密钥让校验去拦：本机地址可以不填密钥，清空了照样能发，会把任务发到新地址。
 function frozenSettings(current: LoadedSettings, frozen: FrozenGen): LoadedSettings {
-  const key = current.aiBaseUrl === frozen.baseUrl ? {} : { aiApiKey: "", aiApiKeyOrigin: "" };
-  return { ...current, ...key, aiModel: frozen.model, featureModels: {} };
+  if (current.aiBaseUrl !== frozen.baseUrl) {
+    throw codedError("NO_AI_CONFIG", "AI 还没配置好：任务开始以后换了服务地址，请重新生成。");
+  }
+  return { ...current, aiModel: frozen.model, featureModels: {} };
 }
 
 export function createAiWiring(deps: AiWiringDeps): AiWiring {
@@ -216,7 +220,7 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
       const current = await load();
       const base = validateForSave(current);
       if (!base.ok) throw codedError("INVALID_BASE_URL", base.errors.join(" "));
-      if (!current.aiApiKey) throw codedError("NO_AI_CONFIG", "请先在设置页填写 API 密钥。");
+      if (!current.aiApiKey && !isLocalBaseUrl(current.aiBaseUrl)) throw codedError("NO_AI_CONFIG", "请先在设置页填写 API 密钥。");
       await ensureHostPermission(current.aiBaseUrl);
       // 拉列表要等网络，这期间清除了缓存就不把能力写回去。
       const since = clearGuard.epoch();

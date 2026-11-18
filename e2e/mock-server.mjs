@@ -72,7 +72,8 @@ export const contentRead = ({ host, path }) => (apiHost(host) && path !== ACCOUN
 /** 只把这几个主机映射到本机，其余域名解析失败。 @param {number} port */
 export function hostRulesFor(port) {
   const hosts = [PAGE_HOST, API_HOST, `*${FILE_HOST_SUFFIX}`, ...MODEL_HOSTS];
-  return [...hosts.map((host) => `MAP ${host} 127.0.0.1:${port}`), "MAP * ~NOTFOUND"].join(", ");
+  // 127.0.0.1 留给测试自己起的本机 http 模型服务，不映射也不拦，别的主机一律解析不到。
+  return [...hosts.map((host) => `MAP ${host} 127.0.0.1:${port}`), "EXCLUDE 127.0.0.1", "MAP * ~NOTFOUND"].join(", ");
 }
 
 /**

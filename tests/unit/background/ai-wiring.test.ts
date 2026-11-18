@@ -236,6 +236,51 @@ test("后台：密钥属于当前地址才带上，属于别家时一个请求�
   assert.deepEqual(foreign.service.sent, [], "密钥对不上来源时根本不该发请求");
 });
 
+test("本机 http 地址不填密钥：配置检查算设置好，拉模型列表、测试连接和正式请求都发到本机，请求不带密钥头", async () => {
+  const LOCAL = { presetId: "custom", protocol: PROTOCOLS.OPENAI, aiBaseUrl: "http://localhost:11434/v1", aiModel: "local-model" };
+  const stored = keyedStorage(LOCAL, "http://localhost:11434/", "");
+  const { ai, ask, service } = setup({
+    ...stored,
+    granted: ["http://localhost:11434/"],
+    handler: (request) => (isModelList(request.url) ? reply({ data: [{ id: "local-model" }] }) : chatReply("好")),
+  });
+
+  assert.deepEqual(await ask("config.check"), { ok: true, value: { ready: true, errors: [] } });
+  assert.deepEqual(await ask("models.list", senders.options()), { ok: true, value: { ids: ["local-model"] } });
+  assert.equal(((await ask("ai.testConnection", senders.options())) as { ok: boolean }).ok, true);
+  assert.equal((await ai.requestAiCompletion(EXPLAIN)).text, "好");
+  assert.deepEqual(service.sent.map((request) => request.url), [
+    "http://localhost:11434/v1/models",
+    "http://localhost:11434/v1/chat/completions",
+    "http://localhost:11434/v1/chat/completions",
+  ]);
+  for (const request of service.sent) {
+    assert.equal(request.headers["Authorization"], undefined);
+    assert.equal(request.headers["x-api-key"], undefined);
+  }
+});
+
+test("本机 http 地址没授权时照样只查不申请，一个请求都不发；别的 http 地址按配置错误收尾", async () => {
+  const LOCAL = { presetId: "custom", protocol: PROTOCOLS.OPENAI, aiBaseUrl: "http://127.0.0.1:1234/v1", aiModel: "m" };
+  const local = setup({ ...keyedStorage(LOCAL, "http://127.0.0.1:1234/", ""), granted: [], handler: () => chatReply("不该发出") });
+  await rejectsWith(local.ai.requestAiCompletion(EXPLAIN), "NEED_HOST_PERMISSION");
+  assert.deepEqual(local.service.sent, []);
+
+  const LAN = { ...LOCAL, aiBaseUrl: "http://192.168.1.50:1234/v1" };
+  const lan = setup({ ...keyedStorage(LAN, "http://192.168.1.50:1234/", ""), handler: () => chatReply("不该发出") });
+  await rejectsWith(lan.ai.requestAiCompletion(EXPLAIN), "NO_AI_CONFIG");
+  assert.deepEqual(lan.service.sent, []);
+});
+
+test("不是本机地址时密钥仍然必填：留空就按没设置好处理，一个请求都不发", async () => {
+  const { ai, ask, service } = setup({ ...keyedStorage(GATEWAY, GATEWAY_ORIGIN, ""), handler: () => chatReply("不该发出") });
+  const check = await ask("config.check");
+  assert.equal(check.ok && (check.value as { ready: boolean }).ready, false);
+  await rejectsWith(ai.requestAiCompletion(EXPLAIN), "NO_AI_CONFIG");
+  assert.equal(((await ask("models.list", senders.options())) as { code?: string }).code, "NO_AI_CONFIG");
+  assert.deepEqual(service.sent, []);
+});
+
 test("后台：会话清空后配置检查回没设置好", async () => {
   const stored = keyedStorage(DEEPSEEK, DEEPSEEK_ORIGIN);
   const { ask, ai, fake, service } = setup({ ...stored, handler: () => chatReply("不该发出") });
@@ -366,6 +411,18 @@ test("任务创建后换了服务地址：按密钥错误收尾，不把密钥�
   fake.session.data[API_KEY_SESSION_KEY] = { key: "sk-gateway", origin: GATEWAY_ORIGIN };
   await rejectsWith(task.requestAiCompletion(EXPLAIN), "NO_AI_CONFIG");
   assert.equal(service.sent.length, 1, "一个请求都没发到新地址");
+});
+
+test("任务创建后换成了不要密钥的本机地址：照样按配置错误收尾，不把任务发到新地址", async () => {
+  const LOCAL = { presetId: "custom", protocol: PROTOCOLS.OPENAI, aiBaseUrl: "http://localhost:11434/v1", aiModel: "local-model" };
+  const { ai, service } = setup({
+    ...keyedStorage(LOCAL, "http://localhost:11434/", ""),
+    granted: ["http://localhost:11434/"],
+    handler: () => chatReply("不该发出"),
+  });
+  const task = ai.forTask(frozenFor("deepseek-v4-flash", "https://api.deepseek.com"));
+  await rejectsWith(task.requestAiCompletion(EXPLAIN), "NO_AI_CONFIG");
+  assert.deepEqual(service.sent, []);
 });
 
 test("提示词经注入的读取函数交给服务：读不到的文件名直接报错，不发空提示词", () => {

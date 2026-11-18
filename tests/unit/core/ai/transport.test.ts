@@ -2356,7 +2356,7 @@ function close(server: http.Server): Promise<unknown> {
   return new Promise((resolve) => server.close(resolve));
 }
 
-// AI 地址只认 https，本机起的测试服务是 http：设置里填 https 的假地址，发请求时
+// 这几条测的是远端 https 地址，本机起的测试服务是 http：设置里填 https 的假地址，发请求时
 // 换成本机端口交给真实的 fetch，redirect 这些参数原样带过去，重定向照样由 fetch 自己处理。
 function viaLoopback(httpsBase: string, port: number): AiFetch {
   return (url, init) => fetch(String(url).replace(httpsBase, `http://127.0.0.1:${port}`), init);
@@ -2384,6 +2384,37 @@ test("Anthropic 地址跨域重定向时不跟过去，x-api-key 不会发到新
       (error: TransportError) => {
         assert.equal(error.code, "AI_REDIRECT_BLOCKED");
         assert.match(error.message, /重定向/);
+        assert.ok(error.message.includes(base), "报错要点名是哪个地址在重定向");
+        return true;
+      },
+    );
+    assert.deepEqual(received, [], "重定向的目标一次也不该被请求到");
+  } finally {
+    await Promise.all([close(origin), close(destination)]);
+  }
+});
+
+test("本机 http 地址带着密钥时也不跟随重定向，密钥不会发到新地址", async () => {
+  const received: { key: string | string[] | undefined }[] = [];
+  const destination = http.createServer((req, res) => {
+    received.push({ key: req.headers["x-api-key"] });
+    req.resume();
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ content: [{ type: "text", text: "ok" }], stop_reason: "end_turn" }));
+  });
+  const target = `http://localhost:${await listen(destination)}`;
+  const origin = http.createServer((req, res) => {
+    req.resume();
+    res.writeHead(307, { Location: `${target}/leak` });
+    res.end();
+  });
+  const base = `http://127.0.0.1:${await listen(origin)}`;
+  try {
+    const transport = transportFor(anthropicKeyedSettings(base), (url, init) => fetch(url, init));
+    await assert.rejects(
+      transport.requestAiCompletion({ messages: [{ role: "user", content: "离线测试" }], maxTokens: 64 }),
+      (error: TransportError) => {
+        assert.equal(error.code, "AI_REDIRECT_BLOCKED");
         assert.ok(error.message.includes(base), "报错要点名是哪个地址在重定向");
         return true;
       },

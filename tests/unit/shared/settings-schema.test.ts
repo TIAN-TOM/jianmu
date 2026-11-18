@@ -21,7 +21,7 @@ import {
 } from "../../../src/core/consent.ts";
 import * as SETTINGS from "../../../src/shared/settings-schema.ts";
 
-const HTTPS_ERROR = "API 地址要以 https:// 开头，本机地址也不能用 http://。";
+const HTTPS_ERROR = "API 地址要以 https:// 开头。只有本机地址（localhost、127.0.0.1）可以用 http://。";
 const KEY_ERROR = "请填写 API 密钥（没选记住密钥时，浏览器重启、扩展更新后要重新填）。";
 const MODEL_ERROR = "请填写模型名称，或点击「拉取模型列表」进行选择。";
 const STALE_FINGERPRINT = "0000000000000000";
@@ -81,14 +81,15 @@ test("Anthropic 协议下 base 里多余的 /v1 会被去掉，避免拼成 /v1/
   );
 });
 
-test("地址只认 https：明文 http 一律拦下，本机回环地址也不例外", () => {
+test("地址只认 https：明文 http 只放行 localhost 和 127.0.0.1，局域网和别的域名一律拦下", () => {
   for (const http of [
-    "http://localhost:11434/v1",
-    "http://127.0.0.1:8000/v1",
     "http://api.example.com/v1",
     "http://192.168.1.50:8000/v1",
+    "http://10.0.0.2:11434/v1",
     "http://0.0.0.0:11434/v1",
+    "http://127.0.0.2:8000/v1",
     "http://localhost.example.com/v1",
+    "http://localhost.:11434/v1",
   ]) {
     assert.equal(errorOf(http), HTTPS_ERROR, http);
     // 设置里存着这样的地址时拼不出请求地址，发不出去，也不为它申请权限。
@@ -98,15 +99,30 @@ test("地址只认 https：明文 http 一律拦下，本机回环地址也不�
     assert.equal(SETTINGS.originOf(http), null, http);
     assert.deepEqual(SETTINGS.validate(stored).errors, [HTTPS_ERROR], http);
   }
-  // https 的本机地址按统一规则处理，不另设识别本机的规则。
+  const locals: readonly (readonly [string, string, string])[] = [
+    ["http://localhost:11434/v1", "http://localhost:11434/v1", "http://localhost:11434/"],
+    ["http://LOCALHOST:1234/v1/chat/completions", "http://localhost:1234/v1", "http://localhost:1234/"],
+    ["http://127.0.0.1:8000/v1/", "http://127.0.0.1:8000/v1", "http://127.0.0.1:8000/"],
+    ["http://localhost/v1", "http://localhost/v1", "http://localhost/"],
+  ];
+  for (const [http, url, origin] of locals) {
+    assert.deepEqual(validateBaseUrl(http), { ok: true, url, origin }, http);
+    const stored = custom({ aiBaseUrl: http, aiApiKey: "k", aiModel: "m", ...CONSENTED });
+    assert.equal(chatCompletionsUrl(stored), `${url}/chat/completions`, http);
+    assert.equal(modelsUrl(stored), `${url}/models`, http);
+    assert.equal(SETTINGS.originOf(http), origin, http);
+    assert.deepEqual(SETTINGS.validate(stored).errors, [], http);
+  }
+  // https 的本机地址照常可用。
   assert.deepEqual(validateBaseUrl("https://localhost:8443/v1"), {
     ok: true,
     url: "https://localhost:8443/v1",
     origin: "https://localhost:8443/",
   });
 
-  // Chrome 权限系统申请不到 IPv6 字面量，仍然拦下。
+  // Chrome 权限系统申请不到 IPv6 字面量，仍然拦下，http 的本机 IPv6 也一样。
   assert.equal(validateBaseUrl("https://[::1]:11434/v1").ok, false);
+  assert.equal(validateBaseUrl("http://[::1]:11434/v1").ok, false);
   assert.match(errorOf("https://[2001:db8::1]/v1"), /IPv6/);
 });
 
@@ -118,7 +134,8 @@ test("拒绝非 http(s) 协议与非法 URL", () => {
 
 test("originOf 产出可直接用于权限申请的来源", () => {
   assert.equal(SETTINGS.originOf("https://api.openai.com/v1"), "https://api.openai.com/");
-  assert.equal(SETTINGS.originOf("http://localhost:11434/v1"), null, "http 地址不申请权限");
+  assert.equal(SETTINGS.originOf("http://localhost:11434/v1"), "http://localhost:11434/", "本机 http 地址按自己的来源申请");
+  assert.equal(SETTINGS.originOf("http://api.example.com/v1"), null, "别的 http 地址不申请权限");
   assert.equal(SETTINGS.originOf("不是地址"), null);
 });
 

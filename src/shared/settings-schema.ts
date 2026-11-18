@@ -5,6 +5,7 @@ import {
   CUSTOM_PRESET_ID,
   DEFAULT_PRESET as DEFAULT_ENDPOINT,
   ENDPOINT_PRESETS,
+  isLocalBaseUrl,
   resolveEndpoint,
   validateBaseUrl,
   type BaseUrlCheck,
@@ -444,11 +445,13 @@ export function validateForSave(settings: unknown): SettingsCheck {
   return { ok: base.ok, errors: base.ok ? [] : [base.error], settings: normalized };
 }
 
-/** 配置是否足以发起一次 AI 请求。设置页和后台共用同一套判断。 */
+/** 配置是否足以发起一次 AI 请求。设置页和后台共用同一套判断。本机地址的服务通常不要密钥，可以不填。 */
 export function validate(settings: unknown): SettingsCheck {
   const normalized = normalize(settings);
   const errors: string[] = [];
-  if (!normalized.aiApiKey) errors.push("请填写 API 密钥（没选记住密钥时，浏览器重启、扩展更新后要重新填）。");
+  if (!normalized.aiApiKey && !isLocalBaseUrl(normalized.aiBaseUrl)) {
+    errors.push("请填写 API 密钥（没选记住密钥时，浏览器重启、扩展更新后要重新填）。");
+  }
   if (!dataConsentGiven(normalized, DATA_CONSENT_CONFIRMED)) errors.push(DATA_CONSENT_ERROR);
   const base = validateBaseUrl(normalized.aiBaseUrl, normalized.protocol);
   if (!base.ok) errors.push(base.error);

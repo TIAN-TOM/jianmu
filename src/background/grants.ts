@@ -35,21 +35,24 @@ export interface Grants {
 }
 
 interface Host {
+  readonly scheme: string;
   readonly name: string;
   readonly port: string;
 }
 
-const ANY_PORT = "*";
+const ANY = "*";
 
-// 匹配规则的主机和端口。路径不比：授权按主机生效，浏览器回收时也按主机算。
-// 没写端口的规则管这个主机的所有端口。认不出的写法是 null。
+// 匹配规则的协议、主机和端口。路径不比：授权按主机生效，浏览器回收时也按主机算。
+// 协议写 * 的规则同时管 http 和 https；没写端口的规则管这个主机的所有端口。认不出的写法是 null。
+// http 只有本机地址会用到（见 core/ai/provider/endpoint.ts）。
 function hostOf(pattern: string): Host | null {
-  const [, name, port = ANY_PORT] = /^(?:https|\*):\/\/([^/:]+)(?::(\d+|\*))?(?:\/|$)/.exec(pattern) ?? [];
-  return name ? { name, port } : null;
+  const [, scheme, name, port = ANY] = /^(https?|\*):\/\/([^/:]+)(?::(\d+|\*))?(?:\/|$)/.exec(pattern) ?? [];
+  return scheme && name ? { scheme, name, port } : null;
 }
 
 function covers(wide: Host, narrow: Host): boolean {
-  if (wide.port !== ANY_PORT && wide.port !== narrow.port) return false;
+  if (wide.scheme !== ANY && wide.scheme !== narrow.scheme) return false;
+  if (wide.port !== ANY && wide.port !== narrow.port) return false;
   if (wide.name === "*") return true;
   if (!wide.name.startsWith("*.")) return wide.name === narrow.name;
   const domain = wide.name.slice(2);

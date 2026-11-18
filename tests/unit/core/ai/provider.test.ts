@@ -62,6 +62,23 @@ test("OpenAI 协议：端点、鉴权头与消息结构", () => {
   assert.deepEqual(request.body.messages, MESSAGES);
 });
 
+test("本机服务没填密钥：三种协议的对话和模型列表请求都不带密钥头，别的头照旧", () => {
+  for (const protocol of [PROTOCOLS.OPENAI, PROTOCOLS.RESPONSES, PROTOCOLS.ANTHROPIC]) {
+    const settings = normalize({ presetId: "custom", protocol, aiBaseUrl: "http://localhost:11434", aiModel: "local-model" });
+    assert.equal(settings.aiApiKey, "");
+    const chat = provider.buildChatRequest({ settings, messages: MESSAGES, maxTokens: 100 });
+    const models = provider.buildModelsRequest(settings);
+    assert.ok(chat.url.startsWith("http://localhost:11434/"), chat.url);
+    assert.ok(models.url.startsWith("http://localhost:11434/"), models.url);
+    for (const headers of [chat.headers, models.headers]) {
+      assert.equal("Authorization" in headers, false, protocol);
+      assert.equal("x-api-key" in headers, false, protocol);
+    }
+    assert.equal(chat.headers["Content-Type"], "application/json");
+    if (protocol === PROTOCOLS.ANTHROPIC) assert.ok(chat.headers["anthropic-version"]);
+  }
+});
+
 test("OpenAI 协议：JSON 模式与温度按需附加", () => {
   const withFormat = provider.buildChatRequest({
     settings: openaiSettings,

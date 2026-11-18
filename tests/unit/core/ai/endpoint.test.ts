@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   chatCompletionsUrl,
+  isLocalBaseUrl,
   modelsUrl,
   presetById,
   PROTOCOLS,
@@ -51,9 +52,21 @@ test("预设表逐项固定协议和地址", () => {
   assert.equal(presetById("no-such-preset"), null);
 });
 
-test("地址只认 https，本机地址也一样", () => {
-  for (const url of ["http://localhost:8080/v1", "http://127.0.0.1:8080/v1", "http://api.example.com/v1"]) {
+test("地址只认 https，只有本机地址可以用 http", () => {
+  for (const url of ["http://api.example.com/v1", "http://192.168.1.50:8080/v1", "http://127.0.0.2:8080/v1"]) {
     assert.match(errorOf(url), /要以 https:\/\/ 开头/, url);
+  }
+  for (const url of ["http://localhost:8080/v1", "http://127.0.0.1:8080/v1"]) {
+    assert.equal(validateBaseUrl(url).ok, true, url);
+  }
+});
+
+test("isLocalBaseUrl 只认 localhost 和 127.0.0.1，不看协议", () => {
+  for (const url of ["http://localhost:11434/v1", "https://127.0.0.1:8443", " http://LOCALHOST/v1 "]) {
+    assert.equal(isLocalBaseUrl(url), true, url);
+  }
+  for (const url of ["http://192.168.1.50:8000", "https://api.example.com", "http://localhost.example.com", "", null, "不是地址"]) {
+    assert.equal(isLocalBaseUrl(url), false, String(url));
   }
 });
 
@@ -124,8 +137,8 @@ test("自定义：用存储的协议和地址，协议认不出时按 OpenAI 兼
 });
 
 test("地址整理不通过就原样保留，端点都是 null", () => {
-  const source = custom("http://localhost:8080/v1");
-  assert.equal(resolveEndpoint(source).aiBaseUrl, "http://localhost:8080/v1");
+  const source = custom("http://192.168.1.50:8080/v1");
+  assert.equal(resolveEndpoint(source).aiBaseUrl, "http://192.168.1.50:8080/v1");
   assert.equal(chatCompletionsUrl(source), null);
   assert.equal(modelsUrl(source), null);
   assert.equal(chatCompletionsUrl(custom("")), null);

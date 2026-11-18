@@ -210,7 +210,7 @@ export function buildChatRequest({
       url,
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": settings.aiApiKey,
+        ...keyHeader(settings),
         "anthropic-version": apiVersionFor(settings),
         // 没有这个头，浏览器里的请求会被 CORS 挡掉；它就是为用户自带密钥的场景设计的。
         "anthropic-dangerous-direct-browser-access": "true",
@@ -226,7 +226,7 @@ export function buildChatRequest({
       url,
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${settings.aiApiKey}`,
+        ...keyHeader(settings),
       },
       body,
     };
@@ -256,10 +256,18 @@ export function buildChatRequest({
     url,
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${settings.aiApiKey}`,
+      ...keyHeader(settings),
     },
     body,
   };
+}
+
+// 密钥放哪个头由协议决定。本机服务可以不填密钥，这时不带这个头：发一个空的 Bearer 反倒会被有的服务当成填错了。
+function keyHeader(settings: Pick<AiSettings, "protocol" | "aiApiKey">): Record<string, string> {
+  if (!settings.aiApiKey) return {};
+  return settings.protocol === PROTOCOLS.ANTHROPIC
+    ? { "x-api-key": settings.aiApiKey }
+    : { Authorization: `Bearer ${settings.aiApiKey}` };
 }
 
 /**
@@ -283,11 +291,11 @@ export function buildModelsRequest(
   const headers: Record<string, string> =
     settings.protocol === PROTOCOLS.ANTHROPIC
       ? {
-          "x-api-key": settings.aiApiKey,
+          ...keyHeader(settings),
           "anthropic-version": apiVersionFor(settings),
           "anthropic-dangerous-direct-browser-access": "true",
         }
-      : { Authorization: `Bearer ${settings.aiApiKey}` };
+      : keyHeader(settings);
 
   return { url, headers };
 }

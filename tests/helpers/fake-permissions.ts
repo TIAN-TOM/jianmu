@@ -1,5 +1,5 @@
 // chrome.permissions 的替身，形状和行为按 Chrome 153 实测写。主机名是造的，结构和真实清单一样：
-// 三个必需主机，其中一个带通配符；内容脚本四条匹配规则；可选主机声明整个 https。
+// 三个必需主机，其中一个带通配符；内容脚本四条匹配规则；可选主机声明整个 https，加上本机的两个 http 来源。
 import type { ManifestHosts, PermissionsApi } from "../../src/platform/permissions.ts";
 
 export const REQUIRED_HOSTS = [
@@ -20,6 +20,9 @@ const MANIFEST: ManifestHosts = {
   content_scripts: [{ matches: CONTENT_MATCHES }],
 };
 
+/** 清单的可选主机。回收不在这里面的规则，浏览器按没声明报错。 */
+export const OPTIONAL_HOSTS = ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"] as const;
+
 const REQUIRED_ERROR = "You cannot remove required permissions.";
 const UNDECLARED_ERROR = "Only permissions specified in the manifest may be requested.";
 
@@ -37,10 +40,11 @@ function hostCovers(wide: string, narrow: string): boolean {
   return narrow === wide.slice(2) || narrow.endsWith(wide.slice(1));
 }
 
-// 没写端口的规则盖住这个主机的所有端口，写了端口只盖这一个。
+// 协议写 * 的规则盖住 http 和 https；没写端口的规则盖住这个主机的所有端口，写了端口只盖这一个。
 function covers(wide: string, narrow: string): boolean {
   const outer = parse(wide);
   const inner = parse(narrow);
+  if (outer.scheme !== "*" && outer.scheme !== inner.scheme) return false;
   return (outer.port === ANY_PORT || outer.port === inner.port) && hostCovers(outer.host, inner.host);
 }
 
@@ -81,7 +85,7 @@ export function fakePermissions({ granted = [], alsoRequired = [] }: FakePermiss
       // 整批要么全过要么全拒。没授权过的规则照样回 true；比必需主机宽的规则不拒绝，落在里面的一起收掉。
       async remove({ origins: patterns }) {
         removeCalls.push([...patterns]);
-        if (patterns.some((pattern) => parse(pattern).scheme !== "https")) throw new Error(UNDECLARED_ERROR);
+        if (patterns.some((pattern) => !OPTIONAL_HOSTS.some((host) => covers(host, pattern)))) throw new Error(UNDECLARED_ERROR);
         if (patterns.some((pattern) => required.some((host) => covers(host, pattern)))) throw new Error(REQUIRED_ERROR);
         for (const pattern of patterns) {
           for (const host of [...hosts]) {
