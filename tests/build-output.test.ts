@@ -407,3 +407,26 @@ test("沿用同意：日用包里有，发行包和 build/ 里都没有，对外
     }
   }
 });
+
+test("YouTube 代开文字稿：发行构建的后台和侧边栏里没有这条路由和它的代码，打开开关的构建里有", async () => {
+  const pick = async (features: FeatureSet) => {
+    const options = bundleOptions(features).filter((option) => ["build/background.js", "build/pages/sidepanel.js", "build/content/youtube.js"].includes(String(option.outfile)));
+    const built = await Promise.all(options.map(async (option) => [String(option.outfile), (await build({ ...option, write: false })).outputFiles.map((output) => output.text).join("\n")] as const));
+    return new Map(built);
+  };
+  const markers: Readonly<Record<string, readonly string[]>> = {
+    "build/background.js": ["youtube.openTranscript", "src/background/routes/youtube"],
+    "build/pages/sidepanel.js": ["youtube.openTranscript", "src/pages/sidepanel/open-transcript"],
+    "build/content/youtube.js": ["youtube.openTranscript", "src/sites/youtube/page/commands"],
+  };
+  const withYoutube = await pick({ ...RELEASE_FEATURES, youtube: true });
+  const withOpener = await pick({ ...RELEASE_FEATURES, youtube: true, youtubeOpenPanel: true });
+  for (const [file, list] of Object.entries(markers)) {
+    for (const marker of list) {
+      // 发行构建不构建 YouTube 的内容脚本，只看后台和侧边栏。
+      if (file !== "build/content/youtube.js") assert.ok(!readBuild(file.replace(/^build\//, "")).includes(marker), `build/ 里的 ${file} 有 ${marker}`);
+      assert.ok(!withYoutube.get(file)?.includes(marker), `只开 YouTube 的 ${file} 里有 ${marker}`);
+      assert.ok(withOpener.get(file)?.includes(marker), `打开代开开关的 ${file} 里没有 ${marker}`);
+    }
+  }
+});

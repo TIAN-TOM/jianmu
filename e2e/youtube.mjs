@@ -113,12 +113,11 @@ async function flow(launcher, panelUrl, worker) {
   const tubeCalls = () => mock.requests.filter((entry) => entry.host === TUBE_HOST && entry.path !== "/favicon.ico" && entry.path !== QUIET_MEDIA_PATH).length;
   const before = modelCalls();
   const tubeBefore = tubeCalls();
-  await until("点读取字幕", () => clickIn(panel, ".state-block .button", "读取字幕"));
-  await until("说要先打开文字稿", async () => (await stateTitle(panel)).includes("文字稿还没打开"));
-  console.log("✓ 打开视频不读页面；文字稿没打开时点读取，说明要先打开");
+  if (await evaluate(video, `document.querySelector("ytd-engagement-panel-section-list-renderer")?.getAttribute("visibility")`) !== "ENGAGEMENT_PANEL_VISIBILITY_HIDDEN") throw new Error("打开视频时就替用户打开了文字稿");
+  console.log("✓ 打开视频不读页面，也不替用户打开文字稿");
 
-  await userClicks(video, "e2e-open-transcript");
-  await until("点重试", () => clickIn(panel, ".state-block .button", "重试"));
+  // 用户只点简幕的「读取字幕」：简幕替他点开文字稿，再读。
+  await until("点读取字幕", () => clickIn(panel, ".state-block .button", "读取字幕"));
   const [lineOne = "", lineTwo = ""] = TUBE_VIDEOS[FIRST_ID]?.lines ?? [];
   await until("读到文字稿", async () => (await textOf(panel, ".cue-text")).includes(lineTwo));
   await until("标题来自观看页", async () => (await textOf(panel, ".video-title")) === TUBE_VIDEOS[FIRST_ID]?.title);
@@ -126,7 +125,7 @@ async function flow(launcher, panelUrl, worker) {
   const ref = cached?.value?.transcript?.ref;
   if (!cached?.ok || ref?.lang !== "en" || ref?.kind !== "auto" || cached.value.transcript.label !== TUBE_VIDEOS[FIRST_ID]?.label) throw new Error(`轨的语言和来源不对：${JSON.stringify(cached?.value?.transcript?.ref ?? cached)}`);
   if (modelCalls() !== before || tubeCalls() !== tubeBefore) throw new Error("读文字稿时发了不该发的请求");
-  console.log("✓ 用户打开文字稿以后读到，标出英文、自动生成，存进本机；YouTube 上没发任何请求");
+  console.log("✓ 点读取字幕时简幕替用户点开文字稿，读到，标出英文、自动生成，存进本机；YouTube 上没发任何请求");
 
   await until("生成概览可以点", () => clickIn(panel, "button", "生成概览"));
   await until("概览生成完", async () => (await textOf(panel, ".chapter-name")).includes("模拟服务写的章节"));
@@ -186,16 +185,16 @@ async function modernFlow(launcher, panel, worker, windowId) {
   await userClicks(chaptersPage, "e2e-open-transcript");
   await until("文字稿放进面板", () => evaluate(chaptersPage, `document.querySelectorAll("transcript-segment-view-model").length > 0`));
   await userClicks(chaptersPage, "e2e-chapters-tab");
+  // 选着章节时点读取：简幕替用户切到文字稿那一页，再读。
   await until("点读取字幕", () => clickIn(panel, ".state-block .button", "读取字幕"));
-  await until("说要切到文字稿那一页", async () => (await stateTitle(panel)).includes("显示的是章节"));
-  await userClicks(chaptersPage, "e2e-transcript-tab");
-  await until("点重试", () => clickIn(panel, ".state-block .button", "重试"));
   await until("读到新式面板的文字稿", async () => (await textOf(panel, ".cue-text")).includes(lastLine(CHAPTERS_ID)));
   const cueTexts = await textOf(panel, ".cue-text");
   if (/seconds|Intro/.test(cueTexts)) throw new Error(`把给读屏的那句或章节标题当成了字幕：${cueTexts}`);
-  console.log("✓ 新式面板带章节：两个关着的空壳不碍事；选着章节时提示切到文字稿，切回来读到，不带读屏的那句和章节标题");
+  if (await evaluate(chaptersPage, `document.body.hasAttribute("data-e2e-wrong-entry")`)) throw new Error("点了关着的面板里那个入口");
+  console.log("✓ 新式面板带章节：选着章节时点读取，简幕替用户切到文字稿那一页；两个关着的空壳不碍事，不带读屏的那句和章节标题");
 
   const plainPage = await openWatch(launcher, panel, worker, windowId, PLAIN_ID);
+  // 用户自己打开、在搜索框里打了字：简幕不点，提示清掉搜索词。
   await userClicks(plainPage, "e2e-open-transcript");
   await until("文字稿放进面板", () => evaluate(plainPage, `document.querySelectorAll("transcript-segment-view-model").length > 0`));
   await evaluate(plainPage, `(document.getElementById("e2e-search").value = "plain", true)`, true);
@@ -204,7 +203,8 @@ async function modernFlow(launcher, panel, worker, windowId) {
   await evaluate(plainPage, `(document.getElementById("e2e-search").value = "", true)`, true);
   await until("点重试", () => clickIn(panel, ".state-block .button", "重试"));
   await until("读到没章节的新式面板", async () => (await textOf(panel, ".cue-text")).includes(lastLine(PLAIN_ID)));
-  console.log("✓ 新式面板没章节：搜索框里有字时不交，清掉以后读到");
+  if (await evaluate(plainPage, `document.body.hasAttribute("data-e2e-wrong-entry")`)) throw new Error("点了关着的面板里那个入口");
+  console.log("✓ 新式面板没章节：搜索框里有字时不点也不交，清掉以后读到");
 }
 
 let failed = false;

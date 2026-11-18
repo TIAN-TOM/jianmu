@@ -16,10 +16,10 @@ import {
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
-test("发行构建打开解释当前画面（首发带上），YouTube、它的两个代操作和沿用同意关着；日用构建多开 YouTube 和沿用同意；测试构建打开功能开关，沿用同意和发行一样关着", () => {
+test("发行构建打开解释当前画面（首发带上），YouTube、它的两个代操作和沿用同意关着；日用构建多开 YouTube、代开文字稿和沿用同意；测试构建打开功能开关，沿用同意和发行一样关着", () => {
   assert.deepEqual(FEATURE_NAMES, ["frameExplain", "youtube", "youtubeOpenPanel", "youtubeSwitchLang", "keepConsent"]);
   assert.deepEqual(RELEASE_FEATURES, { frameExplain: true, youtube: false, youtubeOpenPanel: false, youtubeSwitchLang: false, keepConsent: false });
-  assert.deepEqual(DAILY_FEATURES, { ...RELEASE_FEATURES, youtube: true, keepConsent: true });
+  assert.deepEqual(DAILY_FEATURES, { ...RELEASE_FEATURES, youtube: true, youtubeOpenPanel: true, keepConsent: true });
   assert.deepEqual(TEST_BUILD_FEATURES, { frameExplain: true, youtube: true, youtubeOpenPanel: true, youtubeSwitchLang: true, keepConsent: false });
   assert.ok(Object.isFrozen(RELEASE_FEATURES) && Object.isFrozen(TEST_BUILD_FEATURES) && Object.isFrozen(FEATURE_GLOBALS));
 });

@@ -58,6 +58,7 @@ export const SITE_DETAIL_TEXT: Readonly<Partial<Record<SiteErrorCode, Readonly<R
       next: "刷新视频页，再打开文字稿，等文字出来，再点读取。",
     },
     filtered: { cause: "视频页上的文字稿里有搜索词，只显示了一部分。", impact: NOT_READ, next: "清掉文字稿上方搜索框里的字，再点读取。" },
+    ad: { cause: "视频正在播广告。", impact: "简幕这时什么都没读。", next: "等广告放完，再点读取。" },
     chapters: { cause: "视频页上的面板现在显示的是章节，不是文字稿。", impact: NOT_READ, next: "在面板上方切到 Transcript（文字稿）那一页，等文字出来，再点读取。" },
   },
   UNAVAILABLE: {

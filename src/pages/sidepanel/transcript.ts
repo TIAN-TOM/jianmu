@@ -6,6 +6,10 @@ import { EXTENSIONS, MAX_FILE_BYTES } from "../../core/transcript/import-file.ts
 import { parseVideoKey, type VideoKey } from "../../core/video-ref.ts";
 import type { TranscriptFailure, TranscriptView } from "../../shared/messages/transcript.ts";
 import type { PageApi } from "../shared/api.ts";
+import { openTranscriptFirst } from "./open-transcript.ts";
+
+// 发行构建里这一支连同代开文字稿的代码一起裁掉。
+const opener = FEATURE_YOUTUBE_OPEN_PANEL ? openTranscriptFirst : null;
 
 export type TranscriptState =
   | { readonly state: "idle" }
@@ -59,6 +63,15 @@ export function createTranscriptStore({ api }: { readonly api: Pick<PageApi, "se
     const asked = generation;
     lastTab = tabId;
     state.value = { state: "loading", video };
+    // YouTube 上用户点了读取：先让视频页替他点开文字稿面板。只看本机时不点。
+    if (opener && !options.localOnly && tabId !== null && readsOnClick(video)) {
+      const stop = await opener(api, video, tabId);
+      if (asked !== generation) return;
+      if (stop) {
+        state.value = { state: "failed", video, failure: stop };
+        return;
+      }
+    }
     const reply = await api.send("transcript.get", {
       video,
       mode: options.localOnly ? "local" : "full",

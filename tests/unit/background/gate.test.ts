@@ -46,7 +46,8 @@ const realRoutes = (): Readonly<Record<string, AnyRoute>> =>
     settings: { activation: async () => assert.fail(), confirmActivation: async () => assert.fail(), loadPublic: async () => assert.fail() },
     messenger: { toPages: async () => {}, toTabs: async () => {} },
     contentTargets: async () => [],
-    tabs: { hasOptionsPage: () => true, openOptionsPage: async () => {} },
+    tabs: { hasOptionsPage: () => true, openOptionsPage: async () => {}, ask: async () => assert.fail() },
+    now: () => 0,
     ai: {
       configCheck: async () => assert.fail(),
       listModels: async () => assert.fail(),
