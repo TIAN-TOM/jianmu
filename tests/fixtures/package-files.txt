@@ -1,5 +1,6 @@
 LICENSE.txt
 background.js
+build-id.txt
 content/bilibili.js
 icons/icon-128.png
 icons/icon-16.png

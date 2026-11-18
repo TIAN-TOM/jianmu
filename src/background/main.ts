@@ -10,7 +10,8 @@ import { createWake } from "./wake.ts";
 
 let app: App | undefined;
 const current = (): App => (app ??= createApp(chromeDeps(PROMPT_FILES)));
-const wake = createWake(() => restrictToTrustedContexts(chrome.storage.local), console);
+// 每个事件先看一眼扩展目录里的文件换没换（一分钟最多一次），换了就自己重新加载。
+const wake = createWake(() => restrictToTrustedContexts(chrome.storage.local), console, () => current().onWake());
 
 chrome.runtime.onMessage.addListener(
   wake((message: unknown, sender: chrome.runtime.MessageSender, sendResponse: (value: unknown) => void) =>

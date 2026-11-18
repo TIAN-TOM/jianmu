@@ -25,7 +25,9 @@ function setup(options: { readonly frame?: (identity: FrameIdentity) => FrameToo
   fake.reply("playback.info", { value: { ok: true, value: { playedSec: 0, report: true } } });
   // 页面那一头的替身也能当内容脚本这一头用：广播的监听多收一个回复函数，替身不给。
   const like = { ...fake.runtime, getURL: (path: string) => `chrome-extension://${EXTENSION_ID}/${path}` } as unknown as RuntimeLike;
-  const runtime = createContentRuntime(() => like, async () => {});
+  // 扩展重新加载以后旧脚本拿到的 chrome.runtime 没有 id：disconnect() 模拟这一下。
+  let connected = true;
+  const runtime = createContentRuntime(() => (connected ? like : ({} as RuntimeLike)), async () => {});
 
   // 页面的每一次读取都记下来：确认前一次都不该有。
   const pageReads: string[] = [];
@@ -49,27 +51,28 @@ function setup(options: { readonly frame?: (identity: FrameIdentity) => FrameToo
     cardSlot: () => (pageReads.push("cardSlot"), null),
   };
 
-  const surfaces: { removed: boolean; ticks: number; appearance: unknown[]; frame: FrameTool | undefined }[] = [];
+  const surfaces: { removed: boolean; retired: boolean; ticks: number; appearance: unknown[]; frame: FrameTool | undefined }[] = [];
+  const repeating: (() => void)[] = [];
   const hooks: string[] = [];
   const timers = manualTimers();
   const app = createContentApp({
     runtime,
     page,
     createSurface(env) {
-      const record = { removed: false, ticks: 0, appearance: [] as unknown[], frame: env.frame };
+      const record = { removed: false, retired: false, ticks: 0, appearance: [] as unknown[], frame: env.frame };
       surfaces.push(record);
       const surface: Surface = {
         tick: () => void (record.ticks += 1),
         videoChanged: () => undefined,
         setAppearance: (view) => void record.appearance.push(view),
-        retire: () => undefined,
+        retire: () => void (record.retired = true),
         remove: () => void (record.removed = true),
       };
       return surface;
     },
     visibility: { hidden: () => false, onChange: () => (hooks.push("visibility"), () => undefined) },
     onMediaLoading: () => (hooks.push("media"), () => undefined),
-    every: () => (hooks.push("every"), () => undefined),
+    every: (_ms, run) => (hooks.push("every"), repeating.push(run), () => undefined),
     gateTimers: { set: (run, ms) => timers.setTimeout(run, ms), clear: (timer) => timers.clearTimeout(timer) },
     ...(options.frame ? { frame: options.frame } : {}),
     ...(options.site ? { site: options.site } : {}),
@@ -84,6 +87,8 @@ function setup(options: { readonly frame?: (identity: FrameIdentity) => FrameToo
     timers,
     setActivation: (value: unknown) => void (activation = value),
     pageReady: () => ready?.(),
+    disconnect: () => void (connected = false),
+    tick: () => repeating.forEach((run) => run()),
   };
 }
 
@@ -208,6 +213,23 @@ test("撤了自己这个站的授权：整套撤下、不再响应；别的站�
   fake.broadcast({ type: "site.changed", platform: "youtube", enabled: false });
   assert.ok(await until(() => surfaces[0]?.removed === true));
   assert.equal(fake.listeners(), 0);
+});
+
+test("扩展重新加载以后旧的一份和扩展断了联系：下一轮自查就收场，不再自查", async () => {
+  const { app, pageReads, surfaces, setActivation, pageReady, disconnect, tick } = setup();
+  setActivation(CURRENT);
+  app.start();
+  assert.ok(await until(() => pageReads.includes("whenPageReady")));
+  pageReady();
+  assert.ok(await until(() => surfaces.length === 1));
+  tick();
+  const before = surfaces[0]?.ticks ?? 0;
+  assert.ok(before > 0);
+  disconnect();
+  tick();
+  assert.equal(surfaces[0]?.retired, true);
+  tick();
+  assert.equal(surfaces[0]?.ticks, before, "收场以后不再自查");
 });
 
 test("截帧指令：确认以后才建截帧工具、交给它，等它异步回；播放器指令照旧同步回；撤下时停掉截帧工具", async () => {

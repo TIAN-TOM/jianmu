@@ -178,6 +178,7 @@ IndexedDB 数据库 `jianmu` 里的仓库：
 | `jianmu_settings_revision` | 设置的修订号，是个随机值，防止过时的设置页写回旧设置 | 本机 | 留 | 换成新值 |
 | `jianmu_appearance` | 外观设置的副本，页面打开时先用它，免得闪一下 | 页面的本地存储 | 留 | 恢复默认 |
 | `jianmu_site_backoff` | B 站限流以后要等多久，只有站点、到期时间和次数 | 会话 | 留 | 留 |
+| `jianmu_self_reload` | 覆盖新版以后简幕自己重新加载过几次，只有新版的构建标识、次数和时间，防止文件没换全时来回重载 | 本机 | 留 | 删 |
 
 ### YouTube（还在验证，发布版里没有）
 
@@ -372,6 +373,7 @@ Keys in extension storage, none of which go into backups. "Local" is written to 
 | `jianmu_settings_revision` | A random revision number for settings, so an out-of-date Settings page cannot write old settings back | Local | Kept | Replaced with a new value |
 | `jianmu_appearance` | A copy of the appearance settings, used first when a page opens so it doesn't flicker | The page's local storage | Kept | Reset to default |
 | `jianmu_site_backoff` | How long to wait after Bilibili rate-limits requests: only the site, an expiry time and a count | Session | Kept | Kept |
+| `jianmu_self_reload` | How many times Jianmu has reloaded itself after you copied a new version over it: only the new build's identifier, a count and a time, so it doesn't keep reloading if the files were only partly replaced | Local | Kept | Deleted |
 
 ### YouTube (still being tested, not in the published version)
 

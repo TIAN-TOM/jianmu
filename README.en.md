@@ -49,7 +49,7 @@ The Chrome versions tested by hand on real pages will be listed before release. 
 Jianmu doesn't check for new versions itself. To get notified, click Watch on this repository's page and tick Releases under Custom.
 
 1. Download the new zip, unzip it and copy all of its files into your existing folder, replacing the old ones.
-2. Open `chrome://extensions` and click the reload button on Jianmu's card.
+2. That's it. Jianmu notices that its files have changed and reloads itself, usually the next time you use it. If an overview, translation or similar job is running, it waits for that to finish first. The side panel and Settings close when it reloads, and reopening them gives you the new version. To switch over straight away, open `chrome://extensions` and click the reload button on Jianmu's card.
 
 Your notes, overviews, Q&A and settings are kept. Unless you chose 在这台电脑上记住密钥 (remember the key on this computer), you will need to enter your API key again after updating. Don't remove the extension and load it again: removing it deletes the data Jianmu keeps on this computer.
 

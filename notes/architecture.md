@@ -144,7 +144,7 @@ jianmu/
       sidepanel/             main.tsx、app.tsx、skim/、study/、qa/、notes/、batch/
       card/  options/  triage/
   tests/                     unit/ 镜像 src；helpers/ 替身（含注入给后台服务的站点替身）；fixtures/（golden/、legacy-backups/、package-files.txt）；structure.test.ts；build-output.test.ts
-  e2e/                       run、pages（页面测试入口，场景按页面分在 pages/）、lifecycle、perf、mock-server、fixtures、browser、cdp（.mjs）
+  e2e/                       run、pages（页面测试入口，场景按页面分在 pages/）、lifecycle、self-reload、perf、mock-server、fixtures、browser、cdp（.mjs）
   scripts/                   build、package、dev-reload、check-public（.mjs），normalize-eol.sh
 ```
 
@@ -187,7 +187,7 @@ jianmu/
 | `src/pages/triage/` | 稍后再看粗筛页，从设置页打开：确认启用前只说去侧边栏或设置页启用；读列表、第一步取官方总结、第二步写一句话结论都经端口 `batch` 交给后台，开始前就地确认，写清数量、跳过规则和费用；按判断分组筛选，导出 Markdown；关页面就断开端口，后台撤掉还在排队的；重新打开时直接显示本机存着的列表、官方总结和结论。`state.ts` 是状态和动作，`static/pages/triage.css` 是它自己的版面 |
 | `src/content/` | 内容脚本，原生 DOM：`bilibili.ts` 是 B 站的入口，`youtube.ts` 是 YouTube 的入口（只在 `FEATURE_YOUTUBE` 打开时构建，用户在 YouTube 上启用以后由后台动态注册，撤权的广播到了整套撤下，不放卡片），同一页面再注入一份时新的接手、旧的整套撤下；`gate.ts` 是启用闸门，确认前只挂一个收后台消息的监听，不读页面、不插节点，启用失效（清除全部数据）时整套撤下、重新等确认；`app.ts` 管生命周期（页面激活稳定后才挂界面、定时自查、扩展重新加载后旧脚本收场）；`player.ts` 执行播放器指令（读状态、跳转，地址变了要等播放器换上新视频）；`play-reporter.ts` 每个视频先报一次时长和作者栏上的频道编号（读不到频道最多等 5 秒），从后台回的累计秒数接着计，每累计 10 秒报一次，后台说不用再报就停；`hover-icons.ts` 是播放器右上角的图标浮层（笔记图标，构建开关打开时下面还有解释当前画面的图标），点击时的防劫持核对是 `click-guard.ts` 里的纯函数，`shortcut.ts`、`mini-player.ts` 是 `n` 快捷键和小窗避让，只认真实操作；图标只有图标没有字，平时藏着，`reveal.ts` 定什么时候露：页面给了控制栏显隐的信号就跟着它（B 站已接上），没给时鼠标在播放器上动过露 3 秒，鼠标停在图标上、闪着提示时一直露着；`frame.ts` 截当前一帧（`player.captureFrame` 和图标共用，拒绝分开报，截图不落盘），`frame-icon.ts` 是解释当前画面的图标，点了先就地看有没有视频、是不是在播广告、视频换没换，能截就发 `frame.explainHere` 交给后台，图标上说结果在侧边栏还是要点简幕图标，这两个只在 `FEATURE_FRAME_EXPLAIN` 打开时进包；`card-frame.ts` 用 iframe 把卡片插在右栏，宽屏时挪到弹幕列表下面，换视频只发提醒不改地址 |
 | `src/pages/card/` | 播放页总结卡片：`model.ts` 是状态和操作，认视频只看所在标签页的地址，只做轻量读取，生成概览只认真实点击、凭登记换到的一次性令牌开始，跟上侧边栏为同一视频起的、打开就出结论自动起的任务（进度行标出是自动生成），收尾后重读、摆出结论；没启用、卡片关着时不显示也不读；展开收起跟着本标签页的观看会话：这个视频里手动展开收起过的为准，否则速览展开、精读收起，收到本视频的 `session.changed` 重读自己标签页的会话；收起时不读，后台打开的标签页第一次到前台才读；`card.tsx` 是界面，`main.tsx` 接消息、外观和高度上报 |
-| `src/background/` 入口和路由 | `chrome-deps.ts` 是浏览器里的真实依赖；`site-switch.ts` 管要用户另外授权的站（YouTube）：授权在就注册内容脚本，安装、更新后重新注册，新授权往已开页面补注入，撤权通知页面撤下，撤了权那个站上残留的内容脚本发来的业务请求回没启用（只在 `FEATURE_YOUTUBE` 打开时进包）；`main.ts` 一次注册全部顶层监听（含打开就出结论要的标签页激活、更新和窗口焦点），都先过 `wake.ts` 的醒来钩子；`app.ts` 拼依赖；`router.ts`、`senders.ts`、`routes/` 是路由表、端口表、发送方核对和首次启用闸门，放行规则见第 10.2 节的允许矩阵；不认识的请求和端口名回 `UNKNOWN_ROUTE`，和发送方不放行的 `FORBIDDEN` 分开，端口被拒时先发一条带码的通知再断开；`routes/build.ts` 回后台的构建标识；端口连接走同一道闸门，启用失效时断开，会发起工作的端口消息逐条重查 |
+| `src/background/` 入口和路由 | `chrome-deps.ts` 是浏览器里的真实依赖；`site-switch.ts` 管要用户另外授权的站（YouTube）：授权在就注册内容脚本，安装、更新后重新注册，新授权往已开页面补注入，撤权通知页面撤下，撤了权那个站上残留的内容脚本发来的业务请求回没启用（只在 `FEATURE_YOUTUBE` 打开时进包）；`main.ts` 一次注册全部顶层监听（含打开就出结论要的标签页激活、更新和窗口焦点），都先过 `wake.ts` 的醒来钩子，每个事件先让 `self-update.ts` 看一眼扩展目录里的构建标识文件：解压覆盖了别的构建就自己重新加载（一分钟最多看一次，任务、批次、润色在跑时等它做完，同一个新标识重载几次还对不上就停下，记录在 `jianmu_self_reload`）；`app.ts` 拼依赖；`router.ts`、`senders.ts`、`routes/` 是路由表、端口表、发送方核对和首次启用闸门，放行规则见第 10.2 节的允许矩阵；不认识的请求和端口名回 `UNKNOWN_ROUTE`，和发送方不放行的 `FORBIDDEN` 分开，端口被拒时先发一条带码的通知再断开；`routes/build.ts` 回后台的构建标识；端口连接走同一道闸门，启用失效时断开，会发起工作的端口消息逐条重查 |
 | `src/background/ai.ts` | 模型服务接线：传输层按设置规则建，主机权限只查不申请，参数放宽记在会话存储里，模型能力只经核对过同意的读取取得，写缓存过清除闸门；服务按任务取冻结的地址、模型和推理档位，硬超时跟着档位放宽；配置检查、拉模型列表、测试连接、推理强度预览四条路由在 `routes/ai.ts` |
 | `src/background/tasks.ts` | 任务运行：登记、认领、没人认领到点收尾，任务里另几步用的功能（概览的结论）登记时一起取定配置，问答的问题、解释的选区这类功能输入随登记一起交、进等价键，互斥键和等价键，跟着页面走的任务在页面都断开时停下，整个任务和每次模型请求两层保活；登记时可以挂发送钩子（自动生成用）：每次发模型请求之前问一次，不放行就按取消收尾，请求失败也交给它看，用户或卡片接上这个任务以后照样问、带上已接上的标记；任务表只在内存里。`limits.ts` 是卡片的限频和一次性令牌，列出、登记、取消三条路由在 `routes/tasks.ts` |
 | `src/background/sessions.ts` | 观看会话：按标签页记在会话存储里，刷新同一视频沿用，换视频开新的；播放上报只改界面模式，拿不到任务和模型入口。时长和频道以侧边栏经适配层读到的为准，播放页报的只补空着的；主动切换可以带上侧边栏读到的频道，播放页还没报频道时靠它记住。路由在 `routes/session.ts`，播放上报每个标签页 10 秒一条的限频在 `limits.ts` |
@@ -204,7 +204,7 @@ jianmu/
 | `static/` | 原样复制进构建产物：`theme.css` 是扩展页面共用的设计变量（三套主题、两种明暗，界面字号改根字号），`ui.css` 引进 `ui/` 下按用途分开的共用组件样式，`icons/` 是 16、48、128 三档扩展图标，`pages/` 是页面外壳 |
 | `scripts/` | `build.mjs` 构建（按源码内容算构建标识，注入后台和各页面），`package.mjs` 打包和校验（带 `--daily` 打开发者本人的日用包，只收日用构建；同一个提交打两次得到同一个 zip，旁边写校验值文件；开关取值和要打的那份不一样的产物不打包），`lib/release-globals.mjs` 给直接读产品模块的脚本按发行取值定义开关常量，`release.mjs` 发布候选、候选之后的核对、发布说明草稿和发布前检查，`check-public.mjs` 公开结构检查 |
 | `tests/` | `unit/` 单元测试，`structure.test.ts` 结构规则，`build-output.test.ts` 构建产物检查，`fixtures/golden/` 黄金样本，`helpers/` 替身（`fake-ai.ts` 是后台各服务测试共用的模型服务替身，`fake-site-service.ts` 是站点读取服务的替身，`overview-service.ts` 是概览和用官方总结写结论的测试架子，`study-service.ts`、`study-background.ts` 是问答、划词解释和笔记的服务架子和走真实后台分发的架子，`manual-timers.ts` 是手动推进的计时器） |
-| `e2e/` | 把打好的包装进 Chrome for Testing 跑冒烟，站点和两家模型服务的请求都指向本机模拟服务器（能中途切场景、拖慢读取、挂住模型请求），其余域名解析失败；`lifecycle.mjs` 单独看任务跨过 service worker 空闲回收、被强行终止时的样子；`pages.mjs` 是页面测试的入口，场景按页面分在 `pages/`，`pages/harness.mjs` 是公共部分，`pages/fixtures/` 的组件样张只在测试时编进扩展副本；`run.mjs` 在播放页步骤之后，在真实的侧边栏里走主流程 |
+| `e2e/` | 把打好的包装进 Chrome for Testing 跑冒烟，站点和两家模型服务的请求都指向本机模拟服务器（能中途切场景、拖慢读取、挂住模型请求），其余域名解析失败；`lifecycle.mjs` 单独看任务跨过 service worker 空闲回收、被强行终止时的样子，`self-reload.mjs` 看解压覆盖新版以后后台自己重新加载、资料都在；`pages.mjs` 是页面测试的入口，场景按页面分在 `pages/`，`pages/harness.mjs` 是公共部分，`pages/fixtures/` 的组件样张只在测试时编进扩展副本；`run.mjs` 在播放页步骤之后，在真实的侧边栏里走主流程 |
 | `notes/` | 公开的设计文档，走白名单 |
 
 ## 6. 站点适配层
@@ -705,7 +705,7 @@ export const ROUTES: { [K in keyof Api]: Route<K> } = { /* … */ };   // 漏一
 
 - 入口：后台一个 IIFE（经典 service worker）；B 站、YouTube 隔离世界各一个 IIFE，选定路线需要时再加 YouTube 主世界一个（按需生成；首发待验证，第 10 步）；四个页面各一个自包含的 ESM 包，不开代码拆分，产物清单稳定；`theme-boot` 单独一个经典脚本，在 `<head>` 里同步加载。
 - 目标 `chrome116`；不压缩、不带 source map，解压后的包读得懂；保留许可证注释。版本号只写在 `package.json`，构建时写进产物清单。
-- 构建标识按 `src/`、`prompts/`、`static/`、清单模板和依赖版本的内容算，后台和各页面注入同一个值，同一个提交两次构建得到同一个。从文件夹加载的扩展，页面每次打开都读磁盘上的新文件，后台要重新加载扩展才换；页面打开时先和后台比标识，对不上就提示重新加载（第 5.3 节 `src/pages/shared/`）。监听模式只在启动时算一次。
+- 构建标识按 `src/`、`prompts/`、`static/`、清单模板和依赖版本的内容算，后台和各页面注入同一个值，同一个提交两次构建得到同一个。从文件夹加载的扩展，页面每次打开都读磁盘上的新文件，后台要重新加载扩展才换；页面打开时先和后台比标识，对不上就提示重新加载（第 5.3 节 `src/pages/shared/`）。构建另写一份只放标识的 `build-id.txt`，后台醒来时读它，和编进去的不一样就自己重新加载，用户解压覆盖以后不用去扩展管理页点刷新。监听模式只在启动时算一次。
 - `manifest.template.json` 带固定的 `key`，第 12 步打候选包之前加好。它是公钥，扩展身份靠它稳定（PRD 第 3 节）；私钥不进任何仓库，用文件夹加载不需要它。
 - 提示词用文本加载器内联进后台包，构建时去掉 `\r`，另有测试检查 `prompts/` 源文件没有 `\r`。运行时不再读提示词文件；Node 测试从磁盘读，经注入的读取函数交给服务。
 - 构建时开关用 esbuild 的 `define`，例如 `FEATURE_FRAME_EXPLAIN`。发行默认值只写在 `src/shared/features.ts` 一处，构建、打包、发布脚本和测试都从那里读；要裁的代码只写裸常量的分支，开关保护的内容放进只从这些分支引用的单独模块。发行包只收开关取值和发行那份一样的构建；开发者本人的日用包（`build.mjs --daily`、`npm run package:daily`）只收和日用那份一样的构建，日用那份是发行构建加上只给他自己用的开关。解释当前画面原来发行默认关，开发者本人用带开关的日用包在日常使用里验证（2026-11-18 定）；开发者本人 2026-11-19 在日用里用过（播放页图标能点、侧边栏出了解释）以后定：首发带上，发行开关打开，不再等第 12 节表后的几条全部核对完，日用包里也照常打开。最终候选包上照常回归。测试构建（`build.mjs --test-build`，页面测试用）打开全部开关，只用于测试，不打成发布包（第 11.3 节）。开发时 `build.mjs --watch` 加 `dev-reload.mjs`，开发者本人的 Chrome 加载 `build/` 目录。「本机开发构建」指字幕路线用的产品开发构建。

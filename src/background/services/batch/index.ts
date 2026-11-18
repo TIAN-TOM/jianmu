@@ -41,6 +41,8 @@ export interface BatchService {
   leave(listenerId: string): void;
   /** 粗筛页要显示的：列表、官方总结、已经写好的结论和正在跑的那一步。 */
   state(): Promise<TriageSnapshot>;
+  /** 粗筛或本窗口全部生成还有没跑完的：条目之间的间隔里也算。 */
+  busy(): boolean;
 }
 
 export interface BatchServiceDeps {
@@ -295,6 +297,7 @@ export function createBatchService(deps: BatchServiceDeps): BatchService {
   }
 
   return {
+    busy: () => current !== null || windows.busy(),
     handle(message, listener) {
       if (isWindowIn(message)) return handleWindow(message, listener);
       if (message.type === "triage.stop") {

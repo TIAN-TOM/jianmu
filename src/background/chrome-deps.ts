@@ -22,6 +22,11 @@ export function chromeDeps(prompts: PromptTable): AppDeps {
     siteRules: Object.values(siteRules),
     sites: { service: siteService, ctx: (platform, { signal }) => createSiteCtx(platform, signal) },
     fetch: (url, init) => fetch(url, init),
+    // 解压加载的扩展读自己包里的文件，读到的是磁盘上现在的内容。
+    readOwnFile: async (path) => {
+      const response = await fetch(chrome.runtime.getURL(path), { cache: "no-store" });
+      return response.ok ? response.text() : null;
+    },
     prompts,
     ping: chromePing,
     timers: {
