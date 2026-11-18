@@ -14,7 +14,7 @@ import type { Timers } from "../../tasks.ts";
 import { assembleImported, createImports } from "./imports.ts";
 import { createLight, type JoinableRead, type ReadingGuides } from "./light.ts";
 import { createMismatchMemory, timelineMismatch } from "./memory.ts";
-import { createOfficials, type OfficialRead } from "./official.ts";
+import { createOfficials, PLATFORM_RETRY_MS, type OfficialRead } from "./official.ts";
 import { readFromSite, type ReadGuides, type SiteAccess } from "./read.ts";
 import {
   chaptersView,
@@ -271,10 +271,54 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
     return ok(viewOf(video, cached, true));
   }
 
+  /** 缓存里是官方总结附带的字幕、没点名语言、离上次向平台读字幕过了重试间隔：再试一次平台字幕。 */
+  function platformRetryDue(cached: TranscriptRecord, lang: string): boolean {
+    if (lang || cached.transcript.ref.kind !== "official-ai") return false;
+    const { triedAt } = cached.transcript;
+    return typeof triedAt !== "number" || timers.now() - triedAt >= PLATFORM_RETRY_MS;
+  }
+
+  // 记下这次试过平台字幕的时间：只记还是同一份附带字幕的那条。
+  async function markTried(video: VideoKey, fingerprint: string, since: ClearEpoch | undefined): Promise<void> {
+    const same = (current: CachedTranscript | null): current is TranscriptRecord =>
+      hasTranscript(current) && current.transcript.ref.kind === "official-ai" && current.transcript.ref.fingerprint === fingerprint;
+    try {
+      await writer.update(video, (current) => (same(current) ? { ...current, transcript: { ...current.transcript, triedAt: timers.now() } } : null), since);
+    } catch (error) {
+      log.warn("记下重试平台字幕的时间失败", errorLabel(error));
+    }
+  }
+
+  // 用着官方总结附带的字幕时再试一次平台字幕：读到了就换掉附带的那份，官方总结沿用缓存里的；读不到交回 null，
+  // 照旧用缓存。站点在退避里时一个请求都不发，也不算试过；别的结果都记下试过的时间，隔一段时间才再试。
+  async function retryPlatform(ref: VideoRef, video: VideoKey, cached: TranscriptRecord, start: ReadStart, tabId: number | undefined): Promise<TranscriptReply | null> {
+    if (await imports.load(video)) return null;
+    const site = deps.sites.service(ref.platform);
+    if (!site) return null;
+    const read = await readFromSite({
+      site,
+      ref,
+      video,
+      lang: "",
+      fresh: false,
+      knownTracks: cached.tracks.length > 0,
+      ctx: (signal) => deps.sites.ctx(ref.platform, { signal, tabId }),
+      timers,
+    });
+    if (!read.ok && read.failure.code === "RATE_LIMITED" && read.failure.detail === "blocked") return null;
+    await markTried(video, cached.transcript.ref.fingerprint, start.since);
+    if (!read.ok) return null;
+    const record = cached.official ? { ...read.record, official: cached.official } : read.record;
+    return settle(video, record, "", start, { persist: true });
+  }
+
   async function load(ref: VideoRef, video: VideoKey, lang: string, fresh: boolean, tabId: number | undefined, reading: InFlight["reading"]): Promise<TranscriptReply> {
     const start: ReadStart = { since: guard.epoch(), memory: memory.epoch(), generation: generationOf(video) };
     const cached = await cache.load(video);
-    if (!fresh && hasTranscript(cached, lang)) return fromCache(ref, video, cached);
+    if (!fresh && hasTranscript(cached, lang)) {
+      const retried = platformRetryDue(cached, lang) ? await retryPlatform(ref, video, cached, start, tabId) : null;
+      return retried ?? fromCache(ref, video, cached);
+    }
     const remembered = fresh ? null : memory.get(video, lang);
     if (remembered) return ok(viewOf(video, remembered, false, { subtitleMismatch: true }));
     // 导入的字幕排在读视频信息之前，命中就不向平台发任何请求；刷新也用它。点名语言时要的是平台的那条轨。

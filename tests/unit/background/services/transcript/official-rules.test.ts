@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { OFFICIAL_SUBTITLE_LABEL } from "../../../../../src/core/transcript/sources.ts";
 import { createApp } from "../../../../../src/background/app.ts";
-import { OFFICIAL_GRACE_MS } from "../../../../../src/background/services/transcript/official.ts";
+import { OFFICIAL_GRACE_MS, OFFICIAL_RETRY_MS, PLATFORM_RETRY_MS } from "../../../../../src/background/services/transcript/official.ts";
 import { videoKey } from "../../../../../src/core/video-ref.ts";
 import { SETTINGS_STORAGE_KEY } from "../../../../../src/shared/names.ts";
 import type { Cue, OfficialSummary, SiteResult } from "../../../../../src/sites/types.ts";
@@ -159,4 +159,90 @@ test("缓存里是兜底存下的官方 AI 字幕：点名语言时不拿它顶�
   assert.equal(named.transcript.ref.kind, "human");
   assert.equal(named.fromCache, false);
   assert.equal(h.site.count("readCaptions"), 1);
+});
+
+// ============================================================
+// 用着附带字幕时隔一段时间再试平台字幕
+// ============================================================
+
+/** 先读一次：播放器没有字幕轨，存下官方总结附带的字幕。 */
+async function withOfficialCaptions() {
+  const h = harness({ officialCaptionsFallback: true, site: { tracks: () => ok([]), officialSummary: () => ok(SUMMARY) } });
+  assert.equal(view(await h.service.get(REF, { mode: "full" })).transcript.ref.kind, "official-ai");
+  return h;
+}
+
+test("用着附带字幕：重试间隔内再打开只用缓存，不向平台读", async () => {
+  const h = await withOfficialCaptions();
+  h.site.script.tracks = () => ok([ZH]);
+  h.timers.advance(PLATFORM_RETRY_MS - 1);
+  const again = view(await h.service.get(REF, { mode: "full" }));
+  assert.equal(again.transcript.ref.kind, "official-ai");
+  assert.equal(again.fromCache, true);
+  assert.equal(h.site.count("readVideoInfo"), 1, "只有第一次读过平台");
+  assert.equal(PLATFORM_RETRY_MS, OFFICIAL_RETRY_MS, "和官方总结重问用同一个间隔");
+});
+
+test("用着附带字幕：过了重试间隔再打开，平台字幕读到了就换回来，官方总结沿用缓存里的，不另问", async () => {
+  const h = await withOfficialCaptions();
+  const before = h.site.count("readOfficialSummary");
+  const oldFingerprint = (await h.rows())[0]?.transcript?.ref.fingerprint;
+  h.site.script.tracks = () => ok([ZH]);
+  h.timers.advance(PLATFORM_RETRY_MS);
+
+  const swapped = view(await h.service.get(REF, { mode: "full" }));
+  assert.equal(swapped.transcript.ref.kind, "human");
+  assert.equal(swapped.fromCache, false);
+  assert.notEqual(swapped.transcript.ref.fingerprint, oldFingerprint, "换了字幕版本，依据旧字幕的结果按旧字幕标");
+  assert.equal(swapped.official?.status, "ok");
+  assert.equal(h.site.count("readOfficialSummary"), before, "官方总结不另问");
+
+  const [row] = await h.rows();
+  assert.equal(row?.transcript?.ref.kind, "human", "缓存换成平台字幕");
+  assert.equal(row?.transcript?.triedAt, undefined, "平台字幕不记重试时间");
+  assert.equal(row?.official?.summary, "官方摘要");
+  const reopened = view(await h.service.get(REF, { mode: "full" }));
+  assert.equal(reopened.fromCache, true);
+  assert.equal(h.site.count("readVideoInfo"), 2, "换回平台字幕以后不再重试");
+});
+
+test("用着附带字幕：重试还是没读到，照旧交缓存，记下试过的时间，隔一段时间才再试", async () => {
+  const h = await withOfficialCaptions();
+  h.timers.advance(PLATFORM_RETRY_MS);
+  const tried = view(await h.service.get(REF, { mode: "full" }));
+  assert.equal(tried.transcript.ref.kind, "official-ai");
+  assert.equal(tried.fromCache, true);
+  assert.equal(h.site.count("readVideoInfo"), 2);
+  assert.equal((await h.rows())[0]?.transcript?.triedAt, START + PLATFORM_RETRY_MS);
+
+  h.timers.advance(PLATFORM_RETRY_MS - 1);
+  await h.service.get(REF, { mode: "full" });
+  assert.equal(h.site.count("readVideoInfo"), 2, "间隔从上次试过算起");
+  h.timers.advance(1);
+  await h.service.get(REF, { mode: "full" });
+  assert.equal(h.site.count("readVideoInfo"), 3);
+});
+
+test("用着附带字幕：站点在退避里时不试，也不算试过；退避过了再打开就试", async () => {
+  const h = await withOfficialCaptions();
+  h.timers.advance(PLATFORM_RETRY_MS);
+  const normal = h.site.script.videoInfo;
+  h.site.script.videoInfo = () => ({ ok: false, code: "RATE_LIMITED", detail: "blocked", retryAfterSec: 60 });
+  const blocked = view(await h.service.get(REF, { mode: "full" }));
+  assert.equal(blocked.transcript.ref.kind, "official-ai");
+  assert.equal((await h.rows())[0]?.transcript?.triedAt, START, "没算试过");
+
+  h.site.script.videoInfo = normal;
+  h.site.script.tracks = () => ok([ZH]);
+  assert.equal(view(await h.service.get(REF, { mode: "full" })).transcript.ref.kind, "human");
+});
+
+test("缓存里的附带字幕没记过试的时间（旧记录）：打开就试一次；只读缓存和点名语言都不试", async () => {
+  const seed = cachedRow({ trackId: "official-ai", lang: "zh-CN", label: OFFICIAL_SUBTITLE_LABEL, kind: "official-ai" }, {
+    official: { status: "ok", summary: "官方摘要", outline: [], hasCaptions: true, fetchedAt: START },
+  });
+  const h = harness({ seed: [seed], site: { tracks: () => ok([ZH]) } });
+  await h.service.get(REF, { mode: "cache-only" });
+  assert.equal(h.site.count("readVideoInfo"), 0, "只读缓存不试");
+  assert.equal(view(await h.service.get(REF, { mode: "full" })).transcript.ref.kind, "human");
 });

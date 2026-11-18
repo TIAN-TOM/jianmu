@@ -25,6 +25,8 @@ export interface StoredTranscript {
   readonly cues: readonly Cue[];
   /** 来自用户导入的文件时，文件名。 */
   readonly fileName?: string;
+  /** 官方总结附带的字幕：上次向平台读字幕的时间，过了重试间隔再试一次平台字幕。 */
+  readonly triedAt?: number;
 }
 
 /** 存下的官方总结。附带的 AI 字幕不存：用作兜底时它已经是字幕了。 */
@@ -101,9 +103,13 @@ function infoOf(info: VideoInfo): VideoInfo {
   };
 }
 
-function transcriptOf({ ref, trackId, label, cues, fileName }: StoredTranscript): StoredTranscript {
+function transcriptOf({ ref, trackId, label, cues, fileName, triedAt }: StoredTranscript): StoredTranscript {
   const picked = { ref: { video: ref.video, kind: ref.kind, lang: ref.lang, fingerprint: ref.fingerprint }, trackId, label, cues: cues.map(cueOf) };
-  return fileName === undefined ? picked : { ...picked, fileName };
+  return {
+    ...picked,
+    ...(fileName === undefined ? {} : { fileName }),
+    ...(typeof triedAt === "number" && ref.kind === "official-ai" ? { triedAt } : {}),
+  };
 }
 
 /** 一次读取的结果整理成缓存记录。 */
