@@ -30,6 +30,7 @@ const CHUNK_LABELS: Readonly<Record<AnalysisChunkMode, string>> = {
   auto: "自动（推荐）",
   short: "较短：请求数更多，更稳",
   long: "较长：请求数更少，更快",
+  whole: "尽量整份：请求最少、章节最连贯，要上下文长的模型，容易超时",
 };
 
 const CONSENT_HEADINGS: readonly [DataConsentKind, string][] = [
@@ -311,7 +312,7 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
             </option>
           ))}
         </select>
-        <span class="field-hint">多数模型用自动就好。上下文窗口小、内容有遗漏，或者长视频的请求超时（单次上限 120 秒，推理强度选中、高时放宽到 180、300 秒）时选「较短」。</span>
+        <span class="field-hint">多数模型用自动就好。上下文窗口小、内容有遗漏，或者长视频的请求超时（单次上限 120 秒，推理强度选中、高时放宽到 180、300 秒）时选「较短」。模型的上下文够长（能装下几万字）时可以选「尽量整份」：一个视频多半一次请求就写完，但更容易超时，超时就换回别的档。</span>
       </label>
 
       <ConsentBox state={state} />

@@ -1,11 +1,13 @@
-// 端到端里的打开就出结论：另开一个获得焦点的窗口。打开开关（门槛调到 20 分钟）以后，不到门槛的短视频、后台打开的标签页、
-// 没有焦点的窗口里的前台视频都不生成；后台打开的那个切到前台才生成，卡片上出结论，概览请求只发一次，切走再切回来不再发。
-// 关掉开关以后在前台打开长视频，不发模型请求。要在侧边栏主流程之后跑：那时已登录、配好模型服务。
+// 端到端里的打开就出结论：另开一个获得焦点的窗口。打开开关（门槛调到 20 分钟）以后，不到门槛的短视频不生成；
+// 后台打开的长视频不用切过去就开始生成，没有焦点的窗口里的长视频也同时生成，最多两个；再开的排着、不发请求；
+// 排着时关掉的标签页撤掉，不读也不发；一个收尾后排着的接着生成；切到后台生成好的那个，卡片直接显示结论、不再发请求；切走再切回来不再发。
+// 关掉开关以后在前台打开长视频，不发模型请求。最后再打开开关、让平台限流：读到限流就整批停下，同时开的另一个不再去读。
+// 要在侧边栏主流程之后跑：那时已登录、配好模型服务。
 import { AUTO_SAMPLES, ANTHROPIC } from "./fixtures.mjs";
 import { watchPage } from "./mock-server.mjs";
 import { storedSettings } from "./settings.mjs";
 
-const { long: AUTO_LONG, short: AUTO_SHORT, background: AUTO_BACKGROUND } = AUTO_SAMPLES;
+const { long: AUTO_LONG, short: AUTO_SHORT, background: AUTO_BACKGROUND, queued: AUTO_QUEUED, dropped: AUTO_DROPPED, limitedA: LIMITED_A, limitedB: LIMITED_B } = AUTO_SAMPLES;
 
 /** 确认某件事没发生要看多久。 */
 const QUIET_MS = 2000;
@@ -13,7 +15,8 @@ const QUIET_MS = 2000;
 /**
  * @param {{ until: (label: string, read: () => unknown) => Promise<any>, evaluate: (session: string, expression: string) => Promise<any>,
  *   cdp: { send: (method: string, params?: object, sessionId?: string) => Promise<any> }, launcher: string,
- *   mock: { models: { calls: { video: string, kind: string }[] } } }} deps
+ *   mock: { models: { calls: { video: string, kind: string }[], hold: (video: string) => void, release: (video: string) => void, held: (video: string) => number },
+ *     requests: { video: string }[], setScenario: (name: string) => void } }} deps
  */
 export async function autoFlow({ until, evaluate, cdp, launcher, mock }) {
   const callsFor = (video, kind) => mock.models.calls.filter((call) => call.video === video.id && call.kind === kind).length;
@@ -64,34 +67,72 @@ export async function autoFlow({ until, evaluate, cdp, launcher, mock }) {
   await quiet("不到门槛的视频发了模型请求", () => anyCallFor(AUTO_SHORT));
   console.log("✓ 打开就出结论：没到设定时长的视频不生成");
 
-  // 后台打开的长视频、没有焦点的窗口里的前台长视频，都不生成。
-  const background = await newTab(focused, AUTO_BACKGROUND, false);
-  await until("后台打开的播放页加载", async () => (await pages(AUTO_BACKGROUND)) === 1);
-  await evaluate(launcher, `chrome.windows.create({ url: ${JSON.stringify(watchPage(AUTO_LONG.id))}, focused: false }).then(() => true)`);
-  await until("没有焦点的窗口里的播放页加载", async () => (await pages(AUTO_LONG)) === 1);
-  await quiet("后台标签页或没有焦点的窗口发了模型请求", () => anyCallFor(AUTO_BACKGROUND) || anyCallFor(AUTO_LONG));
-  console.log("✓ 打开就出结论：后台打开的标签页、没有焦点的窗口里的前台视频都不生成");
+  const siteReadFor = (video) => mock.requests.some((entry) => entry.video === video.id);
 
-  // 后台打开的那个第一次切到前台：生成一次，卡片上出结论。
+  // 后台打开的长视频不用切过去就开始生成；没有焦点的窗口里的长视频同时生成。先挂住两个的概览请求，让它们一直在跑。
+  mock.models.hold(AUTO_BACKGROUND.id);
+  mock.models.hold(AUTO_LONG.id);
+  const background = await newTab(focused, AUTO_BACKGROUND, false);
+  await until("后台打开的长视频开始生成", () => mock.models.held(AUTO_BACKGROUND.id) > 0);
+  console.log("✓ 打开就出结论：后台打开的长视频不用切过去就开始生成");
+  await evaluate(launcher, `chrome.windows.create({ url: ${JSON.stringify(watchPage(AUTO_LONG.id))}, focused: false }).then(() => true)`);
+  await until("没有焦点的窗口里的长视频同时生成", () => mock.models.held(AUTO_LONG.id) > 0);
+
+  // 两个在跑时：再开的排着、不发请求；排着时关掉的撤掉。
+  await newTab(focused, AUTO_QUEUED, false);
+  const dropped = await newTab(focused, AUTO_DROPPED, false);
+  await until("排着的播放页加载", async () => (await pages(AUTO_QUEUED)) === 1 && (await pages(AUTO_DROPPED)) === 1);
+  await quiet("两个在跑时又生成了一个", () => anyCallFor(AUTO_QUEUED) || anyCallFor(AUTO_DROPPED));
+  await evaluate(launcher, `chrome.tabs.remove(${dropped}).then(() => true)`);
+  await until("排着的标签页关掉", async () => (await pages(AUTO_DROPPED)) === 0);
+  console.log("✓ 打开就出结论：同时最多生成两个，再开的排着不发请求");
+
+  // 一个收尾：排着的那个接着生成；关掉的那个不读也不发。
+  mock.models.release(AUTO_BACKGROUND.id);
+  await until("排着的长视频接着生成完", () => callsFor(AUTO_QUEUED, "verdict") === 1);
+  mock.models.release(AUTO_LONG.id);
+  await until("另一个也生成完", () => callsFor(AUTO_LONG, "verdict") === 1);
+  await quiet("关掉的标签页还被读取或生成", () => anyCallFor(AUTO_DROPPED) || siteReadFor(AUTO_DROPPED));
+  console.log("✓ 打开就出结论：一个收尾后排着的接着生成，排着时关掉的撤掉了，不读也不发");
+
+  // 切到后台生成好的那个：卡片直接显示结论，概览请求各只发过一次。
   await evaluate(launcher, `chrome.tabs.update(${background}, { active: true }).then(() => true)`);
   await cardShows(AUTO_BACKGROUND, "模拟服务写的一句话结论");
-  const counts = { analysis: callsFor(AUTO_BACKGROUND, "analysis"), verdict: callsFor(AUTO_BACKGROUND, "verdict") };
-  if (counts.analysis !== 1 || counts.verdict !== 1) throw new Error(`概览请求应该各发一次：${JSON.stringify(counts)}`);
-  console.log("✓ 打开就出结论：后台打开的长视频切到前台才生成，卡片上出了结论，概览请求只发了一次");
+  for (const video of [AUTO_BACKGROUND, AUTO_LONG, AUTO_QUEUED]) {
+    const counts = { analysis: callsFor(video, "analysis"), verdict: callsFor(video, "verdict") };
+    if (counts.analysis !== 1 || counts.verdict !== 1) throw new Error(`「${video.title}」的概览请求应该各发一次：${JSON.stringify(counts)}`);
+  }
+  console.log("✓ 打开就出结论：切到后台生成好的那个，卡片上直接是结论，概览请求只发了一次");
 
   // 切走再切回来：不再生成。
   await evaluate(
     launcher,
     `chrome.tabs.query({ windowId: ${focused}, url: ${JSON.stringify(watchPage(AUTO_SHORT.id))} }).then(([tab]) => chrome.tabs.update(tab.id, { active: true })).then(() => chrome.tabs.update(${background}, { active: true })).then(() => true)`,
   );
-  await quiet("切回来又发了模型请求", () => callsFor(AUTO_BACKGROUND, "analysis") + callsFor(AUTO_BACKGROUND, "verdict") > 2 || anyCallFor(AUTO_SHORT) || anyCallFor(AUTO_LONG));
+  await quiet("切回来又发了模型请求", () => callsFor(AUTO_BACKGROUND, "analysis") + callsFor(AUTO_BACKGROUND, "verdict") > 2 || anyCallFor(AUTO_SHORT));
   console.log("✓ 打开就出结论：同一个视频切走再切回来不再生成");
 
   // 关掉开关：在获得焦点的窗口前台打开长视频，卡片读完也不发模型请求。后面的步骤照旧是关着的。
   await writeSettings(undefined);
-  await newTab(focused, AUTO_LONG, true);
-  await until("前台的长视频播放页加载", async () => (await pages(AUTO_LONG)) === 2);
-  await cardShows(AUTO_LONG, "生成概览");
-  await quiet("开关关着时为长视频发模型请求", () => anyCallFor(AUTO_LONG));
+  const offTab = await newTab(focused, LIMITED_A, true);
+  await until("前台的长视频播放页加载", async () => (await pages(LIMITED_A)) === 1);
+  await cardShows(LIMITED_A, "生成概览");
+  await quiet("开关关着时为长视频发模型请求", () => anyCallFor(LIMITED_A));
+  await evaluate(launcher, `chrome.tabs.remove(${offTab}).then(() => true)`);
   console.log("✓ 打开就出结论：开关关着时，前台打开长视频不发模型请求");
+
+  // 再打开开关、让平台限流，在后台同时开两个长视频：读到限流就整批停下，另一个不再去读，谁都不发模型请求。
+  mock.setScenario("code-limited");
+  await writeSettings({ minutes: 20 });
+  const before = mock.requests.length;
+  const readsOf = (video) => mock.requests.slice(before).filter((entry) => entry.video === video.id).length;
+  const limited = [await newTab(focused, LIMITED_A, false), await newTab(focused, LIMITED_B, false)];
+  await until("两个播放页加载", async () => (await pages(LIMITED_A)) === 1 && (await pages(LIMITED_B)) === 1);
+  await until("先打开的那个去读平台、被限流", () => readsOf(LIMITED_A) > 0);
+  await quiet("被限流以后还在接着读", () => readsOf(LIMITED_B) > 0 || readsOf(LIMITED_A) > 2);
+  await quiet("被限流时发了模型请求", () => anyCallFor(LIMITED_A) || anyCallFor(LIMITED_B));
+  mock.setScenario("");
+  await writeSettings(undefined);
+  for (const tab of limited) await evaluate(launcher, `chrome.tabs.remove(${tab}).then(() => true)`);
+  console.log("✓ 打开就出结论：读平台被限流就整批停下，同时开的另一个不再去读");
 }

@@ -19,6 +19,9 @@ import { transcriptRoutes, type TranscriptRouteDeps } from "./transcript.ts";
 import { translatePort, type TranslatePortDeps } from "./translate.ts";
 import { verdictRoutes, type VerdictRouteDeps } from "./verdict.ts";
 
+// 解释当前画面的服务由 app.ts 在开关分支里装配，从这里取。
+export { createFrameParts } from "../services/frame-explain.ts";
+
 export type RouteDeps = ActivationRouteDeps &
   AppearanceRouteDeps &
   PageRouteDeps &

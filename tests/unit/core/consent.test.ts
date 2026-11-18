@@ -369,7 +369,7 @@ test("存过旧版本的只列之后新增的内容", () => {
   const status = noticeStatus(DATA_CONSENT_TABLE, first, FRAME_OFF);
   assert.equal(status.state, "needed");
   assert.ok(status.state === "needed" && status.updated);
-  assert.deepEqual(status.state === "needed" ? ids(status.items) : [], ["imported-transcript", "video-duration", "auto-on-open", "tidy-transcript"]);
+  assert.deepEqual(status.state === "needed" ? ids(status.items) : [], ["imported-transcript", "video-duration", "auto-on-open-tabs", "tidy-transcript"]);
 });
 
 // 数据同意第 3 版：发给模型的视频信息多了时长。完整说明里和「视频标题」并成一行显示，指纹按新增的语义条目算。
@@ -387,9 +387,9 @@ test("数据同意第 3 版加了视频时长：第 1、2 版的指纹不变，�
 
 // 数据同意第 4 版：从「点了才发」变成打开就出结论时自动发，超出原来的范围，升版重新同意。
 test("数据同意第 4 版加了打开视频就自动发送：前三版的指纹不变，两种构建一样", () => {
-  assert.deepEqual(versionStamps(DATA_CONSENT_TABLE, FRAME_OFF)[3], { version: 4, fingerprint: "16a09b86eba35d2e" });
-  assert.deepEqual(versionStamps(DATA_CONSENT_TABLE, FRAME_ON)[3], { version: 4, fingerprint: "16a09b86eba35d2e" });
-  assert.deepEqual(DATA_CONSENT_TABLE[3]?.items.map(({ kind, id }) => `${kind}:${id}`), ["trigger:auto-on-open"]);
+  assert.deepEqual(versionStamps(DATA_CONSENT_TABLE, FRAME_OFF)[3], { version: 4, fingerprint: "6ac3269feba5a9cf" });
+  assert.deepEqual(versionStamps(DATA_CONSENT_TABLE, FRAME_ON)[3], { version: 4, fingerprint: "6ac3269feba5a9cf" });
+  assert.deepEqual(DATA_CONSENT_TABLE[3]?.items.map(({ kind, id }) => `${kind}:${id}`), ["trigger:auto-on-open-tabs"]);
   assert.ok(CONSENT_V3);
   const stored = { dataConsentVersion: CONSENT_V3.version, dataConsentFingerprint: CONSENT_V3.fingerprint };
   assert.equal(dataConsentGiven(stored, { dataConsentVersion: DATA_CONSENT_VERSION, dataConsentFingerprint: DATA_CONSENT_FINGERPRINT }), false, "同意过第 3 版的要重新同意");
@@ -397,7 +397,7 @@ test("数据同意第 4 版加了打开视频就自动发送：前三版的指�
 
 test("数据同意第 5 版加了整理字幕这个用途：前四版的指纹不变，第 5 版是当前一版；同意过第 4 版的要重新同意，只看到这一行", () => {
   const stamps = versionStamps(DATA_CONSENT_TABLE, FRAME_OFF);
-  assert.deepEqual(stamps.at(-1), { version: 5, fingerprint: "5ccabe99b2185669" });
+  assert.deepEqual(stamps.at(-1), { version: 5, fingerprint: "98539c96838de496" });
   assert.equal(currentStamp(DATA_CONSENT_TABLE, FRAME_ON).version, 5, "解释当前画面的几条并进第 5 版，不另开一版");
   assert.equal(DATA_CONSENT_VERSION, 5);
   assert.deepEqual(
@@ -424,14 +424,14 @@ test("第 4 版的说明：同意过第 3 版的只看到自动发送这一行�
   const fromThird = noticeStatus(DATA_CONSENT_TABLE, CONSENT_V3 ?? {}, FRAME_OFF);
   assert.ok(fromThird.state === "needed" && fromThird.updated);
   const [only] = lines(fromThird.items);
-  assert.deepEqual(only?.ids, ["auto-on-open"]);
+  assert.deepEqual(only?.ids, ["auto-on-open-tabs"]);
   assert.match(only?.text ?? "", /^打开「打开就出结论」以后/);
   for (const word of ["字幕", "视频标题和时长", "UP 主名和简介", "超过设定时长", "YouTube 不自动发"]) assert.ok(only?.text.includes(word), word);
 
   const full = noticeStatus(DATA_CONSENT_TABLE, {}, FRAME_OFF);
   assert.ok(full.state === "needed");
   const trigger = noticeLines(full.items).filter((line) => line.kind === "trigger");
-  assert.deepEqual(trigger.map((line) => line.ids), [["on-click", "auto-on-open"]]);
+  assert.deepEqual(trigger.map((line) => line.ids), [["on-click", "auto-on-open-tabs"]]);
   assert.match(trigger[0]?.text ?? "", /^平时只在你点按钮时发出；打开「打开就出结论」以后/);
 });
 
@@ -455,12 +455,12 @@ test("存着第 2 版的同意：当前规则下不算同意，提示说明有�
 test("更新提示：第 2 版的同意者看到新增的「视频时长」、自动发送和整理字幕，第 1 版的同意者再多看到导入字幕", () => {
   const fromSecond = noticeStatus(DATA_CONSENT_TABLE, CONSENT_V2 ?? {}, FRAME_OFF);
   assert.ok(fromSecond.state === "needed");
-  assert.deepEqual(ids(fromSecond.items), ["video-duration", "auto-on-open", "tidy-transcript"]);
+  assert.deepEqual(ids(fromSecond.items), ["video-duration", "auto-on-open-tabs", "tidy-transcript"]);
   assert.deepEqual(lines(fromSecond.items)[0], { ids: ["video-duration"], text: "视频时长" });
 
   const fromFirst = noticeStatus(DATA_CONSENT_TABLE, CONSENT_V1 ?? {}, FRAME_OFF);
   assert.ok(fromFirst.state === "needed");
-  assert.deepEqual(ids(fromFirst.items), ["imported-transcript", "video-duration", "auto-on-open", "tidy-transcript"]);
+  assert.deepEqual(ids(fromFirst.items), ["imported-transcript", "video-duration", "auto-on-open-tabs", "tidy-transcript"]);
   assert.deepEqual(lines(fromFirst.items).slice(0, 2).map(({ text }) => text), ["你导入的字幕文件里的文字", "视频时长"]);
 });
 
@@ -507,21 +507,21 @@ test("启用说明第 2 版加了 B 站登录状态和稍后再看的观看进�
   assert.ok(first);
   const status = noticeStatus(ACTIVATION_TABLE, first, FRAME_OFF);
   assert.ok(status.state === "needed" && status.updated);
-  assert.deepEqual(status.state === "needed" ? ids(status.items) : [], ["bili-login-state", "watch-later-progress", "foreground-tab"]);
+  assert.deepEqual(status.state === "needed" ? ids(status.items) : [], ["bili-login-state", "watch-later-progress", "open-tabs"]);
   assert.ok(status.state === "needed" && status.items.every((entry) => entry.kind === "read"));
 });
 
-// 启用说明第 3 版：打开就出结论要后台看前台标签页的地址，读取范围扩大了，升版重新确认。
-test("启用说明第 3 版加了前台标签页的地址：确认过第 2 版的只看到这一条，前两版的指纹不变", () => {
+// 启用说明第 3 版：打开就出结论要后台看已授权网站各标签页的地址，读取范围扩大了，升版重新确认。
+test("启用说明第 3 版加了已授权网站各标签页的地址：确认过第 2 版的只看到这一条，前两版的指纹不变", () => {
   const stamps = versionStamps(ACTIVATION_TABLE, FRAME_OFF);
-  assert.deepEqual(stamps.at(-1), { version: 3, fingerprint: "32a7ecce69a08c6a" });
+  assert.deepEqual(stamps.at(-1), { version: 3, fingerprint: "c7c74de73be1ef90" });
   assert.equal(currentStamp(ACTIVATION_TABLE, FRAME_OFF).version, 3, "发行构建停在第 3 版");
   const second = stamps[1];
   assert.ok(second);
   const status = noticeStatus(ACTIVATION_TABLE, second, FRAME_OFF);
   assert.ok(status.state === "needed" && status.updated);
-  assert.deepEqual(status.state === "needed" ? status.items.map(({ kind, id }) => `${kind}:${id}`) : [], ["read:foreground-tab"]);
-  assert.match(status.state === "needed" ? (status.items[0]?.text ?? "") : "", /打开就出结论.*前台标签页的地址/);
+  assert.deepEqual(status.state === "needed" ? status.items.map(({ kind, id }) => `${kind}:${id}`) : [], ["read:open-tabs"]);
+  assert.match(status.state === "needed" ? (status.items[0]?.text ?? "") : "", /打开就出结论.*各标签页的地址.*后台打开/);
 });
 
 test("版本相同指纹不同、认不出的版本：确认失效，认不出同意过什么就显示完整说明", () => {

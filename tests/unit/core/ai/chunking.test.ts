@@ -572,3 +572,12 @@ test("翻译批次的字数上限正好 1200：等于上限不切，超过才切
     [600, 600],
   ]);
 });
+
+test("「尽量整份」那一档：八万字以内一块送完，再长才按六万字切", async () => {
+  const { ANALYSIS_CHUNK_MODES } = await import("../../../../src/shared/settings-schema.ts");
+  const segments = (count: number) => Array.from({ length: count }, (_, index) => ({ start: index * 10, text: "字".repeat(1000) }));
+  assert.equal(planAnalysisChunks(segments(80), ANALYSIS_CHUNK_MODES.whole).length, 1, "八万字一块");
+  const longer = planAnalysisChunks(segments(100), ANALYSIS_CHUNK_MODES.whole);
+  assert.equal(longer.length, 2);
+  assert.ok(longer.every((chunk) => chunk.segments.reduce((sum, segment) => sum + segment.text.length, 0) <= 60_000));
+});

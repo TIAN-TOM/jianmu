@@ -81,9 +81,10 @@ export const REGION_PRESETS: readonly { readonly id: string; readonly label: str
     { id: "overseas", label: "海外服务", presetId: "anthropic" },
   ]);
 
-// 固定值，界面上不开放调整。并发 3 是多数服务商限流以内的稳妥值，几个视频同时生成时共用；
+// 固定值，界面上不开放调整。同时最多 6 个模型请求：长视频的分块、几个视频同时生成都更快；
+// 个别服务商会因此限流，限流和过载时传输层照旧等一会儿再发。
 // 单次请求超时 120 秒，长视频超时就把概览分块改成「较短」。
-export const AI_CONCURRENCY = 3;
+export const AI_CONCURRENCY = 6;
 export const AI_TIMEOUT_SECONDS = 120;
 // 推理档位越高，单次请求允许等得越久（初值，数值在档位映射表里）；关和低档就是上面那个值。保活的上限跟着算。
 export const EFFORT_TIMEOUT_SECONDS: Readonly<Record<Effort, number>> = Object.freeze({
@@ -105,6 +106,8 @@ export const ANALYSIS_CHUNK_MODES = Object.freeze({
   auto: Object.freeze({ maxChars: ANALYSIS_CHUNK_CHARS, singleChars: ANALYSIS_SINGLE_CHARS }),
   short: Object.freeze({ maxChars: 3500, singleChars: 3500 }),
   long: Object.freeze({ maxChars: 12000, singleChars: 14000 }),
+  // 尽量整份：六七小时以内的中文字幕一块送完，给上下文长的模型用；更长的才切成几块。
+  whole: Object.freeze({ maxChars: 60_000, singleChars: 80_000 }),
 });
 export type AnalysisChunkMode = keyof typeof ANALYSIS_CHUNK_MODES;
 
@@ -173,10 +176,7 @@ export const FEATURE_MODEL_SLOTS = Object.freeze([
 ] as const);
 export type FeatureSlotId = (typeof FEATURE_MODEL_SLOTS)[number]["id"];
 
-/**
- * 每项功能用户选的推理强度。和按功能选的模型不同，换服务商或地址时保留，按新的服务重新解析实际档位。
- * 开关关着的构建里没有画面分析那一项，读的地方一律经 effortForFeature。
- */
+/** 每项功能用户选的推理强度。和按功能选的模型不同，换服务商或地址时保留，按新的服务重新解析实际档位；读的地方一律经 effortForFeature。 */
 export type FeatureEfforts = Readonly<Record<FeatureSlotId, Effort>>;
 
 export { EFFORTS };
@@ -433,9 +433,26 @@ export function withFeatureModel<T extends AiSettings>(settings: T, feature: str
   return model === settings.aiModel ? settings : { ...settings, aiModel: model };
 }
 
+export interface AnalysisChunkOptions {
+  readonly maxChars: number;
+  readonly singleChars: number;
+  /** 选的是「尽量整份」：超时或被嫌太长时，报错里提示换回别的档。 */
+  readonly whole?: true;
+}
+
 /** 概览分块的字符上限。分块重叠用 core/ai/chunking.ts 的默认值。 */
-export function analysisChunkOptions(settings: unknown = {}): { maxChars: number; singleChars: number } {
-  return { ...ANALYSIS_CHUNK_MODES[normalize(settings).analysisChunkMode] };
+export function analysisChunkOptions(settings: unknown = {}): AnalysisChunkOptions {
+  const mode = normalize(settings).analysisChunkMode;
+  return { ...ANALYSIS_CHUNK_MODES[mode], ...(mode === "whole" ? { whole: true as const } : {}) };
+}
+
+/**
+ * 问答检索用的分块：跟着概览的设置，只有「尽量整份」时按自动切。
+ * 问答按块挑相关的字幕，块太大就挑不出来，模型装不下时也缩不小。
+ */
+export function qaChunkOptions(settings: unknown = {}): AnalysisChunkOptions {
+  const options = analysisChunkOptions(settings);
+  return options.whole ? { ...ANALYSIS_CHUNK_MODES.auto } : options;
 }
 
 export interface SettingsCheck {
