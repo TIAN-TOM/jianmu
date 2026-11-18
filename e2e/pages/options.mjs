@@ -181,12 +181,16 @@ test("设置页：自定义填本机 http 地址、密钥留空，保存、拉�
   }
 });
 
-test("设置页：打开就出结论默认关；没同意时勾开关先列出说明，同意并打开后才开；关掉、改时长不用同意", async ({ open }) => {
+test("设置页：打开就出结论默认关；没同意时勾开关先列出说明，同意并打开后才开；关掉、改时长不用同意；时长写明范围，填的数被改了就地说一句", async ({ open }) => {
+  const { AUTO_OVERVIEW_MINUTES } = await import("../../src/shared/settings-schema.ts");
   const page = await freshOptions(open);
   await enable(page);
   const stored = () => page.evaluate(`chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)}).then((items) => items[${JSON.stringify(SETTINGS_STORAGE_KEY)}] ?? {})`);
   assert.equal(await page.evaluate(`document.getElementById("autoOverview").checked`), false);
   assert.equal(await page.evaluate(`document.getElementById("autoOverviewMinutes").value`), "10");
+  const sectionText = await page.evaluate(`document.getElementById("auto-overview").textContent`);
+  assert.match(sectionText, /改了马上生效，不用点「保存并授权」/);
+  assert.ok(sectionText.includes(`${AUTO_OVERVIEW_MINUTES.min} 到 ${AUTO_OVERVIEW_MINUTES.max} 的整数`), "写明时长的范围");
 
   await page.click("#autoOverview");
   await page.waitFor("列出数据说明", `document.querySelector("#auto-overview .consent-lines") !== null`);
@@ -201,8 +205,16 @@ test("设置页：打开就出结论默认关；没同意时勾开关先列出�
   assert.equal(on.autoOverview, true);
   assert.ok(on.dataConsentVersion > 0, "同意一起存下");
 
+  const max = AUTO_OVERVIEW_MINUTES.max;
+  const minutesNote = `document.querySelector("#auto-overview .status[role=status]").textContent`;
+  await fill(page, "#autoOverviewMinutes", "99999");
+  await page.waitFor("超上限存成上限", `chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)}).then((items) => items[${JSON.stringify(SETTINGS_STORAGE_KEY)}]?.autoOverviewMinutes === ${max})`);
+  assert.equal(await page.evaluate(`document.getElementById("autoOverviewMinutes").value`), String(max), "输入框显示存下的数");
+  await page.waitFor("就地说改成了多少", `${minutesNote} === ${JSON.stringify(`最多 ${max} 分钟，已改成 ${max}。`)}`);
+
   await fill(page, "#autoOverviewMinutes", "25");
   await page.waitFor("时长存下", `chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)}).then((items) => items[${JSON.stringify(SETTINGS_STORAGE_KEY)}]?.autoOverviewMinutes === 25)`);
+  await page.waitFor("正常改一次，提示消失", `${minutesNote} === ""`);
   await page.click("#autoOverview");
   await page.waitFor("开关关掉", `chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)}).then((items) => items[${JSON.stringify(SETTINGS_STORAGE_KEY)}]?.autoOverview === false)`);
   assert.equal(await page.evaluate(`document.querySelector("#auto-overview .consent-lines") === null`), true, "关掉不用同意");
