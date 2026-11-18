@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { signal } from "@preact/signals";
 import { createPageApi } from "../../../../src/pages/shared/api.ts";
-import { CONFIG_DEBOUNCE_MS, CONFIG_KEYS, createConfigWatch, touchesConfig } from "../../../../src/pages/shared/config.ts";
+import { CONFIG_DEBOUNCE_MS, CONFIG_KEYS, cardSetupHint, createConfigWatch, setupNotice, setupReason, touchesConfig, type ConfigState } from "../../../../src/pages/shared/config.ts";
 import { API_KEY_LOCAL_KEY, API_KEY_SESSION_KEY, SETTINGS_STORAGE_KEY, TRIAGE_STORAGE_KEY, WATCH_SESSIONS_KEY } from "../../../../src/shared/names.ts";
 import { deferred, nextTurn } from "../../../helpers/deferred.ts";
 import { fakeRuntime } from "../../../helpers/fake-runtime.ts";
@@ -140,4 +140,33 @@ test("停止以后不再问：撤掉存储监听，排着的那次也取消", as
   await watch.check();
   await nextTurn();
   assert.equal(fake.attempts("config.check"), 1);
+});
+
+test("没设置好时的说法按缺什么分开：密钥没了直说重新填并提记住密钥，从没配过的说法不变，只差数据说明就说勾选，本机服务设置好了不拦", () => {
+  const checked = (view: { ready: boolean; errors: string[]; missing?: "key" | "consent" }): ConfigState => ({ state: "checked", view });
+  const keyGone = checked({ ready: false, errors: ["请填写 API 密钥"], missing: "key" });
+  const fresh = checked({ ready: false, errors: ["请填写 API 密钥", "请勾选数据说明"] });
+  const consent = checked({ ready: false, errors: ["请勾选数据说明"], missing: "consent" });
+  const local = checked({ ready: true, errors: [] });
+
+  // 侧边栏头部下面那行提示。
+  assert.equal(setupNotice(fresh), "字幕不用设置就能看；概览和问答要先设置 AI 服务");
+  assert.match(setupNotice(keyGone), /API 密钥.*清空.*重新填/);
+  assert.match(setupNotice(keyGone), /「在这台电脑上记住密钥」/);
+  assert.match(setupNotice(consent), /数据说明/);
+  assert.doesNotMatch(setupNotice(consent), /密钥/);
+
+  // 按钮下面的原因。
+  assert.equal(setupReason(fresh), "先在设置页设置 AI 服务");
+  assert.equal(setupReason({ state: "unknown" }), "先在设置页设置 AI 服务");
+  assert.equal(setupReason(keyGone), "先在设置页重新填 API 密钥");
+  assert.equal(setupReason(consent), "先在设置页勾选数据说明");
+  assert.equal(setupReason(local), undefined);
+
+  // 卡片：原来并在一句里的三种原因各说各的。
+  assert.equal(cardSetupHint(fresh), "还没设置 AI 服务，生成概览要先填服务商和密钥。");
+  assert.match(cardSetupHint(keyGone), /API 密钥.*清空.*重新填/);
+  assert.match(cardSetupHint(keyGone), /「在这台电脑上记住密钥」/);
+  assert.match(cardSetupHint(consent), /勾选数据说明/);
+  for (const hint of [cardSetupHint(fresh), cardSetupHint(keyGone), cardSetupHint(consent)]) assert.doesNotMatch(hint, /（或/);
 });

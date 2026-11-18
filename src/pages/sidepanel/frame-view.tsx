@@ -46,7 +46,7 @@ function FrameCard({ panel, frame, entry }: { readonly panel: Panel; readonly fr
           title={copy.cause}
           impact={copy.impact}
           next={copy.next}
-          {...(NEEDS_SETTINGS.has(entry.error.code) ? { primary: { label: "打开设置", onClick: panel.openOptions } } : {})}
+          {...(NEEDS_SETTINGS.has(entry.error.code) ? { primary: { label: "打开设置", onClick: () => panel.openSettingsAt("ai-service") } } : {})}
         />
       ) : null}
     </article>

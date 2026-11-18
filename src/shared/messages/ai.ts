@@ -12,6 +12,8 @@ export interface ConfigCheckView {
   readonly ready: boolean;
   readonly errors: readonly string[];
   readonly autoPaused?: AutoPauseReason;
+  /** 没设置好时只缺一样：key 是以前配好过、只是密钥没了（多半随浏览器重启清空），consent 是只差勾选当前的数据说明。别的情况不带。 */
+  readonly missing?: "key" | "consent";
 }
 
 export interface ModelListView {

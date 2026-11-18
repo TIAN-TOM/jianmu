@@ -22,6 +22,7 @@ import { CreatorChapters, OfficialSummary } from "./guides.tsx";
 import type { Panel } from "./panel.ts";
 import { activeIndex, explainable, linesOf, mainBreaks, refreshLang, srtOf } from "./reading.ts";
 import type { TranscriptMode } from "./translate.ts";
+import { setupReason } from "../shared/config.ts";
 
 const MODE_LABEL: Readonly<Record<TranscriptMode, string>> = { original: "原文", translated: "译文", bilingual: "双语" };
 
@@ -148,7 +149,7 @@ function TidyRow({ panel, segments }: { readonly panel: Panel; readonly segments
     );
   }
   const ready = panel.config.state.value.state === "checked" && panel.config.state.value.view.ready;
-  const reason = ready ? undefined : "先在设置页设置 AI 服务";
+  const reason = ready ? undefined : setupReason(panel.config.state.value);
   return (
     <div class="tidy-row">
       {count === 0 ? (

@@ -11,6 +11,17 @@ export interface AppearanceView {
   readonly inPageCard: boolean;
 }
 
+/** 打开设置页时可以直接滚到的几节，值是设置页里那一节的 id。 */
+export const OPTIONS_SECTIONS = ["ai-service", "youtube"] as const;
+export type OptionsSection = (typeof OPTIONS_SECTIONS)[number];
+
+export function isOptionsSection(value: unknown): value is OptionsSection {
+  return (OPTIONS_SECTIONS as readonly unknown[]).includes(value);
+}
+
+/** 不带节名时按浏览器默认的方式打开设置页；带了就打开或切到设置页，滚到那一节。 */
+export type OptionsOpenRequest = EmptyRequest | { readonly section: OptionsSection };
+
 /** 打开侧边栏被浏览器拒绝时，页面改口提示用户点工具栏图标。 */
 export type PanelOpenReply = { readonly opened: true } | { readonly opened: false; readonly needsToolbarClick: true };
 
@@ -27,6 +38,6 @@ export interface CoreApi {
   "activation.get": { req: EmptyRequest; res: NoticeStatus<ActivationKind> };
   "activation.confirm": { req: EmptyRequest; res: ActivationConfirmReply };
   "appearance.get": { req: EmptyRequest; res: AppearanceView };
-  "options.open": { req: EmptyRequest; res: EmptyRequest };
+  "options.open": { req: OptionsOpenRequest; res: EmptyRequest };
   "panel.open": { req: EmptyRequest; res: PanelOpenReply };
 }

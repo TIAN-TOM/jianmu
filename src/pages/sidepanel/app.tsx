@@ -25,6 +25,7 @@ import { SkimView } from "./skim.tsx";
 import { StudyView } from "./study.tsx";
 import { FrameButton, FrameResults } from "./frame-view.tsx";
 import { YoutubeNoVideo } from "./youtube-gate.tsx";
+import { setupNotice } from "../shared/config.ts";
 
 const AUTO_PAUSED: Readonly<Record<AutoPauseReason, string>> = {
   quota: "额度用完，打开就出结论已暂停。手动生成成功一次，或在设置页关掉再打开就恢复",
@@ -155,7 +156,7 @@ function notices(panel: Panel): (NoticeEntry | null)[] {
       : null,
     now.state === "ready" && now.view.subtitleMismatch ? { id: "mismatch", priority: 2, text: errorCopy("SUBTITLE_MISMATCH").cause, tone: "warn" } : null,
     config.state === "checked" && !config.view.ready
-      ? { id: "config", priority: 3, text: "字幕不用设置就能看；概览和问答要先设置 AI 服务", tone: "plain", action: { label: "打开设置", run: panel.openOptions } }
+      ? { id: "config", priority: 3, text: setupNotice(config), tone: "plain", action: { label: "打开设置", run: () => panel.openSettingsAt("ai-service") } }
       : null,
     FEATURE_KEEP_CONSENT ? carriedNotice(panel) : null,
     config.state === "checked" && config.view.autoPaused

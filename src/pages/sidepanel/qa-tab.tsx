@@ -6,6 +6,7 @@ import { formatTimestamp } from "../../core/transcript/segment.ts";
 import { Button, IconButton } from "../shared/ui/button.tsx";
 import { StateBlock } from "../shared/ui/state-block.tsx";
 import type { Panel } from "./panel.ts";
+import { setupReason } from "../shared/config.ts";
 
 function Answer({ panel, entry }: { readonly panel: Panel; readonly entry: QaRecord }) {
   const clickable = new Set(entry.clickable);
@@ -56,7 +57,7 @@ export function QaTab({ panel }: { readonly panel: Panel }) {
   const config = panel.config.state.value;
   const ready = config.state === "checked" && config.view.ready;
   const transcriptReady = panel.transcript.state.value.state === "ready";
-  const reason = !ready ? "先在设置页设置 AI 服务" : !transcriptReady ? "要先读到字幕" : "";
+  const reason = !ready ? (setupReason(config) ?? "") : !transcriptReady ? "要先读到字幕" : "";
   const submit = (event: Event): void => {
     event.preventDefault();
     if (reason || !question.trim()) return;

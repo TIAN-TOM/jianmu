@@ -6,12 +6,13 @@ import { AI_CONCURRENCY } from "../../shared/settings-schema.ts";
 import { Button } from "../shared/ui/button.tsx";
 import { busyOf, confirmText, countsOf, progressText, RETRYABLE } from "./batch.ts";
 import type { Panel } from "./panel.ts";
+import { setupReason } from "../shared/config.ts";
 
 export function BatchBar({ panel, ready }: { readonly panel: Panel; readonly ready: boolean }) {
   const { batch } = panel;
   const state = batch.state.value;
   const error = batch.error.value;
-  const notReady = ready ? {} : { disabledReason: "先在设置页设置 AI 服务" };
+  const notReady = ready ? {} : { disabledReason: setupReason(panel.config.state.value) ?? "先在设置页设置 AI 服务" };
 
   if (state.phase === "idle") {
     return (

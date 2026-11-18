@@ -138,6 +138,55 @@ test("侧边栏：速览还没有概览时先摆官方总结；没设置 AI 服�
   });
 });
 
+const OPTIONS_PATH = "/pages/options.html";
+const optionsView = `chrome.extension.getViews({ type: "tab" }).find((view) => view.location.pathname === ${JSON.stringify(OPTIONS_PATH)})`;
+/** 设置页「AI 服务」一节的顶边在视口里的位置、页面滚了多少、地址里还带不带节名；设置页没开或没渲染出这一节时是 null。 */
+const aiSectionAt = `(() => { const view = ${optionsView}; const top = view?.document.getElementById("ai-service")?.getBoundingClientRect().top; return top === undefined ? null : { top, scrolled: view.scrollY, hash: view.location.hash }; })()`;
+const closeOptions = `chrome.runtime.getContexts({ contextTypes: ["TAB"] }).then((list) => Promise.all(list.filter((item) => new URL(item.documentUrl).pathname === ${JSON.stringify(OPTIONS_PATH)}).map((item) => chrome.tabs.remove(item.tabId)))).then(() => true)`;
+const CONFIG_ACTION = `.notice[data-id="config"] .notice-action`;
+
+test("侧边栏：没设置 AI 服务时点顶上那行的「打开设置」，设置页停在「AI 服务」一节；设置页开着、滚到底时再点一次也滚回那一节，不另开", async (ctx) => {
+  await withVideo(ctx, async (panel, _from, tabId) => {
+    await panel.evaluate(closeOptions);
+    await waitIn(panel, "没设置的提示", `Boolean(document.querySelector(${JSON.stringify(CONFIG_ACTION)}))`);
+    try {
+      await tap(panel, CONFIG_ACTION);
+      await waitIn(panel, "设置页停在 AI 服务", `(() => { const at = ${aiSectionAt}; return at !== null && at.top >= 0 && at.top <= 200 && at.scrolled > 0 && at.hash === ""; })()`);
+
+      // 设置页滚到底，回到视频页：侧边栏跟着当前标签页，回到视频才又有那一行。
+      const away = await panel.evaluate(`(() => { const view = ${optionsView}; view.scrollTo(0, view.document.documentElement.scrollHeight); return view.document.getElementById("ai-service").getBoundingClientRect().top; })()`);
+      assert.ok(away < 0, `滚到底以后 AI 服务一节在视口上面：${away}`);
+      await panel.evaluate(`chrome.tabs.update(${tabId}, { active: true }).then(() => true)`);
+      await waitIn(panel, "回到视频页又有那一行", `Boolean(document.querySelector(${JSON.stringify(CONFIG_ACTION)}))`);
+      await tap(panel, CONFIG_ACTION);
+      await waitIn(panel, "再点一次滚回 AI 服务", `(() => { const at = ${aiSectionAt}; return at !== null && at.top >= 0 && at.top <= 200 && at.hash === ""; })()`);
+      assert.equal(await panel.evaluate(`chrome.extension.getViews({ type: "tab" }).filter((view) => view.location.pathname === ${JSON.stringify(OPTIONS_PATH)}).length`), 1, "切回开着的设置页，不另开");
+    } finally {
+      await panel.evaluate(closeOptions);
+    }
+  });
+});
+
+test("侧边栏：配好过、密钥随浏览器重启清空时，顶上那行和按钮下面都直说要重新填密钥，提一句记住密钥", async (ctx) => {
+  await withVideo(ctx, async (panel) => {
+    await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
+    const before = await panel.evaluate(`chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)})`);
+    const stored = await storedSettings(ANTHROPIC);
+    // 存着服务商、模型和同意，会话里没有密钥：就是浏览器重启以后的样子。
+    await panel.evaluate(`Promise.all([chrome.storage.local.set(${JSON.stringify({ [SETTINGS_STORAGE_KEY]: stored.local[SETTINGS_STORAGE_KEY] })}), chrome.storage.session.remove(${JSON.stringify(API_KEY_SESSION_KEY)})]).then(() => true)`);
+    try {
+      const notice = textOf(`.notice[data-id="config"] .notice-text`);
+      await waitIn(panel, "那一行改说重新填密钥", `${notice}.includes("API 密钥随浏览器重启或扩展更新清空了")`);
+      assert.match(await panel.evaluate(notice), /要在设置页重新填；勾选「在这台电脑上记住密钥」就不用每次填/);
+      assert.ok((await panel.evaluate(textOf(".control-reason"))).includes("先在设置页重新填 API 密钥"));
+    } finally {
+      await panel.evaluate(`chrome.storage.local.set(${JSON.stringify(before)}).then(() => true)`);
+      // 等后台和侧边栏都按还原后的设置重新问过，后面的测试一打开就是没设置的说法。
+      await waitIn(panel, "还原后回到没设置的说法", `${textOf(`.notice[data-id="config"] .notice-text`)} === "字幕不用设置就能看；概览和问答要先设置 AI 服务"`);
+    }
+  });
+});
+
 test("侧边栏：底部的提问入口只打开问答抽屉，不切模式、不发请求；没设置 AI 服务时提问停用，还没有问答时说明怎么用", async (ctx) => {
   await withVideo(ctx, async (panel) => {
     await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
