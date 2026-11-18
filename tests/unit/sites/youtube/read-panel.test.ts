@@ -102,7 +102,12 @@ function world(href = `https://www.youtube.com/watch?v=${ID}`) {
     shell.attributes.set("video-id", id);
   };
   const ask = async (reader: ReturnType<typeof makeReader>, videoId = ID) => (await reader.handle({ type: "youtube.panel", req: { videoId } })) as PanelSnapshot;
-  return { document, shell, video, makeReader, addPanel, fill, close, go, ask, tick: () => ticks.forEach((run) => run()), wait: (ms: number) => void (clock += ms) };
+  /** 面板有了变化：页面上的观察者回调。 */
+  const notify = (panel: FakeNode) => {
+    observers.get(panel)?.();
+    clock += 1000;
+  };
+  return { document, shell, video, makeReader, addPanel, fill, close, go, ask, notify, tick: () => ticks.forEach((run) => run()), wait: (ms: number) => void (clock += ms) };
 }
 
 test("时间写法：分秒、时分秒都认，秒和分超过 59 的、别的写法不认", () => {
@@ -239,6 +244,69 @@ test("关上再打开以后过了好一阵才换掉内容：不当成页面重�
   w.wait(60_000);
   w.fill(panel, [classic("0:00", "过了好久才换的一句")], "Deutsch");
   assert.equal((await w.ask(reader, OTHER)).state, "stale");
+});
+
+/** 在面板上方的搜索框里打字或清空：页面按搜索词重排段落，面板有变化。 */
+function search(w: ReturnType<typeof world>, panel: FakeNode, text: string, segments: FakeNode[]) {
+  const input = Object.assign(new FakeNode(), { value: text });
+  panel.lists.set("input", [input]);
+  panel.lists.set(SEGMENTS, segments);
+  w.notify(panel);
+}
+
+test("换视频以后在旧面板里搜索，把段落滤空再清掉搜索词：回来的还是上一个视频的，不认", async () => {
+  const w = world();
+  const panel = w.addPanel();
+  const reader = w.makeReader();
+  const old = [classic("0:00", "上一个视频的一句"), classic("0:05", "上一个视频的第二句")];
+  w.fill(panel, old);
+  w.go(OTHER);
+  search(w, panel, "没有的词", []);
+  assert.equal((await w.ask(reader, OTHER)).state, "filtered");
+  search(w, panel, "", old);
+  const snapshot = await w.ask(reader, OTHER);
+  assert.equal(snapshot.state, "stale");
+  assert.deepEqual(snapshot.cues, []);
+});
+
+test("关上再打开以后马上搜索滤空、再清掉：也不当成页面为新视频取来的", async () => {
+  const w = world();
+  const panel = w.addPanel();
+  const reader = w.makeReader();
+  const old = [classic("0:00", "上一个视频的一句")];
+  w.fill(panel, old);
+  w.go(OTHER);
+  w.close(panel);
+  panel.attributes.set("visibility", "ENGAGEMENT_PANEL_VISIBILITY_EXPANDED");
+  w.notify(panel);
+  search(w, panel, "没有的词", []);
+  search(w, panel, "", old);
+  assert.equal((await w.ask(reader, OTHER)).state, "stale");
+});
+
+test("同一个视频里搜索滤空再清掉：照样认", async () => {
+  const w = world();
+  const panel = w.addPanel();
+  const reader = w.makeReader();
+  const lines = [classic("0:00", "一句"), classic("0:05", "第二句")];
+  w.fill(panel, lines);
+  search(w, panel, "没有的词", []);
+  search(w, panel, "", lines);
+  assert.equal((await w.ask(reader)).state, "ready");
+});
+
+test("中间某一段的文字变了：段数、语言名、首尾几段都没变，也算内容变了", async () => {
+  const w = world();
+  const panel = w.addPanel();
+  const reader = w.makeReader();
+  const lines = Array.from({ length: 8 }, (_, index) => classic(`0:0${index}`, `第 ${index} 句`));
+  w.fill(panel, lines);
+  const current = async () => ((await reader.handle({ type: "youtube.current", req: { videoId: ID } })) as { stamp: number }).stamp;
+  const before = await current();
+  lines[3] = classic("0:03", "改过的第 3 句");
+  panel.lists.set(SEGMENTS, [...lines]);
+  w.notify(panel);
+  assert.ok((await current()) > before);
 });
 
 test("观看页的标题区还没出来：按加载中，不说没有入口", async () => {
