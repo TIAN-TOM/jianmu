@@ -1,12 +1,12 @@
 // 粗筛的两步批次。两步都由用户点按钮开始，在后台批次服务里跑，每一项怎么做由它注入：
-//  第一步：逐个取官方总结。串行，真正发了请求的两次之间至少隔 1.5 秒；读不成时按停止规则看要不要整批停下。
+//  第一步：逐个取官方总结。串行，真正发了请求的两次之间至少隔 1 秒；读不成时按停止规则看要不要整批停下。
 //  第二步：只对有官方总结、还没有结论的视频写一句话结论，同时最多 3 个。
 import type { SiteFailureReach } from "../errors/site.ts";
 import type { VideoRef } from "../video-ref.ts";
 import { hasVerdict, type VerdictMap } from "./groups.ts";
 import { triageRef, type OfficialMap, type OfficialRecord, type TriageItem } from "./state.ts";
 
-export const OFFICIAL_INTERVAL_MS = 1500;
+export const OFFICIAL_INTERVAL_MS = 1000;
 
 // 有、没有、不支持：再问也是一样的答案，再点「开始」时跳过。
 // 排队中、要登录、失败：过一阵再问可能就有了，再点「开始」时重问。
