@@ -31,9 +31,9 @@ const FILLING_SCREENS = new Set(["web", "full"]);
 const CONTROLS_ATTRIBUTE = "data-ctrl-hidden";
 const CONTROLS_CHECK_MS = 800;
 
-// UP 主的空间链接：单人投稿在作者栏，合作投稿取第一位。
+// UP 主的空间链接：单人投稿在作者栏，合作投稿取第一位。编号前面可能多一段语言，和播放页的路径一样。
 const CREATOR_LINK_SELECTORS = [".up-info-container a.up-name", ".up-detail-top a.up-name", "a.up-name", ".membersinfo-upcard a", ".up-panel-container a"];
-const CREATOR_ID = /space\.bilibili\.com\/(\d{1,20})(?:[/?#]|$)/;
+const CREATOR_ID = /space\.bilibili\.com\/(?:[a-z]{2,3}(?:-[A-Za-z]{2,4})?\/)?(\d{1,20})(?:[/?#]|$)/;
 
 const SERVER_RENDERED_ROOT = "[data-server-rendered]";
 const READY_POLL_MS = 200;
