@@ -1,4 +1,5 @@
-// 两家模拟的模型服务：Anthropic 和 OpenAI 的 Responses。按提示词里的视频标题认是哪个视频、按提示词认是概览块、结论、问答还是整理字幕，
+// 两家模拟的模型服务：Anthropic 和 OpenAI 的 Responses。按提示词里的视频标题认是哪个视频、按提示词认是概览块、结论、问答、整理字幕、
+// 解释画面还是看图探测，
 // 回一份能通过校验的结果。测试可以把某个视频的概览请求挂住，放行或客户端中途断开才收尾；每个请求都记下。
 import { ANTHROPIC, OPENAI, SKIPPED_VIDEO, VIDEOS } from "./fixtures.mjs";
 
@@ -9,7 +10,7 @@ import { ANTHROPIC, OPENAI, SKIPPED_VIDEO, VIDEOS } from "./fixtures.mjs";
 /**
  * 一次模型请求。video 是视频的编号（fixtures 里 VIDEOS 的键），认不出时是空串。
  * @typedef {{ host: string, path: string, cookie: string, unexpected: boolean, at: number, answeredAt?: number, aborted?: true,
- *   provider: string, kind: "analysis" | "verdict" | "qa" | "tidy" | "models" | "test" | "", video: string, held?: true }} ModelCall
+ *   provider: string, kind: "analysis" | "verdict" | "qa" | "tidy" | "frame" | "probe" | "models" | "test" | "", video: string, held?: true, image?: true }} ModelCall
  */
 
 const SERVICES = [
@@ -51,12 +52,17 @@ function videoOf(prompt) {
   return Object.entries(VIDEOS).find(([, video]) => video.title === title)?.[0] ?? "";
 }
 
+/** 回纯文本的几种请求。 @type {Readonly<Record<string, string>>} */
+const PLAIN_REPLIES = { test: "可用", probe: "红色", frame: "模拟服务的画面解释：幻灯片上是一张受力分析图。" };
+
 /** 设置页「测试连接」发的那句话。 */
 const TEST_PROMPT = "回复两个字：可用";
 
-/** @param {string} prompt @returns {"analysis" | "verdict" | "qa" | "tidy" | "test" | ""} */
+/** @param {string} prompt @returns {"analysis" | "verdict" | "qa" | "tidy" | "frame" | "probe" | "test" | ""} */
 function kindOf(prompt) {
   if (prompt.trim() === TEST_PROMPT) return "test";
+  if (prompt.includes("这张小图是什么颜色")) return "probe";
+  if (prompt.includes("这一帧的时间：")) return "frame";
   if (prompt.includes("你在整理视频字幕")) return "tidy";
   if (prompt.includes("用户的问题：")) return "qa";
   if (prompt.includes("各章：")) return "verdict";
@@ -189,8 +195,10 @@ export function createModelServices({ record }) {
       const prompt = promptOf(body);
       call.kind = kindOf(prompt);
       call.video = videoOf(prompt);
-      // 测试连接不带视频，其余请求要认得出是哪个视频。
-      if (req.method !== "POST" || path !== endpoint || !call.kind || (!call.video && call.kind !== "test")) {
+      // 带图的请求记一笔：两家的图片块写法不同。
+      if (/"type":"(?:image|input_image)"/.test(raw)) call.image = true;
+      // 测试连接和看图探测不带视频，其余请求要认得出是哪个视频。
+      if (req.method !== "POST" || path !== endpoint || !call.kind || (!call.video && call.kind !== "test" && call.kind !== "probe")) {
         call.unexpected = true;
         return send(res, 404, { error: { message: "sample refusal" } });
       }
@@ -199,7 +207,7 @@ export function createModelServices({ record }) {
         return undefined;
       }
       serial += 1;
-      const text = call.kind === "test" ? "可用" : JSON.stringify(resultOf(call.kind, prompt));
+      const text = PLAIN_REPLIES[call.kind] ?? JSON.stringify(resultOf(/** @type {"analysis" | "verdict" | "qa" | "tidy"} */ (call.kind), prompt));
       send(res, 200, completion(protocol, body?.model ?? service.model, text, serial));
       call.answeredAt = Date.now();
       return undefined;

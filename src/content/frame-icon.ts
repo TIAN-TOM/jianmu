@@ -1,13 +1,18 @@
 // 播放页上「解释当前画面」的图标：和笔记图标同一个浮层。只在构建开关 FEATURE_FRAME_EXPLAIN 打开时进包，只从开关分支引用。
-// 现在点了只截一帧摆在图标下面，给开发者本人在真实页面上核对截到的画面和屏幕一致；交给模型解释的那一步接上以后换掉。
-// 截下来的画面只画在这块预览里，不落盘、不发出去，关掉预览就没了。
+// 点了先在页面上看能不能截（没视频、正在播广告、视频还在切换就地提示），能截就交给后台：后台先打开侧边栏，
+// 再向这个页面要当前一帧、请模型解释，结果显示在侧边栏里。截下的画面不落盘，只用于那一次请求。
 // 模块顶层只放字面量和函数，理由见 frame.ts 开头。
+import { describe } from "../core/errors.ts";
+import type { VideoKey } from "../core/video-ref.ts";
 import type { FrameRefusal } from "../shared/messages/content.ts";
 import { INJECTED } from "../shared/names.ts";
-import { JPEG_DATA_URL_PREFIX, type FrameTool } from "./frame.ts";
+import type { MainVideo } from "../sites/page-types.ts";
+import type { FrameTool } from "./frame.ts";
 import type { HoverIconEntry, HoverIcons, IconSpec } from "./hover-icons.ts";
+import type { ContentRuntime } from "./runtime.ts";
 
 export const FRAME_TITLE = "解释当前画面";
+const PANEL_HINT = "结果在侧边栏：点浏览器工具栏上的简幕图标打开侧边栏查看。";
 
 export function frameIcon(): IconSpec {
   return {
@@ -35,92 +40,49 @@ export const FRAME_REFUSALS: Readonly<Record<FrameRefusal, { readonly short: str
   NOT_FOREGROUND: { short: "不在前台", long: "视频页不在前台，切回来再截。" },
 };
 
-/** 预览留多久。 */
-export const PREVIEW_MS = 20_000;
-const PREVIEW_WIDTH = 240;
-const PREVIEW_STYLE = `box-sizing:border-box;width:252px;padding:6px;border-radius:8px;background:rgba(0,0,0,.72);
-  color:#fff;font-size:12px;line-height:1.4;cursor:pointer;`;
-
 export interface FramePressDeps {
-  readonly document: Document;
   readonly icons: HoverIcons;
-  readonly tool: FrameTool;
-  /** 点下去那一刻的播放时间，用来算截到的帧差了多久。 */
-  readonly clickedAt: () => number | null;
+  /** 交给后台：先打开侧边栏，再截帧、请模型解释。 */
+  readonly runtime: Pick<ContentRuntime, "send">;
+  readonly currentKey: () => VideoKey | null;
+  readonly findMainVideo: () => MainVideo;
+  /** 播放器确实在放当前地址上的视频。 */
+  readonly confirmed: () => boolean;
   /** 扩展断了联系：交给界面收场。 */
   readonly gone: () => boolean;
+  readonly onGone: () => void;
 }
 
-const seconds = (value: number): string => `${value.toFixed(2)} 秒`;
-
-// 预览不用 data URL 当图片地址：页面的内容安全策略管得到插进页面的图片。先解码再画到画布上。
-async function bitmapOf(dataUrl: string): Promise<ImageBitmap> {
-  const binary = atob(dataUrl.slice(JPEG_DATA_URL_PREFIX.length));
-  const bytes = new Uint8Array(binary.length);
-  for (let at = 0; at < binary.length; at += 1) bytes[at] = binary.charCodeAt(at);
-  return createImageBitmap(new Blob([bytes], { type: "image/jpeg" }));
-}
-
-/** 回点图标时要做的事。 */
-export function createFramePress({ document, icons, tool, clickedAt, gone }: FramePressDeps): () => Promise<void> {
+/** 回点图标时要做的事：页面上看得出的拒绝就地提示，不发；其余交给后台，结果在侧边栏里看。 */
+export function createFramePress({ icons, runtime, currentKey, findMainVideo, confirmed, gone, onGone }: FramePressDeps): () => Promise<void> {
   let busy = false;
-  let timer: ReturnType<typeof setTimeout> | null = null;
   const icon = (): ReturnType<HoverIcons["icon"]> => icons.icon(INJECTED.frameButton);
-
-  function dismiss(): void {
-    if (timer !== null) clearTimeout(timer);
-    timer = null;
-    icons.attach(null);
-  }
-
-  async function preview(dataUrl: string, caption: string): Promise<void> {
-    const bitmap = await bitmapOf(dataUrl);
-    const box = document.createElement("div");
-    box.id = INJECTED.framePreview;
-    box.style.cssText = PREVIEW_STYLE;
-    box.title = "点一下关掉";
-    const canvas = document.createElement("canvas");
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-    canvas.style.cssText = `display:block;width:${PREVIEW_WIDTH}px;height:auto;`;
-    canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
-    bitmap.close();
-    const text = document.createElement("div");
-    text.style.cssText = "margin-top:4px;white-space:normal;";
-    text.textContent = caption;
-    box.append(canvas, text);
-    box.addEventListener("click", (event) => {
-      if (!event.isTrusted) return;
-      event.preventDefault();
-      event.stopPropagation();
-      dismiss();
-    });
-    icons.attach(box);
-    timer = setTimeout(dismiss, PREVIEW_MS);
-  }
+  const refuse = (code: FrameRefusal): void => {
+    const refusal = FRAME_REFUSALS[code];
+    icon()?.setTitle(refusal.long);
+    icon()?.flash(refusal.short);
+  };
 
   return async () => {
-    if (busy || gone()) return;
+    if (gone()) return onGone();
+    if (busy) return;
+    const video = currentKey();
+    const main = findMainVideo();
+    if (!video || main.status === "none") return refuse("NO_VIDEO");
+    if (main.status === "ad") return refuse("AD_PLAYING");
+    if (!confirmed()) return refuse("VIDEO_CHANGED");
     busy = true;
-    dismiss();
-    const at = clickedAt();
-    icon()?.flash("截取中…", 0);
+    icon()?.flash("发送中…", 0);
     try {
-      const reply = await tool.capture();
-      if (gone()) return;
+      const reply = await runtime.send("frame.explainHere", { video });
+      if (gone()) return onGone();
       if (!reply.ok) {
-        const refusal = FRAME_REFUSALS[reply.code];
-        icon()?.setTitle(refusal.long);
-        icon()?.flash(refusal.short);
+        icon()?.setTitle(describe(reply.code, reply.detail));
+        icon()?.flash(reply.code === "FRAME_RATE_LIMITED" ? "点得太多了" : "没发出去");
         return;
       }
-      const { width, height, atSec } = reply.value;
-      const lag = at === null ? "" : `，比点下去晚 ${Math.round((atSec - at) * 1000)} 毫秒`;
-      icon()?.setTitle(FRAME_TITLE);
-      icon()?.flash("已截取");
-      await preview(reply.value.dataUrl, `画面验证：${width}×${height}，第 ${seconds(atSec)}${lag}。只在这里显示，不保存、不发送。`);
-    } catch {
-      icon()?.flash(FRAME_REFUSALS.FRAME_NOT_READY.short);
+      icon()?.setTitle(reply.value.opened ? FRAME_TITLE : PANEL_HINT);
+      icon()?.flash(reply.value.opened ? "结果在侧边栏" : "点简幕图标看结果");
     } finally {
       busy = false;
     }

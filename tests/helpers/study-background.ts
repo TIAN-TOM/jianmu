@@ -14,7 +14,7 @@ export const GATEWAY = { presetId: "custom", protocol: PROTOCOLS.OPENAI, aiBaseU
 export const GATEWAY_ORIGIN = "https://gateway.example.com/";
 
 const readPrompt = (file: string): string => readFileSync(new URL(`../../prompts/${file}`, import.meta.url), "utf8").replaceAll("\r", "");
-const PROMPT_FILES = Object.fromEntries(["common/qa.md", "study/explain.md", "study/note-polish.md"].map((file) => [file, readPrompt(file)]));
+const PROMPT_FILES = Object.fromEntries(["common/qa.md", "study/explain.md", "study/note-polish.md", "study/frame-explain.md"].map((file) => [file, readPrompt(file)]));
 
 export interface StudyBackgroundOptions {
   readonly handler?: ServiceHandler;
@@ -24,13 +24,24 @@ export interface StudyBackgroundOptions {
   readonly siteRules?: readonly SiteRules[];
   /** 没填 AI 配置：只确认了启用。 */
   readonly withoutAi?: boolean;
+  /** 标签页里的内容脚本怎么回后台的消息（截帧）。 */
+  readonly tabReply?: (tabId: number, message: unknown) => unknown;
+  readonly panelOpenRefused?: boolean;
 }
 
 export function studyBackground(options: StudyBackgroundOptions = {}) {
   const ai = modelService(options.handler);
   const site = fakeSiteService(options.cues ? { captions: () => ({ ok: true, value: [...(options.cues ?? [])] }) } : {});
   const storage = keyedStorage(options.withoutAi ? { presetId: "custom" } : GATEWAY, GATEWAY_ORIGIN);
-  const fake = createFakeChrome({ ...storage, grantedOrigins: [GATEWAY_ORIGIN], fetch: ai.fetch, prompts: PROMPT_FILES, site: site.service });
+  const fake = createFakeChrome({
+    ...storage,
+    grantedOrigins: [GATEWAY_ORIGIN],
+    fetch: ai.fetch,
+    prompts: PROMPT_FILES,
+    site: site.service,
+    ...(options.tabReply ? { tabReply: options.tabReply } : {}),
+    ...(options.panelOpenRefused ? { panelOpenRefused: true } : {}),
+  });
   const logged: unknown[][] = [];
   const deps = fake.deps({ warn: (...args: unknown[]) => void logged.push(args), error: (...args: unknown[]) => void logged.push(args) });
   const app = createApp(options.siteRules ? { ...deps, siteRules: options.siteRules } : deps);

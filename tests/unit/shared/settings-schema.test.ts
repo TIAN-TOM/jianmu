@@ -714,7 +714,7 @@ test("覆盖只认已知功能下的非空字符串，去掉首尾空白", () =>
   );
 });
 
-test("功能列表就是设置页那七项，id 不重复", () => {
+test("功能列表就是设置页那七项，构建开关打开时多一项画面分析，id 不重复", () => {
   assert.deepEqual(
     SETTINGS.FEATURE_MODEL_SLOTS.map((slot) => [slot.id, slot.label]),
     [
@@ -725,6 +725,7 @@ test("功能列表就是设置页那七项，id 不重复", () => {
       ["qa", "问答"],
       ["notes", "笔记润色"],
       ["explain", "划词解释"],
+      ...(FEATURE_FRAME_EXPLAIN ? [["frame", "画面分析"]] : []),
     ],
   );
 });
@@ -948,7 +949,7 @@ test("推理强度：新安装六项功能全是关；只认已知功能下的�
   for (const bad of [null, "high", ["high"], 3]) assert.deepEqual(SETTINGS.normalize({ featureEfforts: bad }).featureEfforts, off);
 
   const normalized = SETTINGS.normalize({
-    featureEfforts: { analysis: "high", qa: "medium", verdict: "max", notes: "LOW", frame: "high", explain: "low" },
+    featureEfforts: { analysis: "high", qa: "medium", verdict: "max", notes: "LOW", summary: "high", explain: "low" },
   });
   assert.deepEqual(normalized.featureEfforts, { ...off, analysis: "high", qa: "medium", explain: "low" });
   assert.deepEqual(SETTINGS.normalize(normalized).featureEfforts, normalized.featureEfforts, "再规整一遍不变");

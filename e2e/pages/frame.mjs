@@ -1,4 +1,5 @@
-// 解释当前画面（测试构建打开了构建开关）：模拟的播放页上，真实的内容脚本截帧，结果从截帧指令一路看到图标旁的预览。
+// 解释当前画面（测试构建打开了构建开关）：模拟的播放页上，真实的内容脚本截帧，结果从截帧指令一路看到侧边栏里的解释
+// （点图标经真实的后台：打开侧边栏、截帧、看图探测和解释请求都发到模拟的模型服务）。
 // 视频元素的画面用页面自己画布的媒体流喂，颜色是自造的，截出来的像素要和画上去的一致。
 // 画面没加载好、视频对不上、加密播放、找不到视频各按各的拒绝。正在播广告、画布被污染、不在前台只在单元测试里造：
 // 模拟的播放页不报广告，无头 Chrome 里切标签页、最小化窗口，页面都还算看得见。
@@ -68,7 +69,7 @@ const KEYS = `async (on) => {
 
 const near = (actual, expected) => actual.every((value, index) => Math.abs(value - expected[index]) <= 12);
 
-test("解释当前画面：播放页浮层多一个图标，截帧指令的拒绝分开报，截到的画面和画上去的一致，点图标在旁边预览", async ({ open, openPage }) => {
+test("解释当前画面：播放页浮层多一个图标，截帧指令的拒绝分开报，截到的画面和画上去的一致，点图标经后台解释、结果在侧边栏", async ({ open, openPage, openSidePanel }) => {
   const launcher = await open(LAUNCHER);
   const before = await launcher.evaluate(`chrome.storage.local.get(null)`);
   const stored = await storedSettings(ANTHROPIC);
@@ -103,17 +104,23 @@ test("解释当前画面：播放页浮层多一个图标，截帧指令的拒�
     const small = await capture({ video: KEY, maxEdge: 320 });
     assert.deepEqual([small.width, small.height], [320, 180], "按长边缩小");
 
-    // 页面脚本派发的点击不算：不截、不出预览。
+    // 页面脚本派发的点击不算：不发给后台。
     await page.evaluate(`document.getElementById("${INJECTED.frameButton}").click(), true`);
-    assert.equal(await page.evaluate(`document.getElementById("${INJECTED.framePreview}")`), null);
+    assert.equal(await page.evaluate(`document.querySelector(".${INJECTED.frameLabel}")?.textContent ?? ""`), "");
 
-    // 真实点击：鼠标移上播放器图标露出来，点了在图标下面出预览，写明尺寸。
+    // 真实点击：交给后台，后台先打开侧边栏，再向这个页面要一帧、请模型解释；图标上说结果去哪儿看。
     const box = await page.evaluate(`(() => { const r = document.getElementById("${INJECTED.frameButton}").getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
     await page.clickAt(box.x, box.y);
-    const caption = await page.waitFor("点图标出预览", `document.getElementById("${INJECTED.framePreview}")?.textContent ?? ""`);
-    assert.match(caption, /画面验证：640×360，第 [\d.]+ 秒/);
-    assert.match(caption, /不保存、不发送/);
-    assert.equal(await page.evaluate(`document.getElementById("${INJECTED.framePreview}").querySelector("canvas").width`), 640);
+    const hint = await page.waitFor(
+      "图标说结果去哪儿看",
+      `(() => { const text = document.querySelector(".${INJECTED.frameLabel}")?.textContent ?? ""; return /侧边栏|简幕图标/.test(text) ? text : null; })()`,
+    );
+    assert.match(hint, /结果在侧边栏|点简幕图标看结果/);
+    // 侧边栏里出这一帧的解释，带时间，能跳回去。
+    const panel = await openSidePanel(launcher);
+    const explained = await panel.waitFor("侧边栏出画面解释", `document.querySelector(".frame-card-text")?.textContent ?? ""`);
+    assert.match(explained, /模拟服务的画面解释/);
+    assert.match(await panel.evaluate(`document.querySelector(".frame-card .stamp")?.textContent ?? ""`), /^\d+:\d{2}$/);
 
     // 加密播放：挂了钥匙就不截，摘掉以后又能截。
     assert.equal(await page.call(KEYS, true), true);

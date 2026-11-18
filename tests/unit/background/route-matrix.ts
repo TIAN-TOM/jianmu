@@ -61,6 +61,10 @@ export const ROUTE_MATRIX: readonly MatrixRow[] = [
   ...row(["backup.export"], { ...OPTIONS_ONLY, card: false, content: [], beforeEnable: true }),
   ...row(["backup.import"], { ...OPTIONS_ONLY, card: false, content: [], beforeEnable: false }),
   ...row(["data.clear"], { ...OPTIONS_ONLY, card: false, content: [], beforeEnable: true }),
+  // 解释当前画面：只在构建开关打开时有，测试构建打开了开关。
+  ...row(["frame.explain", "frame.recent"], { ...PANEL_ONLY, card: false, content: [], beforeEnable: false }),
+  ...row(["frame.explainHere"], { ...NO_PAGES, card: false, content: ["bilibili"], beforeEnable: false }),
+  ...row(["ai.probeImage"], { ...OPTIONS_ONLY, card: false, content: [], beforeEnable: false }),
 ];
 
 /** 路由表里一条路由的放行规则，换成矩阵一行的样子来比。 */

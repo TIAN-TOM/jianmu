@@ -153,7 +153,7 @@ const modelsOf = (service: ModelService) => service.posts().map((request) => req
 
 test("后台每项功能都用自己的模型：概览、结论、翻译、整理字幕、问答、笔记、划词解释", async () => {
   const ids = SETTINGS.FEATURE_MODEL_SLOTS.map(({ id }) => id);
-  assert.deepEqual(ids, ["analysis", "verdict", "rewrite", "tidy", "qa", "notes", "explain"]);
+  assert.deepEqual(ids, ["analysis", "verdict", "rewrite", "tidy", "qa", "notes", "explain", ...(FEATURE_FRAME_EXPLAIN ? ["frame"] : [])]);
   const { ai, service } = featureSetup(Object.fromEntries(ids.map((id) => [id, `m-${id}`])));
 
   for (const feature of ids) await ai.requestAiCompletion({ ...EXPLAIN, feature });

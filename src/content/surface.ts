@@ -49,14 +49,13 @@ export function createSurface({ document, page, runtime, player, frame, retire, 
   pressFrame = FEATURE_FRAME_EXPLAIN
     ? frame
       ? createFramePress({
-          document,
           icons,
-          tool: frame,
-          clickedAt: () => {
-            const main = page.findMainVideo();
-            return main.status === "found" ? Number(main.video.currentTime) || 0 : null;
-          },
+          runtime,
+          currentKey: player.currentKey,
+          findMainVideo: () => page.findMainVideo(),
+          confirmed: player.confirmed,
           gone: () => retired || !runtime.alive(),
+          onGone: () => showReloadHint(),
         })
       : null
     : null;

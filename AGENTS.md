@@ -19,6 +19,7 @@
 ```bash
 npm run check       # 写代码时每轮必跑：类型检查、单元测试、构建、构建产物检查、公开结构检查
 npm run package     # 打出 dist/jianmu-<版本>.zip 和同名的 .sha256，同时校验包的内容
+npm run package:daily  # 开发者本人的日用包 dist/jianmu-<版本>-daily.zip：发行构建加上还在日常使用里验证的开关
 npm run test:e2e    # 端到端冒烟，用 CHROME_PATH 指定 Chrome for Testing 的可执行文件
 npm run test:e2e:lifecycle   # 生命周期冒烟：任务没人认领时收尾，关掉发起页面任务照常跑完，强行终止后台后任务表为空、不自动重发；合并涉及任务和保活的改动前本机跑
 npm run test:pages  # 页面测试：无头 Chrome 里打开扩展页面，后台接本机模拟服务，只看页面文字和属性；报告写到 e2e/artifacts/
@@ -27,7 +28,7 @@ npm run release -- candidate   # 发布候选：要在远端 main 的最新提�
 
 单项命令：`npm run typecheck`、`npm test`、`npm run build`、`npm run test:build`、`npm run check:public`。
 
-`npm run build` 是发行构建，构建开关全部关着。`node scripts/build.mjs --test-build` 打开全部开关，只给测试用，`npm run test:pages` 用的就是它；`--frame-explain` 只打开解释当前画面，是画面验证构建；`--youtube-ops` 只打开 YouTube 代开面板和代换语言，给开发者本人在 YouTube 上验证用。这几种可以加 `--watch`，都不能打包。
+`npm run build` 是发行构建，构建开关全部关着。`node scripts/build.mjs --test-build` 打开全部开关，只给测试用，`npm run test:pages` 用的就是它；`--daily` 是日用构建，开关取值是 `src/shared/features.ts` 的 `DAILY_FEATURES`（现在打开解释当前画面），只有它能打包，经 `npm run package:daily` 打成文件名带 `-daily` 的包，发布脚本不认；`--frame-explain` 只打开解释当前画面，本机调试用；`--youtube-ops` 只打开 YouTube 代开面板和代换语言，给开发者本人在 YouTube 上验证用。这几种可以加 `--watch`，除了 `--daily` 都不能打包。
 
 打完发布候选，在 GitHub Actions 里手动触发「发布前核对」（`.github/workflows/release-check.yml`），填候选的提交号和校验值：它在 Chrome for Testing 116 和当前稳定版上各跑一遍端到端，在 Linux 上重新打包核对校验值。这个工作流不在必需检查里。
 
@@ -36,7 +37,7 @@ npm run release -- candidate   # 发布候选：要在远端 main 的最新提�
 - 依赖只能往下：`pages`、`content`、`background` → `sites` → `platform` → `core`、`shared`。结构规则见架构设计第 5.2 节，`tests/structure.test.ts` 会查。
 - 相对导入写 `.ts` 扩展名；不用 `enum`、`namespace`、参数属性、路径别名、装饰器。`.tsx` 不进单元测试，渲染放到无头 Chrome 里测。
 - Node 跑测试只剥类型不查类型，类型错误靠 `npm run typecheck` 拦。
-- 要按构建开关裁掉的代码只写裸常量的分支（`FEATURE_X ? … : …`），开关保护的内容放进只从这些分支引用的单独模块，模块顶层只放字面量和函数（函数调用、属性读取、带插值的模板串都会让模块留在包里）；不读 `features.ts` 的对象来裁，也不开 `minifySyntax`，`if (FEATURE_X) { … }` 的块会原样留在包里。Node 测试经 `--import ./tests/helpers/build-flags.ts` 把开关定义成测试构建的取值，单跑一个测试文件也要带上；在 Node 里直接读产品模块的脚本第一个导入 `scripts/lib/release-globals.mjs`（发行取值）或 `tests/helpers/build-flags.ts`（测试取值），跟它装的包一致。
+- 要按构建开关裁掉的代码只写裸常量的分支（`FEATURE_X ? … : …`），开关保护的内容放进只从这些分支引用的单独模块，模块顶层只放字面量和函数（函数调用、属性读取、带插值的模板串、算式都会让模块留在包里）；死分支会原样印进包里，所以分支里只写从开关模块导入的名字，不写字符串、JSX 和函数体；不读 `features.ts` 的对象来裁，也不开 `minifySyntax`，`if (FEATURE_X) { … }` 的块会原样留在包里。Node 测试经 `--import ./tests/helpers/build-flags.ts` 把开关定义成测试构建的取值，单跑一个测试文件也要带上；在 Node 里直接读产品模块的脚本第一个导入 `scripts/lib/release-globals.mjs`（发行取值）或 `tests/helpers/build-flags.ts`（测试取值），跟它装的包一致。
 - 业务入口写成 `createX(deps)`，测试注入替身。测试不访问真实的模型服务和平台接口；等异步结果按条件等，不固定等几毫秒：等会发生的事用 `tests/helpers/wait-until.ts` 的 `until`，确认没发生用 `stillFalse`；能等到具体事件（比如模拟服务收到请求）的就直接等那件事。
 - 注入 B 站和 YouTube 页面的标识一律以 `jianmu-` 开头，集中定义在 `src/shared/names.ts`。
 - 新增要进包的文件，同一个 PR 改 `tests/fixtures/package-files.txt`。

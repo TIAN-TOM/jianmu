@@ -1,4 +1,5 @@
 // 打包：从 build/ 打 dist/jianmu-<版本>.zip 和同名的 .sha256，打之前逐项校验，校验不过就不出包。
+// 带 --daily 时打开发者本人的日用包 dist/jianmu-<版本>-daily.zip：只收日用构建（build.mjs --daily），发布脚本不认这个文件名。
 // 同一份代码打两次得到同一个 zip：文件时间和权限固定，顺序固定，zip 里不记属主和扩展时间。
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -6,6 +7,7 @@ import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, utim
 import { basename, dirname, join, posix, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildFlagProblems, readBuildFlags } from "./lib/build-flags.mjs";
+import { DAILY_FEATURES, RELEASE_FEATURES } from "../src/shared/features.ts";
 import { checksumLine, resolveSourceDateEpoch, sortZipEntries } from "./lib/zip-order.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -49,12 +51,12 @@ function pageReferences(file, html) {
 }
 
 /**
- * 纯校验，方便测试。buildFlags 是构建留下的开关记录（lib/build-flags.mjs），开着任何开关都不出包。
- * @param {{ files: readonly string[], read: (file: string) => string, expectedFiles: readonly string[], version: string, buildFlags: unknown }} input
+ * 纯校验，方便测试。buildFlags 是构建留下的开关记录（lib/build-flags.mjs），要和 features 那组开关一样才出包，默认全部关着。
+ * @param {{ files: readonly string[], read: (file: string) => string, expectedFiles: readonly string[], version: string, buildFlags: unknown, features?: import("../src/shared/features.ts").FeatureSet }} input
  * @returns {string[]}
  */
-export function findPackageProblems({ files, read, expectedFiles, version, buildFlags }) {
-  const problems = [...buildFlagProblems(buildFlags)];
+export function findPackageProblems({ files, read, expectedFiles, version, buildFlags, features = RELEASE_FEATURES }) {
+  const problems = [...buildFlagProblems(buildFlags, features)];
   const present = new Set(files);
   for (const file of files) {
     const name = posix.basename(file);
@@ -126,13 +128,13 @@ export function writeZip({ dir, files, output }) {
 
 /**
  * 校验一个目录，过了就打包。发布脚本打只改版本号的测试包也走这里。
- * @param {{ dir: string, version: string, expectedFiles: readonly string[], output: string, epoch: number, buildFlags: unknown }} input
+ * @param {{ dir: string, version: string, expectedFiles: readonly string[], output: string, epoch: number, buildFlags: unknown, features?: import("../src/shared/features.ts").FeatureSet }} input
  * @returns {{ sha256: string, files: string[] }}
  */
-export function packageDirectory({ dir, version, expectedFiles, output, epoch, buildFlags }) {
+export function packageDirectory({ dir, version, expectedFiles, output, epoch, buildFlags, features = RELEASE_FEATURES }) {
   const files = listFiles(dir);
   const read = (/** @type {string} */ file) => readFileSync(join(dir, file), "utf8");
-  const problems = findPackageProblems({ files, read, expectedFiles, version, buildFlags });
+  const problems = findPackageProblems({ files, read, expectedFiles, version, buildFlags, features });
   if (problems.length > 0) {
     throw new Error(`打包校验没过，共 ${problems.length} 项：\n${problems.map((problem) => `  ${problem}`).join("\n")}`);
   }
@@ -157,7 +159,8 @@ export function sourceDateEpoch() {
 
 function main() {
   const { version } = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
-  const output = join(ROOT, "dist", `jianmu-${version}.zip`);
+  const daily = process.argv.includes("--daily");
+  const output = join(ROOT, "dist", daily ? `jianmu-${version}-daily.zip` : `jianmu-${version}.zip`);
   try {
     const { sha256 } = packageDirectory({
       dir: BUILD,
@@ -166,6 +169,7 @@ function main() {
       output,
       epoch: sourceDateEpoch(),
       buildFlags: readBuildFlags(),
+      features: daily ? DAILY_FEATURES : RELEASE_FEATURES,
     });
     console.log(`打包完成：${relative(ROOT, output)}\nSHA-256：${sha256}`);
   } catch (error) {
