@@ -108,7 +108,6 @@ interface Core {
   readonly ai: AiWiring;
   /** 任务表，只在内存里。 */
   readonly tasks: TaskRunner;
-  /** 全后台一份保活：哪一份还在，就有花额度的工作在跑。 */
   readonly keepAlive: KeepAliveState;
   readonly cardLimits: CardLimits;
   readonly tabs: Tabs;
@@ -154,7 +153,7 @@ function assembleAi(deps: AppDeps, settings: SettingsStore, clearGuard: ClearGua
   });
 }
 
-// 任务和笔记的后台润色共用一个保活：哪一份还在，就隔一会儿调一次扩展接口。
+// 全后台一份保活（任务、批次、画面解释、笔记润色）：哪一份还在，就隔一会儿调一次扩展接口；文件换了自己重载前也看它忙不忙。
 function assembleKeepAlive({ ping, timers }: AppDeps): KeepAliveState {
   return createKeepAlive({ ping, now: timers.now, setTimeout: timers.setTimeout, clearTimeout: (timer) => timers.clearTimeout(timer) });
 }
