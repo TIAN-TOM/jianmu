@@ -419,8 +419,8 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
         const date = (deps.now ?? (() => new Date()))();
         const stamp = `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}`;
         deps.download(`简幕备份-${stamp}.json`, `${JSON.stringify(reply.value, null, 2)}\n`);
-        const { notes, overviews, qa } = reply.value;
-        dataStatus.value = { text: `已导出 ${notes.length} 条笔记、${overviews.length} 份概览、${qa.length} 条问答。`, tone: "ok" };
+        const { notes, overviews, qa, translations } = reply.value;
+        dataStatus.value = { text: `已导出 ${notes.length} 条笔记、${overviews.length} 份概览、${qa.length} 条问答、${translations.length} 份译文和整理过的字幕。`, tone: "ok" };
       } finally {
         busy.value = null;
       }

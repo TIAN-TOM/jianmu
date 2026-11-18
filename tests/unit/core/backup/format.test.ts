@@ -281,11 +281,11 @@ const TIDIED: TranslationRecord = {
   video: KEY_A,
   transcript: TRANSCRIPT,
   target: "tidy",
-  segments: { h1: "大家好，欢迎回来。", h2: "今天聊字幕。" },
+  segments: { a1a1a1a1a1a1a1a1: "大家好，欢迎回来。", b2b2b2b2b2b2b2b2: "今天聊字幕。" },
   derived: { basis: { source: "transcript", transcript: TRANSCRIPT }, gen: { feature: "tidy", promptVersion: "v1", model: "m", effort: "off" } },
   updatedAt: 1234,
 };
-const TRANSLATED: TranslationRecord = { ...TIDIED, id: translationId(TRANSCRIPT, "en"), target: "en", segments: { h1: "Hello." } };
+const TRANSLATED: TranslationRecord = { ...TIDIED, id: translationId(TRANSCRIPT, "en"), target: "en", segments: { a1a1a1a1a1a1a1a1: "Hello." } };
 
 test("第 2 版备份带上译文和整理后的字幕：导出再导回来是同一份", () => {
   assert.equal(BACKUP_VERSION, 2);
@@ -306,13 +306,15 @@ test("坏的译文记录逐条跳过：主键对不上、目标认不出、视�
     { ...TIDIED, id: "随便写的主键" },
     { ...TIDIED, target: "fr" },
     { ...TIDIED, transcript: { ...TRANSCRIPT, video: videoKey({ platform: "bilibili", videoId: "BV1Sample999" }) } },
-    { ...TIDIED, segments: { h1: "", h2: 3 } },
+    { ...TIDIED, segments: { a1a1a1a1a1a1a1a1: "", b2b2b2b2b2b2b2b2: 3 } },
     { ...TIDIED, segments: "不是对象" },
     null,
-  ];
-  const mixed = { ...TIDIED, segments: { h1: "留下的一段。", h2: "", [""]: "空的指纹", h3: "字".repeat(30_000) } };
+  ] as unknown[];
+  const proto = JSON.parse(`{"segments": {"__proto__": "x"}}`).segments;
+  bad.push({ ...TIDIED, segments: proto });
+  const mixed = { ...TIDIED, segments: { a1a1a1a1a1a1a1a1: "留下的一段。", b2b2b2b2b2b2b2b2: "", [""]: "空的指纹", c3c3c3c3c3c3c3c3: "字".repeat(30_000) } };
   const imported = read({ kind: BACKUP_KIND, version: 2, translations: [...bad, mixed] });
   assert.equal(imported.skipped.translations, bad.length);
-  assert.deepEqual(imported.contents.translations.map((record) => record.segments), [{ h1: "留下的一段。" }]);
+  assert.deepEqual(imported.contents.translations.map((record) => record.segments), [{ a1a1a1a1a1a1a1a1: "留下的一段。" }]);
   assert.deepEqual(readBackup({ kind: BACKUP_KIND, version: 2, translations: { 0: TIDIED } }), { ok: false, code: "BACKUP_DAMAGED", detail: "translations" });
 });

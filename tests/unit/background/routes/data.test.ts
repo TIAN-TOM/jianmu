@@ -67,7 +67,7 @@ test("译文和整理后的字幕也进备份：清除全部数据后导回来�
     derived: { basis: { source: "transcript", transcript }, gen: { feature: target === "tidy" ? "tidy" : "rewrite", promptVersion: "v1", model: "m", effort: "off" } },
     updatedAt: 100,
   });
-  await driver.write({ put: [record("tidy", { h1: "大家好，欢迎回来。" }), record("en", { h1: "Hello." })] });
+  await driver.write({ put: [record("tidy", { a1a1a1a1a1a1a1a1: "大家好，欢迎回来。" }), record("en", { a1a1a1a1a1a1a1a1: "Hello." })] });
 
   const exported = await bg.send<Backup>("backup.export", {}, senders.options());
   assert.ok(exported.ok, JSON.stringify(exported));
@@ -79,13 +79,13 @@ test("译文和整理后的字幕也进备份：清除全部数据后导回来�
   assert.ok((await bg.send("activation.confirm", {}, senders.options())).ok);
   assert.deepEqual(await driver.getAll(), []);
   // 清掉以后本机又整理了一段：导入时只补备份里有、本机没有的段。
-  await driver.write({ put: [record("tidy", { h1: "后来重新整理的。", h2: "新的一段。" })] });
+  await driver.write({ put: [record("tidy", { a1a1a1a1a1a1a1a1: "后来重新整理的。", b2b2b2b2b2b2b2b2: "新的一段。" })] });
 
   const first = await bg.send<BackupImportReply>("backup.import", { payload }, senders.options());
   assert.ok(first.ok, JSON.stringify(first));
   assert.deepEqual(first.value.counts.translations, { added: 1, updated: 0, skipped: 0 }, "英文整条加上；整理的那条段都在本机，不算更新");
   const tidy = (await driver.getAll()).find((item) => item.target === "tidy");
-  assert.deepEqual(tidy?.segments, { h1: "后来重新整理的。", h2: "新的一段。" });
+  assert.deepEqual(tidy?.segments, { a1a1a1a1a1a1a1a1: "后来重新整理的。", b2b2b2b2b2b2b2b2: "新的一段。" });
   const again = await bg.send<BackupImportReply>("backup.import", { payload }, senders.options());
   assert.ok(again.ok);
   assert.deepEqual(again.value.counts.translations, { added: 0, updated: 0, skipped: 0 });

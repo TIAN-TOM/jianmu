@@ -321,8 +321,10 @@ export function checkQa(value: unknown): QaRecord | null {
 const TRANSLATED_TEXT_MAX = 20_000;
 /** 段的原文指纹最多这么长。 */
 const SEGMENT_HASH_MAX = 128;
-/** 一条记录最多这么多段。 */
-const SEGMENTS_MAX = 50_000;
+/** 段的原文指纹是十六进制串：别的键（包括 __proto__ 这类）一律不收。 */
+const SEGMENT_HASH = /^[0-9a-f]{8,128}$/;
+/** 一条记录最多这么多段，合并以后也不超过。 */
+export const SEGMENTS_MAX = 50_000;
 
 function checkTranscriptRef(value: unknown, video: VideoKey): TranscriptRef | null {
   if (!isFields(value)) return null;
@@ -345,7 +347,7 @@ export function checkTranslation(value: unknown): TranslationRecord | null {
   let count = 0;
   for (const [hash, text] of Object.entries(value.segments)) {
     if (count >= SEGMENTS_MAX) break;
-    if (hash === "" || hash.length > SEGMENT_HASH_MAX || typeof text !== "string" || text.trim() === "" || text.length > TRANSLATED_TEXT_MAX) continue;
+    if (!SEGMENT_HASH.test(hash) || typeof text !== "string" || text.trim() === "" || text.length > TRANSLATED_TEXT_MAX) continue;
     segments[hash] = text;
     count += 1;
   }

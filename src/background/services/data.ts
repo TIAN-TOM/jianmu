@@ -75,13 +75,16 @@ export function createDataService(deps: DataServiceDeps): DataService {
     // 问答记下以后不改，只补本机没有的；两次读写之间别处新增的问答 id 不会和备份里的撞上。
     const mergedQa = mergeQa(await qa.all(), contents.qa);
     const qaSaved = await qa.commit({ put: mergedQa.changed }, { since });
-    const translationCount = await deps.translations.update(
-      (current) => {
-        const merged = mergeTranslations(current, contents.translations);
-        return { put: merged.changed, result: counted(merged, skipped.translations) };
-      },
-      { since },
-    );
+    // 文件里没有译文（第 1 版、旧格式）就不读本机的译文。
+    const translationCount = contents.translations.length
+      ? await deps.translations.update(
+          (current) => {
+            const merged = mergeTranslations(current, contents.translations, deps.now());
+            return { put: merged.changed, result: counted(merged, skipped.translations) };
+          },
+          { since },
+        )
+      : { added: 0, updated: 0, skipped: skipped.translations };
     if (noteCount === null || overviewCount === null || !qaSaved || translationCount === null) return fail("LOCAL_DATA_CLEARED");
     deps.broadcast({ type: "notes.changed" });
     return ok({

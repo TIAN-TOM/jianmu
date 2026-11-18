@@ -162,7 +162,7 @@ test("导出再导入幂等：同一份备份导入两次，第二次什么都�
     notes: [note("n1", 100, "一"), note("n2", 200, "二")],
     overviews: [overview(KEY_A, 300), overview(KEY_B, 400)],
     qa: [ENTRY],
-    translations: [translation(KEY_A, "zh", { h1: "译文一" }), translation(KEY_A, "tidy", { h1: "整理过的一句。" })],
+    translations: [translation(KEY_A, "zh", { a1a1a1a1a1a1a1a1: "译文一" }), translation(KEY_A, "tidy", { a1a1a1a1a1a1a1a1: "整理过的一句。" })],
   };
   const backup = buildBackup(local, EXPORTED_AT);
   const imported = read(JSON.parse(JSON.stringify(backup))).contents;
@@ -192,21 +192,35 @@ test("旧备份导入以后再导出，新备份导回来是同一份记录，�
 });
 
 test("译文和整理后的字幕按字幕版本合并：本机没有的整条加上，有的只补缺的段、本机已有的段留本机的；补不出新段不算变化", () => {
-  const local = [translation(KEY_A, "zh", { h1: "本机的译文", h2: "本机才有" }, 900)];
+  const local = [translation(KEY_A, "zh", { a1a1a1a1a1a1a1a1: "本机的译文", b2b2b2b2b2b2b2b2: "本机才有" }, 900)];
   const incoming = [
-    translation(KEY_A, "zh", { h1: "备份里的旧译文", h3: "备份里多的一段" }, 100),
-    translation(KEY_A, "tidy", { h1: "整理过的。" }),
-    translation(KEY_B, "en", { h9: "English" }),
+    translation(KEY_A, "zh", { a1a1a1a1a1a1a1a1: "备份里的旧译文", c3c3c3c3c3c3c3c3: "备份里多的一段" }, 100),
+    translation(KEY_A, "tidy", { a1a1a1a1a1a1a1a1: "整理过的。" }),
+    translation(KEY_B, "en", { d9d9d9d9d9d9d9d9: "English" }),
   ];
   const merged = mergeTranslations(local, incoming);
   assert.deepEqual([merged.added, merged.updated], [2, 1]);
   const zh = merged.all.find((record) => record.target === "zh" && record.video === KEY_A);
-  assert.deepEqual(zh?.segments, { h1: "本机的译文", h2: "本机才有", h3: "备份里多的一段" });
-  assert.equal(zh?.updatedAt, 900);
+  assert.deepEqual(zh?.segments, { a1a1a1a1a1a1a1a1: "本机的译文", b2b2b2b2b2b2b2b2: "本机才有", c3c3c3c3c3c3c3c3: "备份里多的一段" });
+  assert.equal(zh?.updatedAt, 900, "本机那条的更新时间不跟着文件变");
   assert.equal(zh?.derived.gen?.model, "m");
 
   const again = mergeTranslations(merged.all, incoming);
   assert.deepEqual([again.changed, again.added, again.updated], [[], 0, 0], "同一份备份再导入一次什么都不写");
-  const same = mergeTranslations(local, [translation(KEY_A, "zh", { h1: "备份里的旧译文" })]);
+  const same = mergeTranslations(local, [translation(KEY_A, "zh", { a1a1a1a1a1a1a1a1: "备份里的旧译文" })]);
   assert.deepEqual(same.changed, [], "只有本机已有的段，不算变化");
+});
+
+test("文件里同一版字幕重复好几条也撑不大：合并后每条最多 SEGMENTS_MAX 段；新加的那条更新时间不晚于导入时", async () => {
+  const { SEGMENTS_MAX } = await import("../../../../src/core/backup/records.ts");
+  const chunk = (from: number) => Object.fromEntries(Array.from({ length: 1000 }, (_, i) => [(from + i).toString(16).padStart(16, "0"), "一段"]));
+  const big = Object.fromEntries(Array.from({ length: SEGMENTS_MAX - 10 }, (_, i) => [i.toString(16).padStart(16, "0"), "本机"]));
+  const local = [translation(KEY_A, "zh", big, 100)];
+  const incoming = [translation(KEY_A, "zh", chunk(10_000_000)), translation(KEY_A, "zh", chunk(20_000_000))];
+  const merged = mergeTranslations(local, incoming);
+  assert.equal(Object.keys(merged.all[0]?.segments ?? {}).length, SEGMENTS_MAX);
+  assert.equal(mergeTranslations(merged.all, incoming).changed.length, 0, "满了以后不再加");
+
+  const future = mergeTranslations([], [translation(KEY_B, "en", { e5e5e5e5e5e5e5e5: "x" }, 1e300)], 5000);
+  assert.equal(future.all[0]?.updatedAt, 5000);
 });
