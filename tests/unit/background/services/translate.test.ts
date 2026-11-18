@@ -8,6 +8,7 @@ import { test } from "node:test";
 import { createApp } from "../../../../src/background/app.ts";
 import { createPorts } from "../../../../src/background/routes/index.ts";
 import { TRANSLATE_RETRY_DELAY_MS } from "../../../../src/background/services/translate.ts";
+import { TRANSLATION_BATCH_MAX_SEGMENTS } from "../../../../src/core/ai/chunking.ts";
 import { PROTOCOLS } from "../../../../src/core/ai/provider/index.ts";
 import { describe } from "../../../../src/core/errors.ts";
 import type { FrozenGen } from "../../../../src/core/tasks.ts";
@@ -24,10 +25,14 @@ import { batchOf, cue, echo, page, PATIENT, transcriptView, translateHarness, TR
 import { until } from "../../../helpers/wait-until.ts";
 import { ROUTE_MATRIX } from "../route-matrix.ts";
 
-/** 5 段：分成两批（4 段和 1 段）。 */
-const FIVE = [cue(0, "第一句"), cue(10, "第二句"), cue(20, "第三句"), cue(30, "第四句"), cue(40, "第五句")];
-/** 9 段：三批。 */
-const NINE = Array.from({ length: 9 }, (_, index) => cue(index * 10, `第${index + 1}段`));
+/** 一批最多几段。 */
+const PER_BATCH = TRANSLATION_BATCH_MAX_SEGMENTS;
+/** 比一批多一段：分成两批（满的一批和 1 段）。 */
+const FIVE = Array.from({ length: PER_BATCH + 1 }, (_, index) => cue(index * 10, `第${index + 1}句`));
+/** 最后一段的编号，在第二批里。 */
+const LAST = `s${PER_BATCH}`;
+/** 比两批多一段：三批。 */
+const NINE = Array.from({ length: PER_BATCH * 2 + 1 }, (_, index) => cue(index * 10, `第${index + 1}段`));
 
 const SRT = ["1", "00:00:00,000 --> 00:00:02,000", "导入的第一句", "", "2", "00:00:02,000 --> 00:00:04,000", "导入的第二句", ""].join("\n");
 
@@ -47,13 +52,13 @@ test("翻译时字幕没换：照常存下译文，再翻译同一版直接用�
   const first = page("panel-1");
   await h.translate(first);
   assert.equal(h.requests(), 2, "两批");
-  const all = { s0: "译:第一句", s1: "译:第二句", s2: "译:第三句", s3: "译:第四句", s4: "译:第五句" };
+  const all = Object.fromEntries(FIVE.map((item, index) => [`s${index}`, `译:${item.text}`]));
   assert.deepEqual(first.translated(), all);
   assert.deepEqual(done(first).map(({ state, totalBatches, failedBatches }) => ({ state, totalBatches, failedBatches })), [
     { state: "completed", totalBatches: 2, failedBatches: 0 },
   ]);
   const stored = await h.store.find(view.transcript.ref, "en");
-  assert.equal(Object.keys(stored?.segments ?? {}).length, 5);
+  assert.equal(Object.keys(stored?.segments ?? {}).length, FIVE.length);
   assert.equal(stored?.derived.basis.source, "transcript");
 
   const again = page("panel-2");
@@ -78,7 +83,7 @@ test("翻译在途时换了字幕语言：结果照常推给页面，但只记�
   h.show(en);
   release();
   await running;
-  assert.deepEqual(panel.translated(zh.transcript.ref.fingerprint), { s0: "译:第一句", s1: "译:第二句" });
+  assert.deepEqual(panel.translated(zh.transcript.ref.fingerprint), { s0: "译:第1句", s1: "译:第2句" });
   assert.ok(await h.store.find(zh.transcript.ref, "en"), "记在中文那一版名下");
   assert.equal(await h.store.find(en.transcript.ref, "zh"), null, "英文这一版没有被标成已翻译");
   assert.equal(await h.store.find(en.transcript.ref, "en"), null);
@@ -102,7 +107,7 @@ test("译文存不下：照常推给页面，并说明没能保存", async () =>
   });
   const panel = page("panel");
   await h.translate(panel);
-  assert.equal(Object.keys(panel.translated()).length, 5, "付过费的译文照样给页面");
+  assert.equal(Object.keys(panel.translated()).length, FIVE.length, "付过费的译文照样给页面");
   assert.ok(panel.of("translate.segments").every((event) => event.saveFailed === true));
   assert.equal(done(panel)[0]?.state, "completed");
   assert.equal(done(panel)[0]?.saveFailed, true);
@@ -136,7 +141,7 @@ test("翻译请求在途时清除了全部本机数据：回来的译文不写�
   release();
   await running;
   assert.deepEqual(await h.driver.getAll(), [], "清除之后不写回");
-  assert.equal(Object.keys(panel.translated()).length, 5, "付过费的照样推给页面");
+  assert.equal(Object.keys(panel.translated()).length, FIVE.length, "付过费的照样推给页面");
 });
 
 test("只清除缓存时译文不在清除范围里：在途回来的照常存下", async () => {
@@ -148,7 +153,7 @@ test("只清除缓存时译文不在清除范围里：在途回来的照常存�
   await h.guard.clear("cache", async () => {});
   release();
   await running;
-  assert.equal(Object.keys((await h.store.find(view.transcript.ref, "en"))?.segments ?? {}).length, 5);
+  assert.equal(Object.keys((await h.store.find(view.transcript.ref, "en"))?.segments ?? {}).length, FIVE.length);
 });
 
 test("同一版字幕的几批译文同时落库：读—改—写排队，后写的不冲掉先写的", async () => {
@@ -168,7 +173,7 @@ test("同一版字幕的几批译文同时落库：读—改—写排队，后�
   assert.ok(await h.requested(3), "三批同时在途");
   release();
   await running;
-  assert.equal(Object.keys((await h.store.find(view.transcript.ref, "en"))?.segments ?? {}).length, 9);
+  assert.equal(Object.keys((await h.store.find(view.transcript.ref, "en"))?.segments ?? {}).length, NINE.length);
 });
 
 test("从播放到的位置往后的先译，前面的随后补齐", async () => {
@@ -176,7 +181,8 @@ test("从播放到的位置往后的先译，前面的随后补齐", async () =>
   await h.translate(page("panel"), { fromSec: 25 });
   assert.deepEqual(
     h.fake.calls.map(({ request }) => batchOf(request).map(({ id }) => id)),
-    [["s3", "s4", "s0", "s1"], ["s2"]],
+    // 第 3 段（25 秒之后）起先译，前面的补在后面，凑满一批再分下一批。
+    [[...FIVE.slice(3).map((_, index) => `s${index + 3}`), "s0", "s1"], ["s2"]],
   );
 });
 
@@ -185,7 +191,7 @@ test("偶发失败的批次等一会儿静默补一轮，补轮那一批传输�
   let flaky = true;
   const h = translateHarness(view, {
     reply(request) {
-      if (flaky && batchOf(request).some(({ id }) => id === "s4")) {
+      if (flaky && batchOf(request).some(({ id }) => id === LAST)) {
         flaky = false;
         throw Object.assign(new Error("服务过载"), { status: 503 });
       }
@@ -201,7 +207,7 @@ test("偶发失败的批次等一会儿静默补一轮，补轮那一批传输�
   assert.equal(h.requests(), 3);
   assert.deepEqual(h.fake.calls.map(({ request }) => request.selfRetry), [true, true, false]);
   assert.deepEqual(done(panel).map(({ state, failedBatches }) => ({ state, failedBatches })), [{ state: "completed", failedBatches: 0 }]);
-  assert.equal(Object.keys(panel.translated()).length, 5);
+  assert.equal(Object.keys(panel.translated()).length, FIVE.length);
 
   const broken = translateHarness(view, { reply: Object.assign(new Error("服务过载"), { status: 503 }) });
   const other = page("panel-2");
@@ -217,7 +223,7 @@ test("模型回的一条都对不上（编号改了、原文抄回来）：这�
   const h = translateHarness(view, {
     reply(request) {
       const batch = batchOf(request);
-      if (garbled && batch.some(({ id }) => id === "s4")) {
+      if (garbled && batch.some(({ id }) => id === LAST)) {
         garbled = false;
         return JSON.stringify({ segments: batch.map(({ id, text }) => ({ id: `${id}-x`, text })) });
       }
@@ -231,7 +237,7 @@ test("模型回的一条都对不上（编号改了、原文抄回来）：这�
   h.timers.fire(TRANSLATE_RETRY_DELAY_MS);
   await running;
   assert.equal(h.requests(), 3);
-  assert.equal(panel.translated().s4, "译:第五句");
+  assert.equal(panel.translated()[LAST], `译:第${PER_BATCH + 1}句`);
 });
 
 // ============================================================
@@ -255,7 +261,7 @@ test("侧边栏翻译途中关掉：还没开始的批次不再发，任务收�
   await h.translate(reopened);
   assert.equal(done(reopened)[0]?.state, "completed");
   assert.equal(h.requests(), 3, "重开的面板只译剩下的两批");
-  assert.equal(Object.keys(reopened.translated()).length, 9);
+  assert.equal(Object.keys(reopened.translated()).length, NINE.length);
 });
 
 test("发起翻译后一批都还没发面板就关了：一批也不发，任务马上收尾", async () => {
@@ -344,9 +350,9 @@ test("模型漏了几段：译出来的照常存下，漏的那几段等一会�
 
 test("这一版已经译了一部分：缺的段先从同一视频的别的版本里找，找得到就不再请求模型", async () => {
   const five = await transcriptView(FIVE);
-  const six = await transcriptView([...FIVE, cue(50, "第六句")]);
+  const six = await transcriptView([...FIVE, cue((PER_BATCH + 1) * 10, "多出来的一句")]);
   const h = translateHarness(five, { concurrency: 1 });
-  // 这一版译了四段就关了面板。
+  // 这一版译了一批就关了面板。
   const release = h.fake.hold("rewrite");
   const panel = page("panel");
   const partial = h.translate(panel);
@@ -354,7 +360,7 @@ test("这一版已经译了一部分：缺的段先从同一视频的别的版�
   h.service.leave(panel.id);
   release();
   await partial;
-  assert.equal(Object.keys((await h.store.find(five.transcript.ref, "en"))?.segments ?? {}).length, 4);
+  assert.equal(Object.keys((await h.store.find(five.transcript.ref, "en"))?.segments ?? {}).length, PER_BATCH);
   // 另一版（多一句）全译完了。
   h.show(six);
   await h.translate(page("panel-2"));
@@ -363,9 +369,9 @@ test("这一版已经译了一部分：缺的段先从同一视频的别的版�
   h.show(five);
   const back = page("panel-3");
   await h.translate(back);
-  assert.equal(h.requests(), asked, "第五句在另一版里有，不再请求模型");
-  assert.equal(Object.keys(back.translated()).length, 5);
-  assert.equal(Object.keys((await h.store.find(five.transcript.ref, "en"))?.segments ?? {}).length, 5, "补上的也存进这一版");
+  assert.equal(h.requests(), asked, "最后一句在另一版里有，不再请求模型");
+  assert.equal(Object.keys(back.translated()).length, FIVE.length);
+  assert.equal(Object.keys((await h.store.find(five.transcript.ref, "en"))?.segments ?? {}).length, FIVE.length, "补上的也存进这一版");
 });
 
 test("停止只停点停止时已经在准备的那次：还没准备完又点了翻译，新点的照常开始", async () => {
@@ -414,7 +420,7 @@ test("从旧版带过来的译文存不下：照样直接用，不为它们再�
   });
   const panel = page("panel");
   await h.translate(panel);
-  assert.equal(Object.keys(panel.of("translate.segments").find((event) => event.stored)?.translated ?? {}).length, 5, "没变的五段直接交回");
+  assert.equal(Object.keys(panel.of("translate.segments").find((event) => event.stored)?.translated ?? {}).length, FIVE.length, "没变的段直接交回");
   assert.equal(h.requests(), 1, "只为新加的那一段请求模型");
   assert.deepEqual(batchOf(h.fake.calls[0]?.request ?? { messages: [], maxTokens: 0 }).map(({ text }) => text), ["第六句"]);
 });
@@ -432,7 +438,7 @@ test("面板关掉时还有一批在途：这批照常回来并存下，之后�
   assert.equal(h.requests(), 1, "下一批没发");
   assert.equal(h.fake.calls[0]?.request.signal?.aborted, false, "在途的请求没被中止");
   const stored = await h.store.find(view.transcript.ref, "en");
-  assert.equal(Object.keys(stored?.segments ?? {}).length, 4, "在途那批付过费，存下了");
+  assert.equal(Object.keys(stored?.segments ?? {}).length, PER_BATCH, "在途那批付过费，存下了");
 });
 
 test("点停止：在途的请求一起中止，不存也不再发", async () => {
@@ -507,7 +513,7 @@ test("两个面板翻译同一版字幕：后来的接上在跑的那一份，�
   release();
   await running;
   assert.equal(h.requests(), 2, "两批各请求一次");
-  assert.equal(Object.keys(second.translated()).length, 5);
+  assert.equal(Object.keys(second.translated()).length, FIVE.length);
   assert.equal(done(second)[0]?.state, "completed");
 });
 
@@ -605,7 +611,7 @@ test("翻译途中换过字幕文件：在途那批照常推给页面但不存�
   release();
   await running;
   assert.equal(h.requests(), 1, "后两批没发");
-  assert.equal(Object.keys(panel.translated()).length, 4);
+  assert.equal(Object.keys(panel.translated()).length, PER_BATCH);
   assert.deepEqual(await h.store.byVideo(VIDEO), []);
   assert.equal(done(panel)[0]?.state, "canceled");
   assert.deepEqual(h.tasks.list(), []);
@@ -803,8 +809,9 @@ test("OpenAI 官方走 Responses 时，翻译批次按 segment_batch 的 schema 
   assert.equal("temperature" in (sent?.body ?? {}), false, "推理模型不发 temperature");
 });
 
-/** 7 句，按分批规则分成两批：前 4 段一批，后 3 段一批。 */
-const SEVEN: Cue[] = Array.from({ length: 7 }, (_, index) => ({ start: index * 30, duration: 5, text: `第${index + 1}段讲的是一件事情，内容比较长一些。` }));
+/** 比一批多三句，按分批规则分成两批：满的一批，加 3 段一批。 */
+const SEVEN: Cue[] = Array.from({ length: PER_BATCH + 3 }, (_, index) => ({ start: index * 30, duration: 5, text: `第${index + 1}段讲的是一件事情，内容比较长一些。` }));
+const SEVEN_SEC = (PER_BATCH + 3) * 30 + 10;
 
 test("翻译补轮里的那一批只发一次：空响应不加码、不脱掉 JSON 模式", async () => {
   const bodies = new Map<string, SentRequest[]>();
@@ -821,7 +828,7 @@ test("翻译补轮里的那一批只发一次：空响应不加码、不脱掉 J
       }
       return chatReply("");
     },
-    { cues: SEVEN, durationSec: 240 },
+    { cues: SEVEN, durationSec: SEVEN_SEC },
   );
   const port = bg.fake.connect("translate", senders.panel());
   port.send({ type: "translate.start", video: VIDEO });
@@ -844,7 +851,7 @@ test("翻译批次自己重发过、回来的还是读不出的 JSON：补轮不
       sends += 1;
       return chatReply(sends === 1 ? "" : "{segments: [oops");
     },
-    { cues: SEVEN, durationSec: 240 },
+    { cues: SEVEN, durationSec: SEVEN_SEC },
   );
   const port = bg.fake.connect("translate", senders.panel());
   port.send({ type: "translate.start", video: VIDEO });
@@ -891,9 +898,9 @@ test("端口里发起翻译的消息每条重查启用：确认失效以后再�
 });
 
 test("真实端口：面板关掉后在途的几批照常存下，排着的批次不再发", async () => {
-  // 每批四段：并发上限那么多批在途，后面还排着一批两段的。
+  // 每批满的：并发上限那么多批在途，后面还排着一批两段的。
   const full = AI_CONCURRENCY;
-  const cues: Cue[] = Array.from({ length: full * 4 + 2 }, (_, index) => ({ start: index * 30, duration: 5, text: `第${index + 1}段讲的是一件事情，内容比较长一些。` }));
+  const cues: Cue[] = Array.from({ length: full * PER_BATCH + 2 }, (_, index) => ({ start: index * 30, duration: 5, text: `第${index + 1}段讲的是一件事情，内容比较长一些。` }));
   const gate = deferred();
   const allSent = deferred();
   let sent = 0;
@@ -904,7 +911,7 @@ test("真实端口：面板关掉后在途的几批照常存下，排着的批�
       await gate.promise;
       return translatedReply(request);
     },
-    { cues, durationSec: cues.length * 30 },
+    { cues, durationSec: cues.length * 30 + 10 },
   );
   const port = bg.fake.connect("translate", senders.panel());
   port.send({ type: "translate.start", video: VIDEO });
@@ -925,7 +932,7 @@ test("真实端口：面板关掉后在途的几批照常存下，排着的批�
   reopened.send({ type: "translate.start", video: VIDEO });
   assert.ok(await finished(reopened));
   const kept = eventsOf(reopened).find((event) => event.type === "translate.segments" && event.stored);
-  assert.equal(kept?.type === "translate.segments" && Object.keys(kept.translated).length, full * 4);
+  assert.equal(kept?.type === "translate.segments" && Object.keys(kept.translated).length, full * PER_BATCH);
   const started = eventsOf(reopened).find((event) => event.type === "translate.started");
   assert.equal(started?.type === "translate.started" && started.pending, 2);
 });

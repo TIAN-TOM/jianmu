@@ -10,6 +10,8 @@ import {
   mergeRetryIntoAnalysis,
   planAnalysisChunks,
   planTranslationBatches,
+  TRANSLATION_BATCH_MAX_CHARS,
+  TRANSLATION_BATCH_MAX_SEGMENTS,
   truncatedChunkRanges,
   withTruncatedRanges,
 } from "../../../../src/core/ai/chunking.ts";
@@ -335,23 +337,25 @@ const makeSegments = (count: number, length = 10): { id: string; text: string }[
     text: "字".repeat(length),
   }));
 
-test("翻译批次每批最多 4 条：翻译要重组整句，批次大了容易漏条或越译越简", () => {
-  const batches = planTranslationBatches(makeSegments(10));
+test("翻译批次每批最多 12 条", () => {
+  assert.equal(TRANSLATION_BATCH_MAX_SEGMENTS, 12);
+  const batches = planTranslationBatches(makeSegments(30));
   assert.deepEqual(
     batches.map((batch) => batch.length),
-    [4, 4, 2],
+    [12, 12, 6],
   );
 });
 
 test("翻译批次按字数上限分批，避免某几批过长", () => {
-  const batches = planTranslationBatches(makeSegments(6, 500));
+  assert.equal(TRANSLATION_BATCH_MAX_CHARS, 4000);
+  const batches = planTranslationBatches(makeSegments(12, 1500));
   for (const batch of batches) {
     const chars = batch.reduce((sum, segment) => sum + segment.text.length, 0);
-    assert.ok(chars <= 1200, `批次字数 ${chars} 超出预期`);
+    assert.ok(chars <= 4000, `批次字数 ${chars} 超出预期`);
   }
   assert.deepEqual(
     batches.map((batch) => batch.length),
-    [2, 2, 2],
+    [2, 2, 2, 2, 2, 2],
   );
 });
 
@@ -562,15 +566,13 @@ test("补块时清掉被重试时段的旧条目：终点那一秒不算，起�
   }
 });
 
-test("翻译批次的字数上限正好 1200：等于上限不切，超过才切，第二批起也一样", () => {
+test("翻译批次的字数上限正好 4000：等于上限不切，超过才切，第二批起也一样", () => {
   const segments = (...lengths: number[]) => lengths.map((length, i) => ({ id: `s${i}`, text: "字".repeat(length) }));
   const sizes = (batches: { text: string }[][]) => batches.map((batch) => batch.map((item) => item.text.length));
-  assert.deepEqual(sizes(planTranslationBatches(segments(600, 600))), [[600, 600]]);
-  assert.deepEqual(sizes(planTranslationBatches(segments(600, 601))), [[600], [601]]);
-  assert.deepEqual(sizes(planTranslationBatches(segments(1, 1, 1, 1, 600, 600))), [
-    [1, 1, 1, 1],
-    [600, 600],
-  ]);
+  assert.deepEqual(sizes(planTranslationBatches(segments(2000, 2000))), [[2000, 2000]]);
+  assert.deepEqual(sizes(planTranslationBatches(segments(2000, 2001))), [[2000], [2001]]);
+  const twelveOnes = Array.from({ length: 12 }, () => 1);
+  assert.deepEqual(sizes(planTranslationBatches(segments(...twelveOnes, 2000, 2000))), [twelveOnes, [2000, 2000]]);
 });
 
 test("「尽量整份」那一档：八万字以内一块送完，再长才按六万字切", async () => {
