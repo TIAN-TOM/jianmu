@@ -17,7 +17,7 @@ const VIDEO: VideoRef = { platform: "bilibili", videoId: "BV1Sample001", segment
 const NEEDED = { ok: true, value: { state: "needed", updated: false, items: [] } };
 const CURRENT = { ok: true, value: { state: "current" } };
 
-function setup(options: { readonly frame?: (identity: FrameIdentity) => FrameTool; readonly site?: VideoRef["platform"] } = {}) {
+function setup(options: { readonly frame?: (identity: FrameIdentity) => FrameTool; readonly site?: VideoRef["platform"]; readonly durationSec?: number } = {}) {
   const fake = fakeRuntime();
   let activation: unknown = NEEDED;
   fake.reply("activation.get", (_req) => activation);
@@ -46,7 +46,10 @@ function setup(options: { readonly frame?: (identity: FrameIdentity) => FrameToo
         signal.addEventListener("abort", () => reject(signal.reason), { once: true });
       });
     },
-    findMainVideo: () => (pageReads.push("findMainVideo"), { status: "none" }),
+    findMainVideo: () => (
+      pageReads.push("findMainVideo"),
+      options.durationSec === undefined ? { status: "none" } : { status: "found", video: { duration: options.durationSec, paused: true, ended: false, seeking: false, readyState: 4, currentTime: 0, playbackRate: 1 } as HTMLVideoElement }
+    ),
     hoverIconAnchor: () => (pageReads.push("hoverIconAnchor"), null),
     cardSlot: () => (pageReads.push("cardSlot"), null),
   };
@@ -128,6 +131,19 @@ test("收到确认启用的广播后再问一次，算数才等页面激活、�
   assert.ok(await until(() => surfaces.length === 1));
   assert.ok(await until(() => surfaces[0]?.appearance.length === 1), "挂上以后才读外观和卡片开关");
   assert.equal(fake.attempts("activation.get"), 2);
+});
+
+test("挂上界面的同时先报一次时长，不等下一轮定时：卡片载入时会话已经在路上", async () => {
+  const { fake, app, pageReads, surfaces, setActivation, pageReady } = setup({ durationSec: 180 });
+  setActivation(CURRENT);
+  app.start();
+  assert.ok(await until(() => pageReads.includes("whenPageReady")));
+  pageReady();
+  assert.ok(await until(() => surfaces.length === 1));
+  // 定时一轮都没走过。
+  assert.ok(await until(() => fake.attempts("playback.info") === 1));
+  assert.deepEqual(fake.sent.find(({ type }) => type === "playback.info")?.req, { video: "bilibili:BV1Sample001:p1", durationSec: 180 });
+  assert.equal(surfaces[0]?.ticks, 1);
 });
 
 for (const [label, message] of [
