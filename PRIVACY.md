@@ -105,7 +105,7 @@
 - **一条一条删**：笔记和问答可以在侧边栏里单独删。
 - **卸载扩展**：Chrome 会删掉扩展存在这台电脑上的数据。
 - 这里说的删除，是指简幕和浏览器都读不到了。浏览器的存储文件里可能还留着旧内容，简幕没法保证它从磁盘上消失。
-- **导出备份**（设置页）：备份文件里有笔记、概览和问答，没有 API 密钥、设置、缓存、导入的字幕、译文和按频道记住的模式。文件由浏览器下载到你的电脑上，由你自己保管。里面有你的笔记和问答，分享前留意。恢复备份只在本机合并。
+- **导出备份**（设置页）：备份文件里有笔记、概览、问答，以及译文和整理后的字幕，没有 API 密钥、设置、缓存、导入的字幕和按频道记住的模式。文件由浏览器下载到你的电脑上，由你自己保管。里面有你的笔记和问答，分享前留意。恢复备份只在本机合并。
 
 ### 权限
 
@@ -152,7 +152,7 @@ IndexedDB 数据库 `jianmu` 里的仓库：
 | `notes` | 笔记 | 留 | 删 | 是 |
 | `overviews` | 概览和一句话结论 | 留 | 删 | 是 |
 | `qa` | 问答 | 留 | 删 | 是 |
-| `translations` | 译文和整理后的字幕 | 留 | 删 | 否 |
+| `translations` | 译文和整理后的字幕 | 留 | 删 | 是 |
 | `imports` | 导入的字幕 | 留 | 删 | 否 |
 | `channels` | 按频道记住的模式 | 留 | 删 | 否 |
 | `cache` | 字幕、视频信息、官方总结和 UP 主分段的缓存 | 删 | 删 | 否 |
@@ -294,7 +294,7 @@ Everything is kept in the extension storage of this Chrome profile on this compu
 - **One at a time**: notes and Q&A entries can be deleted individually in the side panel.
 - **Uninstalling**: Chrome deletes the data the extension kept on this computer.
 - Deleting here means neither Jianmu nor the browser can read the data any more. Old content may still be left in the browser's storage files, and Jianmu cannot guarantee it is gone from the disk.
-- **Export backup** (导出备份, in Settings): the backup file holds your notes, overviews and Q&A. It leaves out the API key, settings, caches, imported subtitles, translations and per-channel modes. The browser downloads the file to your computer and it is yours to look after. It contains your notes and Q&A, so take care before sharing it. Restoring a backup only merges it into what is already on this computer.
+- **Export backup** (导出备份, in Settings): the backup file holds your notes, overviews, Q&A, translations and tidied subtitles. It leaves out the API key, settings, caches, imported subtitles and per-channel modes. The browser downloads the file to your computer and it is yours to look after. It contains your notes and Q&A, so take care before sharing it. Restoring a backup only merges it into what is already on this computer.
 
 ### Permissions
 
@@ -341,7 +341,7 @@ Object stores in the IndexedDB database `jianmu`:
 | `notes` | Notes | Kept | Deleted | Yes |
 | `overviews` | Overviews and one-line verdicts | Kept | Deleted | Yes |
 | `qa` | Q&A | Kept | Deleted | Yes |
-| `translations` | Translations and tidied subtitles | Kept | Deleted | No |
+| `translations` | Translations and tidied subtitles | Kept | Deleted | Yes |
 | `imports` | Imported subtitles | Kept | Deleted | No |
 | `channels` | The mode remembered for each channel | Kept | Deleted | No |
 | `cache` | Cached subtitles, video details, official summaries and chapter markers | Deleted | Deleted | No |

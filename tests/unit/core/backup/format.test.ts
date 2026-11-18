@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { BACKUP_KIND, BACKUP_VERSION, buildBackup, readBackup } from "../../../../src/core/backup/format.ts";
 import type { ImportedBackup } from "../../../../src/core/backup/records.ts";
 import { notesAsMarkdown } from "../../../../src/core/notes/markdown.ts";
-import type { Derived, NoteRecord, OverviewRecord, QaRecord } from "../../../../src/core/notes/records.ts";
+import { translationId, type Derived, type NoteRecord, type OverviewRecord, type QaRecord, type TranslationRecord } from "../../../../src/core/notes/records.ts";
 import { videoKey } from "../../../../src/core/video-ref.ts";
 
 const VIDEO_BASE = "https://video.example/";
@@ -76,7 +76,7 @@ test("导出备份和 Markdown 都不沿用存着的链接字段", () => {
 test("导出的备份不再带提示词：存储里留着旧版自定义的也不导出", () => {
   const source = { notes: [], overviews: [], qa: [], analysisSystemPrompt: "更早的", promptOverrides: { "analysis.md": "旧版自定义" } };
   const backup = buildBackup(source, EXPORTED_AT);
-  assert.deepEqual(Object.keys(backup).sort(), ["exportedAt", "kind", "notes", "overviews", "qa", "version"]);
+  assert.deepEqual(Object.keys(backup).sort(), ["exportedAt", "kind", "notes", "overviews", "qa", "translations", "version"]);
   assert.doesNotMatch(JSON.stringify(backup), /旧版自定义|更早的/);
 });
 
@@ -95,17 +95,17 @@ test("导出的备份不带密钥，也不带按功能选的模型和存储里�
   assert.doesNotMatch(text, /自定义问答提示词|自定义结论提示词|settings/);
 });
 
-test("新备份带简幕自己的格式标识和版本，三类记录各一个列表", () => {
+test("新备份带简幕自己的格式标识和版本，四类记录各一个列表", () => {
   const backup = buildBackup({ notes: [NOTE], overviews: [OVERVIEW], qa: [QA] }, EXPORTED_AT);
   assert.equal(backup.kind, "jianmu-backup");
   assert.equal(BACKUP_KIND, "jianmu-backup");
   assert.equal(backup.version, BACKUP_VERSION);
   assert.equal(backup.exportedAt, "2026-11-01T08:00:00.000Z");
-  assert.deepEqual(Object.keys(backup), ["kind", "version", "exportedAt", "notes", "overviews", "qa"]);
+  assert.deepEqual(Object.keys(backup), ["kind", "version", "exportedAt", "notes", "overviews", "qa", "translations"]);
   assert.deepEqual(read(backup), {
     format: "jianmu",
-    contents: { notes: [NOTE], overviews: [OVERVIEW], qa: [QA] },
-    skipped: { notes: 0, overviews: 0, qa: 0 },
+    contents: { notes: [NOTE], overviews: [OVERVIEW], qa: [QA], translations: [] },
+    skipped: { notes: 0, overviews: 0, qa: 0, translations: 0 },
     promptsDropped: false,
   });
   assert.equal(buildBackup({}, Number.NaN).exportedAt, "");
@@ -127,9 +127,9 @@ test("新格式的坏记录逐条跳过并计数，该是列表的不是列表�
     overviews: [OVERVIEW, { ...OVERVIEW, videoKey: "youtube:" }, { ...OVERVIEW, analysis: "不是对象" }],
     qa: [QA, { ...QA, id: "note_1" }, { ...QA, id: "qa_b", answer: 42 }],
   });
-  assert.deepEqual(imported.skipped, { notes: 4, overviews: 2, qa: 2 });
-  assert.deepEqual(imported.contents, { notes: [NOTE], overviews: [OVERVIEW], qa: [QA] });
-  assert.deepEqual(read({ kind: BACKUP_KIND, version: 1 }).contents, { notes: [], overviews: [], qa: [] }, "缺的列表按空的算");
+  assert.deepEqual(imported.skipped, { notes: 4, overviews: 2, qa: 2, translations: 0 });
+  assert.deepEqual(imported.contents, { notes: [NOTE], overviews: [OVERVIEW], qa: [QA], translations: [] });
+  assert.deepEqual(read({ kind: BACKUP_KIND, version: 1 }).contents, { notes: [], overviews: [], qa: [], translations: [] }, "缺的列表按空的算");
   for (const kind of ["notes", "overviews", "qa"] as const) {
     assert.deepEqual(readBackup({ ...backup, [kind]: { 0: NOTE } }), { ok: false, code: "BACKUP_DAMAGED", detail: kind });
   }
@@ -242,7 +242,7 @@ test("校验途中抛错的记录只跳过这一条，同一份里的其他记�
     imported.contents.overviews.map((item) => item.videoKey),
     [KEY_Y],
   );
-  assert.deepEqual(imported.skipped, { notes: 0, overviews: 1, qa: 0 });
+  assert.deepEqual(imported.skipped, { notes: 0, overviews: 1, qa: 0, translations: 0 });
 });
 
 test("重点章节随结论往返，不升备份版本；坏的、对不上的按生成时的规则只丢重点，概览保留", () => {
@@ -273,4 +273,48 @@ test("新格式里存着旧档位名（新版日用早期写下的）：改了�
     ["可跳过", "例子具体"],
     ["看概览就够", "例子具体"],
   ]);
+});
+
+const TRANSCRIPT = { video: KEY_A, kind: "auto" as const, lang: "zh-CN", fingerprint: "fp-sample" };
+const TIDIED: TranslationRecord = {
+  id: translationId(TRANSCRIPT, "tidy"),
+  video: KEY_A,
+  transcript: TRANSCRIPT,
+  target: "tidy",
+  segments: { a1a1a1a1a1a1a1a1: "大家好，欢迎回来。", b2b2b2b2b2b2b2b2: "今天聊字幕。" },
+  derived: { basis: { source: "transcript", transcript: TRANSCRIPT }, gen: { feature: "tidy", promptVersion: "v1", model: "m", effort: "off" } },
+  updatedAt: 1234,
+};
+const TRANSLATED: TranslationRecord = { ...TIDIED, id: translationId(TRANSCRIPT, "en"), target: "en", segments: { a1a1a1a1a1a1a1a1: "Hello." } };
+
+test("第 2 版备份带上译文和整理后的字幕：导出再导回来是同一份", () => {
+  assert.equal(BACKUP_VERSION, 2);
+  const backup = buildBackup({ notes: [NOTE], translations: [TIDIED, TRANSLATED] }, EXPORTED_AT);
+  assert.deepEqual(backup.translations, [TIDIED, TRANSLATED]);
+  assert.deepEqual(read(JSON.parse(JSON.stringify(backup))).contents.translations, [TIDIED, TRANSLATED]);
+});
+
+test("第 1 版的备份照常能读，没有译文这一类", () => {
+  const v1 = { kind: BACKUP_KIND, version: 1, exportedAt: "2026-11-01T08:00:00.000Z", notes: [NOTE], overviews: [OVERVIEW], qa: [QA] };
+  const imported = read(v1);
+  assert.deepEqual(imported.contents, { notes: [NOTE], overviews: [OVERVIEW], qa: [QA], translations: [] });
+  assert.deepEqual(imported.skipped, { notes: 0, overviews: 0, qa: 0, translations: 0 });
+});
+
+test("坏的译文记录逐条跳过：主键对不上、目标认不出、视频和字幕版本对不上、一段能用的都没有；坏的段只丢那一段", () => {
+  const bad = [
+    { ...TIDIED, id: "随便写的主键" },
+    { ...TIDIED, target: "fr" },
+    { ...TIDIED, transcript: { ...TRANSCRIPT, video: videoKey({ platform: "bilibili", videoId: "BV1Sample999" }) } },
+    { ...TIDIED, segments: { a1a1a1a1a1a1a1a1: "", b2b2b2b2b2b2b2b2: 3 } },
+    { ...TIDIED, segments: "不是对象" },
+    null,
+  ] as unknown[];
+  const proto = JSON.parse(`{"segments": {"__proto__": "x"}}`).segments;
+  bad.push({ ...TIDIED, segments: proto });
+  const mixed = { ...TIDIED, segments: { a1a1a1a1a1a1a1a1: "留下的一段。", b2b2b2b2b2b2b2b2: "", [""]: "空的指纹", c3c3c3c3c3c3c3c3: "字".repeat(30_000) } };
+  const imported = read({ kind: BACKUP_KIND, version: 2, translations: [...bad, mixed] });
+  assert.equal(imported.skipped.translations, bad.length);
+  assert.deepEqual(imported.contents.translations.map((record) => record.segments), [{ a1a1a1a1a1a1a1a1: "留下的一段。" }]);
+  assert.deepEqual(readBackup({ kind: BACKUP_KIND, version: 2, translations: { 0: TIDIED } }), { ok: false, code: "BACKUP_DAMAGED", detail: "translations" });
 });

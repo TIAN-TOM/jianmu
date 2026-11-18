@@ -143,8 +143,8 @@ export function readLegacyBackup(payload: Fields): Result<ImportedBackup> {
   const readQa = keepValid(Array.isArray(qa) ? qa : [], legacyQa);
   return ok({
     format: "legacy",
-    contents: { notes: readNotes.kept, overviews: readOverviews.kept, qa: readQa.kept },
-    skipped: { notes: readNotes.skipped, overviews: readOverviews.skipped, qa: readQa.skipped },
+    contents: { notes: readNotes.kept, overviews: readOverviews.kept, qa: readQa.kept, translations: [] },
+    skipped: { notes: readNotes.skipped, overviews: readOverviews.skipped, qa: readQa.skipped, translations: 0 },
     promptsDropped: Object.keys(payload).some((key) => PROMPT_KEY.test(key) && hasContent(payload[key])),
   });
 }
