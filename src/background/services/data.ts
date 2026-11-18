@@ -1,8 +1,8 @@
 // 设置页「资料」一节：导出、导入备份，清除本机数据。
-// 导出只读本机的三个仓储，不发平台和模型请求，确认启用之前也能用；导入按记录合并，读和写在各仓储的写入队列里一次做完；
+// 导出只读本机的四个仓储（笔记、概览、问答、译文和整理后的字幕），不发平台和模型请求，确认启用之前也能用；导入按记录合并，读和写在各仓储的写入队列里一次做完；
 // 清除先停下在跑的任务，再在清除闸门里删仓库和存储键，删完广播给各页面。
 import { buildBackup, readBackup, type Backup } from "../../core/backup/format.ts";
-import { mergeNotes, mergeOverviews, mergeQa } from "../../core/backup/merge.ts";
+import { mergeNotes, mergeOverviews, mergeQa, mergeTranslations } from "../../core/backup/merge.ts";
 import type { ClearGuard, ClearScope } from "../../core/clear-guard.ts";
 import { fail, ok, type Result } from "../../core/errors.ts";
 import type { ExtensionStorage } from "../../platform/storage.ts";
@@ -14,12 +14,14 @@ import { clearTargets } from "../../shared/storage-plan.ts";
 import type { NoteStore } from "../stores/notes.ts";
 import type { OverviewStore } from "../stores/overviews.ts";
 import type { QaStore } from "../stores/qa.ts";
+import type { TranslationStore } from "../stores/translations.ts";
 import type { TaskRunner } from "../tasks.ts";
 
 export interface DataServiceDeps {
   readonly notes: Pick<NoteStore, "all" | "update">;
   readonly overviews: Pick<OverviewStore, "all" | "update">;
   readonly qa: Pick<QaStore, "all" | "commit">;
+  readonly translations: Pick<TranslationStore, "all" | "update">;
   readonly guard: ClearGuard;
   readonly tasks: Pick<TaskRunner, "cancelAll">;
   readonly settings: Pick<SettingsStore, "clearAll">;
@@ -73,10 +75,17 @@ export function createDataService(deps: DataServiceDeps): DataService {
     // 问答记下以后不改，只补本机没有的；两次读写之间别处新增的问答 id 不会和备份里的撞上。
     const mergedQa = mergeQa(await qa.all(), contents.qa);
     const qaSaved = await qa.commit({ put: mergedQa.changed }, { since });
-    if (noteCount === null || overviewCount === null || !qaSaved) return fail("LOCAL_DATA_CLEARED");
+    const translationCount = await deps.translations.update(
+      (current) => {
+        const merged = mergeTranslations(current, contents.translations);
+        return { put: merged.changed, result: counted(merged, skipped.translations) };
+      },
+      { since },
+    );
+    if (noteCount === null || overviewCount === null || !qaSaved || translationCount === null) return fail("LOCAL_DATA_CLEARED");
     deps.broadcast({ type: "notes.changed" });
     return ok({
-      counts: { notes: noteCount, overviews: overviewCount, qa: counted(mergedQa, skipped.qa) },
+      counts: { notes: noteCount, overviews: overviewCount, qa: counted(mergedQa, skipped.qa), translations: translationCount },
       promptsDropped: read.value.promptsDropped,
     });
   }
@@ -100,8 +109,8 @@ export function createDataService(deps: DataServiceDeps): DataService {
 
   return {
     exportBackup: async () => {
-      const [noteList, overviewList, qaList] = await Promise.all([notes.all(), overviews.all(), qa.all()]);
-      return buildBackup({ notes: noteList, overviews: overviewList, qa: qaList }, deps.now());
+      const [noteList, overviewList, qaList, translationList] = await Promise.all([notes.all(), overviews.all(), qa.all(), deps.translations.all()]);
+      return buildBackup({ notes: noteList, overviews: overviewList, qa: qaList, translations: translationList }, deps.now());
     },
     importBackup,
     clear,

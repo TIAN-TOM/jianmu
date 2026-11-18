@@ -12,7 +12,7 @@ const ROWS: readonly (readonly [string, Plan])[] = [
   ["notes", { area: "indexeddb", clearCache: "keep", clearAll: "clear", backup: true }],
   ["overviews", { area: "indexeddb", clearCache: "keep", clearAll: "clear", backup: true }],
   ["qa", { area: "indexeddb", clearCache: "keep", clearAll: "clear", backup: true }],
-  ["translations", { area: "indexeddb", clearCache: "keep", clearAll: "clear", backup: false }],
+  ["translations", { area: "indexeddb", clearCache: "keep", clearAll: "clear", backup: true }],
   ["imports", { area: "indexeddb", clearCache: "keep", clearAll: "clear", backup: false }],
   ["channels", { area: "indexeddb", clearCache: "keep", clearAll: "clear", backup: false }],
   ["cache", { area: "indexeddb", clearCache: "clear", clearAll: "clear", backup: false }],
@@ -124,9 +124,9 @@ test("仓库和键全部登记，键都带扩展自己的前缀", () => {
   for (const key of STORAGE_KEYS) assert.match(key, /^jianmu_/);
 });
 
-test("进备份的只有笔记、概览、问答", () => {
+test("进备份的有笔记、概览、问答，以及译文和整理后的字幕", () => {
   const backedUp = Object.entries(STORAGE_PLAN).flatMap(([name, plan]) => (plan.backup ? [name] : []));
-  assert.deepEqual(backedUp.sort(), ["notes", "overviews", "qa"]);
+  assert.deepEqual(backedUp.sort(), ["notes", "overviews", "qa", "translations"]);
 });
 
 test("清除全部数据不动 localStorage：外观缓存由页面按默认值重写", () => {

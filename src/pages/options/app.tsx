@@ -149,7 +149,7 @@ function DataSection({ state, enabled }: { readonly state: OptionsState; readonl
     <section class="card" id="learning-data">
       <h2>学习资料</h2>
       <p class="hint">
-        笔记、概览和问答历史只存在这台电脑上，卸载扩展时由浏览器一起清掉。导出的备份含笔记、概览和问答历史，不含 API 密钥、设置和导入的字幕文件。恢复时和本机已有的合并，同一条以更新时间较新的为准，本机独有的不会删。
+        笔记、概览和问答历史只存在这台电脑上，卸载扩展时由浏览器一起清掉。导出的备份含笔记、概览、问答历史，以及译文和整理过的字幕，不含 API 密钥、设置和导入的字幕文件。恢复时和本机已有的合并，同一条以更新时间较新的为准，译文只补本机缺的段，本机独有的不会删。
       </p>
       <div class="actions">
         <Button disabled={working} onClick={() => void state.exportBackup()}>

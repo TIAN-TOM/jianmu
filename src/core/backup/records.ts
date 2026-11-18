@@ -1,4 +1,4 @@
-// 备份里三类记录的校验：导出、读新格式、转换旧格式都过这一道。只留记录类型里有的字段，
+// 备份里四类记录的校验：导出、读新格式、转换旧格式都过这一道。只留记录类型里有的字段，
 // 概览过一遍和生成时相同的校验，必填的字段不对就整条丢掉，交给调用方计数。草稿不进备份。
 import type { TimeRange } from "../ai/chunking.ts";
 import { validateAnalysis } from "../ai/validate.ts";
@@ -18,6 +18,10 @@ import {
   type OverviewRecord,
   type QaCitation,
   type QaRecord,
+  type TranscriptRef,
+  type TranslationRecord,
+  TEXT_TARGETS,
+  translationId,
 } from "../notes/records.ts";
 import type { CaptionKind } from "../transcript/sources.ts";
 import { parseVideoKey, type VideoKey } from "../video-ref.ts";
@@ -26,11 +30,13 @@ export interface BackupContents {
   readonly notes: readonly NoteRecord[];
   readonly overviews: readonly OverviewRecord[];
   readonly qa: readonly QaRecord[];
+  /** 译文和整理后的字幕，第 2 版备份起才有。 */
+  readonly translations: readonly TranslationRecord[];
 }
 
 export type RecordKind = keyof BackupContents;
 
-export const RECORD_KINDS: readonly RecordKind[] = Object.freeze(["notes", "overviews", "qa"]);
+export const RECORD_KINDS: readonly RecordKind[] = Object.freeze(["notes", "overviews", "qa", "translations"]);
 
 export type SkipCounts = Readonly<Record<RecordKind, number>>;
 
@@ -309,4 +315,49 @@ export function checkQa(value: unknown): QaRecord | null {
   const video = videoOf(value.video);
   if (!video) return null;
   return qaRecord(value.id, video, value, checkDerived(value.derived));
+}
+
+/** 一版字幕的一段文字最多这么长：远超任何一段字幕，挡住塞进来的大块内容。 */
+const TRANSLATED_TEXT_MAX = 20_000;
+/** 段的原文指纹最多这么长。 */
+const SEGMENT_HASH_MAX = 128;
+/** 一条记录最多这么多段。 */
+const SEGMENTS_MAX = 50_000;
+
+function checkTranscriptRef(value: unknown, video: VideoKey): TranscriptRef | null {
+  if (!isFields(value)) return null;
+  const { kind, lang, fingerprint } = value;
+  if (value.video !== video || !oneOf(CAPTION_KINDS, kind)) return null;
+  if (typeof lang !== "string" || lang.length > 40) return null;
+  if (typeof fingerprint !== "string" || fingerprint === "" || fingerprint.length > SEGMENT_HASH_MAX) return null;
+  return { video, kind, lang, fingerprint };
+}
+
+/** 译文或整理后的字幕：主键要和视频、字幕指纹、目标对得上；段里只留非空字符串，坏的段丢掉，一段都不剩就整条丢掉。 */
+export function checkTranslation(value: unknown): TranslationRecord | null {
+  if (!isFields(value)) return null;
+  const video = videoOf(value.video);
+  if (!video || !oneOf(TEXT_TARGETS, value.target)) return null;
+  const transcript = checkTranscriptRef(value.transcript, video);
+  if (!transcript || value.id !== translationId(transcript, value.target)) return null;
+  if (!isFields(value.segments)) return null;
+  const segments: Record<string, string> = {};
+  let count = 0;
+  for (const [hash, text] of Object.entries(value.segments)) {
+    if (count >= SEGMENTS_MAX) break;
+    if (hash === "" || hash.length > SEGMENT_HASH_MAX || typeof text !== "string" || text.trim() === "" || text.length > TRANSLATED_TEXT_MAX) continue;
+    segments[hash] = text;
+    count += 1;
+  }
+  if (count === 0) return null;
+  const updatedAt = finite(value.updatedAt);
+  return {
+    id: value.id,
+    video,
+    transcript,
+    target: value.target,
+    segments,
+    derived: checkDerived(value.derived),
+    updatedAt: updatedAt !== null && updatedAt >= 0 ? updatedAt : 0,
+  };
 }

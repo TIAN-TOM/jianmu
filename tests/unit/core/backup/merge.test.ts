@@ -4,15 +4,29 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { buildBackup, readBackup } from "../../../../src/core/backup/format.ts";
 import { LEGACY_BACKUP_KIND } from "../../../../src/core/backup/legacy-reader.ts";
-import { mergeBackup, mergeNotes, mergeOverviews, mergeQa } from "../../../../src/core/backup/merge.ts";
+import { mergeBackup, mergeNotes, mergeOverviews, mergeQa, mergeTranslations } from "../../../../src/core/backup/merge.ts";
 import type { BackupContents, ImportedBackup } from "../../../../src/core/backup/records.ts";
-import type { NoteRecord, OverviewRecord, QaRecord } from "../../../../src/core/notes/records.ts";
+import { translationId, type NoteRecord, type OverviewRecord, type QaRecord, type TranslationRecord } from "../../../../src/core/notes/records.ts";
 import { parseVideoKey, videoKey } from "../../../../src/core/video-ref.ts";
 
 const KEY_A = videoKey({ platform: "bilibili", videoId: "BV1Sample000" });
 const KEY_B = videoKey({ platform: "bilibili", videoId: "BV1Sample001" });
 const EXPORTED_AT = Date.UTC(2026, 10, 1);
-const EMPTY: BackupContents = { notes: [], overviews: [], qa: [] };
+const EMPTY: BackupContents = { notes: [], overviews: [], qa: [], translations: [] };
+
+/** 一版字幕的译文或整理后的字幕。 */
+function translation(video: typeof KEY_A, target: TranslationRecord["target"], segments: Record<string, string>, updatedAt = 500, fingerprint = "fp1"): TranslationRecord {
+  const transcript = { video, kind: "auto" as const, lang: "zh-CN", fingerprint };
+  return {
+    id: translationId(transcript, target),
+    video,
+    transcript,
+    target,
+    segments,
+    derived: { basis: { source: "transcript", transcript }, gen: { feature: "rewrite", promptVersion: "v1", model: "m", effort: "off" } },
+    updatedAt,
+  };
+}
 
 function note(id: string, updatedAt: number, text: string, extra: Partial<NoteRecord> = {}): NoteRecord {
   return {
@@ -92,7 +106,7 @@ test("备份不含 AI 草稿、版本号和内容来源，恢复时较新的覆�
   assert.deepEqual(readBackup({ ...backup, version: 99 }), { ok: false, code: "BACKUP_TOO_NEW" });
 
   const merged = mergeBackup(
-    { notes: [note("note_a", 9000, "本机较新"), note("keep_me", 10, "留下")], overviews: [overview(KEY_A, 1000, "旧")], qa: [] },
+    { notes: [note("note_a", 9000, "本机较新"), note("keep_me", 10, "留下")], overviews: [overview(KEY_A, 1000, "旧")], qa: [], translations: [] },
     read(backup).contents,
   );
   assert.equal(merged.notes.all.find((item) => item.id === "keep_me")?.text, "留下");
@@ -148,6 +162,7 @@ test("导出再导入幂等：同一份备份导入两次，第二次什么都�
     notes: [note("n1", 100, "一"), note("n2", 200, "二")],
     overviews: [overview(KEY_A, 300), overview(KEY_B, 400)],
     qa: [ENTRY],
+    translations: [translation(KEY_A, "zh", { h1: "译文一" }), translation(KEY_A, "tidy", { h1: "整理过的一句。" })],
   };
   const backup = buildBackup(local, EXPORTED_AT);
   const imported = read(JSON.parse(JSON.stringify(backup))).contents;
@@ -155,9 +170,10 @@ test("导出再导入幂等：同一份备份导入两次，第二次什么都�
 
   const first = mergeBackup(EMPTY, imported);
   assert.deepEqual([first.notes.added, first.overviews.added, first.qa.added], [2, 2, 1]);
-  const afterFirst: BackupContents = { notes: first.notes.all, overviews: first.overviews.all, qa: first.qa.all };
+  const afterFirst: BackupContents = { notes: first.notes.all, overviews: first.overviews.all, qa: first.qa.all, translations: first.translations.all };
   const second = mergeBackup(afterFirst, imported);
-  for (const part of [second.notes, second.overviews, second.qa]) {
+  assert.equal(first.translations.added, 2);
+  for (const part of [second.notes, second.overviews, second.qa, second.translations]) {
     assert.deepEqual([part.changed, part.added, part.updated], [[], 0, 0]);
   }
   assert.deepEqual(buildBackup(afterFirst, EXPORTED_AT), backup);
@@ -167,10 +183,30 @@ test("旧备份导入以后再导出，新备份导回来是同一份记录，�
   for (const name of ["existing-version.json", "digest-for-bilibili.json"]) {
     const imported = read(fixture(name)).contents;
     const first = mergeBackup(EMPTY, imported);
-    const stored: BackupContents = { notes: first.notes.all, overviews: first.overviews.all, qa: first.qa.all };
+    const stored: BackupContents = { notes: first.notes.all, overviews: first.overviews.all, qa: first.qa.all, translations: first.translations.all };
     const again = read(JSON.parse(JSON.stringify(buildBackup(stored, EXPORTED_AT)))).contents;
     assert.deepEqual(again, stored, name);
     const second = mergeBackup(stored, again);
     assert.equal(second.notes.changed.length + second.overviews.changed.length + second.qa.changed.length, 0, name);
   }
+});
+
+test("译文和整理后的字幕按字幕版本合并：本机没有的整条加上，有的只补缺的段、本机已有的段留本机的；补不出新段不算变化", () => {
+  const local = [translation(KEY_A, "zh", { h1: "本机的译文", h2: "本机才有" }, 900)];
+  const incoming = [
+    translation(KEY_A, "zh", { h1: "备份里的旧译文", h3: "备份里多的一段" }, 100),
+    translation(KEY_A, "tidy", { h1: "整理过的。" }),
+    translation(KEY_B, "en", { h9: "English" }),
+  ];
+  const merged = mergeTranslations(local, incoming);
+  assert.deepEqual([merged.added, merged.updated], [2, 1]);
+  const zh = merged.all.find((record) => record.target === "zh" && record.video === KEY_A);
+  assert.deepEqual(zh?.segments, { h1: "本机的译文", h2: "本机才有", h3: "备份里多的一段" });
+  assert.equal(zh?.updatedAt, 900);
+  assert.equal(zh?.derived.gen?.model, "m");
+
+  const again = mergeTranslations(merged.all, incoming);
+  assert.deepEqual([again.changed, again.added, again.updated], [[], 0, 0], "同一份备份再导入一次什么都不写");
+  const same = mergeTranslations(local, [translation(KEY_A, "zh", { h1: "备份里的旧译文" })]);
+  assert.deepEqual(same.changed, [], "只有本机已有的段，不算变化");
 });

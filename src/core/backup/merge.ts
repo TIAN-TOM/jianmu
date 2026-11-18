@@ -1,6 +1,6 @@
 // 备份合并：按记录的主键对上本机的记录，更新时间严格更大才覆盖，平局留本机；只把真正新增或更新的列为待写入。
 // 问答记下以后不改，只补本机没有的。合并只加和改，本机多出来的记录原样留着，同一份备份导入几次结果都一样。
-import type { NoteRecord, OverviewRecord, QaRecord } from "../notes/records.ts";
+import type { NoteRecord, OverviewRecord, QaRecord, TranslationRecord } from "../notes/records.ts";
 import type { BackupContents } from "./records.ts";
 
 export interface MergeResult<T> {
@@ -16,6 +16,7 @@ export interface MergedBackup {
   readonly notes: MergeResult<NoteRecord>;
   readonly overviews: MergeResult<OverviewRecord>;
   readonly qa: MergeResult<QaRecord>;
+  readonly translations: MergeResult<TranslationRecord>;
 }
 
 function mergeBy<T>(
@@ -58,10 +59,41 @@ export function mergeQa(local: readonly QaRecord[], incoming: readonly QaRecord[
   return mergeBy(local, incoming, (entry) => entry.id, () => false);
 }
 
+/**
+ * 译文和整理后的字幕按字幕版本（主键）合并：本机没有这一版就整条加上；有的话只补本机缺的段，
+ * 本机已有的段留本机的（可能是后来重新生成的）。补不出新段就不算变化，同一份备份导入几次结果都一样。
+ */
+export function mergeTranslations(local: readonly TranslationRecord[], incoming: readonly TranslationRecord[]): MergeResult<TranslationRecord> {
+  const byKey = new Map<string, TranslationRecord>();
+  for (const record of local) byKey.set(record.id, record);
+  const localKeys = new Set(byKey.keys());
+  const changed = new Map<string, TranslationRecord>();
+  for (const record of incoming) {
+    const current = byKey.get(record.id);
+    if (!current) {
+      byKey.set(record.id, record);
+      changed.set(record.id, record);
+      continue;
+    }
+    const missing = Object.entries(record.segments).filter(([hash]) => !Object.hasOwn(current.segments, hash));
+    if (!missing.length) continue;
+    const merged: TranslationRecord = {
+      ...current,
+      segments: { ...Object.fromEntries(missing), ...current.segments },
+      updatedAt: Math.max(current.updatedAt, record.updatedAt),
+    };
+    byKey.set(record.id, merged);
+    changed.set(record.id, merged);
+  }
+  const updated = [...changed.keys()].filter((key) => localKeys.has(key)).length;
+  return { all: [...byKey.values()], changed: [...changed.values()], added: changed.size - updated, updated };
+}
+
 export function mergeBackup(local: BackupContents, incoming: BackupContents): MergedBackup {
   return {
     notes: mergeNotes(local.notes, incoming.notes),
     overviews: mergeOverviews(local.overviews, incoming.overviews),
     qa: mergeQa(local.qa, incoming.qa),
+    translations: mergeTranslations(local.translations, incoming.translations),
   };
 }
