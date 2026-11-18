@@ -21,13 +21,14 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const work = mkdtempSync(join(tmpdir(), "jianmu-build-flags-test-"));
 after(() => rmSync(work, { recursive: true, force: true }));
 
-test("不带参数是发行构建；--test-build 全开；--daily 是日用那份；--youtube-ops 在发行构建上再开 YouTube 的两个代操作", () => {
+test("不带参数是发行构建；--test-build 全开；--daily 是日用那份；--youtube-ops 在发行构建上再开 YouTube 和它的两个代操作", () => {
   assert.deepEqual(featuresFromArgs([]), RELEASE_FEATURES);
   assert.deepEqual(featuresFromArgs(["--watch"]), RELEASE_FEATURES);
   assert.deepEqual(featuresFromArgs(["--test-build"]), TEST_BUILD_FEATURES);
   assert.deepEqual(featuresFromArgs(["--daily"]), DAILY_FEATURES);
   assert.deepEqual(featuresFromArgs(["--watch", "--youtube-ops"]), {
     frameExplain: true,
+    youtube: true,
     youtubeOpenPanel: true,
     youtubeSwitchLang: true,
   });
@@ -44,6 +45,7 @@ test("开关记录写下去读得回来，构建开始前删掉旧记录", () =>
   writeBuildFlags(TEST_BUILD_FEATURES, file);
   assert.deepEqual(readBuildFlags(file), {
     FEATURE_FRAME_EXPLAIN: true,
+    FEATURE_YOUTUBE: true,
     FEATURE_YOUTUBE_OPEN_PANEL: true,
     FEATURE_YOUTUBE_SWITCH_LANG: true,
   });

@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
+  DAILY_FEATURES,
   FEATURE_GLOBALS,
   FEATURE_NAMES,
   featureDefines,
@@ -15,10 +16,11 @@ import {
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
-test("发行构建打开解释当前画面（首发带上），YouTube 的两个代操作关着；测试构建全部打开", () => {
-  assert.deepEqual(FEATURE_NAMES, ["frameExplain", "youtubeOpenPanel", "youtubeSwitchLang"]);
-  assert.deepEqual(RELEASE_FEATURES, { frameExplain: true, youtubeOpenPanel: false, youtubeSwitchLang: false });
-  assert.deepEqual(TEST_BUILD_FEATURES, { frameExplain: true, youtubeOpenPanel: true, youtubeSwitchLang: true });
+test("发行构建打开解释当前画面（首发带上），YouTube 和它的两个代操作关着；日用构建多开 YouTube；测试构建全部打开", () => {
+  assert.deepEqual(FEATURE_NAMES, ["frameExplain", "youtube", "youtubeOpenPanel", "youtubeSwitchLang"]);
+  assert.deepEqual(RELEASE_FEATURES, { frameExplain: true, youtube: false, youtubeOpenPanel: false, youtubeSwitchLang: false });
+  assert.deepEqual(DAILY_FEATURES, { ...RELEASE_FEATURES, youtube: true });
+  assert.deepEqual(TEST_BUILD_FEATURES, { frameExplain: true, youtube: true, youtubeOpenPanel: true, youtubeSwitchLang: true });
   assert.ok(Object.isFrozen(RELEASE_FEATURES) && Object.isFrozen(TEST_BUILD_FEATURES) && Object.isFrozen(FEATURE_GLOBALS));
 });
 
@@ -31,16 +33,18 @@ test("全局常量名是开关名的大写下划线写法，带 FEATURE_ 前缀"
 test("define 把每个全局常量换成字面量，只认真正的 true", () => {
   assert.deepEqual(featureDefines(RELEASE_FEATURES), {
     FEATURE_FRAME_EXPLAIN: "true",
+    FEATURE_YOUTUBE: "false",
     FEATURE_YOUTUBE_OPEN_PANEL: "false",
     FEATURE_YOUTUBE_SWITCH_LANG: "false",
   });
   assert.deepEqual(featureDefines({ ...RELEASE_FEATURES, frameExplain: false, youtubeOpenPanel: true }), {
     FEATURE_FRAME_EXPLAIN: "false",
+    FEATURE_YOUTUBE: "false",
     FEATURE_YOUTUBE_OPEN_PANEL: "true",
     FEATURE_YOUTUBE_SWITCH_LANG: "false",
   });
-  const loose = { frameExplain: "yes", youtubeOpenPanel: 1, youtubeSwitchLang: null } as unknown as FeatureSet;
-  assert.deepEqual(Object.values(featureDefines(loose)), ["false", "false", "false"]);
+  const loose = { frameExplain: "yes", youtube: "true", youtubeOpenPanel: 1, youtubeSwitchLang: null } as unknown as FeatureSet;
+  assert.deepEqual(Object.values(featureDefines(loose)), ["false", "false", "false", "false"]);
 });
 
 test("类型声明里的全局常量就是开关表里那几个", () => {

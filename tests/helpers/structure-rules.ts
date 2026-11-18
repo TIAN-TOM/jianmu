@@ -22,6 +22,7 @@ interface Edge {
 interface Module extends SourceFile, SourceParts {
   readonly edges: readonly Edge[]; // 只含相对导入，含只导入类型的和重导出
   readonly sends: boolean; // 去掉放行的写法以后还有网络调用
+  readonly calls: boolean; // 不管放行表，代码里有网络调用；YouTube 一侧按这个查
 }
 
 const LAYER: Readonly<Record<string, number>> = {
@@ -73,6 +74,13 @@ const FRONT_SHARED: ReadonlySet<string> = new Set(["src/sites/types.ts", "src/si
 const SITE_FRONT_FILE = /^src\/sites\/([^/]+)\/(?:url|page)\.ts$/;
 const SITE_URL = /^src\/sites\/([^/]+)\/url\.ts$/;
 const CORE_OR_SHARED = /^src\/(?:core|shared)\//;
+// 第 6 条：url.ts 里只许写这些主机匹配规则（授权和注册内容脚本用），加一条要改这里。
+const HOST_PATTERNS: Readonly<Record<string, ReadonlySet<string>>> = {
+  "src/sites/youtube/url.ts": new Set(["https://www.youtube.com/*"]),
+};
+const MATCH_PATTERN = /:\/\/\S*\*|<all_urls>/;
+// 第 6 条：YouTube 读取不发任何请求，放行表也不给它开出口。
+const YOUTUBE_FILE = /^src\/sites\/youtube\//;
 
 // 只有协议头不算地址：把 http 换成 https 时要写这个字符串。
 const isAddress = (value: string): boolean =>
@@ -113,7 +121,7 @@ function toModule(file: SourceFile): Module {
   const parts = splitSource(file.text);
   const allowed = NETWORK_ALLOWED[file.path];
   const sends = NETWORK_CALL.test(allowed ? parts.code.replace(allowed, "") : parts.code);
-  return { ...file, ...parts, edges: edgesOf(file.path, parts.code), sends };
+  return { ...file, ...parts, edges: edgesOf(file.path, parts.code), sends, calls: NETWORK_CALL.test(parts.code) };
 }
 
 function checkImport(file: string, { specifier, target, typeOnly }: Edge): string | null {
@@ -222,8 +230,16 @@ function checkFile(file: Module): Violation[] {
     }
     if (IDENTITY_KEY.test(code)) report(6, "不设表明身份的请求头");
     const front = SITE_FRONT_FILE.test(path);
-    if (file.sends) report(6, front ? "url.ts、page.ts 不发请求" : "站点的请求只从 bilibili/http.ts 经 ctx.fetch 发");
+    if (YOUTUBE_FILE.test(path)) {
+      if (file.calls) report(6, "YouTube 读取不发任何请求");
+    } else if (file.sends) {
+      report(6, front ? "url.ts、page.ts 不发请求" : "站点的请求只从 bilibili/http.ts 经 ctx.fetch 发");
+    }
     for (const value of strings) {
+      if (front && MATCH_PATTERN.test(value)) {
+        if (!HOST_PATTERNS[path]?.has(value)) report(6, `主机匹配规则只许写在 url.ts，并且在放行表里：${value}`);
+        continue;
+      }
       const bad = front
         ? (EXTERNAL_LINK.test(value) || HOST_AND_PATH.test(value) || PATH_STRING.test(value) || JOINED_ADDRESS.test(value)) && !PAGE_ADDRESS.test(value)
         : JOINED_ADDRESS.test(value) || (isAddress(value) && !BILIBILI_ADDRESSES.has(value));
@@ -310,6 +326,14 @@ function checkReach(file: Module, modules: ReadonlyMap<string, Module>): Violati
     const sending = sender(values);
     if (sending !== undefined) {
       found.push({ rule: 6, file: path, detail: `B 站读取的请求只从 http.ts 发，不经别的请求封装：${chain(path, sending, values)}` });
+    }
+  }
+  // 放行表里的请求出口也算：YouTube 一侧不借 B 站的出口。前台模块已经报过的不重复报。
+  if (YOUTUBE_FILE.test(path) && found.length === 0) {
+    const values = reach(path, modules, true);
+    const caller = [...values.keys()].find((target) => modules.get(target)?.calls === true);
+    if (caller !== undefined) {
+      found.push({ rule: 6, file: path, detail: `YouTube 读取不带入发请求的模块：${chain(path, caller, values)}` });
     }
   }
   return found;

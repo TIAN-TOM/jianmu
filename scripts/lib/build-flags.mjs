@@ -14,13 +14,13 @@ export const BUILD_FLAGS_FILE = join(ROOT, ".build-flags.json");
  * 构建参数对应的开关取值，不带参数就是发行构建。只有发行构建和 --daily 能打包，别的都不打包。
  *   --test-build      全部打开，给页面测试用
  *   --daily           日用构建：开关取值是 shared/features.ts 的 DAILY_FEATURES
- *   --youtube-ops     发行构建再打开 YouTube 代开面板和代换语言，给开发者本人在 YouTube 上验证用
+ *   --youtube-ops     发行构建再打开 YouTube 和它的代开面板、代换语言，给开发者本人在 YouTube 上验证用
  * @type {Readonly<Record<string, FeatureSet>>}
  */
 export const BUILD_VARIANTS = Object.freeze({
   "--test-build": TEST_BUILD_FEATURES,
   "--daily": DAILY_FEATURES,
-  "--youtube-ops": Object.freeze({ ...RELEASE_FEATURES, youtubeOpenPanel: true, youtubeSwitchLang: true }),
+  "--youtube-ops": Object.freeze({ ...RELEASE_FEATURES, youtube: true, youtubeOpenPanel: true, youtubeSwitchLang: true }),
 });
 
 /** @param {readonly string[]} args @returns {FeatureSet} */

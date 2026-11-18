@@ -75,7 +75,9 @@ test("侧边栏：确认启用前只有启用说明，点启用以后说明怎�
   await waitIn(panel, "启用说明", `${appText}.includes("先看看简幕会读什么")`);
   assert.equal(await panel.evaluate(`document.querySelectorAll(".mode").length`), 0, "确认前没有模式切换");
   await tap(panel, ".activation .button");
-  await waitIn(panel, "没有视频时的说明", `${appText}.includes("打开一个 B 站视频")`);
+  await waitIn(panel, "没有视频时的说明", `${appText}.includes("打开一个 B 站或 YouTube 视频")`);
+  // 测试构建里 YouTube 开关打开；没给过授权，认不出视频的页面都带启用按钮。
+  await waitIn(panel, "YouTube 的启用按钮", `[...document.querySelectorAll(".state-block .button")].map((node) => node.textContent.trim()).join() === "在 YouTube 上启用"`);
 });
 
 test("侧边栏：没登录时时长不知道，按长视频进速览；字幕那块说明原因，给重试和导入字幕文件，标题用标签页的", async (ctx) => {

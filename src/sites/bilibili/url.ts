@@ -101,4 +101,6 @@ export const bilibiliRules: SiteRules = {
   optionalPermission: false,
   parseWatchUrl,
   canonicalUrl,
+  permissionOrigins: [],
+  scriptMatches: [],
 };

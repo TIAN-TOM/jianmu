@@ -7,7 +7,7 @@ import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, utim
 import { basename, dirname, join, posix, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildFlagProblems, readBuildFlags } from "./lib/build-flags.mjs";
-import { DAILY_FEATURES, RELEASE_FEATURES } from "../src/shared/features.ts";
+import { DAILY_FEATURES, featureFiles, RELEASE_FEATURES } from "../src/shared/features.ts";
 import { checksumLine, resolveSourceDateEpoch, sortZipEntries } from "./lib/zip-order.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -165,7 +165,7 @@ function main() {
     const { sha256 } = packageDirectory({
       dir: BUILD,
       version,
-      expectedFiles: readExpectedFiles(),
+      expectedFiles: [...readExpectedFiles(), ...featureFiles(daily ? DAILY_FEATURES : RELEASE_FEATURES)],
       output,
       epoch: sourceDateEpoch(),
       buildFlags: readBuildFlags(),

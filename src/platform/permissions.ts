@@ -19,6 +19,8 @@ export interface Permissions {
   readonly listed: () => Promise<readonly string[]>;
   /** 这个来源现在能不能访问。只查不申请：申请要用户手势，只在设置页里做。 */
   readonly contains: (origin: string) => Promise<boolean>;
+  /** 这几条都授权了才算；一条都没给时不算。只查不申请。 */
+  readonly containsAll: (origins: readonly string[]) => Promise<boolean>;
   /** 回收一条。不提供批量：一批里只要有一条回收不了，浏览器就拒绝整批。 */
   readonly revoke: (pattern: string) => Promise<boolean>;
 }
@@ -34,6 +36,7 @@ export function createPermissions(
     },
     listed: async () => (await api.getAll()).origins ?? [],
     contains: (origin) => api.contains({ origins: [origin] }),
+    containsAll: async (origins) => origins.length > 0 && (await api.contains({ origins: [...origins] })),
     revoke: (pattern) => api.remove({ origins: [pattern] }),
   };
 }

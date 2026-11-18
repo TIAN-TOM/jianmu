@@ -160,7 +160,13 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     pings: 0,
     /** 后台建的站点读取环境。 */
     siteCtxs: [] as SiteCtx[],
+    /** 动态注册和注销内容脚本，按先后记。 */
+    registrations: [] as Call<{ readonly action: "register" | "unregister"; readonly ids: readonly string[]; readonly matches?: readonly string[]; readonly js?: readonly string[] }>[],
   };
+  /** 运行时授权过的来源，测试里可以中途增减。 */
+  const granted = new Set(options.grantedOrigins ?? []);
+  /** 动态注册着的内容脚本。 */
+  const registered = new Map<string, { readonly matches: readonly string[]; readonly js: readonly string[] }>();
   const timers = manualTimers();
 
   const reading = <A extends ReturnType<typeof watchArea>>(area: A, name: string): A => ({
@@ -239,18 +245,41 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     if ((options.injectRefused ?? []).includes(target.tabId)) throw new Error("Cannot access contents of the page");
     return [];
   };
-  const scripting = { executeScript: inject, insertCSS: inject };
+  const scripting = {
+    executeScript: inject,
+    insertCSS: inject,
+    async getRegisteredContentScripts(filter?: { ids?: string[] }) {
+      return [...registered.keys()].filter((id) => !filter?.ids || filter.ids.includes(id)).map((id) => ({ id }));
+    },
+    async registerContentScripts(scripts: { id: string; matches: string[]; js: string[] }[]) {
+      for (const { id, matches, js } of scripts) {
+        if (registered.has(id)) throw new Error(`Duplicate script ID '${id}'`);
+        registered.set(id, { matches: [...matches], js: [...js] });
+        record(calls.registrations, { action: "register", ids: [id], matches: [...matches], js: [...js] });
+      }
+    },
+    async unregisterContentScripts(filter?: { ids?: string[] }) {
+      const ids = filter?.ids ?? [...registered.keys()];
+      for (const id of ids) {
+        if (!registered.has(id)) throw new Error(`Nonexistent script ID '${id}'`);
+        registered.delete(id);
+      }
+      record(calls.registrations, { action: "unregister", ids: [...ids] });
+    },
+  };
   const indexedDB = createMemoryIndexedDb();
   const permissions = {
     async getAll() {
-      return { origins: [...(options.grantedOrigins ?? [])] };
+      return { origins: [...granted] };
     },
     async contains({ origins }: { origins: string[] }) {
-      return origins.every((origin) => (options.grantedOrigins ?? []).includes(origin));
+      return origins.every((origin) => granted.has(origin));
     },
     async remove() {
       return false;
     },
+    onAdded: event(),
+    onRemoved: event(),
   };
   const fetch: ModelServiceFetch = async (url, init) => {
     calls.fetches.push(url);
@@ -270,6 +299,8 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
       return videoId ? { platform, videoId } : null;
     },
     canonicalUrl: (ref) => `${prefix}${ref.videoId}`,
+    permissionOrigins: platform === "youtube" ? [`${TUBE_ORIGIN}/*`] : [],
+    scriptMatches: platform === "youtube" ? [`${TUBE_ORIGIN}/*`] : [],
   });
   const siteRules = [rule("bilibili", `${WATCH_ORIGIN}/watch/`), rule("youtube", `${TUBE_ORIGIN}/v/`)];
 
@@ -338,6 +369,13 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     /** 后台用的那份内存数据库。 */
     indexedDB,
     fireStartup: () => fire(runtime.onStartup),
+    /** 动态注册着的内容脚本，编号到匹配规则和文件。 */
+    registered,
+    /** 用户给了或撤了一条授权（只改授权本身，后台的授权事件由测试自己调）。 */
+    grant: (origin: string) => void granted.add(origin),
+    revoke: (origin: string) => void granted.delete(origin),
+    firePermissionsAdded: (origins: readonly string[]) => fire(permissions.onAdded, { origins: [...origins] }),
+    firePermissionsRemoved: (origins: readonly string[]) => fire(permissions.onRemoved, { origins: [...origins] }),
     fireTabRemoved: (tabId: number) => fire(tabs.onRemoved, tabId, {}),
     fireTabActivated: (tabId: number, windowId: number) => fire(tabs.onActivated, { tabId, windowId }),
     fireTabUpdated: (tabId: number, change: Record<string, unknown>, tab: Record<string, unknown>) => fire(tabs.onUpdated, tabId, change, tab),

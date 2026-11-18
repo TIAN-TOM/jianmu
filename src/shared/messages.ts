@@ -4,7 +4,7 @@ import type { ErrorCode, Result } from "../core/errors.ts";
 import type { SessionView } from "../core/mode/types.ts";
 import type { LearningAnalysis } from "../core/notes/markdown.ts";
 import type { TaskView } from "../core/tasks.ts";
-import type { VideoKey } from "../core/video-ref.ts";
+import type { Platform, VideoKey } from "../core/video-ref.ts";
 import type { AiApi, AutoPauseReason } from "./messages/ai.ts";
 import type { BatchApi, BatchIn, BatchOut } from "./messages/batch.ts";
 import type { CoreApi } from "./messages/core.ts";
@@ -59,6 +59,8 @@ export type Broadcast =
   | { readonly type: "appearance.changed"; readonly accentTheme: AccentTheme; readonly inPageCard: boolean }
   | { readonly type: "activation.changed"; readonly confirmed: boolean }
   | { readonly type: "auto.changed"; readonly paused: AutoPauseReason | null }
+  /** 要用户另外授权的站（YouTube）授权有了变化：撤权时那个站上的内容脚本整套撤下，侧边栏重新认当前页。 */
+  | { readonly type: "site.changed"; readonly platform: Platform; readonly enabled: boolean }
   /** 解释当前画面：这个标签页的解释有了变化，侧边栏按标签页重读（只在构建开关打开时发）。 */
   | { readonly type: "frame.changed"; readonly tabId: number };
 

@@ -47,6 +47,14 @@ export interface Senders {
   readonly authenticate: (sender: MessageSender | undefined) => SenderCtx | null;
   /** 只在过了启用闸门、路由确实要站点或视频时调。认不出是哪个站的视频页时是 null。 */
   readonly resolveSite: (ctx: SenderCtx, sender: MessageSender) => SiteSenderCtx | null;
+  /** 内容脚本在不在要用户另外授权的站上（不管是不是视频页），在的话是哪个站。只在过了启用闸门之后调。 */
+  readonly optionalSite: (ctx: SenderCtx, sender: MessageSender) => Platform | null;
+}
+
+// 注册内容脚本用的匹配规则只写成「协议://主机/*」，按前缀比；别的写法认不出，当作不匹配。
+function coveredBy(pattern: string, url: string): boolean {
+  const prefix = /^https:\/\/[^/*]+\/\*$/.test(pattern) ? pattern.slice(0, -1) : null;
+  return prefix !== null && url.startsWith(prefix);
 }
 
 const PAGES: readonly (readonly [string, SenderCtx["kind"], PageName | undefined])[] = [
@@ -109,6 +117,13 @@ export function createSenders({ extensionId, extensionUrl, rules }: SenderDeps):
         if (video && video.platform === rule.platform) return { ...ctx, kind: "content", site: rule.platform, video };
       }
       return null;
+    },
+    optionalSite(ctx, sender) {
+      if (ctx.kind !== "content") return null;
+      const url = sender.url ?? sender.tab?.url;
+      if (typeof url !== "string") return null;
+      const rule = rules.find((candidate) => candidate.optionalPermission && candidate.scriptMatches.some((pattern) => coveredBy(pattern, url)));
+      return rule ? rule.platform : null;
     },
   };
 }

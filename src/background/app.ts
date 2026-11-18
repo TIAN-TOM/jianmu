@@ -3,26 +3,26 @@
 import { createClearGuard, type ClearGuard } from "../core/clear-guard.ts";
 import { createLimiter, type Limiter } from "../core/concurrency.ts";
 import type { IdbFactory } from "../platform/idb.ts";
-import { chromePing, createKeepAlive, type KeepAlive } from "../platform/keepalive.ts";
+import { createKeepAlive, type KeepAlive } from "../platform/keepalive.ts";
 import { createMessenger, type Messenger, type PortLike, type RuntimeMessaging } from "../platform/messaging.ts";
-import { createLocks, type Locks } from "../platform/locks.ts";
+import type { Locks } from "../platform/locks.ts";
 import { createPermissions, type PermissionsApi } from "../platform/permissions.ts";
 import { createSettingsStore, type SettingsStore } from "../platform/settings-store.ts";
-import { extensionStorage, type ExtensionStorage } from "../platform/storage.ts";
+import type { ExtensionStorage } from "../platform/storage.ts";
 import { createTabs, type Tabs, type TabsDeps } from "../platform/tabs.ts";
 import { analysisChunkOptions, qaChunkOptions } from "../shared/settings-schema.ts";
-import { siteRules } from "../sites/rules.ts";
-import { createSiteCtx, siteService } from "../sites/services.ts";
 import type { NoteRecord, OverviewRecord, QaRecord } from "../core/notes/records.ts";
 import type { StoreName } from "../shared/names.ts";
 import type { SiteRules } from "../sites/types.ts";
 import { createAiWiring, type AiWiring, type ModelServiceFetch, type PromptTable } from "./ai.ts";
 import { autoSwitchToggled, createAutoWiring } from "./auto.ts";
 import { createContentTabs, type ContentTabs } from "./content-tabs.ts";
-import { createGrants, siteOriginsFromSettings, type Grants } from "./grants.ts";
+import { createGrants, siteOriginsOf, type Grants } from "./grants.ts";
 import { createCardLimits, createPlaybackLimits, createPlayerNoteLimit, type CardLimits, type PlaybackLimits } from "./limits.ts";
 import { errorLabel, type Log } from "./log.ts";
 import { createReinject, type Reinject } from "./reinject.ts";
+import { createSiteSwitch, type SiteSwitch } from "./site-switch.ts";
+import { createRegisteredScripts, type RegisteredScriptsApi } from "../platform/registered-scripts.ts";
 import { createRouter, type AnyPortSpec, type Router } from "./router.ts";
 import { activationDropped, activationLost } from "./routes/activation.ts";
 import { appearanceChange, type StorageChange } from "./routes/appearance.ts";
@@ -56,7 +56,7 @@ export interface AppDeps {
   readonly runtime: RuntimeMessaging & TabsDeps["runtime"] & { readonly id: string; getURL(path: string): string };
   readonly tabs: TabsDeps["tabs"];
   readonly sidePanel: TabsDeps["sidePanel"];
-  readonly scripting: TabsDeps["scripting"];
+  readonly scripting: TabsDeps["scripting"] & RegisteredScriptsApi;
   readonly windows?: TabsDeps["windows"];
   readonly permissions: PermissionsApi;
   readonly storage: ExtensionStorage;
@@ -83,6 +83,8 @@ export interface App {
   /** 安装、更新、浏览器升级等都会来，reason 是浏览器给的原因。 */
   readonly onInstalled: (reason?: string) => Promise<void>;
   readonly onStartup: () => Promise<void>;
+  /** 主机授权有增减（设置页、侧边栏里启用 YouTube，或者用户在扩展管理页里改了网站权限）。 */
+  readonly onPermissionsChanged: () => Promise<void>;
   readonly onTabRemoved: (tabId: number) => void;
   readonly onStorageChanged: (changes: Readonly<Record<string, StorageChange>>, area: string) => Promise<void>;
   /** 标签页激活、任何标签页地址变了或加载完成、窗口焦点变了：打开就出结论把开着的视频标签页过一轮，前台的排最前。 */
@@ -93,32 +95,6 @@ export interface App {
 
 /** 焦点离开了全部 Chrome 窗口。 */
 const NO_WINDOW = -1;
-
-/** 浏览器里的真实依赖。只在第一个事件来了以后调；提示词由入口交进来，构建时内联。 */
-export function chromeDeps(prompts: PromptTable): AppDeps {
-  return {
-    runtime: chrome.runtime,
-    tabs: chrome.tabs,
-    sidePanel: chrome.sidePanel,
-    scripting: chrome.scripting,
-    windows: chrome.windows,
-    permissions: chrome.permissions,
-    storage: extensionStorage(),
-    indexedDB: () => globalThis.indexedDB,
-    locks: createLocks(),
-    siteRules: Object.values(siteRules),
-    sites: { service: siteService, ctx: (platform, { signal }) => createSiteCtx(platform, signal) },
-    fetch: (url, init) => fetch(url, init),
-    prompts,
-    ping: chromePing,
-    timers: {
-      now: () => Date.now(),
-      setTimeout: (callback, delayMs) => setTimeout(callback, delayMs),
-      clearTimeout: (timer) => clearTimeout(timer as number),
-    },
-    log: console,
-  };
-}
 
 interface Core {
   readonly settings: SettingsStore;
@@ -136,6 +112,8 @@ interface Core {
   /** 往已开的视频页补注入内容脚本，启用确认不算数时什么都不做。 */
   readonly reinject: Reinject;
   readonly grants: Grants;
+  /** 要用户另外授权的站：构建开关打开时才有。 */
+  readonly siteSwitch: SiteSwitch | null;
   readonly channels: ChannelStore;
   /** 观看会话。拿不到任务和模型入口。 */
   readonly sessions: Sessions;
@@ -190,7 +168,7 @@ function assembleGrants(deps: AppDeps, settings: SettingsStore): Grants {
   return createGrants({
     permissions: createPermissions(deps.permissions, () => deps.runtime.getManifest()),
     loadSettings: settings.loadPublic,
-    siteOrigins: siteOriginsFromSettings,
+    siteOrigins: () => siteOriginsOf(deps.siteRules),
     logError: (message, detail) => deps.log.error(message, errorLabel(detail)),
   });
 }
@@ -392,6 +370,19 @@ function assembleCore(deps: AppDeps): Core {
   const ai = assembleAi(deps, settings, clearGuard);
   const messenger = createMessenger(deps.runtime, tabs.send);
   const enabled = async () => (await settings.activation()).state === "current";
+  // 发行构建里这一支连同站点开关的代码一起裁掉。
+  const siteSwitch = FEATURE_YOUTUBE
+    ? createSiteSwitch({
+        rules: deps.siteRules,
+        permissions: createPermissions(deps.permissions, () => deps.runtime.getManifest()),
+        scripts: createRegisteredScripts(deps.scripting),
+        tabs,
+        messenger,
+        contentTabs,
+        enabled,
+        log: deps.log,
+      })
+    : null;
   const keepAlive = assembleKeepAlive(deps);
   const tasks = assembleTasks(deps, ai, messenger, keepAlive);
   const overviews = createOverviewStore({ driver: lazyDriver<OverviewRecord>("overviews", deps.indexedDB), guard: clearGuard, now: deps.timers.now });
@@ -414,8 +405,9 @@ function assembleCore(deps: AppDeps): Core {
     contentTabs,
     // 通知是尽力而为：查不到标签页时只发给登记过的，不让确认启用这类写入跟着报错。
     contentTargets: async () => [...new Set([...contentTabs.list(), ...(await tabs.contentScriptTabs().catch(() => []))])],
-    reinject: createReinject({ tabs, enabled, log: deps.log }),
+    reinject: createReinject({ tabs, enabled, ...(siteSwitch ? { extraScripts: siteSwitch.grantedScripts } : {}), log: deps.log }),
     grants: assembleGrants(deps, settings),
+    siteSwitch,
     ...assembleSessions(deps, clearGuard, messenger),
     transcript,
     overview,
@@ -435,6 +427,7 @@ function assembleRouter(deps: AppDeps, core: Core): Router {
     ports: deps.ports ?? createPorts(core),
     senders: createSenders({ extensionId: deps.runtime.id, extensionUrl: (path) => deps.runtime.getURL(path), rules: deps.siteRules }),
     enabled: async () => (await settings.activation()).state === "current",
+    siteGranted: async (platform) => (core.siteSwitch ? core.siteSwitch.granted(platform) : true),
     async cardEnabled() {
       try {
         return (await settings.loadPublic()).inPageCard;
@@ -463,9 +456,16 @@ export function createApp(deps: AppDeps): App {
     async onInstalled(reason) {
       // 扩展装上或换了版本，已开页面里的内容脚本不会自动换新；浏览器自己升级不影响它们。
       const reloaded = reason === "install" || reason === "update";
+      // 浏览器在扩展更新时清掉动态注册：先按当前授权重新注册，再补注入。
+      await core.siteSwitch?.sync({ fresh: reloaded });
       await Promise.all([setPanelBehavior(), reloaded ? core.reinject() : undefined]);
     },
-    onStartup: setPanelBehavior,
+    async onStartup() {
+      await Promise.all([setPanelBehavior(), core.siteSwitch?.sync()]);
+    },
+    async onPermissionsChanged() {
+      await core.siteSwitch?.permissionsChanged();
+    },
     onTabActivated: () => consider(),
     // 后台打开的标签页也算：地址变了或加载完成就把开着的视频标签页再过一遍；从它发起的翻译和整理字幕换了视频就停。
     onTabUpdated: (change, tabId) => (core.translate.tabChanged(tabId, change.url), Object.hasOwn(change, "url") || change.status === "complete" ? consider() : undefined),

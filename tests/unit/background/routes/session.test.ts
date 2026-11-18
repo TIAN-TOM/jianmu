@@ -12,6 +12,7 @@ import {
   SAMPLE_VIDEO_ID,
   senders,
   STALE_CONFIRMATION,
+  TUBE_ORIGIN,
   tubeUrl,
   watchedSender,
   watchUrl,
@@ -92,7 +93,7 @@ test("确认后内容脚本报时长和频道：开这个标签页的会话，�
 });
 
 test("内容脚本报的视频以它所在标签页的地址为准：消息里的视频对不上的不认，不开会话", async () => {
-  const world = appOn();
+  const world = appOn({ grantedOrigins: [`${TUBE_ORIGIN}/*`] });
   assert.deepEqual(await world.send("playback.info", { video: OTHER, durationSec: LONG }, content()), { ok: false, code: "VIDEO_CHANGED" });
   assert.deepEqual(await world.send("playback.milestone", { video: OTHER, playedSec: 0 }, content()), { ok: false, code: "VIDEO_CHANGED" });
   assert.deepEqual(world.sessions(), {});
