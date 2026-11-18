@@ -105,6 +105,8 @@ export const ANALYSIS_CHUNK_MODES = Object.freeze({
   auto: Object.freeze({ maxChars: ANALYSIS_CHUNK_CHARS, singleChars: ANALYSIS_SINGLE_CHARS }),
   short: Object.freeze({ maxChars: 3500, singleChars: 3500 }),
   long: Object.freeze({ maxChars: 12000, singleChars: 14000 }),
+  // 尽量整份：六七小时以内的中文字幕一块送完，给上下文长的模型用；更长的才切成几块。
+  whole: Object.freeze({ maxChars: 60_000, singleChars: 80_000 }),
 });
 export type AnalysisChunkMode = keyof typeof ANALYSIS_CHUNK_MODES;
 
@@ -428,9 +430,26 @@ export function withFeatureModel<T extends AiSettings>(settings: T, feature: str
   return model === settings.aiModel ? settings : { ...settings, aiModel: model };
 }
 
+export interface AnalysisChunkOptions {
+  readonly maxChars: number;
+  readonly singleChars: number;
+  /** 选的是「尽量整份」：超时或被嫌太长时，报错里提示换回别的档。 */
+  readonly whole?: true;
+}
+
 /** 概览分块的字符上限。分块重叠用 core/ai/chunking.ts 的默认值。 */
-export function analysisChunkOptions(settings: unknown = {}): { maxChars: number; singleChars: number } {
-  return { ...ANALYSIS_CHUNK_MODES[normalize(settings).analysisChunkMode] };
+export function analysisChunkOptions(settings: unknown = {}): AnalysisChunkOptions {
+  const mode = normalize(settings).analysisChunkMode;
+  return { ...ANALYSIS_CHUNK_MODES[mode], ...(mode === "whole" ? { whole: true as const } : {}) };
+}
+
+/**
+ * 问答检索用的分块：跟着概览的设置，只有「尽量整份」时按自动切。
+ * 问答按块挑相关的字幕，块太大就挑不出来，模型装不下时也缩不小。
+ */
+export function qaChunkOptions(settings: unknown = {}): AnalysisChunkOptions {
+  const options = analysisChunkOptions(settings);
+  return options.whole ? { ...ANALYSIS_CHUNK_MODES.auto } : options;
 }
 
 export interface SettingsCheck {

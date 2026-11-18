@@ -22,7 +22,8 @@ export interface OverviewServiceDeps {
   readonly overviews: Pick<OverviewStore, "find" | "updateRecord">;
   readonly guard: ClearGuard;
   readonly prompt: (file: string) => string;
-  readonly chunkOptions: () => Promise<ChunkPlanOptions>;
+  /** 分块大小；whole 是选了「尽量整份」，块太大失败时报错里提示换档。 */
+  readonly chunkOptions: () => Promise<ChunkPlanOptions & { readonly whole?: boolean }>;
   readonly gate: Limiter;
   readonly concurrency?: number;
   readonly broadcast: (message: Broadcast) => void;

@@ -140,6 +140,8 @@ export interface OverviewHarnessOptions {
   readonly respond?: Respond;
   readonly concurrency?: number;
   readonly gate?: Limiter;
+  /** 分块大小，不给时按较短的切。 */
+  readonly chunkOptions?: ChunkPlanOptions & { readonly whole?: boolean };
   /** 本机已有的概览。 */
   readonly records?: readonly OverviewRecord[];
   /** 换成别的取字幕来源，比如真实的取字幕服务。 */
@@ -311,7 +313,7 @@ export function overviewHarness(options: OverviewHarnessOptions = {}): OverviewH
     overviews,
     guard,
     prompt,
-    chunkOptions: async () => SHORT,
+    chunkOptions: async () => options.chunkOptions ?? SHORT,
     gate,
     concurrency: options.concurrency ?? 2,
     broadcast: (message) => void broadcasts.push(message),

@@ -1168,3 +1168,35 @@ test("重新生成后这次一个重点都没有：清掉上一版的重点", as
   const stored = await h.record();
   assert.equal(stored?.analysis.verdict && "keyStarts" in stored.analysis.verdict, false);
 });
+
+// ============================================================
+// 「尽量整份」那一档
+// ============================================================
+
+const WHOLE = { maxChars: 60_000, singleChars: 80_000, whole: true } as const;
+
+test("「尽量整份」超时或模型装不下：报块太大，下一步提示换回别的档", async () => {
+  const timedOut = (): Error => Object.assign(new Error("模型太久没有回应。"), { code: "AI_HARD_TIMEOUT" });
+  const tooLong = (): Error => Object.assign(new Error("This model's maximum context length is 32768 tokens."), { status: 400 });
+  for (const failure of [timedOut, tooLong]) {
+    const h = overviewHarness({ chunkOptions: WHOLE, respond: ({ isVerdict }) => { if (!isVerdict) throw failure(); return undefined; } });
+    assert.equal(codeOf(await h.generate().result), "WHOLE_CHUNK_TOO_BIG");
+    assert.equal(h.asks.filter((ask) => !ask.isVerdict).length >= 1, true);
+  }
+});
+
+test("别的档位遇到同样的超时照旧报超时；「尽量整份」遇到别的失败也照旧报", async () => {
+  const timedOut = (): Error => Object.assign(new Error("模型太久没有回应。"), { code: "AI_HARD_TIMEOUT" });
+  const normal = overviewHarness({ respond: ({ isVerdict }) => { if (!isVerdict) throw timedOut(); return undefined; } });
+  assert.equal(codeOf(await normal.generate().result), "AI_HARD_TIMEOUT");
+  const keyError = (): Error => Object.assign(new Error("bad key"), { status: 401 });
+  const whole = overviewHarness({ chunkOptions: WHOLE, respond: ({ isVerdict }) => { if (!isVerdict) throw keyError(); return undefined; } });
+  assert.equal(codeOf(await whole.generate().result), "INVALID_AI_KEY");
+});
+
+test("「尽量整份」：两块的字幕一次请求写完章节", async () => {
+  const h = overviewHarness({ chunkOptions: WHOLE });
+  const result = value(await h.generate().result);
+  assert.equal(result.chunkCount, 1);
+  assert.equal(h.asks.filter((ask) => !ask.isVerdict).length, 1);
+});

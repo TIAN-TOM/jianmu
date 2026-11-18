@@ -3,6 +3,7 @@
 // 不再写结论；重新生成已有的概览时停下不覆盖原来那份；因为清除本机数据停下的什么也不写。
 import { chunkFailureRanges, chunksForFailureRanges, mergeRetryIntoAnalysis, planAnalysisChunks, truncatedChunkRanges, withTruncatedRanges, type ChunkPlanOptions, type FailureRange, type StoredRange } from "../../../core/ai/chunking.ts";
 import { throwIfTaskCanceled } from "../../../core/ai/transport/index.ts";
+import { isInputTooLong } from "../../../core/ai/too-long.ts";
 import { hasAnalysisContent } from "../../../core/ai/verdict.ts";
 import type { ClearEpoch, ClearGuard } from "../../../core/clear-guard.ts";
 import type { Limiter } from "../../../core/concurrency.ts";
@@ -32,7 +33,8 @@ export interface GenerateDeps {
   readonly guard: ClearGuard;
   readonly prompt: (file: string) => string;
   /** 概览分块的大小，按设置。 */
-  readonly chunkOptions: () => Promise<ChunkPlanOptions>;
+  /** 分块大小；whole 是选了「尽量整份」，块太大失败时报错里提示换档。 */
+  readonly chunkOptions: () => Promise<ChunkPlanOptions & { readonly whole?: boolean }>;
   /** 几个视频同时生成时共用的并发闸门。 */
   readonly gate: Limiter;
   readonly concurrency: number;
@@ -63,9 +65,16 @@ const bare = ({ code, detail, retryAfterSec }: Failure): Failure => ({
   ...(retryAfterSec === undefined ? {} : { retryAfterSec }),
 });
 
-/** 抛出来的错误换成结果：概览自己的码照用，其余按模型服务的错误归类。 */
-function failureOf(error: unknown): Failure {
+// 「尽量整份」的块太大时常见的两种失败：等太久被掐断，或者模型一次装不下。
+const TOO_BIG_CODES: ReadonlySet<unknown> = new Set(["AI_HARD_TIMEOUT", "AI_IDLE_TIMEOUT"]);
+
+/**
+ * 抛出来的错误换成结果：概览自己的码照用，其余按模型服务的错误归类。
+ * 选了「尽量整份」又是块太大的那类失败时，单独报，下一步提示换回别的档。
+ */
+function failureOf(error: unknown, whole = false): Failure {
   const code = (error as { readonly code?: unknown } | null)?.code;
+  if (whole && (TOO_BIG_CODES.has(code) || isInputTooLong(error))) return fail("WHOLE_CHUNK_TOO_BIG");
   if (code === "EMPTY_CHUNK") return fail("EMPTY_ANALYSIS");
   if (code === "ANALYSIS_PARSE_FAILED" && isErrorCode(code)) return fail(code);
   return aiFailure(error);
@@ -198,9 +207,12 @@ export function createGenerator(deps: GenerateDeps) {
       if (!snapshot.ok) return snapshot;
       const view = snapshot.value;
       const { run } = job;
+      let whole = false;
       try {
         throwIfTaskCanceled(run.signal);
-        const chunks = planAnalysisChunks(view.transcript.segments, await deps.chunkOptions());
+        const options = await deps.chunkOptions();
+        whole = options.whole === true;
+        const chunks = planAnalysisChunks(view.transcript.segments, options);
         if (!chunks.length) return fail("NO_TRANSCRIPT");
         const common = commonOf(view);
         const totalDuration = totalOf(view, chunks);
@@ -231,7 +243,7 @@ export function createGenerator(deps: GenerateDeps) {
         return await finish(job, finishing);
       } catch (error) {
         logFailure("概览生成", error, run.signal);
-        return failureOf(error);
+        return failureOf(error, whole);
       }
     },
 
@@ -249,9 +261,12 @@ export function createGenerator(deps: GenerateDeps) {
       if (basis?.source === "legacy-unknown") return fail("FAILED_CHUNKS_MISMATCH");
       if (basis?.source === "transcript" && basis.transcript.fingerprint !== view.transcript.ref.fingerprint) return fail("FAILED_CHUNKS_MISMATCH");
       const { run } = job;
+      let whole = false;
       try {
         throwIfTaskCanceled(run.signal);
-        const chunks = planAnalysisChunks(view.transcript.segments, await deps.chunkOptions());
+        const options = await deps.chunkOptions();
+        whole = options.whole === true;
+        const chunks = planAnalysisChunks(view.transcript.segments, options);
         const selected = chunksForFailureRanges(chunks, stored);
         if (!selected.length) return fail("FAILED_CHUNKS_MISMATCH");
         const common = commonOf(view);
@@ -283,7 +298,7 @@ export function createGenerator(deps: GenerateDeps) {
         return done.ok ? ok({ ...done.value, recoveredChunks: parts.length }) : done;
       } catch (error) {
         logFailure("补失败块", error, run.signal);
-        return failureOf(error);
+        return failureOf(error, whole);
       }
     },
   };
