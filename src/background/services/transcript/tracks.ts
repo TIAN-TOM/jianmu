@@ -6,8 +6,11 @@ import { fail, type Failure } from "../../../core/errors.ts";
 import type { CaptionTrack, Cue, SiteCtx, SiteResult, SiteService, VideoInfo } from "../../../sites/types.ts";
 import type { Timers } from "../../tasks.ts";
 
-/** 界面 30 秒放弃，前面的视频信息和列轨正常一两秒，留出余量。单个文件另有读取实现自己的上限。 */
-export const DOWNLOAD_BUDGET_MS = 15_000;
+/**
+ * 侧边栏等完整读取不设时限；卡片的轻量读取不下载字幕文件，并进完整读取也最多等几秒，所以预算不受界面限制。
+ * 30 秒够两三条字幕文件各试一次。单个文件另有读取实现自己的上限。
+ */
+export const DOWNLOAD_BUDGET_MS = 30_000;
 export const MIN_ATTEMPT_MS = 1_000;
 
 function baseLang(lang: string): string {
