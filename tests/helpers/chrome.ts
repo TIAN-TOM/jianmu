@@ -90,6 +90,12 @@ export interface Call<T> {
   readonly whileConfirmed: boolean;
 }
 
+/** 端口的页面那头：收后台发的消息和后台断开。 */
+export interface PortPeer {
+  onPost(message: unknown): void;
+  onDisconnect(): void;
+}
+
 /** 一条端口连接：后台那头用 postMessage、disconnect 和两个事件，页面那头用 send、close。 */
 export interface FakePort {
   readonly name: string;
@@ -320,7 +326,8 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     });
   }
 
-  function connect(name: string, sender: MessageSender): FakePort {
+  /** page 给了就把后台发的消息和后台断开转给页面那头。 */
+  function connect(name: string, sender: MessageSender, page?: PortPeer): FakePort {
     let closedByPage = false;
     const port: FakePort = {
       name,
@@ -331,9 +338,13 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
       onDisconnect: event(),
       postMessage(message) {
         if (port.disconnected || closedByPage) throw new Error("端口已经断开");
-        port.posted.push(copy(message));
+        const copied = copy(message);
+        port.posted.push(copied);
+        // 浏览器另起一轮把消息交给页面。
+        if (page) setImmediate(() => page.onPost(copy(copied)));
       },
       disconnect: () => {
+        if (page && !port.disconnected && !closedByPage) setImmediate(() => page.onDisconnect());
         port.disconnected = true;
       },
       send(message) {

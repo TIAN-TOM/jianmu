@@ -10,6 +10,16 @@ export interface MergeResult<T> {
   readonly changed: T[];
   readonly added: number;
   readonly updated: number;
+  /** 新增和更新的主键：分段导入时页面按主键去重，同一条在后面几段又改了也只算一次。 */
+  readonly addedKeys: string[];
+  readonly updatedKeys: string[];
+}
+
+function resultOf<T>(byKey: ReadonlyMap<string, T>, localKeys: ReadonlySet<string>, changed: ReadonlyMap<string, T>): MergeResult<T> {
+  const addedKeys: string[] = [];
+  const updatedKeys: string[] = [];
+  for (const key of changed.keys()) (localKeys.has(key) ? updatedKeys : addedKeys).push(key);
+  return { all: [...byKey.values()], changed: [...changed.values()], added: addedKeys.length, updated: updatedKeys.length, addedKeys, updatedKeys };
 }
 
 export interface MergedBackup {
@@ -36,8 +46,7 @@ function mergeBy<T>(
     byKey.set(key, record);
     changed.set(key, record);
   }
-  const updated = [...changed.keys()].filter((key) => localKeys.has(key)).length;
-  return { all: [...byKey.values()], changed: [...changed.values()], added: changed.size - updated, updated };
+  return resultOf(byKey, localKeys, changed);
 }
 
 // 严格大于：重放同一份备份不会再写一遍，导出以后本机又改过的也不会被备份盖回去。
@@ -86,12 +95,12 @@ export function mergeTranslations(local: readonly TranslationRecord[], incoming:
       if (!Object.hasOwn(current.segments, entry[0])) missing.push(entry);
     }
     if (!missing.length) continue;
-    const merged: TranslationRecord = { ...current, segments: { ...Object.fromEntries(missing), ...current.segments } };
+    // 补的段接在本机的后面：分段导入时一条译文分几次补进来，段的顺序和文件里一样。
+    const merged: TranslationRecord = { ...current, segments: { ...current.segments, ...Object.fromEntries(missing) } };
     byKey.set(record.id, merged);
     changed.set(record.id, merged);
   }
-  const updated = [...changed.keys()].filter((key) => localKeys.has(key)).length;
-  return { all: [...byKey.values()], changed: [...changed.values()], added: changed.size - updated, updated };
+  return resultOf(byKey, localKeys, changed);
 }
 
 export function mergeBackup(local: BackupContents, incoming: BackupContents): MergedBackup {

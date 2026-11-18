@@ -171,7 +171,7 @@ function DataSection({ state, enabled }: { readonly state: OptionsState; readonl
                 const input = event.currentTarget;
                 const chosen = input.files?.[0];
                 input.value = "";
-                if (chosen) await state.importBackup(await chosen.text());
+                if (chosen) await state.importBackup(() => chosen.text());
               }}
             />
           </>

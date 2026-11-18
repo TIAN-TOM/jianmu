@@ -1,5 +1,6 @@
 // 设置页：确认启用之前只有启用说明和资料一节；确认以后能保存服务商、密钥和模型，拉模型列表、测试连接对着模拟的模型服务走通，
-// 密钥只进会话存储；本机 http 地址不填密钥也能保存、拉列表和测试连接；导出的备份清除全部数据后能再导回来。各测试开头先清除全部数据，从没启用的状态开始。
+// 密钥只进会话存储；本机 http 地址不填密钥也能保存、拉列表和测试连接；导出的备份清除全部数据后能再导回来，
+// 超过单条消息上限的备份也一样。各测试开头先清除全部数据，从没启用的状态开始。
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { videoKey } from "../../src/core/video-ref.ts";
@@ -60,9 +61,9 @@ const fill = (page, selector, value) =>
 const statusOf = (page, section) => page.evaluate(`document.querySelector("#${section} .status")?.textContent ?? ""`);
 
 /** 等某一节的状态行以这段文字开头；等不到时把当时的状态行写进报错。 */
-async function statusStarts(page, section, prefix) {
+async function statusStarts(page, section, prefix, timeoutMs = undefined) {
   try {
-    await page.waitFor(`状态行出现「${prefix}」`, `(document.querySelector("#${section} .status")?.textContent ?? "").startsWith(${JSON.stringify(prefix)})`);
+    await page.waitFor(`状态行出现「${prefix}」`, `(document.querySelector("#${section} .status")?.textContent ?? "").startsWith(${JSON.stringify(prefix)})`, timeoutMs);
   } catch (error) {
     throw new Error(`${error.message}；状态行是「${await statusOf(page, section)}」`);
   }
@@ -208,34 +209,53 @@ test("设置页：打开就出结论默认关；没同意时勾开关先列出�
   assert.equal(await page.overflowsX(), false);
 });
 
+/** 记下设置页存成文件的内容：导出时页面交给浏览器下载的那份。 */
+const keepDownloads = (page) =>
+  page.evaluate(`(() => {
+    const original = URL.createObjectURL.bind(URL);
+    window.__downloads = [];
+    URL.createObjectURL = (blob) => {
+      window.__downloads.push(blob);
+      return original(blob);
+    };
+    return true;
+  })()`);
+
+/** 把一份文件交给「恢复备份」：expression 在页面里算出一个 Blob。 */
+const chooseBackup = (page, expression) =>
+  page.evaluate(`(async () => {
+    const blob = await (${expression});
+    const input = document.getElementById("backupImportInput");
+    const files = new DataTransfer();
+    files.items.add(new File([blob], "backup.json", { type: "application/json" }));
+    input.files = files.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    return true;
+  })()`);
+
+async function clearAllAndEnable(page) {
+  await clickButton(page, "清除全部数据");
+  await clickButton(page, "全部清除");
+  await page.waitFor("清除完成，回到没启用", `document.querySelector("#learning-data .status").textContent.startsWith("已清除") && document.querySelector(".activation") !== null`);
+  assert.deepEqual((await send(page, "notes.list", {})).code, "NOT_ENABLED");
+  await enable(page);
+}
+
 test("设置页：导出的备份清除全部数据后能再导回来", async ({ open }) => {
   const page = await freshOptions(open);
   await enable(page);
+  await keepDownloads(page);
   const saved = await send(page, "notes.save", { video: VIDEO, atSec: 30, text: "页面测试写的笔记" });
   assert.equal(saved.ok, true, JSON.stringify(saved));
 
   await clickButton(page, "导出备份");
   await statusStarts(page, "learning-data", "已导出 1 条笔记");
-  const exported = await send(page, "backup.export", {});
-  assert.equal(exported.ok, true);
+  const exported = JSON.parse(await page.evaluate(`window.__downloads.at(-1).text()`));
+  assert.equal(exported.kind, "jianmu-backup");
+  assert.equal(exported.notes.length, 1);
 
-  await clickButton(page, "清除全部数据");
-  await clickButton(page, "全部清除");
-  await page.waitFor("清除完成，回到没启用", `document.querySelector("#learning-data .status").textContent.startsWith("已清除") && document.querySelector(".activation") !== null`);
-  assert.deepEqual((await send(page, "notes.list", {})).code, "NOT_ENABLED");
-
-  await enable(page);
-  await page.call(
-    `(text) => {
-      const input = document.getElementById("backupImportInput");
-      const files = new DataTransfer();
-      files.items.add(new File([text], "backup.json", { type: "application/json" }));
-      input.files = files.files;
-      input.dispatchEvent(new Event("change", { bubbles: true }));
-      return true;
-    }`,
-    JSON.stringify(exported.value),
-  );
+  await clearAllAndEnable(page);
+  await chooseBackup(page, `window.__downloads.at(-1)`);
   assert.match(await statusStarts(page, "learning-data", "合并完成"), /笔记新增 1 条/);
   const notes = await send(page, "notes.list", {});
   assert.deepEqual(
@@ -243,6 +263,77 @@ test("设置页：导出的备份清除全部数据后能再导回来", async ({
     ["页面测试写的笔记"],
   );
 });
+
+test(
+  "设置页：超过单条消息上限的备份分段传，导入、导出、清除后再导回来条数都对得上",
+  async ({ open }) => {
+    const page = await freshOptions(open);
+    await enable(page);
+    await keepDownloads(page);
+    // 自己造一份九十多 MB 的备份：五十份译文，每份六百段、每段一千来字；再加两百条笔记。
+    await page.call(
+      `(video) => {
+        const line = "这一段是页面测试造的译文，只用来把备份撑大。".repeat(48);
+        const translations = Array.from({ length: 50 }, (_, index) => {
+          const transcript = { video, kind: "auto", lang: "zh-CN", fingerprint: "fp-page-" + index };
+          return {
+            id: video + "|" + transcript.fingerprint + "|en",
+            video,
+            transcript,
+            target: "en",
+            segments: Object.fromEntries(Array.from({ length: 600 }, (_, segment) => [(segment + 1).toString(16).padStart(8, "f"), segment + " " + line])),
+            derived: { basis: { source: "transcript", transcript }, gen: { feature: "rewrite", promptVersion: "1", model: "sample-model", effort: "off" } },
+            updatedAt: 100,
+          };
+        });
+        const notes = Array.from({ length: 200 }, (_, index) => ({
+          id: "note_page-" + index,
+          kind: "note",
+          origin: "user",
+          video,
+          snapshot: { title: "页面测试", author: "样例" },
+          atSec: index,
+          text: "第 " + index + " 条笔记",
+          createdAt: 1,
+          updatedAt: 2,
+        }));
+        window.__big = new Blob([JSON.stringify({ kind: "jianmu-backup", version: 2, exportedAt: "2026-11-19T00:00:00.000Z", notes, overviews: [], qa: [], translations })]);
+        return true;
+      }`,
+      VIDEO,
+    );
+    const MESSAGE_LIMIT = 64 * 1024 * 1024;
+    assert.ok((await page.evaluate(`window.__big.size`)) > MESSAGE_LIMIT * 1.2, "备份要明显超过单条消息的上限");
+    // 前提核对：整份放进一条消息，浏览器发不出去。
+    assert.match(
+      await page.evaluate(`window.__big.text().then((text) => chrome.runtime.sendMessage({ type: "build.id", req: text })).then(() => "发出去了", (error) => String(error))`),
+      /exceeded maximum allowed size of 64MiB/,
+    );
+
+    await chooseBackup(page, `window.__big`);
+    const first = await statusStarts(page, "learning-data", "合并完成", 120_000);
+    assert.match(first, /笔记新增 200 条、更新 0 条/);
+    assert.match(first, /译文和整理过的字幕新增 50 份、补上 0 份/);
+    assert.doesNotMatch(first, /跳过/);
+
+    await clickButton(page, "导出备份");
+    assert.match(await statusStarts(page, "learning-data", "已导出", 120_000), /已导出 200 条笔记、0 份概览、0 条问答、50 份译文/);
+    assert.ok((await page.evaluate(`window.__downloads.at(-1).size`)) > MESSAGE_LIMIT, "导出的文件也超过单条消息的上限");
+
+    await clearAllAndEnable(page);
+    await chooseBackup(page, `window.__downloads.at(-1)`);
+    const restored = await statusStarts(page, "learning-data", "合并完成", 120_000);
+    assert.match(restored, /笔记新增 200 条、更新 0 条/);
+    assert.match(restored, /译文和整理过的字幕新增 50 份、补上 0 份/);
+    assert.equal((await send(page, "notes.list", {})).value.notes.length, 200);
+
+    // 再导一次：什么都不新增。
+    await chooseBackup(page, `window.__downloads.at(-1)`);
+    await page.waitFor("第二次导入合并完", `(document.querySelector("#learning-data .status")?.textContent ?? "").includes("笔记新增 0 条")`, 120_000);
+    assert.equal(await statusOf(page, "learning-data"), "合并完成：笔记新增 0 条、更新 0 条，概览新增 0 份、更新 0 份，问答新增 0 条。");
+  },
+  { timeoutMs: 300_000 },
+);
 
 test("设置页：推理强度新安装全关；每项功能单独选，实际档位和选的不一样时旁边标出，保存后重新打开照旧", async ({ open }) => {
   const page = await freshOptions(open);

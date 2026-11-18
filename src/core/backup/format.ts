@@ -53,6 +53,27 @@ export function buildBackup(source: BackupSource, exportedAt: number): Backup {
   };
 }
 
+/**
+ * 导出的文件按块写出，拼起来和 JSON.stringify(backup, null, 2) 加一个换行一字不差。
+ * 一条记录一块：备份再大也不用先拼成一个字符串，浏览器单个字符串有长度上限。
+ */
+export function backupText(backup: Backup): string[] {
+  const chunks = [`{\n  "kind": ${JSON.stringify(backup.kind)},\n  "version": ${JSON.stringify(backup.version)},\n  "exportedAt": ${JSON.stringify(backup.exportedAt)}`];
+  for (const kind of RECORD_KINDS) {
+    const list: readonly unknown[] = backup[kind];
+    if (!list.length) {
+      chunks.push(`,\n  ${JSON.stringify(kind)}: []`);
+      continue;
+    }
+    chunks.push(`,\n  ${JSON.stringify(kind)}: [`);
+    // 字符串里的换行写成转义，JSON 文本里的换行都是缩进用的。
+    list.forEach((record, index) => chunks.push(`${index ? "," : ""}\n    ${JSON.stringify(record, null, 2).replaceAll("\n", "\n    ")}`));
+    chunks.push("\n  ]");
+  }
+  chunks.push("\n}\n");
+  return chunks;
+}
+
 function readCurrent(payload: Fields): Result<ImportedBackup> {
   const { version } = payload;
   if (typeof version !== "number" || !Number.isSafeInteger(version) || version < 1) return fail("BACKUP_UNRECOGNIZED");

@@ -8,7 +8,7 @@ import type { Platform, VideoKey } from "../core/video-ref.ts";
 import type { AiApi, AutoPauseReason } from "./messages/ai.ts";
 import type { BatchApi, BatchIn, BatchOut } from "./messages/batch.ts";
 import type { CoreApi } from "./messages/core.ts";
-import type { DataApi } from "./messages/data.ts";
+import type { BackupExportIn, BackupExportOut, BackupImportIn, BackupImportOut, DataApi } from "./messages/data.ts";
 import type { FrameApi } from "./messages/frame.ts";
 import type { GrantsApi } from "./messages/grants.ts";
 import type { ImportsApi } from "./messages/imports.ts";
@@ -66,13 +66,15 @@ export type Broadcast =
 
 export type BroadcastType = Broadcast["type"];
 
-/** 页面和后台之间的长连接：翻译和批量处理。 */
-export type PortName = "translate" | "batch";
+/** 页面和后台之间的长连接：翻译、批量处理，导出和导入备份。 */
+export type PortName = "translate" | "batch" | "backup.export" | "backup.import";
 
 /** 各端口两个方向的消息，由各领域在 messages/ 下定义后填进来。 */
 export interface PortApi {
   translate: { readonly in: TranslateIn; readonly out: TranslateOut };
   batch: { readonly in: BatchIn; readonly out: BatchOut };
+  "backup.export": { readonly in: BackupExportIn; readonly out: BackupExportOut };
+  "backup.import": { readonly in: BackupImportIn; readonly out: BackupImportOut };
 }
 
 /** 后台在端口上回页面的通知：这条消息没收，或者启用失效、马上断开。 */

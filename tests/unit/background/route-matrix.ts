@@ -58,8 +58,8 @@ export const ROUTE_MATRIX: readonly MatrixRow[] = [
   ...row(["card.setOverride"], { ...NO_PAGES, card: true, content: [], beforeEnable: false }),
   ...row(["channels.clear"], { ...OPTIONS_ONLY, card: false, content: [], beforeEnable: false }),
   ...row(["grants.release"], { ...OPTIONS_ONLY, card: false, content: [], beforeEnable: true }),
-  ...row(["backup.export"], { ...OPTIONS_ONLY, card: false, content: [], beforeEnable: true }),
-  ...row(["backup.import"], { ...OPTIONS_ONLY, card: false, content: [], beforeEnable: false }),
+  ...row(["backup.export"], { ...OPTIONS_ONLY, card: false, content: [], beforeEnable: true }, true),
+  ...row(["backup.import"], { ...OPTIONS_ONLY, card: false, content: [], beforeEnable: false }, true),
   ...row(["data.clear"], { ...OPTIONS_ONLY, card: false, content: [], beforeEnable: true }),
   // 解释当前画面：只在构建开关打开时有，测试构建打开了开关。
   ...row(["frame.explain", "frame.recent"], { ...PANEL_ONLY, card: false, content: [], beforeEnable: false }),
