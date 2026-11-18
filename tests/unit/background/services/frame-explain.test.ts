@@ -10,6 +10,7 @@ import {
   FRAME_WINDOW_MS,
   frameContext,
   KEEP_MS,
+  PREFLIGHT_KEEPALIVE_MS,
 } from "../../../../src/background/services/frame-explain.ts";
 import { createTaskRunner } from "../../../../src/background/tasks.ts";
 import { createClearGuard } from "../../../../src/core/clear-guard.ts";
@@ -55,6 +56,8 @@ function setup(options: Options = {}) {
   const probed: string[] = [];
   const session = memoryStorage(options.session ?? {});
   let ensured = 0;
+  const held: number[] = [];
+  let released = 0;
   const service = createFrameExplainService({
     tasks,
     ai: fake.ai,
@@ -85,6 +88,16 @@ function setup(options: Options = {}) {
     },
     clearGuard,
     session,
+    keepAlive: {
+      during: async (budgetMs, work) => {
+        held.push(budgetMs);
+        try {
+          return await work();
+        } finally {
+          released += 1;
+        }
+      },
+    },
     ask: async (tabId, message) => {
       asked.push({ tabId, message });
       await options.duringCapture?.();
@@ -104,7 +117,7 @@ function setup(options: Options = {}) {
     assert.ok(latest);
     return latest;
   };
-  return { fake, service, asked, broadcasts, probed, timers, run, clearGuard, session, ensured: () => ensured };
+  return { fake, service, asked, broadcasts, probed, timers, run, clearGuard, session, ensured: () => ensured, held, released: () => released };
 }
 
 test("能看图：向标签页要一帧，图在前、提示词在后发给画面分析的模型；结果记下，带时间和尺寸", async () => {
@@ -295,4 +308,11 @@ test("清除本机数据以后，之前的解释不再列出，也不写回会�
   await h.clearGuard.clear("all", () => h.session.remove(FRAME_RESULTS_KEY));
   assert.deepEqual(await h.service.recent(TAB), []);
   assert.equal(h.session.data[FRAME_RESULTS_KEY], undefined);
+});
+
+test("登记任务之前的几步也撑着后台：整段包在一份有上限的保活里，做完就撤", async () => {
+  const h = setup();
+  await h.run();
+  assert.deepEqual(h.held, [PREFLIGHT_KEEPALIVE_MS]);
+  assert.equal(h.released(), 1);
 });

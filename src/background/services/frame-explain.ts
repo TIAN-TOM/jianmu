@@ -11,6 +11,7 @@ import { fail, ok, type ErrorCode, type Failure, type Result } from "../../core/
 import { sha256Hex } from "../../core/task-keys.ts";
 import type { ClearGuard } from "../../core/clear-guard.ts";
 import type { FrozenGen } from "../../core/tasks.ts";
+import type { KeepAlive } from "../../platform/keepalive.ts";
 import type { Messenger } from "../../platform/messaging.ts";
 import type { StorageArea } from "../../platform/storage.ts";
 import type { Tabs } from "../../platform/tabs.ts";
@@ -36,6 +37,8 @@ export const FRAME_MAX_EDGE = 1456;
 export const FRAME_PREFIX = "data:image/jpeg;base64,";
 export const FRAME_MAX_CHARS = 4_194_304; // 4 MB；写成字面量，算式会让模块留在发行包里
 const FRAME_MAX_SIDE = 4096;
+/** 登记任务之前那几步最多撑多久：探测、核对视频信息、读字幕各自都有超时，加起来留足。 */
+export const PREFLIGHT_KEEPALIVE_MS = 180_000;
 /** 每个标签页每分钟最多解释几次。 */
 export const FRAME_LIMIT = 6;
 export const FRAME_WINDOW_MS = 60_000;
@@ -114,6 +117,8 @@ export interface FrameExplainDeps {
   readonly clearGuard: Pick<ClearGuard, "epoch" | "clearedSince" | "track">;
   /** 扩展的会话存储：只在内存，浏览器关闭就清空。 */
   readonly session: Pick<StorageArea, "get" | "set">;
+  /** 登记任务之前的几步（查配置、探测、核对视频信息、读字幕、截帧）也要撑着后台，不然慢的探测会被回收打断。 */
+  readonly keepAlive: Pick<KeepAlive, "during">;
   readonly ask: (tabId: number, message: unknown) => Promise<unknown>;
   readonly prompt: (file: string) => string;
   readonly broadcast: (message: Broadcast) => void;
@@ -330,7 +335,9 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
       entries.set(entry.id, entry);
       persist();
       deps.broadcast({ type: "frame.changed", tabId });
-      const done = work(entry.id, tabId, video)
+      // 登记任务以后由任务自己的保活接手；这一份只管前面几步，到点就撤。
+      const done = deps.keepAlive
+        .during(PREFLIGHT_KEEPALIVE_MS, () => work(entry.id, tabId, video))
         .catch((error: unknown) => {
           deps.log.error("解释画面出错", errorLabel(error));
           failed(entry.id, fail("AI_REQUEST_FAILED"));
@@ -359,6 +366,7 @@ export function createFrameParts(deps: {
   readonly ai: Pick<AiWiring, "freeze" | "configCheck" | "capabilities" | "forTask" | "prompt">;
   readonly storage: Pick<StorageArea, "get" | "set">;
   readonly session: Pick<StorageArea, "get" | "set">;
+  readonly keepAlive: Pick<KeepAlive, "during">;
   readonly clearGuard: ClearGuard;
   readonly transcript: FrameExplainDeps["transcript"];
   readonly tabs: Pick<Tabs, "ask">;
@@ -375,6 +383,7 @@ export function createFrameParts(deps: {
     transcript: deps.transcript,
     clearGuard: deps.clearGuard,
     session: deps.session,
+    keepAlive: deps.keepAlive,
     ask: deps.tabs.ask,
     prompt: ai.prompt,
     broadcast: (message) => void messenger.toPages(message),
