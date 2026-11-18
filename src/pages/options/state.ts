@@ -4,6 +4,7 @@ import { signal, type ReadonlySignal } from "@preact/signals";
 import { backupText, readBackup } from "../../core/backup/format.ts";
 import type { ClearScope } from "../../core/clear-guard.ts";
 import { describe, isErrorCode, type Failure } from "../../core/errors.ts";
+import { isLocalBaseUrl } from "../../core/ai/provider/index.ts";
 import { AI_ERROR_TEXT } from "../../core/errors/ai.ts";
 import type { LoadedSettings, SettingsPatch, SettingsStore, WrittenSettings } from "../../platform/settings-store.ts";
 import type { EffortPreviewItem } from "../../shared/messages/ai.ts";
@@ -132,6 +133,8 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       void refreshEfforts();
       const check = validateForSave(settings);
       if (!check.ok) say("actions", check.errors.join(" "), "error");
+      // 同意过数据说明、要密钥的服务却没有密钥：多半是重启或更新以后清空了，打开设置页就在密钥框下面说，不用自己找原因。
+      else if (settings.dataConsentVersion > 0 && !settings.aiApiKey && !isLocalBaseUrl(settings.aiBaseUrl)) ai.sayKeyMissing();
     } catch (error) {
       loadError.value = `读不出设置：${errorText(error)}`;
     }
@@ -318,6 +321,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
     editKey(key) {
       const current = form.peek();
       if (current) setForm({ ...current, aiApiKey: key, keyTyped: true });
+      ai.keyTyped();
     },
     editFeatureModel(id, model) {
       const current = form.peek();

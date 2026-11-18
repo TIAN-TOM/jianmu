@@ -91,9 +91,13 @@ export function chosenFeatures(form: AiForm): FeatureSlotId[] {
   return FEATURE_MODEL_SLOTS.filter(({ id }) => (form.featureModels[id] ?? "").trim() !== "").map(({ id }) => id);
 }
 
-/** 国内／海外快捷选择：还没填密钥、停在快捷预设之一、没按功能另选模型时才显示。 */
+/**
+ * 国内／海外快捷选择：还没填密钥、停在快捷预设之一、没按功能另选模型、也没同意过数据说明时才显示。
+ * 同意过的人配过一轮了：密钥随重启清空以后不再摆，免得点一下把服务商换掉。
+ */
 export function showsRegionChooser(saved: LoadedSettings): boolean {
   if (saved.aiApiKey) return false;
+  if (saved.dataConsentVersion > 0) return false;
   if (Object.keys(saved.featureModels).length > 0) return false;
   return REGION_PRESETS.some((region) => region.presetId === saved.presetId);
 }

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { effortNoteText, formOf, serviceChanged, settingsInput, showsRegionChooser, withAddress, withPreset } from "../../../../src/pages/options/form.ts";
 import type { LoadedSettings } from "../../../../src/platform/settings-store.ts";
-import { DEFAULTS, featureModelsOwnerOf, normalize } from "../../../../src/shared/settings-schema.ts";
+import { DATA_CONSENT_CONFIRMED, DEFAULTS, featureModelsOwnerOf, normalize } from "../../../../src/shared/settings-schema.ts";
 
 function savedWith(input: Record<string, unknown>): LoadedSettings {
   return { ...normalize({ ...DEFAULTS, ...input }), settingsRevision: "r1" };
@@ -44,8 +44,10 @@ test("新填的密钥归到表单当前的地址；没动过的密钥按已存�
   assert.deepEqual(normalize({ ...untouched, aiApiKeyOrigin: DEEPSEEK.aiApiKeyOrigin }).featureModels, { qa: "deepseek-reasoner" });
 });
 
-test("快捷选择只给还没填密钥、停在快捷预设上、没另选模型的人", () => {
+test("快捷选择只给还没填密钥、停在快捷预设上、没另选模型、也没同意过数据说明的人", () => {
   assert.equal(showsRegionChooser(savedWith({})), true);
+  // 同意过说明的人配过一轮了：重启以后密钥清空，不再摆「先选一类服务」，免得点一下把服务商换掉。
+  assert.equal(showsRegionChooser(savedWith({ ...DATA_CONSENT_CONFIRMED })), false);
   assert.equal(showsRegionChooser(DEEPSEEK), false);
   assert.equal(showsRegionChooser(savedWith({ presetId: "openai" })), false);
   assert.equal(showsRegionChooser(savedWith({ featureModels: { qa: "x" } })), false);

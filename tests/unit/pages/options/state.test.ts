@@ -331,6 +331,29 @@ test("没勾同意就保存，提示还差同意；勾上以后那句提示跟�
   assert.match(status()?.text ?? "", /保存并授权/);
 });
 
+test("同意过数据说明、密钥却是空的（多半是重启以后清空了）：打开设置页就在密钥框下面说要重新填，开始填了这句话就收起", async () => {
+  const w = world({ ...GATEWAY, ...DATA_CONSENT_CONFIRMED });
+  await w.state.load();
+  assert.equal(w.state.aiStatus.value?.at, "key");
+  assert.equal(w.state.aiStatus.value?.tone, "warn");
+  assert.match(w.state.aiStatus.value?.text ?? "", /重新填/);
+  assert.match(w.state.aiStatus.value?.text ?? "", /记住密钥/);
+  w.state.editKey("s");
+  assert.equal(w.state.aiStatus.value, null);
+
+  const fresh = world({ ...GATEWAY });
+  await fresh.state.load();
+  assert.equal(fresh.state.aiStatus.value, null, "从没配过的人不提示");
+
+  const local = world({ ...GATEWAY, aiBaseUrl: "http://localhost:11434/v1", ...DATA_CONSENT_CONFIRMED });
+  await local.state.load();
+  assert.equal(local.state.aiStatus.value, null, "本机服务不要密钥");
+
+  const keyed = world({ ...GATEWAY, ...DATA_CONSENT_CONFIRMED, aiApiKey: "sk-old", aiApiKeyOrigin: "https://gateway.example.com/" });
+  await keyed.state.load();
+  assert.equal(keyed.state.aiStatus.value, null);
+});
+
 test("恢复备份：读文件的工夫就占着，这期间点导出、清除、另一次恢复都不发；读不出、读不懂、导完都放开", async () => {
   const sent: string[] = [];
   const connected: string[] = [];
