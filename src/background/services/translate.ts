@@ -4,7 +4,7 @@
 // 偶发失败的批次静默补一轮，补轮那一批传输层不再自己重发；全军覆没不补，多半是配置不对。
 // 订阅的页面都断开了：还没开始的批次不再发，已经发出的照常等它回来、存下，钱已经花了。点停止、清除本机数据则连在途的一起中止。
 // 写回前核对清除代数和字幕代数：等模型的工夫清除了全部数据、换过字幕文件，在途的译文照常交给页面、不存，之后的批次不再发。
-import { estimateOutputTokens, planTranslationBatches, type TranslationItem } from "../../core/ai/chunking.ts";
+import { estimateOutputTokens, planTranslationBatches, TRANSLATION_BATCH_MAX_SEGMENTS, type TranslationItem } from "../../core/ai/chunking.ts";
 import { parseLooseJson } from "../../core/ai/parse.ts";
 import { extractPromptSection } from "../../core/ai/prompt.ts";
 import { SEGMENT_BATCH } from "../../core/ai/schemas.ts";
@@ -36,8 +36,10 @@ export const TIDY_PROMPT = "study/tidy.md";
 export const TIDY_FEATURE = "tidy";
 /** 偶发失败（限流、超时抖动）补一轮之前的等待。太短会撞回同一次限流窗口。 */
 export const TRANSLATE_RETRY_DELAY_MS = 1500;
-/** 一次请求最多带几段：分批本来就小，这里再兜一道上限。 */
-const MAX_SEGMENTS_PER_REQUEST = 12;
+/** 一次请求最多带几段：和分批的条数上限一致，这里再兜一道。 */
+const MAX_SEGMENTS_PER_REQUEST = TRANSLATION_BATCH_MAX_SEGMENTS;
+/** 一批最多 4000 字，中英互译按两倍估输出，默认 8192 的上限会截断，放到 16384。上限本身不收费，按实际生成计费。 */
+const BATCH_OUTPUT_CEILING = 16384;
 
 /** 收这一轮翻译消息的一方：经端口连着的页面。 */
 export interface TranslateListener {
@@ -244,7 +246,7 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
         };
     const { text, sends } = await run.ai.requestAiCompletion({
       // 中英互译字符数会变，按字符估 token 时放宽；整理字幕只多出标点，也留些余量。
-      maxTokens: estimateOutputTokens(segmentsJson.length, { ratio: tidy ? 1.5 : 2, floor: 2048 }),
+      maxTokens: estimateOutputTokens(segmentsJson.length, { ratio: tidy ? 1.5 : 2, floor: 2048, ceiling: BATCH_OUTPUT_CEILING }),
       // 照着原文来，不是创作，温度越低越贴近原意。
       temperature: tidy ? 0.1 : 0.2,
       responseFormat: SEGMENT_BATCH,
