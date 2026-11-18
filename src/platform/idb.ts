@@ -17,6 +17,8 @@ export interface IdbRequest<T> {
 
 export interface IdbIndex {
   getAll(key?: IdbKey): IdbRequest<unknown[]>;
+  /** 只取主键，按索引值排序，不读记录本身。 */
+  getAllKeys(): IdbRequest<unknown[]>;
 }
 
 export interface IdbObjectStore {
@@ -97,6 +99,8 @@ export interface ObjectStoreDriver<T> {
   readonly get: (key: IdbKey) => Promise<T | undefined>;
   /** 按索引取，结果按索引值排序。不给 key 就取全部，用来按时间排。 */
   readonly getAllByIndex: (index: string, key?: IdbKey) => Promise<T[]>;
+  /** 全部记录的主键，按索引值排序：只要先后顺序时不读记录本身，几百条大记录也不慢。 */
+  readonly keysByIndex: (index: string) => Promise<IdbKey[]>;
   /** 清空这个仓库。 */
   readonly clear: () => Promise<void>;
   /** 关掉连接，关完再调用会重新打开。 */
@@ -227,6 +231,9 @@ export function createObjectStoreDriver<T>({
       return withTransaction("readonly", (store) =>
         promisifyRequest(store.index(index).getAll(key) as IdbRequest<T[]>, "getAllByIndex"),
       );
+    },
+    async keysByIndex(index) {
+      return withTransaction("readonly", (store) => promisifyRequest(store.index(index).getAllKeys() as IdbRequest<IdbKey[]>, "keysByIndex"));
     },
     async clear() {
       await withTransaction("readwrite", (store) => promisifyRequest(store.clear(), "clear"));

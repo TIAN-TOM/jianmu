@@ -211,6 +211,7 @@ test("IndexedDB 驱动：按索引取，结果按索引值排序，缺索引字�
   assert.deepEqual(ids(await driver.getAllByIndex("byVideo", "youtube:sample")), ["early", "late"]);
   assert.deepEqual(ids(await driver.getAllByIndex("byCreated")), ["orphan", "early", "other", "late"]);
   assert.deepEqual(await driver.getAllByIndex("byVideo", "youtube:none"), []);
+  assert.deepEqual(await driver.keysByIndex("byCreated"), ["orphan", "early", "other", "late"], "只取主键，顺序和按索引取的一样");
   await assert.rejects(() => driver.getAllByIndex("byMissing"), { name: "NotFoundError" });
 });
 

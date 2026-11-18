@@ -214,11 +214,11 @@ test("新视频的字幕落库后不等淘汰就返回，淘汰随后照常做�
     wrapDriver: (inner) => ({
       ...inner,
       write: (change) => (log.push(change?.put ? "put" : "remove"), inner.write(change)),
-      getAllByIndex: async (index, key) => {
+      keysByIndex: async (index) => {
         log.push("evict:start");
         await evictGate.promise;
         log.push("evict:done");
-        return inner.getAllByIndex(index, key);
+        return inner.keysByIndex(index);
       },
     }),
   });
@@ -239,11 +239,11 @@ test("淘汰排在缓存写入队列里：之后的读—改—写等它做完",
     wrapDriver: (inner) => ({
       ...inner,
       write: (change) => (log.push("write"), inner.write(change)),
-      getAllByIndex: async (index, key) => {
+      keysByIndex: async (index) => {
         log.push("evict:start");
         await evictGate.promise;
         log.push("evict:done");
-        return inner.getAllByIndex(index, key);
+        return inner.keysByIndex(index);
       },
     }),
   });

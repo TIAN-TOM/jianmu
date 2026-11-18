@@ -95,7 +95,7 @@
 所有资料都存在这台电脑上、这个 Chrome 个人资料的扩展存储里，不随浏览器账号同步。简幕不另外加密这些资料。每一项的名称见文末的「存储明细」。
 
 - **长期保存，直到你删掉**：概览和一句话结论、问答、笔记、译文、导入的字幕、按频道记住的模式、设置。
-- **缓存**：字幕、视频信息、B 站官方总结和 UP 主分段最多留 60 个视频，超过 30 天或超出条数的，在下次存新内容时删掉。粗筛读到的稍后再看列表和官方总结、各个模型能做什么（比如能不能看图），过了有效期就不再使用，但要等重新读取或你清除缓存时才从存储里删掉。字幕文件的地址不存。
+- **缓存**：字幕、视频信息、B 站官方总结和 UP 主分段最多留 500 个视频，超过 90 天或超出条数的，在下次存新内容时删掉。粗筛读到的稍后再看列表和官方总结、各个模型能做什么（比如能不能看图），过了有效期就不再使用，但要等重新读取或你清除缓存时才从存储里删掉。字幕文件的地址不存。
 - **只留到浏览器关闭**：正在看的视频用哪个模式、播放了多久，「打开就出结论」试过哪些视频，以及默认方式下的 API 密钥（见「API 密钥」一节）。B 站限流以后要等多久，也只留到浏览器关闭。
 
 ### 删除和备份
@@ -284,7 +284,7 @@ Privacy policies of the preset services:
 Everything is kept in the extension storage of this Chrome profile on this computer, and none of it is synced with your browser account. Jianmu does not add its own encryption to this data. The name of each item is listed under "Storage details" at the end.
 
 - **Kept until you delete it**: overviews and one-line verdicts, Q&A, notes, translations, imported subtitles, the mode remembered for each channel, and settings.
-- **Caches**: subtitles, video details, Bilibili official summaries and chapter markers are kept for up to 60 videos. Entries older than 30 days, or beyond that number, are deleted the next time something new is cached. The Watch Later list and official summaries read for triage, and what each model can do (for example whether it accepts images), stop being used once they expire, but stay in storage until they are read again or you clear the cache. Subtitle file addresses are not stored.
+- **Caches**: subtitles, video details, Bilibili official summaries and chapter markers are kept for up to 500 videos. Entries older than 90 days, or beyond that number, are deleted the next time something new is cached. The Watch Later list and official summaries read for triage, and what each model can do (for example whether it accepts images), stop being used once they expire, but stay in storage until they are read again or you clear the cache. Subtitle file addresses are not stored.
 - **Kept only until the browser closes**: which mode each video you are watching uses and how long it has played, which videos 打开就出结论 has already tried, and your API key in the default setup (see "API key"). How long to wait after Bilibili rate-limits requests is also kept only until the browser closes.
 
 ### Deleting data and backups
