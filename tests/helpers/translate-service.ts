@@ -28,6 +28,7 @@ export const REF: VideoRef = { platform: "bilibili", videoId: SAMPLE_ID, segment
 export const VIDEO: VideoKey = videoKey(REF);
 
 export const TRANSLATION_PROMPT = readFileSync(new URL("../../prompts/study/translation.md", import.meta.url), "utf8").replaceAll("\r", "");
+export const TIDY_PROMPT_TEXT = readFileSync(new URL("../../prompts/study/tidy.md", import.meta.url), "utf8").replaceAll("\r", "");
 
 export const cue = (start: number, text: string, duration = 10): CueView => ({ start, duration, text });
 
@@ -87,6 +88,8 @@ export function page(id: string): Page {
 
 export interface TranslateHarnessOptions {
   readonly reply?: FakeReply;
+  /** 整理字幕的回复。 */
+  readonly tidyReply?: FakeReply;
   readonly concurrency?: number;
   /** 换成真实的取字幕服务。 */
   readonly transcript?: Pick<TranscriptService, "ensure" | "generation">;
@@ -111,6 +114,10 @@ export interface TranslateHarness {
   bumpGeneration(): void;
   /** 发起翻译，等这一轮结束。 */
   translate(listener?: Page, options?: { readonly fromSec?: number; readonly video?: VideoKey }): Promise<void>;
+  /** 发起整理字幕，等这一轮结束。 */
+  tidy(listener?: Page): Promise<void>;
+  /** 整理字幕请求了模型几次。 */
+  readonly tidyRequests: () => number;
   /** 模型一共被请求了几次。 */
   readonly requests: () => number;
   /** 等到模型被请求了 n 次。 */
@@ -119,7 +126,10 @@ export interface TranslateHarness {
 
 export function translateHarness(view: TranscriptView, options: TranslateHarnessOptions = {}): TranslateHarness {
   const timers = manualTimers(START);
-  const fake = createFakeAi({ prompts: { "study/translation.md": TRANSLATION_PROMPT }, replies: { rewrite: options.reply ?? echo() } });
+  const fake = createFakeAi({
+    prompts: { "study/translation.md": TRANSLATION_PROMPT, "study/tidy.md": TIDY_PROMPT_TEXT },
+    replies: { rewrite: options.reply ?? echo(), tidy: options.tidyReply ?? echo("") },
+  });
   const guard = options.guard ?? createClearGuard();
   const broadcasts: Broadcast[] = [];
   const logs: string[] = [];
@@ -168,6 +178,10 @@ export function translateHarness(view: TranscriptView, options: TranslateHarness
     translate(listener = page("panel-1"), { fromSec, video = VIDEO } = {}) {
       return service.start(video, { origin: "user", listener, ...(fromSec === undefined ? {} : { fromSec }) });
     },
+    tidy(listener = page("panel-1")) {
+      return service.start(VIDEO, { origin: "user", listener, purpose: "tidy" });
+    },
+    tidyRequests: () => fake.count("tidy"),
     requests: () => fake.count("rewrite"),
     requested: (n) => until(() => fake.count("rewrite") >= n, PATIENT),
   };

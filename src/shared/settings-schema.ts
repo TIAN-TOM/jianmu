@@ -162,6 +162,7 @@ export const FEATURE_MODEL_SLOTS = Object.freeze([
   { id: "analysis", label: "概览" },
   { id: "verdict", label: "一句话结论" },
   { id: "rewrite", label: "翻译" },
+  { id: "tidy", label: "整理字幕" },
   { id: "qa", label: "问答" },
   { id: "notes", label: "笔记润色" },
   { id: "explain", label: "划词解释" },

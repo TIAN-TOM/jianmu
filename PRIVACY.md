@@ -60,11 +60,11 @@
 - 写一句话结论时，这次已经生成的章节标题、摘要和金句
 - 你的 API 密钥：每个请求都带着，服务商靠它认出是你的账户
 
-**用来做什么**：翻译、概览、一句话结论、划词解释、笔记润色、问答，以及粗筛时写一句话结论。
+**用来做什么**：翻译、整理字幕（补标点、改明显的同音错字）、概览、一句话结论、划词解释、笔记润色、问答，以及粗筛时写一句话结论。
 
 **什么时候发**：
 
-- 平时只在你操作时发，比如点「生成概览」、提问、点「解释」，或者记笔记（笔记存下以后，会请模型润色那一刻的字幕）。
+- 平时只在你操作时发，比如点「生成概览」、提问、点「解释」、点「整理字幕」，或者记笔记（笔记存下以后，会请模型润色那一刻的字幕）。
 - 「本窗口全部生成」和粗筛，你先确认数量，之后逐个发送。
 - 打开「打开就出结论」以后：在 B 站打开超过设定时长的视频，简幕会自动发送这个视频的字幕、标题和时长、UP 主名和简介，生成概览和一句话结论。这个开关新安装时是关的，打开前要先同意数据说明；设定时长默认 10 分钟，可以在 0 到 180 分钟之间调。后台打开的标签页，第一次切到前台才算打开。已有概览的视频不再生成，同一个视频在一次浏览器会话里只自动试一次。外文字幕不自动翻译。服务商说额度用完或密钥不对时，自动生成会停下，等你手动生成成功一次，或者重新开一下开关，才恢复。
 
@@ -152,7 +152,7 @@ IndexedDB 数据库 `jianmu` 里的仓库：
 | `notes` | 笔记 | 留 | 删 | 是 |
 | `overviews` | 概览和一句话结论 | 留 | 删 | 是 |
 | `qa` | 问答 | 留 | 删 | 是 |
-| `translations` | 译文 | 留 | 删 | 否 |
+| `translations` | 译文和整理后的字幕 | 留 | 删 | 否 |
 | `imports` | 导入的字幕 | 留 | 删 | 否 |
 | `channels` | 按频道记住的模式 | 留 | 删 | 否 |
 | `cache` | 字幕、视频信息、官方总结和 UP 主分段的缓存 | 删 | 删 | 否 |
@@ -238,11 +238,11 @@ First you need to read the data notice and agree, either by ticking the box in t
 - When writing the one-line verdict, the chapter titles, summaries and key quotes already generated for that video
 - Your API key, which goes with every request so the service knows it is your account
 
-**What it is used for**: translation, overviews, one-line verdicts, explaining selected text, tidying up notes, answering questions, and writing one-line verdicts during triage.
+**What it is used for**: translation, tidying subtitles (adding punctuation and fixing obvious sound-alike mistakes), overviews, one-line verdicts, explaining selected text, tidying up notes, answering questions, and writing one-line verdicts during triage.
 
 **When it is sent**:
 
-- Normally only when you do something, such as clicking 生成概览 (generate overview), asking a question, clicking 解释 (explain), or taking a note (once a note is saved, the model is asked to tidy up the subtitle line from that moment).
+- Normally only when you do something, such as clicking 生成概览 (generate overview), asking a question, clicking 解释 (explain), clicking 整理字幕 (tidy subtitles), or taking a note (once a note is saved, the model is asked to tidy up the subtitle line from that moment).
 - For 本窗口全部生成 and triage, you confirm how many videos first, and they are then sent one at a time.
 - With 打开就出结论 switched on: when you open a Bilibili video longer than the set length, Jianmu automatically sends that video's subtitles, title and duration, uploader name and description to generate an overview and a one-line verdict. The switch is off on a new install, and you have to agree to the data notice before turning it on. The set length is 10 minutes by default and can be anywhere from 0 to 180 minutes. A tab opened in the background counts as opened the first time you switch to it. Videos that already have an overview are skipped, and each video is tried automatically at most once per browser session. Foreign-language subtitles are not translated automatically. If the service says your quota has run out or your key is wrong, automatic generation pauses until you generate an overview by hand successfully or switch the setting off and on again.
 
@@ -330,7 +330,7 @@ Object stores in the IndexedDB database `jianmu`:
 | `notes` | Notes | Kept | Deleted | Yes |
 | `overviews` | Overviews and one-line verdicts | Kept | Deleted | Yes |
 | `qa` | Q&A | Kept | Deleted | Yes |
-| `translations` | Translations | Kept | Deleted | No |
+| `translations` | Translations and tidied subtitles | Kept | Deleted | No |
 | `imports` | Imported subtitles | Kept | Deleted | No |
 | `channels` | The mode remembered for each channel | Kept | Deleted | No |
 | `cache` | Cached subtitles, video details, official summaries and chapter markers | Deleted | Deleted | No |

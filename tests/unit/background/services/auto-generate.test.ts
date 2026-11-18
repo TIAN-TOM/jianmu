@@ -166,12 +166,14 @@ test("YouTube 视频不进这条路径：不取字幕，不记尝试", async () 
 });
 
 test("数据同意要是当前这一版：同意的是没有自动发送那一条的旧版就不发", async () => {
-  const older = versionStamps(DATA_CONSENT_TABLE).at(-2);
+  // 自动发送那一条是哪一版加的：同意的是它之前那一版就不发。
+  const autoRow = DATA_CONSENT_TABLE.findIndex((row) => row.items.some((item) => item.kind === AUTO_SEND_TRIGGER.kind && item.id === AUTO_SEND_TRIGGER.id));
+  assert.ok(autoRow > 0, "自动发送那一条在同意表里");
+  const older = versionStamps(DATA_CONSENT_TABLE)[autoRow - 1];
   assert.ok(older);
   const stale = setup({ consent: older });
   assert.deepEqual(await stale.auto.consider(), { skipped: "no-consent" });
   assert.equal(stale.calls.reads, 0);
-  assert.ok(DATA_CONSENT_TABLE.at(-1)?.items.some((item) => item.kind === AUTO_SEND_TRIGGER.kind && item.id === AUTO_SEND_TRIGGER.id), "自动发送那一条在最新一版里");
 
   const covered = setup();
   assert.deepEqual(await covered.auto.consider(), { started: VIDEO });

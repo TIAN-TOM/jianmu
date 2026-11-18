@@ -403,6 +403,13 @@
   line-height: var(--lh-body);
 }
 
+.tidy-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 /* 没有标点的段落按原始字幕的行分开：一行原始字幕占一行，太长时照常折。 */
 .cue-line {
   display: block;

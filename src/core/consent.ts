@@ -118,6 +118,17 @@ export const DATA_CONSENT_TABLE: NoticeTable<DataConsentKind> = [
       },
     ],
   },
+  {
+    version: 5,
+    items: [
+      {
+        kind: "purpose",
+        id: "tidy-transcript",
+        text: "整理字幕：点「整理字幕」时发送字幕和视频标题，给字幕补标点、改明显的同音错字",
+        shownWith: { id: "ai-features", combined: "翻译、整理字幕（补标点、改同音错字）、概览、一句话结论、划词解释、笔记润色、问答和粗筛写结论" },
+      },
+    ],
+  },
 ];
 
 export const ACTIVATION_TABLE: NoticeTable<ActivationKind> = [

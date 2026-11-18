@@ -687,18 +687,24 @@ test("覆盖只认已知功能下的非空字符串，去掉首尾空白", () =>
   );
 });
 
-test("功能列表就是设置页那六项，id 不重复", () => {
+test("功能列表就是设置页那七项，id 不重复", () => {
   assert.deepEqual(
     SETTINGS.FEATURE_MODEL_SLOTS.map((slot) => [slot.id, slot.label]),
     [
       ["analysis", "概览"],
       ["verdict", "一句话结论"],
       ["rewrite", "翻译"],
+      ["tidy", "整理字幕"],
       ["qa", "问答"],
       ["notes", "笔记润色"],
       ["explain", "划词解释"],
     ],
   );
+});
+
+test("整理字幕这一项：没选过推理强度时是关，旧设置里没有这一项也按关", () => {
+  assert.equal(SETTINGS.effortForFeature({}, "tidy"), "off");
+  assert.equal(SETTINGS.normalize({}).featureEfforts.tidy, "off");
 });
 
 test("保存过的覆盖记下所属的服务商和地址，再规整一遍不变", () => {

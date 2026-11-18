@@ -115,6 +115,7 @@ const FEATURE_PROMPTS: Readonly<Record<FeatureSlotId, string>> = {
   analysis: "skim/chapters.md",
   verdict: "skim/verdict.md",
   rewrite: "study/translation.md",
+  tidy: "study/tidy.md",
   qa: "common/qa.md",
   notes: "study/note-polish.md",
   explain: "study/explain.md",

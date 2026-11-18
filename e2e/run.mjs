@@ -174,6 +174,13 @@ async function panelFlow(launcher, panelUrl, videoId) {
   await until("切到精读", () => clickIn(panel, ".mode", "精读"));
   await until("精读显示当前章节", async () => (await textOf(panel, ".chapter-bar-title")).includes("模拟服务写的章节"));
   await until("当前章节是重点，条上也标出来", () => evaluate(panel, `Boolean(document.querySelector(".chapter-bar .key-dot"))`));
+  // 整理字幕：点了才发，整理后的替换原文显示，不再按行断开；能切回原始字幕。
+  await until("点整理字幕", () => clickIn(panel, ".tidy-row .button", "整理字幕"));
+  await until("显示整理后的字幕", async () => (await textOf(panel, ".study .cue-text")).includes("样例台词一样例台词二。"));
+  if (await evaluate(panel, `Boolean(document.querySelector(".study .cue-line"))`)) throw new Error("整理过的段还在按行断开");
+  await until("切回原始字幕", () => clickIn(panel, ".tidy-row .button", "看原始字幕"));
+  await until("原始字幕按行分开", async () => (await evaluate(panel, `[...document.querySelectorAll(".study .cue-line")].map((line) => line.textContent).join("|")`)) === "样例台词一|样例台词二");
+  console.log("✓ 整理字幕：点了才整理，整理后的替换原文显示，能切回原始字幕");
   await until("说记住了这个频道", async () => (await textOf(panel, ".notice-text")).includes("以后先进精读"));
   await until("精读时卡片收起", async () => (await cardCollapsed()) === "true");
   await until("切回速览", () => clickIn(panel, ".mode", "速览"));

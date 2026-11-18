@@ -189,13 +189,14 @@ test("包里没有 source map 引用", () => {
   for (const file of BUNDLES) assert.doesNotMatch(readBuild(file), /sourceMappingURL/);
 });
 
-// 服务要读的提示词和小节：概览、解释、笔记润色、问答（用户消息分三块）、翻译（含两套语言规则）、结论。
+// 服务要读的提示词和小节：概览、解释、笔记润色、问答（用户消息分三块）、翻译（含两套语言规则）、整理字幕、结论。
 const PROMPT_SECTIONS: Readonly<Record<string, readonly string[]>> = {
   "skim/chapters.md": ["系统提示词", "用户提示词"],
   "study/explain.md": ["系统提示词", "用户提示词"],
   "study/note-polish.md": ["系统提示词", "用户提示词"],
   "common/qa.md": ["系统提示词", "用户消息：视频信息", "用户消息：字幕", "用户消息：问题"],
   "study/translation.md": ["系统提示词", "用户提示词", "中文规则", "英文规则"],
+  "study/tidy.md": ["系统提示词", "用户提示词"],
   "skim/verdict.md": ["系统提示词", "用户提示词"],
 };
 

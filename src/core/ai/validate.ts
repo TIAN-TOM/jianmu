@@ -1,4 +1,4 @@
-// 模型输出的校验：概览的章节和金句，翻译批次的对齐。都当不可信数据重建一遍。
+// 模型输出的校验：概览的章节和金句，翻译和整理字幕批次的对齐。都当不可信数据重建一遍。
 import { formatTimestamp, startSecondsOf } from "../transcript/segment.ts";
 
 export interface Chapter {
@@ -217,4 +217,46 @@ export function alignTranslatedSegments(
     "NOT_TRANSLATED",
   );
   return { translated: accepted, rejected };
+}
+
+/** 去掉标点、符号和空白以后的文字：整理字幕只许加标点，比的是剩下的字。 */
+const bareText = (text: string): string[] => [...text.normalize("NFKC").replace(/[\p{P}\p{S}\s]/gu, "")];
+
+/** 两串字之间要改几个字（增、删、换各算一次）。 */
+function editDistance(left: readonly string[], right: readonly string[]): number {
+  let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= left.length; i += 1) {
+    const current = [i];
+    for (let j = 1; j <= right.length; j += 1) {
+      const cost = left[i - 1] === right[j - 1] ? 0 : 1;
+      current.push(Math.min((previous[j] ?? 0) + 1, (current[j - 1] ?? 0) + 1, (previous[j - 1] ?? 0) + cost));
+    }
+    previous = current;
+  }
+  return previous[right.length] ?? 0;
+}
+
+/** 整理字幕最多改几成的字：同音错字改几个可以，改写、删减、添话不行。 */
+export const TIDY_MAX_EDIT_RATIO = 0.08;
+
+/**
+ * 整理后的这一段能不能用：去掉标点和空白以后和原文比，字数差不超过 5%（至少容 1 个字），
+ * 改动的字数不超过 8%（至少容 1 个字）。超了就是模型把字幕改成了自己的话，这一段不用，照旧显示原文。
+ */
+export function acceptTidied(source: string, tidied: string): boolean {
+  const before = bareText(source);
+  const after = bareText(tidied);
+  if (!after.length) return false;
+  if (before.join("") === after.join("")) return true;
+  if (Math.abs(before.length - after.length) > Math.max(1, Math.floor(before.length * 0.05))) return false;
+  return editDistance(before, after) <= Math.max(1, Math.ceil(before.length * TIDY_MAX_EDIT_RATIO));
+}
+
+/** 整理字幕一批的对齐：按 id 对回原段，改得太多的段记成 REWRITTEN，交回去照旧显示原文。 */
+export function alignTidiedSegments(
+  parsed: unknown,
+  sourceSegments: readonly SourceSegment[] | null | undefined,
+): { tidied: Record<string, string>; rejected: RejectedSegment[] } {
+  const { accepted, rejected } = alignSegmentBatch(parsed, sourceSegments, (text, source) => acceptTidied(source ?? "", text), "REWRITTEN");
+  return { tidied: accepted, rejected };
 }

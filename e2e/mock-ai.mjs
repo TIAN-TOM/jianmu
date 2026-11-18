@@ -1,4 +1,4 @@
-// 两家模拟的模型服务：Anthropic 和 OpenAI 的 Responses。按提示词里的视频标题认是哪个视频、按提示词认是概览块还是结论，
+// 两家模拟的模型服务：Anthropic 和 OpenAI 的 Responses。按提示词里的视频标题认是哪个视频、按提示词认是概览块、结论、问答还是整理字幕，
 // 回一份能通过校验的结果。测试可以把某个视频的概览请求挂住，放行或客户端中途断开才收尾；每个请求都记下。
 import { ANTHROPIC, OPENAI, SKIPPED_VIDEO, VIDEOS } from "./fixtures.mjs";
 
@@ -9,7 +9,7 @@ import { ANTHROPIC, OPENAI, SKIPPED_VIDEO, VIDEOS } from "./fixtures.mjs";
 /**
  * 一次模型请求。video 是视频的编号（fixtures 里 VIDEOS 的键），认不出时是空串。
  * @typedef {{ host: string, path: string, cookie: string, unexpected: boolean, at: number, answeredAt?: number, aborted?: true,
- *   provider: string, kind: "analysis" | "verdict" | "qa" | "models" | "test" | "", video: string, held?: true }} ModelCall
+ *   provider: string, kind: "analysis" | "verdict" | "qa" | "tidy" | "models" | "test" | "", video: string, held?: true }} ModelCall
  */
 
 const SERVICES = [
@@ -54,9 +54,10 @@ function videoOf(prompt) {
 /** 设置页「测试连接」发的那句话。 */
 const TEST_PROMPT = "回复两个字：可用";
 
-/** @param {string} prompt @returns {"analysis" | "verdict" | "qa" | "test" | ""} */
+/** @param {string} prompt @returns {"analysis" | "verdict" | "qa" | "tidy" | "test" | ""} */
 function kindOf(prompt) {
   if (prompt.trim() === TEST_PROMPT) return "test";
+  if (prompt.includes("你在整理视频字幕")) return "tidy";
   if (prompt.includes("用户的问题：")) return "qa";
   if (prompt.includes("各章：")) return "verdict";
   if (/本次范围：\d+:\d{2}/.test(prompt) && prompt.includes("这一段的字幕：")) return "analysis";
@@ -65,9 +66,14 @@ function kindOf(prompt) {
 
 /**
  * 概览块的章节和金句放在本块起点那一秒，结论按提示词的格式写（粗筛分组用的那个视频判可跳过），问答引用字幕第一句的时间点。
- * @param {"analysis" | "verdict" | "qa"} kind @param {string} prompt
+ * 整理字幕给每一条末尾补个句号。
+ * @param {"analysis" | "verdict" | "qa" | "tidy"} kind @param {string} prompt
  */
 function resultOf(kind, prompt) {
+  if (kind === "tidy") {
+    const input = JSON.parse(prompt.slice(prompt.lastIndexOf('{"segments":[')));
+    return { segments: input.segments.map((/** @type {{ id: string, text: string }} */ item) => ({ id: item.id, text: `${item.text}。` })) };
+  }
   if (kind === "verdict") {
     // 重点章节标第一章：照提示词的要求抄它开头的时间点。
     const first = /^\[(\d+:\d{2})\]/m.exec(prompt)?.[1];

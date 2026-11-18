@@ -16,7 +16,7 @@ import { createOverviewStore, type OverviewStore } from "./overview.ts";
 import { createPlayer, playerFailureText, type Player } from "./player.ts";
 import { createQaStore, type QaStore } from "./qa.ts";
 import { createTranscriptStore, type TranscriptStore } from "./transcript.ts";
-import { createTranslation, type Translation } from "./translate.ts";
+import { createTidy, createTranslation, type Tidy, type Translation } from "./translate.ts";
 
 export interface Toast {
   readonly id: number;
@@ -36,6 +36,8 @@ export interface Panel {
   readonly pageVisible: Signal<boolean>;
   readonly transcript: TranscriptStore;
   readonly translation: Translation;
+  /** 整理字幕：补标点、改同音错字。 */
+  readonly tidy: Tidy;
   readonly overview: OverviewStore;
   readonly notes: NotesStore;
   readonly qa: QaStore;
@@ -70,6 +72,7 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
   if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibility);
   const transcript = createTranscriptStore({ api });
   const translation = createTranslation({ api });
+  const tidy = createTidy({ api });
   const overview = createOverviewStore({ api });
   const notes = createNotesStore({ api });
   const qa = createQaStore({ api });
@@ -108,11 +111,16 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
       if (active) void transcript.load(active, tabId);
       else transcript.clear();
     }),
-    // 字幕换了版本，译文跟着作废。
+    // 字幕换了版本，译文和整理结果跟着作废；整理过的这一版打开就用上。
     effect(() => {
       const now = transcript.state.value;
-      if (now.state === "ready") translation.bind(now.video, now.view.transcript.ref.fingerprint);
-      else if (now.state !== "loading") translation.bind(null, null);
+      if (now.state === "ready") {
+        translation.bind(now.video, now.view.transcript.ref.fingerprint);
+        tidy.bind(now.video, now.view.transcript.ref.fingerprint);
+      } else if (now.state !== "loading") {
+        translation.bind(null, null);
+        tidy.bind(null, null);
+      }
     }),
     // 启用以后才连上批次端口，接上本窗口已有的一批。
     effect(() => batch.setEnabled(activation.enabled.value)),
@@ -145,6 +153,7 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
     pageVisible,
     transcript,
     translation,
+    tidy,
     overview,
     notes,
     qa,
@@ -180,6 +189,7 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
       undoLine.stop();
       if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVisibility);
       translation.stop();
+      tidy.stop();
       overview.stop();
       notes.stop();
       qa.stop();

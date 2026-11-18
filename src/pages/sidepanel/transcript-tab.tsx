@@ -78,11 +78,11 @@ function Toolbar({ panel, view, onSearch, searching, onImport }: { readonly pane
     onSelect: () => translation.setMode(item, position?.atSec),
   }));
   const exportSrt = (): void => {
-    const text = srtOf(view.transcript.segments, view.transcript.cues, view.info.durationSec, mode, translation.lines.peek());
+    const text = srtOf(view.transcript.segments, view.transcript.cues, view.info.durationSec, mode, translation.lines.peek(), tidiedOf(panel));
     downloadText(`${safeFileName(view.info.title, "字幕")}.srt`, text, "application/x-subrip");
   };
   const copyAll = (): void => {
-    const text = view.transcript.segments.map((segment) => `[${formatTimestamp(segment.start)}] ${linesOf(segment, mode, translation.lines.peek()).main}`).join("\n");
+    const text = view.transcript.segments.map((segment) => `[${formatTimestamp(segment.start)}] ${linesOf(segment, mode, translation.lines.peek(), tidiedOf(panel)).main}`).join("\n");
     void navigator.clipboard.writeText(text).then(
       () => panel.say("已复制全部字幕"),
       () => panel.say("没能复制，浏览器拒绝了剪贴板"),
@@ -108,6 +108,58 @@ function Toolbar({ panel, view, onSearch, searching, onImport }: { readonly pane
         <IconButton icon="search" label="搜索字幕" pressed={searching} onClick={onSearch} />
         <Menu label="更多字幕操作" items={moreItems} />
       </span>
+    </div>
+  );
+}
+
+const NO_LINES: Readonly<Record<string, string>> = {};
+
+/** 正在显示的整理结果：用户切回原始字幕时不给。 */
+const tidiedOf = (panel: Panel): Readonly<Record<string, string>> => (panel.tidy.show.peek() ? panel.tidy.lines.peek() : NO_LINES);
+
+/**
+ * 整理字幕那一行：没整理过时是按钮，写明要花额度；整理中显示进度和停止；整理过以后能在整理后和原始字幕之间切换，
+ * 没整理完的可以接着整理。只在用户点的时候做，不自动做。
+ */
+function TidyRow({ panel, segments }: { readonly panel: Panel; readonly segments: number }) {
+  const { phase, done, total, message } = panel.tidy.state.value;
+  const count = Object.keys(panel.tidy.lines.value).length;
+  const show = panel.tidy.show.value;
+  const start = (): void => {
+    const position = panel.player.position.peek();
+    panel.tidy.start(position?.atSec);
+  };
+  if (phase === "running") {
+    return (
+      <div class="progress-row" role="status">
+        <span>{total > 0 ? `正在整理字幕 ${done}/${total} 段` : "正在整理字幕…"}</span>
+        <Button variant="text" onClick={() => panel.tidy.stopRunning()}>
+          停止
+        </Button>
+      </div>
+    );
+  }
+  const ready = panel.config.state.value.state === "checked" && panel.config.state.value.view.ready;
+  const reason = ready ? undefined : "先在设置页设置 AI 服务";
+  return (
+    <div class="tidy-row">
+      {count === 0 ? (
+        <Button onClick={start} disabled={!ready} {...(reason ? { disabledReason: reason } : {})} note="补标点、改同音错字，要用 API 额度；长视频大约和翻译一遍差不多">
+          整理字幕
+        </Button>
+      ) : (
+        <>
+          <Button variant="text" onClick={() => panel.tidy.setShow(!show)}>
+            {show ? "看原始字幕" : "看整理后的字幕"}
+          </Button>
+          {count < segments ? (
+            <Button variant="text" onClick={start} disabled={!ready} {...(reason ? { disabledReason: reason } : {})}>
+              接着整理
+            </Button>
+          ) : null}
+        </>
+      )}
+      {message ? <p class="note-line">{message}</p> : null}
     </div>
   );
 }
@@ -140,11 +192,12 @@ function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: 
   const breaks = useMemo(() => lineBreaks(segments, view.transcript.cues), [segments, view.transcript.cues]);
   const mode = panel.translation.mode.value;
   const translated = panel.translation.lines.value;
+  const tidied = panel.tidy.show.value ? panel.tidy.lines.value : NO_LINES;
   const position = panel.player.position.value;
   const at = position?.video === view.video ? position.atSec : null;
   const active = activeIndex(segments, at);
   const needle = query.trim();
-  const shown = needle ? segments.filter((segment) => { const { main, sub } = linesOf(segment, mode, translated); return hasMatch(splitMatches(`${main}\n${sub}`, needle)); }) : segments;
+  const shown = needle ? segments.filter((segment) => { const { main, sub } = linesOf(segment, mode, translated, tidied); return hasMatch(splitMatches(`${main}\n${sub}`, needle)); }) : segments;
 
   useEffect(() => {
     if (!following || needle || active < 0) return;
@@ -175,10 +228,11 @@ function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: 
         </div>
       ) : null}
       <TranslateRow panel={panel} />
+      <TidyRow panel={panel} segments={segments.length} />
       <ol class="cues" ref={list} onWheel={() => setFollowing(false)} onTouchMove={() => setFollowing(false)} onMouseUp={onSelectEnd} onKeyUp={onSelectEnd}>
         {shown.map((segment) => {
           const index = segments.indexOf(segment);
-          const { main, sub } = linesOf(segment, mode, translated);
+          const { main, sub } = linesOf(segment, mode, translated, tidied);
           return (
             <li key={segment.id} class="cue" data-index={index} data-active={index === active ? "true" : undefined}>
               <button type="button" class="cue-time" aria-label={`跳到 ${formatTimestamp(segment.start)}`} onClick={() => void panel.seek(segment.start)}>

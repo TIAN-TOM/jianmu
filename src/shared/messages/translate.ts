@@ -1,4 +1,4 @@
-// 翻译端口两个方向的消息。侧边栏连着端口发起翻译，后台分批请求模型，每批回来就推给页面；
+// 翻译端口两个方向的消息，整理字幕（补标点、改同音错字）也走这条。侧边栏连着端口发起，后台分批请求模型，每批回来就推给页面；
 // 页面关掉端口只退订自己，订阅的页面都走了才停下还没开始的批次。
 import type { ErrorCode } from "../../core/errors.ts";
 import type { TranscriptRef } from "../../core/notes/records.ts";
@@ -8,9 +8,16 @@ import type { VideoKey } from "../../core/video-ref.ts";
 /** 译成哪种语言：中文字幕译成英文，其他语言的字幕译成简体中文。 */
 export type TranslateTarget = "zh" | "en";
 
+/** 按字幕版本存在本机的几种文字：两种译文，加整理后的原文（tidy）。 */
+export type TextTarget = TranslateTarget | "tidy";
+
+/** 这一轮做什么：不写是翻译，tidy 是整理字幕。 */
+export type TextPurpose = "tidy";
+
 export type TranslateIn =
   /** 翻译这个视频现在的字幕。fromSec：从这一秒往后的先译，前面的随后补齐。 */
-  | { readonly type: "translate.start"; readonly video: VideoKey; readonly fromSec?: number }
+  /** storedOnly：只交回本机已经存着的，不请求模型（打开视频时取之前整理好的结果）。 */
+  | { readonly type: "translate.start"; readonly video: VideoKey; readonly fromSec?: number; readonly purpose?: TextPurpose; readonly storedOnly?: true }
   /** 停掉这个页面发起或接上的翻译。 */
   | { readonly type: "translate.stop" };
 
@@ -26,7 +33,7 @@ export type TranslateOut =
       readonly task: TaskView;
       readonly joined: boolean;
       readonly transcript: TranscriptRef;
-      readonly target: TranslateTarget;
+      readonly target: TextTarget;
       readonly pending: number;
     }
   /**

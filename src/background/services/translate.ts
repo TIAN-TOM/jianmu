@@ -1,4 +1,5 @@
-// 翻译：侧边栏经端口发起，后台分批请求模型，每批回来就推给页面、并进译文仓储。
+// 翻译和整理字幕：侧边栏经端口发起，后台分批请求模型，每批回来就推给页面、并进译文仓储。
+// 整理字幕只补标点、改同音错字，本机核对改得太多的段不用，记成原文，照旧显示原文、下次也不再为它花钱。
 // 本机已经存着的段直接交回，不再花钱；换了字幕版本时，原文没变的段从同视频、同目标语言的旧版带过来。
 // 偶发失败的批次静默补一轮，补轮那一批传输层不再自己重发；全军覆没不补，多半是配置不对。
 // 订阅的页面都断开了：还没开始的批次不再发，已经发出的照常等它回来、存下，钱已经花了。点停止、清除本机数据则连在途的一起中止。
@@ -8,7 +9,7 @@ import { parseLooseJson } from "../../core/ai/parse.ts";
 import { extractPromptSection } from "../../core/ai/prompt.ts";
 import { SEGMENT_BATCH } from "../../core/ai/schemas.ts";
 import { taskCanceledError, throwIfTaskCanceled, type TransportError } from "../../core/ai/transport/index.ts";
-import { alignTranslatedSegments } from "../../core/ai/validate.ts";
+import { alignTidiedSegments, alignTranslatedSegments } from "../../core/ai/validate.ts";
 import type { ClearEpoch, ClearGuard } from "../../core/clear-guard.ts";
 import { mapWithConcurrency } from "../../core/concurrency.ts";
 import { fail, ok, type Failure, type Result } from "../../core/errors.ts";
@@ -18,7 +19,7 @@ import { textFingerprint } from "../../core/transcript/fingerprint.ts";
 import { isChineseSubtitle } from "../../core/transcript/language.ts";
 import type { TranscriptSegment } from "../../core/transcript/segment.ts";
 import { parseVideoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
-import type { TranslateFailure, TranslateOut, TranslateTarget } from "../../shared/messages/translate.ts";
+import type { TextPurpose, TextTarget, TranslateFailure, TranslateOut, TranslateTarget } from "../../shared/messages/translate.ts";
 import { AI_CONCURRENCY } from "../../shared/settings-schema.ts";
 import { aiFailure } from "../ai.ts";
 import { errorLabel, type Log } from "../log.ts";
@@ -30,6 +31,9 @@ import type { TranscriptService } from "./transcript/index.ts";
 export const TRANSLATE_PROMPT = "study/translation.md";
 /** 设置里「翻译」这一项的模型槽，沿用旧名。 */
 export const TRANSLATE_FEATURE = "rewrite";
+export const TIDY_PROMPT = "study/tidy.md";
+/** 设置里「整理字幕」这一项的模型槽。 */
+export const TIDY_FEATURE = "tidy";
 /** 偶发失败（限流、超时抖动）补一轮之前的等待。太短会撞回同一次限流窗口。 */
 export const TRANSLATE_RETRY_DELAY_MS = 1500;
 /** 一次请求最多带几段：分批本来就小，这里再兜一道上限。 */
@@ -47,6 +51,10 @@ export interface TranslateStart {
   readonly fromSec?: number | undefined;
   /** 经端口发起的页面；自动生成发起的没有，也不跟着页面走。 */
   readonly listener?: TranslateListener | undefined;
+  /** 不写是翻译；tidy 是整理字幕，只由用户点按钮发起。 */
+  readonly purpose?: TextPurpose | undefined;
+  /** 只交回本机已经存着的，不请求模型。 */
+  readonly storedOnly?: boolean | undefined;
 }
 
 export interface TranslateService {
@@ -62,8 +70,8 @@ export interface TranslateServiceDeps {
   readonly tasks: Pick<TaskRunner, "register" | "run" | "cancel" | "unsubscribe">;
   readonly transcript: Pick<TranscriptService, "ensure" | "generation">;
   readonly translations: TranslationStore;
-  /** 登记任务时取定「翻译」这一项的生成配置。 */
-  readonly freeze: (feature: typeof TRANSLATE_FEATURE) => Promise<FrozenGen>;
+  /** 登记任务时取定「翻译」或「整理字幕」这一项的生成配置。 */
+  readonly freeze: (feature: typeof TRANSLATE_FEATURE | typeof TIDY_FEATURE) => Promise<FrozenGen>;
   readonly prompt: (file: string) => string;
   readonly guard: ClearGuard;
   readonly timers: Pick<Timers, "setTimeout" | "clearTimeout">;
@@ -83,8 +91,10 @@ interface Session {
 interface Job {
   readonly ref: VideoRef;
   readonly transcript: TranscriptRef;
-  readonly target: TranslateTarget;
+  readonly target: TextTarget;
   readonly title: string;
+  /** 段编号 → 原文：整理字幕改得太多时照旧用原文。 */
+  readonly sources: ReadonlyMap<string, string>;
   readonly hashes: ReadonlyMap<string, string>;
   readonly since: ClearEpoch | undefined;
   /** 清除过全部数据、换过字幕文件就不再写。 */
@@ -105,13 +115,24 @@ interface BatchOutcome {
   readonly first?: unknown;
 }
 
+/** 整理字幕一批的结果：改得太多的段记成原文（照旧显示原文、下次不再请求）；漏的、编号对不上的不记，交给补轮。 */
+function tidiedOf(parsed: unknown, batch: readonly TranslationItem[], job: Pick<Job, "sources">): Record<string, string> {
+  const { tidied, rejected } = alignTidiedSegments(parsed, batch);
+  const kept: Record<string, string> = { ...tidied };
+  for (const { id, reason } of rejected) {
+    const source = job.sources.get(id);
+    if (reason === "REWRITTEN" && source) kept[id] = source;
+  }
+  return kept;
+}
+
 /** 中文字幕译成英文，其他语言的字幕译成简体中文。 */
 export const targetOf = (lang: string): TranslateTarget => (isChineseSubtitle(lang) ? "en" : "zh");
 
 const genInfo = ({ feature, promptVersion, model, effort }: FrozenGen) => ({ feature, promptVersion, model, effort });
 
 function parseFailed(sends: number): TransportError {
-  const error: TransportError = Object.assign(new Error("模型没有按要求返回译文。"), { code: "TRANSLATE_PARSE_FAILED" });
+  const error: TransportError = Object.assign(new Error("模型没有按要求返回结果。"), { code: "TRANSLATE_PARSE_FAILED" });
   // 传输层已经为这一批重发过：额度用掉了，补轮不再发。
   if (sends > 1) error.noAutoRetry = true;
   return error;
@@ -209,20 +230,23 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
     throwIfTaskCanceled(run.signal);
     // 等着的工夫换过字幕文件或清除了全部数据：这一版的译文存不下，页面也不再显示它，不为它再花钱。
     if (!job.current()) throw taskCanceledError();
-    const markdown = deps.prompt(TRANSLATE_PROMPT);
+    const tidy = job.target === "tidy";
+    const markdown = deps.prompt(tidy ? TIDY_PROMPT : TRANSLATE_PROMPT);
     const toEnglish = job.target === "en";
     const segmentsJson = JSON.stringify({ segments: batch.map(({ id, text }) => ({ id, text })) });
-    const variables = {
-      targetLangName: toEnglish ? "英文" : "简体中文",
-      langRules: extractPromptSection(markdown, toEnglish ? "英文规则" : "中文规则"),
-      videoTitle: job.title || "未知",
-      segmentsJson,
-    };
+    const variables = tidy
+      ? { videoTitle: job.title || "未知", segmentsJson }
+      : {
+          targetLangName: toEnglish ? "英文" : "简体中文",
+          langRules: extractPromptSection(markdown, toEnglish ? "英文规则" : "中文规则"),
+          videoTitle: job.title || "未知",
+          segmentsJson,
+        };
     const { text, sends } = await run.ai.requestAiCompletion({
-      // 中英互译字符数会变，按字符估 token 时放宽。
-      maxTokens: estimateOutputTokens(segmentsJson.length, { ratio: 2, floor: 2048 }),
-      // 照着原文译，不是创作，温度越低越贴近原意。
-      temperature: 0.2,
+      // 中英互译字符数会变，按字符估 token 时放宽；整理字幕只多出标点，也留些余量。
+      maxTokens: estimateOutputTokens(segmentsJson.length, { ratio: tidy ? 1.5 : 2, floor: 2048 }),
+      // 照着原文来，不是创作，温度越低越贴近原意。
+      temperature: tidy ? 0.1 : 0.2,
       responseFormat: SEGMENT_BATCH,
       signal: requests,
       // 限流、过载后的自动重发还没发出去：页面都走了也一并撤掉。
@@ -237,7 +261,7 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
     } catch {
       throw parseFailed(sends);
     }
-    const { translated } = alignTranslatedSegments(parsed, batch, { targetLang: job.target });
+    const translated = tidy ? tidiedOf(parsed, batch, job) : alignTranslatedSegments(parsed, batch, { targetLang: job.target }).translated;
     // 一条都对不上（漏了、编号改了、原文抄回来）不能算成功，不然这一批悄悄缺着；当作读不出来，偶发的补轮再试一次。
     if (!Object.keys(translated).length) throw parseFailed(sends);
     const byHash: Record<string, string> = {};
@@ -341,7 +365,7 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
     for (const tasks of joined.values()) tasks.delete(session.taskId);
   }
 
-  async function start(video: VideoKey, { origin, fromSec, listener }: TranslateStart, mine: Preparing, prepared: () => void): Promise<void> {
+  async function start(video: VideoKey, { origin, fromSec, listener, purpose, storedOnly }: TranslateStart, mine: Preparing, prepared: () => void): Promise<void> {
     // 页面已经断开的不再推：断开的端口收不到，也省得把后来的消息记到别的页面头上。
     const post = (event: TranslateOut): void => {
       if (listener && joined.has(listener.id)) listener.post(event);
@@ -365,8 +389,9 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
     const job: Job = {
       ref,
       transcript,
-      target: targetOf(transcript.lang),
+      target: purpose === "tidy" ? "tidy" : targetOf(transcript.lang),
       title: view.info.title,
+      sources: new Map(segments.map((segment) => [segment.id, segment.text])),
       hashes,
       since,
       current: () => !guard.clearedSince(since, "all") && deps.transcript.generation(ref) === generation,
@@ -378,6 +403,7 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
       if (text) known[segment.id] = text;
     }
     if (Object.keys(known).length) post({ type: "translate.segments", fingerprint: transcript.fingerprint, translated: known, stored: true });
+    if (storedOnly) return post({ type: "translate.done", state: "completed", totalBatches: 0, failedBatches: 0 });
     const todo = fromPlayback(
       segments.filter((segment) => !known[segment.id]),
       fromSec,
@@ -386,9 +412,9 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
 
     let gen: FrozenGen;
     try {
-      gen = await deps.freeze(TRANSLATE_FEATURE);
+      gen = await deps.freeze(purpose === "tidy" ? TIDY_FEATURE : TRANSLATE_FEATURE);
     } catch (error) {
-      log.error("读取翻译的模型配置失败", errorLabel(error));
+      log.error("读取翻译或整理字幕的模型配置失败", errorLabel(error));
       return refuse({ code: "BACKGROUND_FAILED" });
     }
     // 准备的工夫页面点了停止：不登记，一个模型请求都不发。

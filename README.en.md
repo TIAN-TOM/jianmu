@@ -19,6 +19,7 @@ This describes where the project is heading. Only part of it is built so far, an
 - **Close reading**: subtitles follow playback, and you can ask questions, get selected text explained and take timestamped notes at any time. Long videos switch here automatically after a minute of continuous playback.
 - **Q&A with citations**: answers come with timestamps and the original subtitle lines. Click one to jump back to the video and check. Citations are verified, and when the evidence is thin the answer says so.
 - **Chinese and English side by side**: foreign-language subtitles are translated with your own model.
+- **Tidy subtitles**: speech-recognised subtitles have no punctuation. One click has your own model add punctuation and fix obvious sound-alike mistakes, and nothing else; any line it rewrites is shown as the original.
 - **Batch decisions**: generate overviews for every Bilibili video open in the current window in one go, and run a quick triage over your Watch Later list.
 - **Your own model**: use as strong a model as you like, and set the reasoning effort for each feature separately. New installs start on the cheap settings.
 - **Two sites, one tool** (YouTube version): Bilibili and YouTube share one side panel for verdicts, chapters and subtitles. It ships only after it passes checks on real pages.

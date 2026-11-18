@@ -23,24 +23,31 @@ export function activeIndex(segments: readonly Pick<TranscriptSegment, "start">[
   return found;
 }
 
-/** 一段在当前视图下显示的文字：译文还没到的段落先显示原文。 */
-export function linesOf(segment: TranscriptSegment, mode: TranscriptMode, translated: Readonly<Record<string, string>>): { readonly main: string; readonly sub: string } {
+/** 一段在当前视图下显示的文字：译文还没到的段落先显示原文；有整理结果时原文用整理后的（tidied 只在用户没切回原始字幕时给）。 */
+export function linesOf(
+  segment: TranscriptSegment,
+  mode: TranscriptMode,
+  translated: Readonly<Record<string, string>>,
+  tidied: Readonly<Record<string, string>> = {},
+): { readonly main: string; readonly sub: string } {
   const translation = translated[segment.id] ?? "";
-  if (mode === "translated") return { main: translation || segment.text, sub: "" };
-  if (mode === "bilingual") return { main: segment.text, sub: translation };
-  return { main: segment.text, sub: "" };
+  const original = tidied[segment.id] || segment.text;
+  if (mode === "translated") return { main: translation || original, sub: "" };
+  if (mode === "bilingual") return { main: original, sub: translation };
+  return { main: original, sub: "" };
 }
 
-/** 导出 SRT：内容跟着当前的原文、译文或双语视图。 */
+/** 导出 SRT：内容跟着当前的原文（整理过就是整理后的）、译文或双语视图。 */
 export function srtOf(
   segments: readonly TranscriptSegment[],
   cues: readonly CueView[],
   durationSec: number,
   mode: TranscriptMode,
   translated: Readonly<Record<string, string>>,
+  tidied: Readonly<Record<string, string>> = {},
 ): string {
   const items = segments.map((segment) => {
-    const { main, sub } = linesOf(segment, mode, translated);
+    const { main, sub } = linesOf(segment, mode, translated, tidied);
     return { start: segment.start, text: sub ? `${main}\n${sub}` : main };
   });
   return buildSrt(items, { entries: cues, duration: durationSec });

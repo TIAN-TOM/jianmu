@@ -5,6 +5,7 @@ import chapters from "prompt:skim/chapters.md";
 import verdict from "prompt:skim/verdict.md";
 import explain from "prompt:study/explain.md";
 import notePolish from "prompt:study/note-polish.md";
+import tidy from "prompt:study/tidy.md";
 import translation from "prompt:study/translation.md";
 
 export const PROMPT_FILES: Readonly<Record<string, string>> = Object.freeze({
@@ -13,5 +14,6 @@ export const PROMPT_FILES: Readonly<Record<string, string>> = Object.freeze({
   "skim/verdict.md": verdict,
   "study/explain.md": explain,
   "study/note-polish.md": notePolish,
+  "study/tidy.md": tidy,
   "study/translation.md": translation,
 });

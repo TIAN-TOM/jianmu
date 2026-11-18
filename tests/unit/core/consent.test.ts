@@ -365,7 +365,7 @@ test("存过旧版本的只列之后新增的内容", () => {
   const status = noticeStatus(DATA_CONSENT_TABLE, first, FRAME_OFF);
   assert.equal(status.state, "needed");
   assert.ok(status.state === "needed" && status.updated);
-  assert.deepEqual(status.state === "needed" ? ids(status.items) : [], ["imported-transcript", "video-duration", "auto-on-open"]);
+  assert.deepEqual(status.state === "needed" ? ids(status.items) : [], ["imported-transcript", "video-duration", "auto-on-open", "tidy-transcript"]);
 });
 
 // 数据同意第 3 版：发给模型的视频信息多了时长。完整说明里和「视频标题」并成一行显示，指纹按新增的语义条目算。
@@ -382,14 +382,35 @@ test("数据同意第 3 版加了视频时长：第 1、2 版的指纹不变，�
 });
 
 // 数据同意第 4 版：从「点了才发」变成打开就出结论时自动发，超出原来的范围，升版重新同意。
-test("数据同意第 4 版加了打开视频就自动发送：前三版的指纹不变，第 4 版是当前一版，两种构建一样", () => {
-  assert.deepEqual(versionStamps(DATA_CONSENT_TABLE, FRAME_OFF).at(-1), { version: 4, fingerprint: "16a09b86eba35d2e" });
-  assert.deepEqual(currentStamp(DATA_CONSENT_TABLE, FRAME_ON), { version: 4, fingerprint: "16a09b86eba35d2e" });
-  assert.equal(DATA_CONSENT_VERSION, 4);
-  assert.deepEqual(DATA_CONSENT_TABLE.at(-1)?.items.map(({ kind, id }) => `${kind}:${id}`), ["trigger:auto-on-open"]);
+test("数据同意第 4 版加了打开视频就自动发送：前三版的指纹不变，两种构建一样", () => {
+  assert.deepEqual(versionStamps(DATA_CONSENT_TABLE, FRAME_OFF)[3], { version: 4, fingerprint: "16a09b86eba35d2e" });
+  assert.deepEqual(versionStamps(DATA_CONSENT_TABLE, FRAME_ON)[3], { version: 4, fingerprint: "16a09b86eba35d2e" });
+  assert.deepEqual(DATA_CONSENT_TABLE[3]?.items.map(({ kind, id }) => `${kind}:${id}`), ["trigger:auto-on-open"]);
   assert.ok(CONSENT_V3);
   const stored = { dataConsentVersion: CONSENT_V3.version, dataConsentFingerprint: CONSENT_V3.fingerprint };
   assert.equal(dataConsentGiven(stored, { dataConsentVersion: DATA_CONSENT_VERSION, dataConsentFingerprint: DATA_CONSENT_FINGERPRINT }), false, "同意过第 3 版的要重新同意");
+});
+
+test("数据同意第 5 版加了整理字幕这个用途：前四版的指纹不变，第 5 版是当前一版，两种构建一样；同意过第 4 版的要重新同意，只看到这一行", () => {
+  const stamps = versionStamps(DATA_CONSENT_TABLE, FRAME_OFF);
+  assert.deepEqual(stamps.at(-1), { version: 5, fingerprint: "5ccabe99b2185669" });
+  assert.deepEqual(currentStamp(DATA_CONSENT_TABLE, FRAME_ON), { version: 5, fingerprint: "5ccabe99b2185669" });
+  assert.equal(DATA_CONSENT_VERSION, 5);
+  assert.deepEqual(DATA_CONSENT_TABLE.at(-1)?.items.map(({ kind, id }) => `${kind}:${id}`), ["purpose:tidy-transcript"]);
+  const fourth = stamps[3];
+  assert.ok(fourth);
+  assert.equal(dataConsentGiven({ dataConsentVersion: fourth.version, dataConsentFingerprint: fourth.fingerprint }, { dataConsentVersion: DATA_CONSENT_VERSION, dataConsentFingerprint: DATA_CONSENT_FINGERPRINT }), false);
+  const fromFourth = noticeStatus(DATA_CONSENT_TABLE, fourth, FRAME_OFF);
+  assert.ok(fromFourth.state === "needed" && fromFourth.updated);
+  const [only, ...rest] = lines(fromFourth.items);
+  assert.equal(rest.length, 0);
+  assert.deepEqual(only?.ids, ["tidy-transcript"]);
+  for (const word of ["整理字幕", "补标点", "同音错字", "点「整理字幕」时"]) assert.ok(only?.text.includes(word), word);
+  // 完整说明里和用途那一行并成一行。
+  const full = lines(DATA_CONSENT_TABLE.flatMap((row) => row.items));
+  const purpose = full.find((line) => line.ids.includes("ai-features"));
+  assert.deepEqual(purpose?.ids, ["ai-features", "tidy-transcript"]);
+  assert.match(purpose?.text ?? "", /整理字幕（补标点、改同音错字）/);
 });
 
 test("第 4 版的说明：同意过第 3 版的只看到自动发送这一行；完整说明里它和「只在你点按钮时发出」并成一行", () => {
@@ -424,15 +445,15 @@ test("存着第 2 版的同意：当前规则下不算同意，提示说明有�
   assert.equal(dataConsentGiven(stored, { dataConsentVersion: DATA_CONSENT_VERSION, dataConsentFingerprint: DATA_CONSENT_FINGERPRINT }), false);
 });
 
-test("更新提示：第 2 版的同意者看到新增的「视频时长」和自动发送，第 1 版的同意者再多看到导入字幕", () => {
+test("更新提示：第 2 版的同意者看到新增的「视频时长」、自动发送和整理字幕，第 1 版的同意者再多看到导入字幕", () => {
   const fromSecond = noticeStatus(DATA_CONSENT_TABLE, CONSENT_V2 ?? {}, FRAME_OFF);
   assert.ok(fromSecond.state === "needed");
-  assert.deepEqual(ids(fromSecond.items), ["video-duration", "auto-on-open"]);
+  assert.deepEqual(ids(fromSecond.items), ["video-duration", "auto-on-open", "tidy-transcript"]);
   assert.deepEqual(lines(fromSecond.items)[0], { ids: ["video-duration"], text: "视频时长" });
 
   const fromFirst = noticeStatus(DATA_CONSENT_TABLE, CONSENT_V1 ?? {}, FRAME_OFF);
   assert.ok(fromFirst.state === "needed");
-  assert.deepEqual(ids(fromFirst.items), ["imported-transcript", "video-duration", "auto-on-open"]);
+  assert.deepEqual(ids(fromFirst.items), ["imported-transcript", "video-duration", "auto-on-open", "tidy-transcript"]);
   assert.deepEqual(lines(fromFirst.items).slice(0, 2).map(({ text }) => text), ["你导入的字幕文件里的文字", "视频时长"]);
 });
 
@@ -440,7 +461,7 @@ test("完整说明：从没同意过的人看到「视频标题和时长」一�
   const status = noticeStatus(DATA_CONSENT_TABLE, {}, FRAME_OFF);
   assert.ok(status.state === "needed" && !status.updated);
   const shown = lines(status.items);
-  assert.equal(shown.length, status.items.length - 2, "时长并进标题，自动发送并进点了才发");
+  assert.equal(shown.length, status.items.length - 3, "时长并进标题，自动发送并进点了才发，整理字幕并进用途");
   assert.deepEqual(shown.find(({ text }) => text === "视频标题和时长"), { ids: ["video-title", "video-duration"], text: "视频标题和时长" });
   assert.equal(shown.some(({ text }) => text === "视频时长"), false);
   assert.equal(shown.some(({ text }) => text === "视频标题"), false);

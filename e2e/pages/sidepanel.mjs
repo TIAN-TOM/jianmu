@@ -242,6 +242,12 @@ test("侧边栏：不到 5 分钟的短视频打开就进精读，跟着播放�
       assert.equal(await panel.evaluate(`document.querySelector(".mode-view")?.getAttribute("aria-label")`), "精读");
       assert.equal(await panel.evaluate(`[...document.querySelectorAll(".button")].some((node) => node.textContent === "生成概览")`), false);
       assert.ok(await panel.evaluate(`[...document.querySelectorAll(".dock .button")].some((node) => node.textContent === "存笔记")`), "精读的工具条有存笔记");
+      // 整理字幕：只在点的时候做，按钮旁写明要花额度；没设置 AI 服务时停用。
+      const tidy = await panel.evaluate(`(() => { const row = document.querySelector(".study .tidy-row"); const button = row?.querySelector(".button"); return { text: button?.textContent, disabled: button?.disabled, note: row?.querySelector(".control-note")?.textContent, reason: row?.querySelector(".control-reason")?.textContent }; })()`);
+      assert.equal(tidy.text, "整理字幕");
+      assert.equal(tidy.disabled, true);
+      assert.match(tidy.note ?? "", /要用 API 额度/);
+      assert.match(tidy.reason ?? "", /先在设置页设置 AI 服务/);
     },
     BRIEF_SAMPLE.id,
   );

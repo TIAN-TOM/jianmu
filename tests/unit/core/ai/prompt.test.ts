@@ -100,6 +100,10 @@ const PROMPTS: Readonly<Record<string, PromptVariables>> = {
     selectedText: "测试选中",
     transcriptContext: "测试上下文",
   },
+  "study/tidy.md": {
+    videoTitle: "测试标题",
+    segmentsJson: '{"segments":[{"id":"s1","text":"大家好"}]}',
+  },
   "study/translation.md": {
     targetLangName: "简体中文",
     langRules: "- 测试规则",
@@ -179,6 +183,8 @@ test("分批/分块任务的系统提示词保持稳定前缀，服务商缓存�
   // 付几十次全价 prefill。segmentsJson 只允许出现在用户提示词里。
   const translationSystem = extractPromptSection(read("study/translation.md"), "系统提示词", {});
   assert.ok(!translationSystem.includes("{segmentsJson}"), "study/translation.md 的系统提示词不该包含逐批变化的 segmentsJson");
+  const tidySystem = extractPromptSection(read("study/tidy.md"), "系统提示词", {});
+  assert.ok(!/\{\w+\}/.test(tidySystem), "study/tidy.md 的系统提示词不带变量");
   // 概览分块时时长、门槛逐块不同，系统提示词必须全静态。
   const analysisSystem = extractPromptSection(read("skim/chapters.md"), "系统提示词", {});
   assert.equal(

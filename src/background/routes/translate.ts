@@ -1,4 +1,4 @@
-// 翻译端口：只收侧边栏。发起翻译的消息每条都重查一次启用；页面断开只退订它自己。
+// 翻译端口（整理字幕也走这条）：只收侧边栏。发起翻译的消息每条都重查一次启用；页面断开只退订它自己。
 import type { PortSpec } from "../router.ts";
 import type { TranslateService } from "../services/translate.ts";
 import type { TranslateIn } from "../../shared/messages/translate.ts";
@@ -20,7 +20,13 @@ function isTranslateIn(message: unknown): message is TranslateIn {
   if (!isPlainObject(message)) return false;
   if (message.type === "translate.stop") return hasOnly(message, ["type"]);
   if (message.type !== "translate.start" || !isVideoKey(message.video)) return false;
-  return Object.hasOwn(message, "fromSec") ? hasOnly(message, ["type", "video", "fromSec"]) && isSecond(message.fromSec) : hasOnly(message, ["type", "video"]);
+  const optional = ["fromSec", "purpose", "storedOnly"].filter((key) => Object.hasOwn(message, key));
+  return (
+    hasOnly(message, ["type", "video", ...optional]) &&
+    (!optional.includes("fromSec") || isSecond(message.fromSec)) &&
+    (!optional.includes("purpose") || message.purpose === "tidy") &&
+    (!optional.includes("storedOnly") || message.storedOnly === true)
+  );
 }
 
 export function translatePort({ translate }: TranslatePortDeps): { readonly translate: PortSpec<"translate"> } {
@@ -34,7 +40,7 @@ export function translatePort({ translate }: TranslatePortDeps): { readonly tran
         return {
           onMessage(message) {
             if (message.type === "translate.stop") return translate.stop(port.id);
-            return translate.start(message.video, { origin: "user", fromSec: message.fromSec, listener });
+            return translate.start(message.video, { origin: "user", fromSec: message.fromSec, purpose: message.purpose, storedOnly: message.storedOnly === true, listener });
           },
           onDisconnect: () => translate.leave(port.id),
         };
