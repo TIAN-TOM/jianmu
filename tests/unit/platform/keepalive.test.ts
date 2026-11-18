@@ -91,3 +91,15 @@ test("保活上限按硬超时算：关和低档 11 分钟，中档 16 分钟，
     { off: 11, low: 11, medium: 16, high: 26 },
   );
 });
+
+test("保活：有没撤、没过期的登记时算忙；都撤了或都过了上限就不忙", () => {
+  const h = harness();
+  assert.equal(h.keepAlive.busy(), false);
+  const release = h.keepAlive.hold(60_000);
+  assert.equal(h.keepAlive.busy(), true);
+  release();
+  assert.equal(h.keepAlive.busy(), false);
+  h.keepAlive.hold(60_000);
+  h.timers.advance(60_000);
+  assert.equal(h.keepAlive.busy(), false, "一直没撤的过了上限也不算忙");
+});

@@ -3,7 +3,7 @@
 import { createClearGuard, type ClearGuard } from "../core/clear-guard.ts";
 import { createLimiter, type Limiter } from "../core/concurrency.ts";
 import type { IdbFactory } from "../platform/idb.ts";
-import { createKeepAlive, type KeepAlive } from "../platform/keepalive.ts";
+import { createKeepAlive, type KeepAlive, type KeepAliveState } from "../platform/keepalive.ts";
 import { createMessenger, type Messenger, type PortLike, type RuntimeMessaging } from "../platform/messaging.ts";
 import type { Locks } from "../platform/locks.ts";
 import { createPermissions, type PermissionsApi } from "../platform/permissions.ts";
@@ -28,6 +28,7 @@ import { activationDropped, activationLost } from "./routes/activation.ts";
 import { appearanceChange, type StorageChange } from "./routes/appearance.ts";
 import { createFrameParts, createPorts, createRoutes } from "./routes/index.ts";
 import { createSenders } from "./senders.ts";
+import { wireSelfUpdate } from "./self-update.ts";
 import type { AutoGenerate } from "./services/auto-generate.ts";
 import { createTranscriptService, type SiteAccess, type TranscriptService } from "./services/transcript/index.ts";
 import { OFFICIAL_CAPTIONS_FALLBACK } from "./services/transcript/official.ts";
@@ -53,7 +54,9 @@ import { createTriageStore } from "./stores/triage.ts";
 import { CLAIM_MS, createTaskRunner, type TaskRunner, type Timers } from "./tasks.ts";
 
 export interface AppDeps {
-  readonly runtime: RuntimeMessaging & TabsDeps["runtime"] & { readonly id: string; getURL(path: string): string };
+  readonly runtime: RuntimeMessaging & TabsDeps["runtime"] & { readonly id: string; getURL(path: string): string; reload?(): void };
+  /** 读扩展包里的一个文件，读到的是磁盘上现在的内容；读不到回 null。没给就不看文件换没换。 */
+  readonly readOwnFile?: (path: string) => Promise<string | null>;
   readonly tabs: TabsDeps["tabs"];
   readonly sidePanel: TabsDeps["sidePanel"];
   readonly scripting: TabsDeps["scripting"] & RegisteredScriptsApi;
@@ -78,6 +81,8 @@ export interface AppDeps {
 }
 
 export interface App {
+  /** 后台每个事件先调一次：看看扩展目录里的文件是不是换成了别的构建。 */
+  readonly onWake: () => void;
   readonly dispatch: Router["dispatch"];
   readonly connect: (port: PortLike) => void;
   /** 安装、更新、浏览器升级等都会来，reason 是浏览器给的原因。 */
@@ -103,6 +108,7 @@ interface Core {
   readonly ai: AiWiring;
   /** 任务表，只在内存里。 */
   readonly tasks: TaskRunner;
+  readonly keepAlive: KeepAliveState;
   readonly cardLimits: CardLimits;
   readonly tabs: Tabs;
   readonly messenger: Messenger;
@@ -147,8 +153,8 @@ function assembleAi(deps: AppDeps, settings: SettingsStore, clearGuard: ClearGua
   });
 }
 
-// 任务和笔记的后台润色共用一个保活：哪一份还在，就隔一会儿调一次扩展接口。
-function assembleKeepAlive({ ping, timers }: AppDeps): KeepAlive {
+// 全后台一份保活（任务、批次、画面解释、笔记润色）：哪一份还在，就隔一会儿调一次扩展接口；文件换了自己重载前也看它忙不忙。
+function assembleKeepAlive({ ping, timers }: AppDeps): KeepAliveState {
   return createKeepAlive({ ping, now: timers.now, setTimeout: timers.setTimeout, clearTimeout: (timer) => timers.clearTimeout(timer) });
 }
 
@@ -390,6 +396,7 @@ function assembleCore(deps: AppDeps): Core {
     clearGuard,
     ai,
     tasks,
+    keepAlive,
     // 令牌和认领时限一样长：过了这个时间，没人认领的任务已经收掉了。
     cardLimits: createCardLimits({ now: deps.timers.now, newToken: () => crypto.randomUUID(), tokenTtlMs: CLAIM_MS }),
     tabs,
@@ -415,7 +422,7 @@ function assembleCore(deps: AppDeps): Core {
 function assembleRouter(deps: AppDeps, core: Core): Router {
   const { settings, tabs, contentTabs } = core;
   return createRouter({
-    routes: createRoutes({ ...core, frame: FEATURE_FRAME_EXPLAIN ? createFrameParts({ ...core, storage: deps.storage.local, session: deps.storage.session, keepAlive: assembleKeepAlive(deps), log: deps.log, now: deps.timers.now }) : null }),
+    routes: createRoutes({ ...core, frame: FEATURE_FRAME_EXPLAIN ? createFrameParts({ ...core, storage: deps.storage.local, session: deps.storage.session, keepAlive: core.keepAlive, log: deps.log, now: deps.timers.now }) : null }),
     ports: deps.ports ?? createPorts({ ...core, log: deps.log }),
     senders: createSenders({ extensionId: deps.runtime.id, extensionUrl: (path) => deps.runtime.getURL(path), rules: deps.siteRules }),
     enabled: async () => (await settings.activation()).state === "current",
@@ -442,7 +449,9 @@ export function createApp(deps: AppDeps): App {
       deps.log.error("设置侧边栏的打开方式失败", errorLabel(error));
     });
   const consider = () => void core.auto.consider().catch((error: unknown) => deps.log.error("打开就出结论的判断失败", errorLabel(error)));
+  const selfUpdate = wireSelfUpdate({ ...deps, busy: () => core.keepAlive.busy() || core.batch.busy() || core.tasks.list().some((task) => task.state === "running") });
   return {
+    onWake: () => void selfUpdate?.check(),
     dispatch: router.dispatch,
     connect: router.connect,
     async onInstalled(reason) {

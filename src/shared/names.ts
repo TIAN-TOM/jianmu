@@ -19,6 +19,8 @@ export const AUTO_LEDGER_KEY = "jianmu_auto_ledger";
 export const WATCH_SESSIONS_KEY = "jianmu_watch_sessions";
 export const APPEARANCE_CACHE_KEY = "jianmu_appearance";
 export const SITE_BACKOFF_KEY = "jianmu_site_backoff";
+/** 文件换了自己重新加载的记录：对着哪个新标识重载过几次，防止文件没换全时来回重载。 */
+export const SELF_RELOAD_KEY = "jianmu_self_reload";
 
 // 扩展自己的页面，相对扩展根目录，不带前导斜杠；认发送方时拼成完整地址再比。
 export const PAGE_PATHS = Object.freeze({
@@ -58,5 +60,6 @@ export const STORAGE_KEYS = [
   WATCH_SESSIONS_KEY,
   APPEARANCE_CACHE_KEY,
   SITE_BACKOFF_KEY,
+  SELF_RELOAD_KEY,
 ] as const;
 export type StorageKey = (typeof STORAGE_KEYS)[number];

@@ -5,6 +5,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statS
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build, context } from "esbuild";
+import { BUILD_ID_FILE } from "../src/shared/build-id.ts";
 import { DAILY_FEATURES, featureDefines, FEATURE_GLOBALS, FEATURE_NAMES, RELEASE_FEATURES } from "../src/shared/features.ts";
 import { buildFlagsRecord, clearBuildFlags, featuresFromArgs, writeBuildFlags } from "./lib/build-flags.mjs";
 
@@ -113,6 +114,12 @@ function writeLicenses() {
   writeFileSync(join(OUT, "LICENSE.txt"), sections.map((text) => text.trim().replaceAll("\r\n", "\n")).join("\n\n---\n\n") + "\n");
 }
 
+// 后台醒来时读这份文件，和编进去的标识比：对不上就是文件换成了别的构建，自己重新加载。
+/** @param {import("../src/shared/features.ts").FeatureSet} features */
+function writeBuildIdFile(features) {
+  writeFileSync(join(OUT, BUILD_ID_FILE), `${buildId(features)}\n`);
+}
+
 function prepareOutput() {
   clearBuildFlags();
   rmSync(OUT, { recursive: true, force: true });
@@ -142,10 +149,12 @@ async function main() {
       const watcher = await context(options);
       await watcher.watch();
     }
+    writeBuildIdFile(features);
     writeBuildFlags(features);
     console.log(`正在监听源码变化（${describeFeatures(features)}），开发者模式里加载 build/ 目录`);
   } else {
     await Promise.all(bundleOptions(features).map((options) => build(options)));
+    writeBuildIdFile(features);
     // 构建完才写记录：没跑完的构建没有记录，打包不认。
     writeBuildFlags(features);
     console.log(`构建完成：build/（${describeFeatures(features)}）`);

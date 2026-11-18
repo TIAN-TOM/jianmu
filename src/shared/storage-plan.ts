@@ -11,6 +11,7 @@ import {
   IMAGE_PROBE_STORAGE_KEY,
   RELAX_STORAGE_KEY,
   SETTINGS_REVISION_KEY,
+  SELF_RELOAD_KEY,
   SETTINGS_STORAGE_KEY,
   SITE_BACKOFF_KEY,
   STORAGE_KEYS,
@@ -53,6 +54,7 @@ export const STORAGE_PLAN = {
   [SETTINGS_REVISION_KEY]: { area: "local", clearCache: "keep", clearAll: "renew", backup: false },
   [APPEARANCE_CACHE_KEY]: { area: "localStorage", clearCache: "keep", clearAll: "page-default", backup: false },
   [SITE_BACKOFF_KEY]: { area: "session", clearCache: "keep", clearAll: "keep", backup: false },
+  [SELF_RELOAD_KEY]: { area: "local", clearCache: "keep", clearAll: "clear", backup: false },
 } as const satisfies Record<StoreName | StorageKey, Plan>;
 
 export interface ClearTargets {

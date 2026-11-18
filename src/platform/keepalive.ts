@@ -15,6 +15,11 @@ export interface KeepAlive {
   during<Result>(budgetMs: number, work: () => Result | Promise<Result>): Promise<Result>;
 }
 
+/** 后台自己用：还有没有没撤、没过期的保活，也就是有没有花额度的工作在跑。 */
+export interface KeepAliveState extends KeepAlive {
+  busy(): boolean;
+}
+
 /** 浏览器里的保活调用：任何扩展接口都行，挑一个没有副作用的。 */
 export const chromePing = (): Promise<unknown> => chrome.runtime.getPlatformInfo();
 
@@ -42,7 +47,7 @@ export function createKeepAlive({
   // 计时器可由调用方传入，测试用手动推进的替身。
   setTimeout: schedule = setTimeout,
   clearTimeout: unschedule = clearTimeout,
-}: KeepAliveDeps = {} as KeepAliveDeps): KeepAlive {
+}: KeepAliveDeps = {} as KeepAliveDeps): KeepAliveState {
   if (typeof ping !== "function") throw new Error("保活需要 ping 函数");
   const deadlines = new Map<number, number>();
   let nextId = 0;
@@ -100,5 +105,5 @@ export function createKeepAlive({
     }
   }
 
-  return { hold, during };
+  return { hold, during, busy: live };
 }

@@ -52,6 +52,8 @@ export interface WindowBatch {
   dismiss(windowId: number, listener: WindowListener): void;
   /** 端口断开：忘掉它的清点、退订各窗口的推送。已经确认的这一批照常做完。 */
   leave(listenerId: string): void;
+  /** 有没有哪个窗口的一批还有没做完的条目。 */
+  busy(): boolean;
 }
 
 interface Entry {
@@ -246,6 +248,7 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
   }
 
   return {
+    busy: () => [...runs.values()].some((run) => [...run.entries.values()].some((entry) => entry.status === "pending" || entry.status === "running")),
     async count(windowId, listener) {
       const mine = counted.get(listener.id) ?? new Map<number, readonly WindowCountItem[]>();
       counted.set(listener.id, mine);
