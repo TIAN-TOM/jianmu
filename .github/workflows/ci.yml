@@ -82,4 +82,6 @@ jobs:
 
       - run: npm run test:e2e
 
+      - run: npm run test:e2e:youtube
+
       - run: npm run test:pages

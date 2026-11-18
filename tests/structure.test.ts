@@ -322,3 +322,40 @@ describe("第 6 条：YouTube 一侧的边界", () => {
     assert.deepEqual(filesHit(typeOnly), []);
   });
 });
+
+describe("第 6 条：页面模块和读页面的边界", () => {
+  test("各站 page/ 下的模块和 page.ts 一样：不发请求、不带入后台读取代码、只在本站里互相带入", () => {
+    assert.deepEqual(rulesHit("src/sites/youtube/page/read-panel.ts", 'import { read } from "../service.ts";\n'), [6]);
+    assert.deepEqual(rulesHit("src/sites/bilibili/page/slot.ts", 'import { nav } from "../../youtube/page/nav.ts";\n'), [6]);
+    assert.deepEqual(rulesHit("src/sites/youtube/url.ts", 'import { nav } from "./page/nav.ts";\n'), [6]);
+    assert.deepEqual(rulesHit("src/sites/youtube/page/nav.ts", 'node.id = "panel";\n'), [5]);
+    assert.deepEqual(rulesHit("src/sites/youtube/page.ts", 'import { nav } from "./page/nav.ts";\n'), []);
+    assert.deepEqual(rulesHit("src/sites/youtube/page/read-panel.ts", 'import { model } from "./panel-types.ts";\nimport { rules } from "../url.ts";\n'), []);
+  });
+
+  test("读页面的模块不操作页面，点击只在 page/commands.ts", () => {
+    const actions = [
+      "row.click();",
+      'row["click"]();',
+      "const { click } = row;",
+      "row.focus();",
+      "row.dispatchEvent(event);",
+      'const event = new MouseEvent("click");',
+      "list.scrollIntoView();",
+      "list.scrollTop = 120;",
+      "video.currentTime = 30;",
+      "video.pause();",
+    ];
+    for (const line of actions) assert.deepEqual(rulesHit("src/sites/youtube/page/read-panel.ts", `${line}\n`), [6], line);
+    assert.deepEqual(rulesHit("src/sites/youtube/page/read-panel.ts", "const at = video.currentTime;\nconst same = video.currentTime === 3;\n"), []);
+    assert.deepEqual(rulesHit("src/sites/youtube/page/commands.ts", "button.click();\n"), []);
+    assert.deepEqual(rulesHit("src/sites/youtube/page.ts", "button.click();\n"), [6]);
+    assert.deepEqual(rulesHit("src/content/youtube.ts", "button.click();\n"), [6]);
+  });
+
+  test("内容脚本只导入自己站的页面模块", () => {
+    assert.deepEqual(rulesHit("src/content/youtube.ts", 'import { createPanelReader } from "../sites/youtube/page/read-panel.ts";\n'), []);
+    assert.deepEqual(rulesHit("src/content/bilibili.ts", 'import { createPanelReader } from "../sites/youtube/page/read-panel.ts";\n'), [1]);
+    assert.deepEqual(rulesHit("src/content/youtube.ts", 'import { createYoutubeService } from "../sites/youtube/service.ts";\n'), [1]);
+  });
+});

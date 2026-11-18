@@ -5,6 +5,7 @@ import { hasMatch, splitMatches } from "../../core/highlight.ts";
 import { lineBreaks, splitRuns } from "../../core/transcript/lines.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
 import type { TranscriptView } from "../../shared/messages/transcript.ts";
+import { readsOnClick } from "./transcript.ts";
 import { Button, IconButton } from "../shared/ui/button.tsx";
 import { Icon } from "../shared/ui/icon.tsx";
 import { Menu, type MenuItem } from "../shared/ui/menu.tsx";
@@ -281,6 +282,21 @@ export function TranscriptTab({ panel, guides = true, follow = true }: { readonl
         <span class="ske-line" />
         <span class="ske-line" />
       </div>
+    );
+  }
+  if (now.state === "failed" && now.failure.code === "NOT_CACHED" && readsOnClick(now.video)) {
+    const { video } = now;
+    // YouTube 不自动读：用户先在视频页上打开文字稿，再点这里。
+    return (
+      <>
+        <StateBlock
+          title="读取这个视频的字幕"
+          impact="先在视频页上打开文字稿，等文字出来，再点读取。简幕只读文字稿里已经显示的内容。"
+          primary={{ label: "读取字幕", onClick: () => void panel.transcript.load(video, panel.follow.target.peek().tabId) }}
+          secondary={[{ label: "导入字幕文件", onClick: () => fileInput.current?.click() }]}
+        />
+        <ImportInput panel={panel} inputRef={fileInput} />
+      </>
     );
   }
   if (now.state === "failed") {

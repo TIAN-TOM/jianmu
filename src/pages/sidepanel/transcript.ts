@@ -3,7 +3,7 @@
 import { signal, type ReadonlySignal } from "@preact/signals";
 import { describe } from "../../core/errors.ts";
 import { EXTENSIONS, MAX_FILE_BYTES } from "../../core/transcript/import-file.ts";
-import type { VideoKey } from "../../core/video-ref.ts";
+import { parseVideoKey, type VideoKey } from "../../core/video-ref.ts";
 import type { TranscriptFailure, TranscriptView } from "../../shared/messages/transcript.ts";
 import type { PageApi } from "../shared/api.ts";
 
@@ -16,6 +16,13 @@ export type TranscriptState =
 export interface LoadOptions {
   readonly lang?: string;
   readonly fresh?: boolean;
+  /** 只看本机，不去视频网站读：YouTube 要用户点了读取才读。 */
+  readonly cacheOnly?: boolean;
+}
+
+/** 这个视频的字幕要用户点了才读：YouTube 只在用户点读取时读页面上的文字稿。 */
+export function readsOnClick(video: VideoKey): boolean {
+  return parseVideoKey(video)?.platform === "youtube";
 }
 
 export interface TranscriptStore {
@@ -54,7 +61,7 @@ export function createTranscriptStore({ api }: { readonly api: Pick<PageApi, "se
     state.value = { state: "loading", video };
     const reply = await api.send("transcript.get", {
       video,
-      mode: "full",
+      mode: options.cacheOnly ? "cache-only" : "full",
       ...(options.lang ? { lang: options.lang } : {}),
       ...(options.fresh ? { fresh: true } : {}),
       ...(tabId !== null ? { tabId } : {}),

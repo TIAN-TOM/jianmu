@@ -3,6 +3,7 @@
 // 同一页面再注入一份时（启用、更新后的补注入），新的一份把旧的整套撤下再接手。YouTube 上不放播放页卡片，
 // 也先不挂解释当前画面的图标：YouTube 一侧的截帧还没验证过，后台的路由也不收。
 import { INJECTED } from "../shared/names.ts";
+import { createPanelReader } from "../sites/youtube/page/read-panel.ts";
 import { createYoutubePage } from "../sites/youtube/page.ts";
 import { createContentApp, type ContentApp } from "./app.ts";
 import { createContentRuntime } from "./runtime.ts";
@@ -21,6 +22,8 @@ const app = createContentApp({
   runtime,
   page,
   site: "youtube",
+  // 后台读字幕时问这里：只读文字稿面板上已经显示的内容。
+  siteReader: () => createPanelReader({ document, currentRef: () => page.currentRef(), channelId: () => page.channelId?.() ?? null }),
   createSurface: (env) => createSurface({ ...env, document, page, runtime, miniPlayer: MINI_PLAYER }),
   visibility: {
     hidden: () => document.hidden,

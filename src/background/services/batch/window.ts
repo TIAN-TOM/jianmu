@@ -6,7 +6,7 @@ import { hasAnalysisContent } from "../../../core/ai/verdict.ts";
 import type { ClearEpoch, ClearGuard } from "../../../core/clear-guard.ts";
 import type { ErrorCode, Result } from "../../../core/errors.ts";
 import { OFFICIAL_INTERVAL_MS, runPaced, type BatchStop, type PacedOutcome, type SleepFn } from "../../../core/triage/batch.ts";
-import { parseVideoKey, videoKey, type VideoKey } from "../../../core/video-ref.ts";
+import { parseVideoKey, videoKey, type Platform, type VideoKey } from "../../../core/video-ref.ts";
 import type { KeepAlive } from "../../../platform/keepalive.ts";
 import type { WindowTab } from "../../../platform/tabs.ts";
 import type { WindowCountItem, WindowEntryStatus, WindowEntryView, WindowOut, WindowRunView } from "../../../shared/messages/batch.ts";
@@ -83,16 +83,18 @@ interface Run {
 const SETTLED: ReadonlySet<WindowEntryStatus> = new Set<WindowEntryStatus>(["completed", "failed", "canceled", "skipped"]);
 const RETRYABLE: ReadonlySet<WindowEntryStatus> = new Set<WindowEntryStatus>(["failed", "canceled"]);
 
-/** B 站标签页的标题带着站名后缀，清单里只留视频名。 */
+/** 标签页的标题带着站名后缀，清单里只留视频名。 */
 export function titleOfTab(title: string, fallback: string): string {
-  const trimmed = title.replace(/[_-]哔哩哔哩.*$/u, "").trim();
+  const trimmed = title.replace(/[_-]哔哩哔哩.*$/u, "").replace(/\s+-\s+YouTube$/u, "").replace(/^\(\d+\)\s+/u, "").trim();
   return trimmed || fallback;
 }
 
+// 只在用户点读取时读字幕的站：清点时列出来，标成要逐个打开，不进批量（PRD F13）。
+const OPEN_EACH: ReadonlySet<Platform> = new Set<Platform>(["youtube"]);
+
 export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
   const { log } = deps;
-  // 只认 B 站：YouTube 标签页的清点和跳过随 YouTube 一起做。
-  const rules = deps.rules.filter((rule) => rule.platform === "bilibili");
+  const { rules } = deps;
   const runs = new Map<number, Run>();
   /** 每个端口最近一次清点的结果，按窗口记。 */
   const counted = new Map<string, Map<number, readonly WindowCountItem[]>>();
@@ -263,7 +265,8 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
       for (const [video, tab] of seen) {
         // 只用官方总结写过结论的不算有概览：章节和金句都还没有。
         const existing = hasAnalysisContent((await deps.overviews.find(video))?.analysis);
-        const state = existing ? "existing" : running.has(video) ? "running" : "to-generate";
+        const platform = parseVideoKey(video)?.platform;
+        const state = existing ? "existing" : running.has(video) ? "running" : platform && OPEN_EACH.has(platform) ? "open-each" : "to-generate";
         items.push({ video, title: titleOfTab(tab.title, parseVideoKey(video)?.videoId ?? video), state });
       }
       // 清点期间页面走了：不记，也不回。

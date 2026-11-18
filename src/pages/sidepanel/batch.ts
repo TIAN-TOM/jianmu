@@ -41,7 +41,16 @@ export const RETRYABLE: ReadonlySet<WindowEntryView["status"]> = new Set(["faile
 
 /** 确认前的说明：本窗口有几个视频、跳过几个、要新生成几个。 */
 export function confirmText(items: readonly WindowCountItem[]): string {
-  if (!items.length) return "本窗口没有打开的 B 站视频。";
+  if (!items.length) return "本窗口没有打开的视频。";
+  const head = confirmHead(items);
+  const openEach = items.filter((item) => item.state === "open-each").length;
+  if (!openEach) return head;
+  return head ? `${head}另有 ${openEach} 个 YouTube 视频需逐个打开，在视频页上点读取字幕。` : `本窗口的 ${openEach} 个 YouTube 视频需逐个打开，在视频页上点读取字幕。`;
+}
+
+function confirmHead(all: readonly WindowCountItem[]): string {
+  const items = all.filter((item) => item.state !== "open-each");
+  if (!items.length) return "";
   const existing = items.filter((item) => item.state === "existing").length;
   const running = items.filter((item) => item.state === "running").length;
   const todo = items.length - existing - running;

@@ -20,6 +20,7 @@
     "package:daily": "node scripts/build.mjs --daily && node scripts/package.mjs --daily",
     "test:e2e": "npm run package && node e2e/run.mjs",
     "test:e2e:lifecycle": "npm run package && node e2e/lifecycle.mjs && node e2e/self-reload.mjs",
+    "test:e2e:youtube": "npm run package:daily && node e2e/youtube.mjs",
     "test:pages": "node scripts/build.mjs --test-build && node e2e/pages.mjs",
     "release": "node scripts/release.mjs"
   },

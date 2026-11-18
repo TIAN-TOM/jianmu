@@ -1,6 +1,7 @@
 // 浏览器里的真实依赖，交给 createApp。只在第一个事件来了以后调。
 import { chromePing } from "../platform/keepalive.ts";
 import { createLocks } from "../platform/locks.ts";
+import { createTabPageChannel } from "../platform/page-channel.ts";
 import { extensionStorage } from "../platform/storage.ts";
 import { siteRules } from "../sites/rules.ts";
 import { createSiteCtx, siteService } from "../sites/services.ts";
@@ -20,7 +21,8 @@ export function chromeDeps(prompts: PromptTable): AppDeps {
     indexedDB: () => globalThis.indexedDB,
     locks: createLocks(),
     siteRules: Object.values(siteRules),
-    sites: { service: siteService, ctx: (platform, { signal }) => createSiteCtx(platform, signal) },
+    // 给了标签页时带上通往它的通道：要在页面里读的站（YouTube）经它读，别的站不用。
+    sites: { service: siteService, ctx: (platform, { signal, tabId }) => createSiteCtx(platform, signal, tabId === undefined ? undefined : createTabPageChannel(tabId)) },
     fetch: (url, init) => fetch(url, init),
     // 解压加载的扩展读自己包里的文件，读到的是磁盘上现在的内容。
     readOwnFile: async (path) => {

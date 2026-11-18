@@ -16,7 +16,7 @@ import { createNotesStore, type NotesStore } from "./notes.ts";
 import { createOverviewStore, type OverviewStore } from "./overview.ts";
 import { createPlayer, playerFailureText, type Player } from "./player.ts";
 import { createQaStore, type QaStore } from "./qa.ts";
-import { createTranscriptStore, type TranscriptStore } from "./transcript.ts";
+import { createTranscriptStore, readsOnClick, type TranscriptStore } from "./transcript.ts";
 import { createTidy, createTranslation, type Tidy, type Translation } from "./translate.ts";
 
 export interface Toast {
@@ -112,7 +112,7 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
       overview.bind(active);
       notes.bind(active);
       qa.bind(active);
-      if (active) void transcript.load(active, tabId);
+      if (active) void transcript.load(active, tabId, readsOnClick(active) ? { cacheOnly: true } : {});
       else transcript.clear();
     }),
     // 字幕换了版本，译文和整理结果跟着作废；整理过的这一版打开就用上。

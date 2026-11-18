@@ -3,11 +3,13 @@ import type { Platform } from "../core/video-ref.ts";
 import { createSiteBackoff } from "../platform/site-backoff.ts";
 import { extensionStorage } from "../platform/storage.ts";
 import { createBilibiliService } from "./bilibili/service.ts";
-import type { SiteBackoff, SiteCtx, SiteService } from "./types.ts";
+import type { PageChannel, SiteBackoff, SiteCtx, SiteService } from "./types.ts";
+import { createYoutubeService } from "./youtube/service.ts";
 
-const FACTORIES: Readonly<Partial<Record<Platform, () => SiteService>>> = {
-  bilibili: () => createBilibiliService(),
-};
+// YouTube 的读取服务只在构建开关打开时登记，关着时整个读取实现不进包。
+const FACTORIES: Readonly<Partial<Record<Platform, () => SiteService>>> = FEATURE_YOUTUBE
+  ? { bilibili: createBilibiliService, youtube: createYoutubeService }
+  : { bilibili: createBilibiliService };
 
 const services = new Map<Platform, SiteService>();
 const backoffs = new Map<Platform, SiteBackoff>();
@@ -29,8 +31,11 @@ function siteBackoff(platform: Platform): SiteBackoff {
   return created;
 }
 
-/** 一次读取操作用的环境，每次新建：已登录的结论只在这次操作里沿用。退避同站共用：令牌桶在内存里，各算各的等于没有限速。 */
-export function createSiteCtx(platform: Platform, signal: AbortSignal): SiteCtx {
+/**
+ * 一次读取操作用的环境，每次新建：已登录的结论只在这次操作里沿用。退避同站共用：令牌桶在内存里，各算各的等于没有限速。
+ * 要在页面里读的站，调用方给了标签页时带上通往那个标签页的通道。
+ */
+export function createSiteCtx(platform: Platform, signal: AbortSignal, page?: PageChannel): SiteCtx {
   // 不绑定时，以方法形式调用会报错。
-  return { fetch: fetch.bind(globalThis), signal, backoff: siteBackoff(platform) };
+  return { fetch: fetch.bind(globalThis), signal, backoff: siteBackoff(platform), ...(page ? { page } : {}) };
 }

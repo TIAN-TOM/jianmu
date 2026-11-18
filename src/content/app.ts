@@ -39,10 +39,18 @@ export interface ContentAppDeps {
   readonly visibility: { readonly hidden: () => boolean; readonly onChange: (run: () => void) => () => void };
   /** 媒体元素开始加载新内容。 */
   readonly onMediaLoading: (run: () => void) => () => void;
+  /** 站点自己的页面读取（YouTube 的文字稿面板）：过了启用闸门才建，撤下时停；认得的后台问话由它回。 */
+  readonly siteReader?: () => SiteReader;
   /** 截帧工具的工厂，构建开关打开时才传：挂界面时建，撤下时停。 */
   readonly frame?: (identity: FrameIdentity) => FrameTool;
   readonly every?: (ms: number, run: () => void) => () => void;
   readonly gateTimers?: GateTimers;
+}
+
+export interface SiteReader {
+  /** 认得的问话回 Promise，认不出的回 null。 */
+  readonly handle: (message: unknown) => Promise<unknown> | null;
+  readonly stop: () => void;
 }
 
 export interface ContentApp {
@@ -76,6 +84,7 @@ export function createContentApp(deps: ContentAppDeps): ContentApp {
   let session: AbortController | null = null;
   let player: Player | null = null;
   let frame: FrameTool | null = null;
+  let reader: SiteReader | null = null;
   let surface: Surface | null = null;
   let retired = false;
   let appearanceVersion = 0;
@@ -110,6 +119,10 @@ export function createContentApp(deps: ContentAppDeps): ContentApp {
     const tool = deps.frame?.({ currentKey: current.currentKey, confirmed: current.confirmed, findMainVideo: () => page.findMainVideo() }) ?? null;
     frame = tool;
     if (tool) cleanups.push(() => tool.stop());
+    // 读面板的要比界面先接上：面板内容的变化从这一刻起记。
+    const siteReader = deps.siteReader?.() ?? null;
+    reader = siteReader;
+    if (siteReader) cleanups.push(() => siteReader.stop());
     try {
       await page.whenPageReady(controller.signal);
     } catch {
@@ -147,6 +160,7 @@ export function createContentApp(deps: ContentAppDeps): ContentApp {
     surface = null;
     player = null;
     frame = null;
+    reader = null;
   }
 
   const gate = createGate({
@@ -174,8 +188,8 @@ export function createContentApp(deps: ContentAppDeps): ContentApp {
     } else if (!broadcast && player && gate.isOpen() && !retired) {
       const answer = player.handle(message);
       if (answer) reply(answer);
-      // 截帧要等下一帧、编码，异步回；回 true 让消息通道等着。
-      const pending = answer ? null : frame?.handle(message);
+      // 截帧要等下一帧、编码，读面板要等它加载完，都异步回；回 true 让消息通道等着。
+      const pending = answer ? null : (frame?.handle(message) ?? reader?.handle(message));
       if (pending) {
         void pending.then(reply, () => reply({ ok: false, code: "FRAME_NOT_READY" }));
         return true;

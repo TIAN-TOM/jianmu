@@ -387,14 +387,15 @@ test("模拟路由：签名不对或时间差太多都标意外，用当前密�
   assert.equal(ask(signedUrl(SUMMARY_URL, params, KEYS, seconds - 3600), PROBE.cookie).unexpected, true);
 });
 
-test("主机映射只有三个站点主机和两家模拟的模型服务指向本机，127.0.0.1 留给本机 http 服务，其余域名解析失败", () => {
+test("主机映射只有三个 B 站主机、YouTube 的观看页主机和两家模拟的模型服务指向本机，127.0.0.1 留给本机 http 服务，其余域名解析失败", () => {
   const rules = hostRulesFor(4321).split(", ");
   assert.equal(rules.at(-1), "MAP * ~NOTFOUND");
   assert.equal(rules.at(-2), "EXCLUDE 127.0.0.1");
-  assert.equal(rules.length, 7);
+  assert.equal(rules.length, 8);
   for (const rule of rules.slice(0, -2)) assert.match(rule, /^MAP \S+ 127\.0\.0\.1:4321$/);
   assert.equal(rules.filter((rule) => /openai|anthropic/i.test(rule)).length, 2);
-  for (const rule of rules) assert.doesNotMatch(rule, /youtube/i);
+  // YouTube 只映射观看页那一个主机：简幕在 YouTube 上不发请求，别的主机都解析不到。
+  assert.deepEqual(rules.filter((rule) => /youtube/i.test(rule)), ["MAP www.youtube.com 127.0.0.1:4321"]);
 });
 
 test("慢场景只拖登录检查、视频信息、字幕列表和字幕文件，官方总结和别的主机照常", () => {
