@@ -526,7 +526,17 @@ test("概览分块模式映射成稳定的字符上限，重叠固定 400 字", 
   assert.deepEqual(SETTINGS.analysisChunkOptions({ analysisChunkMode: "auto" }), { maxChars: 6000, singleChars: 8000 });
   assert.deepEqual(SETTINGS.analysisChunkOptions({ analysisChunkMode: "short" }), { maxChars: 3500, singleChars: 3500 });
   assert.deepEqual(SETTINGS.analysisChunkOptions({ analysisChunkMode: "long" }), { maxChars: 12000, singleChars: 14000 });
+  assert.deepEqual(SETTINGS.analysisChunkOptions({ analysisChunkMode: "whole" }), { maxChars: 60_000, singleChars: 80_000, whole: true });
   assert.equal(ANALYSIS_OVERLAP_CHARS, 400);
+});
+
+test("「尽量整份」是可选的一档，默认还是自动；问答检索在这一档按自动切块，别的档跟着概览", () => {
+  assert.equal(SETTINGS.normalize({ analysisChunkMode: "whole" }).analysisChunkMode, "whole");
+  assert.equal(SETTINGS.normalize({}).analysisChunkMode, "auto");
+  assert.deepEqual(SETTINGS.qaChunkOptions({ analysisChunkMode: "whole" }), SETTINGS.analysisChunkOptions({ analysisChunkMode: "auto" }));
+  for (const mode of ["auto", "short", "long"]) {
+    assert.deepEqual(SETTINGS.qaChunkOptions({ analysisChunkMode: mode }), SETTINGS.analysisChunkOptions({ analysisChunkMode: mode }), mode);
+  }
 });
 
 // ============================================================

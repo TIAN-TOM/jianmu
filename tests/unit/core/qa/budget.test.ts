@@ -1,7 +1,8 @@
-// 问答的字幕预算和「输入太长」的识别。
+// 问答的字幕预算，和问答、概览共用的「输入太长」识别。
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { isInputTooLong, QA_BUDGET_CHARS, QA_FALLBACK_BUDGET_CHARS } from "../../../../src/core/qa/budget.ts";
+import { isInputTooLong } from "../../../../src/core/ai/too-long.ts";
+import { QA_BUDGET_CHARS, QA_FALLBACK_BUDGET_CHARS } from "../../../../src/core/qa/budget.ts";
 import { DEFAULT_BUDGET_CHARS } from "../../../../src/core/qa/retrieval.ts";
 
 test("问答默认送约 6 万字，被嫌太长时缩到 1.2 万字", () => {
