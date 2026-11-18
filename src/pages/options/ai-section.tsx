@@ -1,5 +1,6 @@
 // 设置页「AI 服务」一节：服务商、地址、密钥和记住密钥、默认模型和按功能选模型、推理强度、概览分块、数据说明和同意、保存和测试。
 // 推理强度和概览分块即改即存，值按存着的设置显示；其余几项在表单里，点「保存并授权」才生效。
+// 状态行跟着控件走：清除密钥、记住密钥、拉取模型、推理强度、概览分块的结果写在各自下面，保存和测试连接的写在按钮下面。
 import { useEffect, useId } from "preact/hooks";
 import { DATA_CONSENT_TABLE, noticeLines, noticeStatus, type DataConsentKind, type NoticeItem } from "../../core/consent.ts";
 import {
@@ -14,7 +15,7 @@ import {
 } from "../../shared/settings-schema.ts";
 import { dataConsentStatus } from "../../shared/consent-status.ts";
 import { Button } from "../shared/ui/button.tsx";
-import { Confirmable, StatusLine } from "./controls.tsx";
+import { AiStatusLine, Confirmable } from "./controls.tsx";
 import { ImageProbeButton } from "./image-probe-button.tsx";
 import { EFFORT_LABELS, effortNoteText, serviceChanged, showsRegionChooser } from "./form.ts";
 import type { OptionsState } from "./state.ts";
@@ -102,7 +103,10 @@ function EffortBlock({ state }: { readonly state: OptionsState }) {
   return (
     <fieldset class="field effort-block" id="featureEfforts">
       <legend class="field-label">推理强度</legend>
-      <span class="field-hint">档位越高，模型想得越久，越贵也越慢。服务或模型做不到的档位，按最接近的一档发，并在旁边标出。改了马上生效，不用点「保存并授权」。</span>
+      <div>
+        <span class="field-hint">档位越高，模型想得越久，越贵也越慢。服务或模型做不到的档位，按最接近的一档发，并在旁边标出。改了马上生效，不用点「保存并授权」。</span>
+        <AiStatusLine state={state} at="efforts" />
+      </div>
       {FEATURE_MODEL_SLOTS.map((slot) => {
         const item = pending ? undefined : items?.find((entry) => entry.feature === slot.id && entry.requested === saved.featureEfforts[slot.id]);
         const note = item ? effortNoteText(item) : null;
@@ -226,32 +230,38 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
         <label class="field-label" for="aiApiKey">
           API 密钥
         </label>
-        <span class="field-row">
-          <input
-            class="input"
-            id="aiApiKey"
-            type="password"
-            autocomplete="off"
-            spellcheck={false}
-            placeholder="sk-..."
-            value={form.aiApiKey}
-            onInput={(event) => state.editKey(event.currentTarget.value)}
-          />
-          <Confirmable
-            label="清除密钥"
-            question="删除保存的 API 密钥？会话里和这台电脑上记住的都会删掉，删除后要重新填写才能用 AI 功能。"
-            confirmLabel="删除密钥"
-            disabled={working}
-            onConfirm={() => void state.clearKey()}
-          />
-        </span>
+        <div>
+          <span class="field-row">
+            <input
+              class="input"
+              id="aiApiKey"
+              type="password"
+              autocomplete="off"
+              spellcheck={false}
+              placeholder="sk-..."
+              value={form.aiApiKey}
+              onInput={(event) => state.editKey(event.currentTarget.value)}
+            />
+            <Confirmable
+              label="清除密钥"
+              question="删除保存的 API 密钥？会话里和这台电脑上记住的都会删掉，删除后要重新填写才能用 AI 功能。"
+              confirmLabel="删除密钥"
+              disabled={working}
+              onConfirm={() => void state.clearKey()}
+            />
+          </span>
+          <AiStatusLine state={state} at="key" />
+        </div>
         <span class="field-hint">默认只存在本次浏览器会话的内存里，不写入磁盘：重启浏览器，或者扩展停用、重新加载、更新以后，要重新填写。地址是本机的服务不要密钥时，可以留空。</span>
       </div>
 
-      <label class="check">
-        <input id="rememberApiKey" type="checkbox" checked={form.rememberApiKey} onChange={(event) => void state.setRemember(event.currentTarget.checked)} />
-        <span>在这台电脑上记住密钥</span>
-      </label>
+      <div>
+        <label class="check">
+          <input id="rememberApiKey" type="checkbox" checked={form.rememberApiKey} onChange={(event) => void state.setRemember(event.currentTarget.checked)} />
+          <span>在这台电脑上记住密钥</span>
+        </label>
+        <AiStatusLine state={state} at="remember" />
+      </div>
       <span class="field-hint">
         勾上并点「保存并授权」以后，密钥以未加密的形式存在本机的扩展存储里，重启浏览器后还能用。能读这台电脑浏览器数据的程序或人可能拿到密钥，共用电脑上不要开；担心泄露可以到服务商后台撤销这把密钥。取消勾选马上删掉本机那份，密钥只留在本次会话里。密钥不进备份，也不随浏览器账号同步。
       </span>
@@ -260,22 +270,25 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
         <label class="field-label" for="aiModel">
           模型
         </label>
-        <span class="field-row">
-          <input
-            class="input"
-            id="aiModel"
-            type="text"
-            list={MODEL_LIST_ID}
-            autocomplete="off"
-            spellcheck={false}
-            placeholder="填写模型名称，或点右边的按钮拉取"
-            value={form.aiModel}
-            onInput={(event) => state.edit({ aiModel: event.currentTarget.value })}
-          />
-          <Button disabled={working} onClick={() => void state.fetchModels()}>
-            {busy === "models" ? "正在拉取" : "拉取模型列表"}
-          </Button>
-        </span>
+        <div>
+          <span class="field-row">
+            <input
+              class="input"
+              id="aiModel"
+              type="text"
+              list={MODEL_LIST_ID}
+              autocomplete="off"
+              spellcheck={false}
+              placeholder="填写模型名称，或点右边的按钮拉取"
+              value={form.aiModel}
+              onInput={(event) => state.edit({ aiModel: event.currentTarget.value })}
+            />
+            <Button disabled={working} onClick={() => void state.fetchModels()}>
+              {busy === "models" ? "正在拉取" : "拉取模型列表"}
+            </Button>
+          </span>
+          <AiStatusLine state={state} at="model" />
+        </div>
         <span class="field-hint">拉取会先按表单保存一次，再向服务商要当前可用的模型。</span>
       </div>
 
@@ -305,17 +318,20 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
 
       <EffortBlock state={state} />
 
-      <label class="field">
-        <span class="field-label">概览分块</span>
-        <select class="input" id="analysisChunkMode" value={saved.analysisChunkMode} onChange={(event) => void state.saveInstant({ analysisChunkMode: event.currentTarget.value })}>
-          {(Object.keys(ANALYSIS_CHUNK_MODES) as AnalysisChunkMode[]).map((mode) => (
-            <option key={mode} value={mode}>
-              {CHUNK_LABELS[mode]}
-            </option>
-          ))}
-        </select>
-        <span class="field-hint">多数模型用自动就好。上下文窗口小、内容有遗漏，或者长视频的请求超时（单次上限 120 秒，推理强度选中、高时放宽到 180、300 秒）时选「较短」。模型的上下文够长（能装下几万字）时可以选「尽量整份」：一个视频多半一次请求就写完，但更容易超时，超时就换回别的档。改了马上生效，不用点「保存并授权」。</span>
-      </label>
+      <div>
+        <label class="field">
+          <span class="field-label">概览分块</span>
+          <select class="input" id="analysisChunkMode" value={saved.analysisChunkMode} onChange={(event) => void state.saveInstant({ analysisChunkMode: event.currentTarget.value })}>
+            {(Object.keys(ANALYSIS_CHUNK_MODES) as AnalysisChunkMode[]).map((mode) => (
+              <option key={mode} value={mode}>
+                {CHUNK_LABELS[mode]}
+              </option>
+            ))}
+          </select>
+          <span class="field-hint">多数模型用自动就好。上下文窗口小、内容有遗漏，或者长视频的请求超时（单次上限 120 秒，推理强度选中、高时放宽到 180、300 秒）时选「较短」。模型的上下文够长（能装下几万字）时可以选「尽量整份」：一个视频多半一次请求就写完，但更容易超时，超时就换回别的档。改了马上生效，不用点「保存并授权」。</span>
+        </label>
+        <AiStatusLine state={state} at="chunk" />
+      </div>
 
       <ConsentBox state={state} />
 
@@ -332,7 +348,7 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
           </Button>
         ) : null}
       </div>
-      <StatusLine status={state.aiStatus.value} />
+      <AiStatusLine state={state} at="actions" />
       <p class="hint">
         点「保存并授权」时，浏览器会问是否允许简幕访问所选服务商的域名。扩展安装时不知道你会用哪家服务，所以选定以后单独申请，而且只申请这一个域名。
       </p>
