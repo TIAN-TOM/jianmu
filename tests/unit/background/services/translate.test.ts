@@ -2,7 +2,6 @@
 // 点了就做完：面板关掉不停，重开面板接上进度；点停止、发起的标签页换了视频或关掉、额度用完或密钥不对时停下。
 // 服务的测试用架子（任务、仓储、闸门是真的，字幕和模型是替身，或换成真实的取字幕服务）；
 // 要看真实传输层和端口的几条走真实的后台分发。
-import { AI_CONCURRENCY } from "../../../../src/shared/settings-schema.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createApp } from "../../../../src/background/app.ts";
