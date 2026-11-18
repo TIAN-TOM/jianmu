@@ -119,19 +119,29 @@ test("解释当前画面：播放页浮层多一个图标，截帧指令的拒�
       await page.waitFor("图标露出来", `getComputedStyle(document.getElementById("${INJECTED.overlay}")).visibility === "visible"`);
     };
     const center = () => page.evaluate(`(() => { const r = document.getElementById("${INJECTED.frameButton}").getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
-    // 固定定位那一条把按钮挪到视频正中：被劫持的页面会把它铺在用户要点的地方。
+    // 几种改法都把热区放在用户要点的地方：按钮本身、或者视频正中。
     const middle = await page.evaluate(`(() => { const r = document.querySelector("video").getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()`);
-    for (const [name, css] of [
-      ["透明的按钮", "background: transparent !important; color: transparent !important;"],
-      ["滤镜藏起来", "filter: opacity(0) !important;"],
-      ["固定定位铺到视频中间", `position: fixed !important; left: ${middle.x}px !important; top: ${middle.y}px !important;`],
+    const button = `#${INJECTED.frameButton}`;
+    for (const [name, rule, where, prepare] of [
+      ["透明的按钮", `${button} { background: transparent !important; color: transparent !important; }`, "button"],
+      ["滤镜藏起来", `${button} { filter: opacity(0) !important; }`, "button"],
+      ["遮罩藏起来", `${button} { mask-image: linear-gradient(transparent, transparent) !important; }`, "button"],
+      ["固定定位铺到视频中间", `${button} { position: fixed !important; left: ${middle.x}px !important; top: ${middle.y}px !important; }`, "button"],
+      ["浮层挪到视频中间", `#${INJECTED.overlay} { top: ${middle.y - 60}px !important; right: auto !important; left: ${middle.x - 16}px !important; }`, "button"],
+      ["提示文字撑满视口", `.${INJECTED.frameLabel} { display: block !important; position: fixed !important; inset: 0 !important; opacity: 0 !important; }`, "middle"],
+      // 样式表先放好，再把按钮摘掉等它补回：补回来的按钮一插进去就是被改过的样子。
+      ["摘掉按钮等它补回", `${button} { position: fixed !important; left: ${middle.x}px !important; top: ${middle.y}px !important; }`, "button", "remove"],
     ]) {
-      await page.evaluate(`(() => { const style = document.createElement("style"); style.id = "hijack"; style.textContent = "#${INJECTED.frameButton} { ${css} }"; document.head.append(style); return true; })()`);
-      const before = await page.evaluate("window.__frameClicks.length");
-      const spot = await center();
+      await page.evaluate(`(() => { const style = document.createElement("style"); style.id = "hijack"; style.textContent = ${JSON.stringify(rule)}; document.head.append(style); return true; })()`);
+      if (prepare === "remove") {
+        await page.evaluate(`document.getElementById("${INJECTED.frameButton}").remove(), true`);
+        await page.waitFor("按钮补回来了", `Boolean(document.getElementById("${INJECTED.frameButton}"))`);
+      }
+      const clicksBefore = await page.evaluate("window.__frameClicks.length");
+      const spot = where === "middle" ? middle : await center();
       await reveal(spot.x, spot.y);
       await page.clickAt(spot.x, spot.y);
-      await page.waitFor(`${name}：点击送到了按钮`, `window.__frameClicks.length > ${before}`);
+      await page.waitFor(`${name}：点击送到了按钮`, `window.__frameClicks.length > ${clicksBefore}`);
       assert.equal(await label(), "", `${name}：不该发出去`);
       await page.evaluate(`document.getElementById("hijack").remove(), true`);
     }
@@ -166,6 +176,7 @@ test("解释当前画面：播放页浮层多一个图标，截帧指令的拒�
     await reveal(spot.x, spot.y);
     const focused = await page.evaluate(`(() => { document.getElementById("${INJECTED.frameButton}").focus(); return document.activeElement?.id; })()`);
     assert.equal(focused, INJECTED.frameButton, "焦点挪到了图标上");
+    await page.waitFor("前面的提示消失", `(document.querySelector(".${INJECTED.frameLabel}")?.textContent ?? "") === ""`);
     const pressed = await page.evaluate("window.__frameClicks.length");
     await page.press(" ");
     await page.waitFor("空格送到了按钮", `window.__frameClicks.length > ${pressed}`);
