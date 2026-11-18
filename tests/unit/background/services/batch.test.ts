@@ -150,8 +150,8 @@ function setup(options: Options = {}) {
 
 /** 等到间隔计时器排上，再让它到点。 */
 async function tick(timers: OverviewHarness["timers"]): Promise<void> {
-  assert.ok(await until(() => timers.due(1500) > 0), "应该排上 1.5 秒的间隔");
-  timers.fire(1500);
+  assert.ok(await until(() => timers.due(1000) > 0), "应该排上 1 秒的间隔");
+  timers.fire(1000);
 }
 
 // 粗筛
@@ -173,7 +173,7 @@ test("读列表：只读一次稍后再看，只收第 1 P，存进本机；之�
   assert.equal(site.count("readWatchLater"), 1);
 });
 
-test("第一步：逐个取官方总结，两项之间隔 1.5 秒；已有定论的不再问；观看进度不进请求", async () => {
+test("第一步：逐个取官方总结，两项之间隔 1 秒；已有定论的不再问；观看进度不进请求", async () => {
   const site = fakeSiteService({
     watchLater: () => ({ ok: true, value: { total: 3, dropped: 0, items: [listItem(ids[0]), listItem(ids[1]), listItem(ids[2], { paidChecked: false })] } }),
     officialSummary: officialOk,
@@ -386,7 +386,7 @@ test("清点：只看地址和标题、本机概览和任务表，不向平台�
   assert.equal(ensured.length, before);
 });
 
-test("确认后逐个读字幕、两项之间隔 1.5 秒，新生成的都出结果；关掉侧边栏照常做完，重开时接上", async () => {
+test("确认后逐个读字幕、两项之间隔 1 秒，新生成的都出结果；关掉侧边栏照常做完，重开时接上", async () => {
   const tabs = ids.slice(0, 3).map((id) => ({ url: watchUrl(id), title: id }));
   const { service, harness, timers, ensured, page } = setup({ tabs });
   const panel = page("panel");
@@ -417,7 +417,7 @@ test("读字幕被限流就整批停下，没轮到的记成停掉，可以单�
   const state = panel.last("window.state");
   assert.equal(state?.run?.stop, "rate-limited");
   assert.deepEqual(statuses(state), ["failed", "canceled", "canceled"]);
-  assert.equal(timers.due(1500), 0);
+  assert.equal(timers.due(1000), 0);
 
   await service.handle({ type: "window.retry", windowId: 7, video: keyOf(ids[1]) }, panel.listener);
   assert.ok(await until(() => statuses(panel.last("window.state"))[1] === "completed"));
