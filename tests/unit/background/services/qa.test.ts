@@ -16,6 +16,9 @@ import { studyBackground } from "../../../helpers/study-background.ts";
 import { cue, OTHER, studyHarness, VIDEO } from "../../../helpers/study-service.ts";
 import { until } from "../../../helpers/wait-until.ts";
 
+// 测引用边界的几条用例按放宽前的 12000 字预算造样例，字数不用跟着正式预算涨。
+const OLD_BUDGET = { chars: 12_000, fallbackChars: 12_000 };
+
 const answerOf = (result: Result<QaAnswerView>): QaRecord => {
   assert.ok(result.ok, JSON.stringify(result));
   return result.value.entry;
@@ -300,12 +303,12 @@ test("没有字幕时照实报取字幕的错，不发模型请求", async () =>
 test("字幕太长、问题又没有内容词时只送每块开头一句：引用只认这几句的时间点，送进去以外的时间点不算依据", async () => {
   const long = (index: number) => `第${index + 1}分钟这一段讲的是普通的田间管理，`.repeat(25);
   const cues = Array.from({ length: 30 }, (_, index) => cue(index * 60, long(index), 60));
-  const fabricated = studyHarness({ transcripts: { [VIDEO]: cues }, ai: { replies: { qa: JSON.stringify({ answer: "开头讲的是种番茄 [0:10]" }) } } });
+  const fabricated = studyHarness({ transcripts: { [VIDEO]: cues }, qaBudget: OLD_BUDGET, ai: { replies: { qa: JSON.stringify({ answer: "开头讲的是种番茄 [0:10]" }) } } });
   const made = answerOf(await fabricated.ask("总结一下").result);
   assert.equal(made.answer, FALLBACK_ANSWER, "模型没看到第 10 秒那句，不能拿它当依据");
   assert.deepEqual(made.citations, []);
 
-  const grounded = studyHarness({ transcripts: { [VIDEO]: cues }, ai: { replies: { qa: JSON.stringify({ answer: "开头讲田间管理 [0:00]" }) } } });
+  const grounded = studyHarness({ transcripts: { [VIDEO]: cues }, qaBudget: OLD_BUDGET, ai: { replies: { qa: JSON.stringify({ answer: "开头讲田间管理 [0:00]" }) } } });
   const kept = answerOf(await grounded.ask("总结一下").result);
   assert.equal(kept.answer, "开头讲田间管理 [0:00]");
   assert.deepEqual(kept.clickable, [0]);
@@ -316,7 +319,7 @@ test("只挑了部分块时：紧挨着没送进去的块，它起点那一秒�
   const filler = (index: number) => `第${index + 1}条：${"田间管理要点。".repeat(280)}`.slice(0, 1900);
   const cues = Array.from({ length: 30 }, (_, index) => cue(index * 60, index === 13 ? `嫁接先削口。${filler(index)}`.slice(0, 1900) : filler(index), 60));
   const ask = async (answer: string) => {
-    const h = studyHarness({ transcripts: { [VIDEO]: cues }, info: { durationSec: 1800 }, ai: { replies: { qa: JSON.stringify({ answer }) } } });
+    const h = studyHarness({ transcripts: { [VIDEO]: cues }, info: { durationSec: 1800 }, qaBudget: OLD_BUDGET, ai: { replies: { qa: JSON.stringify({ answer }) } } });
     const result = await h.ask("嫁接怎么做？").result;
     assert.ok(result.ok && result.value.retrievalMode === "selected", JSON.stringify(result.ok && result.value.retrievalMode));
     assert.match(userMessage(h.fake.calls[0]!.request), /\[14:00\]/);
@@ -362,4 +365,75 @@ test("发出的问答：字幕单独一块并打缓存标记，问题在最后�
   assert.match(parts[1]?.text ?? "", /\[0:0\d\]/, "字幕那块带时间点");
   assert.doesNotMatch(parts[1]?.text ?? "", /竹竿插多深/, "问题不进字幕那块");
   assert.match(parts[2]?.text ?? "", /竹竿插多深/);
+});
+
+// ============================================================
+// 预算：装得下就整份送，模型装不下时缩小再发一次
+// ============================================================
+
+/** 每条字幕约 1000 字、一分钟一条，共 count 条；第 3 条讲嫁接。 */
+const bulky = (count: number) =>
+  Array.from({ length: count }, (_, index) => cue(index * 60, `${index === 2 ? "嫁接先削口。" : ""}第${index + 1}条：${"田间管理要点。".repeat(150)}`.slice(0, 1000), 60));
+const tooLong = (): Error => Object.assign(new Error("This model's maximum context length is 32768 tokens."), { status: 400 });
+
+test("预算放宽到约 6 万字：五万字的字幕整份送进去", async () => {
+  const h = studyHarness({ transcripts: { [VIDEO]: bulky(50) }, ai: { replies: { qa: JSON.stringify({ answer: "先削口 [2:00]" }) } } });
+  const result = await h.ask("嫁接怎么做？").result;
+  assert.ok(result.ok && result.value.retrievalMode === "full", JSON.stringify(result.ok && result.value.retrievalMode));
+  assert.match(userMessage(h.fake.calls[0]!.request), /第50条/, "最后一条也送进去了");
+});
+
+test("模型嫌太长：缩到小预算再发一次，这一次不再自己重发；回答的依据按第二次送的范围算", async () => {
+  let sent = 0;
+  const h = studyHarness({
+    transcripts: { [VIDEO]: bulky(50) },
+    qaBudget: { chars: 60_000, fallbackChars: 12_000 },
+    ai: {
+      replies: {
+        qa: async () => {
+          sent += 1;
+          if (sent === 1) throw tooLong();
+          return JSON.stringify({ answer: "先削口 [2:00]，后面讲了收尾 [49:00]" });
+        },
+      },
+    },
+  });
+  const entry = answerOf(await h.ask("嫁接怎么做？").result);
+  assert.equal(h.fake.calls.length, 2);
+  assert.equal(h.fake.calls[0]?.request.selfRetry, true);
+  assert.equal(h.fake.calls[1]?.request.selfRetry, false, "缩小后的那次算在重发次数里，传输层不再自己重发");
+  const second = userMessage(h.fake.calls[1]!.request);
+  assert.ok(second.length < userMessage(h.fake.calls[0]!.request).length / 2, "第二次送的字幕少得多");
+  assert.match(second, /嫁接先削口/);
+  assert.deepEqual(entry.citations.map((citation) => citation.startSeconds), [120], "第二次没送的第 49 分钟不算依据");
+});
+
+test("缩小以后还是太长：报模型装不下，一共只发两次", async () => {
+  const h = studyHarness({ transcripts: { [VIDEO]: bulky(50) }, ai: { replies: { qa: async () => { throw tooLong(); } } } });
+  assert.deepEqual(await h.ask("嫁接怎么做？").result, { ok: false, code: "QA_INPUT_TOO_LONG" });
+  assert.equal(h.fake.calls.length, 2);
+});
+
+test("第一次已经重发过、或者字幕本来就不比小预算多：不再缩小重发，直接报模型装不下", async () => {
+  const exhausted = studyHarness({
+    transcripts: { [VIDEO]: bulky(50) },
+    ai: { replies: { qa: async () => { throw Object.assign(tooLong(), { noAutoRetry: true }); } } },
+  });
+  assert.deepEqual(await exhausted.ask("嫁接怎么做？").result, { ok: false, code: "QA_INPUT_TOO_LONG" });
+  assert.equal(exhausted.fake.calls.length, 1);
+
+  const short = studyHarness({ transcripts: { [VIDEO]: bulky(5) }, ai: { replies: { qa: async () => { throw tooLong(); } } } });
+  assert.deepEqual(await short.ask("嫁接怎么做？").result, { ok: false, code: "QA_INPUT_TOO_LONG" });
+  assert.equal(short.fake.calls.length, 1, "缩了也一样长，不白发");
+});
+
+test("别的 400 不缩小重发，照原样报", async () => {
+  const h = studyHarness({
+    transcripts: { [VIDEO]: bulky(50) },
+    ai: { replies: { qa: async () => { throw Object.assign(new Error("Unsupported parameter"), { status: 400 }); } } },
+  });
+  const result = await h.ask("嫁接怎么做？").result;
+  assert.equal(result.ok, false);
+  assert.notEqual(!result.ok && result.code, "QA_INPUT_TOO_LONG");
+  assert.equal(h.fake.calls.length, 1);
 });

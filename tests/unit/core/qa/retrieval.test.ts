@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { clickableTimestamps } from "../../../../src/core/qa/citations.ts";
-import { questionTerms, scoreChunks, selectContext } from "../../../../src/core/qa/retrieval.ts";
+import { DEFAULT_BUDGET_CHARS, questionTerms, scoreChunks, selectContext } from "../../../../src/core/qa/retrieval.ts";
+
+// 这些用例测的是筛选规则本身，预算固定在放宽前的 12000 字，样例的字数不用跟着默认值涨。
+const OLD_BUDGET = 12_000;
 
 // 与分块输出同构的最小块。
 function chunk(index: number, startSeconds: number, text?: string, endSeconds?: number) {
@@ -36,14 +39,14 @@ test("questionTerms：孤立单字保留，纯标点返回空", () => {
 
 test("短字幕走 full 模式整份直送", () => {
   const chunks = makeChunks(3);
-  const result = selectContext({ chunks, question: "讲了什么主题" });
+  const result = selectContext({ budgetChars: OLD_BUDGET, chunks, question: "讲了什么主题" });
   assert.equal(result.mode, "full");
   assert.equal(result.chunks.length, 3);
   assert.deepEqual(result.timeRange, { min: 0, max: 300, ranges: [{ min: 0, max: 300 }] });
 });
 
 test("长字幕打分筛选，命中块的相邻块一并带上且按时间排序", () => {
-  // 6 块 × 约 2200 字 > 默认预算 12000，触发 selected。
+  // 6 块 × 约 2200 字 > 预算 12000，触发 selected。
   const chunks = Array.from({ length: 6 }, (_, index) =>
     chunk(index, index * 120, `块${index} ${"字".repeat(2200)}`),
   );
@@ -71,6 +74,7 @@ test("selected 模式的引用区间只覆盖送进模型的块，不因视频�
   chunks[2]!.text += " 反向传播的核心推导";
 
   const result = selectContext({
+    budgetChars: OLD_BUDGET,
     chunks,
     question: "反向传播是怎么推导的",
     totalDurationSeconds: 900,
@@ -89,6 +93,7 @@ test("选中的块不相邻时，中间没送进模型的那段也不算合法�
   chunks[6]!.text += " 反向传播";
 
   const result = selectContext({
+    budgetChars: OLD_BUDGET,
     chunks,
     question: "反向传播",
     totalDurationSeconds: 1000,
@@ -102,7 +107,7 @@ test("选中的块不相邻时，中间没送进模型的那段也不算合法�
 
 test("full 模式有视频总长时，末块的上界仍以总长封顶", () => {
   const chunks = makeChunks(3);
-  const result = selectContext({ chunks, question: "讲了什么主题", totalDurationSeconds: 400 });
+  const result = selectContext({ budgetChars: OLD_BUDGET, chunks, question: "讲了什么主题", totalDurationSeconds: 400 });
   assert.equal(result.mode, "full");
   assert.equal(result.timeRange?.min, 0);
   assert.equal(result.timeRange?.max, 400);
@@ -158,6 +163,7 @@ test("全部得分为零时进入骨架模式，时间戳原样保留", () => {
     chunk(i, i * 120, `[${Math.floor(i * 120 / 60)}:${String((i * 120) % 60).padStart(2, "0")}] 无关句子${i}${"字".repeat(3200)}`),
   );
   const result = selectContext({
+    budgetChars: OLD_BUDGET,
     chunks,
     question: "总结一下整体脉络",
   });
@@ -193,7 +199,7 @@ test("章节加权：正文没直接命中、章节标题命中的块胜出", ()
 });
 
 test("空问句或空块时安全返回", () => {
-  const empty = selectContext({ chunks: [], question: "" });
+  const empty = selectContext({ budgetChars: OLD_BUDGET, chunks: [], question: "" });
   assert.equal(empty.mode, "full");
   assert.deepEqual(empty.chunks, []);
 });
@@ -220,21 +226,22 @@ test("单个词项在一块里最多记三次，高频词刷不过命中多个�
 });
 
 test("总字数正好等于预算时整份直送，多一个字才筛选；空文本的块不占字数", () => {
-  const exact = [chunk(0, 0, "字".repeat(6000)), { ...chunk(1, 120), text: "" }, chunk(2, 240, "字".repeat(6000))];
-  assert.equal(selectContext({ chunks: exact, question: "反向传播" }).mode, "full", "默认预算 12000 字");
+  const exact = [chunk(0, 0, "字".repeat(30_000)), { ...chunk(1, 120), text: "" }, chunk(2, 240, "字".repeat(30_000))];
+  assert.equal(DEFAULT_BUDGET_CHARS, 60_000);
+  assert.equal(selectContext({ chunks: exact, question: "反向传播" }).mode, "full", "默认预算 60000 字");
 
-  const over = [chunk(0, 0, "字".repeat(6000)), chunk(1, 120, "字".repeat(6001))];
+  const over = [chunk(0, 0, "字".repeat(30_000)), chunk(1, 120, "字".repeat(30_001))];
   assert.notEqual(selectContext({ chunks: over, question: "反向传播" }).mode, "full");
 });
 
 test("默认最多取 6 个命中块，各自带上前后邻居", () => {
-  // 30 块共 15000 字，超过默认预算；每隔 4 块有一个命中块，越靠前命中越多。
+  // 30 块共 15000 字，超过预算；每隔 4 块有一个命中块，越靠前命中越多。
   const chunks = Array.from({ length: 30 }, (_, index) => chunk(index, index * 60, "字".repeat(500)));
   const hits = [0, 4, 8, 12, 16, 20, 24];
   hits.forEach((index, rank) => {
     chunks[index]!.text = "反向".repeat(hits.length - rank) + "字".repeat(490);
   });
-  const result = selectContext({ chunks, question: "反向" });
+  const result = selectContext({ budgetChars: OLD_BUDGET, chunks, question: "反向" });
   assert.equal(result.mode, "selected");
   const indexes = result.chunks.map((c) => c.index);
   assert.ok(indexes.includes(20), "第 6 个命中块在");
@@ -245,7 +252,7 @@ test("默认最多取 6 个命中块，各自带上前后邻居", () => {
 test("只命中一次的块也算相关，不退到骨架", () => {
   const chunks = Array.from({ length: 3 }, (_, index) => chunk(index, index * 120, "字".repeat(5000)));
   chunks[1]!.text += "反向";
-  const result = selectContext({ chunks, question: "反向" });
+  const result = selectContext({ budgetChars: OLD_BUDGET, chunks, question: "反向" });
   assert.equal(result.mode, "selected");
 });
 
@@ -287,7 +294,7 @@ test("骨架每块只留开头 100 字，超出才加省略号", () => {
     chunk(0, 0, `${"甲".repeat(100)}\n${"字".repeat(7000)}`),
     chunk(1, 120, `${"乙".repeat(101)}\n${"字".repeat(7000)}`),
   ];
-  const result = selectContext({ chunks, question: "总结一下" });
+  const result = selectContext({ budgetChars: OLD_BUDGET, chunks, question: "总结一下" });
   assert.equal(result.mode, "skeleton");
   assert.deepEqual(
     result.chunks.map((c) => c.text),
@@ -297,7 +304,7 @@ test("骨架每块只留开头 100 字，超出才加省略号", () => {
 
 test("末块的上界按视频总长向下取整，总长 1 秒也算数", () => {
   const chunks = makeChunks(3);
-  assert.equal(selectContext({ chunks, question: "", totalDurationSeconds: 400.7 }).timeRange?.max, 400);
+  assert.equal(selectContext({ budgetChars: OLD_BUDGET, chunks, question: "", totalDurationSeconds: 400.7 }).timeRange?.max, 400);
   const tiny = [chunk(0, 0, "开场", 0)];
-  assert.equal(selectContext({ chunks: tiny, question: "", totalDurationSeconds: 1 }).timeRange?.max, 1);
+  assert.equal(selectContext({ budgetChars: OLD_BUDGET, chunks: tiny, question: "", totalDurationSeconds: 1 }).timeRange?.max, 1);
 });

@@ -11,6 +11,7 @@
  * 已生成概览时的章节标题与摘要命中加权——章节是付费换来的语义压缩，
  * 白捡的检索索引。
  */
+import { QA_BUDGET_CHARS } from "./budget.ts";
 import type { TimeSpan } from "./citations.ts";
 
 export interface QaChunk {
@@ -212,7 +213,7 @@ function timeRangeOf(
 }
 
 export const DEFAULT_MAX_CHUNKS = 6;
-export const DEFAULT_BUDGET_CHARS = 12_000;
+export const DEFAULT_BUDGET_CHARS = QA_BUDGET_CHARS;
 
 /**
  * 主入口。返回：
