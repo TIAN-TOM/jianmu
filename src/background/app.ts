@@ -11,7 +11,7 @@ import { createPermissions, type PermissionsApi } from "../platform/permissions.
 import { createSettingsStore, type SettingsStore } from "../platform/settings-store.ts";
 import { extensionStorage, type ExtensionStorage } from "../platform/storage.ts";
 import { createTabs, type Tabs, type TabsDeps } from "../platform/tabs.ts";
-import { analysisChunkOptions } from "../shared/settings-schema.ts";
+import { analysisChunkOptions, qaChunkOptions } from "../shared/settings-schema.ts";
 import { siteRules } from "../sites/rules.ts";
 import { createSiteCtx, siteService } from "../sites/services.ts";
 import type { NoteRecord, OverviewRecord, QaRecord } from "../core/notes/records.ts";
@@ -301,7 +301,7 @@ function assembleStudy(deps: AppDeps, parts: OverviewParts, keepAlive: KeepAlive
       qa: stores.qa,
       guard: parts.clearGuard,
       prompt: parts.ai.prompt,
-      chunkOptions: async () => analysisChunkOptions(await parts.settings.loadPublic()),
+      chunkOptions: async () => qaChunkOptions(await parts.settings.loadPublic()),
       log: deps.log,
       now: timers.now,
       newId,
