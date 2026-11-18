@@ -6,7 +6,7 @@ import { readItem, type StorageArea } from "./storage.ts";
 
 // 这些数字都是初值，日用时看被限流的次数和读取的等待时间再调。
 const BUCKET_CAPACITY = 8;
-const REFILL_INTERVAL_MS = 1500;
+const REFILL_INTERVAL_MS = 1000;
 const FIRST_BACKOFF_MS = 60_000;
 const MAX_BACKOFF_MS = 60 * 60_000;
 

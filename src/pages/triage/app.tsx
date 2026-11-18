@@ -65,7 +65,7 @@ function Steps({ state }: { readonly state: TriageState }) {
     <section class="card" id="triage-steps">
       <div class="step" id="step-official">
         <h2>第一步：取 B 站官方总结</h2>
-        <p class="hint">不调模型，不花 API 额度。一次一个，每两次请求之间至少隔 1.5 秒；已经取到结果的视频会跳过，被 B 站限流或接连要登录时停下。</p>
+        <p class="hint">不调模型，不花 API 额度。一次一个，每两次请求之间至少隔 1 秒；已经取到结果的视频会跳过，被 B 站限流或接连要登录时停下。</p>
         <StepActions state={state} step="official" />
         {pending?.step === "official" ? <Confirm state={state} /> : null}
         <StatusLine status={state.officialStatus.value} />

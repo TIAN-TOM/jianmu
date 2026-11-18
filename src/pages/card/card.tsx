@@ -14,7 +14,7 @@ const OFFICIAL_MISSING: Readonly<Record<OfficialSummaryView["status"], string>> 
   ok: "",
   none: "B 站没有给这个视频做官方总结。",
   unsupported: "B 站没有给这个视频做官方总结。",
-  queued: "B 站的官方总结还在生成，过一会儿再来看。",
+  queued: "B 站现在没有这个视频的官方总结。",
   "need-login": "登录 B 站后才看得到官方总结。",
   failed: "这次没读到 B 站的官方总结。",
   pending: "正在读 B 站的官方总结…",

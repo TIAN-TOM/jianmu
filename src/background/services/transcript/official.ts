@@ -1,6 +1,7 @@
 // 官方总结并进取字幕：和字幕列表同时问，字幕先到时最多再等一小会儿，等不到就先交字幕、存个占位，回来后填回。
 // 排队中、要登录、没问成的过一阵再问；命中缓存时在后台重问，只写回还在的那条。同一视频同一媒体版本同时只问一次。
 // 附带的 AI 字幕只在播放器字幕取不到、没点名语言时兜底，注明来源；被限流、被平台拒绝、要登录、看不了时不用。
+// 用着附带字幕的，隔一段时间再打开时取字幕服务再试一次平台字幕，读到了就换回来。
 import type { ClearEpoch, ClearGuard } from "../../../core/clear-guard.ts";
 import type { ErrorCode, Failure } from "../../../core/errors.ts";
 import { officialFingerprint, transcriptFingerprint } from "../../../core/transcript/fingerprint.ts";
@@ -18,6 +19,8 @@ export const OFFICIAL_CAPTIONS_FALLBACK = true;
 export const OFFICIAL_GRACE_MS = 1_500;
 /** 排队中、要登录、没问成的，过这么久再问。 */
 export const OFFICIAL_RETRY_MS = 10 * 60_000;
+/** 用着官方总结附带的字幕时，离上次向平台读字幕过了这么久，再打开就再试一次平台字幕。 */
+export const PLATFORM_RETRY_MS = OFFICIAL_RETRY_MS;
 
 /** 兜底字幕在字幕轨里的编号和语言：不是平台列出的哪一条，正文固定是中文。 */
 const OFFICIAL_TRACK_ID = "official-ai";
@@ -196,6 +199,7 @@ export function createOfficials({ writer, guard, timers, log, captionsFallback, 
         trackId: OFFICIAL_TRACK_ID,
         label: OFFICIAL_SUBTITLE_LABEL,
         cues: read.cues,
+        triedAt: timers.now(),
       };
       return recordOf(info, transcript, tracks, chapters, read.record);
     },

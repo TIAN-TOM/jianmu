@@ -82,7 +82,7 @@ function fakeClock() {
 
 // 第一步：串行、限速、停止
 
-test("串行取总结：发了请求的两次之间至少隔 1.5 秒，从上一次回来算起", async () => {
+test("串行取总结：发了请求的两次之间至少隔 1 秒，从上一次回来算起", async () => {
   const clock = fakeClock();
   const calls: { key: VideoKey; start: number }[] = [];
   let inFlight = 0;
@@ -100,15 +100,15 @@ test("串行取总结：发了请求的两次之间至少隔 1.5 秒，从上一
   );
   assert.deepEqual(result, { done: 3, total: 3, stopped: false });
   assert.deepEqual(calls.map((call) => call.key), [keyOf("A"), keyOf("B"), keyOf("C")]);
-  assert.equal(OFFICIAL_INTERVAL_MS, 1500);
+  assert.equal(OFFICIAL_INTERVAL_MS, 1000);
   for (let i = 1; i < calls.length; i += 1) {
     const previous = calls[i - 1];
     const current = calls[i];
     assert.ok(previous && current);
     const previousEnd = previous.start + 400;
-    assert.ok(current.start - previousEnd >= 1500, `第 ${i + 1} 个请求开始得太早`);
+    assert.ok(current.start - previousEnd >= 1000, `第 ${i + 1} 个请求开始得太早`);
   }
-  assert.deepEqual(clock.waits, [1500, 1500]);
+  assert.deepEqual(clock.waits, [1000, 1000]);
 });
 
 test("没发请求的（后台直接用了存着的结果）不占间隔，下一个也不用多等", async () => {
@@ -123,11 +123,11 @@ test("没发请求的（后台直接用了存着的结果）不占间隔，下�
     },
     { now: clock.now, sleep: clock.sleep },
   );
-  // A 发了请求 → B 等满 1.5 秒；B、C 没发请求 → D 只需离 A 回来满 1.5 秒，不再额外等。
-  assert.deepEqual(clock.waits, [1500]);
+  // A 发了请求 → B 等满 1 秒；B、C 没发请求 → D 只需离 A 回来满 1 秒，不再额外等。
+  assert.deepEqual(clock.waits, [1000]);
   const last = starts.at(-1);
   assert.ok(last);
-  assert.ok(last[1] - 100 >= 1500);
+  assert.ok(last[1] - 100 >= 1000);
 });
 
 test("worker 抛错按可能发过请求算，仍然等满间隔，循环不中断", async () => {
@@ -146,7 +146,7 @@ test("worker 抛错按可能发过请求算，仍然等满间隔，循环不中�
     },
   );
   assert.deepEqual(outcomes, [[keyOf("A"), "后台没有响应"], [keyOf("B"), "ok"]]);
-  assert.deepEqual(clock.waits, [1500]);
+  assert.deepEqual(clock.waits, [1000]);
 });
 
 test("停止：等间隔时点停止立刻结束，不再开始下一个", async () => {
@@ -160,7 +160,7 @@ test("停止：等间隔时点停止立刻结束，不再开始下一个", async
     },
     {
       signal: controller.signal,
-      // 用真的 sleep：停止要能打断正在等的那 1.5 秒。
+      // 用真的 sleep：停止要能打断正在等的那 1 秒。
       onResult: () => setTimeout(() => controller.abort(), 10),
     },
   );
@@ -202,7 +202,7 @@ test("第一步：每一项交给注入的步骤，带上条目和视频身份�
   });
   assert.deepEqual(seen[0], { item: item("A", { mediaVersion: "11", channel }), ref: refOf("A") });
   assert.deepEqual(started, [keyOf("A"), keyOf("B"), keyOf("C")]);
-  assert.deepEqual(clock.waits, [1500]);
+  assert.deepEqual(clock.waits, [1000]);
   assert.equal(result.stop, null);
 });
 

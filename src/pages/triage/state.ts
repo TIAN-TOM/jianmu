@@ -77,7 +77,7 @@ export function officialRecordText(record: OfficialRecord | undefined, item: Tri
     case "none":
       return "没有官方总结";
     case "queued":
-      return "B 站还在生成总结，过几分钟再点开始";
+      return "B 站现在没有这个视频的官方总结，可以先处理别的";
     case "unsupported":
       return "B 站不给这个视频做总结";
     case "need-login":
@@ -306,7 +306,7 @@ export function createTriageState(deps: TriageDeps): TriageState {
       step: "official",
       lines: [
         `要逐个请求 ${todo.length} 个视频的 B 站官方总结${skipped ? `，跳过已经有结果或已失效的 ${skipped} 个` : ""}。`,
-        `不调模型，不花 API 额度。一次一个，每两次请求之间至少隔 1.5 秒，大约要 ${minutes} 分钟以上。`,
+        `不调模型，不花 API 额度。一次一个，每两次请求之间至少隔 1 秒，大约要 ${minutes} 分钟以上。`,
         "可以随时停止；关掉这个页面也会停止。",
       ],
     };

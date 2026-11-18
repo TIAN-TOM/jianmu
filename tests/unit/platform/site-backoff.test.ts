@@ -25,7 +25,7 @@ function world(session: MemoryStorage = memoryStorage()) {
   return { clock, waits, session, make };
 }
 
-test("平时放行，桶里的令牌用完才排队，每 1.5 秒补一个", async () => {
+test("平时放行，桶里的令牌用完才排队，每 1 秒补一个", async () => {
   const { clock, waits, make } = world();
   const backoff = make();
 
@@ -33,14 +33,14 @@ test("平时放行，桶里的令牌用完才排队，每 1.5 秒补一个", asy
   assert.deepEqual(waits, []);
 
   assert.deepEqual(await backoff.admit(NEVER), { ok: true });
-  assert.deepEqual(waits, [1500]);
+  assert.deepEqual(waits, [1000]);
 
   clock.at += 15_000;
   waits.length = 0;
   for (let index = 0; index < 8; index += 1) await backoff.admit(NEVER);
   assert.deepEqual(waits, [], "空闲够久，桶满了，但不超过容量");
   await backoff.admit(NEVER);
-  assert.deepEqual(waits, [1500]);
+  assert.deepEqual(waits, [1000]);
 });
 
 test("排队的按先后等，后面的等得更久", async () => {
@@ -56,7 +56,7 @@ test("排队的按先后等，后面的等得更久", async () => {
     },
   });
   await Promise.all(Array.from({ length: 10 }, () => backoff.admit(NEVER)));
-  assert.deepEqual(seen, [1500, 3000]);
+  assert.deepEqual(seen, [1000, 2000]);
 });
 
 test("排队时取消：不发，令牌还回去", async () => {
@@ -79,7 +79,7 @@ test("排队时取消：不发，令牌还回去", async () => {
   await assert.rejects(backoff.admit(controller.signal), /取消/, "已经取消的不排队");
 
   assert.deepEqual(await backoff.admit(NEVER), { ok: true });
-  assert.deepEqual(waits, [1500, 1500]);
+  assert.deepEqual(waits, [1000, 1000]);
 });
 
 test("排队的时候进了退避：等完也不放行", async () => {
