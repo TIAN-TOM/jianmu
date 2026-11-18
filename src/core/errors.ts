@@ -54,6 +54,8 @@ export interface Failure {
   readonly code: ErrorCode;
   readonly detail?: string;
   readonly retryAfterSec?: number;
+  /** 站点拒绝了这次读取，已经进了退避。 */
+  readonly rejected?: true;
 }
 
 export type Result<T> = { readonly ok: true; readonly value: T } | Failure;

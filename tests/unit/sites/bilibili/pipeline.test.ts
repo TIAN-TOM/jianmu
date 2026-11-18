@@ -294,6 +294,18 @@ for (const [name, listing, code] of [
   });
 }
 
+test("两次读取共用一次被拒绝的列轨：没点名语言的那次同样不拿附带的字幕顶上", async () => {
+  const h = rig(
+    { listing: (): Response => new Response("<html>样例验证页</html>", { status: 200 }), summary: () => summaryEnvelope([{ content: "第一句", start_timestamp: 0, end_timestamp: 2.5 }]) },
+    { fallback: true },
+  );
+  const [named, plain] = await Promise.all([h.service.get(REF, { mode: "full", lang: "en" }), h.service.get(REF, { mode: "full" })]);
+  assert.equal(named.ok, false);
+  assert.equal(plain.ok, false);
+  assert.equal(!plain.ok && plain.code, "MALFORMED");
+  assert.deepEqual(await h.rows(), []);
+});
+
 test("未登录：只问一次登录就报需要登录，不问官方总结，什么都不存", async () => {
   const h = rig({ loggedOut: true });
   const result = await h.service.get(REF, { mode: "full" });

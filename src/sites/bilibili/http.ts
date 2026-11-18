@@ -116,9 +116,11 @@ function detailOf(reading: Reading): string {
 }
 
 function failureFromRow(row: ErrorRow, detail: string, retryAfterSec: number | undefined): SiteFailure {
-  if (row.code === "MALFORMED") return { ok: false, code: row.code, reach: row.reach, detail };
-  if (row.code === "RATE_LIMITED" && retryAfterSec !== undefined) return { ok: false, code: row.code, retryAfterSec, detail };
-  return { ok: false, code: row.code, detail };
+  // 进了退避的失败带上标记：几次读取共用一个请求时，各自都看得到这次是被拒绝的。
+  const rejected = row.trip ? ({ rejected: true } as const) : {};
+  if (row.code === "MALFORMED") return { ok: false, code: row.code, reach: row.reach, detail, ...rejected };
+  if (row.code === "RATE_LIMITED" && retryAfterSec !== undefined) return { ok: false, code: row.code, retryAfterSec, detail, ...rejected };
+  return { ok: false, code: row.code, detail, ...rejected };
 }
 
 function notSent(channel: Channel, outcome: Outcome, retryAfterSec?: number): Reading {

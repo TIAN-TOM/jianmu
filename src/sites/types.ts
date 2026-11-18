@@ -69,8 +69,8 @@ export interface WatchLaterList {
 
 // 内容格式不对时必须标影响范围，别的码的含义由码本身决定。
 export type SiteFailure =
-  | { ok: false; code: "MALFORMED"; reach: SiteFailureReach; retryAfterSec?: never; detail?: string }
-  | { ok: false; code: Exclude<SiteErrorCode, "MALFORMED">; retryAfterSec?: number; detail?: string };
+  | { ok: false; code: "MALFORMED"; reach: SiteFailureReach; retryAfterSec?: never; detail?: string; rejected?: true }
+  | { ok: false; code: Exclude<SiteErrorCode, "MALFORMED">; retryAfterSec?: number; detail?: string; rejected?: true };
 
 export type SiteResult<T> = { ok: true; value: T } | SiteFailure;
 

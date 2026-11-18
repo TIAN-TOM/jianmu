@@ -31,8 +31,8 @@ function tryNext(result: Exclude<SiteResult<unknown>, { ok: true }>): boolean {
 
 /** 站点的失败换成取字幕服务的结果形状：码、说明和等多久，影响范围只给批量处理用。 */
 export function failureOf(result: Exclude<SiteResult<unknown>, { ok: true }>): Failure {
-  const { code, detail, retryAfterSec } = result;
-  return { ok: false, code, ...(detail === undefined ? {} : { detail }), ...(retryAfterSec === undefined ? {} : { retryAfterSec }) };
+  const { code, detail, retryAfterSec, rejected } = result;
+  return { ok: false, code, ...(detail === undefined ? {} : { detail }), ...(retryAfterSec === undefined ? {} : { retryAfterSec }), ...(rejected ? { rejected } : {}) };
 }
 
 /** 一次读取里所有下载共用的预算。 */
