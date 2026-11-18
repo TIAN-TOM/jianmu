@@ -4,7 +4,6 @@ import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { BUILD_FEATURES } from "../../../src/core/consent.ts";
 import {
   FEATURE_GLOBALS,
   FEATURE_NAMES,
@@ -16,9 +15,9 @@ import {
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
-test("发行构建的三个开关全部关着，测试构建全部打开", () => {
+test("发行构建打开解释当前画面（首发带上），YouTube 的两个代操作关着；测试构建全部打开", () => {
   assert.deepEqual(FEATURE_NAMES, ["frameExplain", "youtubeOpenPanel", "youtubeSwitchLang"]);
-  assert.deepEqual(RELEASE_FEATURES, { frameExplain: false, youtubeOpenPanel: false, youtubeSwitchLang: false });
+  assert.deepEqual(RELEASE_FEATURES, { frameExplain: true, youtubeOpenPanel: false, youtubeSwitchLang: false });
   assert.deepEqual(TEST_BUILD_FEATURES, { frameExplain: true, youtubeOpenPanel: true, youtubeSwitchLang: true });
   assert.ok(Object.isFrozen(RELEASE_FEATURES) && Object.isFrozen(TEST_BUILD_FEATURES) && Object.isFrozen(FEATURE_GLOBALS));
 });
@@ -31,11 +30,11 @@ test("全局常量名是开关名的大写下划线写法，带 FEATURE_ 前缀"
 
 test("define 把每个全局常量换成字面量，只认真正的 true", () => {
   assert.deepEqual(featureDefines(RELEASE_FEATURES), {
-    FEATURE_FRAME_EXPLAIN: "false",
+    FEATURE_FRAME_EXPLAIN: "true",
     FEATURE_YOUTUBE_OPEN_PANEL: "false",
     FEATURE_YOUTUBE_SWITCH_LANG: "false",
   });
-  assert.deepEqual(featureDefines({ ...RELEASE_FEATURES, youtubeOpenPanel: true }), {
+  assert.deepEqual(featureDefines({ ...RELEASE_FEATURES, frameExplain: false, youtubeOpenPanel: true }), {
     FEATURE_FRAME_EXPLAIN: "false",
     FEATURE_YOUTUBE_OPEN_PANEL: "true",
     FEATURE_YOUTUBE_SWITCH_LANG: "false",
@@ -60,10 +59,4 @@ test("Node 测试里的全局常量和测试构建一致，而且改不了", () 
     }, TypeError);
   }
   assert.equal(FEATURE_YOUTUBE_OPEN_PANEL, true, "裸常量在测试里也能直接用");
-});
-
-test("说明表认的开关都在开关表里", () => {
-  const known: readonly string[] = FEATURE_NAMES;
-  for (const name of Object.keys(BUILD_FEATURES)) assert.ok(known.includes(name), name);
-  assert.equal(BUILD_FEATURES.frameExplain, FEATURE_FRAME_EXPLAIN, "说明表跟着构建时的全局常量走");
 });

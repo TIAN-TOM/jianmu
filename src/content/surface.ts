@@ -39,7 +39,7 @@ export function createSurface({ document, page, runtime, player, frame, retire, 
   let cardEnabled = false;
 
   let pressFrame: (() => Promise<void>) | null = null;
-  // 解释当前画面的图标只写在裸开关的分支里：发行构建连同图标一起裁掉，不留点了没反应的按钮。
+  // 解释当前画面的图标只写在裸开关的分支里：开关关着的构建连同图标一起裁掉，不留点了没反应的按钮。
   const entries: HoverIconEntry[] = [
     { spec: NOTE_ICON, onPress: () => void saveNote() },
     ...(FEATURE_FRAME_EXPLAIN ? frameIconEntries(frame, () => void pressFrame?.()) : []),

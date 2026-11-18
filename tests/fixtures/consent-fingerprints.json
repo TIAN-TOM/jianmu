@@ -1,30 +1,14 @@
 {
-  "frameExplainOff": {
-    "dataConsent": {
-      "1": "b77f44c06d527713",
-      "2": "3bba6112484a07d2",
-      "3": "7388613d751dad34",
-      "4": "6ac3269feba5a9cf",
-      "5": "b459474109f65107"
-    },
-    "activation": {
-      "1": "ea809e9a65f8b633",
-      "2": "b43642643fe4e6e5",
-      "3": "c7c74de73be1ef90"
-    }
+  "dataConsent": {
+    "1": "b77f44c06d527713",
+    "2": "3bba6112484a07d2",
+    "3": "7388613d751dad34",
+    "4": "6ac3269feba5a9cf",
+    "5": "7c550f58c5fddf7f"
   },
-  "frameExplainOn": {
-    "dataConsent": {
-      "1": "b77f44c06d527713",
-      "2": "3bba6112484a07d2",
-      "3": "7388613d751dad34",
-      "4": "6ac3269feba5a9cf",
-      "5": "7c550f58c5fddf7f"
-    },
-    "activation": {
-      "1": "ea809e9a65f8b633",
-      "2": "b43642643fe4e6e5",
-      "3": "372b4707b69fb4f1"
-    }
+  "activation": {
+    "1": "ea809e9a65f8b633",
+    "2": "b43642643fe4e6e5",
+    "3": "372b4707b69fb4f1"
   }
 }

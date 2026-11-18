@@ -33,6 +33,7 @@
 - 用「本窗口全部生成」时，当前窗口里已授权网站的标签页的地址和标题。
 - 打开「打开就出结论」以后，已授权网站各标签页的地址，用来认出打开的 B 站视频，包括在后台打开、还没切过去看的。
 - 在粗筛页点读取时，你的 B 站稍后再看列表，以及每个视频看到了哪里。
+- 你点播放器上「解释当前画面」的图标，或者侧边栏里的按钮时，视频当前的一帧画面。只截视频本身，不截整个网页。加密播放（比如番剧、电影）、付费或确认不了是不是付费的视频、正在播广告、视频页不在前台时不截。
 
 这些内容用来在侧边栏和播放页卡片里显示，按时长、频道和播放情况选速览或精读，以及作为之后生成概览和回答问题的材料。
 
@@ -58,14 +59,16 @@
 - UP 主名和简介
 - 「用官方总结写结论」和粗筛写结论时用到的 B 站官方总结
 - 写一句话结论时，这次已经生成的章节标题、摘要和金句
+- 点「解释当前画面」时视频当前的一帧画面，连同这一刻前后几句字幕和视频标题，发给你在设置页「按功能选模型」里给画面分析选的模型
 - 你的 API 密钥：每个请求都带着，服务商靠它认出是你的账户
 
-**用来做什么**：翻译、整理字幕（补标点、改明显的同音错字）、概览、一句话结论、划词解释、笔记润色、问答，以及粗筛时写一句话结论。
+**用来做什么**：翻译、整理字幕（补标点、改明显的同音错字）、概览、一句话结论、划词解释、笔记润色、问答、粗筛时写一句话结论，以及解释当前画面。
 
 **什么时候发**：
 
-- 平时只在你操作时发，比如点「生成概览」、提问、点「解释」、点「整理字幕」，或者记笔记（笔记存下以后，会请模型润色那一刻的字幕）。翻译和整理字幕点了以后在后台分批发完，关掉侧边栏也继续，直到做完、你点停止，或者视频所在的标签页换了视频或关掉。
+- 平时只在你操作时发，比如点「生成概览」、提问、点「解释」、点「整理字幕」、点「解释当前画面」，或者记笔记（笔记存下以后，会请模型润色那一刻的字幕）。翻译和整理字幕点了以后在后台分批发完，关掉侧边栏也继续，直到做完、你点停止，或者视频所在的标签页换了视频或关掉。
 - 「本窗口全部生成」和粗筛，你先确认数量，之后逐个发送。
+- 简幕要知道画面分析的模型能不能看图。认不出这个模型时，会发一张 64×64 的红色小图问它是什么颜色（不是视频画面），答得出才算能看。
 - 打开「打开就出结论」以后：在 B 站打开超过设定时长的视频，简幕会自动发送这个视频的字幕、标题和时长、UP 主名和简介，生成概览和一句话结论。这个开关新安装时是关的，打开前要先同意数据说明；设定时长默认 10 分钟，可以在 0 到 180 分钟之间调。在后台打开、还没切过去看的标签页也算，打开开关时已经开着的也算；它们排队生成，正在看的那个先生成，同时最多生成两个，10 分钟最多 40 个。一次开的标签页越多，花的 API 额度越多。已有概览的视频不再生成，同一个视频在一次浏览器会话里只自动试一次。外文字幕不自动翻译。服务商说额度用完或密钥不对时，自动生成会停下，等你手动生成成功一次，或者重新开一下开关，才恢复。
 
 **不会发送的**：B 站的 Cookie 和其他登录凭证，平台返回的字幕文件地址。
@@ -95,8 +98,9 @@
 所有资料都存在这台电脑上、这个 Chrome 个人资料的扩展存储里，不随浏览器账号同步。简幕不另外加密这些资料。每一项的名称见文末的「存储明细」。
 
 - **长期保存，直到你删掉**：概览和一句话结论、问答、笔记、译文、导入的字幕、按频道记住的模式、设置。
-- **缓存**：字幕、视频信息、B 站官方总结和 UP 主分段最多留 500 个视频，超过 90 天或超出条数的，在下次存新内容时删掉。粗筛读到的稍后再看列表和官方总结、各个模型能做什么（比如能不能看图），过了有效期就不再使用，但要等重新读取或你清除缓存时才从存储里删掉。字幕文件的地址不存。
-- **只留到浏览器关闭**：正在看的视频用哪个模式、播放了多久，「打开就出结论」试过哪些视频，以及默认方式下的 API 密钥（见「API 密钥」一节）。B 站限流以后要等多久，也只留到浏览器关闭。
+- **缓存**：字幕、视频信息、B 站官方总结和 UP 主分段最多留 500 个视频，超过 90 天或超出条数的，在下次存新内容时删掉。粗筛读到的稍后再看列表和官方总结、各个模型能做什么（比如能不能看图）、画面分析的模型能不能看图的检测结果，过了有效期就不再使用，但要等重新读取或你清除缓存时才从存储里删掉。字幕文件的地址不存。
+- **只留到浏览器关闭**：正在看的视频用哪个模式、播放了多久，「打开就出结论」试过哪些视频，最近几次画面解释的文字（超过半小时就不再显示，下次打开侧边栏或解释画面时删掉），以及默认方式下的 API 密钥（见「API 密钥」一节）。B 站限流以后要等多久，也只留到浏览器关闭。
+- **不存**：解释当前画面截下的画面只用于这一次请求，哪里都不存，也不进备份。
 
 ### 删除和备份
 
@@ -114,7 +118,7 @@
 | `sidePanel` | 显示侧边栏 |
 | `storage` | 在本机保存资料和设置 |
 | `scripting` | 装好、更新或启用以后，给已经打开的 B 站视频页补上简幕的页面脚本，不用刷新 |
-| 访问 B 站的网页、接口和存放字幕文件的域名 | 在 B 站视频页放播放页卡片和笔记按钮，读播放状态；读视频信息、字幕、官方总结和稍后再看 |
+| 访问 B 站的网页、接口和存放字幕文件的域名 | 在 B 站视频页放播放页卡片、笔记按钮和「解释当前画面」的图标，读播放状态，点那个图标时读视频当前的一帧；读视频信息、字幕、官方总结和稍后再看 |
 | 可选：访问你选的 AI 服务地址 | 点「保存并授权」时，浏览器会问你是否允许简幕访问那个域名。清单里把它声明成可选的 https 地址，加上本机的 `http://localhost` 和 `http://127.0.0.1`，实际只申请你选的那一个地址 |
 
 简幕不申请 `tabs`、`activeTab`、`cookies`、`downloads`、`debugger`、`tabCapture`、`desktopCapture`，也不申请访问所有网站和麦克风。没有 `tabs` 权限，简幕只看得到已授权网站的标签页的地址和标题。
@@ -167,29 +171,19 @@ IndexedDB 数据库 `jianmu` 里的仓库：
 | `jianmu_triage` | 粗筛读到的稍后再看列表和官方总结 | 本机 | 删 | 删 |
 | `jianmu_model_caps` | 各个模型能做什么 | 本机 | 删 | 删 |
 | `jianmu_relaxed_params` | 模型服务不接受某些请求参数时的记录 | 会话 | 删 | 删 |
-| `jianmu_image_probe` | 画面分析的模型能不能看图（只有带「解释当前画面」的版本会写） | 本机 | 删 | 删 |
-| `jianmu_frame_results` | 最近几次画面解释的文字，没有截图（只有带「解释当前画面」的版本会写） | 会话 | 删 | 删 |
+| `jianmu_image_probe` | 画面分析的模型能不能看图 | 本机 | 删 | 删 |
+| `jianmu_frame_results` | 最近几次画面解释的文字，没有截图；超过半小时不再显示，下次用到时删掉 | 会话 | 删 | 删 |
 | `jianmu_watch_sessions` | 每个标签页正在看的视频用哪个模式、播放了多久、卡片展开没有 | 会话 | 留 | 删 |
 | `jianmu_auto_ledger` | 「打开就出结论」试过哪些视频、最近几次的时间、暂停的原因 | 会话 | 留 | 删 |
 | `jianmu_settings_revision` | 设置的修订号，是个随机值，防止过时的设置页写回旧设置 | 本机 | 留 | 换成新值 |
 | `jianmu_appearance` | 外观设置的副本，页面打开时先用它，免得闪一下 | 页面的本地存储 | 留 | 恢复默认 |
 | `jianmu_site_backoff` | B 站限流以后要等多久，只有站点、到期时间和次数 | 会话 | 留 | 留 |
 
-### 解释当前画面（还在验证，发布版里没有）
-
-这项功能还在开发者本人的日常使用里验证，目前发布的安装包里没有它。发布版打开它的时候，下面这些会并进上面各节：
-
-- **读什么**：你点播放器上「解释当前画面」的图标，或者侧边栏里的按钮时，读视频当前的一帧画面。只截视频本身，不截整个网页。加密播放（比如番剧、电影）、付费或确认不了是不是付费的视频、正在播广告、视频页不在前台时不截。
-- **发什么**：这一帧画面、这一刻前后几句字幕和视频标题，发给你在设置页「按功能选模型」里给画面分析选的模型。和别的功能一样，要先同意数据说明。
-- **存什么**：截下的画面只用于这一次请求，不存进任何地方，也不进备份。模型回的解释只有文字，记在扩展的会话存储 `jianmu_frame_results` 里（只在内存，不写磁盘），最多半小时，浏览器关闭、清除缓存或清除全部数据时删掉。
-- **能不能看图**：简幕要知道画面分析的模型能不能看图。认不出这个模型时，会发一张 64×64 的红色小图问它是什么颜色（不是视频画面），答得出才算能看，把结果记在 `jianmu_image_probe` 里，清除缓存时删掉。
-
 ### 待定
 
 首发前要处理的：
 
 - 换了 AI 服务地址以后，回收旧地址的访问授权：修好并在真实浏览器里验证以后再写进来，同时写明哪些情况下授权可能还留着。<!-- 待定：回收旧授权，实机验证后再写 -->
-- 「解释当前画面」在发布版里打开时，把上面那一节并进正文。<!-- 待定：解释当前画面 -->
 - 联系邮箱。
 - 拿最终的安装包把各节和预设服务商的隐私政策链接再核对一遍。<!-- 待定：按最终安装包核对 -->
 
@@ -222,6 +216,7 @@ After installation, Jianmu reads no video data at all. The first time you open t
 - When you use 本窗口全部生成 (overviews for all videos in this window): the address and title of each tab in the current window that is on a site Jianmu is allowed to access.
 - With 打开就出结论 (verdict on open) switched on: the address of each tab on a site Jianmu is allowed to access, so Jianmu can recognise the Bilibili videos you open, including tabs opened in the background that you haven't looked at yet.
 - When you click to read on the triage page: your Bilibili Watch Later list and how far you have watched each video.
+- When you click the 解释当前画面 (explain the current frame) icon on the player, or the button in the side panel: the current frame of the video. It captures only the video itself, never the whole page. It does not capture encrypted playback (anime series and films, for example), paid videos or videos whose payment status cannot be confirmed, ads, or a video page that is not in the foreground.
 
 This is used to show content in the side panel and in the card on the video page, to pick skim or close-reading mode from the video's length, the channel and how you are watching, and as material for overviews and answers later on.
 
@@ -247,14 +242,16 @@ First you need to read the data notice and agree, either by ticking the box in t
 - Uploader name and video description
 - Bilibili's official summary, used by 用官方总结写结论 (verdict from the official summary) and when triage writes verdicts
 - When writing the one-line verdict, the chapter titles, summaries and key quotes already generated for that video
+- When you click 解释当前画面, the current frame of the video with a few subtitle lines either side of that moment and the video title, sent to the model you chose for 画面分析 (frame analysis) under 按功能选模型 in Settings
 - Your API key, which goes with every request so the service knows it is your account
 
-**What it is used for**: translation, tidying subtitles (adding punctuation and fixing obvious sound-alike mistakes), overviews, one-line verdicts, explaining selected text, tidying up notes, answering questions, and writing one-line verdicts during triage.
+**What it is used for**: translation, tidying subtitles (adding punctuation and fixing obvious sound-alike mistakes), overviews, one-line verdicts, explaining selected text, tidying up notes, answering questions, writing one-line verdicts during triage, and explaining the current frame.
 
 **When it is sent**:
 
-- Normally only when you do something, such as clicking 生成概览 (generate overview), asking a question, clicking 解释 (explain), clicking 整理字幕 (tidy subtitles), or taking a note (once a note is saved, the model is asked to tidy up the subtitle line from that moment). Once you start a translation or subtitle tidy-up, it keeps sending batches in the background, even after you close the side panel, until it finishes, you click stop, or the tab with that video moves to another video or is closed.
+- Normally only when you do something, such as clicking 生成概览 (generate overview), asking a question, clicking 解释 (explain), clicking 整理字幕 (tidy subtitles), clicking 解释当前画面, or taking a note (once a note is saved, the model is asked to tidy up the subtitle line from that moment). Once you start a translation or subtitle tidy-up, it keeps sending batches in the background, even after you close the side panel, until it finishes, you click stop, or the tab with that video moves to another video or is closed.
 - For 本窗口全部生成 and triage, you confirm how many videos first, and they are then sent one at a time.
+- Jianmu needs to know whether the frame-analysis model can read images. When it does not recognise the model, it sends one 64×64 red image (not a frame from the video) and asks what colour it is. Only a correct answer counts.
 - With 打开就出结论 switched on: when you open a Bilibili video longer than the set length, Jianmu automatically sends that video's subtitles, title and duration, uploader name and description to generate an overview and a one-line verdict. The switch is off on a new install, and you have to agree to the data notice before turning it on. The set length is 10 minutes by default and can be anywhere from 0 to 180 minutes. Tabs opened in the background that you haven't looked at yet count too, and so do tabs that were already open when you switched it on. They are queued, with the video you are watching going first. At most two are generated at a time, and at most 40 in any 10 minutes. The more tabs you open at once, the more of your API quota it uses. Videos that already have an overview are skipped, and each video is tried automatically at most once per browser session. Foreign-language subtitles are not translated automatically. If the service says your quota has run out or your key is wrong, automatic generation pauses until you generate an overview by hand successfully or switch the setting off and on again.
 
 **Never sent**: your Bilibili cookies or other sign-in credentials, and the subtitle file addresses the platform returns.
@@ -284,8 +281,9 @@ Privacy policies of the preset services:
 Everything is kept in the extension storage of this Chrome profile on this computer, and none of it is synced with your browser account. Jianmu does not add its own encryption to this data. The name of each item is listed under "Storage details" at the end.
 
 - **Kept until you delete it**: overviews and one-line verdicts, Q&A, notes, translations, imported subtitles, the mode remembered for each channel, and settings.
-- **Caches**: subtitles, video details, Bilibili official summaries and chapter markers are kept for up to 500 videos. Entries older than 90 days, or beyond that number, are deleted the next time something new is cached. The Watch Later list and official summaries read for triage, and what each model can do (for example whether it accepts images), stop being used once they expire, but stay in storage until they are read again or you clear the cache. Subtitle file addresses are not stored.
-- **Kept only until the browser closes**: which mode each video you are watching uses and how long it has played, which videos 打开就出结论 has already tried, and your API key in the default setup (see "API key"). How long to wait after Bilibili rate-limits requests is also kept only until the browser closes.
+- **Caches**: subtitles, video details, Bilibili official summaries and chapter markers are kept for up to 500 videos. Entries older than 90 days, or beyond that number, are deleted the next time something new is cached. The Watch Later list and official summaries read for triage, what each model can do (for example whether it accepts images), and the result of checking whether the frame-analysis model accepts images, stop being used once they expire, but stay in storage until they are read again or you clear the cache. Subtitle file addresses are not stored.
+- **Kept only until the browser closes**: which mode each video you are watching uses and how long it has played, which videos 打开就出结论 has already tried, the text of recent frame explanations (no longer shown after half an hour, and deleted the next time you open the side panel or explain a frame), and your API key in the default setup (see "API key"). How long to wait after Bilibili rate-limits requests is also kept only until the browser closes.
+- **Not stored**: a frame captured for 解释当前画面 is used for that one request only. It is not stored anywhere and never goes into backups.
 
 ### Deleting data and backups
 
@@ -303,7 +301,7 @@ Everything is kept in the extension storage of this Chrome profile on this compu
 | `sidePanel` | Showing the side panel |
 | `storage` | Keeping data and settings on your computer |
 | `scripting` | After installing, updating or enabling, adding Jianmu's page script to Bilibili video pages that are already open, so you don't need to reload them |
-| Access to Bilibili's web pages, its API and the domain where it keeps subtitle files | Placing the card and the note button on Bilibili video pages and reading playback state; reading video details, subtitles, official summaries and Watch Later |
+| Access to Bilibili's web pages, its API and the domain where it keeps subtitle files | Placing the card, the note button and the 解释当前画面 icon on Bilibili video pages, reading playback state, and reading the current frame of the video when you click that icon; reading video details, subtitles, official summaries and Watch Later |
 | Optional: access to the AI service address you chose | When you click 保存并授权 (save and authorise), the browser asks whether Jianmu may access that domain. The manifest declares this as an optional range of https addresses, plus `http://localhost` and `http://127.0.0.1` on your own computer, but Jianmu only ever requests the one address you chose |
 
 Jianmu does not request `tabs`, `activeTab`, `cookies`, `downloads`, `debugger`, `tabCapture` or `desktopCapture`, and does not request access to all websites or to the microphone. Without the `tabs` permission it can only see the addresses and titles of tabs on sites it has permission for.
@@ -356,29 +354,19 @@ Keys in extension storage, none of which go into backups. "Local" is written to 
 | `jianmu_triage` | The Watch Later list and official summaries read for triage | Local | Deleted | Deleted |
 | `jianmu_model_caps` | What each model can do | Local | Deleted | Deleted |
 | `jianmu_relaxed_params` | A note of request parameters a model service would not accept | Session | Deleted | Deleted |
-| `jianmu_image_probe` | Whether the frame-analysis model accepts images (only versions with 解释当前画面 write it) | Local | Deleted | Deleted |
-| `jianmu_frame_results` | The text of recent frame explanations, without the frames (only versions with 解释当前画面 write it) | Session | Deleted | Deleted |
+| `jianmu_image_probe` | Whether the frame-analysis model accepts images | Local | Deleted | Deleted |
+| `jianmu_frame_results` | The text of recent frame explanations, without the frames; no longer shown after half an hour and deleted the next time it is used | Session | Deleted | Deleted |
 | `jianmu_watch_sessions` | For each tab, the mode of the video being watched, how long it has played and whether the card is expanded | Session | Kept | Deleted |
 | `jianmu_auto_ledger` | Which videos 打开就出结论 has tried, the times of recent attempts and why it is paused | Session | Kept | Deleted |
 | `jianmu_settings_revision` | A random revision number for settings, so an out-of-date Settings page cannot write old settings back | Local | Kept | Replaced with a new value |
 | `jianmu_appearance` | A copy of the appearance settings, used first when a page opens so it doesn't flicker | The page's local storage | Kept | Reset to default |
 | `jianmu_site_backoff` | How long to wait after Bilibili rate-limits requests: only the site, an expiry time and a count | Session | Kept | Kept |
 
-### Explain the current frame (still being tested, not in the published version)
-
-This feature is still being tested in the developer's own daily use and is not in the published package. When the published version turns it on, the points below will move into the sections above:
-
-- **What it reads**: when you click the 解释当前画面 icon on the player, or the button in the side panel, it reads the current frame of the video. It captures only the video itself, never the whole page. It does not capture encrypted playback (anime series and films, for example), paid videos or videos whose payment status cannot be confirmed, ads, or a video page that is not in the foreground.
-- **What it sends**: that frame, a few subtitle lines either side of that moment and the video title, sent to the model you chose for 画面分析 (frame analysis) under 按功能选模型 in Settings. As with every other feature, you need to agree to the data notice first.
-- **What it keeps**: the captured frame is used for that one request only. It is not stored anywhere and never goes into backups. The model's explanation is text only and is kept in the extension's session storage, `jianmu_frame_results` (memory only, never written to disk), for at most half an hour. It is deleted when the browser closes or when you clear the cache or all data.
-- **Whether the model accepts images**: Jianmu needs to know whether the frame-analysis model can read images. When it does not recognise the model, it sends one 64×64 red image (not a frame from the video) and asks what colour it is. Only a correct answer counts. The result is recorded in `jianmu_image_probe`, which clearing the cache deletes.
-
 ### Still to be settled
 
 To be done before release:
 
 - Revoking access to the old AI service address after you switch to a new one: this will be added once it is fixed and tested in a real browser, together with the cases where access may be kept. <!-- 待定：回收旧授权，实机验证后再写 -->
-- When the published version turns on 解释当前画面 (explain the current frame), move the section above into the main text. <!-- 待定：解释当前画面 -->
 - The contact email.
 - Check every section, and the links to the preset services' privacy policies, against the final release package. <!-- 待定：按最终安装包核对 -->
 

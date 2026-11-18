@@ -269,7 +269,7 @@ test("后台和各页面包注入的是同一个构建标识，由内容算出",
   for (const file of ["pages/sidepanel.js", "pages/options.js", "pages/triage.js", "pages/card.js"]) assert.equal(idOf(file), background, file);
 });
 
-test("发行构建：开关记录里每个开关都是关的，包里没有留下没换掉的开关常量", () => {
+test("发行构建：开关记录和发行那份一样，包里没有留下没换掉的开关常量", () => {
   assert.deepEqual(readBuildFlags(), buildFlagsRecord(RELEASE_FEATURES), "build/ 不是发行构建，先跑 npm run build");
   for (const file of BUNDLES) {
     const bundle = readBuild(file);
@@ -277,7 +277,7 @@ test("发行构建：开关记录里每个开关都是关的，包里没有留�
   }
 });
 
-// 产品代码还没有挂在开关下的内容，先用探针核对裁剪本身：选项和真实的后台包一样，只换入口。
+// 用探针核对裁剪本身，和挂在开关下的产品代码无关：选项和真实的后台包一样，只换入口。
 const PROBES: Readonly<Record<FeatureName, string>> = {
   frameExplain: FRAME_EXPLAIN_PROBE,
   youtubeOpenPanel: YOUTUBE_OPEN_PANEL_PROBE,
@@ -295,7 +295,7 @@ test("构建开关：关着的开关保护的内容整段裁掉，打开哪个�
   const variants: [string, FeatureSet][] = [
     ["发行构建", RELEASE_FEATURES],
     ["测试构建", TEST_BUILD_FEATURES],
-    ...FEATURE_NAMES.map((name): [string, FeatureSet] => [`只开 ${name}`, { ...RELEASE_FEATURES, [name]: true }]),
+    ...FEATURE_NAMES.map((name): [string, FeatureSet] => [`发行构建再${RELEASE_FEATURES[name] ? "关掉" : "打开"} ${name}`, { ...RELEASE_FEATURES, [name]: !RELEASE_FEATURES[name] }]),
   ];
   for (const [label, features] of variants) {
     const bundle = await probeBundle(features);
@@ -310,7 +310,7 @@ test("构建标识带上开关取值：只换开关重新构建，标识跟着�
   const release = idOf(RELEASE_FEATURES);
   assert.equal(new Set(release).size, 1, "各包同一个标识");
   assert.deepEqual(idOf(RELEASE_FEATURES), release);
-  const ids = new Set([release[0], ...FEATURE_NAMES.map((name) => idOf({ ...RELEASE_FEATURES, [name]: true })[0]), idOf(TEST_BUILD_FEATURES)[0]]);
+  const ids = new Set([release[0], ...FEATURE_NAMES.map((name) => idOf({ ...RELEASE_FEATURES, [name]: !RELEASE_FEATURES[name] })[0]), idOf(TEST_BUILD_FEATURES)[0]]);
   assert.equal(ids.size, FEATURE_NAMES.length + 2, "每种构建的标识都不一样");
   assert.ok(readBuild("background.js").includes(release[0] ?? "-"), "build/ 里的发行构建用的是发行开关算出的标识");
 });
@@ -319,9 +319,9 @@ test("构建标识带上开关取值：只换开关重新构建，标识跟着�
 // 画面分析的功能槽、看图探测、提示词、路由和侧边栏里的按钮和结果。
 const FRAME_SHARED = ["current-frame", "解释当前画面", "FRAME_PROTECTED", "AI_IMAGE_UNSUPPORTED", "画面分析", "frame.changed"];
 const FRAME_MARKERS: Readonly<Record<string, readonly string[]>> = {
-  "build/content/bilibili.js": ["requestVideoFrameCallback", "convertToBlob", "player.captureFrame", "解释当前画面", "frame.explainHere", "src/content/frame"],
+  "build/content/bilibili.js": ["requestVideoFrameCallback", "convertToBlob", "player.captureFrame", "解释当前画面", "frame.explainHere", "src/content/frame", "画面受保护"],
   "build/background.js": [...FRAME_SHARED, "prompts/study/frame-explain.md", "study/frame-explain.md", "frame.explain", "src/background/image-support", "src/background/services/frame-explain"],
-  "build/pages/sidepanel.js": [...FRAME_SHARED, "画面受保护", "frame.recent", "解释画面", "正在请模型看图"],
+  "build/pages/sidepanel.js": [...FRAME_SHARED, "frame.recent", "解释画面", "正在请模型看图"],
   "build/pages/options.js": [...FRAME_SHARED, "ai.probeImage", "能不能看图"],
 };
 
@@ -331,25 +331,15 @@ async function bundlesWith(features: FeatureSet): Promise<Map<string, string>> {
   return new Map(built);
 }
 
-test("解释当前画面：发行构建的包里没有截帧代码、图标、路由、提示词、按钮和当前一帧的说明，打开开关的构建里都有", async () => {
+test("解释当前画面首发带上：发行构建的包里有截帧代码、图标、路由、提示词、按钮和当前一帧的说明；关掉开关的构建里都没有", async () => {
   const release = await bundlesWith(RELEASE_FEATURES);
-  const frame = await bundlesWith({ ...RELEASE_FEATURES, frameExplain: true });
+  const off = await bundlesWith({ ...RELEASE_FEATURES, frameExplain: false });
   assert.equal(release.size, Object.keys(FRAME_MARKERS).length);
   for (const [file, markers] of Object.entries(FRAME_MARKERS)) {
     for (const marker of markers) {
-      assert.ok(!release.get(file)?.includes(marker), `发行构建的 ${file} 里有 ${marker}`);
-      assert.ok(!readBuild(file.replace(/^build\//, "")).includes(marker), `build/ 里的 ${file} 有 ${marker}`);
+      assert.ok(release.get(file)?.includes(marker), `发行构建的 ${file} 里没有 ${marker}`);
+      assert.ok(readBuild(file.replace(/^build\//, "")).includes(marker), `build/ 里的 ${file} 没有 ${marker}`);
+      assert.ok(!off.get(file)?.includes(marker), `关掉开关的 ${file} 里有 ${marker}`);
     }
   }
-  const content = frame.get("build/content/bilibili.js") ?? "";
-  for (const marker of FRAME_MARKERS["build/content/bilibili.js"] ?? []) {
-    assert.ok(content.includes(marker), `打开开关的内容脚本里没有 ${marker}`);
-  }
-  for (const file of ["build/background.js", "build/pages/sidepanel.js", "build/pages/options.js"]) {
-    for (const marker of FRAME_SHARED) assert.ok(frame.get(file)?.includes(marker), `打开开关的 ${file} 里没有 ${marker}`);
-  }
-  const background = frame.get("build/background.js") ?? "";
-  for (const marker of FRAME_MARKERS["build/background.js"] ?? []) assert.ok(background.includes(marker), `打开开关的后台包里没有 ${marker}`);
-  for (const marker of ["frame.recent", "解释画面", "正在请模型看图"]) assert.ok(frame.get("build/pages/sidepanel.js")?.includes(marker), `打开开关的侧边栏没有 ${marker}`);
-  for (const marker of ["ai.probeImage", "能不能看图"]) assert.ok(frame.get("build/pages/options.js")?.includes(marker), `打开开关的设置页没有 ${marker}`);
 });

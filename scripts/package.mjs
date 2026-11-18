@@ -51,12 +51,12 @@ function pageReferences(file, html) {
 }
 
 /**
- * 纯校验，方便测试。buildFlags 是构建留下的开关记录（lib/build-flags.mjs），要和 features 那组开关一样才出包，默认全部关着。
- * @param {{ files: readonly string[], read: (file: string) => string, expectedFiles: readonly string[], version: string, buildFlags: unknown, features?: import("../src/shared/features.ts").FeatureSet }} input
+ * 纯校验，方便测试。buildFlags 是构建留下的开关记录（lib/build-flags.mjs），要和 features 那组开关一样才出包，默认是发行那组；daily 时重打的提示换成日用包的命令。
+ * @param {{ files: readonly string[], read: (file: string) => string, expectedFiles: readonly string[], version: string, buildFlags: unknown, features?: import("../src/shared/features.ts").FeatureSet, daily?: boolean }} input
  * @returns {string[]}
  */
-export function findPackageProblems({ files, read, expectedFiles, version, buildFlags, features = RELEASE_FEATURES }) {
-  const problems = [...buildFlagProblems(buildFlags, features)];
+export function findPackageProblems({ files, read, expectedFiles, version, buildFlags, features = RELEASE_FEATURES, daily = false }) {
+  const problems = [...buildFlagProblems(buildFlags, features, daily ? "npm run package:daily" : "npm run package")];
   const present = new Set(files);
   for (const file of files) {
     const name = posix.basename(file);
@@ -128,13 +128,13 @@ export function writeZip({ dir, files, output }) {
 
 /**
  * 校验一个目录，过了就打包。发布脚本打只改版本号的测试包也走这里。
- * @param {{ dir: string, version: string, expectedFiles: readonly string[], output: string, epoch: number, buildFlags: unknown, features?: import("../src/shared/features.ts").FeatureSet }} input
+ * @param {{ dir: string, version: string, expectedFiles: readonly string[], output: string, epoch: number, buildFlags: unknown, features?: import("../src/shared/features.ts").FeatureSet, daily?: boolean }} input
  * @returns {{ sha256: string, files: string[] }}
  */
-export function packageDirectory({ dir, version, expectedFiles, output, epoch, buildFlags, features = RELEASE_FEATURES }) {
+export function packageDirectory({ dir, version, expectedFiles, output, epoch, buildFlags, features = RELEASE_FEATURES, daily = false }) {
   const files = listFiles(dir);
   const read = (/** @type {string} */ file) => readFileSync(join(dir, file), "utf8");
-  const problems = findPackageProblems({ files, read, expectedFiles, version, buildFlags, features });
+  const problems = findPackageProblems({ files, read, expectedFiles, version, buildFlags, features, daily });
   if (problems.length > 0) {
     throw new Error(`打包校验没过，共 ${problems.length} 项：\n${problems.map((problem) => `  ${problem}`).join("\n")}`);
   }
@@ -170,6 +170,7 @@ function main() {
       epoch: sourceDateEpoch(),
       buildFlags: readBuildFlags(),
       features: daily ? DAILY_FEATURES : RELEASE_FEATURES,
+      daily,
     });
     console.log(`打包完成：${relative(ROOT, output)}\nSHA-256：${sha256}`);
   } catch (error) {
