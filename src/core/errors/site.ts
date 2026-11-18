@@ -41,10 +41,9 @@ export const SITE_ERROR_TEXT: Readonly<Record<SiteErrorCode, ErrorCopy>> = {
   TIMEOUT: { cause: "读取视频网站超时了。", impact: NOT_READ, next: "稍后再试。" },
 };
 
-/** 同一个码按读取实现给的 detail 换说法：付费内容和确认不了可读范围要分开提示。 */
+/** 同一个码按读取实现给的 detail 换说法：付费内容单独提示。 */
 export const SITE_DETAIL_TEXT: Readonly<Partial<Record<SiteErrorCode, Readonly<Record<string, ErrorCopy>>>>> = {
   UNPLAYABLE: {
     paid: { cause: "这是付费内容。", impact: "简幕不读付费内容，什么都没读，也没发给模型。" },
-    "paid-unknown": { cause: "暂时没法确认这个视频是不是付费内容。", impact: "确认不了就先不读，什么都没读。", next: "过一会儿刷新视频页再试。" },
   },
 };

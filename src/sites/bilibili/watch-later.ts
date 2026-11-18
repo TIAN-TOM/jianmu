@@ -74,7 +74,7 @@ export function parseWatchLaterItem(raw: RawItem | null): WatchLaterItem | null 
     cover: httpsImageUrl(raw.pic),
     description: plainText(raw.desc),
     addedAt: positiveInt(raw.add_at),
-    // 确认不了是否付费时仍算能看，但不算判断过：读官方总结前要先过视频信息。
+    // 确认不了是否付费时仍算能看，但不算判断过：列表里不一定带全标记，读官方总结前先过一遍视频信息，确认是付费的就不读。
     paidChecked: paid !== "unknown",
   };
 }

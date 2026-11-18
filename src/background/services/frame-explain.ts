@@ -1,6 +1,6 @@
 // 解释当前画面：只在构建开关 FEATURE_FRAME_EXPLAIN 打开时进包，只从开关分支引用。
 // 两个入口共用一条路：先查模型配置和看图能力（不能看图就不截、不发），再读视频信息确认不是付费内容
-// （付费、确认不了、没登录读不到的都不截），再向那个标签页的内容脚本要当前一帧，核对截图（前缀、大小、尺寸、
+// （确认是付费的、没登录读不到的都不截，确认不了是否付费的照截），再向那个标签页的内容脚本要当前一帧，核对截图（前缀、大小、尺寸、
 // 视频身份），登记任务，连同这一刻前后几句字幕交给画面分析的模型。途中清除了本机数据就停下，不截、不发。
 // 截图只在这一次请求里用，不落盘，任务结束就丢；解释的文字按标签页留最近几次，侧边栏来取。解释记在扩展的会话存储里
 // （只在内存，不写磁盘），后台被回收后醒来还在；醒来时还标着在跑的，按中途停了收尾。清除本机数据时一起删。
@@ -217,7 +217,7 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
   const failed = (id: string, failure: Failure): void =>
     update(id, { state: "failed", phase: "finished", error: failure.detail === undefined ? { code: failure.code } : { code: failure.code, detail: failure.detail } });
 
-  // 截帧之前每次都向平台重新读一次视频信息：确认已登录、不是付费内容（付费、确认不了的不截），不看缓存，
+  // 截帧之前每次都向平台重新读一次视频信息：确认已登录、不是付费内容（确认是付费的不截），不看缓存，
   // 导入了字幕文件也一样。读不成就按那个原因拒，不截。字幕只当上下文：这个视频本来就没有字幕、字幕是空的、
   // 对不上这个视频时照样解释，只是不带字幕；被平台限流、拒绝或者读出错就停下，不截、不发，也不接着读。
   async function material(video: VideoKey, tabId: number): Promise<Result<Material>> {

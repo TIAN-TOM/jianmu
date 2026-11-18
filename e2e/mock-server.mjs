@@ -170,8 +170,8 @@ function signedRead({ query, scenario, now }, read) {
   return read(video);
 }
 
-/** 付费和确认不了是否付费的内容到视频信息就该停，后面的读取发过来就是意外。 @param {string} scenario */
-const isPaid = (scenario) => ["paid", "upower-only", "paid-unknown"].includes(scenario);
+/** 确认是付费或充电专属的内容到视频信息就该停，后面的读取发过来就是意外；确认不了是否付费的照读。 @param {string} scenario */
+const isPaid = (scenario) => ["paid", "upower-only"].includes(scenario);
 
 /** @param {Read} request */
 function readView({ query, scenario }) {

@@ -160,7 +160,6 @@ test("返回的视频和请求的一致：照常读出，身份就是请求的�
 
 const FREE_RIGHTS = { pay: 0, ugc_pay: 0, arc_pay: 0 };
 const PAID = { ok: false, code: "UNPLAYABLE", detail: "paid" };
-const PAID_UNKNOWN = { ok: false, code: "UNPLAYABLE", detail: "paid-unknown" };
 
 const PAID_MARKS: readonly (readonly [string, Record<string, unknown>])[] = [
   ["rights.pay 为真", { rights: { ...FREE_RIGHTS, pay: 1 } }],
@@ -205,19 +204,25 @@ const UNKNOWN_MARKS: readonly (readonly [string, Record<string, unknown>])[] = [
 ];
 
 for (const [label, marks] of UNKNOWN_MARKS) {
-  test(`付费状态确认不了（${label}）：报 UNPLAYABLE，不按免费处理，后面的请求都不发`, async () => {
+  test(`付费状态确认不了（${label}）：照常读出视频信息`, async () => {
     const fake = site(() => json(200, viewEnvelope(marks)));
 
-    const result = await readVideoInfo(createBiliHttp(), REF, siteCtx(fake));
+    const info = value(await readVideoInfo(createBiliHttp(), REF, siteCtx(fake)));
 
-    assert.deepEqual(result, PAID_UNKNOWN);
+    assert.deepEqual(info.ref, REF);
+    assert.equal(info.mediaVersion, "2002");
     assert.deepEqual(fake.requests.map((request) => request.endpoint), [NAV_URL, VIEW_URL]);
   });
 }
 
-test("视频信息不是普通对象时也按确认不了处理", () => {
+test("确认是付费的照旧不读：标记缺了几个，只要有一个为真就算付费", () => {
+  assert.deepEqual(parseVideoInfo(viewData({ rights: { pay: 1 }, is_upower_exclusive: undefined }), REF), PAID);
+  assert.deepEqual(parseVideoInfo(viewData({ rights: null, is_upower_exclusive: true }), REF), PAID);
+});
+
+test("视频信息不是普通对象时算读不懂，整条读取路线停下", () => {
   for (const data of [null, undefined, 1, "view", [viewData()]]) {
-    assert.deepEqual(parseVideoInfo(data, REF), PAID_UNKNOWN, JSON.stringify(data));
+    assert.deepEqual(parseVideoInfo(data, REF), { ok: false, code: "MALFORMED", reach: "source", detail: "no-view-data" }, JSON.stringify(data));
   }
 });
 

@@ -35,7 +35,7 @@ const isMarker = (value: unknown): value is number | boolean =>
 
 /**
  * 视频或稍后再看的一项：确认付费、确认免费，还是确认不了。
- * 任一付费标记为真就算付费；四个标记都读到、写法都对、全是假才算免费；其余一律算确认不了，不按免费处理。
+ * 任一付费标记为真就算付费；四个标记都读到、写法都对、全是假才算免费；其余一律算确认不了。
  */
 export function paidStatus(data: unknown): PaidStatus {
   if (!isRecord(data)) return "unknown";
@@ -46,15 +46,14 @@ export function paidStatus(data: unknown): PaidStatus {
 }
 
 /**
- * 把视频信息规整成内部结构。先核对返回的是不是请求的那个视频，再判断付费，确认是免费的才往下读；
- * 分 P 按身份里的序号取，不退回第 1 P。
+ * 把视频信息规整成内部结构。先核对返回的是不是请求的那个视频，再判断付费：确认是付费或充电专属的不往下读，
+ * 确认免费和确认不了的照读（开发者本人 2026-11-19 定）；分 P 按身份里的序号取，不退回第 1 P。
  */
 export function parseVideoInfo(data: unknown, ref: VideoRef): SiteResult<VideoInfo> {
-  if (!isRecord(data)) return { ok: false, code: "UNPLAYABLE", detail: "paid-unknown" };
+  if (!isRecord(data)) return { ok: false, code: "MALFORMED", reach: "source", detail: "no-view-data" };
   // 对不上或看不出是哪个视频时整份不用，也不拿它的付费结论记到请求的视频上。
   if (data["bvid"] !== ref.videoId) return { ok: false, code: "MALFORMED", reach: "source", detail: "video-mismatch" };
-  const paid = paidStatus(data);
-  if (paid !== "free") return { ok: false, code: "UNPLAYABLE", detail: paid === "paid" ? "paid" : "paid-unknown" };
+  if (paidStatus(data) === "paid") return { ok: false, code: "UNPLAYABLE", detail: "paid" };
 
   const video: ViewData = data;
   const segment = ref.segment ?? 1;

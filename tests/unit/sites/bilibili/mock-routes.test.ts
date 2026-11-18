@@ -231,7 +231,6 @@ test("sign-rejected-once：平台换过密钥时重取一次、重签一次就�
 const STOPPED_AT_INFO = [
   ["paid", "付费内容", "paid"],
   ["upower-only", "付费内容", "paid"],
-  ["paid-unknown", "确认不了是否付费时", "paid-unknown"],
 ] as const;
 
 for (const [scenario, label, detail] of STOPPED_AT_INFO) {
@@ -247,6 +246,17 @@ for (const [scenario, label, detail] of STOPPED_AT_INFO) {
     assertNoStray(state);
   });
 }
+
+test("paid-unknown：确认不了是否付费时照读，字幕轨和官方总结都读得到", async () => {
+  const state = loggedInWorld();
+  state.scenario = "paid-unknown";
+
+  const info = value(await state.service.readVideoInfo(REF, state.ctx));
+  assert.equal(info.ref.videoId, REF.videoId);
+  assert.ok(value(await state.service.listCaptionTracks(info, state.ctx)).length > 0);
+  assert.equal(value(await state.service.readOfficialSummary(info, state.ctx)).status, "ok");
+  assertNoStray(state);
+});
 
 test("paid：稍后再看里的付费项标成不可用，别的项不受影响", async () => {
   const state = loggedInWorld();
