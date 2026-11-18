@@ -411,7 +411,7 @@ export function groupQuotesIntoChapters<C extends Timed, Q extends Timed>(
 
 // 把字幕分段切成翻译（和整理字幕）批次送给模型。批次太小请求数多、慢，前缀也要重复付；
 // 批次大了模型容易漏条，漏的段由逐段对齐认出来，另凑批次补一轮，不整批作废。
-// 条数和字数双上限：B 站分段长度差异大，只看条数会让某些批次过长（开发者本人 2026-11-18 从 4 段、1200 字放宽）。
+// 条数和字数双上限：B 站分段长度差异大，只看条数会让某些批次过长。
 export const TRANSLATION_BATCH_MAX_SEGMENTS = 12;
 export const TRANSLATION_BATCH_MAX_CHARS = 4000;
 
