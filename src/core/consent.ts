@@ -78,7 +78,7 @@ export const DATA_CONSENT_TABLE: NoticeTable<DataConsentKind> = [
       { kind: "category", id: "selection", text: "你选中的文字" },
       { kind: "category", id: "question", text: "你的问题" },
       { kind: "category", id: "video-title", text: "视频标题" },
-      { kind: "category", id: "uploader-and-description", text: "UP 主名和简介" },
+      { kind: "category", id: "uploader-and-description", text: "UP 主名或频道名，和简介" },
       { kind: "category", id: "official-summary", text: "「用官方总结写结论」和粗筛用到的 B 站官方总结" },
       { kind: "category", id: "api-key", text: "你的 API 密钥" },
       { kind: "purpose", id: "ai-features", text: "翻译、概览、一句话结论、划词解释、笔记润色、问答和粗筛写结论" },
