@@ -159,6 +159,18 @@ test("设置页：选服务商、填密钥、勾同意后保存，拉模型列�
   const reopened = await open(PAGE_PATHS.options, { width: WIDTH });
   await reopened.waitFor("重新打开后表单填回来", `document.getElementById("aiModel")?.value === ${JSON.stringify(ANTHROPIC.model)}`);
   assert.equal(await reopened.evaluate(`document.getElementById("aiApiKey").value`), ANTHROPIC.key);
+  assert.equal(await statusOf(reopened, "ai-service"), "", "密钥还在，不提示");
+
+  // 浏览器重启以后会话里的密钥没了：再打开设置页，密钥框下面直接说要重新填，也不再摆「先选一类服务」。
+  await reopened.evaluate(`chrome.storage.session.remove(${JSON.stringify(API_KEY_SESSION_KEY)}).then(() => true)`);
+  const restarted = await open(PAGE_PATHS.options, { width: WIDTH });
+  await restarted.waitFor("密钥框下面说要重新填", `${statusText("ai-service")}.includes("重新填")`);
+  const missing = await placedStatus(restarted, "#aiApiKey");
+  assert.deepEqual({ at: missing.at, shown: missing.shown }, { at: "key", shown: 1 });
+  assert.ok(missing.gap >= 0 && missing.gap <= 16, `离密钥框 ${missing.gap} 像素`);
+  assert.equal(await restarted.evaluate(`[...document.querySelectorAll("#ai-service button")].some((node) => node.textContent.trim() === "国内服务")`), false);
+  await fill(restarted, "#aiApiKey", ANTHROPIC.key);
+  await restarted.waitFor("开始填密钥，那句话收起", `${statusText("ai-service")} === ""`);
 });
 
 /** 本机的 OpenAI 兼容服务，只开 http、不要密钥。记下每个请求的地址和认证头。 */
@@ -392,6 +404,13 @@ test("设置页：推理强度新安装全关；每项功能单独选，改了�
   assert.deepEqual(Object.keys(initial), FEATURE_MODEL_SLOTS.map(({ id }) => id), "每项用到模型的功能一行");
   assert.ok(Object.values(initial).every((value) => value === "off"), JSON.stringify(initial));
   assert.match(await page.evaluate(`document.getElementById("featureEfforts").textContent`), /越贵也越慢/);
+  // 推理强度和概览分块不归「保存并授权」管，排在那个按钮后面。
+  const afterSave = await page.evaluate(`(() => {
+    const save = [...document.querySelectorAll("#ai-service button")].find((node) => node.textContent.trim() === "保存并授权");
+    const follows = (id) => Boolean(save.compareDocumentPosition(document.getElementById(id)) & Node.DOCUMENT_POSITION_FOLLOWING);
+    return [follows("featureEfforts"), follows("analysisChunkMode"), follows("dataConsent")];
+  })()`);
+  assert.deepEqual(afterSave, [true, true, false]);
 
   await fill(page, "#preset", ANTHROPIC.presetId);
   await fill(page, "#aiApiKey", ANTHROPIC.key);

@@ -1,5 +1,5 @@
-// 设置页「AI 服务」一节：服务商、地址、密钥和记住密钥、默认模型和按功能选模型、推理强度、概览分块、数据说明和同意、保存和测试。
-// 推理强度和概览分块即改即存，值按存着的设置显示；其余几项在表单里，点「保存并授权」才生效。
+// 设置页「AI 服务」一节：先是要点「保存并授权」的表单（服务商、地址、密钥和记住密钥、默认模型和按功能选模型），
+// 接着数据说明和同意、保存和测试；按钮后面是即改即存的推理强度和概览分块，值按存着的设置显示。
 // 状态行跟着控件走：清除密钥、记住密钥、拉取模型、推理强度、概览分块的结果写在各自下面，保存和测试连接的写在按钮下面。
 import { useEffect, useId } from "preact/hooks";
 import { DATA_CONSENT_TABLE, noticeLines, noticeStatus, type DataConsentKind, type NoticeItem } from "../../core/consent.ts";
@@ -316,23 +316,6 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
         {FEATURE_FRAME_EXPLAIN ? <ImageProbeButton state={state} /> : null}
       </details>
 
-      <EffortBlock state={state} />
-
-      <div>
-        <label class="field">
-          <span class="field-label">概览分块</span>
-          <select class="input" id="analysisChunkMode" value={saved.analysisChunkMode} onChange={(event) => void state.saveInstant({ analysisChunkMode: event.currentTarget.value })}>
-            {(Object.keys(ANALYSIS_CHUNK_MODES) as AnalysisChunkMode[]).map((mode) => (
-              <option key={mode} value={mode}>
-                {CHUNK_LABELS[mode]}
-              </option>
-            ))}
-          </select>
-          <span class="field-hint">多数模型用自动就好。上下文窗口小、内容有遗漏，或者长视频的请求超时（单次上限 120 秒，推理强度选中、高时放宽到 180、300 秒）时选「较短」。模型的上下文够长（能装下几万字）时可以选「尽量整份」：一个视频多半一次请求就写完，但更容易超时，超时就换回别的档。改了马上生效，不用点「保存并授权」。</span>
-        </label>
-        <AiStatusLine state={state} at="chunk" />
-      </div>
-
       <ConsentBox state={state} />
 
       <div class="actions">
@@ -352,6 +335,24 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
       <p class="hint">
         点「保存并授权」时，浏览器会问是否允许简幕访问所选服务商的域名。扩展安装时不知道你会用哪家服务，所以选定以后单独申请，而且只申请这一个域名。
       </p>
+
+      {/* 下面两项即改即存，不归「保存并授权」管，排在按钮后面。 */}
+      <EffortBlock state={state} />
+
+      <div>
+        <label class="field">
+          <span class="field-label">概览分块</span>
+          <select class="input" id="analysisChunkMode" value={saved.analysisChunkMode} onChange={(event) => void state.saveInstant({ analysisChunkMode: event.currentTarget.value })}>
+            {(Object.keys(ANALYSIS_CHUNK_MODES) as AnalysisChunkMode[]).map((mode) => (
+              <option key={mode} value={mode}>
+                {CHUNK_LABELS[mode]}
+              </option>
+            ))}
+          </select>
+          <span class="field-hint">多数模型用自动就好。上下文窗口小、内容有遗漏，或者长视频的请求超时（单次上限 120 秒，推理强度选中、高时放宽到 180、300 秒）时选「较短」。模型的上下文够长（能装下几万字）时可以选「尽量整份」：一个视频多半一次请求就写完，但更容易超时，超时就换回别的档。改了马上生效，不用点「保存并授权」。</span>
+        </label>
+        <AiStatusLine state={state} at="chunk" />
+      </div>
     </section>
   );
 }
