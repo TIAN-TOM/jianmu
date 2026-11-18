@@ -4,7 +4,7 @@
 
 Helps you work out within a few minutes whether a long Bilibili or YouTube video is worth watching and which parts matter. Once you decide to watch, it helps you read along closely.
 
-> **Status: being rewritten, not released yet, and there is no package to download.** On Bilibili, the main flow (reading subtitles, generating overviews, Q&A with citations, taking notes, the card on the video page and the settings page), Watch Later triage, generating for every video in the window, and 打开就出结论 (verdict on open) are wired up in development builds, and automated tests run them against locally simulated pages. None of it has been used day to day on real pages yet. Next, the developer switches to the new version for daily use, then the first Bilibili-only version goes out on GitHub, with YouTube to follow ([PRD](notes/product-prd.md), section 1, in Chinese).
+> **Status: being rewritten, not released yet, and there is no package to download.** On Bilibili, the main flow (reading subtitles, generating overviews, Q&A with citations, taking notes, the card on the video page and the settings page), Watch Later triage, generating for every video in the window, 打开就出结论 (verdict on open) and the features listed below are on the main branch, and automated tests run them against locally simulated pages. The developer now uses it day to day on Bilibili. Next, the first Bilibili-only version goes out on GitHub, with YouTube to follow ([PRD](notes/product-prd.md), section 1, in Chinese).
 
 Screenshots and a demo GIF aren't ready yet. They will be added before the first release. <!-- 待定：演示截图和动图 -->
 
