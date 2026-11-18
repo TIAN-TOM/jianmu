@@ -1,12 +1,8 @@
 // 两份说明的版本表和指纹。数据同意管发给模型服务的内容，首次启用说明管在本机读取和保存的内容，分开记、分开判断。
 // 表里每个版本只写相对上一版新增或扩大了什么。指纹只算条目的 kind 和 id，改 text 的措辞、并显示的写法都不用重新同意；
 // 首发前扩大范围不升版，新条目并进当前那一版，指纹变了照样要重新确认；tests/fixtures/consent-fingerprints.json 的快照拦下没留意的变化。
-// 带开关的条目放在单独的模块里，只从开关分支引用：开关关着的构建连措辞都不进包。
+// 跟着构建开关走的条目放在单独的模块里，只从开关分支引用：开关关着的构建连措辞都不进包。
 import { FRAME_ACTIVATION_ITEMS, FRAME_DATA_ITEMS } from "./consent-frame.ts";
-
-/** 构建时开关。带开关的条目只在开关打开的构建里进说明和指纹，关着的构建里那一版不含它。 */
-export type NoticeFeature = "frameExplain";
-export type NoticeFeatures = Readonly<Record<NoticeFeature, boolean>>;
 
 /** 数据类别、使用目的、接收方、发送的触发方式或范围。 */
 export type DataConsentKind = "category" | "purpose" | "recipient" | "trigger";
@@ -24,8 +20,6 @@ export interface NoticeItem<Kind extends string> {
    * 那一条不在要显示的这组里（老用户只看新增的）时照常单列。
    */
   readonly shownWith?: { readonly id: string; readonly combined: string };
-  /** 只在这个开关打开时算进说明和指纹。 */
-  readonly requires?: NoticeFeature;
 }
 
 /** 给用户看的一行：通常是一个条目，并显示的是几个条目合成一行。 */
@@ -172,9 +166,6 @@ export const ACTIVATION_TABLE: NoticeTable<ActivationKind> = [
   },
 ];
 
-// 当前构建打开了哪些开关，取值见 shared/features.ts。
-export const BUILD_FEATURES: NoticeFeatures = { frameExplain: FEATURE_FRAME_EXPLAIN };
-
 const FNV_OFFSET = 0xcbf29ce484222325n;
 const FNV_PRIME = 0x100000001b3n;
 const HASH_MASK = 0xffffffffffffffffn;
@@ -193,31 +184,18 @@ function fingerprintOf(items: readonly NoticeItem<string>[]): string {
   return hash(items.map((item) => `${item.kind}:${item.id}`).sort().join("\n"));
 }
 
-// 去掉这组开关下不算的条目；一版里的条目全不算时，这一版也不算。
-function activeVersions<Kind extends string>(table: NoticeTable<Kind>, features: NoticeFeatures): NoticeTable<Kind> {
-  return table
-    .map((row) => ({ ...row, items: row.items.filter((item) => item.requires === undefined || features[item.requires]) }))
-    .filter((row) => row.items.length > 0);
-}
-
-/** 这组开关下每一版的版本号和指纹，按版本从小到大。 */
-export function versionStamps<Kind extends string>(
-  table: NoticeTable<Kind>,
-  features: NoticeFeatures = BUILD_FEATURES,
-): NoticeStamp[] {
+/** 每一版的版本号和指纹，按版本从小到大。 */
+export function versionStamps<Kind extends string>(table: NoticeTable<Kind>): NoticeStamp[] {
   const seen: NoticeItem<Kind>[] = [];
-  return activeVersions(table, features).map((row) => {
+  return table.map((row) => {
     seen.push(...row.items);
     return { version: row.version, fingerprint: fingerprintOf(seen) };
   });
 }
 
-/** 这组开关下的最新一版。 */
-export function currentStamp<Kind extends string>(
-  table: NoticeTable<Kind>,
-  features: NoticeFeatures = BUILD_FEATURES,
-): NoticeStamp {
-  const current = versionStamps(table, features).at(-1);
+/** 最新一版。 */
+export function currentStamp<Kind extends string>(table: NoticeTable<Kind>): NoticeStamp {
+  const current = versionStamps(table).at(-1);
   if (!current) throw new Error("说明表里没有可用的版本");
   return current;
 }
@@ -234,19 +212,15 @@ function stampMatches(stored: StoredStamp, stamp: NoticeStamp): boolean {
 }
 
 /** 存着的确认还算不算数，不算时这次要给用户看什么。 */
-export function noticeStatus<Kind extends string>(
-  table: NoticeTable<Kind>,
-  stored: StoredStamp,
-  features: NoticeFeatures = BUILD_FEATURES,
-): NoticeStatus<Kind> {
-  const stamps = versionStamps(table, features);
+export function noticeStatus<Kind extends string>(table: NoticeTable<Kind>, stored: StoredStamp): NoticeStatus<Kind> {
+  const stamps = versionStamps(table);
   const agreedAt = stamps.findIndex((stamp) => stampMatches(stored, stamp));
   if (agreedAt >= 0 && agreedAt === stamps.length - 1) return { state: "current" };
   const everAgreed = Number.isInteger(stored.version) && Number(stored.version) > 0;
   return {
     state: "needed",
     updated: everAgreed,
-    items: activeVersions(table, features).slice(agreedAt + 1).flatMap((row) => row.items),
+    items: table.slice(agreedAt + 1).flatMap((row) => row.items),
   };
 }
 
@@ -281,10 +255,9 @@ export function consentCovers<Kind extends string>(
   table: NoticeTable<Kind>,
   stored: StoredStamp,
   item: { readonly kind: Kind; readonly id: string },
-  features: NoticeFeatures = BUILD_FEATURES,
 ): boolean {
-  if (!stampMatches(stored, currentStamp(table, features))) return false;
-  return activeVersions(table, features).some((row) => row.items.some((entry) => entry.kind === item.kind && entry.id === item.id));
+  if (!stampMatches(stored, currentStamp(table))) return false;
+  return table.some((row) => row.items.some((entry) => entry.kind === item.kind && entry.id === item.id));
 }
 
 const dataConsent = currentStamp(DATA_CONSENT_TABLE);

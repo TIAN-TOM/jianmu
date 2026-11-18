@@ -151,7 +151,9 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
   // 同一帧连点接上同一个任务时，等那一次的结果，不另跑。
   const byTask = new Map<string, Promise<Result<{ explanation: string; truncated?: true }>>>();
 
-  function prune(): void {
+  /** 删掉过期和超出条数的，回有没有删。 */
+  function prune(): boolean {
+    const before = entries.size;
     const cutoff = deps.now() - KEEP_MS;
     const byTab = new Map<number, FrameEntryView[]>();
     for (const entry of entries.values()) {
@@ -166,6 +168,7 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
         if (old.state !== "running") entries.delete(old.id);
       }
     }
+    return entries.size !== before;
   }
 
   // 第一次用时从会话存储读回来；清除过本机数据就丢掉内存里的，重新读（清除后是空的）。
@@ -348,7 +351,8 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
     },
     async recent(tabId) {
       await ensureLoaded();
-      prune();
+      // 过期删掉的也从会话存储里删，不只是不再显示。
+      if (prune()) persist();
       return [...entries.values()].filter((entry) => entry.tabId === tabId).sort((a, b) => b.createdAt - a.createdAt);
     },
     settled: (id) => running.get(id) ?? Promise.resolve(),

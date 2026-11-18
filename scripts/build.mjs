@@ -1,11 +1,11 @@
 // 构建：esbuild 打包入口、复制 static/、写入清单版本号。不压缩、不带 source map，方便用户和贡献者审阅发布包。
-// 不带参数是发行构建，构建开关全部关着；--test-build、--youtube-ops 见 lib/build-flags.mjs，这两种都不打包。
+// 不带参数是发行构建，开关取值见 shared/features.ts；--daily、--test-build、--youtube-ops 见 lib/build-flags.mjs，只有发行构建和 --daily 能打包。
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build, context } from "esbuild";
-import { featureDefines, FEATURE_GLOBALS, FEATURE_NAMES } from "../src/shared/features.ts";
+import { DAILY_FEATURES, featureDefines, FEATURE_GLOBALS, FEATURE_NAMES, RELEASE_FEATURES } from "../src/shared/features.ts";
 import { buildFlagsRecord, clearBuildFlags, featuresFromArgs, writeBuildFlags } from "./lib/build-flags.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -117,8 +117,12 @@ function prepareOutput() {
 
 /** @param {import("../src/shared/features.ts").FeatureSet} features */
 function describeFeatures(features) {
-  const on = FEATURE_NAMES.filter((name) => features[name]).map((name) => FEATURE_GLOBALS[name]);
-  return on.length === 0 ? "发行构建" : `开着 ${on.join("、")}，不能打包`;
+  const differs = FEATURE_NAMES.filter((name) => features[name] !== RELEASE_FEATURES[name]);
+  if (differs.length === 0) return "发行构建";
+  if (FEATURE_NAMES.every((name) => features[name] === DAILY_FEATURES[name])) return "日用构建，用 npm run package:daily 打包";
+  const on = differs.filter((name) => features[name]).map((name) => FEATURE_GLOBALS[name]);
+  const off = differs.filter((name) => !features[name]).map((name) => FEATURE_GLOBALS[name]);
+  return [on.length ? `多开着 ${on.join("、")}` : "", off.length ? `关着 ${off.join("、")}` : "", "不能打包"].filter(Boolean).join("，");
 }
 
 async function main() {

@@ -128,10 +128,10 @@ export function createWatchSteps({ cdp, until, evaluate, findSession, url }) {
       // 鼠标没碰播放器：图标挂着但藏着，上面没有字。
       const player = await until("播放器有了尺寸", () => rectOf(page, PLAYER));
       const button = await until("笔记图标挂上", () => rectOf(page, `#${INJECTED.noteButton}`));
-      // 发行包里构建开关关着：浮层里只有笔记图标，没有解释当前画面的图标。
+      // 解释当前画面首发带上：发行包的浮层里笔记图标下面是解释当前画面的图标。
       const buttons = await evaluate(page, `document.querySelectorAll("#${INJECTED.overlay} > button").length`);
       const frameButton = await evaluate(page, `document.getElementById(${JSON.stringify(INJECTED.frameButton)}) !== null`);
-      if (buttons !== 1 || frameButton) throw new Error(`发行包的浮层里不该有解释当前画面的图标：${JSON.stringify({ buttons, frameButton })}`);
+      if (buttons !== 2 || !frameButton) throw new Error(`发行包的浮层里要有笔记和解释当前画面两个图标：${JSON.stringify({ buttons, frameButton })}`);
       await until("图标平时藏着", async () => (await icon()).visibility === "hidden");
       const resting = await icon();
       if (resting.text !== "" || button.width > 40) throw new Error(`笔记图标平时不该带字：${JSON.stringify({ ...resting, width: button.width })}`);

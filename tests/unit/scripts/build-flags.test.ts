@@ -21,23 +21,17 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const work = mkdtempSync(join(tmpdir(), "jianmu-build-flags-test-"));
 after(() => rmSync(work, { recursive: true, force: true }));
 
-test("不带参数是发行构建；--test-build 全开；--frame-explain 只开解释当前画面；--youtube-ops 只开 YouTube 的两个代操作", () => {
+test("不带参数是发行构建；--test-build 全开；--daily 是日用那份；--youtube-ops 在发行构建上再开 YouTube 的两个代操作", () => {
   assert.deepEqual(featuresFromArgs([]), RELEASE_FEATURES);
   assert.deepEqual(featuresFromArgs(["--watch"]), RELEASE_FEATURES);
   assert.deepEqual(featuresFromArgs(["--test-build"]), TEST_BUILD_FEATURES);
   assert.deepEqual(featuresFromArgs(["--daily"]), DAILY_FEATURES);
   assert.deepEqual(featuresFromArgs(["--watch", "--youtube-ops"]), {
-    frameExplain: false,
+    frameExplain: true,
     youtubeOpenPanel: true,
     youtubeSwitchLang: true,
   });
-  assert.deepEqual(featuresFromArgs(["--frame-explain", "--watch"]), {
-    frameExplain: true,
-    youtubeOpenPanel: false,
-    youtubeSwitchLang: false,
-  });
   assert.throws(() => featuresFromArgs(["--test-build", "--youtube-ops"]), /只能选一个/);
-  assert.throws(() => featuresFromArgs(["--frame-explain", "--youtube-ops"]), /只能选一个/);
 });
 
 test("开关记录放在 build/ 之外，不进包", () => {
@@ -67,11 +61,11 @@ test("开关记录写下去读得回来，构建开始前删掉旧记录", () =>
 test("直接读产品模块的脚本先加载发行取值：说明按发行构建算；已经定义过的不动", async () => {
   const script = [
     'await import("./scripts/lib/release-globals.mjs");',
-    'const { BUILD_FEATURES } = await import("./src/core/consent.ts");',
-    "console.log(JSON.stringify([FEATURE_FRAME_EXPLAIN, FEATURE_YOUTUBE_OPEN_PANEL, BUILD_FEATURES]));",
+    'const { ACTIVATION_TABLE } = await import("./src/core/consent.ts");',
+    "console.log(JSON.stringify([FEATURE_FRAME_EXPLAIN, FEATURE_YOUTUBE_OPEN_PANEL, ACTIVATION_TABLE.flatMap((row) => row.items).some(({ id }) => id === \"current-frame\")]));",
   ].join("\n");
   const output = execFileSync(process.execPath, ["--input-type=module", "-e", script], { cwd: ROOT, encoding: "utf8" });
-  assert.deepEqual(JSON.parse(output), [false, false, { frameExplain: RELEASE_FEATURES.frameExplain }]);
+  assert.deepEqual(JSON.parse(output), [RELEASE_FEATURES.frameExplain, RELEASE_FEATURES.youtubeOpenPanel, RELEASE_FEATURES.frameExplain]);
   // 本进程先加载了测试构建的取值，再加载发行取值也不改。
   await import("../../../scripts/lib/release-globals.mjs");
   assert.equal(FEATURE_FRAME_EXPLAIN, TEST_BUILD_FEATURES.frameExplain);

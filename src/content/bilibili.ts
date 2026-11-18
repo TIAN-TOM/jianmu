@@ -48,7 +48,7 @@ const app = createContentApp({
     document.addEventListener("loadstart", run, true);
     return () => document.removeEventListener("loadstart", run, true);
   },
-  // 发行构建里这一支连同截帧代码一起裁掉。
+  // 开关关着的构建里这一支连同截帧代码一起裁掉。
   ...(FEATURE_FRAME_EXPLAIN ? { frame: (identity) => createBrowserFrameTool(document, identity) } : {}),
 });
 registry[INJECTED.instance] = app;

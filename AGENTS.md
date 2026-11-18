@@ -19,7 +19,7 @@
 ```bash
 npm run check       # 写代码时每轮必跑：类型检查、单元测试、构建、构建产物检查、公开结构检查
 npm run package     # 打出 dist/jianmu-<版本>.zip 和同名的 .sha256，同时校验包的内容
-npm run package:daily  # 开发者本人的日用包 dist/jianmu-<版本>-daily.zip：发行构建加上还在日常使用里验证的开关
+npm run package:daily  # 开发者本人的日用包 dist/jianmu-<版本>-daily.zip：发行构建加上只给他自己用的开关
 npm run test:e2e    # 端到端冒烟，用 CHROME_PATH 指定 Chrome for Testing 的可执行文件
 npm run test:e2e:lifecycle   # 生命周期冒烟：任务没人认领时收尾，关掉发起页面任务照常跑完，强行终止后台后任务表为空、不自动重发；合并涉及任务和保活的改动前本机跑
 npm run test:pages  # 页面测试：无头 Chrome 里打开扩展页面，后台接本机模拟服务，只看页面文字和属性；报告写到 e2e/artifacts/
@@ -28,7 +28,7 @@ npm run release -- candidate   # 发布候选：要在远端 main 的最新提�
 
 单项命令：`npm run typecheck`、`npm test`、`npm run build`、`npm run test:build`、`npm run check:public`。
 
-`npm run build` 是发行构建，构建开关全部关着。`node scripts/build.mjs --test-build` 打开全部开关，只给测试用，`npm run test:pages` 用的就是它；`--daily` 是日用构建，开关取值是 `src/shared/features.ts` 的 `DAILY_FEATURES`（现在打开解释当前画面），只有它能打包，经 `npm run package:daily` 打成文件名带 `-daily` 的包，发布脚本不认；`--frame-explain` 只打开解释当前画面，本机调试用；`--youtube-ops` 只打开 YouTube 代开面板和代换语言，给开发者本人在 YouTube 上验证用。这几种可以加 `--watch`，除了 `--daily` 都不能打包。
+`npm run build` 是发行构建，开关取值是 `src/shared/features.ts` 的 `RELEASE_FEATURES`（解释当前画面打开，YouTube 代操作关着）。`node scripts/build.mjs --test-build` 打开全部开关，只给测试用，`npm run test:pages` 用的就是它；`--daily` 是日用构建，开关取值是 `DAILY_FEATURES`（发行构建加上只给开发者本人用的开关），经 `npm run package:daily` 打成文件名带 `-daily` 的包，发布脚本不认；`--youtube-ops` 在发行构建上再打开 YouTube 代开面板和代换语言，给开发者本人在 YouTube 上验证用。这几种可以加 `--watch`，只有发行构建和 `--daily` 能打包。
 
 打完发布候选，在 GitHub Actions 里手动触发「发布前核对」（`.github/workflows/release-check.yml`），填候选的提交号和校验值：它在 Chrome for Testing 116 和当前稳定版上各跑一遍端到端，在 Linux 上重新打包核对校验值。这个工作流不在必需检查里。
 
