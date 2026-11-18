@@ -431,7 +431,7 @@ test("没有弹幕列表时卡片插槽在右栏最上面，右栏依次找", ()
   assertSlot(page.cardSlot?.(), empty, null);
 });
 
-test("UP 主编号：从作者栏的空间链接读；合作投稿取第一位能认出的；认不出或没有时是 null", () => {
+test("UP 主编号：从作者栏的空间链接读，编号前面带语言的也认；合作投稿取第一位能认出的；认不出或没有时是 null", () => {
   const link = (href: string | null) => {
     const anchor = node("A");
     if (href !== null) anchor.attributes.set("href", href);
@@ -449,4 +449,17 @@ test("UP 主编号：从作者栏的空间链接读；合作投稿取第一位�
   const odd = pageWith();
   odd.document.lists.set("a.up-name", [link("//space.bilibili.com/abc"), link("//space.bilibili.com/30051x")]);
   assert.equal(odd.page.channelId?.(), null);
+  // 页面路径带语言时，空间链接的编号前面也多一段语言。
+  for (const [href, id] of [
+    ["//space.bilibili.com/zh-Hans/3006/?spm_id_from=x", "3006"],
+    ["//space.bilibili.com/en/3007/", "3007"],
+    ["https://space.bilibili.com/zh-Hant/3008", "3008"],
+  ] as const) {
+    const localized = pageWith();
+    localized.document.lists.set("a.up-name", [link(href)]);
+    assert.equal(localized.page.channelId?.(), id, href);
+  }
+  const wordy = pageWith();
+  wordy.document.lists.set("a.up-name", [link("//space.bilibili.com/zh-Hans/abc"), link("//space.bilibili.com/favlist/3009")]);
+  assert.equal(wordy.page.channelId?.(), null, "语言后面不是编号、或前面那段不是语言，都不认");
 });
