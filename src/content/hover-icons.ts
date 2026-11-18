@@ -1,6 +1,8 @@
 // 播放器右上角的悬停图标：一个浮层里竖着排几个图标（笔记，构建开关打开时还有解释当前画面）。平时藏着，
 // 播放器的控制栏露出来时才露（什么时候露见 reveal.ts），只有图标没有字，结果在图标旁边闪一句。
-// 挂在不直接包着视频的那一层，只认真实点击，点的时候再核对一次没被页面改成透明、铺满。
+// 挂在不直接包着视频的那一层，只认鼠标真点在图标上的点击，点的时候再核对一次没被页面改成透明、铺满、藏起来。
+// 被劫持的页面能用 !important 的样式表盖过内联样式，也能把焦点挪到图标上、等用户按空格或回车：
+// 这两条都在点击时拦，图标背后的操作会花用户的额度（解释当前画面还会把画面发出去）。
 // 鼠标移上去和闪提示时用设置里的主题色，不跟扩展页面的明暗走。小窗时让开，见 mini-player.ts。
 import { INJECTED } from "../shared/names.ts";
 import { createReveal } from "./reveal.ts";
@@ -23,10 +25,13 @@ const OVERLAY_STYLE = `position:absolute;top:12px;right:12px;z-index:9999;displa
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-// 防点击劫持：自己的按钮从不设透明度，也不会大过一行字。
+// 防点击劫持：自己的按钮从不设透明度、滤镜、裁剪、变形和混合模式，也不会大过一行字；
+// 字和图标是白色，底色至少半透明的黑或主题色。
 const MAX_WIDTH = 320;
 const MAX_HEIGHT = 96;
 const MIN_OPACITY = 0.5;
+const MIN_TEXT_ALPHA = 0.9;
+const MIN_BACKGROUND_ALPHA = 0.4;
 
 /** 一个图标：节点标识、悬停提示、16×16 的线条图形。 */
 export interface IconSpec {
@@ -76,9 +81,50 @@ export interface HoverIcons {
   readonly remove: () => void;
 }
 
-interface Look {
+/** 点击时核对的样子，取自计算样式。 */
+export interface Look {
   readonly opacity: number;
   readonly visibility: string;
+  readonly position: string;
+  readonly filter: string;
+  readonly clipPath: string;
+  readonly transform: string;
+  readonly blend: string;
+  readonly color: string;
+  readonly background: string;
+}
+
+/** 计算样式里颜色的不透明度：rgb() 是 1，rgba() 取第四个数，transparent 是 0，认不出的按 0。 */
+export function alphaOf(color: string): number {
+  const value = color.trim().toLowerCase();
+  if (value === "transparent") return 0;
+  const match = /^rgba?\(([^)]*)\)$/.exec(value);
+  if (!match) return 0;
+  const parts = (match[1] ?? "").split(/[\s,/]+/).filter(Boolean);
+  if (parts.length === 3) return 1;
+  const alpha = Number.parseFloat(parts[3] ?? "");
+  if (!Number.isFinite(alpha)) return 0;
+  return parts[3]?.endsWith("%") ? alpha / 100 : alpha;
+}
+
+/**
+ * 现在的样子还是不是自己注入的样子：看得见、不透明，没加滤镜、裁剪、变形、混合模式，定位方式没被改。
+ * 按钮另要字是白的、底色看得见：页面用 !important 把它们改成透明，按钮就成了铺在视频上的隐形热区。
+ * 注入那一刻播放器可能还藏着，可见性只要求现在可见；透明度不比注入时低。
+ */
+export function keepsLook(now: Look | null, injected: Look | undefined, kind: "button" | "overlay"): boolean {
+  if (!now || now.visibility !== "visible" || now.opacity < MIN_OPACITY) return false;
+  if (now.filter !== "none" || now.clipPath !== "none" || now.transform !== "none" || now.blend !== "normal") return false;
+  if (injected && (now.opacity < injected.opacity - 0.01 || now.position !== injected.position)) return false;
+  if (kind === "button" && (alphaOf(now.color) < MIN_TEXT_ALPHA || alphaOf(now.background) < MIN_BACKGROUND_ALPHA)) return false;
+  return true;
+}
+
+/** 点击的那一下是不是鼠标真点在这个按钮上：键盘触发的点击 detail 是 0，坐标也不落在按钮上。 */
+export function pointedAt(event: Pick<MouseEvent, "isTrusted" | "detail" | "clientX" | "clientY">, button: Element, hit: (x: number, y: number) => Element | null): boolean {
+  if (!event.isTrusted || event.detail < 1) return false;
+  const target = hit(event.clientX, event.clientY);
+  return target !== null && (target === button || button.contains(target));
 }
 
 interface IconState {
@@ -178,26 +224,38 @@ export function createHoverIcons({ document, anchor, icons }: HoverIconsDeps): H
   function lookOf(element: Element): Look | null {
     try {
       const style = view?.getComputedStyle(element);
-      const opacity = Number.parseFloat(style?.opacity ?? "");
-      return { opacity: Number.isFinite(opacity) ? opacity : 1, visibility: style?.visibility || "visible" };
+      if (!style) return null;
+      const opacity = Number.parseFloat(style.opacity);
+      return {
+        opacity: Number.isFinite(opacity) ? opacity : 1,
+        visibility: style.visibility || "visible",
+        position: style.position,
+        filter: style.filter || "none",
+        clipPath: style.clipPath || "none",
+        transform: style.transform || "none",
+        blend: style.mixBlendMode || "normal",
+        color: style.color,
+        background: style.backgroundColor,
+      };
     } catch {
       return null;
     }
   }
 
-  // 注入那一刻播放器可能还藏着，可见性只要求现在可见；透明度不比注入时低。
-  function keepsLook(element: Element): boolean {
-    const now = lookOf(element);
-    if (!now || now.visibility !== "visible" || now.opacity < MIN_OPACITY) return false;
-    const injected = looks.get(element);
-    return !injected || now.opacity >= injected.opacity - 0.01;
-  }
-
   function looksInjected(target: HTMLButtonElement): boolean {
-    if (!keepsLook(target) || (overlay && !keepsLook(overlay))) return false;
+    if (!keepsLook(lookOf(target), looks.get(target), "button")) return false;
+    if (overlay && !keepsLook(lookOf(overlay), looks.get(overlay), "overlay")) return false;
     const box = target.getBoundingClientRect();
     return box.width <= MAX_WIDTH && box.height <= MAX_HEIGHT;
   }
+
+  const hit = (x: number, y: number): Element | null => {
+    try {
+      return document.elementFromPoint(x, y);
+    } catch {
+      return null;
+    }
+  };
 
   function iconOf(spec: IconSpec): SVGSVGElement {
     // 逐个节点建，不用 innerHTML：页面开了 Trusted Types 时 innerHTML 会被拦。
@@ -245,12 +303,12 @@ export function createHoverIcons({ document, anchor, icons }: HoverIconsDeps): H
     text.className = spec.labelClass;
     text.style.display = "none";
     node.append(iconOf(spec), text);
-    // 页面脚本能对按钮调 click() 或派发合成点击；图标背后的操作会花用户的额度。
+    // 页面脚本能对按钮调 click() 或派发合成点击，也能把焦点挪过来等用户按键；只认鼠标真点在按钮上的那一下。
     state.onClick = (event: MouseEvent): void => {
       if (!event.isTrusted || !state.button) return;
       event.preventDefault();
       event.stopPropagation();
-      if (looksInjected(state.button)) onPress();
+      if (pointedAt(event, state.button, hit) && looksInjected(state.button)) onPress();
     };
     node.addEventListener("click", state.onClick);
     node.addEventListener("pointerenter", () => setOver(state, true));
