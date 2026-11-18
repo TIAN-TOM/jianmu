@@ -42,10 +42,19 @@ export interface WrittenSettings extends LoadedSettings {
 }
 
 /** 即改即存的设置。 */
-const INSTANT_FIELDS = ["accentTheme", "themeMode", "uiFontScale", "inPageCard", "autoOverview", "autoOverviewMinutes"] as const;
+const INSTANT_FIELDS = [
+  "accentTheme",
+  "themeMode",
+  "uiFontScale",
+  "inPageCard",
+  "autoOverview",
+  "autoOverviewMinutes",
+  "featureEfforts",
+  "analysisChunkMode",
+] as const;
 
 /**
- * update 能改的字段，加上清空密钥、关掉记住这两个收回的动作。
+ * update 能改的字段，加上清空密钥、关掉记住这两个收回的动作。featureEfforts 只带要改的那几项功能，其余照旧。
  * 写密钥、改来源、换服务商、打开记住都走 save，那里核对修订号。
  */
 export type SettingsPatch = Pick<SettingsInput, (typeof INSTANT_FIELDS)[number]> & {
@@ -294,7 +303,13 @@ export function createSettingsStore({ storage, locks }: SettingsStoreDeps): Sett
     update: (patch) =>
       exclusive(async () => {
         const current = await read();
-        return write(normalize({ ...compose(current), ...allowedFields(patch) }), current);
+        const before = compose(current);
+        const fields = allowedFields(patch);
+        // 推理强度按功能合并：只带来一项时，别的功能不被规整成关。
+        const efforts = Object.hasOwn(fields, "featureEfforts")
+          ? { featureEfforts: { ...before.featureEfforts, ...fieldsOf(fields.featureEfforts) } }
+          : {};
+        return write(normalize({ ...before, ...fields, ...efforts }), current);
       }),
     setDataConsent: (given) =>
       exclusive(async () => {
