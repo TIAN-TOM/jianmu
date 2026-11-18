@@ -89,8 +89,9 @@ export function parseVideoInfo(data: unknown, ref: VideoRef): SiteResult<VideoIn
   };
 }
 
-// 读当前视频的信息，登录门在请求出口里。
-export async function readVideoInfo(http: BiliHttp, ref: VideoRef, ctx: SiteCtx): Promise<SiteResult<VideoInfo>> {
-  const data = await http.getData({ url: VIEW_URL, params: { bvid: ref.videoId } }, ctx);
+// 读当前视频的信息，登录门在请求出口里；登录可选时没登录也读。
+export async function readVideoInfo(http: BiliHttp, ref: VideoRef, ctx: SiteCtx, options: { readonly loginOptional?: boolean } = {}): Promise<SiteResult<VideoInfo>> {
+  const loginOptional = options.loginOptional === true ? { loginOptional: true } : {};
+  const data = await http.getData({ url: VIEW_URL, params: { bvid: ref.videoId }, ...loginOptional }, ctx);
   return data.ok ? parseVideoInfo(data.value, ref) : data;
 }

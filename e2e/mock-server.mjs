@@ -68,6 +68,8 @@ export const apiHost = (host) => host === API_HOST;
 export const fileHost = (host) => host.endsWith(FILE_HOST_SUFFIX);
 /** 读视频内容的请求：接口主机上除登录检查以外的，加上字幕文件。 @param {{ host: string, path: string }} request */
 export const contentRead = ({ host, path }) => (apiHost(host) && path !== ACCOUNT_PATH) || fileHost(host);
+/** 读视频信息的请求：没登录也读。 @param {{ host: string, path: string }} entry */
+export const infoRead = ({ host, path }) => apiHost(host) && path === VIEW_PATH;
 
 /** 只把这几个主机映射到本机，其余域名解析失败。 @param {number} port */
 export function hostRulesFor(port) {
@@ -201,12 +203,13 @@ function readSummary(request) {
 /** @param {Read} request */
 const readWatchLater = ({ scenario }) => ok(watchLaterData({ paid: scenario === "paid" }));
 
+const VIEW_PATH = "/x/web-interface/view";
 const SUMMARY_PATH = "/x/web-interface/view/conclusion/get";
 const WATCH_LATER_PATH = "/x/v2/history/toview";
 
 /** @type {Readonly<Record<string, (request: Read) => MockResponse>>} */
 const CONTENT_ROUTES = {
-  "/x/web-interface/view": readView,
+  [VIEW_PATH]: readView,
   "/x/player/wbi/v2": readPlayer,
   [SUMMARY_PATH]: readSummary,
   [WATCH_LATER_PATH]: readWatchLater,
@@ -238,8 +241,8 @@ function apiRoute(path, loggedIn, request) {
   if (path === ACCOUNT_PATH) return readAccount(loggedIn, request.scenario);
   const read = CONTENT_ROUTES[path];
   if (!read) return unexpected();
-  // 没带登录状态就发到这里，说明登录门没挡住。
-  if (!loggedIn) return unexpected(refused(-101));
+  // 视频信息没登录也读；别的没带登录状态就发到这里，说明登录门没挡住。
+  if (!loggedIn && path !== VIEW_PATH) return unexpected(refused(-101));
   return REFUSALS[request.scenario]?.() ?? read(request);
 }
 

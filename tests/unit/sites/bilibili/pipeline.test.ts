@@ -306,16 +306,28 @@ test("两次读取共用一次被拒绝的列轨：没点名语言的那次同�
   assert.deepEqual(await h.rows(), []);
 });
 
-test("未登录：只问一次登录就报需要登录，不问官方总结，什么都不存", async () => {
+test("未登录：读了视频信息、只问一次登录就报需要登录，字幕和官方总结都不读，什么都不存", async () => {
   const h = rig({ loggedOut: true });
   const result = await h.service.get(REF, { mode: "full" });
   assert.equal(!result.ok && result.code, "NEED_LOGIN");
-  assert.equal(!result.ok && result.official, undefined);
+  assert.ok(!result.ok && result.info?.title, "带上视频信息，侧边栏能显示是哪个视频");
+  assert.ok(!result.ok && (result.info?.durationSec ?? 0) > 0, "带上时长，能按时长定模式");
+  assert.equal(!result.ok && result.official?.status, "need-login");
+  assert.deepEqual(
+    h.fake.requests.map((request) => request.endpoint),
+    [VIEW_URL, NAV_URL],
+  );
+  assert.deepEqual(await h.rows(), []);
+});
+
+test("未登录：截帧前核对视频信息照旧要登录，只问一次登录", async () => {
+  const h = rig({ loggedOut: true });
+  const verified = await h.service.verify(REF);
+  assert.equal(!verified.ok && verified.code, "NEED_LOGIN");
   assert.deepEqual(
     h.fake.requests.map((request) => request.endpoint),
     [NAV_URL],
   );
-  assert.deepEqual(await h.rows(), []);
 });
 
 const CHAPTERS = [
@@ -367,13 +379,16 @@ test("UP 主自己只上传了英文、别人传了中文：不标原语言，�
 // 卡片的轻量读取：没登录时只提示，本机缓存照常给卡片用
 // ============================================================
 
-test("卡片未登录：只问一次登录就提示登录，不读视频信息和官方总结", async () => {
+test("卡片未登录：读出视频信息摆标题，官方总结标成要登录，只问一次登录", async () => {
   const h = rig({ loggedOut: true });
   const reply = await h.service.light(REF);
-  assert.equal(!reply.ok && reply.code, "NEED_LOGIN");
+  assert.ok(reply.ok && "mode" in reply.value, JSON.stringify(reply));
+  assert.ok(reply.value.info.title);
+  assert.equal(reply.value.official?.status, "need-login");
+  assert.equal(reply.value.hasTranscript, false);
   assert.deepEqual(
     h.fake.requests.map((request) => request.endpoint),
-    [NAV_URL],
+    [VIEW_URL, NAV_URL],
   );
   assert.deepEqual(await h.rows(), []);
 });

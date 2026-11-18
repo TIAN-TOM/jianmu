@@ -111,7 +111,7 @@ export interface TranscriptView {
 /** 读不成字幕时，把已经知道的带回去：没有字幕时这些往往是这个视频唯一能看的内容。 */
 export interface TranscriptFailure extends Failure {
   readonly info?: VideoInfoView;
-  /** 视频信息也没读到（没登录、被限流、看不了）时，标签页的标题。 */
+  /** 视频信息也没读到（被限流、看不了）时，标签页的标题。 */
   readonly tabTitle?: string;
   readonly tracks?: readonly TrackView[];
   readonly chapters?: readonly ChapterView[];

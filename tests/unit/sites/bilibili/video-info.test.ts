@@ -267,3 +267,23 @@ test("未登录时不请求视频信息", async () => {
   assert.equal(result.code, "NEED_LOGIN");
   assert.deepEqual(fake.requests.map((request) => request.endpoint), [NAV_URL]);
 });
+
+test("登录可选时没登录也读视频信息，不问登录；同一个读取环境里之后要登录的读取照旧先问登录", async () => {
+  const fake = fakeSite({ [NAV_URL]: () => json(200, { code: -101 }), [VIEW_URL]: () => json(200, viewEnvelope()) });
+  const http = createBiliHttp();
+  const ctx = siteCtx(fake);
+
+  const info = value(await readVideoInfo(http, REF, ctx, { loginOptional: true }));
+  assert.deepEqual(info.ref, REF);
+  assert.deepEqual(fake.requests.map((request) => request.endpoint), [VIEW_URL]);
+
+  assert.equal(failure(await readVideoInfo(http, REF, ctx)).code, "NEED_LOGIN", "不带登录可选的照旧过登录门");
+  assert.deepEqual(fake.requests.map((request) => request.endpoint), [VIEW_URL, NAV_URL]);
+});
+
+test("登录可选时确认是付费的照旧不读", async () => {
+  const fake = fakeSite({ [NAV_URL]: () => json(200, { code: -101 }), [VIEW_URL]: () => json(200, viewEnvelope({ rights: { pay: 1 } })) });
+  const result = failure(await readVideoInfo(createBiliHttp(), REF, siteCtx(fake), { loginOptional: true }));
+  assert.equal(result.code, "UNPLAYABLE");
+  assert.equal(result.detail, "paid");
+});

@@ -189,13 +189,13 @@ export function createLight(deps: LightDeps): Light {
     const known: Memo | undefined =
       memo.get(video) ?? (cached ? { info: cached.info, official: cached.official ? { record: cached.official, cues: [] } : undefined } : undefined);
     const site = deps.sites.service(ref.platform);
-    // 读取环境用到时才建，视频信息和官方总结共用一个：已登录的结论接着用。
+    // 读取环境用到时才建，视频信息和官方总结共用一个。视频信息没登录也读，官方总结要登录。
     let ctx: SiteCtx | undefined;
     const ctxOf = (): SiteCtx => (ctx ??= deps.sites.ctx(ref.platform, { signal: new AbortController().signal }));
     let info = known?.info;
     if (!info) {
       if (!site) return failure(video, fail("SITE_UNSUPPORTED"));
-      const read = await site.readVideoInfo(ref, ctxOf());
+      const read = await site.readVideoInfo(ref, ctxOf(), { loginOptional: true });
       if (!read.ok) return failure(video, failureOf(read));
       if (!sameVideo(read.value, video)) return failure(video, fail("MALFORMED", "video-mismatch"));
       info = read.value;

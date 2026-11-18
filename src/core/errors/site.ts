@@ -23,7 +23,7 @@ const NOT_READ = "这次没读到，也没发给模型，不花额度。";
 const IMPORT_FILE = "手上有这个视频的字幕文件的话，可以在侧边栏点「导入字幕文件」；在播放页卡片上要先点「打开完整面板」。";
 
 export const SITE_ERROR_TEXT: Readonly<Record<SiteErrorCode, ErrorCopy>> = {
-  NEED_LOGIN: { cause: "这个浏览器还没登录视频网站。", impact: "简幕只给已登录的用户读，这次什么都没读。", next: "登录以后再试，或者导入自己的字幕文件。" },
+  NEED_LOGIN: { cause: "这个浏览器还没登录视频网站。", impact: "字幕、官方总结和稍后再看只给已登录的用户读，这次都没读。", next: "登录以后再试，或者导入自己的字幕文件。" },
   NO_CAPTIONS: { cause: "这个视频没有可用的字幕。", impact: NOT_READ, next: IMPORT_FILE },
   EMPTY_CAPTION_FILE: { cause: "视频网站给的字幕文件是空的。", impact: NOT_READ, next: `稍后再试。${IMPORT_FILE}` },
   RATE_LIMITED: { cause: "视频网站暂时限制了读取。", impact: "简幕先停下，不会反复去试，这次没花额度。", next: "过几分钟再试。" },

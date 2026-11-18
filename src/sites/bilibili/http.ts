@@ -21,12 +21,13 @@ export interface GetRequest {
   params?: Record<string, string | number>;
   signed?: boolean;
   timeoutMs?: number; // 只算这一个请求，排队和取密钥不计入
+  loginOptional?: boolean; // 不过登录门，只给公开信息用；不能和签名一起用
 }
 
 // 一次读取操作用一个 ctx：同一个 ctx 确认过登录，后面的读取方法接着用；新的 ctx 一定重新确认。
 export interface BiliHttp {
   requireLogin(ctx: SiteCtx): Promise<SiteResult<void>>;
-  getData(request: GetRequest, ctx: SiteCtx): Promise<SiteResult<unknown>>; // 过登录门，返回信封里的数据
+  getData(request: GetRequest, ctx: SiteCtx): Promise<SiteResult<unknown>>; // 过登录门（登录可选的除外），返回信封里的数据
   getFile(url: string, ctx: SiteCtx): Promise<SiteResult<unknown>>; // 字幕文件，不带登录状态，调用方先过登录门
   detach(ctx: SiteCtx): SiteCtx; // 同一次操作里共用的请求用它：不接调用方的取消信号，登录结论带过去
   forgetLogin(): void; // 所有操作记下的已登录结论一起作废
@@ -389,11 +390,17 @@ export function createBiliHttp(deps: BiliHttpDeps = {}): BiliHttp {
   }
 
   async function getData(request: GetRequest, ctx: SiteCtx): Promise<SiteResult<unknown>> {
+    const query = buildQuery(request.params ?? {});
+    const url = (): string => (query ? `${request.url}?${query}` : request.url);
+    // 登录可选的不过登录门，也不看登录结论有没有作废；签名要密钥，密钥要登录，所以签名的一律过门。
+    if (request.loginOptional && !request.signed) {
+      const { stillConfirmed: _confirmed, ...spec } = apiSend(request, ctx);
+      return finish(await send(url, spec, ctx), ctx);
+    }
     const login = await requireLogin(ctx);
     if (!login.ok) return login;
     if (request.signed) return getSigned(request, ctx);
-    const query = buildQuery(request.params ?? {});
-    return finish(await send(() => (query ? `${request.url}?${query}` : request.url), apiSend(request, ctx), ctx), ctx);
+    return finish(await send(url, apiSend(request, ctx), ctx), ctx);
   }
 
   async function getFile(url: string, ctx: SiteCtx): Promise<SiteResult<unknown>> {
