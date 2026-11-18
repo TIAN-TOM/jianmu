@@ -17,7 +17,7 @@
 
 ### 数据从哪来
 
-- **B 站**：你正在看的视频页，以及简幕替你向 B 站读取的视频信息、字幕、官方总结和稍后再看列表。每次向 B 站读取新内容之前都先确认你已登录，没登录时不向 B 站读。本机已经存着的内容和你导入的字幕，不登录也照常显示；播放页上的播放状态（播放、暂停、时长）由页面自己提供，不论是否登录都会读。付费和充电专属的内容不读，确认不了是不是付费内容时也不读。不下载音频和视频。
+- **B 站**：你正在看的视频页，以及简幕替你向 B 站读取的视频信息、字幕、官方总结和稍后再看列表。视频没有字幕轨、或者字幕文件读不成时，简幕会用官方总结里附带的 AI 字幕，并在界面上标明来源。每次向 B 站读取新内容之前都先确认你已登录，没登录时不向 B 站读。本机已经存着的内容和你导入的字幕，不登录也照常显示；播放页上的播放状态（播放、暂停、时长）由页面自己提供，不论是否登录都会读。付费和充电专属的内容不读，确认不了是不是付费内容时也不读。不下载音频和视频。
 - **你自己**：你输入的问题、选中的文字、记的笔记，导入的字幕文件和备份文件，填的 API 密钥和各项设置。
 - **模型服务**：服务商返回的概览、结论、译文、回答和解释。
 
@@ -195,7 +195,7 @@ YouTube 版加上以后，补上在 YouTube 上读什么、发什么。
 
 ### Where the data comes from
 
-- **Bilibili**: the video page you are watching, plus the video details, subtitles, official summaries and Watch Later list that Jianmu reads from Bilibili for you. Before each new request to Bilibili it checks that you are signed in, and it requests nothing from Bilibili while you are signed out. Content already stored on this computer and subtitles you imported still show when you are signed out. Playback state on the video page (playing, paused, duration) comes from the page itself and is read whether or not you are signed in. It does not read paid or supporter-only content, or anything it cannot confirm is free. It never downloads audio or video.
+- **Bilibili**: the video page you are watching, plus the video details, subtitles, official summaries and Watch Later list that Jianmu reads from Bilibili for you. When a video has no subtitle track, or its subtitle file cannot be read, Jianmu uses the automatically generated subtitles that come with the official summary and labels where they came from. Before each new request to Bilibili it checks that you are signed in, and it requests nothing from Bilibili while you are signed out. Content already stored on this computer and subtitles you imported still show when you are signed out. Playback state on the video page (playing, paused, duration) comes from the page itself and is read whether or not you are signed in. It does not read paid or supporter-only content, or anything it cannot confirm is free. It never downloads audio or video.
 - **You**: the questions you type, text you select, notes you take, subtitle files and backups you import, your API key and your settings.
 - **The model service**: the overviews, verdicts, translations, answers and explanations the service sends back.
 

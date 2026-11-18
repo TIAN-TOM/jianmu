@@ -2,6 +2,7 @@
 // 先交了字幕的那次，官方总结回来后内存里记着的那份也填上；占位只等还在路上的那次，不另发请求。
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { OFFICIAL_SUBTITLE_LABEL } from "../../../../../src/core/transcript/sources.ts";
 import { createApp } from "../../../../../src/background/app.ts";
 import { OFFICIAL_GRACE_MS } from "../../../../../src/background/services/transcript/official.ts";
 import { videoKey } from "../../../../../src/core/video-ref.ts";
@@ -20,7 +21,7 @@ const CUES: Cue[] = [
 const SUMMARY: OfficialSummary = { status: "ok", summary: "官方摘要", outline: [], cues: CUES };
 const ok = <T>(value: T): SiteResult<T> => ({ ok: true, value: structuredClone(value) });
 
-test("生产装配里附带字幕的兜底关着：播放器没有字幕、官方总结带着字幕，也照旧报没有字幕", async () => {
+test("生产装配里附带字幕的兜底开着：播放器没有字幕、官方总结带着字幕，就用附带的字幕并标明来源", async () => {
   const site = fakeSiteService({ tracks: () => ok([]), officialSummary: () => ok(SUMMARY) });
   const fake = createFakeChrome({ local: { [SETTINGS_STORAGE_KEY]: CONFIRMED }, site: site.service });
   const app = createApp(fake.deps({ warn() {}, error() {} }));
@@ -29,11 +30,12 @@ test("生产装配里附带字幕的兜底关着：播放器没有字幕、官�
   const reply = (await app.dispatch({ type: "transcript.get", req: { video, mode: "full" } }, senders.panel())) as {
     ok: boolean;
     code?: string;
-    official?: { status: string };
+    value?: { transcript: { label: string; segments: readonly { text: string }[] }; official?: { status: string } };
   };
-  assert.equal(reply.ok, false);
-  assert.equal(reply.code, "NO_CAPTIONS");
-  assert.equal(reply.official?.status, "ok", "官方总结照样带回去");
+  assert.equal(reply.ok, true, reply.code ?? "");
+  assert.equal(reply.value?.transcript.label, OFFICIAL_SUBTITLE_LABEL);
+  assert.ok((reply.value?.transcript.segments.length ?? 0) > 0);
+  assert.equal(reply.value?.official?.status, "ok", "官方总结照样带回去");
   assert.equal(site.count("readCaptions"), 0);
 });
 

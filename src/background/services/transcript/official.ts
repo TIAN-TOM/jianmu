@@ -1,6 +1,6 @@
 // 官方总结并进取字幕：和字幕列表同时问，字幕先到时最多再等一小会儿，等不到就先交字幕、存个占位，回来后填回。
 // 排队中、要登录、没问成的过一阵再问；命中缓存时在后台重问，只写回还在的那条。同一视频同一媒体版本同时只问一次。
-// 附带的 AI 字幕默认不当字幕用；打开时只在播放器字幕取不到、没点名语言时兜底，被限流、要登录、看不了时不用。
+// 附带的 AI 字幕只在播放器字幕取不到、没点名语言时兜底，注明来源；被限流、要登录、看不了时不用。
 import type { ClearEpoch, ClearGuard } from "../../../core/clear-guard.ts";
 import type { ErrorCode, Failure } from "../../../core/errors.ts";
 import { officialFingerprint, transcriptFingerprint } from "../../../core/transcript/fingerprint.ts";
@@ -12,8 +12,8 @@ import type { Timers } from "../../tasks.ts";
 import type { ReadGuides } from "./read.ts";
 import { recordOf, type CachedTranscript, type StoredOfficial, type TranscriptRecord, type TranscriptWriter } from "./write.ts";
 
-/** 官方总结附带的 AI 字幕当不当字幕用。这份字幕对观众是否可见还没确认，先不用。 */
-export const OFFICIAL_CAPTIONS_FALLBACK = false;
+/** 官方总结附带的 AI 字幕当不当字幕用：视频没有字幕轨或字幕文件读不成时拿它兜底。 */
+export const OFFICIAL_CAPTIONS_FALLBACK = true;
 /** 字幕已经读到时，官方总结最多再等这么久。它和字幕列表同时问，通常早就回来了。 */
 export const OFFICIAL_GRACE_MS = 1_500;
 /** 排队中、要登录、没问成的，过这么久再问。 */
