@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { createClearGuard } from "../../../../../src/core/clear-guard.ts";
 import { videoKey, type VideoRef } from "../../../../../src/core/video-ref.ts";
 import type { TranscriptReply } from "../../../../../src/shared/messages/transcript.ts";
+import { DOWNLOAD_BUDGET_MS } from "../../../../../src/background/services/transcript/tracks.ts";
 import type { CaptionTrack, Cue, SiteResult } from "../../../../../src/sites/types.ts";
 import { deferred } from "../../../../helpers/deferred.ts";
 import { failed, untilAborted } from "../../../../helpers/fake-site-service.ts";
@@ -289,7 +290,8 @@ test("内容失败（空文件、读取被拒）照旧试下一条", async () =>
 });
 
 test("下载有总预算：每条的超时不超过剩下的预算，用完就不再试下一条", async () => {
-  // 第一条 10 秒后读取被拒，第二条一直不回：到 15 秒整次读取被中止，报超时，第三条不再试。
+  assert.equal(DOWNLOAD_BUDGET_MS, 30_000);
+  // 第一条 10 秒后读取被拒，第二条一直不回：到 30 秒整次读取被中止，报超时，第三条不再试。
   const first = deferred();
   const h = harness({
     site: {
@@ -303,7 +305,9 @@ test("下载有总预算：每条的超时不超过剩下的预算，用完就�
   first.resolve();
   assert.ok(await until(() => h.site.count("readCaptions") === 2));
   assert.equal(h.ctxs[0]?.signal.aborted, false);
-  h.timers.advance(5_000);
+  h.timers.advance(19_000);
+  assert.equal(h.ctxs[0]?.signal.aborted, false, "29 秒时还没到预算");
+  h.timers.advance(1_000);
   assert.ok(await until(() => h.ctxs[0]?.signal.aborted === true), "到点中止这次读取");
   const reply = await pending;
   assert.equal(!reply.ok && reply.code, "TIMEOUT");
@@ -320,7 +324,7 @@ test("下载有总预算：每条的超时不超过剩下的预算，用完就�
   });
   const tightPending = tight.service.get(REF, { mode: "full" });
   assert.ok(await until(() => tight.site.count("readCaptions") === 1));
-  tight.timers.advance(14_500);
+  tight.timers.advance(29_500);
   late.resolve();
   const tightReply = await tightPending;
   assert.equal(!tightReply.ok && tightReply.code, "NETWORK");
@@ -334,7 +338,7 @@ test("默认预算下第一条只受单个文件的上限管：预算比它长�
   const pending = h.service.get(REF, { mode: "full" });
   assert.ok(await until(() => h.site.count("readCaptions") === 1));
 
-  // 单个文件的上限是 12 秒，由读取实现自己管；总预算 15 秒，这时还没到。
+  // 单个文件的上限是 12 秒，由读取实现自己管；总预算 30 秒，这时还没到。
   h.timers.advance(12_000);
   assert.equal(h.ctxs[0]?.signal.aborted, false);
   slow.resolve();
