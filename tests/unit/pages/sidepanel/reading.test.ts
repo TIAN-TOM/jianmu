@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { videoKey } from "../../../../src/core/video-ref.ts";
 import { safeFileName, videoBaseOf } from "../../../../src/pages/sidepanel/files.ts";
-import { activeIndex, chapterAt, explainable, linesOf, mainBreaks, MAX_SELECTION, segmentsBetween, srtOf } from "../../../../src/pages/sidepanel/reading.ts";
+import { activeIndex, chapterAt, explainable, linesOf, mainBreaks, MAX_SELECTION, refreshLang, segmentsBetween, srtOf } from "../../../../src/pages/sidepanel/reading.ts";
 import { fileProblem } from "../../../../src/pages/sidepanel/transcript.ts";
 
 const segment = (id: string, start: number, text: string) => ({ id, start, text, texts: [text] });
@@ -81,4 +81,11 @@ test("主行按原始字幕断开：原文和双语断，译文不断；译文�
   assert.deepEqual(mainBreaks(segment, linesOf(segment, "translated", {}).main, breaks), [2]);
   const srt = srtOf([segment], [{ start: 0, duration: 2, text: "甲乙" }, { start: 2, duration: 2, text: "丙丁" }], 4, "original", {});
   assert.match(srt, /甲乙丙丁/, "导出照旧按段落写，不插断行");
+});
+
+test("重新读取字幕：平台的字幕点名现在的语言，导入的和官方总结附带的不点名", () => {
+  assert.equal(refreshLang({ ref: { kind: "auto" } }), true);
+  assert.equal(refreshLang({ ref: { kind: "human" } }), true);
+  assert.equal(refreshLang({ fileName: "样例.srt", ref: { kind: "imported" } }), false);
+  assert.equal(refreshLang({ ref: { kind: "official-ai" } }), false);
 });

@@ -243,14 +243,15 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
   // 播放器字幕取不到：能兜底就用官方总结附带的字幕，不然带上已经知道的报原来的错。
   async function afterFailure(
     video: VideoKey,
-    read: { readonly failure: TranscriptFailure; readonly guides: ReadGuides; readonly official?: Promise<OfficialRead> | undefined },
+    read: { readonly failure: TranscriptFailure; readonly guides: ReadGuides; readonly official?: Promise<OfficialRead> | undefined; readonly rejected?: true },
     cached: CachedTranscript | null,
     lang: string,
     start: ReadStart,
     tabId: number | undefined,
   ): Promise<TranscriptReply> {
     const official = read.official ? await read.official : undefined;
-    const fallback = official ? await officials.fallback(video, read.failure, official, lang, read.guides) : null;
+    // 平台这次拒绝过就停下，不拿附带的字幕顶上。
+    const fallback = official && !read.rejected ? await officials.fallback(video, read.failure, official, lang, read.guides) : null;
     if (fallback && !keepsCaptions(await cache.load(video))) return settle(video, fallback, "", start, { persist: true, keep: keepsCaptions });
     const failure = await guidesFailure(read.failure, read.guides, cached, tabId);
     return official ? { ...failure, official: officialView(official.record) } : failure;

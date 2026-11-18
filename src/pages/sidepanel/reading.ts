@@ -79,3 +79,8 @@ export function segmentsBetween<T extends Pick<TranscriptSegment, "start">>(segm
 export function mainBreaks(segment: Pick<TranscriptSegment, "id" | "text">, main: string, breaks: ReadonlyMap<string, readonly number[]>): readonly number[] {
   return main === segment.text ? breaksToShow(segment, breaks) : [];
 }
+
+/** 「重新读取字幕」点不点名现在这条的语言：导入的字幕和官方总结附带的字幕都不是平台列出的轨，点名语言就读不回来了。 */
+export function refreshLang(transcript: { readonly fileName?: string | undefined; readonly ref: { readonly kind: string } }): boolean {
+  return !transcript.fileName && transcript.ref.kind !== "official-ai";
+}

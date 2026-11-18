@@ -49,6 +49,8 @@ interface Script {
   /** 字幕文件按请求回。 */
   readonly file?: (request: SeenRequest) => Response;
   readonly summary?: Route;
+  /** 列轨的请求整个换掉：平台拒绝、回的不是该有的格式。 */
+  readonly listing?: Route;
   readonly loggedOut?: boolean;
 }
 
@@ -65,7 +67,8 @@ function rig(script: Script = {}, options: { readonly seed?: readonly Row[]; rea
   const routes: Record<string, Route> = {
     [NAV_URL]: () => json(200, script.loggedOut ? navLoggedOut() : navLoggedIn()),
     [VIEW_URL]: () => json(200, viewEnvelope()),
-    [PLAYER_URL]: () => {
+    [PLAYER_URL]: (request) => {
+      if (script.listing) return script.listing(request);
       listings += 1;
       const chapters = typeof script.chapters === "function" ? script.chapters(listings) : script.chapters;
       return json(200, playerEnvelope(script.tracks?.(listings) ?? BILINGUAL, chapters ? { view_points: chapters } : {}));
@@ -277,6 +280,19 @@ test("播放器没有字幕时，官方总结里的 AI 字幕接上整条管线"
   assert.equal((await h.rows()).length, 1);
   assert.deepEqual(h.downloads(), []);
 });
+
+for (const [name, listing, code] of [
+  ["拒绝访问", (): Response => new Response("", { status: 403 }), "NETWORK"],
+  ["回的不是该有的格式", (): Response => new Response("<html>样例验证页</html>", { status: 200 }), "MALFORMED"],
+] as const) {
+  test(`列轨被平台${name}：站点进退避，官方总结带着 AI 字幕也不拿来顶上`, async () => {
+    const h = rig({ listing, summary: () => summaryEnvelope([{ content: "第一句", start_timestamp: 0, end_timestamp: 2.5 }]) }, { fallback: true });
+    const reply = await h.service.get(REF, { mode: "full" });
+    assert.equal(reply.ok, false);
+    assert.equal(!reply.ok && reply.code, code);
+    assert.deepEqual(await h.rows(), []);
+  });
+}
 
 test("未登录：只问一次登录就报需要登录，不问官方总结，什么都不存", async () => {
   const h = rig({ loggedOut: true });

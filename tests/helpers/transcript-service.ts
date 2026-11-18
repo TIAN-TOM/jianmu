@@ -49,7 +49,7 @@ export interface HarnessOptions {
   /** 本机已有的概览：轻量读取带回去。 */
   readonly overviews?: readonly OverviewRecord[];
   readonly tabTitles?: Readonly<Record<number, string>>;
-  /** 官方总结附带的字幕兜底。生产里关着，用到它的测试才打开。 */
+  /** 官方总结附带的字幕兜底。生产里开着；这里默认关，用到它的测试才打开，别的测试不受它影响。 */
   readonly officialCaptionsFallback?: boolean;
 }
 

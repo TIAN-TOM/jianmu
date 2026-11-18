@@ -14,7 +14,7 @@ import { stateCopy } from "../shared/ui/state.ts";
 import { downloadText, safeFileName } from "./files.ts";
 import { CreatorChapters, OfficialSummary } from "./guides.tsx";
 import type { Panel } from "./panel.ts";
-import { activeIndex, explainable, linesOf, mainBreaks, srtOf } from "./reading.ts";
+import { activeIndex, explainable, linesOf, mainBreaks, refreshLang, srtOf } from "./reading.ts";
 import type { TranscriptMode } from "./translate.ts";
 
 const MODE_LABEL: Readonly<Record<TranscriptMode, string>> = { original: "原文", translated: "译文", bilingual: "双语" };
@@ -92,8 +92,8 @@ function Toolbar({ panel, view, onSearch, searching, onImport }: { readonly pane
     {
       label: "重新读取字幕",
       hint: "不看本机缓存",
-      // 导入的字幕不点名语言：点名语言会改读平台的字幕轨，绕过导入的文件。
-      onSelect: () => void transcript.load(view.video, follow.target.peek().tabId, { ...(view.transcript.fileName ? {} : { lang: view.transcript.ref.lang }), fresh: true }),
+      // 导入的字幕不点名语言：点名语言会改读平台的字幕轨，绕过导入的文件。官方总结附带的字幕不是平台列出的哪一条轨，也不点名。
+      onSelect: () => void transcript.load(view.video, follow.target.peek().tabId, { ...(refreshLang(view.transcript) ? { lang: view.transcript.ref.lang } : {}), fresh: true }),
     },
     { label: "复制全部字幕", onSelect: copyAll },
     { label: "导出 SRT", hint: `内容跟着${MODE_LABEL[mode]}视图`, onSelect: exportSrt },

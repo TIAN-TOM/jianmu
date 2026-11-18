@@ -43,10 +43,10 @@ export interface ReadGuides {
   readonly chapters?: readonly Chapter[];
 }
 
-/** official 是这次读取问的官方总结，读到视频信息以后才有，从不失败。 */
+/** official 是这次读取问的官方总结，读到视频信息以后才有，从不失败。rejected 是这次读取里平台拒绝过、站点进了退避。 */
 export type SiteReadResult =
   | { readonly ok: true; readonly record: TranscriptRecord; readonly official?: Promise<OfficialRead> | undefined }
-  | { readonly ok: false; readonly failure: Failure; readonly guides: ReadGuides; readonly official?: Promise<OfficialRead> | undefined };
+  | { readonly ok: false; readonly failure: Failure; readonly guides: ReadGuides; readonly official?: Promise<OfficialRead> | undefined; readonly rejected?: true };
 
 const failed = (failure: Failure, guides: ReadGuides = {}, official?: Promise<OfficialRead>): SiteReadResult => ({ ok: false, failure, guides, official });
 
@@ -62,7 +62,30 @@ function choose(tracks: readonly CaptionTrack[], lang: string, info: VideoInfo):
   return lang ? pickTrackByLang(tracks, lang, { strict: true, audioLang: info.audioLang }) : pickTrack(tracks, info.audioLang);
 }
 
-export async function readFromSite({ site, ref, video, lang, fresh, knownTracks, ctx: makeCtx, timers, official: askOfficial, onInfo }: SiteRead): Promise<SiteReadResult> {
+/** 读一次站点。站点在这次读取里进了退避（被限流、被拒绝、回的不是该有的格式），失败的结果带上 rejected。 */
+export async function readFromSite(read: SiteRead): Promise<SiteReadResult> {
+  let rejected = false;
+  const result = await readOnce({
+    ...read,
+    ctx: (signal) => {
+      // 读取环境还是原来那一个（站点会在它上面记这次读取里的结论），只把退避换成会记一笔的。
+      const ctx = read.ctx(signal);
+      const { backoff } = ctx;
+      ctx.backoff = {
+        admit: (admitSignal) => backoff.admit(admitSignal),
+        clear: () => backoff.clear(),
+        trip: (retryAfterSec) => {
+          rejected = true;
+          return backoff.trip(retryAfterSec);
+        },
+      };
+      return ctx;
+    },
+  });
+  return result.ok || !rejected ? result : { ...result, rejected: true };
+}
+
+async function readOnce({ site, ref, video, lang, fresh, knownTracks, ctx: makeCtx, timers, official: askOfficial, onInfo }: SiteRead): Promise<SiteReadResult> {
   // 这次读取自己的取消信号，不跟着哪个调用方走：几个调用方并在一起等同一次读取。
   const controller = new AbortController();
   const ctx = makeCtx(controller.signal);
