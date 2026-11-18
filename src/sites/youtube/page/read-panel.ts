@@ -27,8 +27,9 @@ const VIDEO = "ytd-watch-flexy .html5-video-player video.html5-main-video";
 const AD_CLASSES = ["ad-showing", "ad-interrupting"];
 
 const TIME = /^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})$/;
-// 段落签名取开头和结尾各几段。
-const SIGNATURE_ENDS = 3;
+// 段落签名的校验和：32 位 FNV-1a。只用来看出变没变，不防伪造。
+const FNV_OFFSET = 0x811c9dc5;
+const FNV_PRIME = 0x01000193;
 // 用户把面板关上再打开以后这么久里段落换掉，算页面为当前视频重新取来的。
 const REOPEN_WINDOW_MS = 5000;
 // 面板内容还在变时等它停下：隔这么久没变就算加载完，最多等这么久。
@@ -79,6 +80,20 @@ export function parseTimestamp(text: string): number | null {
 const clip = (text: string, max: number): string => (text.length > max ? text.slice(0, max) : text);
 const squash = (text: string | null | undefined): string => (text ?? "").replace(/\s+/g, " ").trim();
 
+/** 全部段落文字的校验和：中间哪一段变了也看得出，又不用把全部文字拼成一个大字符串。 */
+function checksumOf(texts: readonly string[]): string {
+  let hash = FNV_OFFSET;
+  for (const text of texts) {
+    for (let index = 0; index < text.length; index += 1) hash = Math.imul(hash ^ text.charCodeAt(index), FNV_PRIME) >>> 0;
+    hash = Math.imul(hash ^ 0x0a, FNV_PRIME) >>> 0;
+  }
+  return hash.toString(16);
+}
+
+/** 面板上方的搜索框里有字：只显示了一部分段落。 */
+const searching = (panel: Element | null): boolean =>
+  panel !== null && Array.from(panel.querySelectorAll<HTMLInputElement>("input")).some((input) => input.value.trim() !== "");
+
 /** 一段的时间和文字。时间认不出的段落不要。 */
 function cueOf(segment: Element): PanelCue | null {
   const timeNode = segment.querySelector(SEGMENT_TIME);
@@ -113,6 +128,8 @@ export function createPanelReader({
   let wasExpanded = false;
   let reopenedAt = Number.NEGATIVE_INFINITY;
   let reopenedFor = "";
+  /** 上次看段落时搜索框里有没有字：搜索滤空、清掉搜索词恢复的段落都不是页面新取来的。 */
+  let wasSearching = false;
   let stamp = 0;
   /** 上次看到的段落签名，比它变了才算段落变了。 */
   let lastContent = "";
@@ -126,12 +143,12 @@ export function createPanelReader({
     return ref && shell?.getAttribute(SHELL_VIDEO_ATTRIBUTE) === ref.videoId ? ref.videoId : "";
   };
 
-  /** 段落的签名：段数、语言菜单的名字、开头和结尾几段。按钮这些别的控件不在里面，也不每次把全部段落拼一遍。 */
+  /** 段落的签名：段数、语言菜单的名字和全部段落文字的校验和。按钮这些别的控件不在里面。 */
   const contentOf = (panel: Element | null): string => {
     const segments = panel ? Array.from(panel.querySelectorAll(SEGMENTS)) : [];
     if (segments.length === 0) return "";
-    const ends = [...segments.slice(0, SIGNATURE_ENDS), ...segments.slice(-SIGNATURE_ENDS)].map((segment) => squash(segment.textContent));
-    return [String(segments.length), squash(document.querySelector(LANGUAGE_LABEL)?.textContent), ...ends].join("\n");
+    const texts = segments.map((segment) => squash(segment.textContent));
+    return [String(segments.length), squash(document.querySelector(LANGUAGE_LABEL)?.textContent), checksumOf(texts)].join("\n");
   };
 
   // 面板有变化时看段落本身变没变：变了才判这些字幕属于谁。
@@ -143,18 +160,22 @@ export function createPanelReader({
       reopenedFor = videoNow();
     }
     wasExpanded = expanded;
+    const filtering = searching(panel);
+    const afterSearch = filtering || wasSearching;
+    wasSearching = filtering;
     const content = contentOf(panel);
     if (content === lastContent) return;
     lastContent = content;
     stamp += 1;
     lastChangeTime = now();
     if (!content) {
-      fresh = true;
+      // 搜索把段落滤空了不算面板清空：清掉搜索词以后回来的还是原来那份。
+      if (!filtering) fresh = true;
       return;
     }
     const current = videoNow();
     const justReopened = current !== "" && reopenedFor === current && now() - reopenedAt <= REOPEN_WINDOW_MS;
-    if (fresh || justReopened) owner = current;
+    if (!afterSearch && (fresh || justReopened)) owner = current;
     else if (owner !== current || current === "") owner = owner === null ? null : "";
     fresh = false;
   };
@@ -206,11 +227,11 @@ export function createPanelReader({
       return { state: document.querySelector(ENTRY) ? "closed" : "no-entry", cues: [] };
     }
     if (panel.getAttribute(EXPANDED_ATTRIBUTE) !== EXPANDED) return { state: "closed", cues: [] };
+    // 文字稿上方的搜索框里有字：只显示了一部分，滤空了也一样。
+    if (searching(panel)) return { state: "filtered", cues: [] };
     const segments = Array.from(panel.querySelectorAll(SEGMENTS));
     // 没有段落：在加载，或者加载失败只显示了一句话，等一会儿还没有就按加载中报。太长的也不按完整的交。
     if (segments.length === 0 || segments.length > PANEL_LIMITS.cues) return { state: "loading", cues: [] };
-    // 文字稿上方的搜索框里有字：只显示了一部分。
-    if (Array.from(panel.querySelectorAll<HTMLInputElement>("input")).some((input) => input.value.trim() !== "")) return { state: "filtered", cues: [] };
     if (owner === null) return { state: "reopen", cues: [] };
     if (!videoId || owner !== videoId) return { state: "stale", cues: [] };
     const cues = segments.flatMap((segment) => cueOf(segment) ?? []);
