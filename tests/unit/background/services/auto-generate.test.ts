@@ -493,6 +493,26 @@ test("关了标签页放弃的那个：收尾以后接着排别的，它不算�
   assert.equal(started[2]?.video, VIDEO);
 });
 
+test("等间隔的工夫别的任务报了额度用完：排着的不再读平台；已经登记的第一块也不发", async () => {
+  const { auto, state, calls, started, storage, ledger } = setup({ known: LONG });
+  state.tabs.set(4, videoPageUrl(OTHER_ID));
+  assert.deepEqual(await auto.consider(), { started: VIDEO });
+  // 下一轮为后台那个等间隔时，前一个报了额度用完，整体停了。
+  state.onSleep = () => {
+    storage.data[AUTO_LEDGER_KEY] = { ...ledger(), paused: { reason: "quota", at: START } };
+  };
+  assert.ok(await until(() => calls.sleeps.length > 0));
+  assert.ok(await stillFalse(() => calls.reads.length > 1 || started.length > 1));
+  assert.deepEqual(calls.reads, [VIDEO]);
+
+  // 已经登记、还没发第一块的：发之前看到整体停了，不发，也不记尝试。
+  const waiting = setup();
+  await waiting.auto.consider();
+  waiting.storage.data[AUTO_LEDGER_KEY] = { tried: [], sent: [], paused: { reason: "key", at: START } };
+  assert.equal(await waiting.started[0]?.hooks.beforeSend(false), false);
+  assert.deepEqual(waiting.ledger().tried, []);
+});
+
 test("写尝试记录的工夫关掉了开关：不发，记录照留；用户点的请求接上了就照发", async () => {
   const off = setup();
   await off.auto.consider();

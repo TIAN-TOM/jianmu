@@ -116,6 +116,15 @@ test("开着时：前台的长视频先生成，后台打开的那个也生成�
   assert.ok(await stillFalse(() => ai.posts().length > posts), "同一视频只生成一次");
 });
 
+test("刚打开开关：已经开着的视频标签页马上排进来，不等下一个标签页事件", async () => {
+  const { app, fake, overviewOf, pumped } = appOn({ on: false });
+  const before = fake.local.data[SETTINGS_STORAGE_KEY] as Record<string, unknown>;
+  const after = { ...before, autoOverview: true };
+  fake.local.data[SETTINGS_STORAGE_KEY] = after;
+  await app.onStorageChanged({ [SETTINGS_STORAGE_KEY]: { oldValue: before, newValue: after } }, "local");
+  assert.ok(await pumped(async () => (await overviewOf())?.verdict?.summary === "自动写的结论"));
+});
+
 test("排着的标签页关掉了：撤掉，不为它读平台", async () => {
   const { app, overviewOf, windows, site, pumped } = appOn();
   delete windows.urlTabs[4];
