@@ -148,6 +148,8 @@ export function createContentApp(deps: ContentAppDeps): ContentApp {
       }),
       deps.visibility.onChange(tick),
     );
+    // 先报一次时长再挂界面：卡片一载入就按模式定展开收起，会话早一步有，短视频就不用先收着等。
+    report();
     tick();
     void loadAppearance();
   }
