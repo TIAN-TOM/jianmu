@@ -1,4 +1,5 @@
 // 设置页「AI 服务」一节：服务商、地址、密钥和记住密钥、默认模型和按功能选模型、推理强度、概览分块、数据说明和同意、保存和测试。
+// 推理强度和概览分块即改即存，值按存着的设置显示；其余几项在表单里，点「保存并授权」才生效。
 import { useEffect, useId } from "preact/hooks";
 import { DATA_CONSENT_TABLE, noticeLines, noticeStatus, type DataConsentKind, type NoticeItem } from "../../core/consent.ts";
 import {
@@ -101,9 +102,9 @@ function EffortBlock({ state }: { readonly state: OptionsState }) {
   return (
     <fieldset class="field effort-block" id="featureEfforts">
       <legend class="field-label">推理强度</legend>
-      <span class="field-hint">档位越高，模型想得越久，越贵也越慢。服务或模型做不到的档位，按最接近的一档发，并在旁边标出。</span>
+      <span class="field-hint">档位越高，模型想得越久，越贵也越慢。服务或模型做不到的档位，按最接近的一档发，并在旁边标出。改了马上生效，不用点「保存并授权」。</span>
       {FEATURE_MODEL_SLOTS.map((slot) => {
-        const item = pending ? undefined : items?.find((entry) => entry.feature === slot.id && entry.requested === form.featureEfforts[slot.id]);
+        const item = pending ? undefined : items?.find((entry) => entry.feature === slot.id && entry.requested === saved.featureEfforts[slot.id]);
         const note = item ? effortNoteText(item) : null;
         return (
           <label key={slot.id} class="feature-row">
@@ -112,8 +113,8 @@ function EffortBlock({ state }: { readonly state: OptionsState }) {
               <select
                 class="input"
                 data-effort={slot.id}
-                value={form.featureEfforts[slot.id]}
-                onChange={(event) => state.editEffort(slot.id, event.currentTarget.value as (typeof EFFORTS)[number])}
+                value={saved.featureEfforts[slot.id]}
+                onChange={(event) => void state.saveInstant({ featureEfforts: { [slot.id]: event.currentTarget.value } })}
               >
                 {EFFORTS.map((effort) => (
                   <option key={effort} value={effort}>
@@ -306,14 +307,14 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
 
       <label class="field">
         <span class="field-label">概览分块</span>
-        <select class="input" id="analysisChunkMode" value={form.analysisChunkMode} onChange={(event) => state.edit({ analysisChunkMode: event.currentTarget.value as AnalysisChunkMode })}>
+        <select class="input" id="analysisChunkMode" value={saved.analysisChunkMode} onChange={(event) => void state.saveInstant({ analysisChunkMode: event.currentTarget.value })}>
           {(Object.keys(ANALYSIS_CHUNK_MODES) as AnalysisChunkMode[]).map((mode) => (
             <option key={mode} value={mode}>
               {CHUNK_LABELS[mode]}
             </option>
           ))}
         </select>
-        <span class="field-hint">多数模型用自动就好。上下文窗口小、内容有遗漏，或者长视频的请求超时（单次上限 120 秒，推理强度选中、高时放宽到 180、300 秒）时选「较短」。模型的上下文够长（能装下几万字）时可以选「尽量整份」：一个视频多半一次请求就写完，但更容易超时，超时就换回别的档。</span>
+        <span class="field-hint">多数模型用自动就好。上下文窗口小、内容有遗漏，或者长视频的请求超时（单次上限 120 秒，推理强度选中、高时放宽到 180、300 秒）时选「较短」。模型的上下文够长（能装下几万字）时可以选「尽量整份」：一个视频多半一次请求就写完，但更容易超时，超时就换回别的档。改了马上生效，不用点「保存并授权」。</span>
       </label>
 
       <ConsentBox state={state} />

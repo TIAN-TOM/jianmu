@@ -5,7 +5,6 @@ import { backupText, readBackup } from "../../core/backup/format.ts";
 import type { ClearScope } from "../../core/clear-guard.ts";
 import { describe, isErrorCode, type Failure } from "../../core/errors.ts";
 import { AI_ERROR_TEXT } from "../../core/errors/ai.ts";
-import type { Effort } from "../../core/notes/records.ts";
 import type { LoadedSettings, SettingsPatch, SettingsStore, WrittenSettings } from "../../platform/settings-store.ts";
 import type { EffortPreviewItem } from "../../shared/messages/ai.ts";
 import { SETTINGS_REVISION_KEY } from "../../shared/names.ts";
@@ -47,18 +46,18 @@ export interface OptionsState {
   readonly dataStatus: ReadonlySignal<Status | null>;
   readonly busy: ReadonlySignal<Busy>;
   readonly models: ReadonlySignal<readonly string[]>;
-  /** 每项功能实际生效的推理档位，后台按已保存的服务和模型、表单上选的档位算；问不到时是 null。 */
+  /** 每项功能实际生效的推理档位，后台按已保存的服务、模型和档位算；问不到时是 null。 */
   readonly efforts: ReadonlySignal<readonly EffortPreviewItem[] | null>;
   load(): Promise<void>;
-  edit(patch: Partial<Pick<AiForm, "aiModel" | "analysisChunkMode" | "rememberApiKey">>): void;
+  edit(patch: Partial<Pick<AiForm, "aiModel" | "rememberApiKey">>): void;
   editKey(key: string): void;
   editFeatureModel(id: FeatureSlotId, model: string): void;
-  editEffort(id: FeatureSlotId, effort: Effort): void;
   /** 重问实际档位，只在本机算，不发模型请求。 */
   refreshEfforts(): Promise<void>;
   choosePreset(presetId: string): void;
   editAddress(patch: Pick<AiForm, "aiBaseUrl"> | Pick<AiForm, "protocol">): void;
   save(): Promise<boolean>;
+  /** 即改即存：不等「保存并授权」，也不申请权限。推理强度存好以后重问实际档位。 */
   saveInstant(patch: SettingsPatch): Promise<void>;
   setConsent(given: boolean): Promise<void>;
   /** 打开就出结论：先同意当前的数据说明，同意存上了才打开开关。 */
@@ -188,7 +187,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
   // 连着改档位时回复可能乱序，只认最后一问。
   let effortAsk = 0;
   async function refreshEfforts(): Promise<void> {
-    const current = form.peek();
+    const current = saved.peek();
     if (!current || stopped) return;
     const ask = ++effortAsk;
     const reply = await api.send("ai.effortPreview", { efforts: { ...current.featureEfforts } }).catch(() => null);
@@ -232,7 +231,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
         }
         ownWrites += 1;
         try {
-          // 表单上没有的字段（同意、外观）用排在前面的写入落地之后的设置补全，不拿点击时的旧值盖回去。
+          // 表单上没有的字段（同意、外观、推理强度、概览分块）用排在前面的写入落地之后的设置补全，不拿点击时的旧值盖回去。
           const result = await store.save(settingsInput(current, saved.peek() ?? before), revision);
           revision = result.settingsRevision;
           saved.value = result;
@@ -262,7 +261,8 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
 
   async function saveInstant(patch: SettingsPatch): Promise<void> {
     try {
-      await ownWrite(() => store.update(patch));
+      const written = await ownWrite(() => store.update(patch));
+      if (written && Object.hasOwn(patch, "featureEfforts")) void refreshEfforts();
     } catch (error) {
       aiStatus.value = { text: `没有保存：${errorText(error)}`, tone: "error" };
     }
@@ -311,12 +311,6 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
     editFeatureModel(id, model) {
       const current = form.peek();
       if (current) setForm({ ...current, featureModels: { ...current.featureModels, [id]: model } });
-    },
-    editEffort(id, effort) {
-      const current = form.peek();
-      if (!current) return;
-      setForm({ ...current, featureEfforts: { ...current.featureEfforts, [id]: effort } });
-      void refreshEfforts();
     },
     refreshEfforts,
     choosePreset(presetId) {
