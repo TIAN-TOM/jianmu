@@ -493,6 +493,27 @@ test("关了标签页放弃的那个：收尾以后接着排别的，它不算�
   assert.equal(started[2]?.video, VIDEO);
 });
 
+test("滑动窗口只剩一个名额、两个任务同时要发第一块：只放一个，另一个不发、不记尝试，窗口滑出去以后再排", async () => {
+  const sent = Array.from({ length: AUTO_WINDOW_LIMIT - 1 }, (_, index) => START - AUTO_WINDOW_MS + 60_000 + index);
+  const { auto, state, started, ledger, timers } = setup({ ledger: { tried: [], sent }, known: LONG });
+  state.tabs.set(4, videoPageUrl(OTHER_ID));
+  await auto.consider();
+  assert.ok(await until(() => started.length === 2), "两个都登记了、都还没发");
+  const [first, second] = started;
+  assert.ok(first && second);
+  const allowed = await Promise.all([first.hooks.beforeSend(false), second.hooks.beforeSend(false)]);
+  assert.deepEqual([...allowed].sort(), [false, true], "只放一个");
+  assert.equal(ledger().sent.length, AUTO_WINDOW_LIMIT, "窗口里正好 40 个，没超");
+  assert.equal(ledger().tried.length, 1, "没放的不记尝试");
+  const refused = allowed[0] ? second : first;
+  assert.equal(await refused.hooks.beforeSend(false), false, "同一任务后面的块也不发");
+  first.finish();
+  second.finish();
+  timers.advance(60_000);
+  assert.ok(await until(() => started.length === 3), "窗口滑出去以后，没放的那个再排");
+  assert.equal(started[2]?.video, refused.video);
+});
+
 test("等间隔的工夫别的任务报了额度用完：排着的不再读平台；已经登记的第一块也不发", async () => {
   const { auto, state, calls, started, storage, ledger } = setup({ known: LONG });
   state.tabs.set(4, videoPageUrl(OTHER_ID));
