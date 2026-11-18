@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { createApp } from "../../../../src/background/app.ts";
 import { appearanceChange } from "../../../../src/background/routes/appearance.ts";
 import { API_KEY_SESSION_KEY, SETTINGS_STORAGE_KEY } from "../../../../src/shared/names.ts";
-import { CONFIRMED, createFakeChrome, senders, STALE_CONFIRMATION, tubeUrl, WATCH_ORIGIN, type FakeChromeOptions } from "../../../helpers/chrome.ts";
+import { CONFIRMED, createFakeChrome, senders, STALE_CONFIRMATION, TUBE_ORIGIN, tubeUrl, WATCH_ORIGIN, type FakeChromeOptions } from "../../../helpers/chrome.ts";
 
 const MANIFEST = { content_scripts: [{ matches: [`${WATCH_ORIGIN}/watch/*`] }] };
 
@@ -53,7 +53,8 @@ test("设置变更广播给播放页时带上卡片开关，关掉后已打开�
 });
 
 test("确认启用之后，发过消息的内容脚本和按清单匹配规则查到的标签页都收到，同一个标签页只发一次", async () => {
-  const { app, fake } = appOn({ local: { [SETTINGS_STORAGE_KEY]: CONFIRMED }, openTabs: [1, 31] });
+  // 另一个站要另外授权：给了授权，它的页面也照常收到。
+  const { app, fake } = appOn({ local: { [SETTINGS_STORAGE_KEY]: CONFIRMED }, openTabs: [1, 31], grantedOrigins: [`${TUBE_ORIGIN}/*`] });
   await app.dispatch({ type: "appearance.get", req: {} }, senders.content(undefined, 31));
   await app.dispatch({ type: "appearance.get", req: {} }, senders.content(tubeUrl(), 32));
 

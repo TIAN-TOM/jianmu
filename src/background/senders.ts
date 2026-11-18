@@ -47,6 +47,14 @@ export interface Senders {
   readonly authenticate: (sender: MessageSender | undefined) => SenderCtx | null;
   /** 只在过了启用闸门、路由确实要站点或视频时调。认不出是哪个站的视频页时是 null。 */
   readonly resolveSite: (ctx: SenderCtx, sender: MessageSender) => SiteSenderCtx | null;
+  /** 内容脚本在不在要用户另外授权的站上（不管是不是视频页），在的话是哪个站。只在过了启用闸门之后调。 */
+  readonly optionalSite: (ctx: SenderCtx, sender: MessageSender) => Platform | null;
+}
+
+// 注册内容脚本用的匹配规则只写成「https://主机/*」，按协议和主机名比，主机名末尾的点、端口都不影响；认不出的规则不匹配。
+function coveredBy(pattern: string, url: URL): boolean {
+  const host = /^https:\/\/([^/*:]+)\/\*$/.exec(pattern)?.[1];
+  return host !== undefined && url.protocol === "https:" && url.hostname.replace(/\.$/, "").toLowerCase() === host.toLowerCase();
 }
 
 const PAGES: readonly (readonly [string, SenderCtx["kind"], PageName | undefined])[] = [
@@ -109,6 +117,22 @@ export function createSenders({ extensionId, extensionUrl, rules }: SenderDeps):
         if (video && video.platform === rule.platform) return { ...ctx, kind: "content", site: rule.platform, video };
       }
       return null;
+    },
+    optionalSite(ctx, sender) {
+      if (ctx.kind !== "content") return null;
+      const optional = rules.filter((rule) => rule.optionalPermission);
+      if (optional.length === 0) return null;
+      const raw = sender.url ?? sender.tab?.url;
+      if (raw === undefined) return null;
+      let url: URL;
+      try {
+        url = new URL(raw);
+      } catch {
+        // 地址认不出时不知道在哪个站：按在要另外授权的站上算，授权不在就不放行。
+        return optional[0]?.platform ?? null;
+      }
+      const rule = optional.find((candidate) => candidate.scriptMatches.some((pattern) => coveredBy(pattern, url)));
+      return rule ? rule.platform : null;
     },
   };
 }

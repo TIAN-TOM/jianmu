@@ -48,8 +48,13 @@ const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
 
 /** 每秒问一次播放位置：字幕跟随只要到句子这一级。 */
 export const POLL_MS = 1000;
+/** 换了视频后第一次问没连上：页面可能还在加载，隔这么久再问，问完这几次就等用户刷新。 */
+export const RECONNECT_MS: readonly number[] = [1000, 2000, 4000, 8000];
 
-export function createPlayer({ tabs = chrome.tabs as PlayerTabs }: { readonly tabs?: PlayerTabs } = {}): Player {
+export function createPlayer({
+  tabs = chrome.tabs as PlayerTabs,
+  later = (run, ms) => setTimeout(run, ms),
+}: { readonly tabs?: PlayerTabs; readonly later?: (run: () => void, ms: number) => unknown } = {}): Player {
   const connected = signal<boolean | null>(null);
   const position = signal<PlayPosition | null>(null);
   let current: { readonly tabId: number; readonly video: VideoKey } | null = null;
@@ -70,8 +75,8 @@ export function createPlayer({ tabs = chrome.tabs as PlayerTabs }: { readonly ta
     return reply;
   }
 
-  // 换了视频后的第一次总要问，看连没连上；之后页面不可见时不问。
-  async function poll(first = false): Promise<void> {
+  // 换了视频后的第一次总要问，看连没连上；没连上时隔一会儿再问几次（页面可能还在加载）。之后页面不可见时不问。
+  async function poll(first = false, retry = 0): Promise<void> {
     timer = null;
     const asked = generation;
     const at = current;
@@ -80,6 +85,13 @@ export function createPlayer({ tabs = chrome.tabs as PlayerTabs }: { readonly ta
       const reply = await send(at.tabId, "player.getState", { video: at.video });
       if (asked !== generation) return;
       if (reply.ok && reply.value.status !== "ad") position.value = { video: at.video, atSec: reply.value.atSec, status: reply.value.status };
+      const wait = first && !reply.ok && reply.code === "UNREACHABLE" ? RECONNECT_MS[retry] : undefined;
+      if (wait !== undefined) {
+        later(() => {
+          if (asked === generation) void poll(true, retry + 1);
+        }, wait);
+        return;
+      }
     }
     if (polling && asked === generation) timer = setTimeout(() => void poll(), POLL_MS);
   }

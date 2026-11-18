@@ -296,3 +296,29 @@ describe("规则能拦下造好的违规", () => {
     assert.deepEqual(filesHit(typeOnly), []);
   });
 });
+
+describe("第 6 条：YouTube 一侧的边界", () => {
+  test("url.ts 只许写放行表里的主机匹配规则，只放行 YouTube 站点那一条", () => {
+    assert.deepEqual(rulesHit("src/sites/youtube/url.ts", 'export const P = "https://www.youtube.com/*";\n'), []);
+    for (const pattern of ["https://*.youtube.com/*", "*://www.youtube.com/*", "https://www.youtube.com/watch*", "<all_urls>", "https://*/*"]) {
+      assert.deepEqual(rulesHit("src/sites/youtube/url.ts", `export const P = "${pattern}";\n`), [6], pattern);
+    }
+    assert.deepEqual(rulesHit("src/sites/youtube/page.ts", 'export const P = "https://www.youtube.com/*";\n'), [6]);
+    assert.deepEqual(rulesHit("src/sites/bilibili/url.ts", 'export const P = "https://www.youtube.com/*";\n'), [6]);
+  });
+
+  test("src/sites/youtube/ 下任何文件都不发请求，也不带入发请求的模块", () => {
+    assert.deepEqual(rulesHit("src/sites/youtube/http.ts", "const r = await ctx.fetch(url);\n"), [6]);
+    assert.deepEqual(rulesHit("src/sites/youtube/service.ts", "const ctx = { fetch: fetch.bind(globalThis) };\n"), [6]);
+    const viaBilibiliExit = {
+      "src/sites/bilibili/http.ts": "export const send = (ctx: Ctx, url: string) => ctx.fetch(url);\n",
+      "src/sites/youtube/service.ts": 'import { send } from "../bilibili/http.ts";\n',
+    };
+    assert.deepEqual(filesHit(viaBilibiliExit), ["6 src/sites/youtube/service.ts"]);
+    const typeOnly = {
+      "src/sites/types.ts": "export interface SiteCtx {\n  fetch: typeof fetch;\n}\n",
+      "src/sites/youtube/service.ts": 'import type { SiteCtx } from "../types.ts";\n',
+    };
+    assert.deepEqual(filesHit(typeOnly), []);
+  });
+});

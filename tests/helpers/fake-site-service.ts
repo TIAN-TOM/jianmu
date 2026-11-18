@@ -87,6 +87,8 @@ const rules: SiteRules = {
   optionalPermission: false,
   parseWatchUrl: () => null,
   canonicalUrl: (ref) => `https://watch.example/watch/${ref.videoId}`,
+  permissionOrigins: [],
+  scriptMatches: [],
 };
 
 /** 一直不回，直到这次读取的环境被中止，回读取实现中止时的那种失败。 */

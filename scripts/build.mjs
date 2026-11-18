@@ -78,6 +78,12 @@ const bundles = [
   { entryPoints: ["src/content/bilibili.ts"], outfile: "build/content/bilibili.js", format: "iife" },
 ];
 
+// 只在开关打开时构建的入口：YouTube 的内容脚本运行时按授权动态注册，开关关着时这个文件不出现在产物里。
+/** @type {Readonly<Record<string, import("esbuild").BuildOptions>>} */
+const FEATURE_BUNDLES = {
+  youtube: { entryPoints: ["src/content/youtube.ts"], outfile: "build/content/youtube.js", format: "iife" },
+};
+
 /**
  * 每个包的完整选项。开关换成字面量以后，只从关着的分支引用的模块整段摇掉；不开 minifySyntax，
  * 直接写在死分支里的字面量会留在包里，所以开关保护的内容要放进单独的模块。
@@ -86,7 +92,8 @@ const bundles = [
  */
 export function bundleOptions(features) {
   const define = { __JIANMU_BUILD_ID__: JSON.stringify(buildId(features)), ...featureDefines(features) };
-  return bundles.map((bundle) => ({ ...shared, ...bundle, define }));
+  const gated = Object.entries(FEATURE_BUNDLES).flatMap(([name, bundle]) => (features[/** @type {keyof typeof features} */ (name)] === true ? [bundle] : []));
+  return [...bundles, ...gated].map((bundle) => ({ ...shared, ...bundle, define }));
 }
 
 function writeManifest() {

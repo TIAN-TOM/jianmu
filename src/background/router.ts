@@ -2,6 +2,7 @@
 // 过启用闸门、这时才按地址认内容脚本的站点和视频、卡片开关、处理。闸门之前不读任何网页地址。
 // 端口走同一套发送方核对和启用闸门；连上以后启用失效就断开，会发起工作的消息每条再查一次启用。
 import { fail, type ErrorCode, type Failure, type Result } from "../core/errors.ts";
+import type { Platform } from "../core/video-ref.ts";
 import { jsonCopy, type PortLike } from "../platform/messaging.ts";
 import { isSettingsError } from "../platform/settings-store.ts";
 import { isQuotaError } from "../platform/storage.ts";
@@ -92,6 +93,10 @@ export interface RouterDeps {
   readonly enabled: () => Promise<boolean>;
   /** 播放页卡片的开关。 */
   readonly cardEnabled: () => Promise<boolean>;
+  /** 要用户另外授权的站现在授权了没有；撤了权，那个站上残留的内容脚本发来的请求一律不放行。 */
+  readonly siteGranted?: (platform: Platform) => Promise<boolean>;
+  /** 叫撤了权的站上残留的内容脚本整套撤下：后台刚醒时不知道哪些页面开着，靠它们自己发来的消息找到。 */
+  readonly retireSite?: (tabId: number, platform: Platform) => Promise<void>;
   readonly contentTabs: ContentTabs;
   /** 同步发起打开侧边栏。 */
   readonly openPanel: (windowId: number) => Promise<boolean>;
@@ -262,6 +267,14 @@ export function createRouter(deps: RouterDeps): Router {
   ): Promise<Result<unknown>> {
     try {
       if (route.beforeEnable !== true && !(await deps.enabled())) return fail("NOT_ENABLED");
+      // 撤了权的站上残留的内容脚本：业务请求不放行，确认后放行的那几条也不放行，并叫它撤下。确认前不按地址认站点。
+      if (ctx.kind === "content" && deps.siteGranted && (route.beforeEnable !== true || (await deps.enabled()))) {
+        const optional = senders.optionalSite(ctx, sender);
+        if (optional && !(await deps.siteGranted(optional))) {
+          if (ctx.tabId !== undefined) void deps.retireSite?.(ctx.tabId, optional).catch(() => undefined);
+          return fail("NOT_ENABLED");
+        }
+      }
       let resolved: SenderCtx | SiteSenderCtx = ctx;
       if (ctx.kind === "content" && (route.video === "from-sender" || oneSiteOnly(route))) {
         const site = senders.resolveSite(ctx, sender);

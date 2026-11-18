@@ -3,6 +3,7 @@
 import type { Permissions } from "../platform/permissions.ts";
 import type { PublicSettings } from "../platform/settings-store.ts";
 import { originOf } from "../shared/settings-schema.ts";
+import type { SiteRules } from "../sites/types.ts";
 
 export interface GrantsDeps {
   readonly permissions: Permissions;
@@ -14,11 +15,11 @@ export interface GrantsDeps {
 }
 
 /**
- * 按设置里的站点启用推出要保留的站点来源。设置里还没有站点启用这一项，B 站的主机写在清单里本来就保留，
- * 所以现在一个都没有；加 YouTube 启用的那次改动让它返回已启用站点的来源，主机名从站点适配层取，不写在后台。
+ * 要用户另外授权的站（YouTube）的来源，回收时一律保留：授权本身就是启用，只有用户自己停用或撤权才收。
+ * B 站的主机写在清单里本来就保留。主机名从站点适配层取，不写在后台；构建开关关着时站点规则里没有 YouTube。
  */
-export function siteOriginsFromSettings(_settings: PublicSettings): readonly string[] {
-  return [];
+export function siteOriginsOf(rules: readonly SiteRules[]): readonly string[] {
+  return rules.flatMap((rule) => (rule.optionalPermission ? rule.permissionOrigins : []));
 }
 
 export interface ReleaseResult {
