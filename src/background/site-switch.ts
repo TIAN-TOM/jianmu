@@ -1,7 +1,7 @@
 // 要用户另外授权的站（YouTube）：授权在就注册内容脚本，不在就注销。授权本身就是「启用」，设置里不另记一份。
-// 只从 app.ts 的构建开关分支引用，开关关着时整个模块不进包。
-// 安装、更新后浏览器会清掉动态注册，先撤再注册；浏览器启动和授权增减时按当前授权补上或撤掉。
-// 新授权以后往已开的页面补注入一次；撤权以后通知发过消息的页面整套撤下（注销撤不回已经注入的脚本）。
+// 只从 app.ts 的构建开关分支引用，开关关着时整个模块不进包。同步一次一次排着做，不交叉。
+// 「上一次的状态」看浏览器持久保存的注册：没注册而授权在是新给的，往已开页面补注入；注册着而授权没了是撤掉的，
+// 通知发过消息的页面和扩展页面，删掉这个站的观看会话（注销撤不回已经注入的脚本）。安装、更新后浏览器清掉注册，先撤再注册。
 import type { Platform } from "../core/video-ref.ts";
 import type { Messenger } from "../platform/messaging.ts";
 import type { Permissions } from "../platform/permissions.ts";
@@ -21,8 +21,10 @@ export interface SiteSwitchDeps {
   readonly permissions: Pick<Permissions, "containsAll">;
   readonly scripts: RegisteredScripts;
   readonly tabs: Pick<Tabs, "tabsMatching" | "inject">;
-  readonly messenger: Pick<Messenger, "toTabs">;
+  readonly messenger: Pick<Messenger, "toTabs" | "toPages">;
   readonly contentTabs: Pick<ContentTabs, "list">;
+  /** 撤权时删掉这个站的观看会话。 */
+  readonly forgetSessions: (platform: Platform) => Promise<void>;
   /** 首次启用确认算不算数：不算数时不按地址查标签页、不补注入。 */
   readonly enabled: () => Promise<boolean>;
   readonly log: Log;
@@ -35,8 +37,10 @@ export interface SiteSwitch {
   readonly sync: (options?: { readonly fresh?: boolean }) => Promise<void>;
   /** 授权有增减：同步注册，新授权的站往已开页面补注入，撤掉的站通知页面停下。 */
   readonly permissionsChanged: () => Promise<void>;
-  /** 授权了的站的内容脚本，补注入时和清单里的一起用。 */
+  /** 授权了的站的内容脚本，补注入和找要通知的页面时和清单里的一起用。 */
   readonly grantedScripts: () => Promise<readonly ContentScript[]>;
+  /** 撤了权的站上还有残留的内容脚本发来消息：叫它整套撤下。 */
+  readonly retire: (tabId: number, platform: Platform) => Promise<void>;
 }
 
 interface OptionalSite {
@@ -45,13 +49,25 @@ interface OptionalSite {
   readonly file: string;
 }
 
-export function createSiteSwitch({ rules, permissions, scripts, tabs, messenger, contentTabs, enabled, log }: SiteSwitchDeps): SiteSwitch {
+interface Synced {
+  readonly site: OptionalSite;
+  readonly granted: boolean;
+  /** 同步之前就注册着。 */
+  readonly present: boolean;
+}
+
+export function createSiteSwitch({ rules, permissions, scripts, tabs, messenger, contentTabs, forgetSessions, enabled, log }: SiteSwitchDeps): SiteSwitch {
   const sites: readonly OptionalSite[] = rules.flatMap((rule) => {
     const script = SCRIPTS[rule.platform];
     return rule.optionalPermission && script && rule.permissionOrigins.length > 0 && rule.scriptMatches.length > 0 ? [{ rules: rule, ...script }] : [];
   });
-  /** 上一次同步时各站授权在不在，用来分出这次是新给的还是撤掉的。 */
-  const lastGranted = new Map<Platform, boolean>();
+  // 同步排成一条队：刚给就撤这类连着来的事件，后一次看到的是前一次做完的样子。
+  let queue: Promise<unknown> = Promise.resolve();
+  const inTurn = <T>(work: () => Promise<T>): Promise<T> => {
+    const next = queue.then(work, work);
+    queue = next.catch(() => undefined);
+    return next;
+  };
 
   const contentScript = (site: OptionalSite): ContentScript => ({ matches: site.rules.scriptMatches, js: [site.file], css: [], allFrames: false });
 
@@ -64,17 +80,17 @@ export function createSiteSwitch({ rules, permissions, scripts, tabs, messenger,
     }
   }
 
-  /** 一个站按授权补上或撤掉注册，回这次的授权状态。 */
-  async function syncSite(site: OptionalSite, fresh: boolean): Promise<boolean> {
+  async function syncSite(site: OptionalSite, fresh: boolean): Promise<Synced> {
     const granted = await isGranted(site);
+    let present = false;
     try {
-      const present = (await scripts.registered([site.id])).includes(site.id);
+      present = (await scripts.registered([site.id])).includes(site.id);
       if (present && (fresh || !granted)) await scripts.unregister([site.id]);
       if (granted && (fresh || !present)) await scripts.register({ id: site.id, matches: site.rules.scriptMatches, js: [site.file] });
     } catch (error) {
       log.error("同步站点的内容脚本注册失败", errorLabel(error));
     }
-    return granted;
+    return { site, granted, present };
   }
 
   async function injectOpenTabs(site: OptionalSite): Promise<void> {
@@ -89,16 +105,17 @@ export function createSiteSwitch({ rules, permissions, scripts, tabs, messenger,
     }
   }
 
-  async function sync(fresh: boolean): Promise<readonly { readonly site: OptionalSite; readonly granted: boolean; readonly before: boolean | undefined }[]> {
-    return Promise.all(
-      sites.map(async (site) => {
-        const before = lastGranted.get(site.rules.platform);
-        const granted = await syncSite(site, fresh);
-        lastGranted.set(site.rules.platform, granted);
-        return { site, granted, before };
-      }),
-    );
+  async function revoked(platform: Platform): Promise<void> {
+    const message = { type: "site.changed", platform, enabled: false } as const;
+    await Promise.all([messenger.toTabs(contentTabs.list(), message), messenger.toPages(message)]);
+    try {
+      await forgetSessions(platform);
+    } catch (error) {
+      log.error("删掉撤权站点的观看会话失败", errorLabel(error));
+    }
   }
+
+  const syncAll = (fresh: boolean): Promise<readonly Synced[]> => Promise.all(sites.map((site) => syncSite(site, fresh)));
 
   return {
     async granted(platform) {
@@ -106,21 +123,20 @@ export function createSiteSwitch({ rules, permissions, scripts, tabs, messenger,
       if (site) return isGranted(site);
       return !rules.some((rule) => rule.platform === platform && rule.optionalPermission);
     },
-    async sync(options) {
-      await sync(options?.fresh === true);
-    },
-    async permissionsChanged() {
-      for (const { site, granted, before } of await sync(false)) {
-        // 后台刚醒、不知道之前的状态时，授权在就补注入一次：内容脚本自己防重复，多注入一次只是新的接手。
-        if (granted && before !== true) await injectOpenTabs(site);
-        if (!granted && before !== false) {
-          await messenger.toTabs(contentTabs.list(), { type: "site.changed", platform: site.rules.platform, enabled: false });
+    sync: (options) => inTurn(async () => void (await syncAll(options?.fresh === true))),
+    permissionsChanged: () =>
+      inTurn(async () => {
+        for (const { site, granted, present } of await syncAll(false)) {
+          if (granted && !present) await injectOpenTabs(site);
+          if (!granted && present) await revoked(site.rules.platform);
         }
-      }
-    },
+      }),
     async grantedScripts() {
       const granted = await Promise.all(sites.map(async (site) => ((await isGranted(site)) ? [contentScript(site)] : [])));
       return granted.flat();
+    },
+    async retire(tabId, platform) {
+      await messenger.toTabs([tabId], { type: "site.changed", platform, enabled: false });
     },
   };
 }

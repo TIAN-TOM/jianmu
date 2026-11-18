@@ -16,7 +16,7 @@ import type { StoreName } from "../shared/names.ts";
 import type { SiteRules } from "../sites/types.ts";
 import { createAiWiring, type AiWiring, type ModelServiceFetch, type PromptTable } from "./ai.ts";
 import { autoSwitchToggled, createAutoWiring } from "./auto.ts";
-import { createContentTabs, type ContentTabs } from "./content-tabs.ts";
+import { createContentTabs, siteTabs, type ContentTabs } from "./content-tabs.ts";
 import { createGrants, siteOriginsOf, type Grants } from "./grants.ts";
 import { createCardLimits, createPlaybackLimits, createPlayerNoteLimit, type CardLimits, type PlaybackLimits } from "./limits.ts";
 import { errorLabel, type Log } from "./log.ts";
@@ -370,18 +370,10 @@ function assembleCore(deps: AppDeps): Core {
   const ai = assembleAi(deps, settings, clearGuard);
   const messenger = createMessenger(deps.runtime, tabs.send);
   const enabled = async () => (await settings.activation()).state === "current";
+  const sessionParts = assembleSessions(deps, clearGuard, messenger);
   // 发行构建里这一支连同站点开关的代码一起裁掉。
   const siteSwitch = FEATURE_YOUTUBE
-    ? createSiteSwitch({
-        rules: deps.siteRules,
-        permissions: createPermissions(deps.permissions, () => deps.runtime.getManifest()),
-        scripts: createRegisteredScripts(deps.scripting),
-        tabs,
-        messenger,
-        contentTabs,
-        enabled,
-        log: deps.log,
-      })
+    ? createSiteSwitch({ rules: deps.siteRules, permissions: createPermissions(deps.permissions, () => deps.runtime.getManifest()), scripts: createRegisteredScripts(deps.scripting), tabs, messenger, contentTabs, enabled, log: deps.log, forgetSessions: (platform) => sessionParts.sessions.forgetPlatform(platform) })
     : null;
   const keepAlive = assembleKeepAlive(deps);
   const tasks = assembleTasks(deps, ai, messenger, keepAlive);
@@ -404,11 +396,11 @@ function assembleCore(deps: AppDeps): Core {
     messenger,
     contentTabs,
     // 通知是尽力而为：查不到标签页时只发给登记过的，不让确认启用这类写入跟着报错。
-    contentTargets: async () => [...new Set([...contentTabs.list(), ...(await tabs.contentScriptTabs().catch(() => []))])],
+    contentTargets: async () => [...new Set([...contentTabs.list(), ...(await tabs.contentScriptTabs().catch(() => [])), ...(await siteTabs(tabs, siteSwitch?.grantedScripts))])],
     reinject: createReinject({ tabs, enabled, ...(siteSwitch ? { extraScripts: siteSwitch.grantedScripts } : {}), log: deps.log }),
     grants: assembleGrants(deps, settings),
     siteSwitch,
-    ...assembleSessions(deps, clearGuard, messenger),
+    ...sessionParts,
     transcript,
     overview,
     verdict,
@@ -427,7 +419,7 @@ function assembleRouter(deps: AppDeps, core: Core): Router {
     ports: deps.ports ?? createPorts(core),
     senders: createSenders({ extensionId: deps.runtime.id, extensionUrl: (path) => deps.runtime.getURL(path), rules: deps.siteRules }),
     enabled: async () => (await settings.activation()).state === "current",
-    siteGranted: async (platform) => (core.siteSwitch ? core.siteSwitch.granted(platform) : true),
+    ...(core.siteSwitch ? { siteGranted: core.siteSwitch.granted, retireSite: core.siteSwitch.retire } : {}),
     async cardEnabled() {
       try {
         return (await settings.loadPublic()).inPageCard;

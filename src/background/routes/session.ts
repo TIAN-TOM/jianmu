@@ -31,8 +31,8 @@ type SessionRoutes = {
 
 // 一周：比任何正常的视频和累计播放都长，挡掉离谱的数。
 const MAX_SECONDS = 7 * 24 * 3600;
-// 频道编号只用来记偏好，按两站都可能出现的字符收，长度设上限。
-const CHANNEL_ID = /^[A-Za-z0-9_.-]{1,64}$/;
+// 频道编号只用来记偏好，按两站都可能出现的字符收，长度设上限；YouTube 的频道 @ 名开头带 @。
+const CHANNEL_ID = /^@?[A-Za-z0-9_.-]{1,64}$/;
 const CARD_OVERRIDES: ReadonlySet<unknown> = new Set<CardOverride>(["expanded", "collapsed"]);
 
 const isPlainObject = (value: unknown): value is Readonly<Record<string, unknown>> =>

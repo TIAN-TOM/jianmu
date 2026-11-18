@@ -6,6 +6,7 @@ import { createApp } from "../../../src/background/app.ts";
 import { videoKey } from "../../../src/core/video-ref.ts";
 import { SETTINGS_STORAGE_KEY } from "../../../src/shared/names.ts";
 import { CONFIRMED, createFakeChrome, senders, TUBE_ORIGIN, tubeUrl, type FakeChromeOptions } from "../../helpers/chrome.ts";
+import { until } from "../../helpers/wait-until.ts";
 
 const ORIGIN = `${TUBE_ORIGIN}/*`;
 const SCRIPT_ID = "jianmu-youtube";
@@ -102,4 +103,46 @@ test("确认启用时的补注入带上授权了的站的脚本", async () => {
   const { fake, app } = appOn({ local: {}, grantedOrigins: [ORIGIN], urlTabs: { [TUBE_TAB]: tubeUrl() } });
   assert.equal((await app.dispatch({ type: "activation.confirm", req: {} }, senders.panel())).ok, true);
   assert.ok(fake.calls.injections.some(({ value }) => value.files.includes("content/youtube.js")));
+});
+
+test("后台被回收以后撤权：注销、通知扩展页面、删掉这个站的观看会话；残留页面一发消息就叫它撤下", async () => {
+  const { fake, app: earlier } = appOn({ grantedOrigins: [ORIGIN] });
+  await earlier.onInstalled("install");
+  const video = videoKey({ platform: "youtube", videoId: "tube-sample" });
+  assert.equal((await earlier.dispatch({ type: "playback.info", req: { video, durationSec: 1200 } }, senders.content(tubeUrl(), TUBE_TAB))).ok, true);
+  assert.equal((await earlier.dispatch({ type: "playback.info", req: { video: videoKey({ platform: "bilibili", videoId: "BV1Sample001", segment: 1 }), durationSec: 1200 } }, senders.content())).ok, true);
+  const sessionsBefore = Object.keys(fake.session.data["jianmu_watch_sessions"] as object).sort();
+  assert.equal(sessionsBefore.length, 2);
+  // 撤权把后台叫醒：新的后台内存里的名单是空的，注册由浏览器留着。
+  fake.revoke(ORIGIN);
+  const app = createApp(fake.deps({ warn() {}, error() {} }));
+  await app.onPermissionsChanged();
+  assert.equal(fake.registered.size, 0);
+  assert.ok(fake.calls.broadcasts.some((message) => JSON.stringify(message) === JSON.stringify({ type: "site.changed", platform: "youtube", enabled: false })));
+  assert.deepEqual(Object.keys(fake.session.data["jianmu_watch_sessions"] as object), sessionsBefore.filter((tab) => tab !== String(TUBE_TAB)));
+
+  // 残留的内容脚本问启用状态：不放行，并叫它撤下。
+  assert.deepEqual(await app.dispatch({ type: "activation.get", req: {} }, senders.content(tubeUrl(), TUBE_TAB)), { ok: false, code: "NOT_ENABLED" });
+  assert.ok(await until(() => fake.calls.tabMessages.some(({ tabId, message }) => tabId === TUBE_TAB && (message as { type?: string }).type === "site.changed")));
+  // 主机名末尾带点、带端口的写法一样认得是这个站。
+  for (const url of [`${TUBE_ORIGIN}./v/tube-sample`, `${TUBE_ORIGIN}:8443/v/tube-sample`, "not a url"]) {
+    assert.deepEqual(await app.dispatch({ type: "appearance.get", req: {} }, { ...senders.content(tubeUrl(), TUBE_TAB), url, tab: { id: TUBE_TAB, windowId: 3 } }), { ok: false, code: "NOT_ENABLED" }, url);
+  }
+});
+
+test("后台刚醒、和 YouTube 无关的授权变化：注册还在就不补注入", async () => {
+  const { fake, app } = appOn({ grantedOrigins: [ORIGIN], urlTabs: { [TUBE_TAB]: tubeUrl() } });
+  fake.registered.set(SCRIPT_ID, { matches: [ORIGIN], js: ["content/youtube.js"] });
+  await Promise.all([app.onPermissionsChanged(), app.onPermissionsChanged(), app.onPermissionsChanged()]);
+  assert.deepEqual(fake.calls.injections, []);
+  assert.deepEqual(fake.calls.registrations, []);
+});
+
+test("刚给就撤：同步排着做，最后没授权也没注册", async () => {
+  const { fake, app } = appOn();
+  fake.grant(ORIGIN);
+  const first = app.onPermissionsChanged();
+  fake.revoke(ORIGIN);
+  await Promise.all([first, app.onPermissionsChanged()]);
+  assert.equal(fake.registered.size, 0);
 });

@@ -31,7 +31,7 @@ export function listenShortcut({ document, key, onPress, shadowRootOf = (element
   const lower = key.toLowerCase();
   const onKeydown = (event: KeyboardEvent): void => {
     if (!event.isTrusted || event.key.toLowerCase() !== lower || event.repeat) return;
-    if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
+    if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.isComposing) return;
     if (isTyping(event, document, shadowRootOf)) return;
     event.preventDefault();
     onPress();

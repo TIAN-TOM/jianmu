@@ -17,11 +17,13 @@ const SHELL_VIDEO_ATTRIBUTE = "video-id";
 const APP_ROOT = "ytd-app";
 // 观看页标题下面频道名的链接。
 const CHANNEL_LINK_SELECTORS = ["ytd-watch-metadata ytd-channel-name a", "ytd-video-owner-renderer ytd-channel-name a", "#owner ytd-channel-name a"];
-const CHANNEL_PATH = /^\/(?:channel\/(UC[\w-]{1,64})|(@[\w.-]{1,100}))(?:[/?#]|$)/;
+const CHANNEL_PATH = /^\/(?:channel\/(UC[\w-]{1,62})|(@[\w.-]{1,64}))(?:[/?#]|$)/;
 // 站内跳转完成时页面派发的事件。
 const NAVIGATED = "yt-navigate-finish";
 
+// 等页面外壳：先密后疏，没有外壳的页面（嵌入页、弹出的聊天窗口）不一直密集地查。
 const READY_POLL_MS = 200;
+const READY_POLL_MAX_MS = 5000;
 const VIDEO_CHECK_MS = 800;
 const CONTROLS_CHECK_MS = 800;
 
@@ -102,8 +104,10 @@ export function createYoutubePage({ document, location, sleep = waitFor, every =
 
     // 页面的应用外壳出来就算激活：首页、搜索页也一样，界面挂上以后跟着站内跳转走。
     async whenPageReady(signal) {
+      let wait = READY_POLL_MS;
       while (document.readyState !== "complete" || !document.querySelector(APP_ROOT)) {
-        await sleep(READY_POLL_MS, signal);
+        await sleep(wait, signal);
+        wait = Math.min(wait * 2, READY_POLL_MAX_MS);
       }
     },
 

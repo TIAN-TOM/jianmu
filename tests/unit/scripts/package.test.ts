@@ -71,7 +71,7 @@ test("拦下各类问题", () => {
 
 test("开关和发行那份不一样的产物不打包：测试构建、多开一个开关的验证构建、少开发行开关的构建、记录缺失或认不出都不出包", () => {
   const refused: [string, unknown, RegExp][] = [
-    ["测试构建", buildFlagsRecord(TEST_BUILD_FEATURES), /开着 FEATURE_YOUTUBE_OPEN_PANEL、FEATURE_YOUTUBE_SWITCH_LANG/],
+    ["测试构建", buildFlagsRecord(TEST_BUILD_FEATURES), /开着 FEATURE_YOUTUBE、FEATURE_YOUTUBE_OPEN_PANEL、FEATURE_YOUTUBE_SWITCH_LANG/],
     ...FEATURE_NAMES.filter((name) => !RELEASE_FEATURES[name]).map((name): [string, unknown, RegExp] => [
       `多开 ${name}`,
       buildFlagsRecord({ ...RELEASE_FEATURES, [name]: true }),
@@ -97,6 +97,7 @@ test("日用包只收和日用那份一模一样的构建，重打的提示是�
   const refused: [string, unknown, RegExp][] = [
     ["测试构建", buildFlagsRecord(TEST_BUILD_FEATURES), /多开着 FEATURE_YOUTUBE_OPEN_PANEL、FEATURE_YOUTUBE_SWITCH_LANG，这个包不带它.*npm run package:daily/],
     ["关着解释当前画面", buildFlagsRecord({ ...DAILY_FEATURES, frameExplain: false }), /没开 FEATURE_FRAME_EXPLAIN.*npm run package:daily/],
+    ["关着 YouTube", buildFlagsRecord({ ...DAILY_FEATURES, youtube: false }), /没开 FEATURE_YOUTUBE，.*npm run package:daily/],
     ["没有记录", undefined, /找不到这次构建的开关记录/],
   ];
   for (const [label, buildFlags, expected] of refused) {

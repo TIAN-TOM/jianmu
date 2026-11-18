@@ -51,10 +51,10 @@ export interface Senders {
   readonly optionalSite: (ctx: SenderCtx, sender: MessageSender) => Platform | null;
 }
 
-// 注册内容脚本用的匹配规则只写成「协议://主机/*」，按前缀比；别的写法认不出，当作不匹配。
-function coveredBy(pattern: string, url: string): boolean {
-  const prefix = /^https:\/\/[^/*]+\/\*$/.test(pattern) ? pattern.slice(0, -1) : null;
-  return prefix !== null && url.startsWith(prefix);
+// 注册内容脚本用的匹配规则只写成「https://主机/*」，按协议和主机名比，主机名末尾的点、端口都不影响；认不出的规则不匹配。
+function coveredBy(pattern: string, url: URL): boolean {
+  const host = /^https:\/\/([^/*:]+)\/\*$/.exec(pattern)?.[1];
+  return host !== undefined && url.protocol === "https:" && url.hostname.replace(/\.$/, "").toLowerCase() === host.toLowerCase();
 }
 
 const PAGES: readonly (readonly [string, SenderCtx["kind"], PageName | undefined])[] = [
@@ -120,9 +120,18 @@ export function createSenders({ extensionId, extensionUrl, rules }: SenderDeps):
     },
     optionalSite(ctx, sender) {
       if (ctx.kind !== "content") return null;
-      const url = sender.url ?? sender.tab?.url;
-      if (typeof url !== "string") return null;
-      const rule = rules.find((candidate) => candidate.optionalPermission && candidate.scriptMatches.some((pattern) => coveredBy(pattern, url)));
+      const optional = rules.filter((rule) => rule.optionalPermission);
+      if (optional.length === 0) return null;
+      const raw = sender.url ?? sender.tab?.url;
+      if (raw === undefined) return null;
+      let url: URL;
+      try {
+        url = new URL(raw);
+      } catch {
+        // 地址认不出时不知道在哪个站：按在要另外授权的站上算，授权不在就不放行。
+        return optional[0]?.platform ?? null;
+      }
+      const rule = optional.find((candidate) => candidate.scriptMatches.some((pattern) => coveredBy(pattern, url)));
       return rule ? rule.platform : null;
     },
   };

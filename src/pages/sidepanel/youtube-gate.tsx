@@ -27,7 +27,7 @@ export function YoutubeNoVideo({ panel }: { readonly panel: Panel }) {
         setFailed(null);
         void panel.follow.refresh();
       } else if (outcome === "declined") {
-        setFailed("没有授权，YouTube 上暂时用不了。");
+        setFailed("没有授权，YouTube 上暂时用不了。授权框没弹出来的话，到设置页启用。");
       } else {
         setFailed("这里弹不出授权框，请到设置页启用。");
         panel.openOptions();
@@ -40,6 +40,7 @@ export function YoutubeNoVideo({ panel }: { readonly panel: Panel }) {
       impact="B 站视频页直接能用。YouTube 要先启用，简幕才读得到它的页面。"
       {...(failed ? { next: failed } : {})}
       primary={{ label: "在 YouTube 上启用", onClick: enable }}
+      {...(failed ? { secondary: [{ label: "到设置页启用", onClick: panel.openOptions }] } : {})}
     />
   );
 }
