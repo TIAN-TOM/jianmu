@@ -174,6 +174,9 @@ async function panelFlow(launcher, panelUrl, videoId) {
   await until("切到精读", () => clickIn(panel, ".mode", "精读"));
   await until("精读显示当前章节", async () => (await textOf(panel, ".chapter-bar-title")).includes("模拟服务写的章节"));
   await until("当前章节是重点，条上也标出来", () => evaluate(panel, `Boolean(document.querySelector(".chapter-bar .key-dot"))`));
+  // 圆点排在条里、章节数和章节名之间：章节列表里给圆点的定位不能带到这条上来。
+  const dot = JSON.parse(await evaluate(panel, `(() => { const box = (selector) => { const r = document.querySelector(selector).getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom }; }; return JSON.stringify({ bar: box(".chapter-bar"), count: box(".chapter-bar-count"), dot: box(".chapter-bar .key-dot"), title: box(".chapter-bar-title") }); })()`));
+  if (!(dot.dot.left >= dot.count.right && dot.dot.right <= dot.title.left && dot.dot.top >= dot.bar.top && dot.dot.bottom <= dot.bar.bottom)) throw new Error(`当前章节条上的重点圆点不在章节数和章节名之间：${JSON.stringify(dot)}`);
   // 整理字幕：点了才发，整理后的替换原文显示，不再按行断开；能切回原始字幕。
   await until("点整理字幕", () => clickIn(panel, ".tidy-row .button", "整理字幕"));
   await until("显示整理后的字幕", async () => (await textOf(panel, ".study .cue-text")).includes("样例台词一样例台词二。"));
