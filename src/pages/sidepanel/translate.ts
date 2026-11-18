@@ -64,6 +64,17 @@ function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | unde
   let port: PagePort<"translate"> | null = null;
   // 只取本机存着的那一次：不显示进度，取完也不留「完成」的说明。
   let quiet = false;
+  // 只取存着的那一下还没回来时用户点了开始：取完以后接着发起。null 是没点，数字或 undefined 是点了。
+  let queued: { readonly fromSec: number | undefined } | null = null;
+
+  /** 只取存着的那一下结束了：关掉端口，用户这期间点过开始就接着发起。 */
+  function endQuiet(): void {
+    quiet = false;
+    closePort();
+    const waiting = queued;
+    queued = null;
+    if (waiting) start(waiting.fromSec);
+  }
 
   const closePort = (): void => {
     port?.close();
@@ -73,8 +84,9 @@ function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | unde
   function onEvent(event: TranslateOut | { readonly type: "port.error"; readonly code: Parameters<typeof describe>[0] }): void {
     switch (event.type) {
       case "translate.started":
-        // 取本机存着的时候碰上后台在跑：接上了，从这里起照常显示进度。
+        // 取本机存着的时候碰上后台在跑：接上了，从这里起照常显示进度；这期间用户点的开始不用再发。
         quiet = false;
+        queued = null;
         state.value = { phase: "running", done: 0, total: event.pending, message: "" };
         return;
       case "translate.segments":
@@ -86,11 +98,7 @@ function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | unde
         }
         return;
       case "translate.done": {
-        if (quiet) {
-          quiet = false;
-          closePort();
-          return;
-        }
+        if (quiet) return endQuiet();
         const failed = event.state === "failed";
         const message = event.failure
           ? describe(event.failure.code, event.failure.detail)
@@ -104,11 +112,7 @@ function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | unde
         return;
       }
       case "translate.refused":
-        if (quiet) {
-          quiet = false;
-          closePort();
-          return;
-        }
+        if (quiet) return endQuiet();
         state.value = { ...IDLE, phase: "failed", message: describe(event.failure.code, event.failure.detail) };
         closePort();
         return;
@@ -135,16 +139,23 @@ function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | unde
     opened.post({ type: "translate.start", video, ...extra, ...(purpose ? { purpose } : {}), ...(tabId !== null ? { tabId } : {}) });
   }
 
+  function start(fromSec?: number): void {
+    if (!bound) return;
+    if (port?.isOpen()) {
+      // 只取存着的那一下还没回来：记下，取完接着发起；已经在跑的不用再发。
+      if (quiet) queued = { fromSec };
+      return;
+    }
+    quiet = false;
+    state.value = { ...IDLE, phase: "running" };
+    open(fromSec !== undefined && fromSec > 0 ? { fromSec: Math.floor(fromSec) } : {});
+  }
+
   return {
     state,
     lines,
-    start(fromSec?: number): void {
-      if (!bound || port?.isOpen()) return;
-      quiet = false;
-      state.value = { ...IDLE, phase: "running" };
-      open(fromSec !== undefined && fromSec > 0 ? { fromSec: Math.floor(fromSec) } : {});
-    },
-    /** 取本机已经存着的结果，不请求模型。 */
+    start,
+    /** 取本机已经存着的结果，不请求模型；同一份正在后台跑就接上。 */
     peek(): void {
       if (!bound || port?.isOpen()) return;
       quiet = true;
@@ -153,8 +164,13 @@ function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | unde
     /** 回 true 表示换了视频或字幕版本。 */
     bind(video: VideoKey | null, fingerprint: string | null, tabId: number | null = null): boolean {
       const next = video && fingerprint ? { video, fingerprint, tabId } : null;
-      if (next?.video === bound?.video && next?.fingerprint === bound?.fingerprint) return false;
+      if (next?.video === bound?.video && next?.fingerprint === bound?.fingerprint) {
+        // 同一个视频开在两个标签页里，切过来时记下现在这个标签页，之后发起的算它的。
+        if (bound && next && bound.tabId !== next.tabId) bound = next;
+        return false;
+      }
       closePort();
+      queued = null;
       bound = next;
       lines.value = {};
       state.value = IDLE;

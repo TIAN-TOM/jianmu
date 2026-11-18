@@ -120,6 +120,10 @@ interface Job {
 /** 一次还在准备的发起：准备期间点了停止就记下。 */
 interface Preparing {
   halted: boolean;
+  /** 发起的标签页和视频：准备的工夫它换了视频或关掉，就不登记、不发。 */
+  readonly tabId?: number | undefined;
+  readonly video?: VideoKey;
+  left: boolean;
 }
 
 interface BatchOutcome {
@@ -139,6 +143,8 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
   const joined = new Map<string, Set<string>>();
   /** 还在准备（读字幕、读本机译文、登记）的发起，按页面记：点停止只停这时已经在准备的那几次，之后再点的翻译不受影响。 */
   const preparing = new Map<string, Set<Preparing>>();
+  /** 还在准备的发起，不分页面：标签页换了视频或关掉时要在这里也认一遍。 */
+  const preparingTabs = new Set<Preparing>();
 
   function sessionOf(taskId: string): Session {
     let session = sessions.get(taskId);
@@ -406,8 +412,8 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
       log.error("读取翻译或整理字幕的模型配置失败", errorLabel(error));
       return refuse({ code: "BACKGROUND_FAILED" });
     }
-    // 准备的工夫页面点了停止：不登记，一个模型请求都不发。
-    if (mine.halted) return post({ type: "translate.done", state: "canceled", totalBatches: 0, failedBatches: 0 });
+    // 准备的工夫页面点了停止，或者发起的标签页换了视频、关掉了：不登记，一个模型请求都不发。
+    if (mine.halted || mine.left) return post({ type: "translate.done", state: "canceled", totalBatches: 0, failedBatches: 0 });
     const basis: Basis = { source: "transcript", transcript };
     // 点了就做完：不跟着页面走，关掉侧边栏照常跑。
     const registered = await deps.tasks.register(
@@ -422,7 +428,7 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
     const session = attach(task.id, departed ? undefined : listener);
     if (tabId !== undefined) session.tabIds.add(tabId);
     // 登记的工夫点了停止：和登记好以后点停止一样，停掉这个任务。
-    if (!departed && mine.halted) deps.tasks.cancel(task.id);
+    if ((!departed && mine.halted) || mine.left) deps.tasks.cancel(task.id, VIDEO_LEFT);
     prepared();
     const startedEvent = { type: "translate.started" as const, task, joined: registered.joined, transcript, target: job.target, pending: todo.length };
     if (!registered.joined) session.started = { video, target: job.target, event: startedEvent };
@@ -439,10 +445,12 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
   return {
     async start(video, options) {
       const id = options.listener?.id;
-      const mine: Preparing = { halted: false };
+      const mine: Preparing = { halted: false, tabId: options.tabId, video, left: false };
       if (id !== undefined) preparing.set(id, (preparing.get(id) ?? new Set()).add(mine));
+      preparingTabs.add(mine);
       // 准备阶段一结束（登记好、或者没登记就结束了）就不再算在准备里，之后的停止按任务来。
       const prepared = (): void => {
+        preparingTabs.delete(mine);
         if (id === undefined) return;
         const pending = preparing.get(id);
         pending?.delete(mine);
@@ -469,6 +477,7 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
     tabChanged(tabId, url) {
       if (tabId === undefined || url === undefined) return;
       const video = videoOfUrl(url);
+      for (const pending of preparingTabs) if (pending.tabId === tabId && pending.video !== video) pending.left = true;
       for (const session of sessions.values()) {
         if (session.tabIds.has(tabId) && session.started?.video !== video) deps.tasks.cancel(session.taskId, VIDEO_LEFT);
       }

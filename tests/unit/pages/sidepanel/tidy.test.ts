@@ -97,3 +97,36 @@ test("显示：整理后的替换原文，双语时译文照旧在下面；切�
   const srt = srtOf([segment], [{ start: 0, duration: 2, text: segment.text }], 2, "original", {}, tidied);
   assert.match(srt, /大家好，今天聊字幕。/, "导出跟着显示的走");
 });
+
+test("同一个视频开在两个标签页里，切过去以后发起的算现在这个标签页的", () => {
+  const fake = fakeApi();
+  const tidy = createTidy({ api: fake.api });
+  tidy.bind(VIDEO, "fp1", 3);
+  fake.emit({ type: "translate.done", state: "completed", totalBatches: 0, failedBatches: 0 });
+  tidy.bind(VIDEO, "fp1", 9);
+  assert.equal(fake.connects(), 1, "同一版不重取");
+  tidy.start(0);
+  assert.deepEqual(fake.posted.at(-1), { type: "translate.start", video: VIDEO, purpose: "tidy", tabId: 9 });
+});
+
+test("打开视频时只取存着的那一下还没回来，用户就切到了双语：取完以后接着发起翻译，不会被吞掉", () => {
+  const fake = fakeApi();
+  const translation = createTranslation({ api: fake.api });
+  translation.bind(VIDEO, "fp1", 3);
+  translation.setMode("bilingual", 42);
+  assert.equal(fake.posted.length, 1, "还在取，先记下");
+  assert.equal(translation.mode.value, "bilingual");
+  fake.emit({ type: "translate.done", state: "completed", totalBatches: 0, failedBatches: 0 });
+  assert.deepEqual(fake.posted.at(-1), { type: "translate.start", video: VIDEO, fromSec: 42, tabId: 3 });
+  assert.equal(translation.state.value.phase, "running");
+});
+
+test("只取存着的那一下碰上后台在跑：接上了，期间点的开始不用再发", () => {
+  const fake = fakeApi();
+  const translation = createTranslation({ api: fake.api });
+  translation.bind(VIDEO, "fp1", 3);
+  translation.setMode("translated", 0);
+  fake.emit({ type: "translate.started", task: {} as never, joined: true, transcript: {} as never, target: "en", pending: 5 });
+  fake.emit({ type: "translate.done", state: "completed", totalBatches: 1, failedBatches: 0 });
+  assert.equal(fake.posted.length, 1, "只发过那一次取存着的");
+});

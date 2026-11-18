@@ -90,3 +90,28 @@ test("额度用完或密钥不对：后面的批次不再发，不补轮，任�
     assert.equal(Object.keys(panel.translated()).length, TRANSLATION_BATCH_MAX_SEGMENTS, `${label}：出错前做完的那批照常交回`);
   }
 });
+
+test("还在准备（读字幕）时发起的标签页关掉或换了视频：不登记、一个模型请求都不发", async () => {
+  for (const url of [null, "https://www.bilibili.com/video/BV1Sample999"]) {
+    const view = await transcriptView(MANY);
+    let release: () => void = () => undefined;
+    const reading = new Promise<void>((resolve) => (release = resolve));
+    const h = translateHarness(view, {
+      transcript: {
+        async ensure() {
+          await reading;
+          return { ok: true, value: { view, generation: 0 } };
+        },
+        generation: () => 0,
+      },
+    });
+    const panel = page("panel");
+    const running = h.service.start(VIDEO, { origin: "user", listener: panel, tabId: TAB });
+    h.service.tabChanged(TAB, url);
+    h.service.leave(panel.id);
+    release();
+    await running;
+    assert.equal(h.requests(), 0, String(url));
+    assert.deepEqual(h.tasks.list(), [], String(url));
+  }
+});
