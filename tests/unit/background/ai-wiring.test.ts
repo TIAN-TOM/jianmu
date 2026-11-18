@@ -214,7 +214,7 @@ test("后台：有密钥但没确认数据说明时，配置检查回没设置�
   const stored = keyedStorage({ ...DEEPSEEK, dataConsentVersion: 0, dataConsentFingerprint: "" }, DEEPSEEK_ORIGIN);
   const { ai, ask, service } = setup({ ...stored, handler: () => chatReply("不该发出") });
 
-  assert.deepEqual(await ask("config.check"), { ok: true, value: { ready: false, errors: [DATA_CONSENT_ERROR] } });
+  assert.deepEqual(await ask("config.check"), { ok: true, value: { ready: false, errors: [DATA_CONSENT_ERROR], missing: "consent" } });
   await rejectsWith(ai.requestAiCompletion(EXPLAIN), "NO_AI_CONFIG");
   assert.equal(((await ask("models.list", senders.options())) as { code?: string }).code, "NO_DATA_CONSENT");
   assert.equal(((await ask("ai.testConnection", senders.options())) as { code?: string }).code, "NO_AI_CONFIG");
@@ -603,4 +603,30 @@ test("换服务商保留选的档位，按新的服务重新算实际档位", as
 
   fake.local.data[SETTINGS_STORAGE_KEY] = { ...stored, ...GATEWAY };
   assert.deepEqual((await previewOf(ask))["qa"], { model: "m-default", requested: "medium", effective: "off", note: "unknown" });
+});
+
+test("后台：配置检查分得清缺什么：只是密钥没了回 missing 为 key，只差勾选数据说明回 consent，从没配过和本机服务不带", async () => {
+  // 以前配好过：同意过、存着服务商和模型，会话里的密钥随浏览器重启清空了。
+  const cleared = setup({ local: keyedStorage(DEEPSEEK, DEEPSEEK_ORIGIN).local });
+  const after = await cleared.ask("config.check");
+  assert.ok(after.ok);
+  assert.equal((after.value as { ready: boolean }).ready, false);
+  assert.equal((after.value as { missing?: string }).missing, "key");
+
+  // 有密钥，只差勾选当前的数据说明。
+  const consent = setup(keyedStorage({ ...DEEPSEEK, dataConsentVersion: 0, dataConsentFingerprint: "" }, DEEPSEEK_ORIGIN));
+  assert.deepEqual(await consent.ask("config.check"), { ok: true, value: { ready: false, errors: [DATA_CONSENT_ERROR], missing: "consent" } });
+
+  // 从没配过：没同意、没密钥，不说成密钥没了。
+  const fresh = await setup({ local: { [SETTINGS_STORAGE_KEY]: { ...SETTINGS.ACTIVATION_CONFIRMED } } }).ask("config.check");
+  assert.ok(fresh.ok);
+  assert.equal((fresh.value as { ready: boolean }).ready, false);
+  assert.equal(Object.hasOwn(fresh.value as object, "missing"), false);
+
+  // 本机服务不要密钥：不填也算设置好，不当成密钥没了；缺模型时也不说成密钥没了。
+  const LOCAL = { presetId: "custom", protocol: PROTOCOLS.OPENAI, aiBaseUrl: "http://127.0.0.1:1234/v1", aiModel: "m" };
+  assert.deepEqual(await setup(keyedStorage(LOCAL, "http://127.0.0.1:1234/", "")).ask("config.check"), { ok: true, value: { ready: true, errors: [] } });
+  const noModel = await setup(keyedStorage({ ...LOCAL, aiModel: "" }, "http://127.0.0.1:1234/", "")).ask("config.check");
+  assert.ok(noModel.ok);
+  assert.equal(Object.hasOwn(noModel.value as object, "missing"), false);
 });

@@ -270,8 +270,12 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
 
   return {
     async configCheck() {
-      const { ok: ready, errors } = rules.validate(await load());
-      return { ready, errors: [...errors] };
+      const settings = await load();
+      const { ok: ready, errors } = rules.validate(settings);
+      if (ready) return { ready, errors: [...errors] };
+      // 只缺密钥：补上一个密钥就够了，说明服务商、模型和同意都在，是以前配好过的。本机服务不要密钥，不会落到这里。
+      const missing = rules.validate({ ...settings, aiApiKey: "-" }).ok ? "key" : errors.length === 1 && errors[0] === rules.dataConsentError ? "consent" : null;
+      return missing ? { ready, errors: [...errors], missing } : { ready, errors: [...errors] };
     },
     requestAiCompletion: (request) => transport.requestAiCompletion(request),
     async freeze(feature) {

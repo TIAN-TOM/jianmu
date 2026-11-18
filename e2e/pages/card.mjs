@@ -1,5 +1,6 @@
 // 播放页卡片：刚打开时只露结论和前几章，结论排在官方总结前面，官方总结收成一行，章节名对得齐；
-// 全部展开、最大字号、内容很长时，正文区滚动，标题栏、进度行和底部按钮都在框架高度上限以内。
+// 全部展开、最大字号、内容很长时，正文区滚动，标题栏、进度行和底部按钮都在框架高度上限以内；
+// 密钥随浏览器重启清空时，说明直说要重新填（说法的规则在 pages/shared/config.ts，由单元测试守）。
 import assert from "node:assert/strict";
 import { CARD_HEIGHT } from "../../src/content/card-frame.ts";
 import { CARD_ROWS } from "../../src/pages/card/model.ts";
@@ -139,4 +140,16 @@ test("卡片：时间一列定宽，章节名从同一条线起，重点的圆�
   assert.ok(edges.short && edges.long, "样张里四位和五位的时间都有");
   assert.equal(edges.names.length, 1, `章节名的左边不齐：${edges.names}`);
   assert.equal(edges.outline.length, 1, `官方提纲标题的左边不齐：${edges.outline}`);
+});
+
+test("卡片：配好过、密钥随浏览器重启清空时，说明直说要到设置页重新填密钥、提一句记住密钥，「打开设置」是主按钮，不摆「生成概览」", async ({ open }) => {
+  const page = await open(`${SAMPLE}#setup-key`);
+  const shown = await page.evaluate(`(() => ({
+    setup: document.getElementById("card-setup")?.textContent ?? "",
+    settings: document.getElementById("card-settings")?.getAttribute("data-variant") ?? null,
+    generate: Boolean(document.getElementById("card-generate")),
+  }))()`);
+  assert.equal(shown.setup, "API 密钥随浏览器重启或扩展更新清空了，生成概览要先到设置页重新填；勾选「在这台电脑上记住密钥」就不用每次填。");
+  assert.equal(shown.settings, "primary");
+  assert.equal(shown.generate, false);
 });

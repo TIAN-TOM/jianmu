@@ -6,7 +6,7 @@ import { CARD_TONE, INJECTED } from "../../shared/names.ts";
 import { siteRules } from "../../sites/rules.ts";
 import { createPageApi, type PageApi } from "../shared/api.ts";
 import { startWhenCurrent } from "../shared/build-check.ts";
-import { createConfigWatch } from "../shared/config.ts";
+import { cardSetupHint, createConfigWatch } from "../shared/config.ts";
 import { hostModeOf, pageAppearanceSources, watchAppearance, type ResolvedThemeMode } from "../shared/theme.ts";
 import { renderStaleBackground } from "../shared/ui/stale-background.tsx";
 import { Card } from "./card.tsx";
@@ -127,7 +127,8 @@ function start(root: HTMLElement, api: PageApi): void {
     },
     openSettings(event: { readonly isTrusted: boolean }) {
       if (!trusted(event)) return;
-      void api.send("options.open", {}).then((reply) => {
+      // 这个按钮只在 AI 服务没设置好或设置出错时出现，直接滚到那一节。
+      void api.send("options.open", { section: "ai-service" }).then((reply) => {
         if (!reply.ok) model.view.value = { ...model.view.peek(), notice: { text: "没能打开设置页。可以打开侧边栏，点右上角的设置按钮。", tone: "error" } };
       });
     },
@@ -137,7 +138,7 @@ function start(root: HTMLElement, api: PageApi): void {
   };
 
   function App() {
-    return <Card view={model.view.value} aiReady={model.aiReady.value} actions={actions} />;
+    return <Card view={model.view.value} aiReady={model.aiReady.value} setupHint={cardSetupHint(config.state.value)} actions={actions} />;
   }
   render(<App />, root);
 

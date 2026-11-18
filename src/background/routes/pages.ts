@@ -2,15 +2,24 @@
 import { fail, ok } from "../../core/errors.ts";
 import type { Messenger } from "../../platform/messaging.ts";
 import type { Tabs } from "../../platform/tabs.ts";
+import { isOptionsSection, type OptionsOpenRequest } from "../../shared/messages/core.ts";
 import type { Route } from "../router.ts";
 import { isEmptyRequest } from "./validate.ts";
 
 export interface PageRouteDeps {
-  readonly tabs: Pick<Tabs, "hasOptionsPage" | "openOptionsPage">;
+  readonly tabs: Pick<Tabs, "hasOptionsPage" | "openOptionsPage" | "openOptionsAt">;
   readonly messenger: Messenger;
 }
 
 type PageRoutes = { readonly [K in "options.open" | "panel.open"]: Route<K> };
+
+/** 空对象，或者只带一个白名单里的节名。 */
+function isOptionsOpenRequest(req: unknown): req is OptionsOpenRequest {
+  if (isEmptyRequest(req)) return true;
+  if (typeof req !== "object" || req === null || Array.isArray(req)) return false;
+  const keys = Object.keys(req);
+  return keys.length === 1 && keys[0] === "section" && isOptionsSection((req as { section?: unknown }).section);
+}
 
 export function pageRoutes({ tabs, messenger }: PageRouteDeps): PageRoutes {
   return {
@@ -18,11 +27,13 @@ export function pageRoutes({ tabs, messenger }: PageRouteDeps): PageRoutes {
       senders: ["panel", "page", "card"],
       pages: ["options", "triage"],
       beforeEnable: true,
-      validate: isEmptyRequest,
-      async handler() {
+      validate: isOptionsOpenRequest,
+      async handler(req) {
         // 清单里还没有设置页时，打开必然失败，不去调。
         if (!tabs.hasOptionsPage()) return fail("FORBIDDEN");
-        await tabs.openOptionsPage();
+        // 带节名时自己打开或切过去：浏览器默认的打开方式只会停在原来的位置。
+        if ("section" in req) await tabs.openOptionsAt(req.section);
+        else await tabs.openOptionsPage();
         return ok({});
       },
     },

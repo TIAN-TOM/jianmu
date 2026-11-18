@@ -44,6 +44,7 @@ const copy = <T>(value: T): T => (value === undefined ? value : (JSON.parse(JSON
 
 export interface FakeManifest {
   readonly options_page?: string;
+  readonly options_ui?: { readonly page?: string };
   readonly content_scripts?: readonly {
     readonly matches?: readonly string[];
     readonly js?: readonly string[];
@@ -82,6 +83,8 @@ export interface FakeChromeOptions {
   readonly focusedWindow?: number | null;
   /** 每个窗口的活动标签页：按 active 和 windowId 查时回它。 */
   readonly activeTabs?: Readonly<Record<number, { readonly id: number; readonly url?: string }>>;
+  /** runtime.getContexts 回的扩展页面，比如已经开着的设置页。不给时一个都没有。 */
+  readonly contexts?: readonly { readonly contextType: string; readonly documentUrl?: string; readonly tabId: number; readonly windowId: number }[];
 }
 
 /** 一次调用，记下当时存储里的启用确认算不算数：确认之后查标签页是允许的，之前不行。 */
@@ -162,6 +165,10 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     optionsOpened: 0,
     /** 在新标签页里打开的地址。 */
     tabsCreated: [] as string[],
+    /** 改过的标签页：切到前台、换地址。 */
+    tabUpdates: [] as { readonly tabId: number; readonly props: unknown }[],
+    /** 改过的窗口：拿焦点。 */
+    windowUpdates: [] as { readonly windowId: number; readonly props: unknown }[],
     /** 发给模型服务的请求地址。 */
     fetches: [] as string[],
     /** 保活调了几次扩展接口。 */
@@ -204,6 +211,9 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     async openOptionsPage() {
       calls.optionsOpened += 1;
     },
+    async getContexts(filter: { contextTypes?: readonly string[] }) {
+      return (options.contexts ?? []).filter(({ contextType }) => !filter.contextTypes || filter.contextTypes.includes(contextType)).map((context) => ({ ...context }));
+    },
     async sendMessage(message: unknown) {
       calls.broadcasts.push(copy(message));
     },
@@ -235,6 +245,10 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
       calls.tabsCreated.push(url);
       return { id: 1000 + calls.tabsCreated.length, url };
     },
+    async update(tabId: number, props: object) {
+      calls.tabUpdates.push({ tabId, props: copy(props) });
+      return { id: tabId };
+    },
     onRemoved: event(),
     onActivated: event(),
     onUpdated: event(),
@@ -244,6 +258,10 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
       record(calls.windowQueries, null);
       const focused = options.focusedWindow ?? null;
       return focused === null ? { id: 1, focused: false } : { id: focused, focused: true };
+    },
+    async update(windowId: number, props: object) {
+      calls.windowUpdates.push({ windowId, props: copy(props) });
+      return { id: windowId };
     },
     onFocusChanged: event(),
   };

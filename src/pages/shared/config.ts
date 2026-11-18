@@ -40,6 +40,36 @@ export interface ConfigWatch {
   stop(): void;
 }
 
+const REMEMBER_KEY = "勾选「在这台电脑上记住密钥」就不用每次填";
+
+/** 没设置好时缺的是什么：只认得出缺密钥和缺同意两种，其余按从没配过说。 */
+const missingOf = (state: ConfigState): ConfigCheckView["missing"] => (state.state === "checked" && !state.view.ready ? state.view.missing : undefined);
+
+/** 侧边栏头部下面那行提示。只在检查过、没设置好时显示。 */
+export function setupNotice(state: ConfigState): string {
+  const missing = missingOf(state);
+  if (missing === "key") return `API 密钥随浏览器重启或扩展更新清空了，要在设置页重新填；${REMEMBER_KEY}`;
+  if (missing === "consent") return "字幕不用设置就能看；概览和问答要先在设置页勾选数据说明";
+  return "字幕不用设置就能看；概览和问答要先设置 AI 服务";
+}
+
+/** 要用 AI 的按钮点不了的原因；设置好了是 undefined。 */
+export function setupReason(state: ConfigState): string | undefined {
+  if (state.state === "checked" && state.view.ready) return undefined;
+  const missing = missingOf(state);
+  if (missing === "key") return "先在设置页重新填 API 密钥";
+  if (missing === "consent") return "先在设置页勾选数据说明";
+  return "先在设置页设置 AI 服务";
+}
+
+/** 卡片上生成概览按钮旁的说明。 */
+export function cardSetupHint(state: ConfigState): string {
+  const missing = missingOf(state);
+  if (missing === "key") return `API 密钥随浏览器重启或扩展更新清空了，生成概览要先到设置页重新填；${REMEMBER_KEY}。`;
+  if (missing === "consent") return "生成概览要先到设置页勾选数据说明。";
+  return "还没设置 AI 服务，生成概览要先填服务商和密钥。";
+}
+
 /** 这次存储变化动没动到配置：只看键名。 */
 export function touchesConfig(changes: object): boolean {
   return CONFIG_KEYS.some((key) => Object.hasOwn(changes, key));

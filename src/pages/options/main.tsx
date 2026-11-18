@@ -4,6 +4,7 @@ import { render } from "preact";
 import { createLocks } from "../../platform/locks.ts";
 import { createSettingsStore } from "../../platform/settings-store.ts";
 import { extensionStorage } from "../../platform/storage.ts";
+import { isOptionsSection } from "../../shared/messages/core.ts";
 import { createActivation } from "../shared/activation.ts";
 import { createPageApi } from "../shared/api.ts";
 import { startWhenCurrent } from "../shared/build-check.ts";
@@ -23,6 +24,33 @@ function download(filename: string, chunks: readonly string[]): void {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+/** 等这一节渲染出来，最多等两秒左右；没确认启用时设置页没有这一节，等不到就算了。后台标签页里动画帧不走，所以按定时器等。 */
+async function rendered(id: string): Promise<HTMLElement | null> {
+  for (let tries = 0; tries < 100; tries += 1) {
+    const node = document.getElementById(id);
+    if (node) return node;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  return null;
+}
+
+/**
+ * 从侧边栏、卡片带着节名打开或切过来时，地址里是 #节名。内容是读完设置才渲染的，浏览器自己的定位落空，
+ * 这里等那一节出来再滚过去，然后把节名从地址上去掉：下次带同一个节名切过来时地址才算变了。认不出的节名不理。
+ */
+function followSection(loaded: Promise<unknown>): void {
+  const go = async (): Promise<void> => {
+    const section = location.hash.slice(1);
+    if (!isOptionsSection(section)) return;
+    await loaded;
+    const target = await rendered(section);
+    history.replaceState(null, "", location.pathname + location.search);
+    target?.scrollIntoView({ block: "start" });
+  };
+  void go();
+  window.addEventListener("hashchange", () => void go());
+}
+
 const api = createPageApi();
 const root = document.getElementById("app");
 
@@ -36,8 +64,7 @@ function start(): void {
     storageChanged: chrome.storage.onChanged,
   });
 
-  void activation.load();
-  void state.load();
+  followSection(Promise.allSettled([activation.load(), state.load()]));
   void watchAppearance(pageAppearanceSources(api), document.documentElement);
   void requestPersistence();
   // 清除全部数据以后设置回到默认值，表单跟着重新载入。

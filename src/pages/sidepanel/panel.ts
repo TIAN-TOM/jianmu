@@ -18,6 +18,7 @@ import { createPlayer, playerFailureText, type Player } from "./player.ts";
 import { createQaStore, type QaStore } from "./qa.ts";
 import { createTranscriptStore, readsOnClick, type TranscriptStore } from "./transcript.ts";
 import { createTidy, createTranslation, type Tidy, type Translation } from "./translate.ts";
+import type { OptionsSection } from "../../shared/messages/core.ts";
 
 export interface Toast {
   readonly id: number;
@@ -58,6 +59,8 @@ export interface Panel {
   /** 跳到当前视频的这一秒；跳不了时提示原因。 */
   seek(atSec: number): Promise<void>;
   openOptions(): void;
+  /** 打开设置页并滚到这一节，比如因为 AI 服务没设置好才去设置页。 */
+  openSettingsAt(section: OptionsSection): void;
   stop(): void;
 }
 
@@ -182,6 +185,11 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
     },
     openOptions() {
       void api.send("options.open", {}).then((reply) => {
+        if (!reply.ok) say("打不开设置页，可以在扩展管理里打开简幕的选项。");
+      });
+    },
+    openSettingsAt(section) {
+      void api.send("options.open", { section }).then((reply) => {
         if (!reply.ok) say("打不开设置页，可以在扩展管理里打开简幕的选项。");
       });
     },

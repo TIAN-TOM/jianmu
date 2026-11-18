@@ -18,6 +18,7 @@ import { CreatorChapters, OfficialSummary } from "./guides.tsx";
 import type { Panel } from "./panel.ts";
 import { segmentsBetween } from "./reading.ts";
 import { TranscriptTab } from "./transcript-tab.tsx";
+import { setupReason } from "../shared/config.ts";
 
 const BASIS: readonly BasisSource[] = ["transcript", "official-summary", "title-description", "legacy-unknown"];
 
@@ -157,7 +158,7 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
   const failures = state.saved?.analysisFailures.length ?? 0;
   const hasChapters = Boolean(analysis?.chapters?.length);
   const hasOverview = Boolean(analysis && (hasChapters || analysis.keyQuotes?.length));
-  const notReady = ready ? undefined : "先在设置页设置 AI 服务";
+  const notReady = ready ? undefined : setupReason(config);
   const seek = (at: number): void => void panel.seek(at);
   const guides = (
     <>

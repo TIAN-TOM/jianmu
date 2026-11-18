@@ -11,8 +11,6 @@ import { VerdictBlock } from "../shared/ui/verdict-block.tsx";
 import type { BasisSource } from "../shared/ui/verdict.ts";
 import { cardRows, hasOverview, type CardView, type TaskProgress } from "./model.ts";
 
-const SETUP_HINT = "还没设置 AI 服务（或没勾选数据说明、密钥已随浏览器重启清空），生成概览要先填服务商和密钥。";
-
 // 没有官方总结是常态，不占一行；要登录、没读到、还在读才说。
 const OFFICIAL_NOTES: Readonly<Partial<Record<OfficialSummaryView["status"], string>>> = {
   "need-login": "登录 B 站后才看得到官方总结。",
@@ -177,7 +175,8 @@ export interface CardActions {
   readonly toggleOfficial: () => void;
 }
 
-export function Card({ view, aiReady, actions }: { readonly view: CardView; readonly aiReady: boolean | null; readonly actions: CardActions }) {
+/** setupHint 是 AI 服务没设置好时生成概览按钮旁的说明，按缺什么说。 */
+export function Card({ view, aiReady, setupHint, actions }: { readonly view: CardView; readonly aiReady: boolean | null; readonly setupHint: string; readonly actions: CardActions }) {
   if (!view.visible) return null;
   const canGenerate = view.phase === "loaded" && !view.noCaptions && !view.needLogin && !hasOverview(view.analysis) && !view.task;
   const needsSetup = canGenerate && aiReady === false;
@@ -223,7 +222,7 @@ export function Card({ view, aiReady, actions }: { readonly view: CardView; read
           ) : officialNote ? (
             <p class="card-note">{officialNote}</p>
           ) : null}
-          {needsSetup ? <p class="card-note" id="card-setup">{SETUP_HINT}</p> : null}
+          {needsSetup ? <p class="card-note" id="card-setup">{setupHint}</p> : null}
         </div>
       )}
       {task && !view.collapsed ? (

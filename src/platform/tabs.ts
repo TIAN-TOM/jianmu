@@ -6,10 +6,12 @@ export interface TabsApi {
   get(tabId: number): Promise<{ readonly title?: string }>;
   sendMessage(tabId: number, message: unknown): Promise<unknown>;
   create(properties: { url: string }): Promise<unknown>;
+  update(tabId: number, properties: { url: string; active: boolean }): Promise<unknown>;
 }
 
 export interface WindowsApi {
   getLastFocused(): Promise<{ readonly id?: number; readonly focused?: boolean }>;
+  update(windowId: number, properties: { focused: boolean }): Promise<unknown>;
 }
 
 export interface SidePanelApi {
@@ -46,10 +48,19 @@ export interface ContentScript {
   readonly allFrames: boolean;
 }
 
+/** 扩展自己开着的一个页面。 */
+export interface PageContext {
+  readonly contextType: string;
+  readonly documentUrl?: string;
+  readonly tabId: number;
+  readonly windowId: number;
+}
+
 export interface RuntimePages {
   getManifest(): ManifestPages;
   getURL(path: string): string;
   openOptionsPage(): Promise<void>;
+  getContexts(filter: { contextTypes: "TAB"[] }): Promise<readonly PageContext[]>;
 }
 
 export interface TabsDeps {
@@ -77,6 +88,8 @@ export interface Tabs {
   readonly openOptionsPage: () => Promise<void>;
   /** 在新标签页里打开扩展自己的一个页面，路径相对扩展根目录。 */
   readonly openPage: (path: string) => Promise<void>;
+  /** 打开设置页并定位到一节：已经开着就切到那个标签页、换上带节名的地址，没开着就新开一个。只在清单里有设置页时调。 */
+  readonly openOptionsAt: (section: string) => Promise<void>;
   /** 清单里声明的内容脚本，没声明时是空的。 */
   readonly contentScripts: () => readonly ContentScript[];
   /** 地址匹配得上这几条规则的已开标签页。只在确认启用之后调。 */
@@ -111,6 +124,10 @@ export function createTabs(
     const found = await tabs.query({ url: [...matches] });
     return found.flatMap(({ id }) => (typeof id === "number" ? [id] : []));
   }
+  const optionsPath = (): string => {
+    const { options_page: page, options_ui: ui } = runtime.getManifest();
+    return page || ui?.page || "";
+  };
   return {
     contentScriptTabs: () => tabsMatching((runtime.getManifest().content_scripts ?? []).flatMap(({ matches: list = [] }) => list)),
     send: (tabId, message) => tabs.sendMessage(tabId, message).then(
@@ -123,12 +140,22 @@ export function createTabs(
       () => false,
     ),
     setPanelBehavior: () => sidePanel.setPanelBehavior({ openPanelOnActionClick: true }),
-    hasOptionsPage() {
-      const { options_page: page, options_ui: ui } = runtime.getManifest();
-      return Boolean(page || ui?.page);
-    },
+    hasOptionsPage: () => optionsPath() !== "",
     openOptionsPage: () => runtime.openOptionsPage(),
     openPage: (path) => tabs.create({ url: runtime.getURL(path) }).then(() => undefined),
+    async openOptionsAt(section) {
+      const page = runtime.getURL(optionsPath());
+      const url = `${page}#${section}`;
+      const contexts = await runtime.getContexts({ contextTypes: ["TAB"] });
+      const open = contexts.find(({ documentUrl, tabId }) => tabId >= 0 && documentUrl?.split("#")[0]?.split("?")[0] === page);
+      if (!open) {
+        await tabs.create({ url });
+        return;
+      }
+      // 只换地址里 # 后面的部分，页面不重新加载，由页面自己滚过去。
+      await tabs.update(open.tabId, { url, active: true });
+      if (windows && open.windowId >= 0) await windows.update(open.windowId, { focused: true });
+    },
     contentScripts: () =>
       (runtime.getManifest().content_scripts ?? []).map(({ matches = [], js = [], css = [], all_frames: allFrames = false }) => ({
         matches,
