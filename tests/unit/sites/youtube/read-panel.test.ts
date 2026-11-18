@@ -8,7 +8,7 @@ import { createPanelReader, parseTimestamp } from "../../../../src/sites/youtube
 
 const ID = "jmSample0001";
 const OTHER = "jmSample0002";
-const PANEL = 'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"]';
+const PANELS = "ytd-engagement-panel-section-list-renderer";
 const SEGMENTS = "ytd-transcript-segment-renderer, transcript-segment-view-model";
 
 class FakeNode {
@@ -23,11 +23,18 @@ class FakeNode {
   getAttribute(name: string): string | null {
     return this.attributes.get(name) ?? null;
   }
+  // 逗号分开的几种写法，按先后各找一遍；整串登记过的也认。
   querySelector(selector: string): FakeNode | null {
-    return this.found.get(selector) ?? null;
+    for (const part of [selector, ...selector.split(/\s*,\s*/)]) {
+      const hit = this.found.get(part) ?? this.lists.get(part)?.[0];
+      if (hit) return hit;
+    }
+    return null;
   }
   querySelectorAll(selector: string): FakeNode[] {
-    return this.lists.get(selector) ?? [];
+    const whole = this.lists.get(selector);
+    if (whole) return whole;
+    return selector.split(/\s*,\s*/).flatMap((part) => this.lists.get(part) ?? []);
   }
 }
 
@@ -77,10 +84,12 @@ function world(href = `https://www.youtube.com/watch?v=${ID}`) {
       },
     });
   /** 页面上出现一个面板（还没展开、没有段落）。 */
-  const addPanel = (): FakeNode => {
+  /** 页面上加一个面板：旧式文字稿面板（默认）、新式文字稿面板，或者别的什么面板。 */
+  const addPanel = (targetId: string | null = "engagement-panel-searchable-transcript"): FakeNode => {
     const panel = new FakeNode();
     panel.attributes.set("visibility", "ENGAGEMENT_PANEL_VISIBILITY_HIDDEN");
-    document.found.set(PANEL, panel);
+    if (targetId) panel.attributes.set("target-id", targetId);
+    document.lists.set(PANELS, [...(document.lists.get(PANELS) ?? []), panel]);
     return panel;
   };
   /** 用户打开面板、页面填好段落：面板内容变了一次。 */
@@ -354,4 +363,139 @@ test("只回认得的两种问话；current 只回视频和内容换过几次", 
   assert.equal(after.videoId, ID);
   assert.ok(after.stamp > before.stamp);
   reader.stop();
+});
+
+// 新式面板：段落里的时间和正文各有写法，中间夹着给读屏的一句；没有语言菜单。
+
+/** 新式段落：时间一块、给读屏的一块、正文一块，整段的文字三块连在一起。 */
+function modern(time: string, text: string): FakeNode {
+  const segment = new FakeNode(`${time}${time} 的读法${text}`);
+  segment.found.set(".ytwTranscriptSegmentViewModelTimestamp", new FakeNode(time));
+  segment.found.set('span[role="text"]', new FakeNode(text));
+  return segment;
+}
+
+/** 新式面板的页面：旧面板和新式文字稿面板的空壳一直关着留在页面上。 */
+function modernWorld() {
+  const w = world();
+  w.addPanel();
+  w.addPanel("PAmodern_transcript_view");
+  w.document.found.delete("ytd-transcript-footer-renderer yt-dropdown-menu #label-text");
+  return w;
+}
+
+/** 带「章节」「文字稿」页签的面板，没有 target-id。 */
+function tabbedPanel(w: ReturnType<typeof world>): FakeNode {
+  const panel = w.addPanel(null);
+  panel.found.set('[role="tab"]', new FakeNode("Chapters"));
+  return panel;
+}
+
+/** 页签切到文字稿：文字稿那一块和段落放进面板。 */
+function showTranscript(w: ReturnType<typeof world>, panel: FakeNode, segments: FakeNode[]) {
+  panel.attributes.set("visibility", "ENGAGEMENT_PANEL_VISIBILITY_EXPANDED");
+  panel.found.set('[data-target-id="PAmodern_transcript_view"]', new FakeNode());
+  panel.lists.set(SEGMENTS, segments);
+  w.notify(panel);
+}
+
+/** 页签切到章节：文字稿那一块整个拿掉。 */
+function showChapters(w: ReturnType<typeof world>, panel: FakeNode) {
+  panel.attributes.set("visibility", "ENGAGEMENT_PANEL_VISIBILITY_EXPANDED");
+  panel.found.delete('[data-target-id="PAmodern_transcript_view"]');
+  panel.lists.set(SEGMENTS, []);
+  w.notify(panel);
+}
+
+test("新式面板（有章节）：两个关着的空壳不碍事，读展开着的那个；时间和正文按新写法取，不带读屏的那句", async () => {
+  const w = modernWorld();
+  const panel = tabbedPanel(w);
+  const reader = w.makeReader();
+  showTranscript(w, panel, [modern("0:00", "first line"), modern("1:44", "What are we")]);
+  const snapshot = await w.ask(reader);
+  assert.equal(snapshot.state, "ready");
+  assert.equal(snapshot.label, "");
+  assert.deepEqual(snapshot.cues, [
+    { start: 0, text: "first line" },
+    { start: 104, text: "What are we" },
+  ]);
+});
+
+test("新式面板（没章节）：按新式文字稿面板读", async () => {
+  const w = modernWorld();
+  const panel = w.addPanel("PAmodern_transcript_view");
+  const reader = w.makeReader();
+  showTranscript(w, panel, [modern("0:01", "only line")]);
+  assert.deepEqual((await w.ask(reader)).cues, [{ start: 1, text: "only line" }]);
+});
+
+test("只有关着的空壳、什么都没打开：报没打开，不一直等", async () => {
+  const w = modernWorld();
+  w.document.found.set("ytd-video-description-transcript-section-renderer", new FakeNode());
+  const reader = w.makeReader();
+  assert.equal((await w.ask(reader)).state, "closed");
+});
+
+test("带页签的面板选着章节：报要切到文字稿；切过去以后读得到", async () => {
+  const w = modernWorld();
+  const panel = tabbedPanel(w);
+  const reader = w.makeReader();
+  showChapters(w, panel);
+  assert.equal((await w.ask(reader)).state, "chapters");
+  showTranscript(w, panel, [modern("0:00", "first line")]);
+  assert.equal((await w.ask(reader)).state, "ready");
+});
+
+test("从章节切回文字稿、段落重建成同一份：归属照旧——本视频的照样认，上一个视频的照样不认", async () => {
+  const w = modernWorld();
+  const panel = tabbedPanel(w);
+  const reader = w.makeReader();
+  const lines = [modern("0:00", "first line"), modern("0:05", "second line")];
+  showTranscript(w, panel, lines);
+  showChapters(w, panel);
+  showTranscript(w, panel, lines);
+  assert.equal((await w.ask(reader)).state, "ready", "同一个视频里切页签，不卡成要重开");
+
+  w.go(OTHER);
+  showChapters(w, panel);
+  showTranscript(w, panel, lines);
+  assert.equal((await w.ask(reader, OTHER)).state, "stale", "换视频以后切页签重建的还是上一个视频的");
+  showChapters(w, panel);
+  showTranscript(w, panel, [modern("0:00", "other video line")]);
+  assert.equal((await w.ask(reader, OTHER)).state, "ready", "重建出来是新视频的内容才认");
+});
+
+test("新式面板关上再原样打开：沿用原来的归属", async () => {
+  const w = modernWorld();
+  const panel = w.addPanel("PAmodern_transcript_view");
+  const reader = w.makeReader();
+  const lines = [modern("0:00", "first line")];
+  showTranscript(w, panel, lines);
+  w.close(panel);
+  showTranscript(w, panel, lines);
+  assert.equal((await w.ask(reader)).state, "ready");
+  w.go(OTHER);
+  w.close(panel);
+  showTranscript(w, panel, lines);
+  assert.equal((await w.ask(reader, OTHER)).state, "stale");
+});
+
+test("新式面板的搜索框是多行文本框：里面有字也认出只显示了一部分", async () => {
+  const w = modernWorld();
+  const panel = w.addPanel("PAmodern_transcript_view");
+  const reader = w.makeReader();
+  showTranscript(w, panel, [modern("0:00", "first line")]);
+  panel.lists.set("textarea", [Object.assign(new FakeNode(), { value: "first" })]);
+  assert.equal((await w.ask(reader)).state, "filtered");
+});
+
+test("简幕接上之前段落就藏在关着的面板里：之后原样打开，照样认不出，要刷新再开", async () => {
+  const w = modernWorld();
+  const panel = w.addPanel("PAmodern_transcript_view");
+  const lines = [modern("0:00", "first line")];
+  panel.lists.set(SEGMENTS, lines);
+  panel.found.set('[data-target-id="PAmodern_transcript_view"]', new FakeNode());
+  const reader = w.makeReader();
+  showTranscript(w, panel, lines);
+  assert.equal((await w.ask(reader)).state, "reopen");
 });

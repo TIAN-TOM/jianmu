@@ -53,9 +53,29 @@ export function langOfLabel(label: string): string {
   return table.get(whole) ?? table.get(bare) ?? UNKNOWN_LANG;
 }
 
-export function trackOfLabel(label: string): CaptionTrack {
+// 认文字是哪种书写：汉字、假名、谚文，取样的前几千个字里这种字过一定比例才算。
+const SCRIPT_SAMPLE = 4000;
+const SCRIPT_SHARE = 0.3;
+const SCRIPTS: readonly (readonly [RegExp, string])[] = [
+  [/[\u3040-\u30ff]/gu, "ja"],
+  [/[\uac00-\ud7af]/gu, "ko"],
+  [/[\u4e00-\u9fff]/gu, "zh"],
+];
+
+/** 面板上没有语言名时，按正文用的文字认中文、日文、韩文；别的认不出，不猜。 */
+export function langOfText(texts: readonly string[]): string {
+  const sample = texts.join("").replace(/\s+/g, "").slice(0, SCRIPT_SAMPLE);
+  if (!sample) return UNKNOWN_LANG;
+  for (const [pattern, lang] of SCRIPTS) {
+    if ((sample.match(pattern)?.length ?? 0) / sample.length >= SCRIPT_SHARE) return lang;
+  }
+  return UNKNOWN_LANG;
+}
+
+/** 面板语言菜单上的名字认语言和来源；新面板没有语言菜单，名字是空的，语言按正文的文字认。 */
+export function trackOfLabel(label: string, texts: readonly string[] = []): CaptionTrack {
   const shown = label.trim() || UNNAMED_TRACK;
-  return { trackId: `${TRACK_PREFIX}${shown}`, lang: label.trim() ? langOfLabel(label) : UNKNOWN_LANG, label: shown, kind: AUTO_MARK.test(label) ? "auto" : "human" };
+  return { trackId: `${TRACK_PREFIX}${shown}`, lang: label.trim() ? langOfLabel(label) : langOfText(texts), label: shown, kind: AUTO_MARK.test(label) ? "auto" : "human" };
 }
 
 /** 段落的时长按下一段的开始算，最后一段按视频剩下的时间、最多几秒。 */
@@ -97,6 +117,8 @@ function failureOfState(snapshot: PanelSnapshot): SiteFailure | null {
       return fail("PAGE_ACTION_NEEDED");
     case "reopen":
       return fail("PAGE_ACTION_NEEDED", "reopen");
+    case "chapters":
+      return fail("PAGE_ACTION_NEEDED", "chapters");
     case "filtered":
       return fail("PAGE_ACTION_NEEDED", "filtered");
     case "stale":
@@ -162,7 +184,7 @@ export function createYoutubeService({ askTimeoutMs = ASK_TIMEOUT_MS }: { readon
         snapshots.set(ctx, snapshot);
       }
       const failure = failureOfState(snapshot);
-      return failure ?? { ok: true, value: [trackOfLabel(snapshot.label)] };
+      return failure ?? { ok: true, value: [trackOfLabel(snapshot.label, snapshot.cues.map((cue) => cue.text))] };
     },
 
     async readCaptions(info, track, ctx) {
