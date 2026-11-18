@@ -1,5 +1,6 @@
 /// <reference types="chrome" />
-// 工具栏图标右键菜单的薄封装：建菜单项的接口靠回调报错，这里换成 Promise。下面的接口只列用到的方法。
+// 工具栏图标右键菜单的薄封装：这几个接口在清单支持的最低版本上还不回 Promise，一律走回调，报错从回调里读，这里换成 Promise。
+// 下面的接口只列用到的方法。
 
 /** 只放在工具栏图标的右键菜单里的一项。 */
 export interface ActionMenuItem {
@@ -11,8 +12,8 @@ export interface ActionMenuItem {
 
 export interface ContextMenusApi {
   create(properties: { id: string; title: string; type: "normal" | "checkbox"; contexts: ["action"]; checked?: boolean }, callback?: () => void): unknown;
-  update(id: string, properties: { checked: boolean }): Promise<void>;
-  removeAll(): Promise<void>;
+  update(id: string, properties: { checked: boolean }, callback?: () => void): unknown;
+  removeAll(callback?: () => void): unknown;
 }
 
 export interface ContextMenusDeps {
@@ -31,16 +32,18 @@ export interface ContextMenus {
 }
 
 export function createContextMenus({ menus, runtime }: ContextMenusDeps): ContextMenus {
+  // 调一个带回调的接口，回调里有报错就拒绝。
+  const call = (run: (done: () => void) => void, failed: string): Promise<void> =>
+    new Promise((resolve, reject) => {
+      run(() => {
+        const error = runtime.lastError;
+        if (error) reject(new Error(error.message ?? failed));
+        else resolve();
+      });
+    });
   return {
-    removeAll: () => menus.removeAll(),
-    create: ({ id, title, type, checked }) =>
-      new Promise((resolve, reject) => {
-        menus.create({ id, title, type, contexts: ["action"], ...(checked === undefined ? {} : { checked }) }, () => {
-          const error = runtime.lastError;
-          if (error) reject(new Error(error.message ?? "建菜单项失败"));
-          else resolve();
-        });
-      }),
-    setChecked: (id, checked) => menus.update(id, { checked }),
+    removeAll: () => call((done) => menus.removeAll(done), "清掉菜单项失败"),
+    create: ({ id, title, type, checked }) => call((done) => menus.create({ id, title, type, contexts: ["action"], ...(checked === undefined ? {} : { checked }) }, done), "建菜单项失败"),
+    setChecked: (id, checked) => call((done) => menus.update(id, { checked }, done), "改菜单项的勾选失败"),
   };
 }

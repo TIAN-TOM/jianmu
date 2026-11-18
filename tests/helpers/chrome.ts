@@ -284,25 +284,29 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     },
   };
   const indexedDB = createMemoryIndexedDb();
-  // 和浏览器一样：标识重复时建不成，错误只在回调里读得到；改一项不存在的标识会报错。
+  // 和清单支持的最低版本一样：三个接口都只走回调、不回 Promise，报错只在回调里读得到。标识重复时建不成，改一项不存在的标识会报错。
+  const answer = (callback: (() => void) | undefined, error?: string): void => {
+    setImmediate(() => {
+      runtime.lastError = error ? { message: error } : undefined;
+      callback?.();
+      runtime.lastError = undefined;
+    });
+  };
   const contextMenus = {
     create(properties: { id: string; title: string; type: string; contexts: string[]; checked?: boolean }, callback?: () => void) {
       const duplicate = menuItems.has(properties.id);
       if (!duplicate) menuItems.set(properties.id, { title: properties.title, type: properties.type, contexts: [...properties.contexts], ...(properties.checked === undefined ? {} : { checked: properties.checked }) });
-      setImmediate(() => {
-        runtime.lastError = duplicate ? { message: `Cannot create item with duplicate id ${properties.id}` } : undefined;
-        callback?.();
-        runtime.lastError = undefined;
-      });
+      answer(callback, duplicate ? `Cannot create item with duplicate id ${properties.id}` : undefined);
       return properties.id;
     },
-    async update(id: string, properties: { checked: boolean }) {
+    update(id: string, properties: { checked: boolean }, callback?: () => void): void {
       const item = menuItems.get(id);
-      if (!item) throw new Error(`Cannot find menu item with id ${id}`);
-      item.checked = properties.checked;
+      if (item) item.checked = properties.checked;
+      answer(callback, item ? undefined : `Cannot find menu item with id ${id}`);
     },
-    async removeAll() {
+    removeAll(callback?: () => void): void {
       menuItems.clear();
+      answer(callback);
     },
     onClicked: event(),
   };
