@@ -106,13 +106,14 @@ export function createSiteSwitch({ rules, permissions, scripts, tabs, messenger,
   }
 
   async function revoked(platform: Platform): Promise<void> {
-    const message = { type: "site.changed", platform, enabled: false } as const;
-    await Promise.all([messenger.toTabs(contentTabs.list(), message), messenger.toPages(message)]);
+    // 先删观看会话再通知：扩展页面收到通知就重认当前页，会话还在的话又会认出旧视频。
     try {
       await forgetSessions(platform);
     } catch (error) {
       log.error("删掉撤权站点的观看会话失败", errorLabel(error));
     }
+    const message = { type: "site.changed", platform, enabled: false } as const;
+    await Promise.all([messenger.toTabs(contentTabs.list(), message), messenger.toPages(message)]);
   }
 
   const syncAll = (fresh: boolean): Promise<readonly Synced[]> => Promise.all(sites.map((site) => syncSite(site, fresh)));

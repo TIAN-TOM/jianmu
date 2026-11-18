@@ -174,6 +174,32 @@ test("换了视频而面板没更新：报 stale，不交内容；面板换成�
   assert.deepEqual(fresh.cues, [{ start: 0, text: "新视频的一句" }]);
 });
 
+test("换了视频以后面板里只有语言菜单这类别的东西变了：段落没变，照样不认", async () => {
+  const w = world();
+  const panel = w.addPanel();
+  const reader = w.makeReader();
+  w.fill(panel, [classic("0:00", "上一个视频的一句")]);
+  w.go(OTHER);
+  // 页面改了语言菜单的名字，面板有变化，段落还是上一个视频的。
+  w.document.found.set("ytd-transcript-footer-renderer yt-dropdown-menu #label-text", new FakeNode("English"));
+  w.fill(panel, [classic("0:00", "上一个视频的一句")], "English");
+  assert.equal((await w.ask(reader, OTHER)).state, "stale");
+});
+
+test("播广告时不拿视频元素的时长：那是广告的", async () => {
+  const w = world();
+  const panel = w.addPanel();
+  const player = new FakeNode();
+  Object.assign(player, { classList: { contains: (name: string) => name === "ad-showing" } });
+  w.document.found.set("ytd-watch-flexy .html5-video-player", player);
+  w.video.duration = 15;
+  const reader = w.makeReader();
+  w.fill(panel, [classic("0:00", "一句"), classic("1:00", "一分钟以后的一句")]);
+  const snapshot = await w.ask(reader);
+  assert.equal(snapshot.state, "ready");
+  assert.equal(snapshot.info.durationSec, 0);
+});
+
 test("换视频的途中地址和外壳对不上：认不出是哪个视频，问哪个都不交内容", async () => {
   const w = world();
   const panel = w.addPanel();

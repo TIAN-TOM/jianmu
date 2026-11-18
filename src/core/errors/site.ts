@@ -55,7 +55,7 @@ export const SITE_DETAIL_TEXT: Readonly<Partial<Record<SiteErrorCode, Readonly<R
     reopen: {
       cause: "视频页上的文字稿是简幕接上之前打开的，认不出是不是这个视频的。",
       impact: NOT_READ,
-      next: "关上文字稿再打开一次，等文字出来，再点读取。",
+      next: "刷新视频页，再打开文字稿，等文字出来，再点读取。",
     },
   },
   UNAVAILABLE: {

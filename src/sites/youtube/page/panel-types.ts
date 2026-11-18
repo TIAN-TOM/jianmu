@@ -1,5 +1,6 @@
 // 后台和观看页之间读文字稿面板的一问一答：问的形状、页面回的快照，以及后台对快照的核对。只有类型和纯函数。
 // 页面和网页共享这块地方，回来的快照按不可信输入核对：字段、类型、大小、视频身份都要对得上，不对的整份不用。
+// 顶层只放字面量和函数：构建开关关着时整个模块不进包。
 
 /** 后台问页面要的两种东西：面板快照，或者只问页面现在是哪个视频、面板内容换过几次。 */
 export type PanelRequest =
@@ -44,7 +45,7 @@ export interface PanelCurrent {
   readonly stamp: number;
 }
 
-export const PANEL_LIMITS = Object.freeze({
+export const PANEL_LIMITS = {
   cues: 20_000,
   cueText: 2_000,
   label: 200,
@@ -53,10 +54,10 @@ export const PANEL_LIMITS = Object.freeze({
   description: 5_000,
   channelId: 100,
   // 一天以内的视频才算。
-  seconds: 24 * 3600,
-});
+  seconds: 86_400,
+} as const;
 
-const STATES: ReadonlySet<string> = new Set(["ready", "closed", "reopen", "loading", "stale", "no-entry"]);
+const STATES: readonly string[] = ["ready", "closed", "reopen", "loading", "stale", "no-entry"];
 const VIDEO_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null && !Array.isArray(value);
@@ -91,7 +92,7 @@ export function panelSnapshotOf(value: unknown): PanelSnapshot | null {
   if (!isRecord(value)) return null;
   const { videoId, state, stamp, label } = value;
   if (typeof videoId !== "string" || (videoId !== "" && !VIDEO_ID.test(videoId))) return null;
-  if (typeof state !== "string" || !STATES.has(state) || !isCount(stamp) || !isText(label, PANEL_LIMITS.label)) return null;
+  if (typeof state !== "string" || !STATES.includes(state) || !isCount(stamp) || !isText(label, PANEL_LIMITS.label)) return null;
   const info = infoOf(value.info);
   const cues = cuesOf(value.cues);
   if (!info || !cues) return null;

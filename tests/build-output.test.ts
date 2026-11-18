@@ -351,7 +351,7 @@ test("解释当前画面首发带上：发行构建的包里有截帧代码、�
 
 // YouTube 挂在开关下的内容：地址规则、内容脚本的注册、侧边栏和设置页的启用按钮、内容脚本本身。
 const YOUTUBE_MARKERS: Readonly<Record<string, readonly string[]>> = {
-  "build/background.js": ["www.youtube.com", "jianmu-youtube", "content/youtube.js", "src/background/site-switch"],
+  "build/background.js": ["www.youtube.com", "jianmu-youtube", "content/youtube.js", "src/background/site-switch", "youtube.panel", "panel-shape", "src/sites/youtube/service", "src/sites/youtube/page/panel-types"],
   "build/pages/sidepanel.js": ["www.youtube.com", "在 YouTube 上启用", "src/pages/shared/youtube-access"],
   "build/pages/options.js": ["www.youtube.com", "在 YouTube 上启用", "src/pages/options/youtube-section"],
 };

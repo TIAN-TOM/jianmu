@@ -1,6 +1,6 @@
 // 读观看页上已经显示的文字稿面板：只看不动，不点、不滚动、不打开面板、不换语言，不碰播放器，不发请求。
-// 面板换视频后可能还留着上一个视频的内容，所以记下面板内容最后一次变化时页面放的是哪个视频，是当前视频才认；
-// 简幕接上之前就开着的面板认不出是谁的，要用户关上再开。读到的时间不超过视频时长，超过的整份不用。
+// 字幕段落最后一次真的变了时页面放的是当前视频才认（面板里别的控件变了不算），简幕接上之前就开着的面板认不出是谁的，
+// 要用户刷新视频页再开。读到的时间不超过视频时长，超过的整份不用；播广告时不拿时长。
 import type { VideoRef } from "../../../core/video-ref.ts";
 import { PANEL_LIMITS, type PanelCue, type PanelCurrent, type PanelInfo, type PanelRequest, type PanelSnapshot, type PanelState } from "./panel-types.ts";
 
@@ -20,7 +20,10 @@ const SHELL_VIDEO_ATTRIBUTE = "video-id";
 const TITLE = "ytd-watch-metadata h1";
 const AUTHOR = "ytd-watch-metadata ytd-channel-name a";
 const DESCRIPTION = "ytd-watch-metadata #description-inline-expander";
+const PLAYER = "ytd-watch-flexy .html5-video-player";
 const VIDEO = "ytd-watch-flexy .html5-video-player video.html5-main-video";
+// 播放器在播广告时标在自己身上的两种状态：这时视频元素的时长是广告的。
+const AD_CLASSES = ["ad-showing", "ad-interrupting"];
 
 const TIME = /^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})$/;
 // 面板内容还在变时等它停下：隔这么久没变就算加载完，最多等这么久。
@@ -94,9 +97,11 @@ export function createPanelReader({
   every = repeat,
   observe = watchSubtree,
 }: PanelReaderDeps): PanelReader {
-  /** 面板内容最后一次变化时页面放的视频；换视频的途中地址和外壳对不上，记成空串。 */
+  /** 字幕段落最后一次真的变了时页面放的视频；换视频的途中地址和外壳对不上，记成空串。 */
   let changedFor: string | null = null;
   let stamp = 0;
+  /** 上次看到的段落内容，比它变了才算段落变了。 */
+  let lastContent = "";
   let lastChangeTime = 0;
   let watched: Element | null = null;
   let unobserve = (): void => undefined;
@@ -107,10 +112,18 @@ export function createPanelReader({
     return ref && shell?.getAttribute(SHELL_VIDEO_ATTRIBUTE) === ref.videoId ? ref.videoId : "";
   };
 
+  /** 面板里全部段落的时间和文字连起来：语言菜单、按钮这些别的控件不在里面。 */
+  const contentOf = (panel: Element | null): string =>
+    panel ? Array.from(panel.querySelectorAll(SEGMENTS), (segment) => squash(segment.textContent)).join("\n") : "";
+
+  // 面板有变化时看段落本身变没变：变了才记下这时页面放的视频。
   const changed = (): void => {
+    const content = contentOf(document.querySelector(PANEL));
+    if (content === lastContent) return;
+    lastContent = content;
     stamp += 1;
     lastChangeTime = now();
-    changedFor = videoNow();
+    changedFor = content ? videoNow() : null;
   };
 
   // 面板会被页面换掉，定时重认一次；后来才出现、换了一个面板也算内容变了，接上时就在的不算。
@@ -121,14 +134,18 @@ export function createPanelReader({
     unobserve();
     watched = panel;
     unobserve = panel ? observe(panel, changed) : () => undefined;
-    if (panel && attached) changed();
+    // 接上时就在的内容记下来但不认；后来才出现、换了一个面板的，按变化处理。
+    if (attached) changed();
+    else lastContent = contentOf(panel);
   };
   attach();
   attached = true;
   const stopAttach = every(ATTACH_MS, attach);
 
   function info(videoId: string): PanelInfo {
-    const video = videoId ? document.querySelector<HTMLVideoElement>(VIDEO) : null;
+    const player = document.querySelector(PLAYER);
+    const advertising = player !== null && AD_CLASSES.some((name) => player.classList.contains(name));
+    const video = videoId && !advertising ? document.querySelector<HTMLVideoElement>(VIDEO) : null;
     const duration = video && Number.isFinite(video.duration) && video.duration > 0 && video.duration <= PANEL_LIMITS.seconds ? video.duration : 0;
     const title = squash(document.querySelector(TITLE)?.textContent);
     const author = squash(document.querySelector(AUTHOR)?.textContent);
@@ -171,6 +188,8 @@ export function createPanelReader({
     // 内容还在变、或者还在加载时等一会儿，等到停下来再读。
     for (;;) {
       attach();
+      // 观察者的回调可能还没轮到：读之前先看一眼段落变没变。
+      changed();
       const videoId = videoNow();
       const { state, cues } = stateOf(videoId);
       const settling = now() - lastChangeTime < SETTLE_MS;
