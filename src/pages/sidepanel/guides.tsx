@@ -4,7 +4,7 @@ import type { ChapterView, OfficialSummaryView } from "../../shared/messages/tra
 import { ChapterList } from "../shared/ui/chapter-list.tsx";
 
 const OFFICIAL_STATUS_TEXT: Readonly<Partial<Record<OfficialSummaryView["status"], string>>> = {
-  queued: "视频网站正在生成官方总结，过一会儿再来看。",
+  queued: "视频网站现在没有这个视频的官方总结。",
   "need-login": "登录视频网站以后才看得到官方总结。",
   failed: "这次没问到官方总结，过一会儿会再问。",
   pending: "正在问官方总结…",

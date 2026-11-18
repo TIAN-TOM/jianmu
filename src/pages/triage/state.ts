@@ -77,7 +77,7 @@ export function officialRecordText(record: OfficialRecord | undefined, item: Tri
     case "none":
       return "没有官方总结";
     case "queued":
-      return "B 站还在生成总结，过几分钟再点开始";
+      return "B 站现在没有这个视频的官方总结，可以先处理别的";
     case "unsupported":
       return "B 站不给这个视频做总结";
     case "need-login":
