@@ -171,3 +171,11 @@ test("只认这一种问话", () => {
   assert.equal(opener.handle({ type: "youtube.openTranscript", req: {} }), null);
   assert.equal(opener.handle(null), null);
 });
+
+test("简介里没有入口、只剩关着的面板里那一份：不点它，报没有入口", async () => {
+  const w = world();
+  const shellPanel = w.addPanel("engagement-panel-structured-description");
+  const hidden = w.addEntry(shellPanel);
+  assert.equal(await w.ask(), "no-entry");
+  assert.equal(hidden.clicks, 0);
+});

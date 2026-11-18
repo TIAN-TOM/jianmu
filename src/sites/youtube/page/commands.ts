@@ -21,10 +21,9 @@ export interface PanelOpener {
   readonly handle: (message: unknown) => Promise<{ readonly outcome: OpenTranscriptOutcome }> | null;
 }
 
-/** 视频简介里那个入口的按钮：同样的入口一直关着的面板里也有一份，先用不在面板里的那个。 */
+/** 视频简介里那个入口的按钮：同样的入口一直关着的面板里也有一份，那份不点；简介里没有就算没有入口。 */
 function entryButton(document: Document): HTMLElement | null {
-  const entries = Array.from(document.querySelectorAll(ENTRY));
-  const entry = entries.find((candidate) => candidate.closest(PANELS) === null) ?? entries[0];
+  const entry = Array.from(document.querySelectorAll(ENTRY)).find((candidate) => candidate.closest(PANELS) === null);
   return entry?.querySelector<HTMLElement>("button") ?? null;
 }
 
