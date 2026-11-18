@@ -1,15 +1,19 @@
 // 打开就出结论接进后台：标签页和窗口事件经 App 交给自动生成。走真实的后台装配、任务表、取字幕和概览服务，
-// 窗口、标签页、站点读取和模型服务是替身。确认前、开关关着时不问窗口、不读地址；开着时只为获得焦点的窗口前台的长视频生成一次；
-// 侧边栏再点「生成概览」接上同一个任务；额度用完停下，配置检查和广播带出来，重开开关或手动成功一次后恢复。
+// 窗口、标签页、站点读取和模型服务是替身。确认前、开关关着时不问窗口、不读地址；开着时开着的长视频都排进来，前台的先，
+// 每个只生成一次；关掉的标签页撤掉；被限流整批停下；侧边栏再点「生成概览」接上同一个任务；额度用完停下，
+// 配置检查和广播带出来，重开开关或手动成功一次后恢复。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createApp } from "../../../src/background/app.ts";
+import { stopsReading } from "../../../src/background/auto.ts";
+import { AUTO_READ_GAP_MS } from "../../../src/background/services/auto-generate.ts";
 import { PROTOCOLS } from "../../../src/core/ai/provider/index.ts";
 import { videoKey } from "../../../src/core/video-ref.ts";
 import { AUTO_LEDGER_KEY, SETTINGS_STORAGE_KEY } from "../../../src/shared/names.ts";
+import { readFileSync } from "node:fs";
 import { createFakeChrome, senders, watchUrl, tubeUrl } from "../../helpers/chrome.ts";
 import { chatReply, keyedStorage, modelService, reply, type SentRequest } from "../../helpers/fake-model-service.ts";
-import { fakeSiteService, sampleInfo } from "../../helpers/fake-site-service.ts";
+import { failed, fakeSiteService, sampleInfo } from "../../helpers/fake-site-service.ts";
 import { stillFalse, until } from "../../helpers/wait-until.ts";
 
 const GATEWAY = { presetId: "custom", protocol: PROTOCOLS.OPENAI, aiBaseUrl: "https://gateway.example.com/v1", aiModel: "test-model" };
@@ -23,8 +27,10 @@ const LONG_ID = "BV1Sample301";
 const SHORT_ID = "BV1Sample302";
 const OTHER_ID = "BV1Sample303";
 const LONG = videoKey({ platform: "bilibili", videoId: LONG_ID });
+const OTHER = videoKey({ platform: "bilibili", videoId: OTHER_ID });
 const FOCUSED = 1;
 const BACKGROUND = 2;
+const TEMPLATE = JSON.parse(readFileSync(new URL("../../../manifest.template.json", import.meta.url), "utf8")) as { content_scripts: { matches: string[]; js: string[] }[] };
 
 const isVerdict = (request: SentRequest): boolean => JSON.stringify(request.body).includes("写结论");
 const answer = (request: SentRequest) => chatReply(isVerdict(request) ? VERDICT : CHAPTER);
@@ -33,9 +39,11 @@ interface Options {
   readonly enabled?: boolean;
   readonly on?: boolean;
   readonly handler?: (request: SentRequest) => ReturnType<typeof answer> | Promise<ReturnType<typeof answer>>;
+  /** 读字幕时平台怎么回：不给时照常给字幕。 */
+  readonly captions?: (videoId: string) => "ok" | "rate-limited" | "none";
 }
 
-function appOn({ enabled = true, on = true, handler = answer }: Options = {}) {
+function appOn({ enabled = true, on = true, handler = answer, captions = () => "ok" }: Options = {}) {
   const ai = modelService(handler);
   const stored = keyedStorage(GATEWAY, ORIGIN);
   const settings = stored.local[SETTINGS_STORAGE_KEY] as Record<string, unknown>;
@@ -43,21 +51,42 @@ function appOn({ enabled = true, on = true, handler = answer }: Options = {}) {
   const site = fakeSiteService({
     // 长视频 30 分钟，短视频 5 分钟；字幕时间轴跟时长对得上。
     videoInfo: (ref) => ({ ok: true, value: sampleInfo(ref, { durationSec: ref.videoId === SHORT_ID ? 300 : 1800 }) }),
-    captions: () => ({ ok: true, value: [{ start: 0, duration: 2, text: "第一句" }, { start: 900, duration: 2, text: "第二句" }] }),
+    captions: (info) =>
+      captions(info.ref.videoId) === "rate-limited"
+        ? failed("RATE_LIMITED")
+        : captions(info.ref.videoId) === "none"
+          ? failed("EMPTY_CAPTION_FILE")
+          : { ok: true, value: [{ start: 0, duration: 2, text: "第一句" }, { start: 900, duration: 2, text: "第二句" }] },
   });
-  // 获得焦点的窗口前台是长视频；另一个没有焦点的窗口前台是另一个长视频。
-  const windows = { focusedWindow: FOCUSED as number | null, activeTabs: { [FOCUSED]: { id: 3, url: watchUrl(LONG_ID) }, [BACKGROUND]: { id: 4, url: watchUrl(OTHER_ID) } } as Record<number, { id: number; url: string }> };
-  const fake = createFakeChrome(withWindows({ local, session: stored.session, grantedOrigins: [ORIGIN], fetch: ai.fetch, prompts: PROMPTS, site: site.service }, windows));
+  // 获得焦点的窗口前台是长视频；另一个没有焦点的窗口前台是另一个长视频，它是后打开的。
+  const windows = {
+    focusedWindow: FOCUSED as number | null,
+    activeTabs: { [FOCUSED]: { id: 3, url: watchUrl(LONG_ID) }, [BACKGROUND]: { id: 4, url: watchUrl(OTHER_ID) } } as Record<number, { id: number; url: string }>,
+    urlTabs: { 3: watchUrl(LONG_ID), 4: watchUrl(OTHER_ID) } as Record<number, string>,
+  };
+  const fake = createFakeChrome(
+    withWindows({ local, session: stored.session, grantedOrigins: [ORIGIN], fetch: ai.fetch, prompts: PROMPTS, site: site.service, manifest: { content_scripts: TEMPLATE.content_scripts } }, windows),
+  );
   const app = createApp(fake.deps({ warn() {}, error() {} }));
   const ask = (type: string, req: unknown = {}, sender = senders.panel()) => app.dispatch({ type, req }, sender) as Promise<{ ok: boolean; code?: string; value?: any }>;
   const overviewOf = async (video = LONG) => (await ask("overview.get", { video })).value?.overview?.analysis;
-  return { ai, fake, app, ask, site, windows, overviewOf };
+  /** 两次读平台之间的间隔用手动计时器排：边推着时钟边等。 */
+  const pumped = (check: () => boolean | Promise<boolean>) =>
+    until(async () => {
+      fake.timers.advance(AUTO_READ_GAP_MS);
+      return check();
+    });
+  return { ai, fake, app, ask, site, windows, overviewOf, pumped };
 }
 
-// 替身按调用时读这两项：测试里改了获得焦点的窗口和前台标签页，下一次问就是新的。
-function withWindows<T extends object>(options: T, state: { focusedWindow: number | null; activeTabs: Record<number, { id: number; url: string }> }): T {
+// 替身按调用时读这几项：测试里改了获得焦点的窗口、前台标签页和开着的标签页，下一次问就是新的。
+function withWindows<T extends object>(
+  options: T,
+  state: { focusedWindow: number | null; activeTabs: Record<number, { id: number; url: string }>; urlTabs: Record<number, string> },
+): T {
   Object.defineProperty(options, "focusedWindow", { get: () => state.focusedWindow, enumerable: true });
   Object.defineProperty(options, "activeTabs", { get: () => state.activeTabs, enumerable: true });
+  Object.defineProperty(options, "urlTabs", { get: () => state.urlTabs, enumerable: true });
   return options;
 }
 
@@ -65,53 +94,84 @@ test("确认启用之前、开关关着时：标签页和窗口事件不问窗�
   for (const options of [{ enabled: false }, { on: false }]) {
     const { app, fake, ai, site } = appOn(options);
     app.onTabActivated();
-    app.onTabUpdated({ url: watchUrl(LONG_ID) }, { active: true });
-    app.onTabUpdated({ status: "complete" }, { active: true });
+    app.onTabUpdated({ url: watchUrl(LONG_ID) });
+    app.onTabUpdated({ status: "complete" });
     app.onFocusChanged(FOCUSED);
     assert.ok(await stillFalse(() => fake.calls.windowQueries.length + fake.calls.tabQueries.length + fake.calls.siteParses.length + site.calls.length + ai.sent.length > 0), JSON.stringify(options));
   }
 });
 
-test("开着时：获得焦点的窗口前台的长视频生成一次，结论存下；别的窗口的前台、再切回来都不再生成", async () => {
-  const { app, ai, overviewOf, windows } = appOn();
+test("开着时：前台的长视频先生成，后台打开的那个接着生成，结论都存下；再切回来不再生成", async () => {
+  const { app, ai, overviewOf, pumped } = appOn();
   app.onFocusChanged(BACKGROUND);
-  assert.ok(await until(async () => (await overviewOf())?.verdict?.summary === "自动写的结论"));
+  assert.ok(await pumped(async () => (await overviewOf())?.verdict?.summary === "自动写的结论"));
+  assert.ok(ai.posts().every((request) => !JSON.stringify(request.body).includes(OTHER_ID)), "前台的先，没跑完不碰后台的");
+  assert.ok(await pumped(async () => (await overviewOf(OTHER))?.verdict?.summary === "自动写的结论"), "后台打开的那个接着生成");
   const posts = ai.posts().length;
-  assert.equal(ai.posts().filter(isVerdict).length, 1);
-  assert.ok(ai.posts().every((request) => !JSON.stringify(request.body).includes(OTHER_ID)), "没有焦点的窗口里的前台标签页不生成");
+  assert.equal(ai.posts().filter(isVerdict).length, 2);
 
   app.onTabActivated();
   app.onFocusChanged(FOCUSED);
-  windows.activeTabs[FOCUSED] = { id: 3, url: watchUrl(LONG_ID) };
   assert.ok(await stillFalse(() => ai.posts().length > posts), "同一视频只生成一次");
 });
 
-test("只认地址变了或加载完成、在前台的标签页更新；焦点离开 Chrome 时不判断", async () => {
-  const { app, fake } = appOn({ on: false });
-  app.onTabUpdated({ title: "换了标题" } as { readonly status?: string }, { active: true });
-  app.onTabUpdated({ url: watchUrl(LONG_ID) }, { active: false });
-  app.onFocusChanged(-1);
-  assert.ok(await stillFalse(() => fake.calls.storageReads.length > 0), "不读设置，更不读地址");
-  app.onTabUpdated({ status: "complete" }, { active: true });
-  assert.ok(await until(() => fake.calls.storageReads.length > 0));
+test("排着的标签页关掉了：撤掉，不为它读平台", async () => {
+  const { app, overviewOf, windows, site, pumped } = appOn();
+  delete windows.urlTabs[4];
+  app.onTabActivated();
+  assert.ok(await pumped(async () => (await overviewOf())?.verdict?.summary === "自动写的结论"));
+  assert.ok(await stillFalse(() => site.calls.some((call) => call.ref?.videoId === OTHER_ID || call.info?.ref.videoId === OTHER_ID)));
 });
 
-test("短视频（不读字幕）和 YouTube 视频不生成；焦点不在 Chrome 时也不生成", async () => {
+test("被限流：整批停下，排着的不接着读", async () => {
+  const limited = appOn({ captions: (id) => (id === LONG_ID ? "rate-limited" : "ok") });
+  limited.app.onTabActivated();
+  assert.ok(await until(() => limited.site.count("readCaptions") > 0));
+  // 推着时钟走过好几个间隔：停下了就谁都不再读。
+  for (let step = 0; step < 5; step += 1) {
+    limited.fake.timers.advance(AUTO_READ_GAP_MS);
+    assert.ok(await stillFalse(() => limited.site.calls.some((call) => call.ref?.videoId === OTHER_ID || call.info?.ref.videoId === OTHER_ID)), "前台那个被限流，后台那个不再去读");
+  }
+  assert.equal(limited.ai.posts().length, 0);
+
+  // 对照：前台那个读不成字幕但不是限流，后台那个照样接着。
+  const plain = appOn({ captions: (id) => (id === LONG_ID ? "none" : "ok") });
+  plain.app.onTabActivated();
+  assert.ok(await plain.pumped(async () => (await plain.overviewOf(OTHER))?.verdict?.summary === "自动写的结论"));
+});
+
+test("哪些读取失败算整体读不了、要整批停下", () => {
+  for (const code of ["RATE_LIMITED", "NEED_LOGIN", "MALFORMED"] as const) assert.equal(stopsReading(code), true, code);
+  for (const code of ["NO_CAPTIONS", "UNPLAYABLE", "NOT_FOUND", "NETWORK", "TIMEOUT"] as const) assert.equal(stopsReading(code), false, code);
+});
+
+test("只认地址变了或加载完成的标签页更新，后台的也算；焦点离开 Chrome 时不判断", async () => {
+  const { app, fake } = appOn({ on: false });
+  app.onTabUpdated({ title: "换了标题" } as { readonly status?: string });
+  app.onFocusChanged(-1);
+  assert.ok(await stillFalse(() => fake.calls.storageReads.length > 0), "不读设置，更不读地址");
+  app.onTabUpdated({ url: watchUrl(LONG_ID) });
+  assert.ok(await until(() => fake.calls.storageReads.length > 0), "后台标签页地址变了也判断");
+});
+
+test("短视频（不读字幕）和 YouTube 视频不生成；焦点不在 Chrome 时后台开着的照样生成", async () => {
   const short = appOn();
   short.windows.activeTabs[FOCUSED] = { id: 3, url: watchUrl(SHORT_ID) };
+  short.windows.urlTabs = { 3: watchUrl(SHORT_ID) };
   short.app.onTabActivated();
   assert.ok(await until(() => short.site.count("readVideoInfo") > 0));
   assert.ok(await stillFalse(() => short.site.count("readCaptions") + short.ai.posts().length > 0), "本机不知道时长先做轻量读取：时长不够，不读字幕、不发模型请求");
 
   const tube = appOn();
   tube.windows.activeTabs[FOCUSED] = { id: 3, url: tubeUrl() };
+  tube.windows.urlTabs = { 3: tubeUrl() };
   tube.app.onTabActivated();
   assert.ok(await stillFalse(() => tube.site.calls.length + tube.ai.sent.length > 0));
 
   const away = appOn();
   away.windows.focusedWindow = null;
   away.app.onTabActivated();
-  assert.ok(await stillFalse(() => away.site.calls.length + away.ai.sent.length > 0));
+  assert.ok(await away.pumped(async () => (await away.overviewOf())?.verdict?.summary === "自动写的结论"));
 });
 
 test("自动生成在跑时侧边栏点「生成概览」：接上同一个任务，不另发", async () => {
@@ -145,7 +205,7 @@ test("额度用完：停掉自动生成，配置检查带上、广播给页面�
 
   windows.activeTabs[FOCUSED] = { id: 5, url: watchUrl(OTHER_ID) };
   app.onTabActivated();
-  assert.ok(await stillFalse(() => ai.posts().length > posts), "停着时不再触发");
+  assert.ok(await stillFalse(() => ai.posts().length > posts), "停着时不再触发，后台排着的也不发");
 
   const settings = fake.local.data[SETTINGS_STORAGE_KEY] as Record<string, unknown>;
   await app.onStorageChanged({ [SETTINGS_STORAGE_KEY]: { oldValue: settings, newValue: { ...settings, autoOverview: false } } }, "local");

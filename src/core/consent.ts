@@ -108,12 +108,12 @@ export const DATA_CONSENT_TABLE: NoticeTable<DataConsentKind> = [
     items: [
       {
         kind: "trigger",
-        id: "auto-on-open",
-        text: "打开「打开就出结论」以后，在 B 站打开超过设定时长的视频，会自动发送字幕、视频标题和时长、UP 主名和简介，生成概览和一句话结论；YouTube 不自动发",
+        id: "auto-on-open-tabs",
+        text: "打开「打开就出结论」以后，在 B 站打开超过设定时长的视频，包括在后台打开、还没切过去看的标签页，会自动发送字幕、视频标题和时长、UP 主名和简介，生成概览和一句话结论；YouTube 不自动发",
         shownWith: {
           id: "on-click",
           combined:
-            "平时只在你点按钮时发出；打开「打开就出结论」以后，在 B 站打开超过设定时长的视频，会自动发送字幕、视频标题和时长、UP 主名和简介，生成概览和一句话结论（YouTube 不自动发）",
+            "平时只在你点按钮时发出；打开「打开就出结论」以后，在 B 站打开超过设定时长的视频，包括在后台打开、还没切过去看的标签页，会自动发送字幕、视频标题和时长、UP 主名和简介，生成概览和一句话结论（YouTube 不自动发）",
         },
       },
     ],
@@ -158,7 +158,7 @@ export const ACTIVATION_TABLE: NoticeTable<ActivationKind> = [
   },
   {
     version: 3,
-    items: [{ kind: "read", id: "foreground-tab", text: "打开「打开就出结论」以后，当前窗口前台标签页的地址，用来认出刚打开的 B 站视频" }],
+    items: [{ kind: "read", id: "open-tabs", text: "打开「打开就出结论」以后，已授权网站各标签页的地址，用来认出打开的 B 站视频，包括在后台打开的" }],
   },
   ...(FEATURE_FRAME_EXPLAIN ? [FRAME_ACTIVATION_VERSION] : []),
 ];

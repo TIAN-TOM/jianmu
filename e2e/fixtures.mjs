@@ -41,6 +41,13 @@ export const AUTO_SHORT = { bvid: "BV1Sample006", aid: 1006, cid: 2006, mid: 300
 /** @type {Video} */
 export const AUTO_BACKGROUND = { bvid: "BV1Sample007", aid: 1007, cid: 2007, mid: 3007, title: "后台打开的样例长视频", owner: "第七位样例作者", duration: 1500 };
 
+/** 打开就出结论排着时关掉标签页的那个。 @type {Video} */
+export const AUTO_QUEUED = { bvid: "BV1Sample012", aid: 1012, cid: 2012, mid: 3012, title: "排着就关掉的样例长视频", owner: "第九位样例作者", duration: 1500 };
+/** 打开就出结论被限流时一起开的两个。 @type {Video} */
+export const AUTO_LIMITED_A = { bvid: "BV1Sample013", aid: 1013, cid: 2013, mid: 3013, title: "被限流的样例长视频甲", owner: "第十位样例作者", duration: 1500 };
+/** @type {Video} */
+export const AUTO_LIMITED_B = { bvid: "BV1Sample014", aid: 1014, cid: 2014, mid: 3014, title: "被限流的样例长视频乙", owner: "第十一位样例作者", duration: 1500 };
+
 /** 不到 5 分钟的短视频：打开就进精读。 @type {Video} */
 export const BRIEF_VIDEO = { bvid: "BV1Sample008", aid: 1008, cid: 2008, mid: 3008, title: "样例短片", owner: "第八位样例作者", duration: 180 };
 
@@ -49,7 +56,14 @@ export const BRIEF_VIDEO = { bvid: "BV1Sample008", aid: 1008, cid: 2008, mid: 30
  * @param {Video} video
  */
 const sample = (video) => Object.freeze({ id: video.bvid, title: video.title });
-export const AUTO_SAMPLES = Object.freeze({ long: sample(AUTO_LONG), short: sample(AUTO_SHORT), background: sample(AUTO_BACKGROUND) });
+export const AUTO_SAMPLES = Object.freeze({
+  long: sample(AUTO_LONG),
+  short: sample(AUTO_SHORT),
+  background: sample(AUTO_BACKGROUND),
+  queued: sample(AUTO_QUEUED),
+  limitedA: sample(AUTO_LIMITED_A),
+  limitedB: sample(AUTO_LIMITED_B),
+});
 /** 页面测试里真的播放、播满 1 分钟自动切到精读的长视频，带频道编号。 */
 export const PLAYING_SAMPLE = Object.freeze({ id: SECOND_VIDEO.bvid, channel: String(SECOND_VIDEO.mid) });
 /** 页面测试里打开就进精读的短视频。 */
@@ -64,6 +78,9 @@ export const VIDEOS = {
   [AUTO_LONG.bvid]: AUTO_LONG,
   [AUTO_SHORT.bvid]: AUTO_SHORT,
   [AUTO_BACKGROUND.bvid]: AUTO_BACKGROUND,
+  [AUTO_QUEUED.bvid]: AUTO_QUEUED,
+  [AUTO_LIMITED_A.bvid]: AUTO_LIMITED_A,
+  [AUTO_LIMITED_B.bvid]: AUTO_LIMITED_B,
   [BRIEF_VIDEO.bvid]: BRIEF_VIDEO,
 };
 

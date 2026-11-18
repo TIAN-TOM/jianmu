@@ -86,9 +86,9 @@ export interface App {
   readonly onStartup: () => Promise<void>;
   readonly onTabRemoved: (tabId: number) => void;
   readonly onStorageChanged: (changes: Readonly<Record<string, StorageChange>>, area: string) => Promise<void>;
-  /** 标签页激活、前台标签页地址变了或加载完成、窗口焦点变了：打开就出结论按那一刻的前台判断一次。 */
+  /** 标签页激活、任何标签页地址变了或加载完成、窗口焦点变了：打开就出结论把开着的视频标签页过一轮，前台的排最前。 */
   readonly onTabActivated: () => void;
-  readonly onTabUpdated: (change: { readonly url?: string; readonly status?: string }, tab: { readonly active?: boolean }) => void;
+  readonly onTabUpdated: (change: { readonly url?: string; readonly status?: string }) => void;
   readonly onFocusChanged: (windowId: number) => void;
 }
 
@@ -402,7 +402,8 @@ function assembleCore(deps: AppDeps): Core {
   const studyStores = assembleStudyStores(deps, clearGuard);
   const overview = assembleOverview(deps, generation);
   const verdict = assembleVerdict(deps, generation);
-  const autoParts = { settings, tabs, rules: deps.siteRules, ai, tasks, overviews, transcript, overview, storage: deps.storage.session, guard: clearGuard };
+  const sleep = (ms: number) => new Promise<void>((resolve) => void deps.timers.setTimeout(resolve, ms));
+  const autoParts = { settings, tabs, watchPages: tabs.contentScripts().flatMap((script) => script.matches), sleep, rules: deps.siteRules, ai, tasks, overviews, transcript, overview, storage: deps.storage.session, guard: clearGuard };
   return {
     settings,
     clearGuard,
@@ -468,9 +469,8 @@ export function createApp(deps: AppDeps): App {
     },
     onStartup: setPanelBehavior,
     onTabActivated: () => consider(),
-    onTabUpdated(change, tab) {
-      if (tab.active === true && (Object.hasOwn(change, "url") || change.status === "complete")) consider();
-    },
+    // 后台打开的标签页也算：地址变了或加载完成就把开着的视频标签页再过一遍。
+    onTabUpdated: (change) => (Object.hasOwn(change, "url") || change.status === "complete" ? consider() : undefined),
     onFocusChanged(windowId) {
       if (windowId !== NO_WINDOW) consider();
     },

@@ -31,7 +31,7 @@
 - 观看状态：播放、暂停、累计播放时长。
 - B 站登录状态：只看是否已登录，见下一节。
 - 用「本窗口全部生成」时，当前窗口里已授权网站的标签页的地址和标题。
-- 打开「打开就出结论」以后，当前窗口前台标签页的地址，用来认出刚打开的 B 站视频。
+- 打开「打开就出结论」以后，已授权网站各标签页的地址，用来认出打开的 B 站视频，包括在后台打开、还没切过去看的。
 - 在粗筛页点读取时，你的 B 站稍后再看列表，以及每个视频看到了哪里。
 
 这些内容用来在侧边栏和播放页卡片里显示，按时长、频道和播放情况选速览或精读，以及作为之后生成概览和回答问题的材料。
@@ -66,7 +66,7 @@
 
 - 平时只在你操作时发，比如点「生成概览」、提问、点「解释」、点「整理字幕」，或者记笔记（笔记存下以后，会请模型润色那一刻的字幕）。
 - 「本窗口全部生成」和粗筛，你先确认数量，之后逐个发送。
-- 打开「打开就出结论」以后：在 B 站打开超过设定时长的视频，简幕会自动发送这个视频的字幕、标题和时长、UP 主名和简介，生成概览和一句话结论。这个开关新安装时是关的，打开前要先同意数据说明；设定时长默认 10 分钟，可以在 0 到 180 分钟之间调。后台打开的标签页，第一次切到前台才算打开。已有概览的视频不再生成，同一个视频在一次浏览器会话里只自动试一次。外文字幕不自动翻译。服务商说额度用完或密钥不对时，自动生成会停下，等你手动生成成功一次，或者重新开一下开关，才恢复。
+- 打开「打开就出结论」以后：在 B 站打开超过设定时长的视频，简幕会自动发送这个视频的字幕、标题和时长、UP 主名和简介，生成概览和一句话结论。这个开关新安装时是关的，打开前要先同意数据说明；设定时长默认 10 分钟，可以在 0 到 180 分钟之间调。在后台打开、还没切过去看的标签页也算，会排队一个个生成，正在看的那个先生成；同时只生成一个，10 分钟最多 20 个。一次开的标签页越多，花的 API 额度越多。已有概览的视频不再生成，同一个视频在一次浏览器会话里只自动试一次。外文字幕不自动翻译。服务商说额度用完或密钥不对时，自动生成会停下，等你手动生成成功一次，或者重新开一下开关，才恢复。
 
 **不会发送的**：B 站的 Cookie 和其他登录凭证，平台返回的字幕文件地址。
 
@@ -209,7 +209,7 @@ After installation, Jianmu reads no video data at all. The first time you open t
 - Playback state: playing, paused and total time played.
 - Your Bilibili sign-in state: only whether you are signed in. See the next section.
 - When you use 本窗口全部生成 (overviews for all videos in this window): the address and title of each tab in the current window that is on a site Jianmu is allowed to access.
-- With 打开就出结论 (verdict on open) switched on: the address of the active tab in the current window, so Jianmu can recognise a Bilibili video you have just opened.
+- With 打开就出结论 (verdict on open) switched on: the address of each tab on a site Jianmu is allowed to access, so Jianmu can recognise the Bilibili videos you open, including tabs opened in the background that you haven't looked at yet.
 - When you click to read on the triage page: your Bilibili Watch Later list and how far you have watched each video.
 
 This is used to show content in the side panel and in the card on the video page, to pick skim or close-reading mode from the video's length, the channel and how you are watching, and as material for overviews and answers later on.
@@ -244,7 +244,7 @@ First you need to read the data notice and agree, either by ticking the box in t
 
 - Normally only when you do something, such as clicking 生成概览 (generate overview), asking a question, clicking 解释 (explain), clicking 整理字幕 (tidy subtitles), or taking a note (once a note is saved, the model is asked to tidy up the subtitle line from that moment).
 - For 本窗口全部生成 and triage, you confirm how many videos first, and they are then sent one at a time.
-- With 打开就出结论 switched on: when you open a Bilibili video longer than the set length, Jianmu automatically sends that video's subtitles, title and duration, uploader name and description to generate an overview and a one-line verdict. The switch is off on a new install, and you have to agree to the data notice before turning it on. The set length is 10 minutes by default and can be anywhere from 0 to 180 minutes. A tab opened in the background counts as opened the first time you switch to it. Videos that already have an overview are skipped, and each video is tried automatically at most once per browser session. Foreign-language subtitles are not translated automatically. If the service says your quota has run out or your key is wrong, automatic generation pauses until you generate an overview by hand successfully or switch the setting off and on again.
+- With 打开就出结论 switched on: when you open a Bilibili video longer than the set length, Jianmu automatically sends that video's subtitles, title and duration, uploader name and description to generate an overview and a one-line verdict. The switch is off on a new install, and you have to agree to the data notice before turning it on. The set length is 10 minutes by default and can be anywhere from 0 to 180 minutes. Tabs opened in the background that you haven't looked at yet count too. They are queued and done one at a time, with the video you are watching going first. Only one is generated at a time, and at most 20 in any 10 minutes. The more tabs you open at once, the more of your API quota it uses. Videos that already have an overview are skipped, and each video is tried automatically at most once per browser session. Foreign-language subtitles are not translated automatically. If the service says your quota has run out or your key is wrong, automatic generation pauses until you generate an overview by hand successfully or switch the setting off and on again.
 
 **Never sent**: your Bilibili cookies or other sign-in credentials, and the subtitle file addresses the platform returns.
 
