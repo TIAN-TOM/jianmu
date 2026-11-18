@@ -291,10 +291,10 @@ test("过了半小时再来读：过期的那条不只是不再列出，也从�
   const h = setup();
   const done = await h.run();
   const stored = () => (h.session.data[FRAME_RESULTS_KEY] as FrameEntryView[] | undefined) ?? [];
-  await until(() => stored().some((item) => item.id === done.id && item.state === "done"));
+  assert.ok(await until(() => stored().some((item) => item.id === done.id && item.state === "done")));
   h.timers.advance(KEEP_MS + 1);
   assert.deepEqual(await h.service.recent(TAB), []);
-  await until(() => stored().length === 0);
+  assert.ok(await until(() => stored().length === 0));
 });
 
 test("解释记在会话存储里：后台醒来读得回来；醒来时还标着在跑的按中途停了收尾", async () => {
