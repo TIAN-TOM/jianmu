@@ -5,6 +5,7 @@ import { describe, errorCopy } from "../../core/errors.ts";
 import { noticeLines, noticeStatus, ACTIVATION_TABLE } from "../../core/consent.ts";
 import type { AutoPauseReason } from "../../shared/messages/ai.ts";
 import { ActivationNotice } from "../shared/ui/activation-notice.tsx";
+import { carriedList, carriedNotice } from "./carried.tsx";
 import { activationSections } from "../shared/ui/activation.ts";
 import { Button, IconButton } from "../shared/ui/button.tsx";
 import { Dock } from "../shared/ui/dock.tsx";
@@ -156,6 +157,7 @@ function notices(panel: Panel): (NoticeEntry | null)[] {
     config.state === "checked" && !config.view.ready
       ? { id: "config", priority: 3, text: "字幕不用设置就能看；概览和问答要先设置 AI 服务", tone: "plain", action: { label: "打开设置", run: panel.openOptions } }
       : null,
+    FEATURE_KEEP_CONSENT ? carriedNotice(panel) : null,
     config.state === "checked" && config.view.autoPaused
       ? { id: "auto-paused", priority: 4, text: AUTO_PAUSED[config.view.autoPaused], tone: "warn", action: { label: "打开设置", run: panel.openOptions } }
       : null,
@@ -189,7 +191,8 @@ export function App({ panel }: { readonly panel: Panel }) {
   if (!video) {
     return (
       <main class="panel panel-gate">
-        <Notice notices={[panel.toast.value ? { id: "toast", priority: 0, text: panel.toast.value.text, tone: "accent" } : null]} />
+        <Notice notices={[panel.toast.value ? { id: "toast", priority: 0, text: panel.toast.value.text, tone: "accent" } : null, FEATURE_KEEP_CONSENT ? carriedNotice(panel) : null]} />
+        {FEATURE_KEEP_CONSENT ? carriedList(panel) : null}
         <NoVideo panel={panel} />
       </main>
     );
@@ -202,6 +205,7 @@ export function App({ panel }: { readonly panel: Panel }) {
       <Header panel={panel} />
       <ModeRow panel={panel} />
       <Notice notices={lines} />
+      {FEATURE_KEEP_CONSENT ? carriedList(panel) : null}
       {FEATURE_FRAME_EXPLAIN && panel.frame ? <FrameResults panel={panel} frame={panel.frame} /> : null}
       <section class="mode-view" aria-label={mode === "study" ? "精读" : "速览"}>
         {mode === "study" ? <StudyView panel={panel} /> : <SkimView panel={panel} />}

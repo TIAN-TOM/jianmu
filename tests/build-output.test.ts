@@ -13,12 +13,13 @@ import { extractPromptSection } from "../src/core/ai/prompt.ts";
 import {
   FEATURE_GLOBALS,
   FEATURE_NAMES,
+  DAILY_FEATURES,
   RELEASE_FEATURES,
   TEST_BUILD_FEATURES,
   type FeatureName,
   type FeatureSet,
 } from "../src/shared/features.ts";
-import { FRAME_EXPLAIN_PROBE, YOUTUBE_OPEN_PANEL_PROBE, YOUTUBE_PROBE, YOUTUBE_SWITCH_LANG_PROBE } from "./fixtures/build-flags/gated.ts";
+import { FRAME_EXPLAIN_PROBE, KEEP_CONSENT_PROBE, YOUTUBE_OPEN_PANEL_PROBE, YOUTUBE_PROBE, YOUTUBE_SWITCH_LANG_PROBE } from "./fixtures/build-flags/gated.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BUILD = join(ROOT, "build");
@@ -287,6 +288,7 @@ const PROBES: Readonly<Record<FeatureName, string>> = {
   youtube: YOUTUBE_PROBE,
   youtubeOpenPanel: YOUTUBE_OPEN_PANEL_PROBE,
   youtubeSwitchLang: YOUTUBE_SWITCH_LANG_PROBE,
+  keepConsent: KEEP_CONSENT_PROBE,
 };
 
 async function probeBundle(features: FeatureSet): Promise<string> {
@@ -375,6 +377,28 @@ test("YouTube：发行构建的包里没有地址规则、脚本注册和启用�
       assert.ok(!release.get(file)?.includes(marker), `发行构建的 ${file} 里有 ${marker}`);
       assert.ok(!readBuild(file.replace(/^build\//, "")).includes(marker), `build/ 里的 ${file} 有 ${marker}`);
       assert.ok(youtube.get(file)?.includes(marker), `打开开关的 ${file} 里没有 ${marker}`);
+    }
+  }
+});
+
+// 沿用同意只在开发者本人的日用包里：两份说明的条目变了照旧算数，侧边栏顶上说一句说明更新了。
+const CARRY_MARKERS: Readonly<Record<string, readonly string[]>> = {
+  "build/background.js": ["src/core/consent-carry", "src/shared/settings-carry"],
+  "build/pages/sidepanel.js": ["src/pages/sidepanel/carried", "CarriedList", "说明更新了，多了几项", "看看多了什么"],
+  "build/pages/options.js": ["src/core/consent-carry"],
+};
+
+test("沿用同意：日用包里有，发行包和 build/ 里都没有，对外的包照旧要重新确认、重新同意", async () => {
+  const builds = async (features: FeatureSet): Promise<Map<string, string>> => {
+    const wanted = bundleOptions(features).filter((options) => typeof options.outfile === "string" && options.outfile in CARRY_MARKERS);
+    return new Map(await Promise.all(wanted.map(async (options) => [String(options.outfile), (await build({ ...options, write: false })).outputFiles.map((output) => output.text).join("\n")] as const)));
+  };
+  const [release, daily] = await Promise.all([builds(RELEASE_FEATURES), builds(DAILY_FEATURES)]);
+  for (const [file, markers] of Object.entries(CARRY_MARKERS)) {
+    for (const marker of markers) {
+      assert.ok(!release.get(file)?.includes(marker), `发行构建的 ${file} 里有 ${marker}`);
+      assert.ok(!readBuild(file.replace(/^build\//, "")).includes(marker), `build/ 里的 ${file} 有 ${marker}`);
+      assert.ok(daily.get(file)?.includes(marker), `日用构建的 ${file} 里没有 ${marker}`);
     }
   }
 });

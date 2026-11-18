@@ -8,6 +8,7 @@ export const FEATURE_GLOBALS = Object.freeze({
   youtube: "FEATURE_YOUTUBE",
   youtubeOpenPanel: "FEATURE_YOUTUBE_OPEN_PANEL",
   youtubeSwitchLang: "FEATURE_YOUTUBE_SWITCH_LANG",
+  keepConsent: "FEATURE_KEEP_CONSENT",
 } as const);
 
 export type FeatureName = keyof typeof FEATURE_GLOBALS;
@@ -24,20 +25,26 @@ export const RELEASE_FEATURES: FeatureSet = Object.freeze({
   youtube: false,
   youtubeOpenPanel: false,
   youtubeSwitchLang: false,
+  keepConsent: false,
 });
 
 /**
  * 日用构建：开发者本人每天用的包，发行构建加上只给他自己用、或者还在日常使用里验证的开关。`npm run package:daily` 打它，
- * 文件名带 -daily，发布脚本不认；对外的发行包仍按上面那份。眼下多开 YouTube，等真实页面上走通了再定发行包开不开。
+ * 文件名带 -daily，发布脚本不认；对外的发行包仍按上面那份。眼下多开 YouTube，等真实页面上走通了再定发行包开不开；
+ * 另开 keepConsent：说明的条目变了，确认过、同意过的照旧沿用，不拦着重新确认（开发者本人 2026-11-19 定，只给他自己的日用包）。
  */
-export const DAILY_FEATURES: FeatureSet = Object.freeze({ ...RELEASE_FEATURES, youtube: true });
+export const DAILY_FEATURES: FeatureSet = Object.freeze({ ...RELEASE_FEATURES, youtube: true, keepConsent: true });
 
-/** 测试构建：全部打开，只给测试用，不打包。Node 测试里的全局常量也取这一份。 */
+/**
+ * 测试构建：只给测试用，不打包。Node 测试里的全局常量也取这一份。功能开关全部打开；
+ * keepConsent 关着，和对外的发行包一样守着重新确认、重新同意，沿用同意的那一支另有测试按日用取值跑。
+ */
 export const TEST_BUILD_FEATURES: FeatureSet = Object.freeze({
   frameExplain: true,
   youtube: true,
   youtubeOpenPanel: true,
   youtubeSwitchLang: true,
+  keepConsent: false,
 });
 
 /**

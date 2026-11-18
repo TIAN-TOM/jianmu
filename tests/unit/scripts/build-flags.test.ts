@@ -31,6 +31,7 @@ test("不带参数是发行构建；--test-build 全开；--daily 是日用那�
     youtube: true,
     youtubeOpenPanel: true,
     youtubeSwitchLang: true,
+    keepConsent: false,
   });
   assert.throws(() => featuresFromArgs(["--test-build", "--youtube-ops"]), /只能选一个/);
 });
@@ -48,6 +49,7 @@ test("开关记录写下去读得回来，构建开始前删掉旧记录", () =>
     FEATURE_YOUTUBE: true,
     FEATURE_YOUTUBE_OPEN_PANEL: true,
     FEATURE_YOUTUBE_SWITCH_LANG: true,
+    FEATURE_KEEP_CONSENT: false,
   });
   writeBuildFlags(RELEASE_FEATURES, file);
   assert.deepEqual(readBuildFlags(file), buildFlagsRecord(RELEASE_FEATURES));

@@ -3,6 +3,7 @@ import { ok } from "../../core/errors.ts";
 import type { Messenger } from "../../platform/messaging.ts";
 import type { SettingsStore } from "../../platform/settings-store.ts";
 import { SETTINGS_STORAGE_KEY } from "../../shared/names.ts";
+import { wasEnabled } from "../../core/consent-carry.ts";
 import { activationStatus } from "../../shared/settings-schema.ts";
 import type { Reinject } from "../reinject.ts";
 import type { Route } from "../router.ts";
@@ -35,7 +36,10 @@ export function activationRoutes({ settings, messenger, contentTargets, reinject
       beforeEnable: true,
       validate: isEmptyRequest,
       async handler() {
+        // 开发者本人的日用包：启用本来就算数，只是记下看过说明多出来的条目，不广播、不往已开的视频页补注入。
+        const before = FEATURE_KEEP_CONSENT ? await settings.activation() : null;
         const status = await settings.confirmActivation();
+        if (FEATURE_KEEP_CONSENT ? wasEnabled(before) : false) return ok({ ...status, unreachableTabs: [] });
         const message = { type: "activation.changed", confirmed: status.state === "current" } as const;
         await Promise.all([messenger.toPages(message), messenger.toTabs(await contentTargets(), message)]);
         const { failed } = await reinject();

@@ -1,0 +1,155 @@
+// 开发者本人的日用包里沿用确认和同意：确认过、同意过的人说明的条目变了也照旧算数，不拦读取、不停发送，多出来的条目交给侧边栏列出；
+// 从没确认、没同意过的照旧要走一遍；侧边栏点过「知道了」以后两份说明都记成当前这一版。对外的发行包一点不变：条目变了仍然要重新确认、重新同意。
+// 产品模块加载时就读构建开关，两种取值各起一个子进程跑同一段脚本。
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { dirname, resolve } from "node:path";
+import { test } from "node:test";
+import { fileURLToPath } from "node:url";
+import { carryConsent, carryNotices } from "../../../src/core/consent-carry.ts";
+import { everAgreed, versionStamps, type CarriedItems, type NoticeItem, type NoticeTable } from "../../../src/core/consent.ts";
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+
+// 启用说明第 3 版、数据说明第 5 版在加上截图那几条之前的旧指纹：确认过、同意过，后来条目变了。
+const STALE = { activationVersion: 3, activationFingerprint: "c7c74de73be1ef90", dataConsentVersion: 5, dataConsentFingerprint: "b459474109f65107" };
+const NEVER = { activationVersion: 0, activationFingerprint: "", dataConsentVersion: 0, dataConsentFingerprint: "" };
+
+const SCRIPT = `
+const schema = await import("./src/shared/settings-schema.ts");
+const { dataConsentStatus } = await import("./src/pages/options/consent-status.ts");
+const consent = await import("./src/core/consent.ts");
+const { createSettingsStore } = await import("./src/platform/settings-store.ts");
+const STALE = ${JSON.stringify(STALE)};
+const NEVER = ${JSON.stringify(NEVER)};
+const AUTO = { kind: "trigger", id: "auto-on-open-tabs" };
+const rules = { dataConsentVersion: consent.DATA_CONSENT_VERSION, dataConsentFingerprint: consent.DATA_CONSENT_FINGERPRINT };
+const ids = (status) => status.state === "current" ? { state: "current", carried: [...(status.carried?.activation ?? []), ...(status.carried?.consent ?? [])].map(({ id }) => id) } : { state: status.state, updated: status.updated };
+const area = (data) => ({
+  async get(keys) { return Object.fromEntries((typeof keys === "string" ? [keys] : keys).filter((key) => key in data).map((key) => [key, structuredClone(data[key])])); },
+  async set(entries) { Object.assign(data, structuredClone(entries)); },
+  async remove(keys) { for (const key of typeof keys === "string" ? [keys] : keys) delete data[key]; },
+});
+const local = { jianmu_settings: { ...STALE } };
+const store = createSettingsStore({ storage: { local: area(local), session: area({}) }, locks: { exclusive: (_name, work) => Promise.resolve().then(work), shared: (_name, work) => Promise.resolve().then(work) } });
+const before = ids(await store.activation());
+await store.confirmActivation();
+const saved = local.jianmu_settings;
+
+// 写入一侧：启用说明确认过、数据说明从没同意过（或者同意后又取消了），点确认不能替他同意。
+const consentAfter = async (settings, untick) => {
+  const data = { jianmu_settings: { ...settings } };
+  const other = createSettingsStore({ storage: { local: area(data), session: area({}) }, locks: { exclusive: (_name, work) => Promise.resolve().then(work), shared: (_name, work) => Promise.resolve().then(work) } });
+  if (untick) await other.setDataConsent(false);
+  await other.confirmActivation();
+  return [data.jianmu_settings.dataConsentVersion, consent.dataConsentGiven(data.jianmu_settings, rules)];
+};
+
+// 确认的路由：启用本来就算数（沿用着）时只记下看过，不广播、不补注入；从没确认过的照常广播、补注入。
+const { activationRoutes } = await import("./src/background/routes/activation.ts");
+const routeCalls = async (settings) => {
+  const data = { jianmu_settings: { ...settings } };
+  const routeStore = createSettingsStore({ storage: { local: area(data), session: area({}) }, locks: { exclusive: (_name, work) => Promise.resolve().then(work), shared: (_name, work) => Promise.resolve().then(work) } });
+  const calls = [];
+  const routes = activationRoutes({
+    settings: routeStore,
+    messenger: { toPages: async () => void calls.push("toPages"), toTabs: async () => void calls.push("toTabs") },
+    contentTargets: async () => [1],
+    reinject: async () => (calls.push("reinject"), { injected: [], failed: [7] }),
+  });
+  const reply = await routes["activation.confirm"].handler({}, {});
+  return { calls, state: reply.value.state, unreachable: reply.value.unreachableTabs };
+};
+console.log(JSON.stringify({
+  stale: ids(schema.activationStatus(STALE)),
+  staleGroups: Object.fromEntries(Object.entries(schema.activationStatus(STALE).carried ?? {}).map(([key, items]) => [key, items.map(({ id }) => id)])),
+  never: ids(schema.activationStatus(NEVER)),
+  consentStale: ids(dataConsentStatus(STALE)),
+  consentNever: ids(dataConsentStatus(NEVER)),
+  givenStale: consent.dataConsentGiven(STALE, rules),
+  givenNever: consent.dataConsentGiven(NEVER, rules),
+  autoStale: consent.consentCovers(consent.DATA_CONSENT_TABLE, { version: STALE.dataConsentVersion, fingerprint: STALE.dataConsentFingerprint }, AUTO),
+  validStale: schema.validate({ ...STALE, presetId: "custom", aiBaseUrl: "https://api.example.com/v1", aiApiKey: "k", aiModel: "m" }).errors.includes(consent.DATA_CONSENT_ERROR),
+  storeBefore: before,
+  acknowledged: { activation: saved.activationFingerprint === consent.ACTIVATION_FINGERPRINT, consent: saved.dataConsentFingerprint === consent.DATA_CONSENT_FINGERPRINT },
+  after: ids(schema.activationStatus(saved)),
+  neverConsented: await consentAfter({ ...STALE, dataConsentVersion: 0, dataConsentFingerprint: "" }, false),
+  untickedConsent: await consentAfter(STALE, true),
+  routeStale: await routeCalls(STALE),
+  routeNever: await routeCalls(NEVER),
+}));
+`;
+
+function run(flags: string): Record<string, unknown> {
+  const output = execFileSync(process.execPath, ["--import", flags, "--input-type=module", "-e", SCRIPT], { cwd: ROOT, encoding: "utf8" });
+  return JSON.parse(output.trim().split("\n").at(-1) ?? "{}");
+}
+
+test("日用包：确认过、同意过的照旧算数，多出来的条目交给侧边栏；从没确认、没同意的照旧要走一遍；看过以后两份都记成当前这一版", () => {
+  const daily = run("./tests/helpers/daily-build-flags.ts");
+  // 认不出确认的是哪一版（同一个版本号，后来条目又并进了这一版）：从那一版起的条目都列出来。
+  assert.deepEqual(daily.stale, { state: "current", carried: ["open-tabs", "current-frame", "tidy-transcript", "keep-running", "current-frame", "frame-explain"] });
+  assert.deepEqual(daily.staleGroups, { activation: ["open-tabs", "current-frame"], consent: ["tidy-transcript", "keep-running", "current-frame", "frame-explain"] }, "在本机读的和发给模型的分开放");
+  assert.deepEqual(daily.never, { state: "needed", updated: false });
+  assert.deepEqual(daily.consentStale, { state: "current", carried: ["tidy-transcript", "keep-running", "current-frame", "frame-explain"] });
+  assert.deepEqual(daily.consentNever, { state: "needed", updated: false });
+  assert.equal(daily.givenStale, true);
+  assert.equal(daily.givenNever, false);
+  assert.equal(daily.autoStale, true, "打开就出结论照常跑");
+  assert.equal(daily.validStale, false, "设置校验不再报没同意");
+  assert.deepEqual(daily.storeBefore, daily.stale);
+  assert.deepEqual(daily.acknowledged, { activation: true, consent: true });
+  assert.deepEqual(daily.after, { state: "current", carried: [] });
+  assert.deepEqual(daily.neverConsented, [0, false], "数据说明从没同意过：点确认不替他同意");
+  assert.deepEqual(daily.untickedConsent, [0, false], "同意后又取消了：点确认不替他同意");
+  assert.deepEqual(daily.routeStale, { calls: [], state: "current", unreachable: [] }, "只是记下看过：不广播、不补注入");
+  assert.deepEqual(daily.routeNever, { calls: ["toPages", "toTabs", "reinject"], state: "current", unreachable: [7] });
+});
+
+test("发行包：条目变了仍然要重新确认、重新同意，没同意的内容不发，打开就出结论停着；点确认只记启用说明", () => {
+  const release = run("./scripts/lib/release-globals.mjs");
+  assert.deepEqual(release.stale, { state: "needed", updated: true });
+  assert.deepEqual(release.never, { state: "needed", updated: false });
+  assert.deepEqual(release.consentStale, { state: "needed", updated: true });
+  assert.equal(release.givenStale, false);
+  assert.equal(release.givenNever, false);
+  assert.equal(release.autoStale, false);
+  assert.equal(release.validStale, true);
+  assert.deepEqual(release.acknowledged, { activation: true, consent: false }, "启用确认不顺带改数据同意");
+  assert.deepEqual(release.after, { state: "current", carried: [] });
+  assert.deepEqual(release.neverConsented, [0, false]);
+  assert.deepEqual(release.untickedConsent, [0, false]);
+  assert.deepEqual(release.routeStale, { calls: ["toPages", "toTabs", "reinject"], state: "current", unreachable: [7] }, "发行包照常广播、补注入");
+});
+
+const item = <Kind extends string>(kind: Kind, id: string): NoticeItem<Kind> => ({ kind, id, text: id });
+
+const TABLE: NoticeTable<"read"> = [
+  { version: 1, items: [item("read", "a")] },
+  { version: 2, items: [item("read", "b")] },
+  { version: 3, items: [item("read", "c")] },
+];
+const CONSENT: NoticeTable<"category"> = [
+  { version: 1, items: [item("category", "x")] },
+  { version: 2, items: [item("category", "y")] },
+];
+const [V1, V2, V3] = versionStamps(TABLE);
+const [C1, C2] = versionStamps(CONSENT);
+const ids = (status: { readonly state: string; readonly carried?: CarriedItems }) =>
+  status.state === "current" ? [...(status.carried?.activation ?? []), ...(status.carried?.consent ?? [])].map(({ id }) => id) : status.state;
+
+test("沿用的规则：存着正整数版本才算确认过；从没确认过的照旧要走一遍；多出来的条目认得出就只列之后的，认不出从那一版起列", () => {
+  assert.equal(everAgreed({ version: 3 }), true);
+  for (const version of [0, -1, "3", null, undefined, 1.5]) assert.equal(everAgreed({ version }), false, String(version));
+  const none = { table: CONSENT, stored: {} };
+  assert.deepEqual(carryNotices(TABLE, {}, none), { state: "needed", updated: false, items: [item("read", "a"), item("read", "b"), item("read", "c")] });
+  assert.deepEqual(carryNotices(TABLE, V3 ?? {}, none), { state: "current" });
+  assert.deepEqual(ids(carryNotices(TABLE, V1 ?? {}, none)), ["b", "c"], "认得出确认的是第 1 版");
+  assert.deepEqual(ids(carryNotices(TABLE, { version: 2, fingerprint: "0000000000000000" }, none)), ["b", "c"], "第 2 版后来又并进了条目");
+  assert.deepEqual(ids(carryNotices(TABLE, V2 ?? {}, { table: CONSENT, stored: C1 ?? {} })), ["c", "y"], "两份说明多出来的合在一起");
+  assert.deepEqual(ids(carryNotices(TABLE, V3 ?? {}, { table: CONSENT, stored: C1 ?? {} })), ["y"], "启用说明没变、数据说明变了");
+  assert.deepEqual(carryNotices(TABLE, V3 ?? {}, { table: CONSENT, stored: { version: 0 } }), { state: "current" }, "数据说明从没同意过：等用户自己去设置页同意");
+  assert.deepEqual(ids(carryConsent(CONSENT, C1 ?? {})), ["y"]);
+  assert.deepEqual(carryConsent(CONSENT, C2 ?? {}), { state: "current" });
+  assert.equal(carryConsent(CONSENT, {}).state, "needed");
+});

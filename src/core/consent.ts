@@ -49,7 +49,11 @@ export interface StoredStamp {
 }
 
 export type NoticeStatus<Kind extends string> =
-  | { readonly state: "current" }
+  | {
+      readonly state: "current";
+      /** 只在开发者本人的日用包里有：确认过、同意过的旧版本照旧沿用，这是两份说明之后多出来、还没看过的条目。 */
+      readonly carried?: CarriedItems;
+    }
   | {
       readonly state: "needed";
       /** true：确认过别的版本，提示说明有更新；false：从没确认过。 */
@@ -57,6 +61,12 @@ export type NoticeStatus<Kind extends string> =
       /** 这次要给用户看的条目：认得出确认过哪一版就只列之后新增的，否则是完整说明。 */
       readonly items: readonly NoticeItem<Kind>[];
     };
+
+/** 沿用时多出来的条目：启用说明的（在本机读的）和数据说明的（发给模型的）分开放。 */
+export interface CarriedItems {
+  readonly activation: readonly NoticeItem<string>[];
+  readonly consent: readonly NoticeItem<string>[];
+}
 
 /** 设置里记着的数据同意。 */
 export interface StoredDataConsent {
@@ -211,15 +221,20 @@ function stampMatches(stored: StoredStamp, stamp: NoticeStamp): boolean {
   );
 }
 
+/** 以前确认过、同意过某一版：存着的版本号是正整数。 */
+export function everAgreed(stored: StoredStamp): boolean {
+  return Number.isInteger(stored.version) && Number(stored.version) > 0;
+}
+
 /** 存着的确认还算不算数，不算时这次要给用户看什么。 */
 export function noticeStatus<Kind extends string>(table: NoticeTable<Kind>, stored: StoredStamp): NoticeStatus<Kind> {
   const stamps = versionStamps(table);
   const agreedAt = stamps.findIndex((stamp) => stampMatches(stored, stamp));
   if (agreedAt >= 0 && agreedAt === stamps.length - 1) return { state: "current" };
-  const everAgreed = Number.isInteger(stored.version) && Number(stored.version) > 0;
+  const agreedBefore = everAgreed(stored);
   return {
     state: "needed",
-    updated: everAgreed,
+    updated: agreedBefore,
     items: table.slice(agreedAt + 1).flatMap((row) => row.items),
   };
 }
@@ -242,10 +257,9 @@ export function noticeLines<Kind extends string>(items: readonly NoticeItem<Kind
 
 /** 发给模型服务之前的核对：版本和指纹都和当前一致才放行。 */
 export function dataConsentGiven(stored: StoredDataConsent, rules: DataConsentRules): boolean {
-  return stampMatches(
-    { version: stored.dataConsentVersion, fingerprint: stored.dataConsentFingerprint },
-    { version: rules.dataConsentVersion, fingerprint: rules.dataConsentFingerprint },
-  );
+  const given = { version: stored.dataConsentVersion, fingerprint: stored.dataConsentFingerprint };
+  // 开发者本人的日用包：同意过别的版本也沿用（consent-carry.ts）。
+  return stampMatches(given, { version: rules.dataConsentVersion, fingerprint: rules.dataConsentFingerprint }) || (FEATURE_KEEP_CONSENT ? everAgreed(given) : false);
 }
 
 /**
@@ -256,7 +270,7 @@ export function consentCovers<Kind extends string>(
   stored: StoredStamp,
   item: { readonly kind: Kind; readonly id: string },
 ): boolean {
-  if (!stampMatches(stored, currentStamp(table))) return false;
+  if (!stampMatches(stored, currentStamp(table)) && !(FEATURE_KEEP_CONSENT ? everAgreed(stored) : false)) return false;
   return table.some((row) => row.items.some((entry) => entry.kind === item.kind && entry.id === item.id));
 }
 
