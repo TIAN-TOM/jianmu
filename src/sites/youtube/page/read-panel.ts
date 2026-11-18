@@ -153,6 +153,8 @@ export function createPanelReader({
   let emptied: { readonly content: string; readonly owner: string | null } | null = null;
   /** 面板上次是不是展开着，和最近一次从收起变成展开的时刻。 */
   let wasExpanded = false;
+  /** 上次打开着的那个面板：页面整个换了一个面板，里面的内容按新取来的算。 */
+  let lastOpen: Element | null = null;
   let reopenedAt = Number.NEGATIVE_INFINITY;
   let reopenedFor = "";
   /** 上次看段落时搜索框里有没有字：搜索滤空、清掉搜索词恢复的段落都不是页面新取来的。 */
@@ -184,6 +186,8 @@ export function createPanelReader({
   const changed = (): void => {
     const { panel } = openPanelOf(panelsNow());
     const open = panel !== null;
+    const replaced = panel !== null && lastOpen !== null && panel !== lastOpen;
+    if (panel !== null) lastOpen = panel;
     if (open && !wasExpanded) {
       reopenedAt = now();
       reopenedFor = videoNow();
@@ -194,7 +198,9 @@ export function createPanelReader({
     wasSearching = filtering;
     const previous = lastContent;
     const content = contentOf(panel);
+    // 换成的新面板里还是同一份内容：归属照旧。
     if (content === previous) return;
+    if (replaced) fresh = true;
     lastContent = content;
     stamp += 1;
     lastChangeTime = now();
@@ -235,9 +241,11 @@ export function createPanelReader({
       return;
     }
     // 接上时就在的内容记下来但不认；关着的面板里留着的段落也记下，之后原样打开时同样认不出。
-    lastContent = contentOf(openPanelOf(panels).panel);
+    const { panel: open } = openPanelOf(panels);
+    lastContent = contentOf(open);
     fresh = lastContent === "";
-    wasExpanded = openPanelOf(panels).panel !== null;
+    wasExpanded = open !== null;
+    lastOpen = open;
     const leftover = panels.find((panel) => panel.querySelector(SEGMENTS) !== null);
     if (!lastContent && leftover) emptied = { content: contentOf(leftover), owner: null };
   };

@@ -499,3 +499,34 @@ test("简幕接上之前段落就藏在关着的面板里：之后原样打开�
   showTranscript(w, panel, lines);
   assert.equal((await w.ask(reader)).state, "reopen");
 });
+
+test("站内换视频时页面把整个面板换成一个已经填好的新面板：按新取来的算；新面板里还是原来那份的，照样不认", async () => {
+  const w = modernWorld();
+  const first = w.addPanel("PAmodern_transcript_view");
+  const reader = w.makeReader();
+  showTranscript(w, first, [modern("0:00", "first video line")]);
+  w.go(OTHER);
+  // 页面拿掉旧面板，放进一个展开着、已经有新视频段落的面板。
+  const panels = w.document.lists.get(PANELS) ?? [];
+  w.document.lists.set(PANELS, panels.filter((panel) => panel !== first));
+  const second = w.addPanel("PAmodern_transcript_view");
+  second.attributes.set("visibility", "ENGAGEMENT_PANEL_VISIBILITY_EXPANDED");
+  second.found.set('[data-target-id="PAmodern_transcript_view"]', new FakeNode());
+  second.lists.set(SEGMENTS, [modern("0:00", "other video line")]);
+  w.tick();
+  assert.equal((await w.ask(reader, OTHER)).state, "ready");
+
+  const again = modernWorld();
+  const old = again.addPanel("PAmodern_transcript_view");
+  const reader2 = again.makeReader();
+  const lines = [modern("0:00", "first video line")];
+  showTranscript(again, old, lines);
+  again.go(OTHER);
+  again.document.lists.set(PANELS, (again.document.lists.get(PANELS) ?? []).filter((panel) => panel !== old));
+  const copy = again.addPanel("PAmodern_transcript_view");
+  copy.attributes.set("visibility", "ENGAGEMENT_PANEL_VISIBILITY_EXPANDED");
+  copy.found.set('[data-target-id="PAmodern_transcript_view"]', new FakeNode());
+  copy.lists.set(SEGMENTS, lines);
+  again.tick();
+  assert.equal((await again.ask(reader2, OTHER)).state, "stale");
+});
