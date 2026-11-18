@@ -64,7 +64,7 @@
 
 **什么时候发**：
 
-- 平时只在你操作时发，比如点「生成概览」、提问、点「解释」、点「整理字幕」，或者记笔记（笔记存下以后，会请模型润色那一刻的字幕）。
+- 平时只在你操作时发，比如点「生成概览」、提问、点「解释」、点「整理字幕」，或者记笔记（笔记存下以后，会请模型润色那一刻的字幕）。翻译和整理字幕点了以后在后台分批发完，关掉侧边栏也继续，直到做完、你点停止，或者视频所在的标签页换了视频或关掉。
 - 「本窗口全部生成」和粗筛，你先确认数量，之后逐个发送。
 - 打开「打开就出结论」以后：在 B 站打开超过设定时长的视频，简幕会自动发送这个视频的字幕、标题和时长、UP 主名和简介，生成概览和一句话结论。这个开关新安装时是关的，打开前要先同意数据说明；设定时长默认 10 分钟，可以在 0 到 180 分钟之间调。在后台打开、还没切过去看的标签页也算，打开开关时已经开着的也算；它们排队生成，正在看的那个先生成，同时最多生成两个，10 分钟最多 40 个。一次开的标签页越多，花的 API 额度越多。已有概览的视频不再生成，同一个视频在一次浏览器会话里只自动试一次。外文字幕不自动翻译。服务商说额度用完或密钥不对时，自动生成会停下，等你手动生成成功一次，或者重新开一下开关，才恢复。
 
@@ -253,7 +253,7 @@ First you need to read the data notice and agree, either by ticking the box in t
 
 **When it is sent**:
 
-- Normally only when you do something, such as clicking 生成概览 (generate overview), asking a question, clicking 解释 (explain), clicking 整理字幕 (tidy subtitles), or taking a note (once a note is saved, the model is asked to tidy up the subtitle line from that moment).
+- Normally only when you do something, such as clicking 生成概览 (generate overview), asking a question, clicking 解释 (explain), clicking 整理字幕 (tidy subtitles), or taking a note (once a note is saved, the model is asked to tidy up the subtitle line from that moment). Once you start a translation or subtitle tidy-up, it keeps sending batches in the background, even after you close the side panel, until it finishes, you click stop, or the tab with that video moves to another video or is closed.
 - For 本窗口全部生成 and triage, you confirm how many videos first, and they are then sent one at a time.
 - With 打开就出结论 switched on: when you open a Bilibili video longer than the set length, Jianmu automatically sends that video's subtitles, title and duration, uploader name and description to generate an overview and a one-line verdict. The switch is off on a new install, and you have to agree to the data notice before turning it on. The set length is 10 minutes by default and can be anywhere from 0 to 180 minutes. Tabs opened in the background that you haven't looked at yet count too, and so do tabs that were already open when you switched it on. They are queued, with the video you are watching going first. At most two are generated at a time, and at most 40 in any 10 minutes. The more tabs you open at once, the more of your API quota it uses. Videos that already have an overview are skipped, and each video is tried automatically at most once per browser session. Foreign-language subtitles are not translated automatically. If the service says your quota has run out or your key is wrong, automatic generation pauses until you generate an overview by hand successfully or switch the setting off and on again.
 

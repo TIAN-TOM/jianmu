@@ -23,7 +23,7 @@ chrome.tabs.onRemoved.addListener(wake((tabId: number) => current().onTabRemoved
 // 打开就出结论看开着的视频标签页，前台的排最前：开关关着、确认启用之前，App 不读标签页地址就返回。
 chrome.tabs.onActivated.addListener(wake(() => current().onTabActivated()));
 chrome.tabs.onUpdated.addListener(
-  wake((_tabId: number, change: chrome.tabs.OnUpdatedInfo) => current().onTabUpdated(change)),
+  wake((tabId: number, change: chrome.tabs.OnUpdatedInfo) => current().onTabUpdated(change, tabId)),
 );
 chrome.windows.onFocusChanged.addListener(wake((windowId: number) => current().onFocusChanged(windowId)));
 chrome.storage.onChanged.addListener(

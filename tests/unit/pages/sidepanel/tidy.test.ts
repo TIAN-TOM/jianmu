@@ -62,12 +62,25 @@ test("点「整理字幕」：带 purpose 从播放位置往后先做，显示�
   assert.deepEqual(tidy.lines.value, {});
 });
 
-test("翻译不带 purpose，仍然基于原文；整理字幕的批次不进译文", () => {
+test("翻译不带 purpose，仍然基于原文；打开视频先只取存着的、接上后台在跑的，再按切换发起；都带上视频所在的标签页", () => {
   const fake = fakeApi();
   const translation = createTranslation({ api: fake.api });
-  translation.bind(VIDEO, "fp1");
+  translation.bind(VIDEO, "fp1", 3);
+  assert.deepEqual(fake.posted, [{ type: "translate.start", video: VIDEO, storedOnly: true, tabId: 3 }]);
+  fake.emit({ type: "translate.done", state: "completed", totalBatches: 0, failedBatches: 0 });
   translation.setMode("bilingual", 0);
-  assert.deepEqual(fake.posted, [{ type: "translate.start", video: VIDEO }]);
+  assert.deepEqual(fake.posted.at(-1), { type: "translate.start", video: VIDEO, tabId: 3 });
+});
+
+test("打开视频时后台还在跑：接上它，显示进度；做完以后照常收尾", () => {
+  const fake = fakeApi();
+  const tidy = createTidy({ api: fake.api });
+  tidy.bind(VIDEO, "fp1", 3);
+  fake.emit({ type: "translate.started", task: {} as never, joined: true, transcript: {} as never, target: "tidy", pending: 10 });
+  fake.emit({ type: "translate.segments", fingerprint: "fp1", translated: { s0: "一。" } });
+  assert.deepEqual(tidy.state.value, { phase: "running", done: 1, total: 10, message: "" });
+  fake.emit({ type: "translate.done", state: "completed", totalBatches: 1, failedBatches: 0 });
+  assert.equal(tidy.state.value.phase, "done");
 });
 
 test("显示：整理后的替换原文，双语时译文照旧在下面；切回原始字幕（不给整理结果）就是原文；整理过的段不再按行断开", () => {

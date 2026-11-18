@@ -74,7 +74,7 @@ function Toolbar({ panel, view, onSearch, searching, onImport }: { readonly pane
   const position = panel.player.position.value;
   const modeItems: MenuItem[] = (["original", "translated", "bilingual"] as const).map((item) => ({
     label: MODE_LABEL[item],
-    ...(item === mode ? { hint: "正在用" } : item !== "original" ? { hint: "会请模型翻译没译过的段落" } : {}),
+    ...(item === mode ? { hint: "正在用" } : item !== "original" ? { hint: "会请模型翻译没译过的段落，要用 API 额度；关掉侧边栏也会译完" } : {}),
     onSelect: () => translation.setMode(item, position?.atSec),
   }));
   const exportSrt = (): void => {
@@ -132,7 +132,7 @@ function TidyRow({ panel, segments }: { readonly panel: Panel; readonly segments
   if (phase === "running") {
     return (
       <div class="progress-row" role="status">
-        <span>{total > 0 ? `正在整理字幕 ${done}/${total} 段` : "正在整理字幕…"}</span>
+        <span>{total > 0 ? `正在整理字幕 ${done}/${total} 段，关掉侧边栏也会继续` : "正在整理字幕…"}</span>
         <Button variant="text" onClick={() => panel.tidy.stopRunning()}>
           停止
         </Button>
@@ -144,7 +144,7 @@ function TidyRow({ panel, segments }: { readonly panel: Panel; readonly segments
   return (
     <div class="tidy-row">
       {count === 0 ? (
-        <Button onClick={start} disabled={!ready} {...(reason ? { disabledReason: reason } : {})} note="补标点、改同音错字，要用 API 额度；长视频大约和翻译一遍差不多">
+        <Button onClick={start} disabled={!ready} {...(reason ? { disabledReason: reason } : {})} note="补标点、改同音错字，要用 API 额度；长视频大约和翻译一遍差不多。点了会整理完，关掉侧边栏也继续">
           整理字幕
         </Button>
       ) : (
@@ -170,7 +170,7 @@ function TranslateRow({ panel }: { readonly panel: Panel }) {
   if (phase === "running") {
     return (
       <div class="progress-row" role="status">
-        <span>{total > 0 ? `正在翻译 ${done}/${total} 段` : "正在翻译…"}</span>
+        <span>{total > 0 ? `正在翻译 ${done}/${total} 段，关掉侧边栏也会继续` : "正在翻译…"}</span>
         <Button variant="text" onClick={() => panel.translation.stopRunning()}>
           停止
         </Button>
