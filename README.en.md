@@ -4,7 +4,7 @@
 
 Helps you work out within a few minutes whether a long Bilibili or YouTube video is worth watching and which parts matter. Once you decide to watch, it helps you read along closely.
 
-> **Status: being rewritten, not released yet, and there is no package to download.** On Bilibili, the main flow (reading subtitles, generating overviews, Q&A with citations, taking notes, the card on the video page and the settings page), Watch Later triage, generating for every video in the window, 打开就出结论 (verdict on open) and the features listed below are on the main branch, and automated tests run them against locally simulated pages. The developer now uses it day to day on Bilibili. Next, the first Bilibili-only version goes out on GitHub, with YouTube to follow ([PRD](notes/product-prd.md), section 1, in Chinese).
+> **Status: being rewritten, not released yet, and there is no package to download.** On Bilibili, the main flow (reading subtitles, generating overviews, Q&A with citations, taking notes, the card on the video page and the settings page), Watch Later triage, generating for every video in the window, 打开就出结论 (verdict on open) and the features listed below are on the main branch, and automated tests run them against locally simulated pages. The developer now uses it day to day on Bilibili. Next comes YouTube, and the first version goes out on GitHub once both sites work end to end ([PRD](notes/product-prd.md), section 1, in Chinese).
 
 Screenshots and a demo GIF aren't ready yet. They will be added before the first release. <!-- 待定：演示截图和动图 -->
 
@@ -12,7 +12,7 @@ Jianmu is a Chrome extension (Manifest V3). There is no developer backend and no
 
 ## Planned features
 
-This describes where the project is heading. Only part of it is built so far, and the [PRD](notes/product-prd.md) (in Chinese) is what defines the scope. The first version supports Bilibili only. YouTube comes in a later version.
+This describes where the project is heading. Only part of it is built so far, and the [PRD](notes/product-prd.md) (in Chinese) is what defines the scope. The first version will support both Bilibili and YouTube.
 
 - **Verdict on open** (打开就出结论): once you switch it on, any Bilibili video longer than a set length (10 minutes by default) gets an overview and a one-line verdict as soon as you open it, shown right on the card on the video page with no clicking. Tabs opened in the background are queued too, with the one you are watching going first, so the more tabs you open, the more of your API quota it uses. The switch is off on a new install, and you have to agree to the data notice before turning it on. While it is on, the video's subtitles, title and duration, uploader name and description are sent automatically to the model service you chose. Foreign-language videos are not translated automatically.
 - **Skim**: a one-line verdict with a recommendation (worth watching, fine to watch, skippable, not enough information), plus timestamped chapters. Expand a chapter to read its subtitles.
@@ -23,7 +23,7 @@ This describes where the project is heading. Only part of it is built so far, an
 - **Tidy subtitles**: speech-recognised subtitles have no punctuation. One click has your own model add punctuation and fix obvious sound-alike mistakes, and nothing else; any line it rewrites is shown as the original. Like translation, it runs to the end in the background once started.
 - **Batch decisions**: generate overviews for every Bilibili video open in the current window in one go, and run a quick triage over your Watch Later list.
 - **Your own model**: use as strong a model as you like, and set the reasoning effort for each feature separately. New installs start on the cheap settings.
-- **Two sites, one tool** (YouTube version): Bilibili and YouTube share one side panel for verdicts, chapters and subtitles. It ships only after it passes checks on real pages.
+- **Two sites, one tool**: Bilibili and YouTube share one side panel for verdicts, chapters and subtitles. It ships only after it passes checks on real pages.
 
 On Bilibili, Jianmu only reads what a signed-in user can already see, never downloads audio or video, and leaves paid content alone. The rules are in section 8.1 of the [PRD](notes/product-prd.md) (in Chinese).
 
