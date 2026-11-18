@@ -20,10 +20,10 @@ chrome.runtime.onConnect.addListener(wake((port: chrome.runtime.Port) => current
 chrome.runtime.onInstalled.addListener(wake((details: chrome.runtime.InstalledDetails) => void current().onInstalled(details.reason)));
 chrome.runtime.onStartup.addListener(wake(() => void current().onStartup()));
 chrome.tabs.onRemoved.addListener(wake((tabId: number) => current().onTabRemoved(tabId)));
-// 打开就出结论看前台标签页和窗口焦点：开关关着、确认启用之前，App 不读标签页地址就返回。
+// 打开就出结论看开着的视频标签页，前台的排最前：开关关着、确认启用之前，App 不读标签页地址就返回。
 chrome.tabs.onActivated.addListener(wake(() => current().onTabActivated()));
 chrome.tabs.onUpdated.addListener(
-  wake((_tabId: number, change: chrome.tabs.OnUpdatedInfo, tab: chrome.tabs.Tab) => current().onTabUpdated(change, tab)),
+  wake((_tabId: number, change: chrome.tabs.OnUpdatedInfo) => current().onTabUpdated(change)),
 );
 chrome.windows.onFocusChanged.addListener(wake((windowId: number) => current().onFocusChanged(windowId)));
 chrome.storage.onChanged.addListener(

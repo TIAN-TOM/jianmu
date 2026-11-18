@@ -81,6 +81,8 @@ export interface Tabs {
   readonly title: (tabId: number) => Promise<string | null>;
   /** 一个窗口里地址匹配得上这几条规则的标签页：编号、地址和标题，按标签页的顺序。只在确认启用之后调。 */
   readonly windowTabs: (windowId: number, matches: readonly string[]) => Promise<readonly WindowTab[]>;
+  /** 各窗口里地址匹配得上这几条规则的标签页：编号和地址，按编号也就是打开的先后。只在确认启用之后调。 */
+  readonly allTabs: (matches: readonly string[]) => Promise<readonly { readonly tabId: number; readonly url: string }[]>;
   /** 现在获得焦点的 Chrome 窗口；焦点不在 Chrome、或者读不到时是 null。 */
   readonly focusedWindow: () => Promise<number | null>;
   /** 一个窗口的活动标签页。没有主机权限的网站看不到地址。只在确认启用之后调。 */
@@ -139,6 +141,13 @@ export function createTabs(
       if (matches.length === 0) return [];
       const found = await tabs.query({ url: [...matches], windowId });
       return found.flatMap(({ id, url, title }) => (typeof id === "number" && typeof url === "string" ? [{ tabId: id, url, title: title ?? "" }] : []));
+    },
+    async allTabs(matches) {
+      if (matches.length === 0) return [];
+      const found = await tabs.query({ url: [...matches] });
+      return found
+        .flatMap(({ id, url }) => (typeof id === "number" && typeof url === "string" ? [{ tabId: id, url }] : []))
+        .sort((a, b) => a.tabId - b.tabId);
     },
     async focusedWindow() {
       if (!windows) return null;

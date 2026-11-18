@@ -58,6 +58,8 @@ export interface FakeChromeOptions {
   readonly manifest?: FakeManifest;
   /** tabs.query 查到的已开标签页。 */
   readonly openTabs?: readonly number[];
+  /** 按地址规则查时回的标签页：编号到地址。给了它，按地址查时不再回 openTabs。 */
+  readonly urlTabs?: Readonly<Record<number, string>>;
   /** sidePanel.open 被浏览器拒绝。 */
   readonly panelOpenRefused?: boolean;
   /** 往这几个标签页注入脚本时浏览器报错。 */
@@ -197,6 +199,7 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
         const tab = info.windowId === undefined ? undefined : options.activeTabs?.[info.windowId];
         return tab ? [{ ...tab, windowId: info.windowId, active: true }] : [];
       }
+      if (info.url && options.urlTabs) return Object.entries(options.urlTabs).map(([id, url]) => ({ id: Number(id), url }));
       return (options.openTabs ?? []).map((id) => ({ id }));
     },
     async get(tabId: number) {

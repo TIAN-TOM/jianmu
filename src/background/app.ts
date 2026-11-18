@@ -86,9 +86,9 @@ export interface App {
   readonly onStartup: () => Promise<void>;
   readonly onTabRemoved: (tabId: number) => void;
   readonly onStorageChanged: (changes: Readonly<Record<string, StorageChange>>, area: string) => Promise<void>;
-  /** 标签页激活、前台标签页地址变了或加载完成、窗口焦点变了：打开就出结论按那一刻的前台判断一次。 */
+  /** 标签页激活、任何标签页地址变了或加载完成、窗口焦点变了：打开就出结论把开着的视频标签页过一轮，前台的排最前。 */
   readonly onTabActivated: () => void;
-  readonly onTabUpdated: (change: { readonly url?: string; readonly status?: string }, tab: { readonly active?: boolean }) => void;
+  readonly onTabUpdated: (change: { readonly url?: string; readonly status?: string }) => void;
   readonly onFocusChanged: (windowId: number) => void;
 }
 
@@ -402,7 +402,8 @@ function assembleCore(deps: AppDeps): Core {
   const studyStores = assembleStudyStores(deps, clearGuard);
   const overview = assembleOverview(deps, generation);
   const verdict = assembleVerdict(deps, generation);
-  const autoParts = { settings, tabs, rules: deps.siteRules, ai, tasks, overviews, transcript, overview, storage: deps.storage.session, guard: clearGuard };
+  const sleep = (ms: number) => new Promise<void>((resolve) => void deps.timers.setTimeout(resolve, ms));
+  const autoParts = { settings, tabs, watchPages: tabs.contentScripts().flatMap((script) => script.matches), sleep, rules: deps.siteRules, ai, tasks, overviews, transcript, overview, storage: deps.storage.session, guard: clearGuard };
   return {
     settings,
     clearGuard,
@@ -468,9 +469,8 @@ export function createApp(deps: AppDeps): App {
     },
     onStartup: setPanelBehavior,
     onTabActivated: () => consider(),
-    onTabUpdated(change, tab) {
-      if (tab.active === true && (Object.hasOwn(change, "url") || change.status === "complete")) consider();
-    },
+    // 后台打开的标签页也算：地址变了或加载完成就把开着的视频标签页再过一遍。
+    onTabUpdated: (change) => (Object.hasOwn(change, "url") || change.status === "complete" ? consider() : undefined),
     onFocusChanged(windowId) {
       if (windowId !== NO_WINDOW) consider();
     },
@@ -482,7 +482,8 @@ export function createApp(deps: AppDeps): App {
       });
     },
     async onStorageChanged(changes, area) {
-      if (autoSwitchToggled(changes, area)) await core.auto.resume().catch((error: unknown) => deps.log.error("恢复自动生成失败", errorLabel(error)));
+      // 开关一动就恢复；刚打开时把已经开着的视频标签页排进来，不等下一个标签页事件。
+      if (autoSwitchToggled(changes, area)) await core.auto.resume().then(consider, (error: unknown) => deps.log.error("恢复自动生成失败", errorLabel(error)));
       // 先断端口：启用失效以后，连着的页面不能再发起新的读取和模型请求。
       if (activationLost(changes, area)) router.closeBusinessPorts("NOT_ENABLED");
       // 只发给发过消息的内容脚本：启用已经失效，不再按地址查标签页。
