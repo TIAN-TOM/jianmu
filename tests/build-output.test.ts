@@ -384,7 +384,7 @@ test("YouTube：发行构建的包里没有地址规则、脚本注册和启用�
 // 沿用同意只在开发者本人的日用包里：两份说明的条目变了照旧算数，侧边栏顶上说一句说明更新了。
 const CARRY_MARKERS: Readonly<Record<string, readonly string[]>> = {
   "build/background.js": ["src/core/consent-carry", "src/shared/settings-carry"],
-  "build/pages/sidepanel.js": ["src/pages/sidepanel/carried", "说明更新了，多了几项", "看看多了什么"],
+  "build/pages/sidepanel.js": ["src/pages/sidepanel/carried", "CarriedList", "说明更新了，多了几项", "看看多了什么"],
   "build/pages/options.js": ["src/core/consent-carry"],
 };
 

@@ -1,5 +1,6 @@
 // 开发者本人的日用包：两份说明的条目变了照旧沿用，侧边栏顶上那一行说一句说明更新了；点开分两组列出这次多了什么，
 // 点「知道了」记下当前这一版，这一行就不再出现。只从 FEATURE_KEEP_CONSENT 的分支引用，对外的发行包里没有这个模块。
+import type { VNode } from "preact";
 import { signal, type Signal } from "@preact/signals";
 import { noticeLines, type CarriedItems, type NoticeLine } from "../../core/consent.ts";
 import { Button } from "../shared/ui/button.tsx";
@@ -47,7 +48,7 @@ function Group({ title, lines }: { readonly title: string; readonly lines: reado
   );
 }
 
-export function CarriedList({ panel }: { readonly panel: Panel }) {
+function CarriedList({ panel }: { readonly panel: Panel }) {
   const lines = shown().value;
   if (!lines) return null;
   return (
@@ -64,4 +65,9 @@ export function CarriedList({ panel }: { readonly panel: Panel }) {
       </Button>
     </section>
   );
+}
+
+/** 开关分支里只写这个名字：JSX 留在这个模块里，开关关着的构建连它一起裁掉。 */
+export function carriedList(panel: Panel): VNode {
+  return <CarriedList panel={panel} />;
 }

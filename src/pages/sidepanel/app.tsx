@@ -5,7 +5,7 @@ import { describe, errorCopy } from "../../core/errors.ts";
 import { noticeLines, noticeStatus, ACTIVATION_TABLE } from "../../core/consent.ts";
 import type { AutoPauseReason } from "../../shared/messages/ai.ts";
 import { ActivationNotice } from "../shared/ui/activation-notice.tsx";
-import { CarriedList, carriedNotice } from "./carried.tsx";
+import { carriedList, carriedNotice } from "./carried.tsx";
 import { activationSections } from "../shared/ui/activation.ts";
 import { Button, IconButton } from "../shared/ui/button.tsx";
 import { Dock } from "../shared/ui/dock.tsx";
@@ -192,7 +192,7 @@ export function App({ panel }: { readonly panel: Panel }) {
     return (
       <main class="panel panel-gate">
         <Notice notices={[panel.toast.value ? { id: "toast", priority: 0, text: panel.toast.value.text, tone: "accent" } : null, FEATURE_KEEP_CONSENT ? carriedNotice(panel) : null]} />
-        {FEATURE_KEEP_CONSENT ? <CarriedList panel={panel} /> : null}
+        {FEATURE_KEEP_CONSENT ? carriedList(panel) : null}
         <NoVideo panel={panel} />
       </main>
     );
@@ -205,7 +205,7 @@ export function App({ panel }: { readonly panel: Panel }) {
       <Header panel={panel} />
       <ModeRow panel={panel} />
       <Notice notices={lines} />
-      {FEATURE_KEEP_CONSENT ? <CarriedList panel={panel} /> : null}
+      {FEATURE_KEEP_CONSENT ? carriedList(panel) : null}
       {FEATURE_FRAME_EXPLAIN && panel.frame ? <FrameResults panel={panel} frame={panel.frame} /> : null}
       <section class="mode-view" aria-label={mode === "study" ? "精读" : "速览"}>
         {mode === "study" ? <StudyView panel={panel} /> : <SkimView panel={panel} />}
