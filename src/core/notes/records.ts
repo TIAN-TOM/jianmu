@@ -1,4 +1,5 @@
 // 笔记和概览的记录类型，以及派生结果记下的依据和生成配置。
+import type { TextTarget } from "../../shared/messages/translate.ts";
 import type { FailureRange, StoredRange } from "../ai/chunking.ts";
 import type { CaptionKind } from "../transcript/sources.ts";
 import { parseVideoKey, type VideoKey } from "../video-ref.ts";
@@ -161,3 +162,19 @@ export function normalizeAnalysisFailures(value: unknown): FailureRange[] {
     })
     .filter((item) => Number.isFinite(item.startSeconds));
 }
+
+/** 按字幕版本存的译文和整理后的字幕：一版字幕译成一种语言（或整理一遍）是一条，记录里按段的原文指纹记文字。 */
+export interface TranslationRecord {
+  readonly id: string;
+  readonly video: VideoKey;
+  readonly transcript: TranscriptRef;
+  readonly target: TextTarget;
+  /** 按段的原文认：换了字幕版本，原文没变的段还对得上。 */
+  readonly segments: Readonly<Record<string, string>>;
+  readonly derived: Derived;
+  readonly updatedAt: number;
+}
+
+export const TEXT_TARGETS: readonly TextTarget[] = Object.freeze(["zh", "en", "tidy"]);
+
+export const translationId = (transcript: Pick<TranscriptRef, "video" | "fingerprint">, target: TextTarget): string => `${transcript.video}|${transcript.fingerprint}|${target}`;

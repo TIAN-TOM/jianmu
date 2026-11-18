@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { TRANSLATION_BATCH_MAX_SEGMENTS } from "../../../../src/core/ai/chunking.ts";
 import type { CompletionRequest } from "../../../../src/core/ai/transport/index.ts";
 import { cue, echo, page, transcriptView, translateHarness, VIDEO } from "../../../helpers/translate-service.ts";
+import { until } from "../../../helpers/wait-until.ts";
 
 /** 三批满的加一段。 */
 const MANY = Array.from({ length: TRANSLATION_BATCH_MAX_SEGMENTS * 3 + 1 }, (_, index) => cue(index * 10, `第${index + 1}句`));
@@ -114,4 +115,27 @@ test("还在准备（读字幕）时发起的标签页关掉或换了视频：�
     assert.equal(h.requests(), 0, String(url));
     assert.deepEqual(h.tasks.list(), [], String(url));
   }
+});
+
+test("登记的工夫点了停止，接着关掉面板：照样停，一个模型请求都不发", async () => {
+  const view = await transcriptView(MANY);
+  const h = translateHarness(view, { concurrency: 1 });
+  const original = h.tasks.register.bind(h.tasks);
+  let release: () => void = () => undefined;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  let registering = false;
+  (h.tasks as { register: typeof original }).register = async (...args) => {
+    registering = true;
+    await gate;
+    return original(...args);
+  };
+  const panel = page("panel");
+  const running = h.translate(panel);
+  assert.ok(await until(() => registering), "停在登记");
+  h.service.stop(panel.id);
+  h.service.leave(panel.id);
+  release();
+  await running;
+  assert.equal(h.requests(), 0);
+  assert.deepEqual(h.tasks.list(), []);
 });

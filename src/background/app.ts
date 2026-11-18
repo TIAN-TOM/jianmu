@@ -40,7 +40,7 @@ import { createImportStore, type ImportRecord } from "./stores/imports.ts";
 import { createNoteStore, type NoteStore } from "./stores/notes.ts";
 import { createOverviewStore, type OverviewStore } from "./stores/overviews.ts";
 import { createQaStore, type QaStore } from "./stores/qa.ts";
-import { createTranslationStore, type TranslationRecord } from "./stores/translations.ts";
+import { createTranslationStore, type TranslationRecord, type TranslationStore } from "./stores/translations.ts";
 import { createOverviewService, type OverviewService } from "./services/overview/index.ts";
 import { createVerdictService, type VerdictService } from "./services/overview/verdict.ts";
 import { createExplainService, type ExplainService } from "./services/explain.ts";
@@ -276,7 +276,7 @@ function assembleVerdict(deps: AppDeps, parts: OverviewParts): VerdictService {
 }
 
 /** 问答、划词解释和笔记：问答历史和笔记各一个仓储，笔记的链接按站点的规则现拼。 */
-function assembleStudyStores(deps: AppDeps, clearGuard: ClearGuard): { readonly notes: NoteStore; readonly qa: QaStore } {
+function assembleStudyStores(deps: AppDeps, clearGuard: ClearGuard): { readonly notes: NoteStore; readonly qa: QaStore; readonly translations: TranslationStore } {
   const rules = (platform: string) => deps.siteRules.find((rule) => rule.platform === platform);
   return {
     notes: createNoteStore({
@@ -285,6 +285,8 @@ function assembleStudyStores(deps: AppDeps, clearGuard: ClearGuard): { readonly 
       canonicalUrl: (ref, atSec) => rules(ref.platform)?.canonicalUrl(ref, atSec) ?? "",
     }),
     qa: createQaStore({ driver: lazyDriver<QaRecord>("qa", deps.indexedDB), guard: clearGuard }),
+    // 翻译服务和备份共用这一个仓储：读—改—写排在同一条写入队列里。
+    translations: createTranslationStore({ driver: lazyDriver<TranslationRecord>("translations", deps.indexedDB), guard: clearGuard, now: deps.timers.now }),
   };
 }
 
@@ -323,15 +325,11 @@ function assembleStudy(deps: AppDeps, parts: OverviewParts, keepAlive: KeepAlive
 }
 
 // 翻译：译文按字幕版本单独存，清除全部数据时才清；分批的并发按自己的上限，不排概览那道闸门。
-function assembleTranslate(deps: AppDeps, parts: OverviewParts): TranslateService {
+function assembleTranslate(deps: AppDeps, parts: OverviewParts, translations: TranslationStore): TranslateService {
   return createTranslateService({
     tasks: parts.tasks,
     transcript: parts.transcript,
-    translations: createTranslationStore({
-      driver: lazyDriver<TranslationRecord>("translations", deps.indexedDB),
-      guard: parts.clearGuard,
-      now: deps.timers.now,
-    }),
+    translations,
     freeze: parts.ai.freeze,
     prompt: parts.ai.prompt,
     guard: parts.clearGuard,
@@ -374,6 +372,7 @@ function assembleData(deps: AppDeps, parts: OverviewParts, stores: ReturnType<ty
     notes: stores.notes,
     overviews: parts.overviews,
     qa: stores.qa,
+    translations: stores.translations,
     guard: parts.clearGuard,
     tasks: parts.tasks,
     settings: parts.settings,
@@ -422,7 +421,7 @@ function assembleCore(deps: AppDeps): Core {
     overview,
     verdict,
     ...assembleStudy(deps, generation, keepAlive, studyStores),
-    translate: assembleTranslate(deps, generation),
+    translate: assembleTranslate(deps, generation, studyStores.translations),
     data: assembleData(deps, generation, studyStores),
     batch: assembleBatch(deps, generation, tabs, keepAlive, { overview, verdict }),
     auto: createAutoWiring({ ...autoParts, now: deps.timers.now, broadcast: (message) => void messenger.toPages(message), log: deps.log }),

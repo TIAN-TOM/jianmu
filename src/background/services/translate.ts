@@ -428,7 +428,9 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
     const session = attach(task.id, departed ? undefined : listener);
     if (tabId !== undefined) session.tabIds.add(tabId);
     // 登记的工夫点了停止：和登记好以后点停止一样，停掉这个任务。
-    if ((!departed && mine.halted) || mine.left) deps.tasks.cancel(task.id, VIDEO_LEFT);
+    // 点过停止就停，页面后来关了也一样。
+    if (mine.halted) deps.tasks.cancel(task.id);
+    else if (mine.left) deps.tasks.cancel(task.id, VIDEO_LEFT);
     prepared();
     const startedEvent = { type: "translate.started" as const, task, joined: registered.joined, transcript, target: job.target, pending: todo.length };
     if (!registered.joined) session.started = { video, target: job.target, event: startedEvent };
