@@ -29,6 +29,8 @@ export function ChapterList({ chapters, keyStarts, expanded = [], onToggle, onSe
   const id = useId();
   const keys = keyFlags(chapters, keyStarts);
   const keyCount = keys.filter(Boolean).length;
+  // 时间这一列按最长的时间定宽，章节名才对得齐。
+  const timeChars = Math.max(4, ...chapters.map((chapter) => formatTimestamp(chapter.startSec).length));
   return (
     <section class="chapters" aria-labelledby={heading ? `${id}-heading` : undefined} aria-label={heading ? undefined : "章节"}>
       {heading ? (
@@ -36,7 +38,7 @@ export function ChapterList({ chapters, keyStarts, expanded = [], onToggle, onSe
           {chapterHeading(chapters.length, keyCount)}
         </h3>
       ) : null}
-      <ol class="chapter-list" onMouseLeave={onHover ? () => onHover(null) : undefined}>
+      <ol class="chapter-list" style={`--time-ch:${timeChars}`} onMouseLeave={onHover ? () => onHover(null) : undefined}>
         {chapters.map((chapter, index) => {
           const open = expanded.includes(index);
           const detailId = `${id}-detail-${index}`;

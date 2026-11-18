@@ -22,7 +22,7 @@ export type SiteFailureReach = "item" | "source";
 
 // 读视频网站在调模型之前，读不到就不会往下走。
 const NOT_READ = "这次没读到，也没发给模型，不花额度。";
-const IMPORT_FILE = "手上有这个视频的字幕文件的话，可以在侧边栏点「导入字幕文件」；在播放页卡片上要先点「打开完整面板」。";
+const IMPORT_FILE = "手上有这个视频的字幕文件的话，可以在侧边栏点「导入字幕文件」；在播放页卡片上要先点「打开侧边栏」。";
 
 export const SITE_ERROR_TEXT: Readonly<Record<SiteErrorCode, ErrorCopy>> = {
   NEED_LOGIN: { cause: "这个浏览器还没登录视频网站。", impact: "字幕、官方总结和稍后再看只给已登录的用户读，这次都没读。", next: "登录以后再试，或者导入自己的字幕文件。" },

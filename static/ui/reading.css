@@ -232,12 +232,15 @@
 
 .chapter-time {
   flex: none;
+  /* 按这一列里最长的时间定宽，后面的章节名才对得齐。 */
+  min-width: calc(var(--time-ch, 4) * 1ch + 2 * var(--space-1));
   padding: 0 var(--space-1);
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--accent-text);
   font-size: var(--fs-meta);
+  text-align: start;
   cursor: pointer;
 }
 
@@ -247,6 +250,7 @@
 
 .chapter-toggle,
 .chapter-title {
+  position: relative;
   display: inline-flex;
   align-items: baseline;
   gap: var(--space-2);
@@ -283,6 +287,15 @@
   height: 7px;
   border-radius: var(--radius-pill);
   background: var(--mark);
+}
+
+/* 章节列表里，重点的圆点放在时间和章节名之间的空里、对着第一行：不占章节名的位置，重点和不是重点的章节名对得齐。
+ * 只管列表里的：别处（精读的当前章节条）的圆点照旧排在行里。 */
+.chapter-toggle > .key-dot,
+.chapter-title > .key-dot {
+  position: absolute;
+  top: calc(0.75em - 3.5px);
+  left: calc((var(--space-2) + var(--space-1)) / -2 - 3.5px);
 }
 
 .chapter-detail {

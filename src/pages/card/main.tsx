@@ -128,10 +128,12 @@ function start(root: HTMLElement, api: PageApi): void {
     openSettings(event: { readonly isTrusted: boolean }) {
       if (!trusted(event)) return;
       void api.send("options.open", {}).then((reply) => {
-        if (!reply.ok) model.view.value = { ...model.view.peek(), notice: { text: "没能打开设置页。可以打开完整面板，点右上角的设置按钮。", tone: "error" } };
+        if (!reply.ok) model.view.value = { ...model.view.peek(), notice: { text: "没能打开设置页。可以打开侧边栏，点右上角的设置按钮。", tone: "error" } };
       });
     },
     seek: (atSec: number) => model.seek(atSec),
+    toggleShowAll: model.toggleShowAll,
+    toggleOfficial: model.toggleOfficial,
   };
 
   function App() {

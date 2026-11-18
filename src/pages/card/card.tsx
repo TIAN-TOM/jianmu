@@ -1,4 +1,7 @@
-// 卡片的界面：标题栏（展开收起）、官方总结、概览（结论和章节）、进度和按钮。规则在 model.ts。
+// 卡片的界面：标题栏（展开收起）、提示、AI 概览（结论在最前，章节默认只露前几章）、B 站官方总结（有概览时收成一行）、进度和按钮。
+// 规则在 model.ts。视频标题不在卡片里再写一遍：页面顶上就是。
+import type { RefObject } from "preact";
+import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { LearningAnalysis } from "../../core/notes/markdown.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
 import type { OfficialSummaryView, OutlineSectionView } from "../../shared/messages/transcript.ts";
@@ -6,15 +9,12 @@ import { keyChapterStarts } from "../../core/ai/verdict.ts";
 import { ChapterList, type ChapterItem } from "../shared/ui/chapter-list.tsx";
 import { VerdictBlock } from "../shared/ui/verdict-block.tsx";
 import type { BasisSource } from "../shared/ui/verdict.ts";
-import { hasOverview, type CardView, type TaskProgress } from "./model.ts";
+import { cardRows, hasOverview, type CardView, type TaskProgress } from "./model.ts";
 
 const SETUP_HINT = "还没设置 AI 服务（或没勾选数据说明、密钥已随浏览器重启清空），生成概览要先填服务商和密钥。";
 
-const OFFICIAL_MISSING: Readonly<Record<OfficialSummaryView["status"], string>> = {
-  ok: "",
-  none: "B 站没有给这个视频做官方总结。",
-  unsupported: "B 站没有给这个视频做官方总结。",
-  queued: "B 站现在没有这个视频的官方总结。",
+// 没有官方总结是常态，不占一行；要登录、没读到、还在读才说。
+const OFFICIAL_NOTES: Readonly<Partial<Record<OfficialSummaryView["status"], string>>> = {
   "need-login": "登录 B 站后才看得到官方总结。",
   failed: "这次没读到 B 站的官方总结。",
   pending: "正在读 B 站的官方总结…",
@@ -23,13 +23,20 @@ const OFFICIAL_MISSING: Readonly<Record<OfficialSummaryView["status"], string>> 
 type ClickEvent = { readonly isTrusted: boolean };
 
 const text = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
+const validTime = (atSec: number | null): atSec is number => atSec !== null && Number.isFinite(atSec) && atSec >= 0;
 
-function TimeButton({ atSec, onSeek }: { readonly atSec: number | null; readonly onSeek: (atSec: number) => void }) {
-  if (atSec === null || !Number.isFinite(atSec) || atSec < 0) return null;
+/** 时间这一列按最长的那个时间定宽，后面的标题才对得齐。 */
+const timeColumn = (times: readonly (number | null)[]): string => `--time-ch:${Math.max(4, ...times.map((at) => (validTime(at) ? formatTimestamp(at).length : 0)))}`;
+
+function TimeCell({ atSec, onSeek }: { readonly atSec: number | null; readonly onSeek: (atSec: number) => void }) {
   return (
-    <button type="button" class="chapter-time" title="跳到这里" onClick={() => onSeek(atSec)}>
-      {formatTimestamp(atSec)}
-    </button>
+    <span class="outline-time">
+      {validTime(atSec) ? (
+        <button type="button" class="chapter-time" aria-label={`跳到 ${formatTimestamp(atSec)}`} onClick={() => onSeek(atSec)}>
+          {formatTimestamp(atSec)}
+        </button>
+      ) : null}
+    </span>
   );
 }
 
@@ -38,14 +45,14 @@ function OutlineItem({ part, index, onSeek }: { readonly part: OutlineSectionVie
   const points = part.points.filter((point) => point.content.trim());
   return (
     <li class="outline-item">
-      <TimeButton atSec={part.timestamp} onSeek={onSeek} />
+      <TimeCell atSec={part.timestamp} onSeek={onSeek} />
       {points.length ? (
         <details class="outline-details">
           <summary class="outline-title">{title}</summary>
           <ul class="points">
             {points.map((point, at) => (
               <li key={at} class="point">
-                <TimeButton atSec={point.timestamp} onSeek={onSeek} />
+                <TimeCell atSec={point.timestamp} onSeek={onSeek} />
                 <span>{point.content.trim()}</span>
               </li>
             ))}
@@ -58,19 +65,57 @@ function OutlineItem({ part, index, onSeek }: { readonly part: OutlineSectionVie
   );
 }
 
-function Official({ official, onSeek }: { readonly official: OfficialSummaryView; readonly onSeek: (atSec: number) => void }) {
+function More({ open, label, onToggle }: { readonly open: boolean; readonly label: string; readonly onToggle: () => void }) {
   return (
-    <section class="card-block" id="card-official" aria-label="B 站官方总结">
-      <h2 class="section-title">B 站官方总结</h2>
-      {official.summary.trim() ? <p class="card-reading">{official.summary.trim()}</p> : null}
-      {official.outline.length ? (
-        <ol class="outline">
-          {official.outline.map((part, index) => (
+    <button type="button" class="card-more" aria-expanded={open} onClick={onToggle}>
+      {open ? "收起" : label}
+    </button>
+  );
+}
+
+/**
+ * 只露三行的正文底下是不是真的藏着字。量出来的，不按字数猜：同样的字数，字号大、卡片窄时三行就放不下。
+ * 字号或宽度变了重新量。watch 变了（换了正文、展开收起）也重新量。
+ */
+function useClipped(watch: string): [RefObject<HTMLParagraphElement>, boolean] {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [clipped, setClipped] = useState(false);
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (!node) return setClipped(false);
+    const measure = (): void => setClipped(node.scrollHeight > node.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [watch]);
+  return [ref, clipped];
+}
+
+/**
+ * 官方总结的正文和提纲。limited 时正文只露三行、提纲只露前几段；给了 onToggleAll，有藏起来的（或者已经展开）时下面摆「展开全部」。
+ */
+function OfficialBody({ official, limited, onSeek, onToggleAll }: { readonly official: OfficialSummaryView; readonly limited: boolean; readonly onSeek: (atSec: number) => void; readonly onToggleAll?: () => void }) {
+  const summary = official.summary.trim();
+  const outline = cardRows(official.outline, !limited);
+  const outlineCut = cardRows(official.outline, false).length < official.outline.length;
+  const [reading, clipped] = useClipped(`${limited}:${summary}`);
+  return (
+    <>
+      {summary ? (
+        <p class="card-reading" ref={reading} data-clamp={limited ? "true" : undefined}>
+          {summary}
+        </p>
+      ) : null}
+      {outline.length ? (
+        <ol class="outline" style={timeColumn(outline.flatMap((part) => [part.timestamp, ...part.points.map((point) => point.timestamp)]))}>
+          {outline.map((part, index) => (
             <OutlineItem key={index} part={part} index={index} onSeek={onSeek} />
           ))}
         </ol>
       ) : null}
-    </section>
+      {onToggleAll && (!limited || outlineCut || clipped) ? <More open={!limited} label={outlineCut ? `展开全部 ${official.outline.length} 段` : "展开全部"} onToggle={onToggleAll} /> : null}
+    </>
   );
 }
 
@@ -80,13 +125,26 @@ function basisOf(analysis: LearningAnalysis): BasisSource | null {
   return hasOverview(analysis) ? "transcript" : null;
 }
 
-function Overview({ analysis, pending, onSeek }: { readonly analysis: LearningAnalysis; readonly pending: boolean | string; readonly onSeek: (atSec: number) => void }) {
+function Overview({
+  analysis,
+  pending,
+  showAll,
+  onSeek,
+  onToggleAll,
+}: {
+  readonly analysis: LearningAnalysis;
+  readonly pending: boolean | string;
+  readonly showAll: boolean;
+  readonly onSeek: (atSec: number) => void;
+  readonly onToggleAll: () => void;
+}) {
   const verdict = analysis.verdict;
   const summary = text(verdict?.summary);
   const chapters: ChapterItem[] = (analysis.chapters ?? []).map((chapter) => ({ startSec: chapter.timestampSeconds, title: text(chapter.title) }));
+  const shown = cardRows(chapters, showAll);
+  const cut = cardRows(chapters, false).length < chapters.length;
   return (
     <section class="card-block" id="card-overview" aria-label="AI 概览">
-      <h2 class="section-title">AI 概览</h2>
       {pending ? (
         <p class="card-pending" role="status">
           {typeof pending === "string" ? pending : "正在写一句话结论…"}
@@ -94,7 +152,8 @@ function Overview({ analysis, pending, onSeek }: { readonly analysis: LearningAn
       ) : summary ? (
         <VerdictBlock label={text(verdict?.verdict)} text={summary} basis={basisOf(analysis)} incomplete={verdict?.incomplete === true} />
       ) : null}
-      {chapters.length ? <ChapterList chapters={chapters} keyStarts={keyChapterStarts(analysis)} heading={false} onSeek={onSeek} /> : null}
+      {shown.length ? <ChapterList chapters={shown} keyStarts={keyChapterStarts(analysis)} heading={false} onSeek={onSeek} /> : null}
+      {cut ? <More open={showAll} label={`展开全部 ${chapters.length} 章`} onToggle={onToggleAll} /> : null}
     </section>
   );
 }
@@ -114,15 +173,18 @@ export interface CardActions {
   readonly openPanel: (event: ClickEvent) => void;
   readonly openSettings: (event: ClickEvent) => void;
   readonly seek: (atSec: number) => void;
+  readonly toggleShowAll: () => void;
+  readonly toggleOfficial: () => void;
 }
 
 export function Card({ view, aiReady, actions }: { readonly view: CardView; readonly aiReady: boolean | null; readonly actions: CardActions }) {
   if (!view.visible) return null;
   const canGenerate = view.phase === "loaded" && !view.noCaptions && !view.needLogin && !hasOverview(view.analysis) && !view.task;
   const needsSetup = canGenerate && aiReady === false;
-  const official = view.official;
+  const analysis = view.analysis && (view.analysis.verdict || hasOverview(view.analysis) || view.verdictPending) ? view.analysis : null;
+  const official = view.official?.status === "ok" ? view.official : null;
   // 没登录时上面已经说了要登录，官方总结那块不再重复。
-  const officialMissing = official && official.status !== "ok" && !(view.needLogin && official.status === "need-login") ? OFFICIAL_MISSING[official.status] : "";
+  const officialNote = view.official && view.phase === "loaded" && !(view.needLogin && view.official.status === "need-login") ? (OFFICIAL_NOTES[view.official.status] ?? "") : "";
   const task = view.task;
   const percent = task && task.total > 0 ? Math.round((task.done / task.total) * 100) : 0;
   return (
@@ -134,14 +196,33 @@ export function Card({ view, aiReady, actions }: { readonly view: CardView; read
       </button>
       {view.collapsed ? null : (
         <div class="card-body" id="card-body">
-          {view.title ? <p class="card-video-title">{view.title}</p> : null}
           {view.notice ? (
             <p class="card-status" id="card-status" role="status" data-tone={view.notice.tone || undefined}>
               {view.notice.text}
             </p>
           ) : null}
-          {official?.status === "ok" ? <Official official={official} onSeek={actions.seek} /> : officialMissing && view.phase === "loaded" ? <p class="card-note">{officialMissing}</p> : null}
-          {view.analysis && (view.analysis.verdict || hasOverview(view.analysis) || view.verdictPending) ? <Overview analysis={view.analysis} pending={view.verdictPending} onSeek={actions.seek} /> : null}
+          {analysis ? <Overview analysis={analysis} pending={view.verdictPending} showAll={view.showAll} onSeek={actions.seek} onToggleAll={actions.toggleShowAll} /> : null}
+          {official && analysis ? (
+            // 已经有结论和章节：官方总结收成一行，点开才露。
+            <section class="card-block" id="card-official" aria-label="B 站官方总结">
+              <button type="button" class="card-fold-head" aria-expanded={view.officialOpen} aria-controls={view.officialOpen ? "card-official-body" : undefined} onClick={actions.toggleOfficial}>
+                <span>B 站官方总结</span>
+                <span class="card-chevron" aria-hidden="true" />
+              </button>
+              {view.officialOpen ? (
+                <div class="card-fold-body" id="card-official-body">
+                  <OfficialBody official={official} limited={false} onSeek={actions.seek} />
+                </div>
+              ) : null}
+            </section>
+          ) : official ? (
+            <section class="card-block" id="card-official" aria-label="B 站官方总结">
+              <h2 class="section-title">B 站官方总结</h2>
+              <OfficialBody official={official} limited={!view.showAll} onSeek={actions.seek} onToggleAll={actions.toggleShowAll} />
+            </section>
+          ) : officialNote ? (
+            <p class="card-note">{officialNote}</p>
+          ) : null}
           {needsSetup ? <p class="card-note" id="card-setup">{SETUP_HINT}</p> : null}
         </div>
       )}
@@ -174,7 +255,7 @@ export function Card({ view, aiReady, actions }: { readonly view: CardView; read
             </button>
           ) : null}
           <button type="button" class="button" id="card-panel" onClick={actions.openPanel}>
-            打开完整面板
+            打开侧边栏
           </button>
         </div>
       )}
