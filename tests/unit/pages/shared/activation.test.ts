@@ -194,3 +194,23 @@ test("确认的回答还在路上时启用失效过，但后台最后是已启�
   assert.equal(activation.enabled.value, true);
   assert.deepEqual(activation.unreachableTabs.value, [7]);
 });
+
+test("记下看过（日用包里沿用着说明时）：多出来的条目清掉，确认按钮的状态和补注入的结果都不动；写不进去就留着", async () => {
+  const { fake, activation } = setup();
+  const carried = { activation: [{ kind: "read", id: "current-frame", text: "当前一帧" }], consent: [] };
+  fake.reply("activation.confirm", { value: { ok: true, value: { state: "current", unreachableTabs: [12] } } });
+  await activation.confirm();
+  fake.reply("activation.get", { value: { ok: true, value: { state: "current", carried } } });
+  await activation.load();
+  assert.deepEqual(activation.view.value, { state: "current", carried });
+
+  fake.reply("activation.confirm", { value: { ok: false, code: "STORAGE_FULL" } });
+  await activation.acknowledge();
+  assert.deepEqual(activation.view.value, { state: "current", carried }, "写不进去就留着那一行");
+  assert.equal(activation.phase.value, "idle");
+
+  fake.reply("activation.confirm", { value: { ok: true, value: { state: "current", unreachableTabs: [] } } });
+  await activation.acknowledge();
+  assert.deepEqual(activation.view.value, { state: "current" });
+  assert.deepEqual(activation.unreachableTabs.value, [12], "之前没补上的标签页照旧提示刷新");
+});

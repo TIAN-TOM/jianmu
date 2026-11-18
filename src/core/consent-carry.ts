@@ -47,6 +47,11 @@ export function carryActivation(settings: {
   return carryNotices(ACTIVATION_TABLE, { version: settings.activationVersion, fingerprint: settings.activationFingerprint }, consent);
 }
 
+/** 确认之前启用就已经算数（沿用着）：这次确认只是记下看过多出来的条目。 */
+export function wasEnabled(status: NoticeStatus<string> | null): boolean {
+  return status?.state === "current";
+}
+
 /** 数据说明的状态，换成沿用的：同意过的照旧算同意，从没同意过的原样返回。 */
 export function carryConsent<Kind extends string>(table: NoticeTable<Kind>, stored: StoredStamp): NoticeStatus<Kind> {
   const status = noticeStatus(table, stored);

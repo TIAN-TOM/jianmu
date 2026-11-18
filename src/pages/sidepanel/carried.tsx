@@ -57,7 +57,7 @@ export function CarriedList({ panel }: { readonly panel: Panel }) {
       <Button
         onClick={() => {
           shown().value = null;
-          void panel.activation.confirm();
+          void panel.activation.acknowledge();
         }}
       >
         知道了

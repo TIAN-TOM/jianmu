@@ -27,6 +27,8 @@ export interface Activation {
   load(): Promise<void>;
   /** 写入中再点不重复发；写入失败留在这一页，原因放在 confirmFailure。 */
   confirm(): Promise<void>;
+  /** 启用本来就算数，只是记下看过说明多出来的条目（开发者本人的日用包）：不动确认按钮的状态和补注入的结果。 */
+  acknowledge(): Promise<void>;
   stop(): void;
 }
 
@@ -107,6 +109,15 @@ export function createActivation({ api }: ActivationDeps): Activation {
       generation += 1;
       view.value = viewOf(reply.value);
       unreachableTabs.value = reply.value.unreachableTabs;
+    },
+    async acknowledge() {
+      if (stopped) return;
+      const asked = generation;
+      const reply = await api.send("activation.confirm", {});
+      // 写不进去就留着那一行，下次再点；等回答的工夫状态又变过，以新的为准。
+      if (stopped || !reply.ok || asked !== generation) return;
+      generation += 1;
+      view.value = viewOf(reply.value);
     },
     stop() {
       stopped = true;

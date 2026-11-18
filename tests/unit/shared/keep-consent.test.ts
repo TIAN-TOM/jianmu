@@ -35,6 +35,31 @@ const store = createSettingsStore({ storage: { local: area(local), session: area
 const before = ids(await store.activation());
 await store.confirmActivation();
 const saved = local.jianmu_settings;
+
+// 写入一侧：启用说明确认过、数据说明从没同意过（或者同意后又取消了），点确认不能替他同意。
+const consentAfter = async (settings, untick) => {
+  const data = { jianmu_settings: { ...settings } };
+  const other = createSettingsStore({ storage: { local: area(data), session: area({}) }, locks: { exclusive: (_name, work) => Promise.resolve().then(work), shared: (_name, work) => Promise.resolve().then(work) } });
+  if (untick) await other.setDataConsent(false);
+  await other.confirmActivation();
+  return [data.jianmu_settings.dataConsentVersion, consent.dataConsentGiven(data.jianmu_settings, rules)];
+};
+
+// 确认的路由：启用本来就算数（沿用着）时只记下看过，不广播、不补注入；从没确认过的照常广播、补注入。
+const { activationRoutes } = await import("./src/background/routes/activation.ts");
+const routeCalls = async (settings) => {
+  const data = { jianmu_settings: { ...settings } };
+  const routeStore = createSettingsStore({ storage: { local: area(data), session: area({}) }, locks: { exclusive: (_name, work) => Promise.resolve().then(work), shared: (_name, work) => Promise.resolve().then(work) } });
+  const calls = [];
+  const routes = activationRoutes({
+    settings: routeStore,
+    messenger: { toPages: async () => void calls.push("toPages"), toTabs: async () => void calls.push("toTabs") },
+    contentTargets: async () => [1],
+    reinject: async () => (calls.push("reinject"), { injected: [], failed: [7] }),
+  });
+  const reply = await routes["activation.confirm"].handler({}, {});
+  return { calls, state: reply.value.state, unreachable: reply.value.unreachableTabs };
+};
 console.log(JSON.stringify({
   stale: ids(schema.activationStatus(STALE)),
   staleGroups: Object.fromEntries(Object.entries(schema.activationStatus(STALE).carried ?? {}).map(([key, items]) => [key, items.map(({ id }) => id)])),
@@ -48,6 +73,10 @@ console.log(JSON.stringify({
   storeBefore: before,
   acknowledged: { activation: saved.activationFingerprint === consent.ACTIVATION_FINGERPRINT, consent: saved.dataConsentFingerprint === consent.DATA_CONSENT_FINGERPRINT },
   after: ids(schema.activationStatus(saved)),
+  neverConsented: await consentAfter({ ...STALE, dataConsentVersion: 0, dataConsentFingerprint: "" }, false),
+  untickedConsent: await consentAfter(STALE, true),
+  routeStale: await routeCalls(STALE),
+  routeNever: await routeCalls(NEVER),
 }));
 `;
 
@@ -71,6 +100,10 @@ test("日用包：确认过、同意过的照旧算数，多出来的条目交�
   assert.deepEqual(daily.storeBefore, daily.stale);
   assert.deepEqual(daily.acknowledged, { activation: true, consent: true });
   assert.deepEqual(daily.after, { state: "current", carried: [] });
+  assert.deepEqual(daily.neverConsented, [0, false], "数据说明从没同意过：点确认不替他同意");
+  assert.deepEqual(daily.untickedConsent, [0, false], "同意后又取消了：点确认不替他同意");
+  assert.deepEqual(daily.routeStale, { calls: [], state: "current", unreachable: [] }, "只是记下看过：不广播、不补注入");
+  assert.deepEqual(daily.routeNever, { calls: ["toPages", "toTabs", "reinject"], state: "current", unreachable: [7] });
 });
 
 test("发行包：条目变了仍然要重新确认、重新同意，没同意的内容不发，打开就出结论停着；点确认只记启用说明", () => {
@@ -84,6 +117,9 @@ test("发行包：条目变了仍然要重新确认、重新同意，没同意�
   assert.equal(release.validStale, true);
   assert.deepEqual(release.acknowledged, { activation: true, consent: false }, "启用确认不顺带改数据同意");
   assert.deepEqual(release.after, { state: "current", carried: [] });
+  assert.deepEqual(release.neverConsented, [0, false]);
+  assert.deepEqual(release.untickedConsent, [0, false]);
+  assert.deepEqual(release.routeStale, { calls: ["toPages", "toTabs", "reinject"], state: "current", unreachable: [7] }, "发行包照常广播、补注入");
 });
 
 const item = <Kind extends string>(kind: Kind, id: string): NoticeItem<Kind> => ({ kind, id, text: id });
