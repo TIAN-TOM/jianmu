@@ -9,7 +9,6 @@ import {
   FEATURE_GLOBALS,
   FEATURE_NAMES,
   featureDefines,
-  DAILY_FEATURES,
   RELEASE_FEATURES,
   TEST_BUILD_FEATURES,
   type FeatureSet,
