@@ -52,6 +52,7 @@ export async function until(label, read, timeoutMs = STEP_TIMEOUT_MS) {
 
 const KEYS = {
   Enter: { code: "Enter", keyCode: 13 },
+  " ": { code: "Space", keyCode: 32 },
   Tab: { code: "Tab", keyCode: 9 },
   ArrowLeft: { code: "ArrowLeft", keyCode: 37 },
   ArrowUp: { code: "ArrowUp", keyCode: 38 },
@@ -146,6 +147,10 @@ export function createHarness({ cdp, extensionId, extensionDir, sessions }) {
           selector,
         );
         await page.clickAt(box.x, box.y);
+      },
+      /** 鼠标移到视口坐标上，不点。 */
+      async moveTo(x, y) {
+        await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y, button: "none" }, sessionId);
       },
       /** 在视口坐标上点一下。 */
       async clickAt(x, y) {

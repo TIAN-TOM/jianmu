@@ -69,7 +69,7 @@ const KEYS = `async (on) => {
 
 const near = (actual, expected) => actual.every((value, index) => Math.abs(value - expected[index]) <= 12);
 
-test("解释当前画面：播放页浮层多一个图标，截帧指令的拒绝分开报，截到的画面和画上去的一致，点图标经后台解释、结果在侧边栏", async ({ open, openPage, openSidePanel }) => {
+test("解释当前画面：播放页浮层多一个图标，截帧指令的拒绝分开报，截到的画面和画上去的一致，被劫持的页面改样子、骗按键都不发，真实点图标经后台解释、结果在侧边栏", async ({ open, openPage, openSidePanel }) => {
   const launcher = await open(LAUNCHER);
   const before = await launcher.evaluate(`chrome.storage.local.get(null)`);
   const stored = await storedSettings(ANTHROPIC);
@@ -108,8 +108,46 @@ test("解释当前画面：播放页浮层多一个图标，截帧指令的拒�
     await page.evaluate(`document.getElementById("${INJECTED.frameButton}").click(), true`);
     assert.equal(await page.evaluate(`document.querySelector(".${INJECTED.frameLabel}")?.textContent ?? ""`), "");
 
+    // 被劫持的页面：真实的点击、按键都送到了按钮上，但样子被改过或者不是鼠标点的，一律不发。
+    // 页面里在捕获阶段数送到按钮上的真实点击，先确认点击确实到了，再看图标上没出提示。
+    await page.evaluate(`(() => { window.__frameClicks = []; document.addEventListener("click", (event) => { if (event.target.closest?.("#${INJECTED.frameButton}") && event.isTrusted) window.__frameClicks.push(event.detail); }, true); return true; })()`);
+    const label = () => page.evaluate(`document.querySelector(".${INJECTED.frameLabel}")?.textContent ?? ""`);
+    // 页面给了控制栏信号，浮层跟着它露：先把鼠标移过去、等浮层露出来再点。
+    const reveal = async (x, y) => {
+      await page.moveTo(x - 30, y + 30);
+      await page.moveTo(x, y);
+      await page.waitFor("图标露出来", `getComputedStyle(document.getElementById("${INJECTED.overlay}")).visibility === "visible"`);
+    };
+    const center = () => page.evaluate(`(() => { const r = document.getElementById("${INJECTED.frameButton}").getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+    // 几种改法都把热区放在用户要点的地方：按钮本身、或者视频正中。
+    const middle = await page.evaluate(`(() => { const r = document.querySelector("video").getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()`);
+    const button = `#${INJECTED.frameButton}`;
+    for (const [name, rule, where, prepare] of [
+      ["透明的按钮", `${button} { background: transparent !important; color: transparent !important; }`, "button"],
+      ["滤镜藏起来", `${button} { filter: opacity(0) !important; }`, "button"],
+      ["遮罩藏起来", `${button} { mask-image: linear-gradient(transparent, transparent) !important; }`, "button"],
+      ["固定定位铺到视频中间", `${button} { position: fixed !important; left: ${middle.x}px !important; top: ${middle.y}px !important; }`, "button"],
+      ["浮层挪到视频中间", `#${INJECTED.overlay} { top: ${middle.y - 60}px !important; right: auto !important; left: ${middle.x - 16}px !important; }`, "button"],
+      ["提示文字撑满视口", `.${INJECTED.frameLabel} { display: block !important; position: fixed !important; inset: 0 !important; opacity: 0 !important; }`, "middle"],
+      // 样式表先放好，再把按钮摘掉等它补回：补回来的按钮一插进去就是被改过的样子。
+      ["摘掉按钮等它补回", `${button} { position: fixed !important; left: ${middle.x}px !important; top: ${middle.y}px !important; }`, "button", "remove"],
+    ]) {
+      await page.evaluate(`(() => { const style = document.createElement("style"); style.id = "hijack"; style.textContent = ${JSON.stringify(rule)}; document.head.append(style); return true; })()`);
+      if (prepare === "remove") {
+        await page.evaluate(`document.getElementById("${INJECTED.frameButton}").remove(), true`);
+        await page.waitFor("按钮补回来了", `Boolean(document.getElementById("${INJECTED.frameButton}"))`);
+      }
+      const clicksBefore = await page.evaluate("window.__frameClicks.length");
+      const spot = where === "middle" ? middle : await center();
+      await reveal(spot.x, spot.y);
+      await page.clickAt(spot.x, spot.y);
+      await page.waitFor(`${name}：点击送到了按钮`, `window.__frameClicks.length > ${clicksBefore}`);
+      assert.equal(await label(), "", `${name}：不该发出去`);
+      await page.evaluate(`document.getElementById("hijack").remove(), true`);
+    }
     // 真实点击：交给后台，后台先打开侧边栏，再向这个页面要一帧、请模型解释；图标上说结果去哪儿看。
-    const box = await page.evaluate(`(() => { const r = document.getElementById("${INJECTED.frameButton}").getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+    const box = await center();
+    await reveal(box.x, box.y);
     await page.clickAt(box.x, box.y);
     const hint = await page.waitFor(
       "图标说结果去哪儿看",
@@ -118,7 +156,9 @@ test("解释当前画面：播放页浮层多一个图标，截帧指令的拒�
     assert.match(hint, /结果在侧边栏|点简幕图标看结果/);
     // 侧边栏里出这一帧的解释，带时间，能跳回去。
     const panel = await openSidePanel(launcher);
-    const explained = await panel.waitFor("侧边栏出画面解释", `document.querySelector(".frame-card-text")?.textContent ?? ""`);
+    const card = await panel.waitFor("侧边栏的画面卡片收尾", `(() => { const node = document.querySelector(".frame-card"); return node && node.getAttribute("aria-busy") !== "true" ? node.textContent : null; })()`);
+    const explained = await panel.evaluate(`document.querySelector(".frame-card-text")?.textContent ?? ""`);
+    assert.ok(explained, card);
     assert.match(explained, /模拟服务的画面解释/);
     assert.match(await panel.evaluate(`document.querySelector(".frame-card .stamp")?.textContent ?? ""`), /^\d+:\d{2}$/);
 
@@ -129,6 +169,19 @@ test("解释当前画面：播放页浮层多一个图标，截帧指令的拒�
     await page.call(FEED, FILL);
     await page.waitFor("摘掉钥匙后又出了画面", `document.querySelector("video").readyState >= 2`);
     assert.equal((await capture({ video: KEY, maxEdge: 1456 })).ok, true);
+
+    // 键盘：页面把焦点挪到图标上，等用户按空格。按键触发的点击 detail 是 0，不算。
+    // 放在最后：经调试协议发的空格之后，无头 Chrome 里这一页不再出新的视频帧，后面截不了帧。
+    const spot = await center();
+    await reveal(spot.x, spot.y);
+    const focused = await page.evaluate(`(() => { document.getElementById("${INJECTED.frameButton}").focus(); return document.activeElement?.id; })()`);
+    assert.equal(focused, INJECTED.frameButton, "焦点挪到了图标上");
+    await page.waitFor("前面的提示消失", `(document.querySelector(".${INJECTED.frameLabel}")?.textContent ?? "") === ""`);
+    const pressed = await page.evaluate("window.__frameClicks.length");
+    await page.press(" ");
+    await page.waitFor("空格送到了按钮", `window.__frameClicks.length > ${pressed}`);
+    assert.equal(await page.evaluate("window.__frameClicks.at(-1)"), 0, "按键触发的点击");
+    assert.equal(await label(), "", "按空格不该发出去");
 
     // 视频元素没了。
     await page.evaluate(`document.querySelector("video").remove(), true`);
