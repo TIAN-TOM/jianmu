@@ -220,10 +220,13 @@ test("确认是付费的照旧不读：标记缺了几个，只要有一个为�
   assert.deepEqual(parseVideoInfo(viewData({ rights: null, is_upower_exclusive: true }), REF), PAID);
 });
 
-test("视频信息不是普通对象时算读不懂，整条读取路线停下", () => {
+test("视频信息不是普通对象时算读不懂，只算这一个视频读不成", async () => {
   for (const data of [null, undefined, 1, "view", [viewData()]]) {
-    assert.deepEqual(parseVideoInfo(data, REF), { ok: false, code: "MALFORMED", reach: "source", detail: "no-view-data" }, JSON.stringify(data));
+    assert.deepEqual(parseVideoInfo(data, REF), { ok: false, code: "MALFORMED", reach: "item", detail: "no-view-data" }, JSON.stringify(data));
   }
+  const fake = site(() => json(200, { code: 0, data: null }));
+  const result = failure(await readVideoInfo(createBiliHttp(), REF, siteCtx(fake)));
+  assert.deepEqual(result, { ok: false, code: "MALFORMED", reach: "item", detail: "no-view-data" });
 });
 
 test("付费判断：四个标记都读到、都是 0 或 false 才算免费", () => {
@@ -244,13 +247,22 @@ test("付费判断：标记缺了、写法不对、不是有限数字时一律�
   const free = { rights: FREE_RIGHTS, is_upower_exclusive: false };
   assert.equal(paidStatus({ rights: FREE_RIGHTS }), "unknown", "缺充电标记");
   assert.equal(paidStatus({ is_upower_exclusive: false }), "unknown", "缺 rights");
-  for (const odd of [Number.NaN, Number.POSITIVE_INFINITY, "1", "true", null, {}, [], undefined]) {
+  for (const odd of [Number.NaN, Number.POSITIVE_INFINITY, "0", "false", "yes", null, {}, [], undefined]) {
     assert.equal(paidStatus({ ...free, rights: { ...FREE_RIGHTS, pay: odd } }), "unknown", String(odd));
     assert.equal(paidStatus({ ...free, is_upower_exclusive: odd }), "unknown", String(odd));
   }
   assert.equal(paidStatus({ ...free, rights: Object.assign([], FREE_RIGHTS) }), "unknown", "rights 是带键的数组");
   assert.equal(paidStatus(null), "unknown");
   assert.equal(paidStatus([free]), "unknown");
+});
+
+test("付费判断：写成字符串、但明显是真的标记也算付费，不按确认不了照读", () => {
+  const free = { rights: FREE_RIGHTS, is_upower_exclusive: false };
+  for (const truthy of ["1", "2", "-1", "true", "TRUE", " 1 "]) {
+    assert.equal(paidStatus({ ...free, rights: { ...FREE_RIGHTS, pay: truthy } }), "paid", truthy);
+    assert.equal(paidStatus({ ...free, is_upower_exclusive: truthy }), "paid", truthy);
+  }
+  assert.deepEqual(parseVideoInfo(viewData({ rights: { pay: "1" } }), REF), PAID);
 });
 
 test("视频不存在和没有权限各报各的错误码", async () => {

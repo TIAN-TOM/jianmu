@@ -55,6 +55,8 @@ export interface CardView {
   /** 结论还没写好：true 写「正在写」，字符串原样显示。 */
   readonly verdictPending: boolean | string;
   readonly noCaptions: boolean;
+  /** 没登录 B 站：读得到视频信息，字幕要登录才读得到。 */
+  readonly needLogin: boolean;
   readonly task: TaskProgress | null;
   readonly settingsError: boolean;
   readonly notice: { readonly text: string; readonly tone: Tone } | null;
@@ -69,6 +71,7 @@ const INITIAL: CardView = {
   analysis: null,
   verdictPending: false,
   noCaptions: false,
+  needLogin: false,
   task: null,
   settingsError: false,
   notice: null,
@@ -79,6 +82,7 @@ const EXTERNAL_CHECK_MS = 15_000;
 const HIDDEN_CODES: ReadonlySet<ErrorCode> = new Set(["NOT_ENABLED", "CARD_DISABLED"]);
 const SETTINGS_CODES: ReadonlySet<ErrorCode> = new Set(["NO_AI_CONFIG", "NO_DATA_CONSENT", "INVALID_AI_KEY", "INVALID_BASE_URL", "NEED_HOST_PERMISSION", "MODEL_OR_ENDPOINT_NOT_FOUND", "ANTHROPIC_WORKSPACE_REQUIRED"]);
 export const NO_CAPTIONS_TEXT = "这个视频没有 CC 字幕，生成不了概览。";
+export const NEED_LOGIN_TEXT = "登录 B 站后才读得到字幕、生成概览；也可以在侧边栏导入字幕文件。";
 
 /** 有章节或金句才算已经有概览；只有一句话结论的，「生成概览」照样留着。 */
 export function hasOverview(analysis: LearningAnalysis | null): boolean {
@@ -203,14 +207,17 @@ export function createCardModel(deps: CardDeps) {
     if (!("mode" in value) || value.video !== current) return failLoad("读到的不是当前视频的数据。可以点「重试」再读一次。");
     saved = value.overview?.analysis ?? null;
     const noCaptions = value.hasTranscript ? false : value.transcriptError === "NO_CAPTIONS" || view.peek().noCaptions;
+    const needLogin = !value.hasTranscript && value.transcriptError === "NEED_LOGIN";
     const following = view.peek().task;
+    const blocked = hasOverview(saved) ? "" : needLogin ? NEED_LOGIN_TEXT : noCaptions ? NO_CAPTIONS_TEXT : "";
     patch({
       phase: "loaded",
       title: value.info.title,
       official: value.official ?? null,
       noCaptions,
+      needLogin,
       ...(following && !quiet ? {} : { analysis: saved, verdictPending: false }),
-      ...(quiet ? {} : notice(noCaptions && !hasOverview(saved) ? NO_CAPTIONS_TEXT : "")),
+      ...(quiet ? {} : notice(blocked)),
     });
     if (!quiet) await followRunning(asked);
   }

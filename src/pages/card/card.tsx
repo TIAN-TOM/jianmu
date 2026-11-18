@@ -118,10 +118,11 @@ export interface CardActions {
 
 export function Card({ view, aiReady, actions }: { readonly view: CardView; readonly aiReady: boolean | null; readonly actions: CardActions }) {
   if (!view.visible) return null;
-  const canGenerate = view.phase === "loaded" && !view.noCaptions && !hasOverview(view.analysis) && !view.task;
+  const canGenerate = view.phase === "loaded" && !view.noCaptions && !view.needLogin && !hasOverview(view.analysis) && !view.task;
   const needsSetup = canGenerate && aiReady === false;
   const official = view.official;
-  const officialMissing = official && official.status !== "ok" ? OFFICIAL_MISSING[official.status] : "";
+  // 没登录时上面已经说了要登录，官方总结那块不再重复。
+  const officialMissing = official && official.status !== "ok" && !(view.needLogin && official.status === "need-login") ? OFFICIAL_MISSING[official.status] : "";
   const task = view.task;
   const percent = task && task.total > 0 ? Math.round((task.done / task.total) * 100) : 0;
   return (

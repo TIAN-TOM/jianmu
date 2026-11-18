@@ -21,7 +21,7 @@ export interface GetRequest {
   params?: Record<string, string | number>;
   signed?: boolean;
   timeoutMs?: number; // 只算这一个请求，排队和取密钥不计入
-  loginOptional?: boolean; // 不过登录门，只给公开信息用；不能和签名一起用
+  loginOptional?: boolean; // 不过登录门，只认视频信息；带签名的照旧过门
 }
 
 // 一次读取操作用一个 ctx：同一个 ctx 确认过登录，后面的读取方法接着用；新的 ctx 一定重新确认。
@@ -392,8 +392,8 @@ export function createBiliHttp(deps: BiliHttpDeps = {}): BiliHttp {
   async function getData(request: GetRequest, ctx: SiteCtx): Promise<SiteResult<unknown>> {
     const query = buildQuery(request.params ?? {});
     const url = (): string => (query ? `${request.url}?${query}` : request.url);
-    // 登录可选的不过登录门，也不看登录结论有没有作废；签名要密钥，密钥要登录，所以签名的一律过门。
-    if (request.loginOptional && !request.signed) {
+    // 登录可选的不过登录门，也不看登录结论有没有作废；只认视频信息，签名要密钥、密钥要登录，所以签名的一律过门。
+    if (request.loginOptional && request.url === VIEW_URL && !request.signed) {
       const { stillConfirmed: _confirmed, ...spec } = apiSend(request, ctx);
       return finish(await send(url, spec, ctx), ctx);
     }

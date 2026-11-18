@@ -1,5 +1,5 @@
 // 整条读取管线：真实的 B 站读取实现接上真实的取字幕服务，只替换请求。换语言、字幕文件读不成时重新列轨、
-// 选轨和去重、官方总结和 UP 主分段跟着字幕进缓存、没登录时只问登录；卡片的轻量读取没登录时也只问登录。
+// 选轨和去重、官方总结和 UP 主分段跟着字幕进缓存、没登录时只读视频信息、问一次登录；卡片的轻量读取没登录时也一样。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createTranscriptService, type TranscriptService } from "../../../../src/background/services/transcript/index.ts";
@@ -386,11 +386,27 @@ test("卡片未登录：读出视频信息摆标题，官方总结标成要登�
   assert.ok(reply.value.info.title);
   assert.equal(reply.value.official?.status, "need-login");
   assert.equal(reply.value.hasTranscript, false);
+  assert.equal(reply.value.transcriptError, "NEED_LOGIN", "告诉卡片字幕要登录");
   assert.deepEqual(
     h.fake.requests.map((request) => request.endpoint),
     [VIEW_URL, NAV_URL],
   );
   assert.deepEqual(await h.rows(), []);
+});
+
+test("卡片没登录读过、随后登录：再读马上重问官方总结，不等重问间隔，视频信息用记着的", async () => {
+  const script = { loggedOut: true };
+  const h = rig(script);
+  await h.service.light(REF);
+  script.loggedOut = false;
+  const reply = await h.service.light(REF);
+  assert.ok(reply.ok && "mode" in reply.value, JSON.stringify(reply));
+  assert.notEqual(reply.value.official?.status, "need-login", "登录以后重问了官方总结");
+  assert.equal(reply.value.transcriptError, undefined);
+  assert.deepEqual(
+    h.fake.requests.map((request) => request.endpoint),
+    [VIEW_URL, NAV_URL, NAV_URL, SUMMARY_URL],
+  );
 });
 
 test("卡片未登录、本机已有缓存：照常摆缓存里的官方总结，一个请求都不发", async () => {

@@ -138,7 +138,7 @@ export function stopAfter(failure: ReadFailure | null | undefined, loginStreak: 
   return { stop: null, loginStreak: 0 };
 }
 
-/** 列表没确认过付费状态、或者缺媒体版本的条目，读官方总结之前先读一次视频信息：付费确认不了时它按看不了报。 */
+/** 列表没确认过付费状态、或者缺媒体版本的条目，读官方总结之前先读一次视频信息：确认是付费的它按看不了报。 */
 export function needsVideoInfo(item: Pick<TriageItem, "paidChecked" | "mediaVersion">): boolean {
   return item.paidChecked !== true || !item.mediaVersion;
 }

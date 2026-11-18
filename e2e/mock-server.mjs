@@ -280,7 +280,7 @@ function pageRoute(path, query) {
 }
 
 /**
- * 回答一个请求。没带登录状态读内容、路径不认识、字幕文件带了 Cookie，这些情况都带 unexpected。
+ * 回答一个请求。没带登录状态读视频信息以外的内容、路径不认识、字幕文件带了 Cookie，这些情况都带 unexpected。
  * @param {MockRequest} request
  * @param {string} [scenario] 场景开关，空串是一切正常
  * @returns {MockResponse}

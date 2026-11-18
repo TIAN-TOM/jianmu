@@ -41,9 +41,11 @@ interface Options {
   readonly handler?: (request: SentRequest) => ReturnType<typeof answer> | Promise<ReturnType<typeof answer>>;
   /** 读字幕时平台怎么回：不给时照常给字幕。 */
   readonly captions?: (videoId: string) => "ok" | "rate-limited" | "none";
+  /** 没登录 B 站：视频信息读得到，官方总结和字幕轨要登录。 */
+  readonly signedOut?: boolean;
 }
 
-function appOn({ enabled = true, on = true, handler = answer, captions = () => "ok" }: Options = {}) {
+function appOn({ enabled = true, on = true, handler = answer, captions = () => "ok", signedOut = false }: Options = {}) {
   const ai = modelService(handler);
   const stored = keyedStorage(GATEWAY, ORIGIN);
   const settings = stored.local[SETTINGS_STORAGE_KEY] as Record<string, unknown>;
@@ -57,6 +59,7 @@ function appOn({ enabled = true, on = true, handler = answer, captions = () => "
         : captions(info.ref.videoId) === "none"
           ? failed("EMPTY_CAPTION_FILE")
           : { ok: true, value: [{ start: 0, duration: 2, text: "第一句" }, { start: 900, duration: 2, text: "第二句" }] },
+    ...(signedOut ? { officialSummary: () => failed("NEED_LOGIN"), tracks: () => failed("NEED_LOGIN") } : {}),
   });
   // 获得焦点的窗口前台是长视频；另一个没有焦点的窗口前台是另一个长视频，它是后打开的。
   const windows = {
@@ -148,6 +151,18 @@ test("被限流：整批停下，排着的不接着读", async () => {
   const plain = appOn({ captions: (id) => (id === LONG_ID ? "none" : "ok") });
   plain.app.onTabActivated();
   assert.ok(await plain.pumped(async () => (await plain.overviewOf(OTHER))?.verdict?.summary === "自动写的结论"));
+});
+
+test("没登录：轻量读取读得到时长，但字幕要登录，第一个视频就整批停下，不读字幕、不接着读别的", async () => {
+  const out = appOn({ signedOut: true });
+  out.app.onTabActivated();
+  assert.ok(await until(() => out.site.count("readOfficialSummary") > 0));
+  for (let step = 0; step < 5; step += 1) {
+    out.fake.timers.advance(AUTO_READ_GAP_MS);
+    assert.ok(await stillFalse(() => out.site.calls.some((call) => call.ref?.videoId === OTHER_ID || call.info?.ref.videoId === OTHER_ID)), "整批停下，后台那个不读");
+  }
+  assert.equal(out.site.count("listCaptionTracks"), 0, "不再去读字幕");
+  assert.equal(out.ai.posts().length, 0);
 });
 
 test("哪些读取失败算整体读不了、要整批停下", () => {

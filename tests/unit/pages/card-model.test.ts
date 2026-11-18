@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { signal } from "@preact/signals";
-import { createCardModel } from "../../../src/pages/card/model.ts";
+import { createCardModel, NEED_LOGIN_TEXT } from "../../../src/pages/card/model.ts";
 import { createPageApi } from "../../../src/pages/shared/api.ts";
 import type { ConfigState } from "../../../src/pages/shared/config.ts";
 import { videoKey, type VideoRef } from "../../../src/core/video-ref.ts";
@@ -219,4 +219,14 @@ test("后台打开的标签页：第一次切到前台才读", async () => {
   wake();
   assert.ok(await until(() => model.view.value.phase === "loaded"));
   assert.equal(fake.attempts("transcript.get"), 1);
+});
+
+test("没登录：摆出标题，提示登录或导入字幕，不摆「生成概览」", async () => {
+  const { fake, model } = setup();
+  fake.reply("transcript.get", { value: guides(KEY, { official: { status: "need-login", summary: "", outline: [] }, transcriptError: "NEED_LOGIN" }) });
+  await model.start();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  assert.equal(model.view.value.title, "样例长视频");
+  assert.equal(model.view.value.needLogin, true);
+  assert.equal(model.view.value.notice?.text, NEED_LOGIN_TEXT);
 });

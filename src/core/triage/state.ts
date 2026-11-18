@@ -128,7 +128,7 @@ export function freshState(raw: unknown, now: number): TriageState {
   return state;
 }
 
-/** 这个视频看不了（付费、确认不了付费、找不到）：之后两步都跳过它。 */
+/** 这个视频看不了（付费、找不到）：之后两步都跳过它。 */
 export function withUnavailable(state: unknown, key: string): TriageState {
   const current = normalizeState(state);
   if (!current.list) return current;

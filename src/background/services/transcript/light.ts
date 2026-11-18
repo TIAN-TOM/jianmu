@@ -203,11 +203,14 @@ export function createLight(deps: LightDeps): Light {
     const asking = info;
     let official = known?.official;
     const ask = site?.readOfficialSummary?.bind(site);
-    if (ask && (!official || needsRetry(official.record, timers.now()))) {
+    // 要登录的每次都重问：登录以后卡片马上就能读到，不等重问间隔。
+    if (ask && (!official || official.record.status === "need-login" || needsRetry(official.record, timers.now()))) {
       official = await deps.officials.lookup(video, asking, () => ask(asking, ctxOf()));
     }
     if (!guard.clearedSince(since, "cache") && started === epoch) remember(video, { info, official });
-    return success(video, infoView(info), official ? officialView(official.record) : undefined, { hasTranscript: false, fromCache: false });
+    // 官方总结说要登录：没登录，字幕也读不到，告诉卡片，不摆「生成概览」。
+    const needLogin = official?.record.status === "need-login" ? ({ transcriptError: "NEED_LOGIN" } as const) : {};
+    return success(video, infoView(info), official ? officialView(official.record) : undefined, { hasTranscript: false, fromCache: false, ...needLogin });
   }
 
   return {
