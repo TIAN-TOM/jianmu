@@ -17,7 +17,7 @@ const NEVER = { activationVersion: 0, activationFingerprint: "", dataConsentVers
 
 const SCRIPT = `
 const schema = await import("./src/shared/settings-schema.ts");
-const { dataConsentStatus } = await import("./src/pages/options/consent-status.ts");
+const { dataConsentStatus } = await import("./src/shared/consent-status.ts");
 const consent = await import("./src/core/consent.ts");
 const { createSettingsStore } = await import("./src/platform/settings-store.ts");
 const STALE = ${JSON.stringify(STALE)};

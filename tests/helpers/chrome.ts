@@ -1,4 +1,4 @@
-// chrome.* 的替身：runtime、tabs、windows、sidePanel、scripting、storage 和它们的事件，外加造发送方的几个函数。
+// chrome.* 的替身：runtime、tabs、windows、sidePanel、scripting、storage、contextMenus 和它们的事件，外加造发送方的几个函数。
 // 消息回复过一遍 JSON、存储读写用 structuredClone，和浏览器一致；地址都是自造的，不是任何真实网站。
 import type { ModelServiceFetch } from "../../src/background/ai.ts";
 import type { AppDeps } from "../../src/background/app.ts";
@@ -160,6 +160,8 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     injections: [] as Call<{ readonly tabId: number; readonly files: readonly string[]; readonly allFrames?: boolean }>[],
     panelBehaviors: [] as unknown[],
     optionsOpened: 0,
+    /** 在新标签页里打开的地址。 */
+    tabsCreated: [] as string[],
     /** 发给模型服务的请求地址。 */
     fetches: [] as string[],
     /** 保活调了几次扩展接口。 */
@@ -174,6 +176,8 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
   /** 动态注册着的内容脚本。 */
   const registered = new Map<string, { readonly matches: readonly string[]; readonly js: readonly string[] }>();
   const timers = manualTimers();
+  /** 建着的右键菜单项，按建的先后：标识到标题、类型和勾选。 */
+  const menuItems = new Map<string, { readonly title: string; readonly type: string; readonly contexts: readonly string[]; checked?: boolean }>();
 
   const reading = <A extends ReturnType<typeof watchArea>>(area: A, name: string): A => ({
     ...area,
@@ -193,6 +197,8 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
 
   const runtime = {
     id: EXTENSION_ID,
+    /** 照浏览器的做法，只在回调里有值。 */
+    lastError: undefined as { message: string } | undefined,
     getURL: extensionUrl,
     getManifest: (): FakeManifest => options.manifest ?? {},
     async openOptionsPage() {
@@ -224,6 +230,10 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     async sendMessage(tabId: number, message: unknown) {
       calls.tabMessages.push({ tabId, message: copy(message) });
       return options.tabReply?.(tabId, message);
+    },
+    async create({ url }: { url: string }) {
+      calls.tabsCreated.push(url);
+      return { id: 1000 + calls.tabsCreated.length, url };
     },
     onRemoved: event(),
     onActivated: event(),
@@ -274,6 +284,32 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     },
   };
   const indexedDB = createMemoryIndexedDb();
+  // 和清单支持的最低版本一样：三个接口都只走回调、不回 Promise，报错只在回调里读得到。标识重复时建不成，改一项不存在的标识会报错。
+  const answer = (callback: (() => void) | undefined, error?: string): void => {
+    setImmediate(() => {
+      runtime.lastError = error ? { message: error } : undefined;
+      callback?.();
+      runtime.lastError = undefined;
+    });
+  };
+  const contextMenus = {
+    create(properties: { id: string; title: string; type: string; contexts: string[]; checked?: boolean }, callback?: () => void) {
+      const duplicate = menuItems.has(properties.id);
+      if (!duplicate) menuItems.set(properties.id, { title: properties.title, type: properties.type, contexts: [...properties.contexts], ...(properties.checked === undefined ? {} : { checked: properties.checked }) });
+      answer(callback, duplicate ? `Cannot create item with duplicate id ${properties.id}` : undefined);
+      return properties.id;
+    },
+    update(id: string, properties: { checked: boolean }, callback?: () => void): void {
+      const item = menuItems.get(id);
+      if (item) item.checked = properties.checked;
+      answer(callback, item ? undefined : `Cannot find menu item with id ${id}`);
+    },
+    removeAll(callback?: () => void): void {
+      menuItems.clear();
+      answer(callback);
+    },
+    onClicked: event(),
+  };
   const permissions = {
     async getAll() {
       return { origins: [...granted] };
@@ -292,7 +328,7 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     if (options.fetch) return options.fetch(url, init);
     throw new Error("测试里没有准备模型服务的回复");
   };
-  const chrome = { runtime, tabs, windows, sidePanel, scripting, permissions, storage: { local, session, onChanged: storageChanged } };
+  const chrome = { runtime, tabs, windows, sidePanel, scripting, permissions, contextMenus, storage: { local, session, onChanged: storageChanged } };
 
   // 两个自造站点的地址规则，记下每次解析，看闸门之前有没有读地址。
   const rule = (platform: VideoRef["platform"], prefix: string): SiteRules => ({
@@ -380,6 +416,14 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     /** 后台用的那份内存数据库。 */
     indexedDB,
     fireStartup: () => fire(runtime.onStartup),
+    /** 建着的右键菜单项。 */
+    menuItems,
+    /** 用户点了右键菜单的一项。勾选项先照浏览器的做法翻转勾选，再交给后台。 */
+    fireMenuClicked(id: string) {
+      const item = menuItems.get(id);
+      if (item?.type === "checkbox") item.checked = !item.checked;
+      fire(contextMenus.onClicked, { menuItemId: id, ...(item?.type === "checkbox" ? { checked: item.checked, wasChecked: !item.checked } : {}), editable: false });
+    },
     /** 动态注册着的内容脚本，编号到匹配规则和文件。 */
     registered,
     /** 用户给了或撤了一条授权（只改授权本身，后台的授权事件由测试自己调）。 */
@@ -395,6 +439,7 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     /** 直接交给 createApp 的依赖。 */
     deps: (log: AppDeps["log"] = console): AppDeps => ({
       runtime,
+      contextMenus,
       tabs,
       sidePanel,
       scripting,

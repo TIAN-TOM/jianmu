@@ -5,6 +5,7 @@ export interface TabsApi {
   query(info: { url?: string[]; windowId?: number; active?: boolean }): Promise<readonly { readonly id?: number; readonly url?: string; readonly title?: string }[]>;
   get(tabId: number): Promise<{ readonly title?: string }>;
   sendMessage(tabId: number, message: unknown): Promise<unknown>;
+  create(properties: { url: string }): Promise<unknown>;
 }
 
 export interface WindowsApi {
@@ -47,6 +48,7 @@ export interface ContentScript {
 
 export interface RuntimePages {
   getManifest(): ManifestPages;
+  getURL(path: string): string;
   openOptionsPage(): Promise<void>;
 }
 
@@ -73,6 +75,8 @@ export interface Tabs {
   /** 清单里有没有设置页：没有时打开设置页必然失败。 */
   readonly hasOptionsPage: () => boolean;
   readonly openOptionsPage: () => Promise<void>;
+  /** 在新标签页里打开扩展自己的一个页面，路径相对扩展根目录。 */
+  readonly openPage: (path: string) => Promise<void>;
   /** 清单里声明的内容脚本，没声明时是空的。 */
   readonly contentScripts: () => readonly ContentScript[];
   /** 地址匹配得上这几条规则的已开标签页。只在确认启用之后调。 */
@@ -124,6 +128,7 @@ export function createTabs(
       return Boolean(page || ui?.page);
     },
     openOptionsPage: () => runtime.openOptionsPage(),
+    openPage: (path) => tabs.create({ url: runtime.getURL(path) }).then(() => undefined),
     contentScripts: () =>
       (runtime.getManifest().content_scripts ?? []).map(({ matches = [], js = [], css = [], all_frames: allFrames = false }) => ({
         matches,

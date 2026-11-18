@@ -2,7 +2,7 @@
 // 「同意并打开」一步做完；关掉、改时长不用同意。
 import { useId, useState } from "preact/hooks";
 import { AUTO_OVERVIEW_MINUTES } from "../../shared/settings-schema.ts";
-import { dataConsentStatus } from "./consent-status.ts";
+import { dataConsentStatus } from "../../shared/consent-status.ts";
 import { Button } from "../shared/ui/button.tsx";
 import { ConsentLines } from "./ai-section.tsx";
 import { StatusLine } from "./controls.tsx";

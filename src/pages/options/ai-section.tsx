@@ -12,7 +12,7 @@ import {
   EFFORTS,
   type AnalysisChunkMode,
 } from "../../shared/settings-schema.ts";
-import { dataConsentStatus } from "./consent-status.ts";
+import { dataConsentStatus } from "../../shared/consent-status.ts";
 import { Button } from "../shared/ui/button.tsx";
 import { Confirmable, StatusLine } from "./controls.tsx";
 import { ImageProbeButton } from "./image-probe-button.tsx";

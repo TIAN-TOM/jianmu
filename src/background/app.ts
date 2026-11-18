@@ -14,6 +14,7 @@ import { analysisChunkOptions, qaChunkOptions } from "../shared/settings-schema.
 import type { NoteRecord, OverviewRecord, QaRecord } from "../core/notes/records.ts";
 import type { StoreName } from "../shared/names.ts";
 import type { SiteRules } from "../sites/types.ts";
+import { createActionMenu, type ContextMenusDeps, type MenuClick } from "./action-menu.ts";
 import { createAiWiring, type AiWiring, type ModelServiceFetch, type PromptTable } from "./ai.ts";
 import { autoSwitchToggled, createAutoWiring } from "./auto.ts";
 import { createContentTabs, siteTabs, type ContentTabs } from "./content-tabs.ts";
@@ -54,7 +55,9 @@ import { createTriageStore } from "./stores/triage.ts";
 import { CLAIM_MS, createTaskRunner, type TaskRunner, type Timers } from "./tasks.ts";
 
 export interface AppDeps {
-  readonly runtime: RuntimeMessaging & TabsDeps["runtime"] & { readonly id: string; getURL(path: string): string; reload?(): void };
+  readonly runtime: RuntimeMessaging & TabsDeps["runtime"] & ContextMenusDeps["runtime"] & { readonly id: string; reload?(): void };
+  /** 工具栏图标的右键菜单。 */
+  readonly contextMenus: ContextMenusDeps["menus"];
   /** 读扩展包里的一个文件，读到的是磁盘上现在的内容；读不到回 null。没给就不看文件换没换。 */
   readonly readOwnFile?: (path: string) => Promise<string | null>;
   readonly tabs: TabsDeps["tabs"];
@@ -96,6 +99,7 @@ export interface App {
   readonly onTabActivated: () => void;
   readonly onTabUpdated: (change: { readonly url?: string; readonly status?: string }, tabId?: number) => void;
   readonly onFocusChanged: (windowId: number) => void;
+  readonly onMenuClicked: (info: MenuClick) => Promise<void>;
 }
 
 /** 焦点离开了全部 Chrome 窗口。 */
@@ -444,10 +448,8 @@ export function createApp(deps: AppDeps): App {
   const core = assembleCore(deps);
   const router = assembleRouter(deps, core);
   // 安装、更新和浏览器启动都设一次：这是持久的设置，不必每次醒来都设。安装时不打开设置页，清单里还没有设置页。
-  const setPanelBehavior = () =>
-    core.tabs.setPanelBehavior().catch((error: unknown) => {
-      deps.log.error("设置侧边栏的打开方式失败", errorLabel(error));
-    });
+  const setPanelBehavior = () => core.tabs.setPanelBehavior().catch((error: unknown) => deps.log.error("设置侧边栏的打开方式失败", errorLabel(error)));
+  const menu = createActionMenu({ menus: deps.contextMenus, runtime: deps.runtime, settings: core.settings, tabs: core.tabs, log: deps.log });
   const consider = () => void core.auto.consider().catch((error: unknown) => deps.log.error("打开就出结论的判断失败", errorLabel(error)));
   const selfUpdate = wireSelfUpdate({ ...deps, busy: () => core.keepAlive.busy() || core.batch.busy() || core.tasks.list().some((task) => task.state === "running") });
   return {
@@ -459,10 +461,10 @@ export function createApp(deps: AppDeps): App {
       const reloaded = reason === "install" || reason === "update";
       // 浏览器在扩展更新时清掉动态注册：先按当前授权重新注册，再补注入。
       await core.siteSwitch?.sync({ fresh: reloaded });
-      await Promise.all([setPanelBehavior(), reloaded ? core.reinject() : undefined]);
+      await Promise.all([setPanelBehavior(), menu.build(), reloaded ? core.reinject() : undefined]);
     },
     async onStartup() {
-      await Promise.all([setPanelBehavior(), core.siteSwitch?.sync()]);
+      await Promise.all([setPanelBehavior(), menu.build(), core.siteSwitch?.sync()]);
     },
     async onPermissionsChanged() {
       await core.siteSwitch?.permissionsChanged();
@@ -470,16 +472,13 @@ export function createApp(deps: AppDeps): App {
     onTabActivated: () => consider(),
     // 后台打开的标签页也算：地址变了或加载完成就把开着的视频标签页再过一遍；从它发起的翻译和整理字幕换了视频就停。
     onTabUpdated: (change, tabId) => (core.translate.tabChanged(tabId, change.url), Object.hasOwn(change, "url") || change.status === "complete" ? consider() : undefined),
-    onFocusChanged(windowId) {
-      if (windowId !== NO_WINDOW) consider();
-    },
+    onFocusChanged: (windowId) => (windowId !== NO_WINDOW ? consider() : undefined),
+    onMenuClicked: (info) => menu.clicked(info),
     onTabRemoved(tabId) {
       core.translate.tabChanged(tabId, null);
       core.contentTabs.remove(tabId);
       core.playbackLimits.forget(tabId);
-      void core.sessions.onTabRemoved(tabId).catch((error: unknown) => {
-        deps.log.error("删掉关闭标签页的观看会话失败", errorLabel(error));
-      });
+      void core.sessions.onTabRemoved(tabId).catch((error: unknown) => deps.log.error("删掉关闭标签页的观看会话失败", errorLabel(error)));
     },
     async onStorageChanged(changes, area) {
       // 开关一动就恢复；刚打开时把已经开着的视频标签页排进来，不等下一个标签页事件。
@@ -488,6 +487,7 @@ export function createApp(deps: AppDeps): App {
       if (activationLost(changes, area)) router.closeBusinessPorts("NOT_ENABLED");
       // 只发给发过消息的内容脚本：启用已经失效，不再按地址查标签页。
       if (activationDropped(changes, area)) await core.messenger.toTabs(core.contentTabs.list(), { type: "activation.changed", confirmed: false });
+      await menu.settingsChanged(changes, area);
       const message = appearanceChange(changes, area);
       if (!message) return;
       try {

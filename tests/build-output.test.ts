@@ -26,7 +26,8 @@ const BUILD = join(ROOT, "build");
 const BUNDLES = ["background.js", "pages/sidepanel.js", "pages/theme-boot.js", "pages/card.js", "content/bilibili.js"];
 // 权限只认这几项：多一项要改这里，不靠禁用名单列举。YouTube 和 AI 地址都走运行时申请的可选权限。
 // scripting 用来在安装、更新和确认启用后往已开的视频页补注入内容脚本，本身没有安装警告。
-const PERMISSIONS = ["sidePanel", "storage", "scripting"];
+// contextMenus 只用来在工具栏图标的右键菜单里加简幕自己的几项，也没有安装警告。
+const PERMISSIONS = ["sidePanel", "storage", "scripting", "contextMenus"];
 const HOST_PERMISSIONS = ["https://www.bilibili.com/*", "https://api.bilibili.com/*", "https://*.hdslb.com/*"];
 // http 只放行本机的两个来源，不能写成 http://*/*。
 const OPTIONAL_HOST_PERMISSIONS = ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"];
@@ -40,6 +41,7 @@ before(() => {
 // 后台的全部顶层监听，都在入口一次注册。标签页激活、更新和窗口焦点给打开就出结论用，开关关着时醒来只读一次设置就返回。
 // 授权增减给要另外授权的站（YouTube）注册内容脚本用，构建开关关着时醒来什么都不做。
 const TOP_LEVEL_LISTENERS = [
+  "contextMenus.onClicked",
   "permissions.onAdded",
   "permissions.onRemoved",
   "runtime.onConnect",
@@ -63,6 +65,7 @@ test("后台包在替身环境里求值不抛错，监听都注册上", () => {
     windows: { onFocusChanged: event("windows.onFocusChanged") },
     storage: { onChanged: event("storage.onChanged") },
     permissions: { onAdded: event("permissions.onAdded"), onRemoved: event("permissions.onRemoved") },
+    contextMenus: { onClicked: event("contextMenus.onClicked") },
   };
   vm.runInNewContext(readBuild("background.js"), { chrome, console, TextEncoder, AbortController }, { filename: "background.js" });
   assert.deepEqual(registered.sort(), TOP_LEVEL_LISTENERS.map((name) => `${name}:function`));
@@ -76,6 +79,8 @@ test("清单不变量", () => {
   assert.deepEqual(manifest.permissions, PERMISSIONS);
   assert.deepEqual(manifest.host_permissions, HOST_PERMISSIONS);
   assert.deepEqual(manifest.optional_host_permissions, OPTIONAL_HOST_PERMISSIONS);
+  // 右键菜单第一行的扩展名链到这里。
+  assert.equal(manifest.homepage_url, "https://github.com/TIAN-TOM/jianmu");
   // 网页能加载的只有卡片页，而且只能从每次会话都变的地址加载：卡片关着时网页拼不出能用的地址。
   assert.deepEqual(manifest.web_accessible_resources, [{ resources: ["pages/card.html"], matches: ["https://www.bilibili.com/*"], use_dynamic_url: true }]);
   // 补注入按清单取脚本：清单里的每个脚本都在构建里。

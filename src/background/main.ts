@@ -31,6 +31,8 @@ chrome.tabs.onUpdated.addListener(
   wake((tabId: number, change: chrome.tabs.OnUpdatedInfo) => current().onTabUpdated(change, tabId)),
 );
 chrome.windows.onFocusChanged.addListener(wake((windowId: number) => current().onFocusChanged(windowId)));
+// 工具栏图标右键菜单里简幕自己的几项。
+chrome.contextMenus.onClicked.addListener(wake((info: chrome.contextMenus.OnClickData) => void current().onMenuClicked(info)));
 chrome.storage.onChanged.addListener(
   wake((changes: Record<string, chrome.storage.StorageChange>, area: string) => void current().onStorageChanged(changes, area)),
 );
