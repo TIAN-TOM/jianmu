@@ -87,6 +87,9 @@ test("翻译端口认整理字幕：purpose 只收 tidy，和 fromSec 可以一�
   assert.equal(spec.validate({ type: "translate.start", video, purpose: "rewrite" }, ctx), false);
   assert.equal(spec.validate({ type: "translate.start", video, purpose: "tidy", extra: 1 }, ctx), false);
   assert.equal(spec.validate({ type: "translate.start", video, fromSec: -1, purpose: "tidy" }, ctx), false);
+  assert.equal(spec.validate({ type: "translate.start", video, purpose: "tidy", tabId: 3, storedOnly: true }, ctx), true, "带上视频所在的标签页");
+  assert.equal(spec.validate({ type: "translate.start", video, tabId: -1 }, ctx), false);
+  assert.equal(spec.validate({ type: "translate.start", video, tabId: "3" }, ctx), false);
   const handlers = spec.onConnect({ id: "p1", post: () => {} } as never, ctx);
   await handlers.onMessage({ type: "translate.start", video, purpose: "tidy" });
   assert.deepEqual(started, ["tidy"]);
@@ -107,4 +110,31 @@ test("只取本机存着的：没存过时一个模型请求都不发，也不�
   await h.service.start(view.video, { origin: "user", listener: later, purpose: "tidy", storedOnly: true });
   assert.equal(h.tidyRequests(), 1);
   assert.equal(Object.keys(later.translated()).length, 3);
+});
+
+test("一整批 12 段里漏了三段、改写了一段：其余的照常用，改写的照旧是原文，漏的三段另凑一批补上，不整批作废", async () => {
+  const { TRANSLATION_BATCH_MAX_SEGMENTS } = await import("../../../../src/core/ai/chunking.ts");
+  const many = Array.from({ length: TRANSLATION_BATCH_MAX_SEGMENTS }, (_, index) => cue(index * 10, `第${index + 1}句没有标点`));
+  const view = await transcriptView(many);
+  let round = 0;
+  const sloppy = (request: CompletionRequest): string => {
+    round += 1;
+    const items = batchOf(request).filter(({ id }) => round > 1 || !["s2", "s5", "s9"].includes(id));
+    return JSON.stringify({ segments: items.map(({ id, text }) => ({ id, text: id === "s0" ? "完全换成了另一套说法的一句话。" : `${text}。` })) });
+  };
+  const h = translateHarness(view, { tidyReply: sloppy });
+  const listener = page("panel");
+  const running = h.tidy(listener);
+  assert.ok(await until(() => h.tidyRequests() === 1, PATIENT));
+  assert.ok(await until(() => h.timers.pending() > 0, PATIENT), "补轮在等");
+  h.timers.advance(TRANSLATE_RETRY_DELAY_MS);
+  await running;
+  assert.equal(h.tidyRequests(), 2, "整批一次，漏的三段补一次");
+  const shown = listener.translated();
+  assert.equal(Object.keys(shown).length, TRANSLATION_BATCH_MAX_SEGMENTS);
+  assert.equal(shown.s0, "第1句没有标点", "改写的照旧是原文");
+  assert.equal(shown.s5, "第6句没有标点。", "漏的补上了");
+  assert.equal(shown.s11, "第12句没有标点。");
+  const retried = batchOf(h.fake.calls[1]!.request).map(({ id }) => id);
+  assert.deepEqual(retried, ["s2", "s5", "s9"], "补轮只发漏的那几段");
 });

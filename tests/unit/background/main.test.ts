@@ -61,9 +61,9 @@ test("service worker 启动时不读存储；笔记、概览和备份只走 Inde
   for (const [key, value] of Object.entries(leftovers)) assert.deepEqual(fake.local.data[key], value, `${key} 原样留着`);
   assert.deepEqual(opened, [], "这几个事件用不到数据库");
 
-  // 进备份的只有数据库里的仓库，本机存储里没有一份笔记、概览或问答。
+  // 进备份的只有数据库里的仓库，本机存储里没有一份笔记、概览、问答或译文。
   const backedUp = Object.entries(STORAGE_PLAN).filter(([, plan]) => plan.backup);
-  assert.deepEqual(backedUp.map(([name]) => name).sort(), ["notes", "overviews", "qa"]);
+  assert.deepEqual(backedUp.map(([name]) => name).sort(), ["notes", "overviews", "qa", "translations"]);
   for (const [name, plan] of backedUp) assert.equal(plan.area, "indexeddb", name);
 });
 

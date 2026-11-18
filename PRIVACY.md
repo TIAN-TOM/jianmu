@@ -64,7 +64,7 @@
 
 **什么时候发**：
 
-- 平时只在你操作时发，比如点「生成概览」、提问、点「解释」、点「整理字幕」，或者记笔记（笔记存下以后，会请模型润色那一刻的字幕）。
+- 平时只在你操作时发，比如点「生成概览」、提问、点「解释」、点「整理字幕」，或者记笔记（笔记存下以后，会请模型润色那一刻的字幕）。翻译和整理字幕点了以后在后台分批发完，关掉侧边栏也继续，直到做完、你点停止，或者视频所在的标签页换了视频或关掉。
 - 「本窗口全部生成」和粗筛，你先确认数量，之后逐个发送。
 - 打开「打开就出结论」以后：在 B 站打开超过设定时长的视频，简幕会自动发送这个视频的字幕、标题和时长、UP 主名和简介，生成概览和一句话结论。这个开关新安装时是关的，打开前要先同意数据说明；设定时长默认 10 分钟，可以在 0 到 180 分钟之间调。在后台打开、还没切过去看的标签页也算，打开开关时已经开着的也算；它们排队生成，正在看的那个先生成，同时最多生成两个，10 分钟最多 40 个。一次开的标签页越多，花的 API 额度越多。已有概览的视频不再生成，同一个视频在一次浏览器会话里只自动试一次。外文字幕不自动翻译。服务商说额度用完或密钥不对时，自动生成会停下，等你手动生成成功一次，或者重新开一下开关，才恢复。
 
@@ -105,7 +105,7 @@
 - **一条一条删**：笔记和问答可以在侧边栏里单独删。
 - **卸载扩展**：Chrome 会删掉扩展存在这台电脑上的数据。
 - 这里说的删除，是指简幕和浏览器都读不到了。浏览器的存储文件里可能还留着旧内容，简幕没法保证它从磁盘上消失。
-- **导出备份**（设置页）：备份文件里有笔记、概览和问答，没有 API 密钥、设置、缓存、导入的字幕、译文和按频道记住的模式。文件由浏览器下载到你的电脑上，由你自己保管。里面有你的笔记和问答，分享前留意。恢复备份只在本机合并。
+- **导出备份**（设置页）：备份文件里有笔记、概览、问答，以及译文和整理后的字幕，没有 API 密钥、设置、缓存、导入的字幕和按频道记住的模式。文件由浏览器下载到你的电脑上，由你自己保管。里面有你的笔记和问答，分享前留意。恢复备份只在本机合并。
 
 ### 权限
 
@@ -152,7 +152,7 @@ IndexedDB 数据库 `jianmu` 里的仓库：
 | `notes` | 笔记 | 留 | 删 | 是 |
 | `overviews` | 概览和一句话结论 | 留 | 删 | 是 |
 | `qa` | 问答 | 留 | 删 | 是 |
-| `translations` | 译文和整理后的字幕 | 留 | 删 | 否 |
+| `translations` | 译文和整理后的字幕 | 留 | 删 | 是 |
 | `imports` | 导入的字幕 | 留 | 删 | 否 |
 | `channels` | 按频道记住的模式 | 留 | 删 | 否 |
 | `cache` | 字幕、视频信息、官方总结和 UP 主分段的缓存 | 删 | 删 | 否 |
@@ -253,7 +253,7 @@ First you need to read the data notice and agree, either by ticking the box in t
 
 **When it is sent**:
 
-- Normally only when you do something, such as clicking 生成概览 (generate overview), asking a question, clicking 解释 (explain), clicking 整理字幕 (tidy subtitles), or taking a note (once a note is saved, the model is asked to tidy up the subtitle line from that moment).
+- Normally only when you do something, such as clicking 生成概览 (generate overview), asking a question, clicking 解释 (explain), clicking 整理字幕 (tidy subtitles), or taking a note (once a note is saved, the model is asked to tidy up the subtitle line from that moment). Once you start a translation or subtitle tidy-up, it keeps sending batches in the background, even after you close the side panel, until it finishes, you click stop, or the tab with that video moves to another video or is closed.
 - For 本窗口全部生成 and triage, you confirm how many videos first, and they are then sent one at a time.
 - With 打开就出结论 switched on: when you open a Bilibili video longer than the set length, Jianmu automatically sends that video's subtitles, title and duration, uploader name and description to generate an overview and a one-line verdict. The switch is off on a new install, and you have to agree to the data notice before turning it on. The set length is 10 minutes by default and can be anywhere from 0 to 180 minutes. Tabs opened in the background that you haven't looked at yet count too, and so do tabs that were already open when you switched it on. They are queued, with the video you are watching going first. At most two are generated at a time, and at most 40 in any 10 minutes. The more tabs you open at once, the more of your API quota it uses. Videos that already have an overview are skipped, and each video is tried automatically at most once per browser session. Foreign-language subtitles are not translated automatically. If the service says your quota has run out or your key is wrong, automatic generation pauses until you generate an overview by hand successfully or switch the setting off and on again.
 
@@ -294,7 +294,7 @@ Everything is kept in the extension storage of this Chrome profile on this compu
 - **One at a time**: notes and Q&A entries can be deleted individually in the side panel.
 - **Uninstalling**: Chrome deletes the data the extension kept on this computer.
 - Deleting here means neither Jianmu nor the browser can read the data any more. Old content may still be left in the browser's storage files, and Jianmu cannot guarantee it is gone from the disk.
-- **Export backup** (导出备份, in Settings): the backup file holds your notes, overviews and Q&A. It leaves out the API key, settings, caches, imported subtitles, translations and per-channel modes. The browser downloads the file to your computer and it is yours to look after. It contains your notes and Q&A, so take care before sharing it. Restoring a backup only merges it into what is already on this computer.
+- **Export backup** (导出备份, in Settings): the backup file holds your notes, overviews, Q&A, translations and tidied subtitles. It leaves out the API key, settings, caches, imported subtitles and per-channel modes. The browser downloads the file to your computer and it is yours to look after. It contains your notes and Q&A, so take care before sharing it. Restoring a backup only merges it into what is already on this computer.
 
 ### Permissions
 
@@ -341,7 +341,7 @@ Object stores in the IndexedDB database `jianmu`:
 | `notes` | Notes | Kept | Deleted | Yes |
 | `overviews` | Overviews and one-line verdicts | Kept | Deleted | Yes |
 | `qa` | Q&A | Kept | Deleted | Yes |
-| `translations` | Translations and tidied subtitles | Kept | Deleted | No |
+| `translations` | Translations and tidied subtitles | Kept | Deleted | Yes |
 | `imports` | Imported subtitles | Kept | Deleted | No |
 | `channels` | The mode remembered for each channel | Kept | Deleted | No |
 | `cache` | Cached subtitles, video details, official summaries and chapter markers | Deleted | Deleted | No |

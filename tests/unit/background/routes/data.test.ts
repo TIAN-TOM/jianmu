@@ -1,6 +1,8 @@
 // 资料一节的三条路由：导出的备份能原样导回来，导两次不重复；清除缓存留着笔记，清除全部连设置一起清掉并广播；
 // 导出和清除确认启用之前也能用，导入要先确认；只有设置页能发。清除连取字幕服务内存里记着的一起忘掉。
 import assert from "node:assert/strict";
+import { translationId, type TranslationRecord } from "../../../../src/core/notes/records.ts";
+import { createObjectStoreDriver } from "../../../../src/platform/idb.ts";
 import { test } from "node:test";
 import { createApp } from "../../../../src/background/app.ts";
 import { createDataService } from "../../../../src/background/services/data.ts";
@@ -49,6 +51,44 @@ test("导出的备份清除全部数据后能导回来，再导一次不重复",
   assert.ok(again.ok);
   assert.deepEqual(again.value.counts.notes, { added: 0, updated: 0, skipped: 0 });
   assert.equal(await noteCount(bg), 1);
+  assert.deepEqual(again.value.counts.translations, { added: 0, updated: 0, skipped: 0 });
+});
+
+test("译文和整理后的字幕也进备份：清除全部数据后导回来，再导一次不重复，本机后来补的段不被盖掉", async () => {
+  const bg = studyBackground({ withoutAi: true });
+  const driver = createObjectStoreDriver<TranslationRecord>({ storeName: "translations", indexedDB: bg.fake.indexedDB });
+  const transcript = { video: VIDEO, kind: "auto" as const, lang: "zh-CN", fingerprint: "fp-sample" };
+  const record = (target: TranslationRecord["target"], segments: Record<string, string>): TranslationRecord => ({
+    id: translationId(transcript, target),
+    video: VIDEO,
+    transcript,
+    target,
+    segments,
+    derived: { basis: { source: "transcript", transcript }, gen: { feature: target === "tidy" ? "tidy" : "rewrite", promptVersion: "v1", model: "m", effort: "off" } },
+    updatedAt: 100,
+  });
+  await driver.write({ put: [record("tidy", { a1a1a1a1a1a1a1a1: "大家好，欢迎回来。" }), record("en", { a1a1a1a1a1a1a1a1: "Hello." })] });
+
+  const exported = await bg.send<Backup>("backup.export", {}, senders.options());
+  assert.ok(exported.ok, JSON.stringify(exported));
+  assert.equal(exported.value.version, 2);
+  assert.deepEqual(exported.value.translations.map((item) => item.target).sort(), ["en", "tidy"]);
+  const payload = JSON.parse(JSON.stringify(exported.value));
+
+  assert.deepEqual(await bg.send("data.clear", { scope: "all" }, senders.options()), { ok: true, value: {} });
+  assert.ok((await bg.send("activation.confirm", {}, senders.options())).ok);
+  assert.deepEqual(await driver.getAll(), []);
+  // 清掉以后本机又整理了一段：导入时只补备份里有、本机没有的段。
+  await driver.write({ put: [record("tidy", { a1a1a1a1a1a1a1a1: "后来重新整理的。", b2b2b2b2b2b2b2b2: "新的一段。" })] });
+
+  const first = await bg.send<BackupImportReply>("backup.import", { payload }, senders.options());
+  assert.ok(first.ok, JSON.stringify(first));
+  assert.deepEqual(first.value.counts.translations, { added: 1, updated: 0, skipped: 0 }, "英文整条加上；整理的那条段都在本机，不算更新");
+  const tidy = (await driver.getAll()).find((item) => item.target === "tidy");
+  assert.deepEqual(tidy?.segments, { a1a1a1a1a1a1a1a1: "后来重新整理的。", b2b2b2b2b2b2b2b2: "新的一段。" });
+  const again = await bg.send<BackupImportReply>("backup.import", { payload }, senders.options());
+  assert.ok(again.ok);
+  assert.deepEqual(again.value.counts.translations, { added: 0, updated: 0, skipped: 0 });
 });
 
 test("清除缓存只清能重新取回的，笔记和设置都留着", async () => {
@@ -103,6 +143,7 @@ test("两种清除都忘掉取字幕服务内存里记着的，而且在清除�
     notes: { all: async () => [], update: async () => null },
     overviews: { all: async () => [], update: async () => null },
     qa: { all: async () => [], commit: async () => true },
+    translations: { all: async () => [], update: async () => null },
     guard: {
       ...guard,
       clear: (scope, run) =>

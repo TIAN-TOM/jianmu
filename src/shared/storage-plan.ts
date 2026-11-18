@@ -36,7 +36,7 @@ export const STORAGE_PLAN = {
   notes: { area: "indexeddb", clearCache: "keep", clearAll: "clear", backup: true },
   overviews: { area: "indexeddb", clearCache: "keep", clearAll: "clear", backup: true },
   qa: { area: "indexeddb", clearCache: "keep", clearAll: "clear", backup: true },
-  translations: { area: "indexeddb", clearCache: "keep", clearAll: "clear", backup: false },
+  translations: { area: "indexeddb", clearCache: "keep", clearAll: "clear", backup: true },
   imports: { area: "indexeddb", clearCache: "keep", clearAll: "clear", backup: false },
   channels: { area: "indexeddb", clearCache: "keep", clearAll: "clear", backup: false },
   cache: { area: "indexeddb", clearCache: "clear", clearAll: "clear", backup: false },

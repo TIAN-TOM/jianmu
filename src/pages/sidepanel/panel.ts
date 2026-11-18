@@ -119,8 +119,9 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
     effect(() => {
       const now = transcript.state.value;
       if (now.state === "ready") {
-        translation.bind(now.video, now.view.transcript.ref.fingerprint);
-        tidy.bind(now.video, now.view.transcript.ref.fingerprint);
+        const { tabId } = follow.target.peek();
+        translation.bind(now.video, now.view.transcript.ref.fingerprint, tabId);
+        tidy.bind(now.video, now.view.transcript.ref.fingerprint, tabId);
       } else if (now.state !== "loading") {
         translation.bind(null, null);
         tidy.bind(null, null);

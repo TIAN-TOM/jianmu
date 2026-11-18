@@ -1,12 +1,14 @@
 // 简幕自己的备份格式：导出、先认格式再读。旧格式交给 legacy-reader，合并在 merge。
-// 备份只带笔记、概览和问答；密钥、设置、提示词和链接这类字段一律不进文件，记录过一遍校验只留认得的字段。
+// 备份带笔记、概览、问答，第 2 版起加上译文和整理后的字幕（花额度换来的，重装就没了）；
+// 密钥、设置、提示词和链接这类字段一律不进文件，记录过一遍校验只留认得的字段。第 1 版的备份照常能读。
 import { fail, ok, type Result } from "../errors.ts";
-import type { NoteRecord, OverviewRecord, QaRecord } from "../notes/records.ts";
+import type { NoteRecord, OverviewRecord, QaRecord, TranslationRecord } from "../notes/records.ts";
 import { isLegacyBackup, readLegacyBackup } from "./legacy-reader.ts";
 import {
   checkNote,
   checkOverview,
   checkQa,
+  checkTranslation,
   isFields,
   keepValid,
   RECORD_KINDS,
@@ -17,8 +19,8 @@ import {
 } from "./records.ts";
 
 export const BACKUP_KIND = "jianmu-backup";
-// 备份版本只管这份文件的形状，和数据库版本、记录版本各自递增。
-export const BACKUP_VERSION = 1;
+// 备份版本只管这份文件的形状，和数据库版本、记录版本各自递增。第 2 版加了 translations。
+export const BACKUP_VERSION = 2;
 
 export interface Backup extends BackupContents {
   readonly kind: typeof BACKUP_KIND;
@@ -30,6 +32,7 @@ export interface BackupSource {
   readonly notes?: readonly NoteRecord[];
   readonly overviews?: readonly OverviewRecord[];
   readonly qa?: readonly QaRecord[];
+  readonly translations?: readonly TranslationRecord[];
 }
 
 function isoTime(ms: number): string {
@@ -37,7 +40,7 @@ function isoTime(ms: number): string {
   return Number.isNaN(date.getTime()) ? "" : date.toISOString();
 }
 
-/** 导出：三类记录各过一遍校验，导出的文件原样导回来得到同一份记录。 */
+/** 导出：四类记录各过一遍校验，导出的文件原样导回来得到同一份记录。 */
 export function buildBackup(source: BackupSource, exportedAt: number): Backup {
   return {
     kind: BACKUP_KIND,
@@ -46,6 +49,7 @@ export function buildBackup(source: BackupSource, exportedAt: number): Backup {
     notes: keepValid(source.notes ?? [], checkNote).kept,
     overviews: keepValid(source.overviews ?? [], checkOverview).kept,
     qa: keepValid(source.qa ?? [], checkQa).kept,
+    translations: keepValid(source.translations ?? [], checkTranslation).kept,
   };
 }
 
@@ -63,10 +67,12 @@ function readCurrent(payload: Fields): Result<ImportedBackup> {
   const notes = keepValid(lists.notes ?? [], checkNote);
   const overviews = keepValid(lists.overviews ?? [], checkOverview);
   const qa = keepValid(lists.qa ?? [], checkQa);
+  // 第 1 版没有这一类，按空的读。
+  const translations = keepValid(lists.translations ?? [], checkTranslation);
   return ok({
     format: "jianmu",
-    contents: { notes: notes.kept, overviews: overviews.kept, qa: qa.kept },
-    skipped: { notes: notes.skipped, overviews: overviews.skipped, qa: qa.skipped },
+    contents: { notes: notes.kept, overviews: overviews.kept, qa: qa.kept, translations: translations.kept },
+    skipped: { notes: notes.skipped, overviews: overviews.skipped, qa: qa.skipped, translations: translations.skipped },
     promptsDropped: false,
   });
 }

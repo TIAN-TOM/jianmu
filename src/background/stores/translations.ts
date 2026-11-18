@@ -1,25 +1,14 @@
 // 译文仓储：一版字幕译成一种语言是一条记录，整理后的原文（补标点、改同音错字）按 tidy 也记在这里，主键由访问层用视频、字幕指纹和目标语言拼出来，按视频查。
 // 记录里按每段原文规范化后的指纹记译文：换了字幕版本，原文没变的段认得出来，不用再付一次钱。
-// 不随字幕缓存过期，清除全部数据时才清。读出来的行不信：形状不对的滤掉，不认识的字段不往外带。
+// 不随字幕缓存过期，清除全部数据时才清；进备份，导入时按字幕版本合并。读出来的行不信：形状不对的滤掉，不认识的字段不往外带。
 import type { ClearGuard } from "../../core/clear-guard.ts";
-import type { Derived, TranscriptRef } from "../../core/notes/records.ts";
+import { TEXT_TARGETS, translationId, type Derived, type TranscriptRef, type TranslationRecord } from "../../core/notes/records.ts";
 import { parseVideoKey, type VideoKey } from "../../core/video-ref.ts";
 import type { ObjectStoreDriver } from "../../platform/idb.ts";
 import type { TextTarget } from "../../shared/messages/translate.ts";
 import { createWriteGate, type WriteOptions } from "./write-gate.ts";
 
-export interface TranslationRecord {
-  readonly id: string;
-  readonly video: VideoKey;
-  /** 译的是哪一版字幕。 */
-  readonly transcript: TranscriptRef;
-  readonly target: TextTarget;
-  /** 段的原文指纹 → 译文。 */
-  readonly segments: Readonly<Record<string, string>>;
-  /** 最近一次写入的依据和生成配置。 */
-  readonly derived: Derived;
-  readonly updatedAt: number;
-}
+export type { TranslationRecord };
 
 /** 并进一版字幕记录的译文。 */
 export interface TranslationPatch {
@@ -47,11 +36,15 @@ export interface TranslationStore {
   readonly byVideo: (video: VideoKey) => Promise<TranslationRecord[]>;
   /** 把这几段译文并进这一版的记录，读—改—写排在同一条队列里。清除过、still 回假就不写，返回 false。 */
   readonly merge: (patch: TranslationPatch, options?: MergeOptions) => Promise<boolean>;
+  /** 全部记录，导出备份用。 */
+  readonly all: () => Promise<TranslationRecord[]>;
+  /** 在写入队列里读全部记录、算出要写的再写回，导入备份用。清除过就不写，返回 null。 */
+  readonly update: <R>(plan: (current: TranslationRecord[]) => { readonly put: readonly TranslationRecord[]; readonly result: R }, options?: WriteOptions) => Promise<R | null>;
 }
 
-const TARGETS: ReadonlySet<string> = new Set<TextTarget>(["zh", "en", "tidy"]);
+const TARGETS: ReadonlySet<string> = new Set<TextTarget>(TEXT_TARGETS);
 
-export const translationId = (transcript: TranscriptRef, target: TextTarget): string => `${transcript.video}|${transcript.fingerprint}|${target}`;
+export { translationId };
 
 const isText = (value: unknown): value is string => typeof value === "string";
 
@@ -101,6 +94,18 @@ export function createTranslationStore({ driver, guard, now }: TranslationStoreD
     async byVideo(video) {
       const rows = await driver.getAllByIndex("byVideo", video);
       return rows.flatMap((row) => readable(row) ?? []).sort((left, right) => left.updatedAt - right.updatedAt);
+    },
+    async all() {
+      return (await driver.getAll()).flatMap((row) => readable(row) ?? []);
+    },
+    async update(plan, { since } = {}) {
+      const done = await gate(since, async () => {
+        const current = (await driver.getAll()).flatMap((row) => readable(row) ?? []);
+        const { put, result } = plan(current);
+        if (put.length) await driver.write({ put: put.map(clean) });
+        return { result };
+      });
+      return done === null ? null : done.result;
     },
     async merge(patch, { since, still } = {}) {
       const id = translationId(patch.transcript, patch.target);

@@ -18,7 +18,7 @@ const KEY_A2 = videoKey({ platform: "bilibili", videoId: ID_A, segment: 2 });
 const KEY_B1 = videoKey({ platform: "bilibili", videoId: ID_B });
 const KEY_B3 = videoKey({ platform: "bilibili", videoId: ID_B, segment: 3 });
 const EVIL_URL = "https://login.example/phish?t=65";
-const EMPTY = { notes: [], overviews: [], qa: [] };
+const EMPTY = { notes: [], overviews: [], qa: [], translations: [] };
 
 type Fields = Record<string, unknown>;
 
@@ -91,7 +91,8 @@ test("导入带自定义提示词的旧备份：笔记照常合并，提示词�
   assert.equal(imported.contents.notes.length, 1);
   assert.equal(imported.promptsDropped, true, "界面据此告诉用户提示词没有导入");
   assert.deepEqual(Object.keys(imported).sort(), ["contents", "format", "promptsDropped", "skipped"]);
-  assert.deepEqual(Object.keys(imported.contents).sort(), ["notes", "overviews", "qa"]);
+  assert.deepEqual(Object.keys(imported.contents).sort(), ["notes", "overviews", "qa", "translations"]);
+  assert.deepEqual(imported.contents.translations, [], "旧格式没有译文");
   assert.doesNotMatch(JSON.stringify(imported), /提示词|登录领取会员/);
   const merged = mergeBackup(EMPTY, imported.contents);
   assert.equal(merged.notes.added, 1);
@@ -120,7 +121,8 @@ test("备份里夹着旧版设置（并发、超时、文字浓度、旧服务�
   );
   assert.equal(imported.contents.notes.length, 1);
   assert.equal(imported.promptsDropped, false);
-  assert.deepEqual(Object.keys(imported.contents).sort(), ["notes", "overviews", "qa"]);
+  assert.deepEqual(Object.keys(imported.contents).sort(), ["notes", "overviews", "qa", "translations"]);
+  assert.deepEqual(imported.contents.translations, [], "旧格式没有译文");
   assert.doesNotMatch(JSON.stringify(imported), /sample-gateway|sk-sample-legacy|concurrency|fontScale|density/);
 });
 
@@ -230,7 +232,7 @@ test("现有版本风格的旧备份：笔记、概览、问答各留 3、3、2 
     },
     { notes: 3, overviews: 3, qa: 2 },
   );
-  assert.deepEqual(imported.skipped, { notes: 3, overviews: 2, qa: 2 });
+  assert.deepEqual(imported.skipped, { notes: 3, overviews: 2, qa: 2, translations: 0 });
   assert.equal(imported.promptsDropped, false);
   assert.deepEqual(imported.contents.overviews.map((record) => record.videoKey), [KEY_A1, KEY_B1, KEY_A2]);
   assert.deepEqual(imported.contents.qa.map((entry) => [entry.video, entry.truncated ?? false]), [
@@ -250,7 +252,7 @@ test("Digest for Bilibili 风格的旧备份：笔记、概览各留 2 条，跳
     },
     { notes: 2, overviews: 2, qa: 0 },
   );
-  assert.deepEqual(imported.skipped, { notes: 2, overviews: 0, qa: 0 });
+  assert.deepEqual(imported.skipped, { notes: 2, overviews: 0, qa: 0, translations: 0 });
   assert.equal(imported.promptsDropped, true);
   assert.deepEqual(imported.contents.notes.map((note) => note.video), [KEY_A1, KEY_B3]);
   for (const record of imported.contents.overviews) assert.equal(record.analysis.verdict, undefined, "概览没有结论");

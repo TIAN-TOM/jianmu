@@ -1,6 +1,5 @@
 /// <reference types="chrome" />
-// 后台的依赖在这里拼起来。第一个事件来了才建，建的时候也不碰存储、数据库和网络。
-// 按领域拆装配函数，这里只汇总；服务还没接上的事件什么都不做。
+// 后台的依赖在这里拼起来：第一个事件来了才建，建的时候也不碰存储、数据库和网络；按领域拆装配函数，这里只汇总，服务还没接上的事件什么都不做。
 import { createClearGuard, type ClearGuard } from "../core/clear-guard.ts";
 import { createLimiter, type Limiter } from "../core/concurrency.ts";
 import type { IdbFactory } from "../platform/idb.ts";
@@ -41,7 +40,7 @@ import { createImportStore, type ImportRecord } from "./stores/imports.ts";
 import { createNoteStore, type NoteStore } from "./stores/notes.ts";
 import { createOverviewStore, type OverviewStore } from "./stores/overviews.ts";
 import { createQaStore, type QaStore } from "./stores/qa.ts";
-import { createTranslationStore, type TranslationRecord } from "./stores/translations.ts";
+import { createTranslationStore, type TranslationRecord, type TranslationStore } from "./stores/translations.ts";
 import { createOverviewService, type OverviewService } from "./services/overview/index.ts";
 import { createVerdictService, type VerdictService } from "./services/overview/verdict.ts";
 import { createExplainService, type ExplainService } from "./services/explain.ts";
@@ -88,7 +87,7 @@ export interface App {
   readonly onStorageChanged: (changes: Readonly<Record<string, StorageChange>>, area: string) => Promise<void>;
   /** 标签页激活、任何标签页地址变了或加载完成、窗口焦点变了：打开就出结论把开着的视频标签页过一轮，前台的排最前。 */
   readonly onTabActivated: () => void;
-  readonly onTabUpdated: (change: { readonly url?: string; readonly status?: string }) => void;
+  readonly onTabUpdated: (change: { readonly url?: string; readonly status?: string }, tabId?: number) => void;
   readonly onFocusChanged: (windowId: number) => void;
 }
 
@@ -277,7 +276,7 @@ function assembleVerdict(deps: AppDeps, parts: OverviewParts): VerdictService {
 }
 
 /** 问答、划词解释和笔记：问答历史和笔记各一个仓储，笔记的链接按站点的规则现拼。 */
-function assembleStudyStores(deps: AppDeps, clearGuard: ClearGuard): { readonly notes: NoteStore; readonly qa: QaStore } {
+function assembleStudyStores(deps: AppDeps, clearGuard: ClearGuard): { readonly notes: NoteStore; readonly qa: QaStore; readonly translations: TranslationStore } {
   const rules = (platform: string) => deps.siteRules.find((rule) => rule.platform === platform);
   return {
     notes: createNoteStore({
@@ -286,6 +285,8 @@ function assembleStudyStores(deps: AppDeps, clearGuard: ClearGuard): { readonly 
       canonicalUrl: (ref, atSec) => rules(ref.platform)?.canonicalUrl(ref, atSec) ?? "",
     }),
     qa: createQaStore({ driver: lazyDriver<QaRecord>("qa", deps.indexedDB), guard: clearGuard }),
+    // 翻译服务和备份共用这一个仓储：读—改—写排在同一条写入队列里。
+    translations: createTranslationStore({ driver: lazyDriver<TranslationRecord>("translations", deps.indexedDB), guard: clearGuard, now: deps.timers.now }),
   };
 }
 
@@ -324,15 +325,11 @@ function assembleStudy(deps: AppDeps, parts: OverviewParts, keepAlive: KeepAlive
 }
 
 // 翻译：译文按字幕版本单独存，清除全部数据时才清；分批的并发按自己的上限，不排概览那道闸门。
-function assembleTranslate(deps: AppDeps, parts: OverviewParts): TranslateService {
+function assembleTranslate(deps: AppDeps, parts: OverviewParts, translations: TranslationStore): TranslateService {
   return createTranslateService({
     tasks: parts.tasks,
     transcript: parts.transcript,
-    translations: createTranslationStore({
-      driver: lazyDriver<TranslationRecord>("translations", deps.indexedDB),
-      guard: parts.clearGuard,
-      now: deps.timers.now,
-    }),
+    translations,
     freeze: parts.ai.freeze,
     prompt: parts.ai.prompt,
     guard: parts.clearGuard,
@@ -375,6 +372,7 @@ function assembleData(deps: AppDeps, parts: OverviewParts, stores: ReturnType<ty
     notes: stores.notes,
     overviews: parts.overviews,
     qa: stores.qa,
+    translations: stores.translations,
     guard: parts.clearGuard,
     tasks: parts.tasks,
     settings: parts.settings,
@@ -423,7 +421,7 @@ function assembleCore(deps: AppDeps): Core {
     overview,
     verdict,
     ...assembleStudy(deps, generation, keepAlive, studyStores),
-    translate: assembleTranslate(deps, generation),
+    translate: assembleTranslate(deps, generation, studyStores.translations),
     data: assembleData(deps, generation, studyStores),
     batch: assembleBatch(deps, generation, tabs, keepAlive, { overview, verdict }),
     auto: createAutoWiring({ ...autoParts, now: deps.timers.now, broadcast: (message) => void messenger.toPages(message), log: deps.log }),
@@ -469,12 +467,13 @@ export function createApp(deps: AppDeps): App {
     },
     onStartup: setPanelBehavior,
     onTabActivated: () => consider(),
-    // 后台打开的标签页也算：地址变了或加载完成就把开着的视频标签页再过一遍。
-    onTabUpdated: (change) => (Object.hasOwn(change, "url") || change.status === "complete" ? consider() : undefined),
+    // 后台打开的标签页也算：地址变了或加载完成就把开着的视频标签页再过一遍；从它发起的翻译和整理字幕换了视频就停。
+    onTabUpdated: (change, tabId) => (core.translate.tabChanged(tabId, change.url), Object.hasOwn(change, "url") || change.status === "complete" ? consider() : undefined),
     onFocusChanged(windowId) {
       if (windowId !== NO_WINDOW) consider();
     },
     onTabRemoved(tabId) {
+      core.translate.tabChanged(tabId, null);
       core.contentTabs.remove(tabId);
       core.playbackLimits.forget(tabId);
       void core.sessions.onTabRemoved(tabId).catch((error: unknown) => {

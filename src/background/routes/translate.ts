@@ -20,12 +20,13 @@ function isTranslateIn(message: unknown): message is TranslateIn {
   if (!isPlainObject(message)) return false;
   if (message.type === "translate.stop") return hasOnly(message, ["type"]);
   if (message.type !== "translate.start" || !isVideoKey(message.video)) return false;
-  const optional = ["fromSec", "purpose", "storedOnly"].filter((key) => Object.hasOwn(message, key));
+  const optional = ["fromSec", "purpose", "storedOnly", "tabId"].filter((key) => Object.hasOwn(message, key));
   return (
     hasOnly(message, ["type", "video", ...optional]) &&
     (!optional.includes("fromSec") || isSecond(message.fromSec)) &&
     (!optional.includes("purpose") || message.purpose === "tidy") &&
-    (!optional.includes("storedOnly") || message.storedOnly === true)
+    (!optional.includes("storedOnly") || message.storedOnly === true) &&
+    (!optional.includes("tabId") || (Number.isSafeInteger(message.tabId) && Number(message.tabId) >= 0))
   );
 }
 
@@ -40,7 +41,7 @@ export function translatePort({ translate }: TranslatePortDeps): { readonly tran
         return {
           onMessage(message) {
             if (message.type === "translate.stop") return translate.stop(port.id);
-            return translate.start(message.video, { origin: "user", fromSec: message.fromSec, purpose: message.purpose, storedOnly: message.storedOnly === true, listener });
+            return translate.start(message.video, { origin: "user", fromSec: message.fromSec, purpose: message.purpose, storedOnly: message.storedOnly === true, tabId: message.tabId, listener });
           },
           onDisconnect: () => translate.leave(port.id),
         };
