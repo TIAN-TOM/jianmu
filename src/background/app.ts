@@ -27,7 +27,7 @@ import { createReinject, type Reinject } from "./reinject.ts";
 import { createRouter, type AnyPortSpec, type Router } from "./router.ts";
 import { activationDropped, activationLost } from "./routes/activation.ts";
 import { appearanceChange, type StorageChange } from "./routes/appearance.ts";
-import { createPorts, createRoutes } from "./routes/index.ts";
+import { createFrameParts, createPorts, createRoutes } from "./routes/index.ts";
 import { createSenders } from "./senders.ts";
 import type { AutoGenerate } from "./services/auto-generate.ts";
 import { createTranscriptService, type SiteAccess, type TranscriptService } from "./services/transcript/index.ts";
@@ -433,7 +433,7 @@ function assembleCore(deps: AppDeps): Core {
 function assembleRouter(deps: AppDeps, core: Core): Router {
   const { settings, tabs, contentTabs } = core;
   return createRouter({
-    routes: createRoutes(core),
+    routes: createRoutes({ ...core, frame: FEATURE_FRAME_EXPLAIN ? createFrameParts({ ...core, storage: deps.storage.local, session: deps.storage.session, log: deps.log, now: deps.timers.now }) : null }),
     ports: deps.ports ?? createPorts(core),
     senders: createSenders({ extensionId: deps.runtime.id, extensionUrl: (path) => deps.runtime.getURL(path), rules: deps.siteRules }),
     enabled: async () => (await settings.activation()).state === "current",

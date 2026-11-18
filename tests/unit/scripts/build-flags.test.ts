@@ -15,7 +15,7 @@ import {
   readBuildFlags,
   writeBuildFlags,
 } from "../../../scripts/lib/build-flags.mjs";
-import { RELEASE_FEATURES, TEST_BUILD_FEATURES } from "../../../src/shared/features.ts";
+import { DAILY_FEATURES, RELEASE_FEATURES, TEST_BUILD_FEATURES } from "../../../src/shared/features.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const work = mkdtempSync(join(tmpdir(), "jianmu-build-flags-test-"));
@@ -25,6 +25,7 @@ test("不带参数是发行构建；--test-build 全开；--frame-explain 只开
   assert.deepEqual(featuresFromArgs([]), RELEASE_FEATURES);
   assert.deepEqual(featuresFromArgs(["--watch"]), RELEASE_FEATURES);
   assert.deepEqual(featuresFromArgs(["--test-build"]), TEST_BUILD_FEATURES);
+  assert.deepEqual(featuresFromArgs(["--daily"]), DAILY_FEATURES);
   assert.deepEqual(featuresFromArgs(["--watch", "--youtube-ops"]), {
     frameExplain: false,
     youtubeOpenPanel: true,

@@ -12,6 +12,7 @@ import { SETTINGS_REVISION_KEY } from "../../shared/names.ts";
 import { FEATURE_MODEL_SLOTS, originOf, validate, validateForSave, type FeatureSlotId } from "../../shared/settings-schema.ts";
 import type { PageApi } from "../shared/api.ts";
 import { chosenFeatures, formOf, settingsInput, withAddress, withPreset, type AiForm } from "./form.ts";
+import { probeFrameImage } from "./image-probe.ts";
 
 export type Tone = "ok" | "warn" | "error";
 
@@ -65,6 +66,8 @@ export interface OptionsState {
   clearKey(): Promise<void>;
   fetchModels(): Promise<void>;
   testConnection(all: boolean): Promise<void>;
+  /** 探一次画面分析的模型能不能看图（只在构建开关打开时有这个按钮）。 */
+  probeImage(): Promise<void>;
   exportBackup(): Promise<void>;
   importBackup(text: string): Promise<void>;
   clearData(scope: ClearScope): Promise<void>;
@@ -391,6 +394,12 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
         const failed = lines.some((line) => !line.includes("连接正常"));
         aiStatus.value = { text: lines.join("\n"), tone: failed ? "error" : "ok" };
       }),
+    probeImage: FEATURE_FRAME_EXPLAIN
+      ? () =>
+          afterSave("test", async () => {
+            aiStatus.value = await probeFrameImage(api, failureText);
+          })
+      : async () => undefined,
     async exportBackup() {
       if (busy.peek()) return;
       busy.value = "export";

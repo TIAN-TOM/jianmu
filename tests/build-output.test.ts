@@ -315,12 +315,14 @@ test("构建标识带上开关取值：只换开关重新构建，标识跟着�
   assert.ok(readBuild("background.js").includes(release[0] ?? "-"), "build/ 里的发行构建用的是发行开关算出的标识");
 });
 
-// 解释当前画面挂在开关下的内容：截帧代码、播放页图标和预览、首次启用说明里读取当前一帧那一条。
+// 解释当前画面挂在开关下的内容：截帧代码、播放页图标、两份说明里当前一帧那几条、错误码和文案、
+// 画面分析的功能槽、看图探测、提示词、路由和侧边栏里的按钮和结果。
+const FRAME_SHARED = ["current-frame", "解释当前画面", "FRAME_PROTECTED", "AI_IMAGE_UNSUPPORTED", "画面分析", "frame.changed"];
 const FRAME_MARKERS: Readonly<Record<string, readonly string[]>> = {
-  "build/content/bilibili.js": ["requestVideoFrameCallback", "convertToBlob", "player.captureFrame", "解释当前画面", "画面验证", "src/content/frame"],
-  "build/background.js": ["current-frame", "解释当前画面"],
-  "build/pages/sidepanel.js": ["current-frame", "解释当前画面"],
-  "build/pages/options.js": ["current-frame", "解释当前画面"],
+  "build/content/bilibili.js": ["requestVideoFrameCallback", "convertToBlob", "player.captureFrame", "解释当前画面", "frame.explainHere", "src/content/frame"],
+  "build/background.js": [...FRAME_SHARED, "prompts/study/frame-explain.md", "study/frame-explain.md", "frame.explain", "src/background/image-support", "src/background/services/frame-explain"],
+  "build/pages/sidepanel.js": [...FRAME_SHARED, "画面受保护", "frame.recent", "解释画面", "正在请模型看图"],
+  "build/pages/options.js": [...FRAME_SHARED, "ai.probeImage", "能不能看图"],
 };
 
 async function bundlesWith(features: FeatureSet): Promise<Map<string, string>> {
@@ -329,7 +331,7 @@ async function bundlesWith(features: FeatureSet): Promise<Map<string, string>> {
   return new Map(built);
 }
 
-test("解释当前画面：发行构建的包里没有截帧代码、图标、预览和读取当前一帧的说明，打开开关的构建里都有", async () => {
+test("解释当前画面：发行构建的包里没有截帧代码、图标、路由、提示词、按钮和当前一帧的说明，打开开关的构建里都有", async () => {
   const release = await bundlesWith(RELEASE_FEATURES);
   const frame = await bundlesWith({ ...RELEASE_FEATURES, frameExplain: true });
   assert.equal(release.size, Object.keys(FRAME_MARKERS).length);
@@ -344,6 +346,10 @@ test("解释当前画面：发行构建的包里没有截帧代码、图标、�
     assert.ok(content.includes(marker), `打开开关的内容脚本里没有 ${marker}`);
   }
   for (const file of ["build/background.js", "build/pages/sidepanel.js", "build/pages/options.js"]) {
-    assert.ok(frame.get(file)?.includes("current-frame"), `打开开关的 ${file} 的启用说明里没有读取当前一帧`);
+    for (const marker of FRAME_SHARED) assert.ok(frame.get(file)?.includes(marker), `打开开关的 ${file} 里没有 ${marker}`);
   }
+  const background = frame.get("build/background.js") ?? "";
+  for (const marker of FRAME_MARKERS["build/background.js"] ?? []) assert.ok(background.includes(marker), `打开开关的后台包里没有 ${marker}`);
+  for (const marker of ["frame.recent", "解释画面", "正在请模型看图"]) assert.ok(frame.get("build/pages/sidepanel.js")?.includes(marker), `打开开关的侧边栏没有 ${marker}`);
+  for (const marker of ["ai.probeImage", "能不能看图"]) assert.ok(frame.get("build/pages/options.js")?.includes(marker), `打开开关的设置页没有 ${marker}`);
 });

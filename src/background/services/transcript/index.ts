@@ -6,7 +6,7 @@ import { fail, ok, type ErrorCode, type Result } from "../../../core/errors.ts";
 import { videoKey, type VideoKey, type VideoRef } from "../../../core/video-ref.ts";
 import type { EmptyRequest } from "../../../shared/messages/core.ts";
 import type { ImportReceipt } from "../../../shared/messages/imports.ts";
-import type { GuidesReply, TranscriptFailure, TranscriptReadMode, TranscriptReply, TranscriptView } from "../../../shared/messages/transcript.ts";
+import type { GuidesReply, TranscriptFailure, VideoInfoView, TranscriptReadMode, TranscriptReply, TranscriptView } from "../../../shared/messages/transcript.ts";
 import { errorLabel, type Log } from "../../log.ts";
 import type { ImportRecord, ImportStore } from "../../stores/imports.ts";
 import type { OverviewStore } from "../../stores/overviews.ts";
@@ -77,6 +77,8 @@ export interface TranscriptService {
   knownDuration(ref: VideoRef): Promise<number | null>;
   /** 原视频还在不在：只有平台明确说找不到才算不在，别的失败都放行。 */
   checkAvailable(ref: VideoRef): Promise<boolean>;
+  /** 向平台重新读一次视频信息：确认已登录、不是付费内容、视频还在。不看缓存、不写缓存，读不成就原样回失败。 */
+  verify(ref: VideoRef): Promise<Result<VideoInfoView>>;
   /** 导入字幕文件：解析、存下，作废缓存里原来的字幕。不向平台发请求。 */
   importFile(ref: VideoRef, file: { readonly name: string; readonly text: string }): Promise<Result<ImportReceipt>>;
   /** 移除导入的字幕文件，作废缓存里用它组装的那份。 */
@@ -363,6 +365,18 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
         log.warn("读字幕缓存里的时长失败", errorLabel(error));
       }
       return known(memory.get(video, "")?.info.durationSec) ?? (await light.durationOf(video));
+    },
+
+    async verify(ref) {
+      const site = deps.sites.service(ref.platform);
+      if (!site || !keyOf(ref)) return fail("NOT_FOUND");
+      try {
+        const read = await site.readVideoInfo(ref, deps.sites.ctx(ref.platform, { signal: new AbortController().signal }));
+        return read.ok ? ok(infoView(read.value)) : read;
+      } catch (error) {
+        log.warn("核对视频信息失败", errorLabel(error));
+        return fail("NETWORK");
+      }
     },
 
     async checkAvailable(ref) {

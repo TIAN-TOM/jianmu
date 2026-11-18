@@ -143,7 +143,7 @@ test("推理强度预览只收设置页；请求只能是空的或一张认得�
 
   for (const req of [
     { efforts: { qa: "max" } },
-    { efforts: { frame: "low" } },
+    { efforts: { summary: "low" } },
     { efforts: ["low"] },
     { efforts: { qa: "low" }, extra: 1 },
     { feature: "qa" },

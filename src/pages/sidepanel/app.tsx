@@ -22,6 +22,7 @@ import { QaTab } from "./qa-tab.tsx";
 import { activeIndex } from "./reading.ts";
 import { SkimView } from "./skim.tsx";
 import { StudyView } from "./study.tsx";
+import { FrameButton, FrameResults } from "./frame-view.tsx";
 
 const AUTO_PAUSED: Readonly<Record<AutoPauseReason, string>> = {
   quota: "额度用完，打开就出结论已暂停。手动生成成功一次，或在设置页关掉再打开就恢复",
@@ -123,6 +124,7 @@ function Toolbar({ panel }: { readonly panel: Panel }) {
           存笔记
         </Button>
       ) : null}
+      {FEATURE_FRAME_EXPLAIN && study && panel.frame ? <FrameButton panel={panel} frame={panel.frame} /> : null}
     </Dock>
   );
 }
@@ -192,6 +194,7 @@ export function App({ panel }: { readonly panel: Panel }) {
       <Header panel={panel} />
       <ModeRow panel={panel} />
       <Notice notices={lines} />
+      {FEATURE_FRAME_EXPLAIN && panel.frame ? <FrameResults panel={panel} frame={panel.frame} /> : null}
       <section class="mode-view" aria-label={mode === "study" ? "精读" : "速览"}>
         {mode === "study" ? <StudyView panel={panel} /> : <SkimView panel={panel} />}
       </section>

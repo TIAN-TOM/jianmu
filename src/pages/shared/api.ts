@@ -5,6 +5,7 @@ import { fail, isErrorCode, type ErrorCode } from "../../core/errors.ts";
 import type { VideoKey } from "../../core/video-ref.ts";
 import type { PortLike } from "../../platform/messaging.ts";
 import type { Api, Broadcast, BroadcastType, PortEvent, PortMessage, PortName, Reply, RouteName } from "../../shared/messages.ts";
+import { FRAME_BROADCAST_SHAPES, FRAME_IDEMPOTENT_ROUTES } from "./frame-api.ts";
 
 /**
  * 断线时自动重试一次的路由，和后台路由表里标了幂等的一一对应，测试逐条核对。
@@ -24,6 +25,7 @@ export const IDEMPOTENT_ROUTES: ReadonlySet<RouteName> = new Set<RouteName>([
   "transcript.get",
   "triage.state",
   "video.checkAvailable",
+  ...(FEATURE_FRAME_EXPLAIN ? FRAME_IDEMPOTENT_ROUTES : []),
 ]);
 
 /** 重试前等一会儿，给刚被唤醒的后台注册监听的时间。 */
@@ -68,7 +70,7 @@ export type BroadcastFilter<T extends BroadcastType> = T extends "task.changed" 
   ? { readonly taskId?: string; readonly video?: VideoKey }
   : T extends "overview.updated" | "notes.changed"
     ? { readonly video?: VideoKey }
-    : T extends "session.changed" | "panel.follow"
+    : T extends "session.changed" | "panel.follow" | "frame.changed"
       ? { readonly tabId?: number }
       : Readonly<Record<string, never>>;
 
@@ -83,7 +85,8 @@ const isText = (value: unknown): value is string => typeof value === "string" &&
 const isTabId = (value: unknown): value is number => Number.isInteger(value) && Number(value) >= 0;
 
 // 只核对过滤和收件方要用的字段：缺了它们的广播一律不收，免得被当成发给所有视频的。
-const BROADCAST_SHAPES: Readonly<Record<BroadcastType, (message: Readonly<Record<string, unknown>>) => boolean>> = {
+// 解释当前画面那一种只在构建开关打开时认。
+const BROADCAST_SHAPES = {
   "task.changed": ({ task }) => isRecord(task) && isText(task.id) && isText(task.video),
   "overview.preview": ({ video, taskId, analysis }) => isText(video) && isText(taskId) && isRecord(analysis),
   "overview.updated": ({ video, verdictPending }) => isText(video) && typeof verdictPending === "boolean",
@@ -94,7 +97,8 @@ const BROADCAST_SHAPES: Readonly<Record<BroadcastType, (message: Readonly<Record
   "appearance.changed": ({ accentTheme, inPageCard }) => isText(accentTheme) && typeof inPageCard === "boolean",
   "activation.changed": ({ confirmed }) => typeof confirmed === "boolean",
   "auto.changed": ({ paused }) => paused === null || paused === "quota" || paused === "key",
-};
+  ...(FEATURE_FRAME_EXPLAIN ? FRAME_BROADCAST_SHAPES : {}),
+} as Readonly<Record<BroadcastType, (message: Readonly<Record<string, unknown>>) => boolean>>;
 
 function isBroadcast(message: unknown): message is Broadcast {
   if (!isRecord(message) || typeof message.type !== "string" || !Object.hasOwn(BROADCAST_SHAPES, message.type)) return false;
@@ -116,7 +120,8 @@ function keysOf(message: Broadcast): BroadcastKeys {
     case "panel.follow":
       return { tabId: message.tabId };
     default:
-      return {};
+      // 解释当前画面的广播也按标签页过滤，不在这里写它的名字：开关关着的构建里没有它。
+      return "tabId" in message ? { tabId: message.tabId } : {};
   }
 }
 

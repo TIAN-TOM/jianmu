@@ -101,7 +101,7 @@ const versionMap = (table: NoticeTable<string>, frameExplain: boolean): Record<s
 // 第 1 版带一条普通内容，第 2 版只在开关打开时才有，第 3 版是之后的普通内容。
 const GATED_TABLE: NoticeTable<"category" | "trigger"> = [
   { version: 1, items: [item("category", "transcript"), item("trigger", "on-click")] },
-  { version: 2, requires: "frameExplain", items: [item("category", "frame")] },
+  { version: 2, items: [{ ...item("category", "frame"), requires: "frameExplain" }] },
   { version: 3, items: [item("trigger", "auto-send")] },
 ];
 
@@ -269,23 +269,27 @@ test("「版本 → 指纹」快照：改了条目没升版就失败，两种开
   assert.deepEqual(versionMap(ACTIVATION_TABLE, true), snapshot["frameExplainOn"]?.activation);
 });
 
-test("解释当前画面：开关打开的构建，启用说明多一版只加读取当前一帧；关着的构建停在上一版，同意表不变", () => {
-  const off = versionStamps(ACTIVATION_TABLE, FRAME_OFF);
-  const on = versionStamps(ACTIVATION_TABLE, FRAME_ON);
-  assert.deepEqual(on.slice(0, -1), off, "前几版两种构建一样");
-  assert.equal(on.at(-1)?.version, (off.at(-1)?.version ?? 0) + 1);
-  const frameRow = ACTIVATION_TABLE.find((row) => row.requires === "frameExplain");
-  assert.deepEqual(frameRow?.items.map(({ kind, id }) => `${kind}:${id}`), ["read:current-frame"]);
-  assert.deepEqual(versionStamps(DATA_CONSENT_TABLE, FRAME_ON), versionStamps(DATA_CONSENT_TABLE, FRAME_OFF), "这一段不发画面给模型");
+test("解释当前画面：开关打开的构建，两份说明的当前一版各多几条，版本号不变；关着的构建里没有这几条", () => {
+  const gated = (table: NoticeTable<string>): string[] =>
+    table.flatMap((row) => row.items.filter((entry) => entry.requires === "frameExplain").map(({ kind, id }) => `${row.version} ${kind}:${id}`));
+  assert.deepEqual(gated(ACTIVATION_TABLE), ["3 read:current-frame"]);
+  assert.deepEqual(gated(DATA_CONSENT_TABLE), ["5 category:current-frame", "5 purpose:frame-explain"]);
+  for (const table of [ACTIVATION_TABLE, DATA_CONSENT_TABLE] as NoticeTable<string>[]) {
+    const off = versionStamps(table, FRAME_OFF);
+    const on = versionStamps(table, FRAME_ON);
+    assert.deepEqual(on.map(({ version }) => version), off.map(({ version }) => version), "不另开一版");
+    assert.deepEqual(on.slice(0, -1), off.slice(0, -1), "之前几版两种构建一样");
+    assert.notEqual(on.at(-1)?.fingerprint, off.at(-1)?.fingerprint, "当前一版的指纹变了，确认过的人要再确认一次");
+  }
 
-  // 在开关关着的构建里确认过的人，换到开关打开的构建：说明有更新，只列读取当前一帧这一条。
-  const lastOff = off.at(-1);
+  // 在开关关着的构建里确认过当前一版的人，换到开关打开的构建：说明有更新，要重新确认。
+  const lastOff = versionStamps(ACTIVATION_TABLE, FRAME_OFF).at(-1);
   const status = noticeStatus(ACTIVATION_TABLE, { version: lastOff?.version, fingerprint: lastOff?.fingerprint }, FRAME_ON);
-  assert.equal(status.state, "needed");
-  assert.deepEqual(status.state === "needed" ? [status.updated, status.items.map(({ id }) => id)] : null, [true, ["current-frame"]]);
-  // 反过来，从开关打开的构建换回发行构建：认不出确认过哪一版，按说明有更新给完整说明。
-  const back = noticeStatus(ACTIVATION_TABLE, { version: on.at(-1)?.version, fingerprint: on.at(-1)?.fingerprint }, FRAME_OFF);
-  assert.equal(back.state === "needed" && back.updated, true);
+  assert.equal(status.state === "needed" && status.updated, true);
+  assert.ok(status.state === "needed" && status.items.some(({ id }) => id === "current-frame"));
+  // 数据说明里截图这一条和划词解释那些功能并成一行显示。
+  const lines = noticeLines(DATA_CONSENT_TABLE.flatMap((row) => row.items));
+  assert.ok(lines.some((line) => line.ids.includes("ai-features") && line.ids.includes("frame-explain") && line.text.endsWith("解释当前画面")));
 });
 
 test("当前版本和指纹取自表里最新的一版，启用说明从第 1 版起", () => {
@@ -346,7 +350,7 @@ test("每一版的指纹覆盖到这一版为止的全部条目，加新版不�
 });
 
 test("没存过的显示完整说明，算从没同意过，不是说明有更新", () => {
-  const everything = DATA_CONSENT_TABLE.flatMap((row) => row.items);
+  const everything = DATA_CONSENT_TABLE.flatMap((row) => row.items).filter((entry) => !entry.requires);
   for (const stored of [{}, { version: 0, fingerprint: "" }, { version: -1 }, { version: null }]) {
     assert.deepEqual(noticeStatus(DATA_CONSENT_TABLE, stored, FRAME_OFF), { state: "needed", updated: false, items: everything });
   }
@@ -391,12 +395,15 @@ test("数据同意第 4 版加了打开视频就自动发送：前三版的指�
   assert.equal(dataConsentGiven(stored, { dataConsentVersion: DATA_CONSENT_VERSION, dataConsentFingerprint: DATA_CONSENT_FINGERPRINT }), false, "同意过第 3 版的要重新同意");
 });
 
-test("数据同意第 5 版加了整理字幕这个用途：前四版的指纹不变，第 5 版是当前一版，两种构建一样；同意过第 4 版的要重新同意，只看到这一行", () => {
+test("数据同意第 5 版加了整理字幕这个用途：前四版的指纹不变，第 5 版是当前一版；同意过第 4 版的要重新同意，只看到这一行", () => {
   const stamps = versionStamps(DATA_CONSENT_TABLE, FRAME_OFF);
   assert.deepEqual(stamps.at(-1), { version: 5, fingerprint: "98539c96838de496" });
-  assert.deepEqual(currentStamp(DATA_CONSENT_TABLE, FRAME_ON), { version: 5, fingerprint: "98539c96838de496" });
+  assert.equal(currentStamp(DATA_CONSENT_TABLE, FRAME_ON).version, 5, "解释当前画面的几条并进第 5 版，不另开一版");
   assert.equal(DATA_CONSENT_VERSION, 5);
-  assert.deepEqual(DATA_CONSENT_TABLE.at(-1)?.items.map(({ kind, id }) => `${kind}:${id}`), ["purpose:tidy-transcript"]);
+  assert.deepEqual(
+    DATA_CONSENT_TABLE.at(-1)?.items.filter((entry) => !entry.requires).map(({ kind, id }) => `${kind}:${id}`),
+    ["purpose:tidy-transcript"],
+  );
   const fourth = stamps[3];
   assert.ok(fourth);
   assert.equal(dataConsentGiven({ dataConsentVersion: fourth.version, dataConsentFingerprint: fourth.fingerprint }, { dataConsentVersion: DATA_CONSENT_VERSION, dataConsentFingerprint: DATA_CONSENT_FINGERPRINT }), false);
@@ -407,7 +414,7 @@ test("数据同意第 5 版加了整理字幕这个用途：前四版的指纹�
   assert.deepEqual(only?.ids, ["tidy-transcript"]);
   for (const word of ["整理字幕", "补标点", "同音错字", "点「整理字幕」时"]) assert.ok(only?.text.includes(word), word);
   // 完整说明里和用途那一行并成一行。
-  const full = lines(DATA_CONSENT_TABLE.flatMap((row) => row.items));
+  const full = lines(DATA_CONSENT_TABLE.flatMap((row) => row.items).filter((entry) => !entry.requires));
   const purpose = full.find((line) => line.ids.includes("ai-features"));
   assert.deepEqual(purpose?.ids, ["ai-features", "tidy-transcript"]);
   assert.match(purpose?.text ?? "", /整理字幕（补标点、改同音错字）/);
@@ -484,7 +491,7 @@ test("并显示只能指向同一张表更早版本里同一类的条目，被�
 });
 
 test("加上或去掉并显示的写法，指纹都不变", () => {
-  const plain = DATA_CONSENT_TABLE.map((row) => ({ ...row, items: row.items.map(({ kind, id, text }) => ({ kind, id, text })) }));
+  const plain = DATA_CONSENT_TABLE.map((row) => ({ ...row, items: row.items.map(({ kind, id, text, requires }) => ({ kind, id, text, ...(requires ? { requires } : {}) })) }));
   assert.deepEqual(versionStamps(plain, FRAME_OFF), versionStamps(DATA_CONSENT_TABLE, FRAME_OFF));
   const extra: NoticeTable<string> = DATA_CONSENT_TABLE.map((row) => ({
     ...row,

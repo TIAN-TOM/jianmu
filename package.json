@@ -17,6 +17,7 @@
     "check:public": "node scripts/check-public.mjs",
     "check": "npm run typecheck && npm test && npm run build && npm run test:build && npm run check:public",
     "package": "npm run build && node scripts/package.mjs",
+    "package:daily": "node scripts/build.mjs --daily && node scripts/package.mjs --daily",
     "test:e2e": "npm run package && node e2e/run.mjs",
     "test:e2e:lifecycle": "npm run package && node e2e/lifecycle.mjs",
     "test:pages": "node scripts/build.mjs --test-build && node e2e/pages.mjs",

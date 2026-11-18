@@ -64,6 +64,8 @@ export interface Tabs {
   readonly contentScriptTabs: () => Promise<readonly number[]>;
   /** 发给一个标签页。标签页正在导航或还没挂监听时浏览器会报错，这是常态，不往外抛。 */
   readonly send: (tabId: number, message: unknown) => Promise<void>;
+  /** 发给一个标签页的内容脚本并等它回话。送不到时抛错，由调用方按没连上处理。 */
+  readonly ask: (tabId: number, message: unknown) => Promise<unknown>;
   /** 打开这个窗口的侧边栏。要在用户手势还有效时同步调用，前面不能有任何等待；被拒绝时是 false。 */
   readonly openSidePanel: (windowId: number) => Promise<boolean>;
   /** 让工具栏图标打开侧边栏。 */
@@ -111,6 +113,7 @@ export function createTabs(
       () => undefined,
       () => undefined,
     ),
+    ask: (tabId, message) => tabs.sendMessage(tabId, message),
     openSidePanel: (windowId) => sidePanel.open({ windowId }).then(
       () => true,
       () => false,
