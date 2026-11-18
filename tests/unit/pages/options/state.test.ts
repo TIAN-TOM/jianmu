@@ -58,6 +58,7 @@ function world(initial: Record<string, unknown>) {
         const items = await new Promise<unknown[]>((release) => held.push({ req, release }));
         return { ok: true, value: { items } };
       }) as never,
+      connect: () => assert.fail("这些测试不导出、不导入备份"),
     },
     requestHost: async () => {
       await permission.promise;

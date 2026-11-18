@@ -1,14 +1,15 @@
 // 设置页「资料」一节：导出、导入备份，清除本机数据。
-// 导出只读本机的四个仓储（笔记、概览、问答、译文和整理后的字幕），不发平台和模型请求，确认启用之前也能用；导入按记录合并，读和写在各仓储的写入队列里一次做完；
+// 导出只读本机的四个仓储（笔记、概览、问答、译文和整理后的字幕），不发平台和模型请求，确认启用之前也能用；
+// 导入分段进来（单条消息有大小上限），每段在对应仓储的写入队列里读本机的再合并，清除闸门的代数从连上那一刻算起；
 // 清除先停下在跑的任务，再在清除闸门里删仓库和存储键，删完广播给各页面。
-import { buildBackup, readBackup, type Backup } from "../../core/backup/format.ts";
-import { mergeNotes, mergeOverviews, mergeQa, mergeTranslations } from "../../core/backup/merge.ts";
+import { buildBackup, type Backup } from "../../core/backup/format.ts";
+import { mergeNotes, mergeOverviews, mergeQa, mergeTranslations, type MergeResult } from "../../core/backup/merge.ts";
+import { checkNote, checkOverview, checkQa, checkTranslation, keepValid, type RecordKind } from "../../core/backup/records.ts";
 import type { ClearGuard, ClearScope } from "../../core/clear-guard.ts";
 import { fail, ok, type Result } from "../../core/errors.ts";
 import type { ExtensionStorage } from "../../platform/storage.ts";
 import type { SettingsStore } from "../../platform/settings-store.ts";
 import type { Broadcast } from "../../shared/messages.ts";
-import type { BackupImportReply, ImportCount } from "../../shared/messages/data.ts";
 import type { StoreName } from "../../shared/names.ts";
 import { clearTargets } from "../../shared/storage-plan.ts";
 import type { NoteStore } from "../stores/notes.ts";
@@ -34,63 +35,87 @@ export interface DataServiceDeps {
   readonly now: () => number;
 }
 
+/** 合并完的一段：新增和更新的主键，核对时跳过的条数。 */
+export interface MergedPart {
+  readonly added: string[];
+  readonly updated: string[];
+  readonly skipped: number;
+}
+
+/** 一次导入：各段按顺序交进来；结束时（不管是不是导完）有改动就广播一次。 */
+export interface ImportSession {
+  readonly merge: (kind: RecordKind, records: readonly unknown[]) => Promise<Result<MergedPart>>;
+  readonly close: () => void;
+}
+
 export interface DataService {
   readonly exportBackup: () => Promise<Backup>;
-  readonly importBackup: (payload: unknown) => Promise<Result<BackupImportReply>>;
+  readonly openImport: () => ImportSession;
   readonly clear: (scope: ClearScope) => Promise<void>;
 }
 
 /** 清除时停下任务的原因。 */
 const CLEARING = Object.freeze({ code: "LOCAL_DATA_CLEARED" });
 
-const counted = (merged: { readonly added: number; readonly updated: number }, skipped: number): ImportCount => ({
-  added: merged.added,
-  updated: merged.updated,
+const mergedPart = <T>(merged: MergeResult<T>, skipped: number): MergedPart => ({
+  added: merged.addedKeys,
+  updated: merged.updatedKeys,
   skipped,
 });
 
 export function createDataService(deps: DataServiceDeps): DataService {
   const { notes, overviews, qa, guard } = deps;
 
-  async function importBackup(payload: unknown): Promise<Result<BackupImportReply>> {
-    const read = readBackup(payload);
-    if (!read.ok) return read;
+  function openImport(): ImportSession {
     const since = guard.epoch();
-    const { contents, skipped } = read.value;
-    // 各仓储在自己的写入队列里读本机现有的再合并，排队期间别处写进来的也算在内。
-    const noteCount = await notes.update(
-      (current) => {
-        const merged = mergeNotes(current, contents.notes);
-        return { put: merged.changed, result: counted(merged, skipped.notes) };
+    let changed = false;
+
+    // 记录在页面已经核对过，这里再过一遍：后台只认自己核对过的记录。
+    async function mergeKind(kind: RecordKind, records: readonly unknown[]): Promise<MergedPart | null> {
+      switch (kind) {
+        case "notes": {
+          const valid = keepValid(records, checkNote);
+          return notes.update((current) => {
+            const merged = mergeNotes(current, valid.kept);
+            return { put: merged.changed, result: mergedPart(merged, valid.skipped) };
+          }, { since });
+        }
+        case "overviews": {
+          const valid = keepValid(records, checkOverview);
+          return overviews.update((current) => {
+            const merged = mergeOverviews(current, valid.kept);
+            return { put: merged.changed, result: mergedPart(merged, valid.skipped) };
+          }, { since });
+        }
+        case "qa": {
+          // 问答记下以后不改，只补本机没有的；两次读写之间别处新增的问答 id 不会和备份里的撞上。
+          const valid = keepValid(records, checkQa);
+          const merged = mergeQa(await qa.all(), valid.kept);
+          return (await qa.commit({ put: merged.changed }, { since })) ? mergedPart(merged, valid.skipped) : null;
+        }
+        case "translations": {
+          const valid = keepValid(records, checkTranslation);
+          return deps.translations.update((current) => {
+            const merged = mergeTranslations(current, valid.kept, deps.now());
+            return { put: merged.changed, result: mergedPart(merged, valid.skipped) };
+          }, { since });
+        }
+      }
+    }
+
+    return {
+      async merge(kind, records) {
+        const part = await mergeKind(kind, records);
+        if (part === null) return fail("LOCAL_DATA_CLEARED");
+        if (part.added.length || part.updated.length) changed = true;
+        return ok(part);
       },
-      { since },
-    );
-    const overviewCount = await overviews.update(
-      (current) => {
-        const merged = mergeOverviews(current, contents.overviews);
-        return { put: merged.changed, result: counted(merged, skipped.overviews) };
+      close() {
+        if (!changed) return;
+        changed = false;
+        deps.broadcast({ type: "notes.changed" });
       },
-      { since },
-    );
-    // 问答记下以后不改，只补本机没有的；两次读写之间别处新增的问答 id 不会和备份里的撞上。
-    const mergedQa = mergeQa(await qa.all(), contents.qa);
-    const qaSaved = await qa.commit({ put: mergedQa.changed }, { since });
-    // 文件里没有译文（第 1 版、旧格式）就不读本机的译文。
-    const translationCount = contents.translations.length
-      ? await deps.translations.update(
-          (current) => {
-            const merged = mergeTranslations(current, contents.translations, deps.now());
-            return { put: merged.changed, result: counted(merged, skipped.translations) };
-          },
-          { since },
-        )
-      : { added: 0, updated: 0, skipped: skipped.translations };
-    if (noteCount === null || overviewCount === null || !qaSaved || translationCount === null) return fail("LOCAL_DATA_CLEARED");
-    deps.broadcast({ type: "notes.changed" });
-    return ok({
-      counts: { notes: noteCount, overviews: overviewCount, qa: counted(mergedQa, skipped.qa), translations: translationCount },
-      promptsDropped: read.value.promptsDropped,
-    });
+    };
   }
 
   async function clear(scope: ClearScope): Promise<void> {
@@ -115,7 +140,7 @@ export function createDataService(deps: DataServiceDeps): DataService {
       const [noteList, overviewList, qaList, translationList] = await Promise.all([notes.all(), overviews.all(), qa.all(), deps.translations.all()]);
       return buildBackup({ notes: noteList, overviews: overviewList, qa: qaList, translations: translationList }, deps.now());
     },
-    importBackup,
+    openImport,
     clear,
   };
 }

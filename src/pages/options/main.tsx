@@ -13,8 +13,8 @@ import { renderStaleBackground } from "../shared/ui/stale-background.tsx";
 import { App } from "./app.tsx";
 import { createOptionsState } from "./state.ts";
 
-function download(filename: string, text: string): void {
-  const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+function download(filename: string, chunks: readonly string[]): void {
+  const url = URL.createObjectURL(new Blob([...chunks], { type: "application/json" }));
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;

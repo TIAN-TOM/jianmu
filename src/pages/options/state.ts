@@ -1,6 +1,7 @@
 // 设置页的状态和动作：设置直接经设置仓库读写（排在同一把锁里，密钥不落盘），拉模型、测试连接、备份和清除发给后台。
 // 主机权限的申请要在用户点击的同一个调用栈里发起，所以保存先同步发起申请，再等别的。
 import { signal, type ReadonlySignal } from "@preact/signals";
+import { backupText, readBackup } from "../../core/backup/format.ts";
 import type { ClearScope } from "../../core/clear-guard.ts";
 import { describe, isErrorCode, type Failure } from "../../core/errors.ts";
 import { AI_ERROR_TEXT } from "../../core/errors/ai.ts";
@@ -11,6 +12,7 @@ import type { BackupImportReply } from "../../shared/messages/data.ts";
 import { SETTINGS_REVISION_KEY } from "../../shared/names.ts";
 import { FEATURE_MODEL_SLOTS, originOf, validate, validateForSave, type FeatureSlotId } from "../../shared/settings-schema.ts";
 import type { PageApi } from "../shared/api.ts";
+import { receiveBackup, sendBackup } from "./backup-transfer.ts";
 import { chosenFeatures, formOf, settingsInput, withAddress, withPreset, type AiForm } from "./form.ts";
 import { probeFrameImage } from "./image-probe.ts";
 
@@ -28,11 +30,11 @@ type StorageListener = (changes: object, area: string) => void;
 
 export interface OptionsDeps {
   readonly store: Pick<SettingsStore, "load" | "save" | "update" | "setDataConsent">;
-  readonly api: Pick<PageApi, "send">;
+  readonly api: Pick<PageApi, "send" | "connect">;
   /** 申请一条主机权限；必须在点击的同步调用栈里调用。 */
   readonly requestHost: (pattern: string) => Promise<boolean>;
-  /** 把备份存成文件。 */
-  readonly download: (filename: string, text: string) => void;
+  /** 把备份存成文件：文本按块给，拼起来就是文件内容。 */
+  readonly download: (filename: string, chunks: readonly string[]) => void;
   readonly storageChanged?: { addListener(listener: StorageListener): void; removeListener(listener: StorageListener): void };
   readonly now?: () => Date;
 }
@@ -411,14 +413,14 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       if (busy.peek()) return;
       busy.value = "export";
       try {
-        const reply = await api.send("backup.export", {});
+        const reply = await receiveBackup(api);
         if (!reply.ok) {
           dataStatus.value = { text: `导出失败：${failureText(reply)}`, tone: "error" };
           return;
         }
         const date = (deps.now ?? (() => new Date()))();
         const stamp = `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}`;
-        deps.download(`简幕备份-${stamp}.json`, `${JSON.stringify(reply.value, null, 2)}\n`);
+        deps.download(`简幕备份-${stamp}.json`, backupText(reply.value));
         const { notes, overviews, qa, translations } = reply.value;
         dataStatus.value = { text: `已导出 ${notes.length} 条笔记、${overviews.length} 份概览、${qa.length} 条问答、${translations.length} 份译文和整理过的字幕。`, tone: "ok" };
       } finally {
@@ -434,9 +436,14 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
         dataStatus.value = { text: "读不懂这个文件，请选简幕导出的 JSON 备份。", tone: "error" };
         return;
       }
+      const read = readBackup(payload);
+      if (!read.ok) {
+        dataStatus.value = { text: `恢复失败：${failureText(read)}`, tone: "error" };
+        return;
+      }
       busy.value = "import";
       try {
-        const reply = await api.send("backup.import", { payload });
+        const reply = await sendBackup(api, read.value);
         dataStatus.value = reply.ok ? { text: importText(reply.value), tone: "ok" } : { text: `恢复失败：${failureText(reply)}`, tone: "error" };
       } finally {
         busy.value = null;

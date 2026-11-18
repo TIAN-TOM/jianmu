@@ -5,7 +5,7 @@ import { aiRoutes, type AiRouteDeps } from "./ai.ts";
 import { appearanceRoutes, type AppearanceRouteDeps } from "./appearance.ts";
 import { batchPort, batchRoutes, type BatchRouteDeps } from "./batch.ts";
 import { buildRoutes } from "./build.ts";
-import { dataRoutes, type DataRouteDeps } from "./data.ts";
+import { dataPorts, dataRoutes, type DataRouteDeps } from "./data.ts";
 import { frameRoutes, type FrameRouteDeps } from "./frame.ts";
 import { grantRoutes, type GrantRouteDeps } from "./grants.ts";
 import { importRoutes, type ImportRouteDeps } from "./imports.ts";
@@ -35,7 +35,7 @@ export type RouteDeps = ActivationRouteDeps &
   VerdictRouteDeps &
   QaRouteDeps &
   NoteRouteDeps &
-  DataRouteDeps &
+  Pick<DataRouteDeps, "data"> &
   BatchRouteDeps &
   FrameRouteDeps;
 
@@ -62,10 +62,10 @@ export function createRoutes(deps: RouteDeps): Routes {
   };
 }
 
-export type PortDeps = TranslatePortDeps & BatchRouteDeps;
+export type PortDeps = TranslatePortDeps & BatchRouteDeps & DataRouteDeps;
 
-/** 端口表：翻译和粗筛。 */
+/** 端口表：翻译、粗筛，导出和导入备份。 */
 export function createPorts(deps: PortDeps): Readonly<Record<string, AnyPortSpec>> {
-  const ports: Ports = { ...translatePort(deps), ...batchPort(deps) };
+  const ports: Ports = { ...translatePort(deps), ...batchPort(deps), ...dataPorts(deps) };
   return ports as Readonly<Record<string, AnyPortSpec>>;
 }
