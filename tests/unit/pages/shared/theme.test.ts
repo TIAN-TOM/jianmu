@@ -197,6 +197,53 @@ test("跟随系统时系统明暗变了跟着换，选定明暗时不跟；停�
   assert.equal(page.root.dataset.accentTheme, "ink");
 });
 
+test("卡片的明暗跟着所在的页面：给了页面的明暗就不跟设置和系统；页面换了，重新落地；认不出时照旧按设置", async () => {
+  // 设置选了深色、系统也是深色，页面是浅色。
+  const source = fakeSource({ accentTheme: "ochre", themeMode: THEME_MODES.DARK });
+  const page = fakePage({ prefersDark: true });
+  let host: "light" | "dark" | null = "light";
+  const watch = await watchAppearance({ ...source.deps, hostMode: () => host }, page.root);
+  assert.deepEqual({ ...page.root.dataset }, { accentTheme: "ochre", themeMode: "light" });
+
+  // 设置里改明暗不影响卡片，改主题照常生效。
+  source.emit({ [SETTINGS_STORAGE_KEY]: { newValue: { accentTheme: "graphite", themeMode: THEME_MODES.SYSTEM } } });
+  assert.deepEqual({ ...page.root.dataset }, { accentTheme: "graphite", themeMode: "light" });
+
+  host = "dark";
+  watch.refresh();
+  assert.equal(page.root.dataset.themeMode, "dark");
+
+  // 页面的明暗认不出了：回到设置里的（跟随系统，系统是深色）。
+  host = null;
+  watch.refresh();
+  assert.equal(page.root.dataset.themeMode, "dark");
+
+  watch.stop();
+  host = "light";
+  watch.refresh();
+  assert.equal(page.root.dataset.themeMode, "dark", "停止以后不再改");
+});
+
+test("设置读回来之前页面的明暗已经变了：按最新的落地；读设置失败时只换明暗，主题留着首帧的样子", async () => {
+  let release: (value: Record<string, unknown>) => void = () => undefined;
+  const reading = new Promise<Record<string, unknown>>((resolve) => (release = resolve));
+  const page = fakePage();
+  let host: "light" | "dark" = "light";
+  const pending = watchAppearance({ local: { get: () => reading }, hostMode: () => host }, page.root);
+  host = "dark";
+  release({ [SETTINGS_STORAGE_KEY]: { accentTheme: "ink", themeMode: THEME_MODES.LIGHT } });
+  const watch = await pending;
+  assert.deepEqual({ ...page.root.dataset }, { accentTheme: "ink", themeMode: "dark" });
+  watch.stop();
+
+  const broken = fakePage();
+  broken.root.dataset.accentTheme = "ochre";
+  const failed = await watchAppearance({ local: { get: () => Promise.reject(new Error("读不到")) }, hostMode: () => host }, broken.root);
+  assert.equal(failed.current(), null);
+  failed.refresh();
+  assert.deepEqual({ ...broken.root.dataset }, { accentTheme: "ochre", themeMode: "dark" });
+});
+
 test("applyAppearance 把主题和明暗落到根节点的 data 属性上", () => {
   const root = { dataset: {} as Record<string, string | undefined> };
   const normalized = applyAppearance({ accentTheme: "ochre", themeMode: "dark" }, root);

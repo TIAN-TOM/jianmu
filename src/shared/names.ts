@@ -50,6 +50,9 @@ export const ACTION_MENU = {
   autoOverview: "jianmu-menu-auto-overview",
 } as const;
 
+// 卡片的明暗跟着所在的页面：内容脚本插入卡片时写在卡片地址 # 后面的参数名，和之后页面换了明暗时发给卡片的消息类型。
+export const CARD_TONE = { param: "tone", message: "tone" } as const;
+
 // 设置读写用的 Web Locks 锁名，不是存储键，不用登记。
 export const SETTINGS_LOCK_NAME = "jianmu_settings";
 

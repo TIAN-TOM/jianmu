@@ -2,12 +2,12 @@
 // 卡片页入口：先核对后台是不是同一次构建，再接上消息、配置检查、外观、标签页地址和高度上报。父页面的来源按所在标签页的地址算，高度只报给它。
 import { effect, signal } from "@preact/signals";
 import { render } from "preact";
-import { INJECTED } from "../../shared/names.ts";
+import { CARD_TONE, INJECTED } from "../../shared/names.ts";
 import { siteRules } from "../../sites/rules.ts";
 import { createPageApi, type PageApi } from "../shared/api.ts";
 import { startWhenCurrent } from "../shared/build-check.ts";
 import { createConfigWatch } from "../shared/config.ts";
-import { pageAppearanceSources, watchAppearance } from "../shared/theme.ts";
+import { hostModeOf, pageAppearanceSources, watchAppearance, type ResolvedThemeMode } from "../shared/theme.ts";
 import { renderStaleBackground } from "../shared/ui/stale-background.tsx";
 import { Card } from "./card.tsx";
 import { createCardModel, type CardTab } from "./model.ts";
@@ -49,7 +49,9 @@ function stale(root: HTMLElement): void {
 }
 
 function start(root: HTMLElement, api: PageApi): void {
-  void watchAppearance(pageAppearanceSources(api), document.documentElement);
+  // 卡片的明暗跟着所在的页面：内容脚本插入时写在地址上，之后页面换了再发消息来；认不出时才按设置。
+  let hostMode: ResolvedThemeMode | null = hostModeOf(location.hash);
+  const appearance = watchAppearance({ ...pageAppearanceSources(api), hostMode: () => hostMode }, document.documentElement);
   const config = createConfigWatch({ api, enabled: signal(true), storageChanged: chrome.storage.onChanged });
   const model = createCardModel({
     api,
@@ -102,7 +104,13 @@ function start(root: HTMLElement, api: PageApi): void {
   window.addEventListener("message", (event) => {
     const data: unknown = event.data;
     if (event.source !== window.parent || event.origin !== parentOrigin || !isRecord(data)) return;
-    if (data.source === INJECTED.hostMessage && data.type === "recheck") void model.recheck();
+    if (data.source !== INJECTED.hostMessage) return;
+    if (data.type === "recheck") void model.recheck();
+    // 页面换了明暗。页面脚本冒充也只能让卡片换个明暗。
+    if (data.type === CARD_TONE.message && (data.tone === "light" || data.tone === "dark")) {
+      hostMode = data.tone;
+      void appearance.then((watch) => watch.refresh());
+    }
   });
 
   const trusted = (event: { readonly isTrusted: boolean }): boolean => event.isTrusted;

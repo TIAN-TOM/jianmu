@@ -1,6 +1,8 @@
 // 播放页右栏的卡片：一个 iframe，里面是扩展自己的卡片页，网页脚本碰不到卡片里的内容和按钮。
 // 插在适配器给的位置，右栏都找不到时悬浮在右下角；定期核对位置（宽屏时挪到弹幕列表下面），换视频时只发一句提醒，不改地址。
-import { INJECTED } from "../shared/names.ts";
+// 卡片的明暗跟着周围的页面：插入时写在地址的 # 后面，卡片第一帧就对；之后页面换了明暗，发一句消息告诉它。
+import { CARD_TONE, INJECTED } from "../shared/names.ts";
+import type { PageTone } from "./page-tone.ts";
 
 export interface CardSlot {
   readonly parent: Element;
@@ -16,6 +18,8 @@ export interface CardFrameDeps {
   readonly slot: () => CardSlot | null;
   /** 播放器正占满屏幕：页面临时改了右栏，这期间不挪卡片。 */
   readonly fillsScreen: () => boolean;
+  /** 卡片周围的页面是浅色还是深色，认不出时是 null。不给就不管明暗，卡片按设置来。 */
+  readonly tone?: () => PageTone | null;
 }
 
 export interface CardFrame {
@@ -41,12 +45,37 @@ export function extensionOrigin(url: string): string {
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null;
 
-export function createCardFrame({ document, cardUrl, extensionRoot, slot, fillsScreen }: CardFrameDeps): CardFrame {
+export function createCardFrame({ document, cardUrl, extensionRoot, slot, fillsScreen, tone }: CardFrameDeps): CardFrame {
   const view = document.defaultView;
   let frame: HTMLIFrameElement | null = null;
   let origin = "";
   let floating = false;
   let skipped = 0;
+  // 写在卡片地址上的明暗，和卡片现在知道的明暗。卡片报过高度才算在听：在那之前发的消息它收不到。
+  let urlTone: PageTone | null = null;
+  let told: PageTone | null = null;
+  let listening = false;
+
+  const readTone = (): PageTone | null => {
+    try {
+      return tone?.() ?? null;
+    } catch {
+      return null;
+    }
+  };
+
+  // 页面换了明暗，或者插入时还认不出：告诉卡片。认不出时不发，卡片留着原来的样子。
+  function syncTone(): void {
+    if (!frame || !listening) return;
+    const now = readTone();
+    if (!now || now === told) return;
+    try {
+      frame.contentWindow?.postMessage({ source: INJECTED.hostMessage, type: CARD_TONE.message, tone: now }, origin);
+      told = now;
+    } catch {
+      // 发不出去：下一轮自查再试。
+    }
+  }
 
   const inPlace = (node: HTMLIFrameElement, target: CardSlot): boolean =>
     node.parentElement === target.parent && (target.before === node || node.nextSibling === target.before);
@@ -68,6 +97,9 @@ export function createCardFrame({ document, cardUrl, extensionRoot, slot, fillsS
     }
     node.style.height = `${CARD_HEIGHT.initial}px`;
     floating = !target;
+    // 挪位置会让框架按原来的地址重新载入：卡片回到地址上写的明暗，等它再报高度才接着听。
+    told = urlTone;
+    listening = false;
     return true;
   }
 
@@ -76,6 +108,8 @@ export function createCardFrame({ document, cardUrl, extensionRoot, slot, fillsS
     if (!frame || event.source !== frame.contentWindow || event.origin !== origin) return;
     const data: unknown = event.data;
     if (!isRecord(data) || data.source !== INJECTED.cardMessage || data.type !== "resize") return;
+    listening = true;
+    syncTone();
     const height = Number(data.height);
     if (!Number.isFinite(height)) return;
     frame.style.height = `${Math.min(CARD_HEIGHT.max, Math.max(CARD_HEIGHT.min, Math.ceil(height)))}px`;
@@ -89,7 +123,8 @@ export function createCardFrame({ document, cardUrl, extensionRoot, slot, fillsS
     const node = document.createElement("iframe");
     node.id = INJECTED.cardFrame;
     node.title = "简幕总结卡片";
-    node.src = url;
+    urlTone = readTone();
+    node.src = urlTone ? `${url}#${CARD_TONE.param}=${urlTone}` : url;
     if (!place(node, slot())) return;
     frame = node;
     origin = extensionOrigin(root);
@@ -109,6 +144,7 @@ export function createCardFrame({ document, cardUrl, extensionRoot, slot, fillsS
         return;
       }
       skipped = 0;
+      syncTone();
       const target = slot();
       if (!needsMove(frame, target)) return;
       // 换位置时框架会整页重载，所以只在悬浮着而右栏出现了、或者不在该在的那一侧时才挪。

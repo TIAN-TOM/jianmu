@@ -8,6 +8,7 @@ import { createCardFrame, type CardFrame } from "./card-frame.ts";
 import { createFramePress, frameIconEntries } from "./frame-icon.ts";
 import { createHoverIcons, NOTE_ICON, NOTE_TITLE, type HoverIconEntry } from "./hover-icons.ts";
 import { createMiniPlayer, type MiniPlayerDeps } from "./mini-player.ts";
+import { pageTone } from "./page-tone.ts";
 import type { ContentRuntime } from "./runtime.ts";
 import { listenShortcut } from "./shortcut.ts";
 
@@ -107,6 +108,12 @@ export function createSurface({ document, page, runtime, player, frame, retire, 
       extensionRoot: () => runtime.url(""),
       slot: () => page.cardSlot?.() ?? null,
       fillsScreen: () => page.fillsScreen?.() ?? false,
+      // 卡片要插的地方周围是什么底色；没有右栏时悬浮在页面上，看页面本身。
+      tone() {
+        const view = document.defaultView;
+        const start = page.cardSlot?.()?.parent ?? document.body;
+        return view ? pageTone<Element>(start, (node) => view.getComputedStyle(node).backgroundColor) : null;
+      },
     });
     card.ensure();
   }
