@@ -598,7 +598,7 @@ test("快捷选择指向真实的预设，国内在前", () => {
 // ============================================================
 
 test("并发和超时是固定值，传输层拿到的就是这份规则", () => {
-  assert.equal(SETTINGS.AI_CONCURRENCY, 3);
+  assert.equal(SETTINGS.AI_CONCURRENCY, 6);
   assert.equal(SETTINGS.AI_TIMEOUT_SECONDS, 120);
   assert.equal(SETTINGS.settingsRules.timeoutSeconds, SETTINGS.AI_TIMEOUT_SECONDS);
   assert.equal(SETTINGS.settingsRules.dataConsentVersion, DATA_CONSENT_VERSION);
