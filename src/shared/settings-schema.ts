@@ -80,9 +80,10 @@ export const REGION_PRESETS: readonly { readonly id: string; readonly label: str
     { id: "overseas", label: "海外服务", presetId: "anthropic" },
   ]);
 
-// 固定值，界面上不开放调整。并发 3 是多数服务商限流以内的稳妥值，几个视频同时生成时共用；
+// 固定值，界面上不开放调整。同时最多 6 个模型请求：长视频的分块、几个视频同时生成都更快；
+// 个别服务商会因此限流，限流和过载时传输层照旧等一会儿再发。
 // 单次请求超时 120 秒，长视频超时就把概览分块改成「较短」。
-export const AI_CONCURRENCY = 3;
+export const AI_CONCURRENCY = 6;
 export const AI_TIMEOUT_SECONDS = 120;
 // 推理档位越高，单次请求允许等得越久（初值，数值在档位映射表里）；关和低档就是上面那个值。保活的上限跟着算。
 export const EFFORT_TIMEOUT_SECONDS: Readonly<Record<Effort, number>> = Object.freeze({
