@@ -3,7 +3,8 @@
 // 依赖等第一个事件来了才建。提示词构建时内联，缺文件时构建就失败。
 import { respond } from "../platform/messaging.ts";
 import { restrictToTrustedContexts } from "../platform/storage.ts";
-import { chromeDeps, createApp, type App } from "./app.ts";
+import { createApp, type App } from "./app.ts";
+import { chromeDeps } from "./chrome-deps.ts";
 import { PROMPT_FILES } from "./prompts.ts";
 import { createWake } from "./wake.ts";
 
@@ -19,6 +20,9 @@ chrome.runtime.onMessage.addListener(
 chrome.runtime.onConnect.addListener(wake((port: chrome.runtime.Port) => current().connect(port)));
 chrome.runtime.onInstalled.addListener(wake((details: chrome.runtime.InstalledDetails) => void current().onInstalled(details.reason)));
 chrome.runtime.onStartup.addListener(wake(() => void current().onStartup()));
+// 站点授权有增减：要用户另外授权的站按授权注册或撤下内容脚本。构建开关关着时 App 什么都不做。
+chrome.permissions.onAdded.addListener(wake(() => void current().onPermissionsChanged()));
+chrome.permissions.onRemoved.addListener(wake(() => void current().onPermissionsChanged()));
 chrome.tabs.onRemoved.addListener(wake((tabId: number) => current().onTabRemoved(tabId)));
 // 打开就出结论看开着的视频标签页，前台的排最前：开关关着、确认启用之前，App 不读标签页地址就返回。
 chrome.tabs.onActivated.addListener(wake(() => current().onTabActivated()));

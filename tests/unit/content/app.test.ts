@@ -17,7 +17,7 @@ const VIDEO: VideoRef = { platform: "bilibili", videoId: "BV1Sample001", segment
 const NEEDED = { ok: true, value: { state: "needed", updated: false, items: [] } };
 const CURRENT = { ok: true, value: { state: "current" } };
 
-function setup(options: { readonly frame?: (identity: FrameIdentity) => FrameTool } = {}) {
+function setup(options: { readonly frame?: (identity: FrameIdentity) => FrameTool; readonly site?: VideoRef["platform"] } = {}) {
   const fake = fakeRuntime();
   let activation: unknown = NEEDED;
   fake.reply("activation.get", (_req) => activation);
@@ -32,7 +32,7 @@ function setup(options: { readonly frame?: (identity: FrameIdentity) => FrameToo
   const signals: AbortSignal[] = [];
   let ready: (() => void) | null = null;
   const page: SitePage = {
-    rules: { platform: "bilibili", optionalPermission: false, parseWatchUrl: () => VIDEO, canonicalUrl: () => "" },
+    rules: { platform: "bilibili", optionalPermission: false, parseWatchUrl: () => VIDEO, canonicalUrl: () => "", permissionOrigins: [], scriptMatches: [] },
     noteShortcut: "n",
     currentRef: () => (pageReads.push("currentRef"), VIDEO),
     onVideoChange: () => (pageReads.push("onVideoChange"), () => undefined),
@@ -72,6 +72,7 @@ function setup(options: { readonly frame?: (identity: FrameIdentity) => FrameToo
     every: () => (hooks.push("every"), () => undefined),
     gateTimers: { set: (run, ms) => timers.setTimeout(run, ms), clear: (timer) => timers.clearTimeout(timer) },
     ...(options.frame ? { frame: options.frame } : {}),
+    ...(options.site ? { site: options.site } : {}),
   });
   return {
     fake,
@@ -190,6 +191,22 @@ test("新注入的一份接手时，旧的一份整套撤下、不再响应广�
   assert.ok(await until(() => surfaces.length === 1));
   app.stop();
   assert.equal(surfaces[0]?.removed, true);
+  assert.equal(fake.listeners(), 0);
+});
+
+test("撤了自己这个站的授权：整套撤下、不再响应；别的站的撤权和启用的通知不算", async () => {
+  const { fake, app, pageReads, surfaces, setActivation, pageReady } = setup({ site: "youtube" });
+  setActivation(CURRENT);
+  app.start();
+  assert.ok(await until(() => pageReads.includes("whenPageReady")));
+  pageReady();
+  assert.ok(await until(() => surfaces.length === 1));
+  fake.broadcast({ type: "site.changed", platform: "bilibili", enabled: false });
+  fake.broadcast({ type: "site.changed", platform: "youtube", enabled: true });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(surfaces[0]?.removed, false);
+  fake.broadcast({ type: "site.changed", platform: "youtube", enabled: false });
+  assert.ok(await until(() => surfaces[0]?.removed === true));
   assert.equal(fake.listeners(), 0);
 });
 

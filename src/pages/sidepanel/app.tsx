@@ -23,6 +23,7 @@ import { activeIndex } from "./reading.ts";
 import { SkimView } from "./skim.tsx";
 import { StudyView } from "./study.tsx";
 import { FrameButton, FrameResults } from "./frame-view.tsx";
+import { YoutubeNoVideo } from "./youtube-gate.tsx";
 
 const AUTO_PAUSED: Readonly<Record<AutoPauseReason, string>> = {
   quota: "额度用完，打开就出结论已暂停。手动生成成功一次，或在设置页关掉再打开就恢复",
@@ -169,6 +170,13 @@ function UndoClock({ panel, shown }: { readonly panel: Panel; readonly shown: bo
   return null;
 }
 
+function BilibiliNoVideo(_props: { readonly panel: Panel }) {
+  return <StateBlock title="打开一个 B 站视频" impact="在 B 站的视频播放页打开侧边栏，就能读字幕、生成概览、提问和记笔记。" />;
+}
+
+// 发行构建里 YouTube 那一份连同授权按钮一起裁掉。
+const NoVideo = FEATURE_YOUTUBE ? YoutubeNoVideo : BilibiliNoVideo;
+
 export function App({ panel }: { readonly panel: Panel }) {
   if (!panel.activation.enabled.value) {
     return (
@@ -182,7 +190,7 @@ export function App({ panel }: { readonly panel: Panel }) {
     return (
       <main class="panel panel-gate">
         <Notice notices={[panel.toast.value ? { id: "toast", priority: 0, text: panel.toast.value.text, tone: "accent" } : null]} />
-        <StateBlock title="打开一个 B 站视频" impact="在 B 站的视频播放页打开侧边栏，就能读字幕、生成概览、提问和记笔记。" />
+        <NoVideo panel={panel} />
       </main>
     );
   }

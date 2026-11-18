@@ -148,6 +148,8 @@ export function createFollow({ api, enabled, browser = browserFollow() }: Follow
     api.on("activation.changed", ({ confirmed }) => {
       if (confirmed) void refresh();
     }),
+    // 撤了某个站的授权：那个站的标签页地址看不到了，观看会话也删了，重新认一次。
+    api.on("site.changed", () => void refresh()),
   ];
 
   return {

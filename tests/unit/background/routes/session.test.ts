@@ -12,6 +12,7 @@ import {
   SAMPLE_VIDEO_ID,
   senders,
   STALE_CONFIRMATION,
+  TUBE_ORIGIN,
   tubeUrl,
   watchedSender,
   watchUrl,
@@ -92,7 +93,7 @@ test("确认后内容脚本报时长和频道：开这个标签页的会话，�
 });
 
 test("内容脚本报的视频以它所在标签页的地址为准：消息里的视频对不上的不认，不开会话", async () => {
-  const world = appOn();
+  const world = appOn({ grantedOrigins: [`${TUBE_ORIGIN}/*`] });
   assert.deepEqual(await world.send("playback.info", { video: OTHER, durationSec: LONG }, content()), { ok: false, code: "VIDEO_CHANGED" });
   assert.deepEqual(await world.send("playback.milestone", { video: OTHER, playedSec: 0 }, content()), { ok: false, code: "VIDEO_CHANGED" });
   assert.deepEqual(world.sessions(), {});
@@ -100,6 +101,11 @@ test("内容脚本报的视频以它所在标签页的地址为准：消息里�
   // 另一个站的内容脚本报它自己地址上的视频，照常开会话，频道记在那个站名下。
   assert.equal((await world.send("playback.info", { video: TUBE, channel: "UC-sample" }, senders.content(tubeUrl(), 41))).ok, true);
   assert.deepEqual(Object.keys(world.sessions()), ["41"]);
+  // YouTube 的频道可能只读得到 @ 名：照收；只有 @、两个 @ 的不收。
+  assert.equal((await world.send("playback.info", { video: TUBE, channel: "@sample.channel" }, senders.content(tubeUrl(), 41))).ok, true);
+  for (const channel of ["@", "@@sample", "sample@"]) {
+    assert.deepEqual(await world.send("playback.info", { video: TUBE, channel }, senders.content(tubeUrl(), 41)), { ok: false, code: "INVALID_REQUEST" }, channel);
+  }
 });
 
 test("播放上报的请求形状：多带字段、时长不对、频道编号不对、秒数离谱的都不收", async () => {

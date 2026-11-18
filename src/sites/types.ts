@@ -82,6 +82,8 @@ export interface SiteRules {
   optionalPermission: boolean; // 这个站的主机权限要不要用户另外授予
   parseWatchUrl(url: string): VideoRef | null; // 只认首发支持的页面
   canonicalUrl(ref: VideoRef, atSec?: number): string;
+  permissionOrigins: readonly string[]; // 启用这个站时请用户授权的来源；安装时就有授权的站是空的
+  scriptMatches: readonly string[]; // 启用后动态注册内容脚本用的匹配规则；在清单里静态声明的站是空的
 }
 
 // 经内容脚本在页面里读的通道，这里只占位。

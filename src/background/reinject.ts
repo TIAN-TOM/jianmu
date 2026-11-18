@@ -1,7 +1,7 @@
 // 补注入：浏览器只给之后打开的页面自动注入内容脚本，安装、更新之后和用户确认启用时，往已经打开的视频页补一次。
 // 要按地址查标签页，所以启用确认不算数时什么都不做。脚本文件和匹配规则都从清单里取，这里不写地址。
 // 内容脚本自己防重复注入，旧实例发现扩展上下文失效就自己撤掉。
-import type { Tabs } from "../platform/tabs.ts";
+import type { ContentScript, Tabs } from "../platform/tabs.ts";
 import { errorLabel, type Log } from "./log.ts";
 
 export interface ReinjectReceipt {
@@ -14,6 +14,8 @@ export interface ReinjectDeps {
   readonly tabs: Pick<Tabs, "contentScripts" | "tabsMatching" | "inject">;
   /** 首次启用确认算不算数。 */
   readonly enabled: () => Promise<boolean>;
+  /** 清单之外、按授权动态注册的内容脚本（授权了的站才有）。 */
+  readonly extraScripts?: () => Promise<readonly ContentScript[]>;
   readonly log: Log;
 }
 
@@ -21,7 +23,7 @@ export type Reinject = () => Promise<ReinjectReceipt>;
 
 const NOTHING: ReinjectReceipt = Object.freeze({ injected: [], failed: [] });
 
-export function createReinject({ tabs, enabled, log }: ReinjectDeps): Reinject {
+export function createReinject({ tabs, enabled, extraScripts, log }: ReinjectDeps): Reinject {
   async function confirmed(): Promise<boolean> {
     try {
       return await enabled();
@@ -32,7 +34,12 @@ export function createReinject({ tabs, enabled, log }: ReinjectDeps): Reinject {
   }
 
   return async () => {
-    const scripts = tabs.contentScripts();
+    // 站点授权只看授权本身，不读存储；一份脚本都没有时连启用状态也不读。
+    const extra = await (extraScripts?.() ?? Promise.resolve([])).catch((error: unknown) => {
+      log.error("补注入前读站点授权失败", errorLabel(error));
+      return [];
+    });
+    const scripts = [...tabs.contentScripts(), ...extra];
     if (scripts.length === 0 || !(await confirmed())) return NOTHING;
     const injected = new Set<number>();
     const failed = new Set<number>();

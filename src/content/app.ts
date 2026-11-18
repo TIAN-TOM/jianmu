@@ -2,6 +2,7 @@
 // 扩展重新加载后旧脚本和扩展断了联系：撤卡片，笔记图标留着只提示刷新页面。
 import type { Broadcast } from "../shared/messages.ts";
 import type { AppearanceView } from "../shared/messages/core.ts";
+import type { Platform } from "../core/video-ref.ts";
 import type { SitePage } from "../sites/page-types.ts";
 import type { FrameIdentity, FrameTool } from "./frame.ts";
 import { createGate, type Activation, type Gate, type GateTimers } from "./gate.ts";
@@ -31,6 +32,8 @@ export interface SurfaceEnv {
 export interface ContentAppDeps {
   readonly runtime: ContentRuntime;
   readonly page: SitePage;
+  /** 要用户另外授权的站要给：撤权的通知只认自己这个站的。 */
+  readonly site?: Platform;
   readonly createSurface: (env: SurfaceEnv) => Surface;
   /** 标签页在后台时定时自查跳过，切回来时立刻补一轮。 */
   readonly visibility: { readonly hidden: () => boolean; readonly onChange: (run: () => void) => () => void };
@@ -64,6 +67,7 @@ function broadcastOf(message: unknown): Broadcast | null {
   if (message.type === "activation.changed" && typeof message.confirmed === "boolean") return message as Broadcast;
   if (message.type === "data.cleared" && (message.scope === "all" || message.scope === "cache")) return message as Broadcast;
   if (message.type === "appearance.changed" && typeof message.accentTheme === "string" && typeof message.inPageCard === "boolean") return message as Broadcast;
+  if (message.type === "site.changed" && typeof message.platform === "string" && typeof message.enabled === "boolean") return message as Broadcast;
   return null;
 }
 
@@ -161,6 +165,9 @@ export function createContentApp(deps: ContentAppDeps): ContentApp {
     if (broadcast?.type === "activation.changed") gate.notify(broadcast.confirmed ? "confirmed" : "lost");
     else if (broadcast?.type === "data.cleared") {
       if (broadcast.scope === "all") gate.notify("lost");
+    } else if (broadcast?.type === "site.changed") {
+      // 撤了这个站的授权：整套撤下，不再响应任何消息。再启用时后台补注入新的一份。
+      if (broadcast.platform === deps.site && !broadcast.enabled) stop();
     } else if (broadcast?.type === "appearance.changed") {
       appearanceVersion += 1;
       surface?.setAppearance({ accentTheme: broadcast.accentTheme, inPageCard: broadcast.inPageCard });
@@ -177,17 +184,19 @@ export function createContentApp(deps: ContentAppDeps): ContentApp {
     return false;
   }
 
+  function stop(): void {
+    stopListening?.();
+    stopListening = null;
+    gate.stop();
+    close();
+  }
+
   return {
     start() {
       stopListening = runtime.listen(onMessage);
       gate.start();
     },
-    stop() {
-      stopListening?.();
-      stopListening = null;
-      gate.stop();
-      close();
-    },
+    stop,
     gate: () => gate,
   };
 }
