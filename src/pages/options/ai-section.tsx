@@ -13,6 +13,7 @@ import {
 } from "../../shared/settings-schema.ts";
 import { Button } from "../shared/ui/button.tsx";
 import { Confirmable, StatusLine } from "./controls.tsx";
+import { ImageProbeButton } from "./image-probe-button.tsx";
 import { EFFORT_LABELS, effortNoteText, serviceChanged, showsRegionChooser } from "./form.ts";
 import type { OptionsState } from "./state.ts";
 
@@ -296,6 +297,7 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
             />
           </label>
         ))}
+        {FEATURE_FRAME_EXPLAIN ? <ImageProbeButton state={state} /> : null}
       </details>
 
       <EffortBlock state={state} />

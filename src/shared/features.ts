@@ -22,6 +22,16 @@ export const RELEASE_FEATURES: FeatureSet = Object.freeze({
   youtubeSwitchLang: false,
 });
 
+/**
+ * 日用构建：开发者本人每天用的包，打开发行前还在日常使用里验证的开关。`npm run package:daily` 打它，
+ * 文件名带 -daily，发布脚本不认；对外的发行包仍按上面那份。
+ */
+export const DAILY_FEATURES: FeatureSet = Object.freeze({
+  frameExplain: true,
+  youtubeOpenPanel: false,
+  youtubeSwitchLang: false,
+});
+
 /** 测试构建：全部打开，只给测试用，不打包。Node 测试里的全局常量也取这一份。 */
 export const TEST_BUILD_FEATURES: FeatureSet = Object.freeze({
   frameExplain: true,

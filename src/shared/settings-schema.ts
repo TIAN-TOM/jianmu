@@ -28,6 +28,7 @@ import {
   type ActivationKind,
   type NoticeStatus,
 } from "../core/consent.ts";
+import { FRAME_SLOT } from "./frame-slot.ts";
 
 export { CUSTOM_PRESET_ID };
 
@@ -159,6 +160,7 @@ export const THEME_MODES = Object.freeze({ SYSTEM: "system", LIGHT: "light", DAR
 export type ThemeMode = (typeof THEME_MODES)[keyof typeof THEME_MODES];
 
 // 按功能选模型：同一个服务商、同一把密钥下，单项功能可以换一个模型，留空就用默认模型。请求时按 id 取，见 modelForFeature。
+// 画面分析那一项只在构建开关打开时有，见 frame-slot.ts。
 export const FEATURE_MODEL_SLOTS = Object.freeze([
   { id: "analysis", label: "概览" },
   { id: "verdict", label: "一句话结论" },
@@ -167,10 +169,14 @@ export const FEATURE_MODEL_SLOTS = Object.freeze([
   { id: "qa", label: "问答" },
   { id: "notes", label: "笔记润色" },
   { id: "explain", label: "划词解释" },
+  ...(FEATURE_FRAME_EXPLAIN ? [FRAME_SLOT] : []),
 ] as const);
 export type FeatureSlotId = (typeof FEATURE_MODEL_SLOTS)[number]["id"];
 
-/** 每项功能用户选的推理强度。和按功能选的模型不同，换服务商或地址时保留，按新的服务重新解析实际档位。 */
+/**
+ * 每项功能用户选的推理强度。和按功能选的模型不同，换服务商或地址时保留，按新的服务重新解析实际档位。
+ * 开关关着的构建里没有画面分析那一项，读的地方一律经 effortForFeature。
+ */
 export type FeatureEfforts = Readonly<Record<FeatureSlotId, Effort>>;
 
 export { EFFORTS };

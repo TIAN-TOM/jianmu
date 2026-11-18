@@ -288,6 +288,7 @@ test("广播按任务号、视频键、标签页号过滤；不带视频的笔�
   api.on("notes.changed", ({ video }) => void got.push(`笔记 ${video ?? "全部"}`), { video: VIDEO });
   api.on("session.changed", ({ tabId }) => void got.push(`会话 ${tabId}`), { tabId: 3 });
   api.on("data.cleared", ({ scope }) => void got.push(`清除 ${scope}`));
+  api.on("frame.changed", ({ tabId }) => void got.push(`画面 ${tabId}`), { tabId: 3 });
 
   fake.broadcast(task("t1", OTHER_VIDEO));
   fake.broadcast(task("t2", VIDEO));
@@ -300,8 +301,11 @@ test("广播按任务号、视频键、标签页号过滤；不带视频的笔�
   fake.broadcast({ type: "session.changed", tabId: 4, session: {} });
   fake.broadcast({ type: "session.changed", tabId: 3, session: {} });
   fake.broadcast({ type: "data.cleared", scope: "all" });
+  fake.broadcast({ type: "frame.changed", tabId: 4 });
+  fake.broadcast({ type: "frame.changed", tabId: 3 });
+  fake.broadcast({ type: "frame.changed", tabId: "3" });
 
-  assert.deepEqual(got, ["任务号 t1", "视频 t2", "概览", "笔记 全部", "会话 3", "清除 all"]);
+  assert.deepEqual(got, ["任务号 t1", "视频 t2", "概览", "笔记 全部", "会话 3", "清除 all", "画面 3"]);
 });
 
 test("退订和停止以后不再收广播；一个订阅方出错不挡别的订阅方", () => {

@@ -60,6 +60,8 @@ export interface FakeChromeOptions {
   readonly openTabs?: readonly number[];
   /** sidePanel.open 被浏览器拒绝。 */
   readonly panelOpenRefused?: boolean;
+  /** 标签页里的内容脚本怎么回 tabs.sendMessage；不给时回 undefined。抛错就是送不到。 */
+  readonly tabReply?: (tabId: number, message: unknown) => unknown;
   /** 往这几个标签页注入脚本时浏览器报错。 */
   readonly injectRefused?: readonly number[];
   readonly setAccessLevel?: (options: unknown) => Promise<void>;
@@ -206,6 +208,7 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     },
     async sendMessage(tabId: number, message: unknown) {
       calls.tabMessages.push({ tabId, message: copy(message) });
+      return options.tabReply?.(tabId, message);
     },
     onRemoved: event(),
     onActivated: event(),

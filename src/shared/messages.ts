@@ -9,6 +9,7 @@ import type { AiApi, AutoPauseReason } from "./messages/ai.ts";
 import type { BatchApi, BatchIn, BatchOut } from "./messages/batch.ts";
 import type { CoreApi } from "./messages/core.ts";
 import type { DataApi } from "./messages/data.ts";
+import type { FrameApi } from "./messages/frame.ts";
 import type { GrantsApi } from "./messages/grants.ts";
 import type { ImportsApi } from "./messages/imports.ts";
 import type { NotesApi } from "./messages/notes.ts";
@@ -38,7 +39,8 @@ export interface Api extends
   QaApi,
   NotesApi,
   DataApi,
-  BatchApi {}
+  BatchApi,
+  FrameApi {}
 
 export type RouteName = keyof Api;
 
@@ -56,7 +58,9 @@ export type Broadcast =
   | { readonly type: "panel.follow"; readonly tabId: number }
   | { readonly type: "appearance.changed"; readonly accentTheme: AccentTheme; readonly inPageCard: boolean }
   | { readonly type: "activation.changed"; readonly confirmed: boolean }
-  | { readonly type: "auto.changed"; readonly paused: AutoPauseReason | null };
+  | { readonly type: "auto.changed"; readonly paused: AutoPauseReason | null }
+  /** 解释当前画面：这个标签页的解释有了变化，侧边栏按标签页重读（只在构建开关打开时发）。 */
+  | { readonly type: "frame.changed"; readonly tabId: number };
 
 export type BroadcastType = Broadcast["type"];
 

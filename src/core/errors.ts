@@ -4,6 +4,7 @@ import type { ErrorCopy } from "./errors/copy.ts";
 import { BACKUP_ERROR_TEXT, type BackupErrorCode } from "./errors/backup.ts";
 import { BATCH_ERROR_TEXT, type BatchErrorCode } from "./errors/batch.ts";
 import { DATA_ERROR_TEXT, type DataErrorCode } from "./errors/data.ts";
+import { FRAME_ERROR_TEXT, type FrameErrorCode } from "./errors/frame.ts";
 import { NOTE_ERROR_TEXT, type NoteErrorCode } from "./errors/notes.ts";
 import { OVERVIEW_ERROR_TEXT, type OverviewErrorCode } from "./errors/overview.ts";
 import { QA_ERROR_TEXT, type QaErrorCode } from "./errors/qa.ts";
@@ -21,6 +22,7 @@ export type {
   BackupErrorCode,
   BatchErrorCode,
   DataErrorCode,
+  FrameErrorCode,
   NoteErrorCode,
   OverviewErrorCode,
   QaErrorCode,
@@ -47,7 +49,8 @@ export type ErrorCode =
   | NoteErrorCode
   | TranslateErrorCode
   | BackupErrorCode
-  | BatchErrorCode;
+  | BatchErrorCode
+  | FrameErrorCode;
 
 export interface Failure {
   readonly ok: false;
@@ -60,7 +63,8 @@ export interface Failure {
 
 export type Result<T> = { readonly ok: true; readonly value: T } | Failure;
 
-const TEXT: Readonly<Record<ErrorCode, ErrorCopy>> = {
+// 解释当前画面的码只在开关打开的构建里有文案；关着的构建不会产生这些码，isErrorCode 也不认。
+const TEXT = {
   ...SITE_ERROR_TEXT,
   ...SETTINGS_ERROR_TEXT,
   ...ROUTING_ERROR_TEXT,
@@ -75,7 +79,8 @@ const TEXT: Readonly<Record<ErrorCode, ErrorCopy>> = {
   ...TRANSLATE_ERROR_TEXT,
   ...BACKUP_ERROR_TEXT,
   ...BATCH_ERROR_TEXT,
-};
+  ...(FEATURE_FRAME_EXPLAIN ? FRAME_ERROR_TEXT : {}),
+} as Readonly<Record<ErrorCode, ErrorCopy>>;
 
 const DETAIL_TEXT: Readonly<Partial<Record<ErrorCode, Readonly<Record<string, ErrorCopy>>>>> = { ...SITE_DETAIL_TEXT, ...TRANSCRIPT_DETAIL_TEXT };
 

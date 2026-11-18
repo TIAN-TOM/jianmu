@@ -167,18 +167,28 @@ IndexedDB 数据库 `jianmu` 里的仓库：
 | `jianmu_triage` | 粗筛读到的稍后再看列表和官方总结 | 本机 | 删 | 删 |
 | `jianmu_model_caps` | 各个模型能做什么 | 本机 | 删 | 删 |
 | `jianmu_relaxed_params` | 模型服务不接受某些请求参数时的记录 | 会话 | 删 | 删 |
+| `jianmu_image_probe` | 画面分析的模型能不能看图（只有带「解释当前画面」的版本会写） | 本机 | 删 | 删 |
 | `jianmu_watch_sessions` | 每个标签页正在看的视频用哪个模式、播放了多久、卡片展开没有 | 会话 | 留 | 删 |
 | `jianmu_auto_ledger` | 「打开就出结论」试过哪些视频、最近几次的时间、暂停的原因 | 会话 | 留 | 删 |
 | `jianmu_settings_revision` | 设置的修订号，是个随机值，防止过时的设置页写回旧设置 | 本机 | 留 | 换成新值 |
 | `jianmu_appearance` | 外观设置的副本，页面打开时先用它，免得闪一下 | 页面的本地存储 | 留 | 恢复默认 |
 | `jianmu_site_backoff` | B 站限流以后要等多久，只有站点、到期时间和次数 | 会话 | 留 | 留 |
 
+### 解释当前画面（还在验证，发布版里没有）
+
+这项功能还在开发者本人的日常使用里验证，目前发布的安装包里没有它。发布版打开它的时候，下面这些会并进上面各节：
+
+- **读什么**：你点播放器上「解释当前画面」的图标，或者侧边栏里的按钮时，读视频当前的一帧画面。只截视频本身，不截整个网页。加密播放（比如番剧、电影）、正在播广告、视频页不在前台时不截。
+- **发什么**：这一帧画面、这一刻前后几句字幕和视频标题，发给你在设置页「按功能选模型」里给画面分析选的模型。和别的功能一样，要先同意数据说明。
+- **存什么**：截下的画面只用于这一次请求，不存进任何地方，也不进备份。模型回的解释只留在内存里，最多半小时，扩展的后台停下或浏览器关闭就没了。
+- **能不能看图**：简幕要知道画面分析的模型能不能看图。认不出这个模型时，会发一张 8×8 的纯色小图试一次（不是视频画面），把结果记在 `jianmu_image_probe` 里，清除缓存时删掉。
+
 ### 待定
 
 首发前要处理的：
 
 - 换了 AI 服务地址以后，回收旧地址的访问授权：修好并在真实浏览器里验证以后再写进来，同时写明哪些情况下授权可能还留着。<!-- 待定：回收旧授权，实机验证后再写 -->
-- 「解释当前画面」做好以后补上：会发送当前一帧和前后几句字幕，截图不存。<!-- 待定：解释当前画面 -->
+- 「解释当前画面」在发布版里打开时，把上面那一节并进正文。<!-- 待定：解释当前画面 -->
 - 联系邮箱。
 - 拿最终的安装包把各节和预设服务商的隐私政策链接再核对一遍。<!-- 待定：按最终安装包核对 -->
 
@@ -345,18 +355,28 @@ Keys in extension storage, none of which go into backups. "Local" is written to 
 | `jianmu_triage` | The Watch Later list and official summaries read for triage | Local | Deleted | Deleted |
 | `jianmu_model_caps` | What each model can do | Local | Deleted | Deleted |
 | `jianmu_relaxed_params` | A note of request parameters a model service would not accept | Session | Deleted | Deleted |
+| `jianmu_image_probe` | Whether the frame-analysis model accepts images (only versions with 解释当前画面 write it) | Local | Deleted | Deleted |
 | `jianmu_watch_sessions` | For each tab, the mode of the video being watched, how long it has played and whether the card is expanded | Session | Kept | Deleted |
 | `jianmu_auto_ledger` | Which videos 打开就出结论 has tried, the times of recent attempts and why it is paused | Session | Kept | Deleted |
 | `jianmu_settings_revision` | A random revision number for settings, so an out-of-date Settings page cannot write old settings back | Local | Kept | Replaced with a new value |
 | `jianmu_appearance` | A copy of the appearance settings, used first when a page opens so it doesn't flicker | The page's local storage | Kept | Reset to default |
 | `jianmu_site_backoff` | How long to wait after Bilibili rate-limits requests: only the site, an expiry time and a count | Session | Kept | Kept |
 
+### Explain the current frame (still being tested, not in the published version)
+
+This feature is still being tested in the developer's own daily use and is not in the published package. When the published version turns it on, the points below will move into the sections above:
+
+- **What it reads**: when you click the 解释当前画面 icon on the player, or the button in the side panel, it reads the current frame of the video. It captures only the video itself, never the whole page. It does not capture encrypted playback (anime series and films, for example), ads, or a video page that is not in the foreground.
+- **What it sends**: that frame, a few subtitle lines either side of that moment and the video title, sent to the model you chose for 画面分析 (frame analysis) under 按功能选模型 in Settings. As with every other feature, you need to agree to the data notice first.
+- **What it keeps**: the captured frame is used for that one request only. It is not stored anywhere and never goes into backups. The model's explanation is held in memory for at most half an hour and is gone once the extension's background stops or the browser closes.
+- **Whether the model accepts images**: Jianmu needs to know whether the frame-analysis model can read images. When it does not recognise the model, it sends one 8×8 single-colour image (not a frame from the video) to find out, and records the answer in `jianmu_image_probe`, which clearing the cache deletes.
+
 ### Still to be settled
 
 To be done before release:
 
 - Revoking access to the old AI service address after you switch to a new one: this will be added once it is fixed and tested in a real browser, together with the cases where access may be kept. <!-- 待定：回收旧授权，实机验证后再写 -->
-- 解释当前画面 (explain the current frame), to be added once it is built: it sends the current frame and a few subtitle lines either side of it, and the screenshot is not stored. <!-- 待定：解释当前画面 -->
+- When the published version turns on 解释当前画面 (explain the current frame), move the section above into the main text. <!-- 待定：解释当前画面 -->
 - The contact email.
 - Check every section, and the links to the preset services' privacy policies, against the final release package. <!-- 待定：按最终安装包核对 -->
 

@@ -1,10 +1,10 @@
 // 两份说明的版本表和指纹。数据同意管发给模型服务的内容，首次启用说明管在本机读取和保存的内容，分开记、分开判断。
 // 表里每个版本只写相对上一版新增或扩大了什么。指纹只算条目的 kind 和 id，改 text 的措辞、并显示的写法都不用重新同意；
-// 条目变了就要升版，tests/fixtures/consent-fingerprints.json 的快照拦下忘了升版的改动。
-// 带开关的版本放在单独的模块里，只从开关分支引用：开关关着的构建连措辞都不进包。
-import { FRAME_ACTIVATION_VERSION } from "./consent-frame.ts";
+// 首发前扩大范围不升版，新条目并进当前那一版，指纹变了照样要重新确认；tests/fixtures/consent-fingerprints.json 的快照拦下没留意的变化。
+// 带开关的条目放在单独的模块里，只从开关分支引用：开关关着的构建连措辞都不进包。
+import { FRAME_ACTIVATION_ITEMS, FRAME_DATA_ITEMS } from "./consent-frame.ts";
 
-/** 构建时开关。带开关的版本只在开关打开的构建里进说明和指纹，关着的构建停在不含它的版本上。 */
+/** 构建时开关。带开关的条目只在开关打开的构建里进说明和指纹，关着的构建里那一版不含它。 */
 export type NoticeFeature = "frameExplain";
 export type NoticeFeatures = Readonly<Record<NoticeFeature, boolean>>;
 
@@ -24,6 +24,8 @@ export interface NoticeItem<Kind extends string> {
    * 那一条不在要显示的这组里（老用户只看新增的）时照常单列。
    */
   readonly shownWith?: { readonly id: string; readonly combined: string };
+  /** 只在这个开关打开时算进说明和指纹。 */
+  readonly requires?: NoticeFeature;
 }
 
 /** 给用户看的一行：通常是一个条目，并显示的是几个条目合成一行。 */
@@ -35,7 +37,6 @@ export interface NoticeLine<Kind extends string> {
 
 export interface NoticeVersion<Kind extends string> {
   readonly version: number;
-  readonly requires?: NoticeFeature;
   readonly items: readonly NoticeItem<Kind>[];
 }
 
@@ -127,6 +128,7 @@ export const DATA_CONSENT_TABLE: NoticeTable<DataConsentKind> = [
         text: "整理字幕：点「整理字幕」时发送字幕和视频标题，给字幕补标点、改明显的同音错字",
         shownWith: { id: "ai-features", combined: "翻译、整理字幕（补标点、改同音错字）、概览、一句话结论、划词解释、笔记润色、问答和粗筛写结论" },
       },
+      ...(FEATURE_FRAME_EXPLAIN ? FRAME_DATA_ITEMS : []),
     ],
   },
 ];
@@ -158,9 +160,11 @@ export const ACTIVATION_TABLE: NoticeTable<ActivationKind> = [
   },
   {
     version: 3,
-    items: [{ kind: "read", id: "foreground-tab", text: "打开「打开就出结论」以后，当前窗口前台标签页的地址，用来认出刚打开的 B 站视频" }],
+    items: [
+      { kind: "read", id: "foreground-tab", text: "打开「打开就出结论」以后，当前窗口前台标签页的地址，用来认出刚打开的 B 站视频" },
+      ...(FEATURE_FRAME_EXPLAIN ? FRAME_ACTIVATION_ITEMS : []),
+    ],
   },
-  ...(FEATURE_FRAME_EXPLAIN ? [FRAME_ACTIVATION_VERSION] : []),
 ];
 
 // 当前构建打开了哪些开关，取值见 shared/features.ts。
@@ -184,8 +188,11 @@ function fingerprintOf(items: readonly NoticeItem<string>[]): string {
   return hash(items.map((item) => `${item.kind}:${item.id}`).sort().join("\n"));
 }
 
+// 去掉这组开关下不算的条目；一版里的条目全不算时，这一版也不算。
 function activeVersions<Kind extends string>(table: NoticeTable<Kind>, features: NoticeFeatures): NoticeTable<Kind> {
-  return table.filter((row) => row.requires === undefined || features[row.requires]);
+  return table
+    .map((row) => ({ ...row, items: row.items.filter((item) => item.requires === undefined || features[item.requires]) }))
+    .filter((row) => row.items.length > 0);
 }
 
 /** 这组开关下每一版的版本号和指纹，按版本从小到大。 */

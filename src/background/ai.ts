@@ -10,6 +10,7 @@ import {
   type JsonFetch,
   type JsonFetchInit,
   type JsonResponse,
+  type ModelCapabilities,
 } from "../core/ai/capabilities.ts";
 import {
   PROTOCOLS,
@@ -39,6 +40,7 @@ import type { Effort } from "../core/notes/records.ts";
 import { sha256Hex } from "../core/task-keys.ts";
 import { budgetEffort, type FrozenGen } from "../core/tasks.ts";
 import type { Permissions } from "../platform/permissions.ts";
+import { FRAME_PROMPT_FILE } from "../shared/frame-slot.ts";
 import type { LoadedSettings, SettingsStore } from "../platform/settings-store.ts";
 import type { ExtensionStorage } from "../platform/storage.ts";
 import type {
@@ -102,6 +104,8 @@ export interface AiWiring {
   readonly testConnection: (feature?: FeatureSlotId) => Promise<Result<TestConnectionView>>;
   /** 服务要用的提示词。读不到就报错，不发空提示词。 */
   readonly prompt: (file: string) => string;
+  /** 冻结的这份配置下模型的能力，只用本机缓存、型号表和放宽记忆，不发请求。看图那一项另有探测结果时以探测为准，见 image-support.ts。 */
+  readonly capabilities: (frozen: FrozenGen) => Promise<ModelCapabilities>;
 }
 
 // 关不掉思考的模型，思考也算在预算里，给少了可能还没写出正文就用完了。上限本身不收费，按实际生成计费。
@@ -112,7 +116,8 @@ const TEST_MESSAGES = [{ role: "user" as const, content: "回复两个字：可�
 const AI_CODES: ReadonlySet<string> = new Set(Object.keys(AI_ERROR_TEXT));
 
 // 每项功能用哪份提示词；提示词的版本就是它全文的指纹，改了提示词，旧任务的结果不算等价。
-const FEATURE_PROMPTS: Readonly<Record<FeatureSlotId, string>> = {
+// 画面分析那一项只在构建开关打开时有，开关关着的构建里没有这个功能槽。
+const FEATURE_PROMPTS = {
   analysis: "skim/chapters.md",
   verdict: "skim/verdict.md",
   rewrite: "study/translation.md",
@@ -120,7 +125,8 @@ const FEATURE_PROMPTS: Readonly<Record<FeatureSlotId, string>> = {
   qa: "common/qa.md",
   notes: "study/note-polish.md",
   explain: "study/explain.md",
-};
+  ...(FEATURE_FRAME_EXPLAIN ? { frame: FRAME_PROMPT_FILE } : {}),
+} as Readonly<Record<FeatureSlotId, string>>;
 
 function codedError(code: AiErrorCode, message: string): ProviderError {
   return Object.assign(new Error(message), { code });
@@ -300,5 +306,13 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
     listModels,
     testConnection,
     prompt,
+    async capabilities(frozen) {
+      const current = await load();
+      const settings = { ...current, aiBaseUrl: frozen.baseUrl, aiModel: frozen.model };
+      const claude = await cachedCapabilities(settings);
+      await shared.relaxMemory.ready();
+      const relax = shared.relaxMemory.recall(settings, frozen.requestedEffort ?? frozen.effort);
+      return resolveCapabilities({ protocol: current.protocol, host: hostOf(frozen.baseUrl), model: frozen.model, claude, relax });
+    },
   };
 }

@@ -5,18 +5,17 @@ import { signal, type ReadonlySignal } from "@preact/signals";
 import type { VideoKey } from "../../core/video-ref.ts";
 import type { ContentCommandName, ContentCommands, ContentReply } from "../../shared/messages/content.ts";
 
+/** 侧边栏自己发的指令：读状态、跳转。截帧由后台向内容脚本要，见 background/services/frame-explain.ts。 */
+export type PanelCommandName = Exclude<ContentCommandName, "player.captureFrame">;
+
 export type PlayerReply<K extends ContentCommandName> = ContentReply<K> | { readonly ok: false; readonly code: "UNREACHABLE" };
 
-export type PlayerFailure = ContentCommands[ContentCommandName]["refusal"] | "UNREACHABLE";
+export type PlayerFailure = ContentCommands[PanelCommandName]["refusal"] | "UNREACHABLE";
 
 const FAILURE_TEXT: Readonly<Record<PlayerFailure, string>> = {
   VIDEO_CHANGED: "页面上的视频已经换了，刷新侧边栏或回到原视频再试。",
   AD_PLAYING: "正在播广告，等广告放完再跳。",
   NO_VIDEO: "页面上没找到视频。",
-  FRAME_NOT_READY: "画面还没加载好。",
-  PROTECTED: "这个视频的画面受保护。",
-  CANVAS_TAINTED: "读不到这个视频的画面。",
-  NOT_FOREGROUND: "视频页不在前台。",
   UNREACHABLE: "视频页还没连上简幕，刷新视频页后才能跳转。",
 };
 
@@ -34,7 +33,7 @@ export interface PlayPosition {
 }
 
 export interface Player {
-  send<K extends ContentCommandName>(tabId: number, type: K, req: ContentCommands[K]["req"]): Promise<PlayerReply<K>>;
+  send<K extends PanelCommandName>(tabId: number, type: K, req: ContentCommands[K]["req"]): Promise<PlayerReply<K>>;
   /** 视频页连没连上：null 是还不知道。 */
   readonly connected: ReadonlySignal<boolean | null>;
   readonly position: ReadonlySignal<PlayPosition | null>;
@@ -58,7 +57,7 @@ export function createPlayer({ tabs = chrome.tabs as PlayerTabs }: { readonly ta
   let polling = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
 
-  async function send<K extends ContentCommandName>(tabId: number, type: K, req: ContentCommands[K]["req"]): Promise<PlayerReply<K>> {
+  async function send<K extends PanelCommandName>(tabId: number, type: K, req: ContentCommands[K]["req"]): Promise<PlayerReply<K>> {
     let raw: unknown;
     try {
       raw = await tabs.sendMessage(tabId, { type, req });

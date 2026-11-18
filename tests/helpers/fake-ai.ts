@@ -26,6 +26,8 @@ export interface FakeAiOptions {
   readonly config?: ConfigCheckView;
   readonly models?: readonly string[];
   readonly prompts?: Readonly<Record<string, string>>;
+  /** 本机认得出的看图能力，默认能看。 */
+  readonly imageInput?: boolean | "unknown";
 }
 
 export interface FakeAiCall {
@@ -91,6 +93,7 @@ export function createFakeAi(options: FakeAiOptions = {}): FakeAi {
         return fail("AI_REQUEST_FAILED");
       }
     },
+    capabilities: async () => ({ canDisableThinking: true, efforts: [], imageInput: options.imageInput ?? true, jsonSchema: false }),
     prompt(file) {
       const text = options.prompts?.[file];
       if (text === undefined) throw new Error(`没有这份提示词：${file}`);

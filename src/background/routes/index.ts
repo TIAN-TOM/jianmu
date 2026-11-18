@@ -6,6 +6,7 @@ import { appearanceRoutes, type AppearanceRouteDeps } from "./appearance.ts";
 import { batchPort, batchRoutes, type BatchRouteDeps } from "./batch.ts";
 import { buildRoutes } from "./build.ts";
 import { dataRoutes, type DataRouteDeps } from "./data.ts";
+import { frameRoutes, type FrameRouteDeps } from "./frame.ts";
 import { grantRoutes, type GrantRouteDeps } from "./grants.ts";
 import { importRoutes, type ImportRouteDeps } from "./imports.ts";
 import { noteRoutes, type NoteRouteDeps } from "./notes.ts";
@@ -32,8 +33,10 @@ export type RouteDeps = ActivationRouteDeps &
   QaRouteDeps &
   NoteRouteDeps &
   DataRouteDeps &
-  BatchRouteDeps;
+  BatchRouteDeps &
+  FrameRouteDeps;
 
+/** 画面那几条路由只在构建开关 FEATURE_FRAME_EXPLAIN 打开时进表。 */
 export function createRoutes(deps: RouteDeps): Routes {
   return {
     ...buildRoutes(),
@@ -52,6 +55,7 @@ export function createRoutes(deps: RouteDeps): Routes {
     ...noteRoutes(deps),
     ...dataRoutes(deps),
     ...batchRoutes(deps),
+    ...(FEATURE_FRAME_EXPLAIN ? frameRoutes(deps) : {}),
   };
 }
 

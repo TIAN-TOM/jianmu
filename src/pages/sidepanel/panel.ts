@@ -9,6 +9,7 @@ import { createActivation, type Activation } from "../shared/activation.ts";
 import { createConfigWatch, type ConfigWatch } from "../shared/config.ts";
 import { createWindowBatch, type WindowBatchStore } from "./batch.ts";
 import { createFollow, type Follow } from "./follow.ts";
+import { createFrameStore, type FrameStore } from "./frame.ts";
 import { createModeStore, type ModeStore } from "./mode.ts";
 import { createUndoLine, type UndoLine } from "./undo-line.ts";
 import { createNotesStore, type NotesStore } from "./notes.ts";
@@ -43,6 +44,8 @@ export interface Panel {
   readonly qa: QaStore;
   /** 本窗口全部生成。 */
   readonly batch: WindowBatchStore;
+  /** 解释当前画面，只在构建开关打开时有。 */
+  readonly frame: FrameStore | null;
   /** 问答抽屉开着。 */
   readonly qaOpen: Signal<boolean>;
   /** 笔记层开着。 */
@@ -77,6 +80,7 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
   const notes = createNotesStore({ api });
   const qa = createQaStore({ api });
   const batch = createWindowBatch({ api });
+  const frame = FEATURE_FRAME_EXPLAIN ? createFrameStore({ api, target: follow.target, enabled: activation.enabled }) : null;
   const qaOpen = signal(false);
   const notesOpen = signal(false);
   const toast = signal<Toast | null>(null);
@@ -158,6 +162,7 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
     notes,
     qa,
     batch,
+    frame,
     qaOpen,
     notesOpen,
     toast,
@@ -181,6 +186,7 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
     },
     stop() {
       for (const dispose of disposers) dispose();
+      frame?.stop();
       activation.stop();
       config.stop();
       follow.stop();

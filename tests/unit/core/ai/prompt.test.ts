@@ -104,6 +104,11 @@ const PROMPTS: Readonly<Record<string, PromptVariables>> = {
     videoTitle: "测试标题",
     segmentsJson: '{"segments":[{"id":"s1","text":"大家好"}]}',
   },
+  "study/frame-explain.md": {
+    videoTitle: "测试标题",
+    frameTime: "1:23",
+    transcriptContext: "1:20 测试字幕",
+  },
   "study/translation.md": {
     targetLangName: "简体中文",
     langRules: "- 测试规则",
@@ -196,7 +201,8 @@ test("分批/分块任务的系统提示词保持稳定前缀，服务商缓存�
 
 test("每份提示词都按模式放：速览的在 skim/，精读的在 study/，两种模式共用的在 common/，后台内联的就是这几份", () => {
   for (const file of Object.keys(PROMPTS)) assert.match(file, /^(?:skim|study|common)\/[a-z-]+\.md$/, file);
-  const inlined = readFileSync(new URL("../../../../src/background/prompts.ts", import.meta.url), "utf8");
+  // 解释当前画面那一份在开关模块里登记。
+  const inlined = ["prompts.ts", "prompts-frame.ts"].map((file) => readFileSync(new URL(`../../../../src/background/${file}`, import.meta.url), "utf8")).join("\n");
   const imported = [...inlined.matchAll(/from "prompt:([^"]+)"/g)].map((match) => match[1]);
   assert.deepEqual(imported.sort(), Object.keys(PROMPTS).sort());
 });

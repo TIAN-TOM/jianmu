@@ -45,6 +45,7 @@ import { createTranslationStore, type TranslationRecord } from "./stores/transla
 import { createOverviewService, type OverviewService } from "./services/overview/index.ts";
 import { createVerdictService, type VerdictService } from "./services/overview/verdict.ts";
 import { createExplainService, type ExplainService } from "./services/explain.ts";
+import { createFrameParts } from "./services/frame-explain.ts";
 import { createNotesService, type NotesService } from "./services/notes.ts";
 import { createDataService, type DataService } from "./services/data.ts";
 import { createQaService, type QaService } from "./services/qa.ts";
@@ -432,7 +433,7 @@ function assembleCore(deps: AppDeps): Core {
 function assembleRouter(deps: AppDeps, core: Core): Router {
   const { settings, tabs, contentTabs } = core;
   return createRouter({
-    routes: createRoutes(core),
+    routes: createRoutes({ ...core, frame: FEATURE_FRAME_EXPLAIN ? createFrameParts({ ...core, storage: deps.storage.local, log: deps.log, now: deps.timers.now }) : null }),
     ports: deps.ports ?? createPorts(core),
     senders: createSenders({ extensionId: deps.runtime.id, extensionUrl: (path) => deps.runtime.getURL(path), rules: deps.siteRules }),
     enabled: async () => (await settings.activation()).state === "current",

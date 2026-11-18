@@ -7,7 +7,7 @@ import { after, test } from "node:test";
 import { buildFlagsRecord } from "../../../scripts/lib/build-flags.mjs";
 import { checksumLine, parseChecksumLine, resolveSourceDateEpoch, sortZipEntries } from "../../../scripts/lib/zip-order.mjs";
 import { findPackageProblems, normalizeEntries, writeZip } from "../../../scripts/package.mjs";
-import { FEATURE_NAMES, RELEASE_FEATURES, TEST_BUILD_FEATURES } from "../../../src/shared/features.ts";
+import { DAILY_FEATURES, FEATURE_NAMES, RELEASE_FEATURES, TEST_BUILD_FEATURES, type FeatureSet } from "../../../src/shared/features.ts";
 
 const manifest = JSON.stringify({ version: "1.2.3", background: { service_worker: "background.js" }, side_panel: { default_path: "pages/a.html" } });
 const good: Record<string, string> = {
@@ -19,13 +19,14 @@ const good: Record<string, string> = {
 
 const RELEASE_FLAGS = buildFlagsRecord(RELEASE_FEATURES);
 
-function problemsWith(files: Record<string, string>, buildFlags: unknown): string[] {
+function problemsWith(files: Record<string, string>, buildFlags: unknown, features?: FeatureSet): string[] {
   return findPackageProblems({
     files: Object.keys(files),
     read: (file) => files[file] ?? "",
     expectedFiles: Object.keys(good),
     version: "1.2.3",
     buildFlags,
+    ...(features ? { features } : {}),
   });
 }
 
@@ -88,6 +89,21 @@ test("开着任何构建开关的产物不打包：测试构建、只开一个�
     assert.ok(found.some((problem) => expected.test(problem)), `${label}：${found.join("；")}`);
   }
   assert.deepEqual(problemsWith(good, { ...RELEASE_FLAGS }), [], "全部关着的发行构建照常打包");
+  assert.ok(problemsWith(good, buildFlagsRecord(DAILY_FEATURES)).length > 0, "日用构建不能当发行包打");
+});
+
+test("日用包只收和日用那份一模一样的构建：开着解释当前画面，别的关着", () => {
+  assert.deepEqual(DAILY_FEATURES, { ...RELEASE_FEATURES, frameExplain: true });
+  assert.deepEqual(problemsWith(good, buildFlagsRecord(DAILY_FEATURES), DAILY_FEATURES), []);
+  const refused: [string, unknown, RegExp][] = [
+    ["发行构建", RELEASE_FLAGS, /没开 FEATURE_FRAME_EXPLAIN，不是日用构建/],
+    ["测试构建", buildFlagsRecord(TEST_BUILD_FEATURES), /开着 FEATURE_YOUTUBE_OPEN_PANEL、FEATURE_YOUTUBE_SWITCH_LANG，日用包不带它/],
+    ["没有记录", undefined, /找不到这次构建的开关记录/],
+  ];
+  for (const [label, buildFlags, expected] of refused) {
+    const found = problemsWith(good, buildFlags, DAILY_FEATURES);
+    assert.ok(found.some((problem) => expected.test(problem)), `${label}：${found.join("；")}`);
+  }
 });
 
 test("文件按路径的字节序排，和输入顺序无关", () => {
