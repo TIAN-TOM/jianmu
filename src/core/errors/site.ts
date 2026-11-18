@@ -57,9 +57,10 @@ export const SITE_DETAIL_TEXT: Readonly<Partial<Record<SiteErrorCode, Readonly<R
       impact: NOT_READ,
       next: "刷新视频页，再打开文字稿，等文字出来，再点读取。",
     },
+    filtered: { cause: "视频页上的文字稿里有搜索词，只显示了一部分。", impact: NOT_READ, next: "清掉文字稿上方搜索框里的字，再点读取。" },
   },
   UNAVAILABLE: {
-    stale: { cause: "视频页上的文字稿还没换成这个视频的。", impact: "读到的内容没有用，免得记到别的视频上。", next: "等文字稿更新，或者关上再打开一次，再点读取。" },
+    stale: { cause: "视频页上的文字稿还没换成这个视频的。", impact: "读到的内容没有用，免得记到别的视频上。", next: "刷新视频页，再打开文字稿，然后点读取。" },
     "no-entry": { cause: "这个视频页上找不到文字稿。", impact: NOT_READ, next: `这个视频可能没有字幕，也可能是页面改版了。${IMPORT_FILE}` },
     "no-page": { cause: "要在视频页上读，可这会儿连不上视频页。", impact: NOT_READ, next: "回到视频页，在侧边栏点读取；还不行就刷新视频页。" },
   },

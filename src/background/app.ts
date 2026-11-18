@@ -322,16 +322,14 @@ function assembleTranslate(deps: AppDeps, parts: OverviewParts, translations: Tr
   });
 }
 
-// 批次：粗筛的列表和官方总结存在扩展本机存储里；写结论和本窗口全部生成都排概览那道并发闸门。
-// 已授权的站（YouTube）的观看页也清点，标成要逐个打开。
+// 批次：粗筛的列表和官方总结存在扩展本机存储里；写结论和本窗口全部生成都排概览那道并发闸门。已授权的站（YouTube）的观看页也清点。
 function assembleBatch(deps: AppDeps, parts: OverviewParts, tabs: Tabs, keepAlive: KeepAlive, services: { readonly overview: OverviewService; readonly verdict: VerdictService }, siteSwitch: SiteSwitch | null): BatchService {
   const watchPages = tabs.contentScripts().flatMap((script) => script.matches);
-  const siteMatches = async (): Promise<readonly string[]> => ((await siteSwitch?.grantedScripts()) ?? []).flatMap((script) => script.matches);
   return createBatchService({
     triage: createTriageStore({ storage: deps.storage.local, guard: parts.clearGuard, now: deps.timers.now }),
     sites: deps.sites,
     rules: deps.siteRules,
-    windowTabs: async (windowId) => tabs.windowTabs(windowId, [...watchPages, ...(await siteMatches())]),
+    windowTabs: async (windowId) => tabs.windowTabs(windowId, [...watchPages, ...((await siteSwitch?.grantedScripts()) ?? []).flatMap((script) => script.matches)]),
     transcript: parts.transcript,
     overviews: parts.overviews,
     overview: services.overview,

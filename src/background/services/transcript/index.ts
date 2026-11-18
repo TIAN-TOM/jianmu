@@ -321,11 +321,12 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
     return settle(video, attached, "", start, { persist: true, late: read.official });
   }
 
-  async function load(ref: VideoRef, video: VideoKey, lang: string, fresh: boolean, tabId: number | undefined, reading: InFlight["reading"]): Promise<TranscriptReply> {
+  async function load(ref: VideoRef, video: VideoKey, lang: string, fresh: boolean, tabId: number | undefined, reading: InFlight["reading"], local = false): Promise<TranscriptReply> {
     const start: ReadStart = { since: guard.epoch(), memory: memory.epoch(), generation: generationOf(video) };
     const cached = await cache.load(video);
     if (!fresh && hasTranscript(cached, lang)) {
-      const retried = platformRetryDue(cached, lang) ? await retryPlatform(ref, video, cached, start, tabId) : null;
+      // 只看本机时不重试平台字幕。
+      const retried = !local && platformRetryDue(cached, lang) ? await retryPlatform(ref, video, cached, start, tabId) : null;
       return retried ?? fromCache(ref, video, cached);
     }
     const remembered = fresh ? null : memory.get(video, lang);
@@ -333,6 +334,8 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
     // 导入的字幕排在读视频信息之前，命中就不向平台发任何请求；刷新也用它。点名语言时要的是平台的那条轨。
     const imported = await imports.load(video);
     if (imported && !lang) return fromImport(ref, video, imported, cached, start, tabId);
+    // 只看本机：缓存、内存和导入的文件都没有，就到此为止。
+    if (local) return fail("NOT_CACHED");
     const site = deps.sites.service(ref.platform);
     if (!site) return fail("SITE_UNSUPPORTED");
     const ask = site.readOfficialSummary?.bind(site);
@@ -374,11 +377,13 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
       if (changing) await changing;
       // 只读缓存很便宜，不进合并表。
       if (mode === "cache-only") return cacheOnly(video, lang);
-      const key = JSON.stringify([video, lang, fresh]);
+      const local = mode === "local";
+      // 只看本机的读法另起一份，不和要向平台读的合并；别的键照旧，卡片并进完整读取时按它找。
+      const key = JSON.stringify(local ? [video, lang, fresh, "local"] : [video, lang, fresh]);
       let entry = inFlight.get(key);
       if (!entry) {
         const reading: InFlight["reading"] = {};
-        const reply = load(ref, video, lang, fresh, tabId, reading);
+        const reply = load(ref, video, lang, fresh, tabId, reading, local);
         const created = { video, reply, reading };
         entry = created;
         inFlight.set(key, created);

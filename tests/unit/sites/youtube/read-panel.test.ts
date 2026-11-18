@@ -45,6 +45,7 @@ function world(href = `https://www.youtube.com/watch?v=${ID}`) {
   const shell = new FakeNode();
   shell.attributes.set("video-id", ID);
   document.found.set("ytd-watch-flexy", shell);
+  document.found.set("ytd-watch-metadata", new FakeNode());
   document.found.set("ytd-watch-metadata h1", new FakeNode(" 自造的标题 "));
   document.found.set("ytd-watch-metadata ytd-channel-name a", new FakeNode("自造频道"));
   document.found.set("ytd-watch-metadata #description-inline-expander", new FakeNode("自造的简介"));
@@ -90,12 +91,18 @@ function world(href = `https://www.youtube.com/watch?v=${ID}`) {
     observers.get(panel)?.();
     clock += 1000;
   };
+  /** 用户把面板关上：页面只改可见性，段落留着。 */
+  const close = (panel: FakeNode) => {
+    panel.attributes.set("visibility", "ENGAGEMENT_PANEL_VISIBILITY_HIDDEN");
+    observers.get(panel)?.();
+    clock += 1000;
+  };
   const go = (id: string) => {
     location.href = `https://www.youtube.com/watch?v=${id}`;
     shell.attributes.set("video-id", id);
   };
   const ask = async (reader: ReturnType<typeof makeReader>, videoId = ID) => (await reader.handle({ type: "youtube.panel", req: { videoId } })) as PanelSnapshot;
-  return { document, shell, video, makeReader, addPanel, fill, go, ask, tick: () => ticks.forEach((run) => run()) };
+  return { document, shell, video, makeReader, addPanel, fill, close, go, ask, tick: () => ticks.forEach((run) => run()), wait: (ms: number) => void (clock += ms) };
 }
 
 test("时间写法：分秒、时分秒都认，秒和分超过 59 的、别的写法不认", () => {
@@ -154,11 +161,12 @@ test("简幕接上之前面板就开着、填好了：认不出是谁的，要�
   assert.equal(before.state, "reopen");
   assert.deepEqual(before.cues, []);
   // 用户关上再开，页面重新填了一遍。
+  w.close(panel);
   w.fill(panel, [classic("0:00", "重开以后的一句")]);
   assert.equal((await w.ask(reader)).state, "ready");
 });
 
-test("换了视频而面板没更新：报 stale，不交内容；面板换成新视频的内容以后才认", async () => {
+test("换了视频而面板没更新：报 stale；面板一直开着时直接换掉的内容也不认；用户关上再打开、页面换成新内容以后才认", async () => {
   const w = world();
   const panel = w.addPanel();
   const reader = w.makeReader();
@@ -168,6 +176,11 @@ test("换了视频而面板没更新：报 stale，不交内容；面板换成�
   assert.equal(stale.state, "stale");
   assert.equal(stale.videoId, OTHER);
   assert.deepEqual(stale.cues, []);
+  // 用户在旧面板里换了语言：段落变了，可面板一直开着，还是上一个视频的面板。
+  w.fill(panel, [classic("0:00", "上一个视频换了语言的一句")], "Deutsch");
+  assert.equal((await w.ask(reader, OTHER)).state, "stale");
+  // 关上再打开，页面为新视频重新取来了段落。
+  w.close(panel);
   w.fill(panel, [classic("0:00", "新视频的一句")]);
   const fresh = await w.ask(reader, OTHER);
   assert.equal(fresh.state, "ready");
@@ -198,6 +211,41 @@ test("播广告时不拿视频元素的时长：那是广告的", async () => {
   const snapshot = await w.ask(reader);
   assert.equal(snapshot.state, "ready");
   assert.equal(snapshot.info.durationSec, 0);
+});
+
+test("同一个视频里在面板换语言：照样认；搜索框里有字：只显示了一部分，不交", async () => {
+  const w = world();
+  const panel = w.addPanel();
+  const reader = w.makeReader();
+  w.fill(panel, [classic("0:00", "一句")]);
+  w.fill(panel, [classic("0:00", "eine Zeile")], "Deutsch");
+  const switched = await w.ask(reader);
+  assert.equal(switched.state, "ready");
+  assert.equal(switched.label, "Deutsch");
+  const input = Object.assign(new FakeNode(), { value: "关键词" });
+  panel.lists.set("input", [input]);
+  assert.equal((await w.ask(reader)).state, "filtered");
+});
+
+test("关上再打开以后过了好一阵才换掉内容：不当成页面重新取来的", async () => {
+  const w = world();
+  const panel = w.addPanel();
+  const reader = w.makeReader();
+  w.fill(panel, [classic("0:00", "上一个视频的一句")]);
+  w.go(OTHER);
+  w.close(panel);
+  panel.attributes.set("visibility", "ENGAGEMENT_PANEL_VISIBILITY_EXPANDED");
+  await w.ask(reader, OTHER);
+  w.wait(60_000);
+  w.fill(panel, [classic("0:00", "过了好久才换的一句")], "Deutsch");
+  assert.equal((await w.ask(reader, OTHER)).state, "stale");
+});
+
+test("观看页的标题区还没出来：按加载中，不说没有入口", async () => {
+  const w = world();
+  w.document.found.delete("ytd-watch-metadata");
+  const reader = w.makeReader();
+  assert.equal((await w.ask(reader)).state, "loading");
 });
 
 test("换视频的途中地址和外壳对不上：认不出是哪个视频，问哪个都不交内容", async () => {

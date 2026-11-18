@@ -19,6 +19,7 @@ const WATCH_SHELL = "ytd-watch-flexy";
 const SHELL_VIDEO_ATTRIBUTE = "video-id";
 const TITLE = "ytd-watch-metadata h1";
 const AUTHOR = "ytd-watch-metadata ytd-channel-name a";
+const METADATA = "ytd-watch-metadata";
 const DESCRIPTION = "ytd-watch-metadata #description-inline-expander";
 const PLAYER = "ytd-watch-flexy .html5-video-player";
 const VIDEO = "ytd-watch-flexy .html5-video-player video.html5-main-video";
@@ -26,6 +27,10 @@ const VIDEO = "ytd-watch-flexy .html5-video-player video.html5-main-video";
 const AD_CLASSES = ["ad-showing", "ad-interrupting"];
 
 const TIME = /^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})$/;
+// 段落签名取开头和结尾各几段。
+const SIGNATURE_ENDS = 3;
+// 用户把面板关上再打开以后这么久里段落换掉，算页面为当前视频重新取来的。
+const REOPEN_WINDOW_MS = 5000;
 // 面板内容还在变时等它停下：隔这么久没变就算加载完，最多等这么久。
 const SETTLE_MS = 400;
 const LOADING_LIMIT_MS = 4000;
@@ -58,7 +63,7 @@ function repeat(ms: number, run: () => void): () => void {
 function watchSubtree(target: Element, run: () => void): () => void {
   if (typeof MutationObserver !== "function") return () => undefined;
   const observer = new MutationObserver(run);
-  observer.observe(target, { childList: true, subtree: true, characterData: true });
+  observer.observe(target, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["visibility"] });
   return () => observer.disconnect();
 }
 
@@ -97,10 +102,19 @@ export function createPanelReader({
   every = repeat,
   observe = watchSubtree,
 }: PanelReaderDeps): PanelReader {
-  /** 字幕段落最后一次真的变了时页面放的视频；换视频的途中地址和外壳对不上，记成空串。 */
-  let changedFor: string | null = null;
+  /**
+   * 面板里的字幕属于哪个视频：从空面板填进来、或者用户关上再打开面板后不久换掉的，记下这时页面放的视频；
+   * 同一个视频里换语言照旧；面板一直开着、换视频以后在里面直接换了内容的记成空串，不认；null 是简幕接上之前就有的。
+   */
+  let owner: string | null = null;
+  /** 面板现在是空的，或者刚换了一个面板：下一次填进来的是新内容。 */
+  let fresh = false;
+  /** 面板上次是不是展开着，和最近一次从收起变成展开的时刻。 */
+  let wasExpanded = false;
+  let reopenedAt = Number.NEGATIVE_INFINITY;
+  let reopenedFor = "";
   let stamp = 0;
-  /** 上次看到的段落内容，比它变了才算段落变了。 */
+  /** 上次看到的段落签名，比它变了才算段落变了。 */
   let lastContent = "";
   let lastChangeTime = 0;
   let watched: Element | null = null;
@@ -112,18 +126,37 @@ export function createPanelReader({
     return ref && shell?.getAttribute(SHELL_VIDEO_ATTRIBUTE) === ref.videoId ? ref.videoId : "";
   };
 
-  /** 面板里全部段落的时间和文字连起来：语言菜单、按钮这些别的控件不在里面。 */
-  const contentOf = (panel: Element | null): string =>
-    panel ? Array.from(panel.querySelectorAll(SEGMENTS), (segment) => squash(segment.textContent)).join("\n") : "";
+  /** 段落的签名：段数、语言菜单的名字、开头和结尾几段。按钮这些别的控件不在里面，也不每次把全部段落拼一遍。 */
+  const contentOf = (panel: Element | null): string => {
+    const segments = panel ? Array.from(panel.querySelectorAll(SEGMENTS)) : [];
+    if (segments.length === 0) return "";
+    const ends = [...segments.slice(0, SIGNATURE_ENDS), ...segments.slice(-SIGNATURE_ENDS)].map((segment) => squash(segment.textContent));
+    return [String(segments.length), squash(document.querySelector(LANGUAGE_LABEL)?.textContent), ...ends].join("\n");
+  };
 
-  // 面板有变化时看段落本身变没变：变了才记下这时页面放的视频。
+  // 面板有变化时看段落本身变没变：变了才判这些字幕属于谁。
   const changed = (): void => {
-    const content = contentOf(document.querySelector(PANEL));
+    const panel = document.querySelector(PANEL);
+    const expanded = panel?.getAttribute(EXPANDED_ATTRIBUTE) === EXPANDED;
+    if (expanded && !wasExpanded) {
+      reopenedAt = now();
+      reopenedFor = videoNow();
+    }
+    wasExpanded = expanded;
+    const content = contentOf(panel);
     if (content === lastContent) return;
     lastContent = content;
     stamp += 1;
     lastChangeTime = now();
-    changedFor = content ? videoNow() : null;
+    if (!content) {
+      fresh = true;
+      return;
+    }
+    const current = videoNow();
+    const justReopened = current !== "" && reopenedFor === current && now() - reopenedAt <= REOPEN_WINDOW_MS;
+    if (fresh || justReopened) owner = current;
+    else if (owner !== current || current === "") owner = owner === null ? null : "";
+    fresh = false;
   };
 
   // 面板会被页面换掉，定时重认一次；后来才出现、换了一个面板也算内容变了，接上时就在的不算。
@@ -134,9 +167,15 @@ export function createPanelReader({
     unobserve();
     watched = panel;
     unobserve = panel ? observe(panel, changed) : () => undefined;
-    // 接上时就在的内容记下来但不认；后来才出现、换了一个面板的，按变化处理。
-    if (attached) changed();
-    else lastContent = contentOf(panel);
+    // 接上时就在的内容记下来但不认；后来才出现、换了一个面板的，当作从空面板填进来。
+    if (attached) {
+      fresh = true;
+      changed();
+    } else {
+      lastContent = contentOf(panel);
+      fresh = lastContent === "";
+      wasExpanded = panel?.getAttribute(EXPANDED_ATTRIBUTE) === EXPANDED;
+    }
   };
   attach();
   attached = true;
@@ -161,14 +200,20 @@ export function createPanelReader({
 
   function stateOf(videoId: string): { readonly state: PanelState; readonly cues: PanelCue[] } {
     const panel = document.querySelector(PANEL);
-    if (!panel) return { state: document.querySelector(ENTRY) ? "closed" : "no-entry", cues: [] };
+    if (!panel) {
+      // 观看页的标题区都还没出来时只是没加载完，不说没有入口。
+      if (!document.querySelector(METADATA)) return { state: "loading", cues: [] };
+      return { state: document.querySelector(ENTRY) ? "closed" : "no-entry", cues: [] };
+    }
     if (panel.getAttribute(EXPANDED_ATTRIBUTE) !== EXPANDED) return { state: "closed", cues: [] };
     const segments = Array.from(panel.querySelectorAll(SEGMENTS));
-    // 没有段落：在加载，或者加载失败只显示了一句话，等一会儿还没有就按加载中报。
-    if (segments.length === 0) return { state: "loading", cues: [] };
-    if (changedFor === null) return { state: "reopen", cues: [] };
-    if (!videoId || changedFor !== videoId) return { state: "stale", cues: [] };
-    const cues = segments.slice(0, PANEL_LIMITS.cues).flatMap((segment) => cueOf(segment) ?? []);
+    // 没有段落：在加载，或者加载失败只显示了一句话，等一会儿还没有就按加载中报。太长的也不按完整的交。
+    if (segments.length === 0 || segments.length > PANEL_LIMITS.cues) return { state: "loading", cues: [] };
+    // 文字稿上方的搜索框里有字：只显示了一部分。
+    if (Array.from(panel.querySelectorAll<HTMLInputElement>("input")).some((input) => input.value.trim() !== "")) return { state: "filtered", cues: [] };
+    if (owner === null) return { state: "reopen", cues: [] };
+    if (!videoId || owner !== videoId) return { state: "stale", cues: [] };
+    const cues = segments.flatMap((segment) => cueOf(segment) ?? []);
     if (cues.length === 0) return { state: "loading", cues: [] };
     return { state: "ready", cues };
   }
@@ -193,7 +238,9 @@ export function createPanelReader({
       const videoId = videoNow();
       const { state, cues } = stateOf(videoId);
       const settling = now() - lastChangeTime < SETTLE_MS;
-      if ((state === "loading" || (state === "ready" && settling)) && now() - begun < LOADING_LIMIT_MS) {
+      // 用户刚把面板关上再打开，页面还在取这个视频的文字稿：旧段落还没换掉，等一会儿。
+      const refetching = state === "stale" && videoId !== "" && reopenedFor === videoId && now() - reopenedAt < REOPEN_WINDOW_MS;
+      if ((state === "loading" || refetching || (state === "ready" && settling)) && now() - begun < LOADING_LIMIT_MS) {
         await sleep(SETTLE_MS / 2);
         continue;
       }
@@ -210,7 +257,10 @@ export function createPanelReader({
       const videoId = typeof request?.req?.videoId === "string" ? request.req.videoId : null;
       if (videoId === null) return null;
       if (request?.type === "youtube.panel") return snapshot(videoId);
-      if (request?.type === "youtube.current") return Promise.resolve({ videoId: videoNow(), stamp });
+      if (request?.type === "youtube.current") {
+        changed();
+        return Promise.resolve({ videoId: videoNow(), stamp, label: clip(squash(document.querySelector(LANGUAGE_LABEL)?.textContent), PANEL_LIMITS.label) });
+      }
       return null;
     },
     stop() {

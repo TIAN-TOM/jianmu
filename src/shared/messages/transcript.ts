@@ -9,9 +9,10 @@ import type { ChannelRef, VideoKey } from "../../core/video-ref.ts";
 
 /**
  * full：缓存没有就去平台读；cache-only：只看本机，没有就回没缓存，一个请求都不发；
+ * local：只看本机，导入的字幕文件也算，不向平台读、不经页面读（YouTube 打开时用，读取要用户点）；
  * light：卡片用的轻量读取，只要视频信息、官方总结和本机已有的概览，不读字幕。卡片只能用这一种。
  */
-export type TranscriptReadMode = "full" | "cache-only" | "light";
+export type TranscriptReadMode = "full" | "cache-only" | "local" | "light";
 
 export interface TranscriptGetRequest {
   readonly video: VideoKey;

@@ -12,6 +12,7 @@ import { videoKey } from "../src/core/video-ref.ts";
 import { launchChrome, prepareExtension } from "./browser.mjs";
 import { ANTHROPIC } from "./fixtures.mjs";
 import { startMockServer } from "./mock-server.mjs";
+import { QUIET_MEDIA_PATH } from "./watch-page.mjs";
 import { storedSettings } from "./settings.mjs";
 import { TUBE_HOST, TUBE_VIDEOS, tubeWatchPage } from "./youtube-page.mjs";
 
@@ -108,7 +109,10 @@ async function flow(launcher, panelUrl, worker) {
   const tabId = await evaluate(panel, `chrome.tabs.query({ windowId: ${windowId} }).then((tabs) => tabs.find((tab) => tab.url === ${JSON.stringify(firstUrl)})?.id)`);
   await until("视频页连上", () => evaluate(worker, `chrome.tabs.sendMessage(${tabId}, ${JSON.stringify({ type: "youtube.current", req: { videoId: FIRST_ID } })}, { frameId: 0 }).then((reply) => reply?.videoId === ${JSON.stringify(FIRST_ID)}, () => false)`));
   const modelCalls = () => mock.requests.filter((entry) => entry.host !== TUBE_HOST).length;
+  // 页面自己取的图标和视频媒体不算：播放循环、浏览器取图标的时刻都不固定。
+  const tubeCalls = () => mock.requests.filter((entry) => entry.host === TUBE_HOST && entry.path !== "/favicon.ico" && entry.path !== QUIET_MEDIA_PATH).length;
   const before = modelCalls();
+  const tubeBefore = tubeCalls();
   await until("点读取字幕", () => clickIn(panel, ".state-block .button", "读取字幕"));
   await until("说要先打开文字稿", async () => (await stateTitle(panel)).includes("文字稿还没打开"));
   console.log("✓ 打开视频不读页面；文字稿没打开时点读取，说明要先打开");
@@ -121,7 +125,7 @@ async function flow(launcher, panelUrl, worker) {
   const cached = await evaluate(panel, `chrome.runtime.sendMessage(${JSON.stringify({ type: "transcript.get", req: { video: FIRST, mode: "cache-only" } })})`);
   const ref = cached?.value?.transcript?.ref;
   if (!cached?.ok || ref?.lang !== "en" || ref?.kind !== "auto" || cached.value.transcript.label !== TUBE_VIDEOS[FIRST_ID]?.label) throw new Error(`轨的语言和来源不对：${JSON.stringify(cached?.value?.transcript?.ref ?? cached)}`);
-  if (modelCalls() !== before) throw new Error("读文字稿时发了不该发的请求");
+  if (modelCalls() !== before || tubeCalls() !== tubeBefore) throw new Error("读文字稿时发了不该发的请求");
   console.log("✓ 用户打开文字稿以后读到，标出英文、自动生成，存进本机；YouTube 上没发任何请求");
 
   await until("生成概览可以点", () => clickIn(panel, "button", "生成概览"));
@@ -149,6 +153,7 @@ async function flow(launcher, panelUrl, worker) {
   await until("侧边栏跟到新视频，让用户点读取", async () => (await stateTitle(panel)).includes("读取这个视频的字幕"));
   await until("点读取字幕", () => clickIn(panel, ".state-block .button", "读取字幕"));
   await until("说文字稿还没换过来", async () => (await stateTitle(panel)).includes("还没换成这个视频的"));
+  await userClicks(video, "e2e-close-transcript");
   await userClicks(video, "e2e-open-transcript");
   await until("点重试", () => clickIn(panel, ".state-block .button", "重试"));
   const [, secondLine = ""] = TUBE_VIDEOS[SECOND_ID]?.lines ?? [];

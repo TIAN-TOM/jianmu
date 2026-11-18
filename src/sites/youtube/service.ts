@@ -1,5 +1,5 @@
 // YouTube 的读取服务：不向平台发任何请求，只经内容脚本读观看页上用户自己打开的文字稿面板。
-// 开始读、正文交回、交给缓存之前各核对一次页面上还是不是这个视频、面板内容有没有换过，对不上的整份不用。
+// 开始读时核对页面上是不是这个视频；交回正文之前隔一会儿再问一次，视频、面板内容和语言有一样变了就整份不用。
 // 读到的只有面板当前显示的那一条轨，语言和来源按面板语言菜单上的名字认，认不出就照实显示名字。
 import type { VideoRef } from "../../core/video-ref.ts";
 import type { CaptionTrack, Cue, PageChannel, SiteCtx, SiteFailure, SiteResult, SiteService, VideoInfo } from "../types.ts";
@@ -8,6 +8,8 @@ import { youtubeRules } from "./url.ts";
 
 // 等页面回话的上限：面板还在加载时页面那头最多等几秒。
 const ASK_TIMEOUT_MS = 10_000;
+// 交回正文之前隔这么久再问一次：分批渲染、换语言后晚到的段落这时能看出来。
+const RECHECK_DELAY_MS = 300;
 // 最后一句没有下一句可比时，按这么长算。
 const LAST_CUE_SEC = 5;
 const TRACK_PREFIX = "panel:";
@@ -66,9 +68,25 @@ export function cuesOf(snapshot: PanelSnapshot): Cue[] {
   });
 }
 
-async function ask(page: PageChannel, message: unknown, signal: AbortSignal): Promise<unknown> {
-  const timeout = AbortSignal.timeout(ASK_TIMEOUT_MS);
-  return page.ask(message, AbortSignal.any([signal, timeout]));
+type Asked = { readonly ok: true; readonly answer: unknown } | { readonly ok: false; readonly failure: SiteFailure };
+
+/** 问页面一句。超时报超时；送不到、页面没回话（内容脚本还没接上）都按连不上视频页。 */
+async function ask(page: PageChannel, message: unknown, signal: AbortSignal, limitMs: number): Promise<Asked> {
+  const timeout = AbortSignal.timeout(limitMs);
+  try {
+    const answer = await page.ask(message, AbortSignal.any([signal, timeout]));
+    return answer === undefined || answer === null ? { ok: false, failure: fail("UNAVAILABLE", "no-page") } : { ok: true, answer };
+  } catch {
+    return { ok: false, failure: timeout.aborted || signal.aborted ? fail("TIMEOUT") : fail("UNAVAILABLE", "no-page") };
+  }
+}
+
+function pause(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted) return resolve();
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener("abort", () => (clearTimeout(timer), resolve()), { once: true });
+  });
 }
 
 function failureOfState(snapshot: PanelSnapshot): SiteFailure | null {
@@ -79,6 +97,8 @@ function failureOfState(snapshot: PanelSnapshot): SiteFailure | null {
       return fail("PAGE_ACTION_NEEDED");
     case "reopen":
       return fail("PAGE_ACTION_NEEDED", "reopen");
+    case "filtered":
+      return fail("PAGE_ACTION_NEEDED", "filtered");
     case "stale":
       return fail("UNAVAILABLE", "stale");
     case "no-entry":
@@ -88,16 +108,11 @@ function failureOfState(snapshot: PanelSnapshot): SiteFailure | null {
   }
 }
 
-async function readPanel(ref: VideoRef, ctx: SiteCtx): Promise<SiteResult<PanelSnapshot>> {
+async function readPanel(ref: VideoRef, ctx: SiteCtx, limitMs: number): Promise<SiteResult<PanelSnapshot>> {
   if (!ctx.page) return fail("UNAVAILABLE", "no-page");
-  let answer: unknown;
-  try {
-    answer = await ask(ctx.page, { type: "youtube.panel", req: { videoId: ref.videoId } }, ctx.signal);
-  } catch {
-    if (ctx.signal.aborted) return fail("TIMEOUT");
-    return fail("UNAVAILABLE", "no-page");
-  }
-  const snapshot = panelSnapshotOf(answer);
+  const asked = await ask(ctx.page, { type: "youtube.panel", req: { videoId: ref.videoId } }, ctx.signal, limitMs);
+  if (!asked.ok) return asked.failure;
+  const snapshot = panelSnapshotOf(asked.answer);
   if (!snapshot) return malformed("panel-shape");
   // 页面上已经不是这个视频，或者换视频的途中认不出是哪个视频：读到的一律不用。
   if (snapshot.videoId !== ref.videoId) return fail("VIDEO_CHANGED");
@@ -105,28 +120,25 @@ async function readPanel(ref: VideoRef, ctx: SiteCtx): Promise<SiteResult<PanelS
 }
 
 /** 交回正文之前再问一次：页面还是这个视频、面板内容没有再变过。 */
-async function stillSame(ref: VideoRef, ctx: SiteCtx, snapshot: PanelSnapshot): Promise<SiteFailure | null> {
+async function stillSame(ref: VideoRef, ctx: SiteCtx, snapshot: PanelSnapshot, limitMs: number): Promise<SiteFailure | null> {
   if (!ctx.page) return fail("UNAVAILABLE", "no-page");
-  let answer: unknown;
-  try {
-    answer = await ask(ctx.page, { type: "youtube.current", req: { videoId: ref.videoId } }, ctx.signal);
-  } catch {
-    return ctx.signal.aborted ? fail("TIMEOUT") : fail("UNAVAILABLE", "no-page");
-  }
-  const current = panelCurrentOf(answer);
+  await pause(RECHECK_DELAY_MS, ctx.signal);
+  const asked = await ask(ctx.page, { type: "youtube.current", req: { videoId: ref.videoId } }, ctx.signal, limitMs);
+  if (!asked.ok) return asked.failure;
+  const current = panelCurrentOf(asked.answer);
   if (!current) return malformed("current-shape");
   if (current.videoId !== ref.videoId) return fail("VIDEO_CHANGED");
-  return current.stamp === snapshot.stamp ? null : fail("UNAVAILABLE", "stale");
+  return current.stamp === snapshot.stamp && current.label === snapshot.label ? null : fail("UNAVAILABLE", "stale");
 }
 
-export function createYoutubeService(): SiteService {
+export function createYoutubeService({ askTimeoutMs = ASK_TIMEOUT_MS }: { readonly askTimeoutMs?: number } = {}): SiteService {
   // 一次读取里问到的那份快照：列轨和读正文共用，不跨读取操作。
   const snapshots = new WeakMap<SiteCtx, PanelSnapshot>();
   return {
     rules: youtubeRules,
 
     async readVideoInfo(ref, ctx) {
-      const read = await readPanel(ref, ctx);
+      const read = await readPanel(ref, ctx, askTimeoutMs);
       if (!read.ok) return read;
       snapshots.set(ctx, read.value);
       const { info } = read.value;
@@ -144,7 +156,7 @@ export function createYoutubeService(): SiteService {
     async listCaptionTracks(info, ctx, options) {
       let snapshot = options?.fresh ? undefined : snapshots.get(ctx);
       if (!snapshot) {
-        const read = await readPanel(info.ref, ctx);
+        const read = await readPanel(info.ref, ctx, askTimeoutMs);
         if (!read.ok) return read;
         snapshot = read.value;
         snapshots.set(ctx, snapshot);
@@ -160,7 +172,7 @@ export function createYoutubeService(): SiteService {
       if (failure) return failure;
       // 面板上的轨换了（用户在面板里换了语言）：这份不是要的那条。
       if (trackOfLabel(snapshot.label).trackId !== track.trackId) return fail("UNAVAILABLE", "stale");
-      const changed = await stillSame(info.ref, ctx, snapshot);
+      const changed = await stillSame(info.ref, ctx, snapshot, askTimeoutMs);
       return changed ?? { ok: true, value: cuesOf(snapshot) };
     },
   };

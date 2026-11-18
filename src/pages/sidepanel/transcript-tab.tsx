@@ -94,7 +94,9 @@ function Toolbar({ panel, view, onSearch, searching, onImport }: { readonly pane
       label: "重新读取字幕",
       hint: "不看本机缓存",
       // 导入的字幕不点名语言：点名语言会改读平台的字幕轨，绕过导入的文件。官方总结附带的字幕不是平台列出的哪一条轨，也不点名。
-      onSelect: () => void transcript.load(view.video, follow.target.peek().tabId, { ...(refreshLang(view.transcript) ? { lang: view.transcript.ref.lang } : {}), fresh: true }),
+      // YouTube 读的是面板当前显示的那一轨，用户可能在面板里换过语言：不点名上次的语言。
+      onSelect: () =>
+        void transcript.load(view.video, follow.target.peek().tabId, { ...(refreshLang(view.transcript) && !readsOnClick(view.video) ? { lang: view.transcript.ref.lang } : {}), fresh: true }),
     },
     { label: "复制全部字幕", onSelect: copyAll },
     { label: "导出 SRT", hint: `内容跟着${MODE_LABEL[mode]}视图`, onSelect: exportSrt },

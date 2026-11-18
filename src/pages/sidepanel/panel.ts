@@ -112,7 +112,7 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
       overview.bind(active);
       notes.bind(active);
       qa.bind(active);
-      if (active) void transcript.load(active, tabId, readsOnClick(active) ? { cacheOnly: true } : {});
+      if (active) void transcript.load(active, tabId, readsOnClick(active) ? { localOnly: true } : {});
       else transcript.clear();
     }),
     // 字幕换了版本，译文和整理结果跟着作废；整理过的这一版打开就用上。

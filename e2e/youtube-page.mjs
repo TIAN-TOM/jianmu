@@ -1,6 +1,6 @@
 // 模拟的 YouTube 观看页：结构照着内容脚本认的那几处搭（应用外壳、观看页外壳、播放器和视频元素、标题作者简介、
-// 文字稿入口和文字稿面板），文字和编号全部自造。页面自己带两个按钮扮演用户：打开文字稿（页面把段落填进面板），
-// 站内跳到另一个视频（改地址和外壳、派发跳转完成的事件，面板留着旧内容，再点打开才换成新视频的）。
+// 文字稿入口和文字稿面板），文字和编号全部自造。页面自己带几个按钮扮演用户：打开文字稿（面板展开，稍后页面把段落填进去）、
+// 关上文字稿（只收起，段落留着），站内跳到另一个视频（改地址和外壳、派发跳转完成的事件，面板留着旧内容）。
 import { QUIET_MEDIA_PATH } from "./watch-page.mjs";
 
 export const TUBE_HOST = "www.youtube.com";
@@ -42,6 +42,7 @@ export function tubePageHtml(id) {
       <div id="description-inline-expander">样例简介</div>
     </ytd-watch-metadata>
     <ytd-video-description-transcript-section-renderer><button id="e2e-open-transcript">Show transcript</button></ytd-video-description-transcript-section-renderer>
+    <button id="e2e-close-transcript">关上文字稿</button>
     <button id="e2e-next">下一个视频</button>
   </ytd-watch-flexy>
   <ytd-engagement-panel-section-list-renderer target-id="engagement-panel-searchable-transcript" visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN">
@@ -63,7 +64,7 @@ export function tubePageHtml(id) {
     link.setAttribute("href", "/" + video.channel);
   }
   // 用户自己打开文字稿：页面把当前视频的段落填进面板。
-  document.getElementById("e2e-open-transcript").addEventListener("click", () => {
+  function fill() {
     const video = videos[current()];
     const list = document.getElementById("segments");
     list.replaceChildren(...video.lines.map((line, index) => {
@@ -78,7 +79,14 @@ export function tubePageHtml(id) {
       return segment;
     }));
     document.getElementById("label-text").textContent = video.label;
+  }
+  document.getElementById("e2e-open-transcript").addEventListener("click", () => {
     panel.setAttribute("visibility", "ENGAGEMENT_PANEL_VISIBILITY_EXPANDED");
+    // 页面去取文字稿，取回来再填。
+    setTimeout(fill, 50);
+  });
+  document.getElementById("e2e-close-transcript").addEventListener("click", () => {
+    panel.setAttribute("visibility", "ENGAGEMENT_PANEL_VISIBILITY_HIDDEN");
   });
   // 站内跳到另一个视频：面板不动，留着上一个视频的内容。
   document.getElementById("e2e-next").addEventListener("click", () => {

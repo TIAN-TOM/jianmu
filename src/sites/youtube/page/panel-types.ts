@@ -9,9 +9,9 @@ export type PanelRequest =
 
 /**
  * 面板的状态：ready 读到了；closed 面板没打开；reopen 面板是简幕接上之前打开的，认不出是谁的；
- * loading 还在加载；stale 内容还没换成当前视频的；no-entry 页面上没有文字稿入口。
+ * loading 还在加载；stale 内容还没换成当前视频的；no-entry 页面上没有文字稿入口；filtered 面板里有搜索词，只显示了一部分。
  */
-export type PanelState = "ready" | "closed" | "reopen" | "loading" | "stale" | "no-entry";
+export type PanelState = "ready" | "closed" | "reopen" | "loading" | "stale" | "no-entry" | "filtered";
 
 export interface PanelCue {
   readonly start: number;
@@ -43,6 +43,7 @@ export interface PanelSnapshot {
 export interface PanelCurrent {
   readonly videoId: string;
   readonly stamp: number;
+  readonly label: string;
 }
 
 export const PANEL_LIMITS = {
@@ -53,11 +54,13 @@ export const PANEL_LIMITS = {
   author: 200,
   description: 5_000,
   channelId: 100,
+  // 全部段落的字数合计，和导入字幕文件的大小上限对齐。
+  totalText: 2_000_000,
   // 一天以内的视频才算。
   seconds: 86_400,
 } as const;
 
-const STATES: readonly string[] = ["ready", "closed", "reopen", "loading", "stale", "no-entry"];
+const STATES: readonly string[] = ["ready", "closed", "reopen", "loading", "stale", "no-entry", "filtered"];
 const VIDEO_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null && !Array.isArray(value);
@@ -77,8 +80,11 @@ function cuesOf(value: unknown): PanelCue[] | null {
   if (!Array.isArray(value) || value.length > PANEL_LIMITS.cues) return null;
   const cues: PanelCue[] = [];
   let last = -1;
+  let total = 0;
   for (const cue of value) {
     if (!isRecord(cue) || !isSeconds(cue.start) || !isText(cue.text, PANEL_LIMITS.cueText)) return null;
+    total += cue.text.length;
+    if (total > PANEL_LIMITS.totalText) return null;
     // 时间只许往后走：倒着走说明读到的不是一份完整的文字稿。
     if (cue.start < last) return null;
     last = cue.start;
@@ -102,7 +108,7 @@ export function panelSnapshotOf(value: unknown): PanelSnapshot | null {
 
 export function panelCurrentOf(value: unknown): PanelCurrent | null {
   if (!isRecord(value)) return null;
-  const { videoId, stamp } = value;
-  if (typeof videoId !== "string" || (videoId !== "" && !VIDEO_ID.test(videoId)) || !isCount(stamp)) return null;
-  return { videoId, stamp };
+  const { videoId, stamp, label } = value;
+  if (typeof videoId !== "string" || (videoId !== "" && !VIDEO_ID.test(videoId)) || !isCount(stamp) || !isText(label, PANEL_LIMITS.label)) return null;
+  return { videoId, stamp, label };
 }

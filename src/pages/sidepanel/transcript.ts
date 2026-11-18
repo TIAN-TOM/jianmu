@@ -16,8 +16,8 @@ export type TranscriptState =
 export interface LoadOptions {
   readonly lang?: string;
   readonly fresh?: boolean;
-  /** 只看本机，不去视频网站读：YouTube 要用户点了读取才读。 */
-  readonly cacheOnly?: boolean;
+  /** 只看本机（导入的字幕文件也算），不去视频网站读：YouTube 要用户点了读取才读。 */
+  readonly localOnly?: boolean;
 }
 
 /** 这个视频的字幕要用户点了才读：YouTube 只在用户点读取时读页面上的文字稿。 */
@@ -61,7 +61,7 @@ export function createTranscriptStore({ api }: { readonly api: Pick<PageApi, "se
     state.value = { state: "loading", video };
     const reply = await api.send("transcript.get", {
       video,
-      mode: options.cacheOnly ? "cache-only" : "full",
+      mode: options.localOnly ? "local" : "full",
       ...(options.lang ? { lang: options.lang } : {}),
       ...(options.fresh ? { fresh: true } : {}),
       ...(tabId !== null ? { tabId } : {}),
@@ -88,8 +88,8 @@ export function createTranscriptStore({ api }: { readonly api: Pick<PageApi, "se
     try {
       const problem = await work(video);
       if (problem !== null) return problem;
-      // 导入和移除只作废了缓存里的字幕，重新读一次。还是这个视频才读。
-      if (videoNow() === video) await load(video, lastTab);
+      // 导入和移除只作废了缓存里的字幕，重新读一次。还是这个视频才读；YouTube 只看本机，不替用户去读页面。
+      if (videoNow() === video) await load(video, lastTab, readsOnClick(video) ? { localOnly: true } : {});
       return "";
     } finally {
       busy.value = false;
