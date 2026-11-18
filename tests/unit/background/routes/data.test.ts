@@ -9,6 +9,8 @@ import { createDataService } from "../../../../src/background/services/data.ts";
 import { dataPorts } from "../../../../src/background/routes/data.ts";
 import { ROUTE_MATRIX, rowOf } from "../route-matrix.ts";
 import { createClearGuard } from "../../../../src/core/clear-guard.ts";
+import { readFileSync } from "node:fs";
+import { readBackup } from "../../../../src/core/backup/format.ts";
 import { PART_BUDGET } from "../../../../src/core/backup/parts.ts";
 import { videoKey } from "../../../../src/core/video-ref.ts";
 import type { NoteListView } from "../../../../src/shared/messages/notes.ts";
@@ -151,6 +153,58 @@ test("导入途中清除全部数据：后面几段不再写，页面收到「�
   assert.deepEqual(port.posted.at(-1), { type: "port.error", code: "LOCAL_DATA_CLEARED" });
   assert.ok((await bg.send("activation.confirm", {}, senders.options())).ok);
   assert.equal(await noteCount(bg), 0);
+});
+
+test("两份旧格式样例经端口导入：后台核对时不再多跳过，条数和整份一次读出来的一样；再导一次不重复", async () => {
+  for (const name of ["digest-for-bilibili.json", "existing-version.json"]) {
+    const bg = studyBackground({ withoutAi: true });
+    const payload = JSON.parse(readFileSync(new URL(`../../../fixtures/legacy-backups/${name}`, import.meta.url), "utf8"));
+    const read = readBackup(payload);
+    assert.ok(read.ok, name);
+    const first = await importOver(bg.fake, bg.app, payload);
+    assert.ok(first.ok, `${name}：${JSON.stringify(first)}`);
+    for (const kind of ["notes", "overviews", "qa", "translations"] as const) {
+      assert.deepEqual(first.value.counts[kind], { added: read.value.contents[kind].length, updated: 0, skipped: read.value.skipped[kind] }, `${name} ${kind}`);
+    }
+    const again = await importOver(bg.fake, bg.app, payload);
+    assert.ok(again.ok);
+    for (const kind of ["notes", "overviews", "qa", "translations"] as const) {
+      assert.equal(again.value.counts[kind].added + again.value.counts[kind].updated, 0, `${name} ${kind} 再导一次`);
+    }
+  }
+});
+
+test("合并时存储写满：先告诉页面写满了再断开；已经写进去的那几段照样广播一次", async () => {
+  const broadcasts: string[] = [];
+  const quota = Object.assign(new Error("写不下了"), { name: "QuotaExceededError" });
+  let calls = 0;
+  const spec = dataPorts({
+    data: {
+      exportBackup: async () => assert.fail(),
+      clear: async () => assert.fail(),
+      openImport: () => ({
+        async merge() {
+          calls += 1;
+          if (calls > 1) throw quota;
+          return { ok: true, value: { added: ["note_a"], updated: [], skipped: 0 } };
+        },
+        close: () => void broadcasts.push("notes.changed"),
+      }),
+    },
+    log: { error: () => assert.fail("写满不算后台出错") },
+  })["backup.import"];
+  const posted: unknown[] = [];
+  let closed = false;
+  const session = spec.onConnect({ id: "port-1", post: (message) => void posted.push(message), close: () => void (closed = true) }, senders.options() as never);
+  await session.onMessage({ type: "part", seq: 0, kind: "notes", records: [] });
+  await session.onMessage({ type: "part", seq: 1, kind: "notes", records: [] });
+  assert.deepEqual(posted, [
+    { type: "merged", seq: 0, added: ["note_a"], updated: [], skipped: 0 },
+    { type: "port.error", code: "STORAGE_FULL" },
+  ]);
+  assert.equal(closed, true);
+  session.onDisconnect?.();
+  await until(() => broadcasts.length === 1);
 });
 
 test("清除缓存只清能重新取回的，笔记和设置都留着", async () => {

@@ -8,11 +8,10 @@ import { AI_ERROR_TEXT } from "../../core/errors/ai.ts";
 import type { Effort } from "../../core/notes/records.ts";
 import type { LoadedSettings, SettingsPatch, SettingsStore, WrittenSettings } from "../../platform/settings-store.ts";
 import type { EffortPreviewItem } from "../../shared/messages/ai.ts";
-import type { BackupImportReply } from "../../shared/messages/data.ts";
 import { SETTINGS_REVISION_KEY } from "../../shared/names.ts";
 import { FEATURE_MODEL_SLOTS, originOf, validate, validateForSave, type FeatureSlotId } from "../../shared/settings-schema.ts";
 import type { PageApi } from "../shared/api.ts";
-import { receiveBackup, sendBackup } from "./backup-transfer.ts";
+import { importSummary, receiveBackup, sendBackup } from "./backup-transfer.ts";
 import { chosenFeatures, formOf, settingsInput, withAddress, withPreset, type AiForm } from "./form.ts";
 import { probeFrameImage } from "./image-probe.ts";
 
@@ -71,7 +70,8 @@ export interface OptionsState {
   /** 探一次画面分析的模型能不能看图（只在构建开关打开时有这个按钮）。 */
   probeImage(): Promise<void>;
   exportBackup(): Promise<void>;
-  importBackup(text: string): Promise<void>;
+  /** read 读出所选文件的文字，读不出来时给一句说明。 */
+  importBackup(read: () => Promise<string>): Promise<void>;
   clearData(scope: ClearScope): Promise<void>;
   stop(): void;
 }
@@ -92,20 +92,17 @@ const errorText = (error: unknown): string => {
 
 const isStale = (error: unknown): boolean => (error as { code?: unknown } | null)?.code === "SETTINGS_STALE";
 
-function importText({ counts, promptsDropped }: BackupImportReply): string {
-  const { notes, overviews, qa, translations } = counts;
-  let text = `合并完成：笔记新增 ${notes.added} 条、更新 ${notes.updated} 条，概览新增 ${overviews.added} 份、更新 ${overviews.updated} 份，问答新增 ${qa.added} 条`;
-  // 第 1 版的备份没有译文，没有就不提。
-  text += translations.added || translations.updated ? `，译文和整理过的字幕新增 ${translations.added} 份、补上 ${translations.updated} 份。` : "。";
-  const skipped = [
-    notes.skipped ? `${notes.skipped} 条笔记` : "",
-    overviews.skipped ? `${overviews.skipped} 份概览` : "",
-    qa.skipped ? `${qa.skipped} 条问答` : "",
-    translations.skipped ? `${translations.skipped} 份译文` : "",
-  ].filter(Boolean);
-  if (skipped.length) text += `备份里有 ${skipped.join("、")}格式不对，已跳过。`;
-  if (promptsDropped) text += "备份里的自定义提示词没有导入：现在只用内置的提示词。";
-  return text;
+/**
+ * 备份收发的失败。中途断开对备份来说不是「可能计费、先别重试」：导出再点一次就行；
+ * 导入可能已经写进去一部分，再导一次同一个文件不会重复。
+ */
+function backupFailureText(failure: Failure, kind: "export" | "import"): string {
+  if (failure.code === "BACKGROUND_DROPPED" || failure.code === "BACKGROUND_UNREACHABLE") {
+    return kind === "export"
+      ? "导出失败：简幕的后台中途断开了，没导出来，再点一次「导出备份」。"
+      : "恢复失败：简幕的后台中途断开了。可能已经导入了一部分，再选同一个文件导一次就行，已经导入的不会重复。";
+  }
+  return `${kind === "export" ? "导出失败" : "恢复失败"}：${failureText(failure)}`;
 }
 
 const pad = (value: number): string => String(value).padStart(2, "0");
@@ -415,7 +412,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       try {
         const reply = await receiveBackup(api);
         if (!reply.ok) {
-          dataStatus.value = { text: `导出失败：${failureText(reply)}`, tone: "error" };
+          dataStatus.value = { text: backupFailureText(reply, "export"), tone: "error" };
           return;
         }
         const date = (deps.now ?? (() => new Date()))();
@@ -427,8 +424,15 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
         busy.value = null;
       }
     },
-    async importBackup(text) {
+    async importBackup(readFile) {
       if (busy.peek()) return;
+      let text: string;
+      try {
+        text = await readFile();
+      } catch {
+        dataStatus.value = { text: "读不出这个文件：文件可能太大，或者已经被移走了。", tone: "error" };
+        return;
+      }
       let payload: unknown;
       try {
         payload = JSON.parse(text);
@@ -444,7 +448,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       busy.value = "import";
       try {
         const reply = await sendBackup(api, read.value);
-        dataStatus.value = reply.ok ? { text: importText(reply.value), tone: "ok" } : { text: `恢复失败：${failureText(reply)}`, tone: "error" };
+        dataStatus.value = reply.ok ? { text: importSummary(reply.value), tone: "ok" } : { text: backupFailureText(reply, "import"), tone: "error" };
       } finally {
         busy.value = null;
       }

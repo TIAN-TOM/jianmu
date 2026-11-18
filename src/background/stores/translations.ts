@@ -18,6 +18,11 @@ export interface TranslationPatch {
   readonly derived: Derived;
 }
 
+export interface UpdateOptions extends WriteOptions {
+  /** 只读这几条：导入一段时只碰这一段里的主键，不必每段都读整个仓库。不给就读全部。 */
+  readonly ids?: readonly string[];
+}
+
 export interface MergeOptions extends WriteOptions {
   /** 轮到写的那一刻再问一次还要不要写：写的一方另有要核对的（比如这期间换过字幕文件）。 */
   readonly still?: () => boolean;
@@ -38,8 +43,8 @@ export interface TranslationStore {
   readonly merge: (patch: TranslationPatch, options?: MergeOptions) => Promise<boolean>;
   /** 全部记录，导出备份用。 */
   readonly all: () => Promise<TranslationRecord[]>;
-  /** 在写入队列里读全部记录、算出要写的再写回，导入备份用。清除过就不写，返回 null。 */
-  readonly update: <R>(plan: (current: TranslationRecord[]) => { readonly put: readonly TranslationRecord[]; readonly result: R }, options?: WriteOptions) => Promise<R | null>;
+  /** 在写入队列里读记录（给了 ids 只读那几条）、算出要写的再写回，导入备份用。清除过就不写，返回 null。 */
+  readonly update: <R>(plan: (current: TranslationRecord[]) => { readonly put: readonly TranslationRecord[]; readonly result: R }, options?: UpdateOptions) => Promise<R | null>;
 }
 
 const TARGETS: ReadonlySet<string> = new Set<TextTarget>(TEXT_TARGETS);
@@ -98,9 +103,10 @@ export function createTranslationStore({ driver, guard, now }: TranslationStoreD
     async all() {
       return (await driver.getAll()).flatMap((row) => readable(row) ?? []);
     },
-    async update(plan, { since } = {}) {
+    async update(plan, { since, ids } = {}) {
       const done = await gate(since, async () => {
-        const current = (await driver.getAll()).flatMap((row) => readable(row) ?? []);
+        const rows = ids ? await Promise.all([...new Set(ids)].map((id) => driver.get(id))) : await driver.getAll();
+        const current = rows.flatMap((row) => readable(row) ?? []);
         const { put, result } = plan(current);
         if (put.length) await driver.write({ put: put.map(clean) });
         return { result };

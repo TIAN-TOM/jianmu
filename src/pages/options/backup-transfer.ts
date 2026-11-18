@@ -102,3 +102,20 @@ export async function sendBackup(api: Pick<PageApi, "connect">, imported: Import
   ) as Record<RecordKind, ImportCount>;
   return ok({ counts, promptsDropped: imported.promptsDropped });
 }
+
+/** 导入完给用户看的一句话。 */
+export function importSummary({ counts, promptsDropped }: BackupImportReply): string {
+  const { notes, overviews, qa, translations } = counts;
+  let text = `合并完成：笔记新增 ${notes.added} 条、更新 ${notes.updated} 条，概览新增 ${overviews.added} 份、更新 ${overviews.updated} 份，问答新增 ${qa.added} 条`;
+  // 第 1 版的备份没有译文，没有就不提。
+  text += translations.added || translations.updated ? `，译文和整理过的字幕新增 ${translations.added} 份、补上 ${translations.updated} 份。` : "。";
+  const skipped = [
+    notes.skipped ? `${notes.skipped} 条笔记` : "",
+    overviews.skipped ? `${overviews.skipped} 份概览` : "",
+    qa.skipped ? `${qa.skipped} 条问答` : "",
+    translations.skipped ? `${translations.skipped} 份译文` : "",
+  ].filter(Boolean);
+  if (skipped.length) text += `备份里有 ${skipped.join("、")}格式不对，已跳过。`;
+  if (promptsDropped) text += "备份里的自定义提示词没有导入：现在只用内置的提示词。";
+  return text;
+}

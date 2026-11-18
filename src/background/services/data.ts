@@ -95,10 +95,11 @@ export function createDataService(deps: DataServiceDeps): DataService {
         }
         case "translations": {
           const valid = keepValid(records, checkTranslation);
+          // 译文合并只按主键对本机的记录，只读这一段里的几条：大备份每段都读整个仓库太慢。
           return deps.translations.update((current) => {
             const merged = mergeTranslations(current, valid.kept, deps.now());
             return { put: merged.changed, result: mergedPart(merged, valid.skipped) };
-          }, { since });
+          }, { since, ids: valid.kept.map((record) => record.id) });
         }
       }
     }
