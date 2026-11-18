@@ -219,6 +219,8 @@ export function createCardModel(deps: CardDeps) {
       ...(following && !quiet ? {} : { analysis: saved, verdictPending: false }),
       ...(quiet ? {} : notice(blocked)),
     });
+    // 没登录：登录以后重试、收起再展开都要能重读，不当成已经读过。
+    if (needLogin) loadedTicket = -1;
     if (!quiet) await followRunning(asked);
   }
 

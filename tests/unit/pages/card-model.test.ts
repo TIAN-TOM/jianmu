@@ -229,4 +229,11 @@ test("没登录：摆出标题，提示登录或导入字幕，不摆「生成�
   assert.equal(model.view.value.title, "样例长视频");
   assert.equal(model.view.value.needLogin, true);
   assert.equal(model.view.value.notice?.text, NEED_LOGIN_TEXT);
+
+  // 登录以后点重试：重新读，提示和按钮跟着变回来。
+  fake.reply("transcript.get", { value: guides() });
+  model.retry();
+  assert.ok(await until(() => model.view.value.needLogin === false));
+  assert.equal(model.view.value.notice, null);
+  assert.equal(fake.attempts("transcript.get"), 2);
 });

@@ -50,7 +50,7 @@ export function paidStatus(data: unknown): PaidStatus {
 
 /**
  * 把视频信息规整成内部结构。先核对返回的是不是请求的那个视频，再判断付费：确认是付费或充电专属的不往下读，
- * 确认免费和确认不了的照读（开发者本人 2026-11-19 定）；分 P 按身份里的序号取，不退回第 1 P。
+ * 确认免费和确认不了的照读；分 P 按身份里的序号取，不退回第 1 P。
  */
 export function parseVideoInfo(data: unknown, ref: VideoRef): SiteResult<VideoInfo> {
   if (!isRecord(data)) return { ok: false, code: "MALFORMED", reach: "item", detail: "no-view-data" };

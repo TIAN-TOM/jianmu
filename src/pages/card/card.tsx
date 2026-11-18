@@ -168,7 +168,7 @@ export function Card({ view, aiReady, actions }: { readonly view: CardView; read
               打开设置
             </button>
           ) : null}
-          {view.phase === "failed" && !task ? (
+          {(view.phase === "failed" || view.needLogin) && !task ? (
             <button type="button" class="button" id="card-retry" onClick={actions.retry}>
               重试
             </button>
