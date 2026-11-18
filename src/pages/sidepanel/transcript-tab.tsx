@@ -1,7 +1,8 @@
 // 字幕列表：精读的主体，速览里还没有概览时也摆在下面。逐段字幕，点一段跳到那里，跟着播放位置滚动；搜索高亮、换原文译文双语、导入导出字幕文件。
 // 读不到字幕时说明原因，视频网站给的导读照样摆出来；选中一段文字可以请模型解释。
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { hasMatch, splitMatches } from "../../core/highlight.ts";
+import { lineBreaks, splitRuns } from "../../core/transcript/lines.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
 import type { TranscriptView } from "../../shared/messages/transcript.ts";
 import { Button, IconButton } from "../shared/ui/button.tsx";
@@ -13,15 +14,29 @@ import { stateCopy } from "../shared/ui/state.ts";
 import { downloadText, safeFileName } from "./files.ts";
 import { CreatorChapters, OfficialSummary } from "./guides.tsx";
 import type { Panel } from "./panel.ts";
-import { activeIndex, explainable, linesOf, srtOf } from "./reading.ts";
+import { activeIndex, explainable, linesOf, mainBreaks, srtOf } from "./reading.ts";
 import type { TranscriptMode } from "./translate.ts";
 
 const MODE_LABEL: Readonly<Record<TranscriptMode, string>> = { original: "原文", translated: "译文", bilingual: "双语" };
 
-function Highlighted({ text, query }: { readonly text: string; readonly query: string }) {
+function Highlighted({ text, query, breaks = [] }: { readonly text: string; readonly query: string; readonly breaks?: readonly number[] }) {
   const parts = splitMatches(text, query);
+  const runs = (list: readonly { readonly text: string; readonly hit: boolean }[]) =>
+    list.map((part, index) => (part.hit ? <mark key={index}>{part.text}</mark> : <span key={index}>{part.text}</span>));
+  // 没有标点的段落按原始字幕的行分开显示；拼起来的文字和原文一字不差，选中、复制、搜索都照旧。
+  if (breaks.length) {
+    return (
+      <>
+        {splitRuns(parts, breaks).map((line, index) => (
+          <span key={index} class="cue-line">
+            {runs(line)}
+          </span>
+        ))}
+      </>
+    );
+  }
   if (!hasMatch(parts)) return <>{text}</>;
-  return <>{parts.map((part, index) => (part.hit ? <mark key={index}>{part.text}</mark> : <span key={index}>{part.text}</span>))}</>;
+  return <>{runs(parts)}</>;
 }
 
 function ImportInput({ panel, inputRef }: { readonly panel: Panel; readonly inputRef: { current: HTMLInputElement | null } }) {
@@ -121,6 +136,8 @@ function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: 
   const list = useRef<HTMLOListElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const segments = view.transcript.segments;
+  // 每段按原始字幕的哪几处断开：只看这一份字幕，换版本时整个列表重建。
+  const breaks = useMemo(() => lineBreaks(segments, view.transcript.cues), [segments, view.transcript.cues]);
   const mode = panel.translation.mode.value;
   const translated = panel.translation.lines.value;
   const position = panel.player.position.value;
@@ -168,7 +185,7 @@ function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: 
                 {formatTimestamp(segment.start)}
               </button>
               <p class="cue-text">
-                <Highlighted text={main} query={needle} />
+                <Highlighted text={main} query={needle} breaks={mainBreaks(segment, main, breaks)} />
               </p>
               {sub ? (
                 <p class="cue-sub">

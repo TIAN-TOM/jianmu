@@ -1,5 +1,6 @@
 // 字幕列表的规则：播放到哪一段、导出 SRT 时每段写原文、译文还是双语、划词解释取多长。
 import type { TranscriptSegment } from "../../core/transcript/segment.ts";
+import { breaksToShow } from "../../core/transcript/lines.ts";
 import { buildSrt } from "../../core/transcript/srt.ts";
 import type { CueView } from "../../shared/messages/transcript.ts";
 import type { TranscriptMode } from "./translate.ts";
@@ -65,4 +66,9 @@ export function chapterAt(chapters: readonly { readonly startSec: number }[], at
 /** 一章里的字幕：从这一章开始到下一章开始之前；最后一章到结尾。 */
 export function segmentsBetween<T extends Pick<TranscriptSegment, "start">>(segments: readonly T[], startSec: number, endSec: number | null): T[] {
   return segments.filter((segment) => segment.start >= startSec && (endSec === null || segment.start < endSec));
+}
+
+/** 主行按原始字幕的哪几处断开：主行显示的是原文才断（原文、双语，或者译文还没到），显示译文时不断。 */
+export function mainBreaks(segment: Pick<TranscriptSegment, "id" | "text">, main: string, breaks: ReadonlyMap<string, readonly number[]>): readonly number[] {
+  return main === segment.text ? breaksToShow(segment, breaks) : [];
 }

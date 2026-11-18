@@ -4,8 +4,10 @@
 import { groupQuotesIntoChapters, type ChapterPart, type QuotePart } from "../../core/ai/chunking.ts";
 import { keyChapterStarts } from "../../core/ai/verdict.ts";
 import { learningAsMarkdown, type LearningAnalysis } from "../../core/notes/markdown.ts";
+import { breaksToShow, lineBreaks, splitRuns } from "../../core/transcript/lines.ts";
 import { formatTimestamp, type TranscriptSegment } from "../../core/transcript/segment.ts";
-import { useState } from "preact/hooks";
+import type { CueView } from "../../shared/messages/transcript.ts";
+import { useMemo, useState } from "preact/hooks";
 import { Button } from "../shared/ui/button.tsx";
 import { ChapterList } from "../shared/ui/chapter-list.tsx";
 import { VerdictBlock } from "../shared/ui/verdict-block.tsx";
@@ -18,6 +20,9 @@ import { segmentsBetween } from "./reading.ts";
 import { TranscriptTab } from "./transcript-tab.tsx";
 
 const BASIS: readonly BasisSource[] = ["transcript", "official-summary", "title-description", "legacy-unknown"];
+
+const NO_SEGMENTS: readonly TranscriptSegment[] = [];
+const NO_CUES: readonly CueView[] = [];
 
 const text = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
 
@@ -45,7 +50,7 @@ function Quote({ panel, quote }: { readonly panel: Panel; readonly quote: QuoteP
   );
 }
 
-function ChapterTranscript({ panel, segments }: { readonly panel: Panel; readonly segments: readonly TranscriptSegment[] }) {
+function ChapterTranscript({ panel, segments, breaks }: { readonly panel: Panel; readonly segments: readonly TranscriptSegment[]; readonly breaks: ReadonlyMap<string, readonly number[]> }) {
   if (segments.length === 0) return null;
   return (
     <ol class="chapter-cues" aria-label="这一段的字幕">
@@ -54,14 +59,21 @@ function ChapterTranscript({ panel, segments }: { readonly panel: Panel; readonl
           <button type="button" class="stamp" aria-label={`跳到 ${formatTimestamp(segment.start)}`} onClick={() => void panel.seek(segment.start)}>
             {formatTimestamp(segment.start)}
           </button>
-          <span class="chapter-cue-text">{segment.text}</span>
+          <span class="chapter-cue-text">
+            {splitRuns([{ text: segment.text }], breaksToShow(segment, breaks)).map((line, index) => (
+              <span key={index} class="cue-line">
+                {line.map((run) => run.text).join("")}
+              </span>
+            ))}
+          </span>
         </li>
       ))}
     </ol>
   );
 }
 
-function Chapters({ panel, analysis, segments }: { readonly panel: Panel; readonly analysis: LearningAnalysis; readonly segments: readonly TranscriptSegment[] }) {
+function Chapters({ panel, analysis, segments, cues }: { readonly panel: Panel; readonly analysis: LearningAnalysis; readonly segments: readonly TranscriptSegment[]; readonly cues: readonly CueView[] }) {
+  const breaks = useMemo(() => lineBreaks(segments, cues), [segments, cues]);
   const [expanded, setExpanded] = useState<readonly number[]>([]);
   const chapters = (analysis.chapters ?? []).filter((chapter): chapter is ChapterPart => Number.isFinite(chapter.timestampSeconds));
   const quotes = (analysis.keyQuotes ?? []).filter((quote) => text(quote.quote));
@@ -84,7 +96,7 @@ function Chapters({ panel, analysis, segments }: { readonly panel: Panel; readon
                   {groups[index]?.map((quote) => <Quote key={quote.quote} panel={panel} quote={quote} />)}
                 </ul>
               ) : null}
-              <ChapterTranscript panel={panel} segments={segmentsBetween(segments, chapters[index]?.timestampSeconds ?? 0, chapters[index + 1]?.timestampSeconds ?? null)} />
+              <ChapterTranscript panel={panel} breaks={breaks} segments={segmentsBetween(segments, chapters[index]?.timestampSeconds ?? 0, chapters[index + 1]?.timestampSeconds ?? null)} />
             </>
           )}
         />
@@ -196,7 +208,7 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
       {state.result?.canceled ? <p class="note-line">停在中途，已完成的 {state.result.savedChunks ?? 0} 块存下了。</p> : null}
       {hasOverview ? null : guides}
       <section class="ai-overview" aria-label="模型生成的概览">
-        {analysis && hasOverview ? <Chapters panel={panel} analysis={analysis} segments={view?.transcript.segments ?? []} /> : null}
+        {analysis && hasOverview ? <Chapters panel={panel} analysis={analysis} segments={view?.transcript.segments ?? NO_SEGMENTS} cues={view?.transcript.cues ?? NO_CUES} /> : null}
         {!running && state.loaded ? (
           <div class="state-actions">
             {hasChapters ? (

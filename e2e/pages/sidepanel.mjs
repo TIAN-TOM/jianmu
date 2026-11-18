@@ -114,9 +114,13 @@ test("侧边栏：登录以后长视频进速览，还没有概览时下面接�
     assert.ok(Math.abs(await panel.evaluate(`document.querySelector(".mode-row").getBoundingClientRect().top`)) < 1, "模式切换吸在顶上");
     await panel.evaluate(`(document.querySelector(".panel").style.minHeight = "", scrollTo(0, 0), true)`);
     assert.match(await panel.evaluate(textOf(".toolbar-count")), /^共 \d+ 段$/);
+    // 自造的语音识别字幕没有标点：一段里的两行原始字幕分开显示，拼起来的文字和原文一样，划词解释取的上下文不变。
+    const firstCue = await panel.evaluate(`(() => { const cue = document.querySelector(".cue-text"); return { lines: [...cue.querySelectorAll(".cue-line")].map((line) => line.textContent), text: cue.textContent }; })()`);
+    assert.deepEqual(firstCue, { lines: ["样例台词一", "样例台词二"], text: "样例台词一样例台词二" });
     await tap(panel, "[aria-label='搜索字幕']");
     await panel.evaluate(`(() => { const input = document.querySelector(".search-input"); input.value = "台词二"; input.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
     await waitIn(panel, "只留命中的段落", `document.querySelectorAll(".cue").length === 1 && document.querySelector(".cue mark")?.textContent === "台词二"`);
+    assert.equal(await panel.evaluate(`document.querySelector(".cue mark")?.closest(".cue-line")?.textContent`), "样例台词二", "高亮落在第二行里");
     assert.equal(await panel.evaluate(textOf(".search-count")), "1 处");
   });
 });

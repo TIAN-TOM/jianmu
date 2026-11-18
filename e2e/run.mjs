@@ -146,6 +146,7 @@ async function panelFlow(launcher, panelUrl, videoId) {
   console.log("✓ 生成概览：章节和一句话结论都显示出来，重点章节标出来");
 
   await until("展开章节", () => clickIn(panel, ".chapter-toggle"));
+  await until("展开的这一章里字幕按原始的行分开", async () => (await evaluate(panel, `[...document.querySelectorAll(".chapter-cue .cue-line")].map((line) => line.textContent).join("|")`)) === "样例台词一|样例台词二");
   await until("把金句存为笔记", () => clickIn(panel, ".quote button", "存为笔记"));
   await until("存好笔记", async () => (await textOf(panel, ".notice-text")).includes("已存为笔记"));
   await until("打开笔记层", () => clickIn(panel, ".mode-row [aria-label='笔记']"));

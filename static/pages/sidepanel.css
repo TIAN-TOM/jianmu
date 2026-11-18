@@ -403,6 +403,11 @@
   line-height: var(--lh-body);
 }
 
+/* 没有标点的段落按原始字幕的行分开：一行原始字幕占一行，太长时照常折。 */
+.cue-line {
+  display: block;
+}
+
 .cue-sub {
   grid-column: 2;
   color: var(--text-muted);

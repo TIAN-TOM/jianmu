@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { videoKey } from "../../../../src/core/video-ref.ts";
 import { safeFileName, videoBaseOf } from "../../../../src/pages/sidepanel/files.ts";
-import { activeIndex, chapterAt, explainable, linesOf, MAX_SELECTION, segmentsBetween, srtOf } from "../../../../src/pages/sidepanel/reading.ts";
+import { activeIndex, chapterAt, explainable, linesOf, mainBreaks, MAX_SELECTION, segmentsBetween, srtOf } from "../../../../src/pages/sidepanel/reading.ts";
 import { fileProblem } from "../../../../src/pages/sidepanel/transcript.ts";
 
 const segment = (id: string, start: number, text: string) => ({ id, start, text, texts: [text] });
@@ -69,4 +69,16 @@ test("速览里一章的字幕：从这一章开始到下一章开始之前，�
   assert.deepEqual(segmentsBetween(SEGMENTS, 0, 10).map((item) => item.id), ["s0"]);
   assert.deepEqual(segmentsBetween(SEGMENTS, 10, null).map((item) => item.id), ["s1", "s2"]);
   assert.deepEqual(segmentsBetween(SEGMENTS, 30, null), []);
+});
+
+test("主行按原始字幕断开：原文和双语断，译文不断；译文还没到、主行显示原文时照样断；导出 SRT 不受影响", () => {
+  const segment = { id: "s", start: 0, text: "甲乙丙丁", texts: ["甲乙丙丁"] };
+  const breaks = new Map([["s", [2]]]);
+  const translated = { s: "一句译文" };
+  assert.deepEqual(mainBreaks(segment, linesOf(segment, "original", translated).main, breaks), [2]);
+  assert.deepEqual(mainBreaks(segment, linesOf(segment, "bilingual", translated).main, breaks), [2]);
+  assert.deepEqual(mainBreaks(segment, linesOf(segment, "translated", translated).main, breaks), []);
+  assert.deepEqual(mainBreaks(segment, linesOf(segment, "translated", {}).main, breaks), [2]);
+  const srt = srtOf([segment], [{ start: 0, duration: 2, text: "甲乙" }, { start: 2, duration: 2, text: "丙丁" }], 4, "original", {});
+  assert.match(srt, /甲乙丙丁/, "导出照旧按段落写，不插断行");
 });
