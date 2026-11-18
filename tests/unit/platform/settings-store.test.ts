@@ -268,6 +268,28 @@ test("改外观这类即改即存的设置，不会把旧密钥写回 storage.lo
   assert.deepEqual(world.session.data[API_KEY_SESSION_KEY], { key: "sk-ds", origin: DEEPSEEK_ORIGIN });
 });
 
+test("推理强度和概览分块即改即存：只改带来的那项功能，别的功能照旧；修订号和密钥都不动", async () => {
+  const world = areas(
+    { [SETTINGS_STORAGE_KEY]: { ...DEEPSEEK, featureEfforts: { qa: "high" } } },
+    { [API_KEY_SESSION_KEY]: { key: "sk-ds", origin: DEEPSEEK_ORIGIN } },
+  );
+  const before = revisionOf(world);
+
+  const updated = await storeOn(world).update({ featureEfforts: { analysis: "medium" }, analysisChunkMode: "short" });
+
+  assert.equal(updated.featureEfforts.analysis, "medium");
+  assert.equal(updated.featureEfforts.qa, "high", "没带来的功能照旧");
+  assert.equal(updated.featureEfforts.verdict, "off");
+  assert.equal(updated.analysisChunkMode, "short");
+  const local = savedSettings(world);
+  assert.deepEqual(local["featureEfforts"], updated.featureEfforts);
+  assert.equal(local["analysisChunkMode"], "short");
+  assert.equal(revisionOf(world), before, "不换修订号：开着的表单照样能保存");
+  assert.equal(updated.settingsRevision, updated.previousRevision);
+  assertNoKeyFields(local);
+  assert.deepEqual(world.session.data[API_KEY_SESSION_KEY], { key: "sk-ds", origin: DEEPSEEK_ORIGIN });
+});
+
 test("本机设置里多出来的密钥不认也不迁移：读到的是空的，下次写入时消失", async () => {
   const world = areas({ [SETTINGS_STORAGE_KEY]: WITH_STRAY_KEY });
   const store = storeOn(world);

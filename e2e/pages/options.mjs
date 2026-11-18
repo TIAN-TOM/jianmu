@@ -335,7 +335,7 @@ test(
   { timeoutMs: 300_000 },
 );
 
-test("设置页：推理强度新安装全关；每项功能单独选，实际档位和选的不一样时旁边标出，保存后重新打开照旧", async ({ open }) => {
+test("设置页：推理强度新安装全关；每项功能单独选，改了不用点保存就存下，实际档位和选的不一样时旁边标出，重新打开照旧；概览分块也是改了就存", async ({ open }) => {
   const page = await freshOptions(open);
   await enable(page);
   const efforts = () => page.evaluate(`Object.fromEntries([...document.querySelectorAll("[data-effort]")].map((node) => [node.dataset.effort, node.value]))`);
@@ -354,18 +354,24 @@ test("设置页：推理强度新安装全关；每项功能单独选，实际�
   await clickButton(page, "保存并授权");
   await statusStarts(page, "ai-service", "已保存");
 
+  // 连着改两项，都不点「保存并授权」：改了就存下，后改的不把先改的盖掉。
   await fill(page, '[data-effort="qa"]', "high");
   await fill(page, '[data-effort="notes"]', "high");
+  const stored = (field) => `chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)}).then((items) => items[${JSON.stringify(SETTINGS_STORAGE_KEY)}].${field})`;
+  await page.waitFor("档位不用点保存就存下", `${stored("featureEfforts")}.then((efforts) => efforts.qa === "high" && efforts.notes === "high")`);
+  assert.deepEqual(await page.evaluate(stored("featureEfforts")), { ...initial, qa: "high", notes: "high" });
   await page.waitFor("笔记润色标出实际档位", `document.querySelector('[data-effort-note="notes"]') !== null`);
   assert.equal(await noteOf("notes"), "这个模型调不了推理强度，实际按「关」");
   assert.equal(await noteOf("qa"), "", "做得到的档位不标");
-  await clickButton(page, "保存并授权");
-  // 状态行还是上一次保存的那句，直接等存储。
-  const storedEfforts = `chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)}).then((items) => items[${JSON.stringify(SETTINGS_STORAGE_KEY)}].featureEfforts)`;
-  await page.waitFor("档位存下", `${storedEfforts}.then((efforts) => efforts.qa === "high")`);
-  assert.deepEqual(await page.evaluate(storedEfforts), { ...initial, qa: "high", notes: "high" });
+  assert.match(await page.evaluate(`document.getElementById("featureEfforts").textContent`), /改了马上生效/);
+
+  await fill(page, "#analysisChunkMode", "short");
+  await page.waitFor("概览分块不用点保存就存下", `${stored("analysisChunkMode")}.then((mode) => mode === "short")`);
 
   const reopened = await open(PAGE_PATHS.options, { width: WIDTH });
-  await reopened.waitFor("重新打开后档位填回来、照样标出", `document.querySelector('[data-effort="qa"]')?.value === "high" && document.querySelector('[data-effort-note="notes"]') !== null`);
+  await reopened.waitFor(
+    "重新打开后档位和分块填回来、照样标出",
+    `document.querySelector('[data-effort="qa"]')?.value === "high" && document.querySelector('[data-effort-note="notes"]') !== null && document.querySelector("#analysisChunkMode")?.value === "short"`,
+  );
   assert.equal(await reopened.overflowsX(), false);
 });

@@ -1,4 +1,5 @@
 // 设置页「AI 服务」表单的纯逻辑：从存着的设置填表、换服务商、拼出保存用的设置、推理强度旁边的说明。不碰存储和浏览器接口。
+// 表单只装要点「保存并授权」才生效的几项：服务商、地址、密钥、模型、记住密钥。推理强度和概览分块即改即存，不在表单里。
 import type { Effort } from "../../core/notes/records.ts";
 import type { LoadedSettings } from "../../platform/settings-store.ts";
 import type { EffortPreviewItem } from "../../shared/messages/ai.ts";
@@ -9,7 +10,6 @@ import {
   originOf,
   presetById,
   REGION_PRESETS,
-  type AnalysisChunkMode,
   type FeatureSlotId,
   type SettingsInput,
 } from "../../shared/settings-schema.ts";
@@ -23,9 +23,6 @@ export interface AiForm {
   readonly keyTyped: boolean;
   readonly aiModel: string;
   readonly featureModels: Readonly<Partial<Record<FeatureSlotId, string>>>;
-  /** 每项功能选的推理强度。换服务商时保留，只有按功能选的模型跟着清空。 */
-  readonly featureEfforts: Readonly<Record<FeatureSlotId, Effort>>;
-  readonly analysisChunkMode: AnalysisChunkMode;
   readonly rememberApiKey: boolean;
 }
 
@@ -38,8 +35,6 @@ export function formOf(settings: LoadedSettings): AiForm {
     keyTyped: false,
     aiModel: settings.aiModel,
     featureModels: { ...settings.featureModels },
-    featureEfforts: { ...settings.featureEfforts },
-    analysisChunkMode: settings.analysisChunkMode,
     rememberApiKey: settings.rememberApiKey,
   };
 }
@@ -79,7 +74,7 @@ function rebound(before: AiForm, next: AiForm, saved: LoadedSettings): AiForm {
   return { ...next, ...key, featureModels: models };
 }
 
-/** 保存用的完整设置：从存着的设置补全表单上没有的字段，密钥来源和按功能选的模型归属按表单当前的地址写明。 */
+/** 保存用的完整设置：从存着的设置补全表单上没有的字段（含推理强度和概览分块），密钥来源和按功能选的模型归属按表单当前的地址写明。 */
 export function settingsInput(form: AiForm, saved: LoadedSettings): SettingsInput {
   const { keyTyped, ...fields } = form;
   return {

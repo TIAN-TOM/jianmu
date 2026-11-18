@@ -2,6 +2,7 @@
 // 生成概览只认真实点击，登记时换到一次性令牌才开始；侧边栏为同一视频起的、打开就出结论自动起的任务就跟着看进度。
 // 没启用、卡片关着时什么都不显示。展开收起跟着本标签页的观看会话：用户在这个视频里手动展开收起过的为准，
 // 否则速览展开、精读收起（短视频进精读，所以默认收起）；收起时不读，后台打开的标签页第一次到前台才读。
+// 新视频的会话要等内容脚本报了时长才有：先收着等它定模式，等不到再按速览展开，短视频就不会先展开、读一次、再收起。
 import { computed, signal, type ReadonlySignal } from "@preact/signals";
 import { describe, type ErrorCode } from "../../core/errors.ts";
 import type { CardOverride, Mode, SessionView } from "../../core/mode/types.ts";
@@ -26,7 +27,12 @@ export interface CardDeps {
   readonly parseVideo: (url: string) => VideoRef | null;
   /** 让本标签页的播放器跳到这里。 */
   readonly seek: (tabId: number, video: VideoKey, atSec: number) => void;
-  readonly timers?: { every(ms: number, run: () => void): () => void; timeout<T>(work: Promise<T>, ms: number): Promise<T | "timeout"> };
+  readonly timers?: {
+    every(ms: number, run: () => void): () => void;
+    timeout<T>(work: Promise<T>, ms: number): Promise<T | "timeout">;
+    /** 过这么久调一次，返回取消函数。 */
+    after(ms: number, run: () => void): () => void;
+  };
   /** 卡片所在的标签页在不在前台；不给时当一直在前台。 */
   readonly page?: { visible(): boolean; onVisible(run: () => void): () => void };
 }
@@ -79,6 +85,8 @@ const INITIAL: CardView = {
 
 const LOAD_TIMEOUT_MS = 30_000;
 const EXTERNAL_CHECK_MS = 15_000;
+/** 新视频的模式最多等这么久，等不到按速览展开。 */
+export const SESSION_WAIT_MS = 2_000;
 const HIDDEN_CODES: ReadonlySet<ErrorCode> = new Set(["NOT_ENABLED", "CARD_DISABLED"]);
 const SETTINGS_CODES: ReadonlySet<ErrorCode> = new Set(["NO_AI_CONFIG", "NO_DATA_CONSENT", "INVALID_AI_KEY", "INVALID_BASE_URL", "NEED_HOST_PERMISSION", "MODEL_OR_ENDPOINT_NOT_FOUND", "ANTHROPIC_WORKSPACE_REQUIRED"]);
 export const NO_CAPTIONS_TEXT = "这个视频没有 CC 字幕，生成不了概览。";
@@ -98,6 +106,10 @@ const realTimers = {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const late = new Promise<"timeout">((resolve) => (timer = setTimeout(() => resolve("timeout"), ms)));
     return Promise.race([work, late]).finally(() => clearTimeout(timer));
+  },
+  after(ms: number, run: () => void): () => void {
+    const timer = setTimeout(run, ms);
+    return () => clearTimeout(timer);
   },
 };
 
@@ -119,10 +131,12 @@ export function createCardModel(deps: CardDeps) {
   let loadedTicket = -1;
   let saved: LearningAnalysis | null = null;
   const settled = new Set<string>();
-  // 这个视频的手动展开收起和模式，从会话里读；会话还没有时按速览算，展开。
+  // 这个视频的手动展开收起和模式，从会话里读。
   let override: CardOverride | null = null;
   let mode: Mode | null = null;
   let sessionAsk = 0;
+  // 正在等新视频的会话定模式：这里是「不等了」的收尾，没在等时是 null。
+  let stopWaiting: (() => void) | null = null;
   // 标签页到过前台：后台打开的标签页第一次切到前台才读。
   let seen = deps.page?.visible() ?? true;
 
@@ -158,23 +172,39 @@ export function createCardModel(deps: CardDeps) {
     if (changed) {
       override = null;
       mode = null;
-      patch({ collapsed: false });
+      stopWaiting?.();
     }
-    if (!next) patch(notice("这里不是视频播放页。"));
-    if (changed && next) void readSession().then(() => load());
+    if (!next) patch({ collapsed: false, ...notice("这里不是视频播放页。") });
+    if (changed && next) awaitMode();
     else void load();
   }
 
   const collapsedNow = (): boolean => (override ? override === "collapsed" : mode === "study");
 
+  /** 新视频：先收着问会话，有了就按它的模式定；一直没有就等够了按速览展开。 */
+  function awaitMode(): void {
+    patch({ collapsed: true });
+    const cancel = timers.after(SESSION_WAIT_MS, decide);
+    stopWaiting = () => {
+      cancel();
+      stopWaiting = null;
+    };
+    void readSession();
+  }
+
+  /** 按现在知道的模式和手动展开收起定下来，展开就读。 */
+  function decide(): void {
+    stopWaiting?.();
+    const collapsed = collapsedNow();
+    patch({ collapsed });
+    if (!collapsed) void load();
+  }
+
   function applySession(session: SessionView | null): void {
     if (!session || session.video !== video) return;
     override = session.cardOverride ?? null;
     mode = session.mode;
-    const collapsed = collapsedNow();
-    if (collapsed === view.peek().collapsed) return;
-    patch({ collapsed });
-    if (!collapsed) void load();
+    if (stopWaiting || collapsedNow() !== view.peek().collapsed) decide();
   }
 
   /** 读本标签页的会话：卡片只读得到自己所在的标签页。 */
@@ -326,6 +356,8 @@ export function createCardModel(deps: CardDeps) {
   }
 
   async function toggle(): Promise<void> {
+    // 还在等会话时点了：以这一下为准，不等了。
+    stopWaiting?.();
     const collapsed = !view.peek().collapsed;
     override = collapsed ? "collapsed" : "expanded";
     patch({ collapsed });
@@ -417,6 +449,7 @@ export function createCardModel(deps: CardDeps) {
     tabId: () => tab?.id ?? null,
     stop(): void {
       stopTimer?.();
+      stopWaiting?.();
       stopWatching?.();
       for (const off of subscriptions) off();
     },
