@@ -30,7 +30,6 @@ export interface BackupContents {
   readonly notes: readonly NoteRecord[];
   readonly overviews: readonly OverviewRecord[];
   readonly qa: readonly QaRecord[];
-  /** 译文和整理后的字幕，第 2 版备份起才有。 */
   readonly translations: readonly TranslationRecord[];
 }
 
