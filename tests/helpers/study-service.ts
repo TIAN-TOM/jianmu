@@ -80,6 +80,8 @@ export interface StudyHarnessOptions {
   readonly wrapQa?: (inner: QaStore) => QaStore;
   /** AI 配置可不可用：决定笔记要不要润色。 */
   readonly aiReady?: boolean;
+  /** 问答送多少字的字幕；不给时用正式的预算。 */
+  readonly qaBudget?: { readonly chars: number; readonly fallbackChars: number };
 }
 
 export interface Logged {
@@ -170,6 +172,7 @@ export function studyHarness(options: StudyHarnessOptions = {}): StudyHarness {
     guard,
     prompt: fake.ai.prompt,
     chunkOptions: async () => ({}),
+    ...(options.qaBudget ? { budget: options.qaBudget } : {}),
     log,
     now: timers.now,
     newId,

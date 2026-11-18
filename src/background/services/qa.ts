@@ -12,6 +12,7 @@ import type { ClearEpoch, ClearGuard } from "../../core/clear-guard.ts";
 import { fail, ok, type Failure, type Result } from "../../core/errors.ts";
 import type { QaRecord } from "../../core/notes/records.ts";
 import { buildCitationsFromAnswer, clickableTimestamps, type CitationRange } from "../../core/qa/citations.ts";
+import { isInputTooLong, QA_BUDGET_CHARS, QA_FALLBACK_BUDGET_CHARS } from "../../core/qa/budget.ts";
 import { selectContext, type QaChapter, type QaChunk, type QaContext } from "../../core/qa/retrieval.ts";
 import type { FrozenGen } from "../../core/tasks.ts";
 import { parseVideoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
@@ -80,6 +81,8 @@ export interface QaServiceDeps {
   readonly prompt: (file: string) => string;
   /** 字幕分块的大小，和概览一样按设置。 */
   readonly chunkOptions: () => Promise<ChunkPlanOptions>;
+  /** 一次送多少字的字幕、被嫌太长以后缩到多少。不给时用 core/qa/budget.ts 的值。 */
+  readonly budget?: { readonly chars: number; readonly fallbackChars: number };
   readonly log: Log;
   readonly now: () => number;
   readonly newId: () => string;
@@ -185,24 +188,48 @@ export function createQaService(deps: QaServiceDeps): QaService {
     throwIfTaskCanceled(run.signal);
     const view: TranscriptView = snapshot.value.view;
     const chunks = planAnalysisChunks(view.transcript.segments, await deps.chunkOptions());
-    const context = selectContext({ chunks, question, chapters: await chapters(video), totalDurationSeconds: Math.floor(view.info.durationSec || 0) });
+    const input = { chunks, question, chapters: await chapters(video), totalDurationSeconds: Math.floor(view.info.durationSec || 0) };
+    const budget = deps.budget ?? { chars: QA_BUDGET_CHARS, fallbackChars: QA_FALLBACK_BUDGET_CHARS };
+    let context = selectContext({ ...input, budgetChars: budget.chars });
     if (!context.chunks.length) return fail("NO_TRANSCRIPT");
 
     run.progress({ phase: "generating", message: "正在组织回答…" });
-    const variables = {
-      videoTitle: view.info.title || "未知",
-      ownerName: view.info.author || "未知",
-      question,
-      transcriptText: context.chunks.map((chunk) => chunk.text).join("\n\n"),
-    };
-    const { text, truncated } = await run.ai.requestAiCompletion({
-      maxTokens: ANSWER_MAX_TOKENS,
-      responseFormat: QA_ANSWER,
-      signal: run.signal,
-      // 服务限流或过载时传输层会等几秒重发一次，进度说清在等什么。
-      onRetry: ({ message }) => run.progress({ phase: "generating", message }),
-      messages: qaMessages(deps.prompt(QA_PROMPT), variables),
-    });
+    const request = (sent: QaContext, selfRetry: boolean) =>
+      run.ai.requestAiCompletion({
+        maxTokens: ANSWER_MAX_TOKENS,
+        responseFormat: QA_ANSWER,
+        signal: run.signal,
+        selfRetry,
+        // 服务限流或过载时传输层会等几秒重发一次，进度说清在等什么。
+        onRetry: ({ message }) => run.progress({ phase: "generating", message }),
+        messages: qaMessages(deps.prompt(QA_PROMPT), {
+          videoTitle: view.info.title || "未知",
+          ownerName: view.info.author || "未知",
+          question,
+          transcriptText: sent.chunks.map((chunk) => chunk.text).join("\n\n"),
+        }),
+      });
+    let reply;
+    try {
+      reply = await request(context, true);
+    } catch (error) {
+      // 模型装不下：被拒的那次不计费。缩到小预算再发一次，这一次不再自己重发；
+      // 第一次已经重发过（noAutoRetry）就不再发，报给用户。
+      if (!isInputTooLong(error)) throw error;
+      const smaller = selectContext({ ...input, budgetChars: budget.fallbackChars });
+      const shrinks = smaller.chunks.reduce((sum, chunk) => sum + chunk.text.length, 0) < context.chunks.reduce((sum, chunk) => sum + chunk.text.length, 0);
+      if ((error as { readonly noAutoRetry?: unknown }).noAutoRetry || !shrinks) return fail("QA_INPUT_TOO_LONG");
+      throwIfTaskCanceled(run.signal);
+      run.progress({ phase: "generating", message: "字幕太长，这个模型装不下，缩小范围再问一次…" });
+      context = smaller;
+      try {
+        reply = await request(context, false);
+      } catch (retryError) {
+        if (isInputTooLong(retryError)) return fail("QA_INPUT_TOO_LONG");
+        throw retryError;
+      }
+    }
+    const { text, truncated } = reply;
     throwIfTaskCanceled(run.signal);
     const raw = parseAnswer(text);
     if (raw === null) return fail("QA_PARSE_FAILED");
