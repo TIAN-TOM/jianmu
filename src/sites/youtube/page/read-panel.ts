@@ -1,16 +1,23 @@
-// 读观看页上已经显示的文字稿面板：只看不动，不点、不滚动、不打开面板、不换语言，不碰播放器，不发请求。
-// 字幕段落最后一次真的变了时页面放的是当前视频才认（面板里别的控件变了不算），简幕接上之前就开着的面板认不出是谁的，
-// 要用户刷新视频页再开。读到的时间不超过视频时长，超过的整份不用；播广告时不拿时长。
+// 读观看页上已经显示的文字稿面板（新旧两种面板都认）：只看不动，不点、不滚动、不打开面板、不换页签，不碰播放器，不发请求。
+// 字幕段落最后一次真的变了时页面放的是当前视频才认，同样的内容重建（切页签、关上再开）沿用原来的归属；简幕接上之前
+// 就有的内容认不出是谁的，要用户刷新视频页再开。读到的时间不超过视频时长，超过的整份不用；播广告时不拿时长。
 import type { VideoRef } from "../../../core/video-ref.ts";
 import { PANEL_LIMITS, type PanelCue, type PanelCurrent, type PanelInfo, type PanelRequest, type PanelSnapshot, type PanelState } from "./panel-types.ts";
 
-// 文字稿面板、它的正文和语言菜单，新旧两种面板的段落写法都认。
-const PANEL = 'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"]';
+// 页面上的各种侧栏面板。文字稿可能在旧面板、新面板，或者带「章节」「文字稿」两个页签的面板里；
+// 关着的空壳一直留在页面上，只认展开着、里面有文字稿内容的那个。
+const PANELS = "ytd-engagement-panel-section-list-renderer";
+const PANEL_ID_ATTRIBUTE = "target-id";
+const TRANSCRIPT_PANEL_IDS = ["engagement-panel-searchable-transcript", "PAmodern_transcript_view"];
+const MODERN_TRANSCRIPT = '[data-target-id="PAmodern_transcript_view"]';
+const TABS = '[role="tab"]';
 const EXPANDED_ATTRIBUTE = "visibility";
 const EXPANDED = "ENGAGEMENT_PANEL_VISIBILITY_EXPANDED";
+// 段落和它的时间、正文：旧面板有两个类名；新面板的时间另有类名，正文是给读屏以外的那段文字。
 const SEGMENTS = "ytd-transcript-segment-renderer, transcript-segment-view-model";
-const SEGMENT_TIME = ".segment-timestamp";
-const SEGMENT_TEXT = ".segment-text";
+const SEGMENT_TIME = ".segment-timestamp, .ytwTranscriptSegmentViewModelTimestamp";
+const SEGMENT_TEXT = '.segment-text, span[role="text"]';
+const SEARCH_BOXES = "input, textarea";
 const LANGUAGE_LABEL = "ytd-transcript-footer-renderer yt-dropdown-menu #label-text";
 // 视频简介里打开文字稿的那一块：没有它也没有面板，就是页面上没有文字稿入口。
 const ENTRY = "ytd-video-description-transcript-section-renderer";
@@ -92,7 +99,25 @@ function checksumOf(texts: readonly string[]): string {
 
 /** 面板上方的搜索框里有字：只显示了一部分段落。 */
 const searching = (panel: Element | null): boolean =>
-  panel !== null && Array.from(panel.querySelectorAll<HTMLInputElement>("input")).some((input) => input.value.trim() !== "");
+  panel !== null && Array.from(panel.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(SEARCH_BOXES)).some((box) => box.value.trim() !== "");
+
+const expanded = (panel: Element): boolean => panel.getAttribute(EXPANDED_ATTRIBUTE) === EXPANDED;
+const transcriptShell = (panel: Element): boolean => TRANSCRIPT_PANEL_IDS.includes(panel.getAttribute(PANEL_ID_ATTRIBUTE) ?? "");
+const holdsTranscript = (panel: Element): boolean => panel.querySelector(SEGMENTS) !== null || panel.querySelector(MODERN_TRANSCRIPT) !== null;
+
+/** 现在打开着的文字稿面板。chapters：打开的是带页签的面板，选的不是文字稿那一页（里面没有文字稿内容）。 */
+interface OpenPanel {
+  readonly panel: Element | null;
+  readonly chapters: boolean;
+}
+
+function openPanelOf(panels: readonly Element[]): OpenPanel {
+  const open = panels.filter(expanded);
+  const withTranscript = open.find(holdsTranscript) ?? open.find(transcriptShell);
+  if (withTranscript) return { panel: withTranscript, chapters: false };
+  const tabbed = open.find((panel) => panel.querySelector(TABS) !== null);
+  return tabbed ? { panel: tabbed, chapters: true } : { panel: null, chapters: false };
+}
 
 /** 一段的时间和文字。时间认不出的段落不要。 */
 function cueOf(segment: Element): PanelCue | null {
@@ -124,8 +149,12 @@ export function createPanelReader({
   let owner: string | null = null;
   /** 面板现在是空的，或者刚换了一个面板：下一次填进来的是新内容。 */
   let fresh = false;
+  /** 段落变空之前的那份和它的归属：重建出来的还是同一份（切页签、关上再开），就沿用原来的归属，不当成新取来的。 */
+  let emptied: { readonly content: string; readonly owner: string | null } | null = null;
   /** 面板上次是不是展开着，和最近一次从收起变成展开的时刻。 */
   let wasExpanded = false;
+  /** 上次打开着的那个面板：页面整个换了一个面板，里面的内容按新取来的算。 */
+  let lastOpen: Element | null = null;
   let reopenedAt = Number.NEGATIVE_INFINITY;
   let reopenedFor = "";
   /** 上次看段落时搜索框里有没有字：搜索滤空、清掉搜索词恢复的段落都不是页面新取来的。 */
@@ -134,8 +163,10 @@ export function createPanelReader({
   /** 上次看到的段落签名，比它变了才算段落变了。 */
   let lastContent = "";
   let lastChangeTime = 0;
-  let watched: Element | null = null;
-  let unobserve = (): void => undefined;
+  /** 在看着的面板和各自的停止函数：面板会被页面换掉，定时重认一次。 */
+  const watched = new Map<Element, () => void>();
+
+  const panelsNow = (): Element[] => Array.from(document.querySelectorAll(PANELS));
 
   const videoNow = (): string => {
     const ref = currentRef();
@@ -151,52 +182,72 @@ export function createPanelReader({
     return [String(segments.length), squash(document.querySelector(LANGUAGE_LABEL)?.textContent), checksumOf(texts)].join("\n");
   };
 
-  // 面板有变化时看段落本身变没变：变了才判这些字幕属于谁。
+  // 面板有变化时看段落本身变没变：变了才判这些字幕属于谁。只看打开着的那个面板，关上了段落就算没了。
   const changed = (): void => {
-    const panel = document.querySelector(PANEL);
-    const expanded = panel?.getAttribute(EXPANDED_ATTRIBUTE) === EXPANDED;
-    if (expanded && !wasExpanded) {
+    const { panel } = openPanelOf(panelsNow());
+    const open = panel !== null;
+    const replaced = panel !== null && lastOpen !== null && panel !== lastOpen;
+    if (panel !== null) lastOpen = panel;
+    if (open && !wasExpanded) {
       reopenedAt = now();
       reopenedFor = videoNow();
     }
-    wasExpanded = expanded;
+    wasExpanded = open;
     const filtering = searching(panel);
     const afterSearch = filtering || wasSearching;
     wasSearching = filtering;
+    const previous = lastContent;
     const content = contentOf(panel);
-    if (content === lastContent) return;
+    // 换成的新面板里还是同一份内容：归属照旧。
+    if (content === previous) return;
+    if (replaced) fresh = true;
     lastContent = content;
     stamp += 1;
     lastChangeTime = now();
     if (!content) {
       // 搜索把段落滤空了不算面板清空：清掉搜索词以后回来的还是原来那份。
-      if (!filtering) fresh = true;
+      if (!filtering) {
+        fresh = true;
+        if (previous) emptied = { content: previous, owner };
+      }
       return;
     }
     const current = videoNow();
     const justReopened = current !== "" && reopenedFor === current && now() - reopenedAt <= REOPEN_WINDOW_MS;
-    if (!afterSearch && (fresh || justReopened)) owner = current;
+    if (fresh && emptied?.content === content) owner = emptied.owner;
+    else if (!afterSearch && (fresh || justReopened)) owner = current;
     else if (owner !== current || current === "") owner = owner === null ? null : "";
     fresh = false;
+    emptied = null;
   };
 
-  // 面板会被页面换掉，定时重认一次；后来才出现、换了一个面板也算内容变了，接上时就在的不算。
+  // 面板会被页面换掉或新加进来，定时重认一次，新出现的也看着。
   let attached = false;
   const attach = (): void => {
-    const panel = document.querySelector(PANEL);
-    if (panel === watched) return;
-    unobserve();
-    watched = panel;
-    unobserve = panel ? observe(panel, changed) : () => undefined;
-    // 接上时就在的内容记下来但不认；后来才出现、换了一个面板的，当作从空面板填进来。
-    if (attached) {
-      fresh = true;
-      changed();
-    } else {
-      lastContent = contentOf(panel);
-      fresh = lastContent === "";
-      wasExpanded = panel?.getAttribute(EXPANDED_ATTRIBUTE) === EXPANDED;
+    const panels = panelsNow();
+    let added = false;
+    for (const [panel, stop] of watched) {
+      if (panels.includes(panel)) continue;
+      stop();
+      watched.delete(panel);
     }
+    for (const panel of panels) {
+      if (watched.has(panel)) continue;
+      watched.set(panel, observe(panel, changed));
+      added = true;
+    }
+    if (attached) {
+      if (added) changed();
+      return;
+    }
+    // 接上时就在的内容记下来但不认；关着的面板里留着的段落也记下，之后原样打开时同样认不出。
+    const { panel: open } = openPanelOf(panels);
+    lastContent = contentOf(open);
+    fresh = lastContent === "";
+    wasExpanded = open !== null;
+    lastOpen = open;
+    const leftover = panels.find((panel) => panel.querySelector(SEGMENTS) !== null);
+    if (!lastContent && leftover) emptied = { content: contentOf(leftover), owner: null };
   };
   attach();
   attached = true;
@@ -220,13 +271,14 @@ export function createPanelReader({
   }
 
   function stateOf(videoId: string): { readonly state: PanelState; readonly cues: PanelCue[] } {
-    const panel = document.querySelector(PANEL);
+    const panels = panelsNow();
+    const { panel, chapters } = openPanelOf(panels);
     if (!panel) {
       // 观看页的标题区都还没出来时只是没加载完，不说没有入口。
       if (!document.querySelector(METADATA)) return { state: "loading", cues: [] };
-      return { state: document.querySelector(ENTRY) ? "closed" : "no-entry", cues: [] };
+      return { state: document.querySelector(ENTRY) || panels.some(transcriptShell) ? "closed" : "no-entry", cues: [] };
     }
-    if (panel.getAttribute(EXPANDED_ATTRIBUTE) !== EXPANDED) return { state: "closed", cues: [] };
+    if (chapters) return { state: "chapters", cues: [] };
     // 文字稿上方的搜索框里有字：只显示了一部分，滤空了也一样。
     if (searching(panel)) return { state: "filtered", cues: [] };
     const segments = Array.from(panel.querySelectorAll(SEGMENTS));
@@ -261,7 +313,8 @@ export function createPanelReader({
       const settling = now() - lastChangeTime < SETTLE_MS;
       // 用户刚把面板关上再打开，页面还在取这个视频的文字稿：旧段落还没换掉，等一会儿。
       const refetching = state === "stale" && videoId !== "" && reopenedFor === videoId && now() - reopenedAt < REOPEN_WINDOW_MS;
-      if ((state === "loading" || refetching || (state === "ready" && settling)) && now() - begun < LOADING_LIMIT_MS) {
+      // 带页签的面板刚切到文字稿时，文字稿内容还没放进来，看着像选的是章节：也等一会儿。
+      if ((state === "loading" || state === "chapters" || refetching || (state === "ready" && settling)) && now() - begun < LOADING_LIMIT_MS) {
         await sleep(SETTLE_MS / 2);
         continue;
       }
@@ -286,7 +339,8 @@ export function createPanelReader({
     },
     stop() {
       stopAttach();
-      unobserve();
+      for (const stop of watched.values()) stop();
+      watched.clear();
     },
   };
 }

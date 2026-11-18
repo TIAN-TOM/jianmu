@@ -162,6 +162,49 @@ async function flow(launcher, panelUrl, worker) {
   const firstAgain = await evaluate(panel, `chrome.runtime.sendMessage(${JSON.stringify({ type: "transcript.get", req: { video: FIRST, mode: "cache-only" } })})`);
   if (!firstAgain?.ok || !firstAgain.value.transcript.cues.some((cue) => cue.text === lineOne)) throw new Error(`上一个视频的字幕被改了：${JSON.stringify(firstAgain)}`);
   console.log("✓ 站内换视频：面板没更新时不认，更新后读到新视频的，上一个视频的字幕不受影响");
+
+  await modernFlow(launcher, panel, worker, windowId);
+}
+
+/** 在本窗口新开一个观看页，等侧边栏跟过去、页面连上。 */
+async function openWatch(launcher, panel, worker, windowId, id) {
+  const url = tubeWatchPage(id);
+  await evaluate(launcher, `chrome.tabs.create({ windowId: ${windowId}, url: ${JSON.stringify(url)} }).then(() => true)`);
+  const video = await until(`观看页 ${id} 打开`, () => findSession("page", url));
+  await until("侧边栏跟过去，让用户点读取", async () => (await stateTitle(panel)).includes("读取这个视频的字幕"));
+  const tabId = await evaluate(panel, `chrome.tabs.query({ windowId: ${windowId} }).then((tabs) => tabs.find((tab) => tab.url === ${JSON.stringify(url)})?.id)`);
+  await until("视频页连上", () => evaluate(worker, `chrome.tabs.sendMessage(${tabId}, ${JSON.stringify({ type: "youtube.current", req: { videoId: id } })}, { frameId: 0 }).then((reply) => reply?.videoId === ${JSON.stringify(id)}, () => false)`));
+  return video;
+}
+
+/** 新式面板：页面上留着两个关着的空壳；有章节时选着章节页签要提示切过去，切回文字稿以后读得到；没章节的直接读；搜索框里有字时不交。 */
+async function modernFlow(launcher, panel, worker, windowId) {
+  const [, , CHAPTERS_ID = "", PLAIN_ID = ""] = Object.keys(TUBE_VIDEOS);
+  const lastLine = (id) => TUBE_VIDEOS[id]?.lines.at(-1) ?? "";
+
+  const chaptersPage = await openWatch(launcher, panel, worker, windowId, CHAPTERS_ID);
+  await userClicks(chaptersPage, "e2e-open-transcript");
+  await until("文字稿放进面板", () => evaluate(chaptersPage, `document.querySelectorAll("transcript-segment-view-model").length > 0`));
+  await userClicks(chaptersPage, "e2e-chapters-tab");
+  await until("点读取字幕", () => clickIn(panel, ".state-block .button", "读取字幕"));
+  await until("说要切到文字稿那一页", async () => (await stateTitle(panel)).includes("显示的是章节"));
+  await userClicks(chaptersPage, "e2e-transcript-tab");
+  await until("点重试", () => clickIn(panel, ".state-block .button", "重试"));
+  await until("读到新式面板的文字稿", async () => (await textOf(panel, ".cue-text")).includes(lastLine(CHAPTERS_ID)));
+  const cueTexts = await textOf(panel, ".cue-text");
+  if (/seconds|Intro/.test(cueTexts)) throw new Error(`把给读屏的那句或章节标题当成了字幕：${cueTexts}`);
+  console.log("✓ 新式面板带章节：两个关着的空壳不碍事；选着章节时提示切到文字稿，切回来读到，不带读屏的那句和章节标题");
+
+  const plainPage = await openWatch(launcher, panel, worker, windowId, PLAIN_ID);
+  await userClicks(plainPage, "e2e-open-transcript");
+  await until("文字稿放进面板", () => evaluate(plainPage, `document.querySelectorAll("transcript-segment-view-model").length > 0`));
+  await evaluate(plainPage, `(document.getElementById("e2e-search").value = "plain", true)`, true);
+  await until("点读取字幕", () => clickIn(panel, ".state-block .button", "读取字幕"));
+  await until("说搜索框里有字", async () => (await stateTitle(panel)).includes("搜索词"));
+  await evaluate(plainPage, `(document.getElementById("e2e-search").value = "", true)`, true);
+  await until("点重试", () => clickIn(panel, ".state-block .button", "重试"));
+  await until("读到没章节的新式面板", async () => (await textOf(panel, ".cue-text")).includes(lastLine(PLAIN_ID)));
+  console.log("✓ 新式面板没章节：搜索框里有字时不交，清掉以后读到");
 }
 
 let failed = false;

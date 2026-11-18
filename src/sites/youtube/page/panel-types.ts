@@ -9,9 +9,10 @@ export type PanelRequest =
 
 /**
  * 面板的状态：ready 读到了；closed 面板没打开；reopen 面板是简幕接上之前打开的，认不出是谁的；
- * loading 还在加载；stale 内容还没换成当前视频的；no-entry 页面上没有文字稿入口；filtered 面板里有搜索词，只显示了一部分。
+ * loading 还在加载；stale 内容还没换成当前视频的；no-entry 页面上没有文字稿入口；filtered 面板里有搜索词，只显示了一部分；
+ * chapters 打开的是带页签的面板，选的是章节那一页。
  */
-export type PanelState = "ready" | "closed" | "reopen" | "loading" | "stale" | "no-entry" | "filtered";
+export type PanelState = "ready" | "closed" | "reopen" | "loading" | "stale" | "no-entry" | "filtered" | "chapters";
 
 export interface PanelCue {
   readonly start: number;
@@ -60,7 +61,7 @@ export const PANEL_LIMITS = {
   seconds: 86_400,
 } as const;
 
-const STATES: readonly string[] = ["ready", "closed", "reopen", "loading", "stale", "no-entry", "filtered"];
+const STATES: readonly string[] = ["ready", "closed", "reopen", "loading", "stale", "no-entry", "filtered", "chapters"];
 const VIDEO_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null && !Array.isArray(value);

@@ -5,7 +5,7 @@ import { test } from "node:test";
 import type { VideoRef } from "../../../../src/core/video-ref.ts";
 import type { PageChannel, SiteCtx, SiteResult } from "../../../../src/sites/types.ts";
 import { panelSnapshotOf, type PanelSnapshot } from "../../../../src/sites/youtube/page/panel-types.ts";
-import { createYoutubeService, cuesOf, langOfLabel, trackOfLabel } from "../../../../src/sites/youtube/service.ts";
+import { createYoutubeService, cuesOf, langOfLabel, langOfText, trackOfLabel } from "../../../../src/sites/youtube/service.ts";
 
 const ID = "jmSample0001";
 const OTHER = "jmSample0002";
@@ -94,6 +94,7 @@ test("面板几种状态各有各的结果；认不出的都是暂时无法读�
     ["no-entry", { ok: false, code: "UNAVAILABLE", detail: "no-entry" }],
     ["loading", { ok: false, code: "UNAVAILABLE" }],
     ["filtered", { ok: false, code: "PAGE_ACTION_NEEDED", detail: "filtered" }],
+    ["chapters", { ok: false, code: "PAGE_ACTION_NEEDED", detail: "chapters" }],
   ] as const;
   for (const [state, expected] of table) {
     const service = createYoutubeService();
@@ -171,4 +172,16 @@ test("快照核对：大小、类型、时间往后走、状态和内容对得�
 
 test("时长：没有视频时长时最后一句按 5 秒", () => {
   assert.deepEqual(cuesOf(snapshotOf({ info: { ...INFO, durationSec: 0 } })).at(-1), { start: 4, duration: 5, text: "第二句" });
+});
+
+test("新式面板没有语言名：按正文的文字认中文、日文、韩文，别的不猜；轨的名字照旧写成 YouTube 文字稿", async () => {
+  assert.equal(langOfText(["今天我们来讲一讲神经网络", "第二句"]), "zh");
+  assert.equal(langOfText(["これはテストです"]), "ja");
+  assert.equal(langOfText(["안녕하세요 여러분"]), "ko");
+  assert.equal(langOfText(["sample line one", "sample line two"]), "und");
+  assert.equal(langOfText([]), "und");
+  const service = createYoutubeService();
+  const { ctx } = ctxWith(() => snapshotOf({ label: "", cues: [{ start: 0, text: "今天讲神经网络" }] }));
+  const info = okValue(await service.readVideoInfo(REF, ctx));
+  assert.deepEqual(okValue(await service.listCaptionTracks(info, ctx)), [{ trackId: "panel:YouTube 文字稿", lang: "zh", label: "YouTube 文字稿", kind: "human" }]);
 });
