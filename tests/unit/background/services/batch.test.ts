@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createBatchService, type BatchListener } from "../../../../src/background/services/batch/index.ts";
 import { titleOfTab } from "../../../../src/background/services/batch/window.ts";
+import { youtubeRules } from "../../../../src/sites/youtube/url.ts";
 import type { TranscriptService } from "../../../../src/background/services/transcript/index.ts";
 import { createTriageStore } from "../../../../src/background/stores/triage.ts";
 import { fail, ok } from "../../../../src/core/errors.ts";
@@ -108,7 +109,7 @@ function setup(options: Options = {}) {
   const service = createBatchService({
     triage: createTriageStore({ storage, guard: harness.guard, now: timers.now }),
     sites: { service: (platform) => (platform === "bilibili" ? site.service : undefined), ctx: (_platform, { signal }) => ({ fetch, signal, backoff: { admit: async () => ({ ok: true }), trip: async () => {}, clear: async () => {} } }) },
-    rules: [bilibiliRules],
+    rules: [bilibiliRules, youtubeRules],
     windowTabs: async () => tabs.map((tab, index) => ({ tabId: index + 1, ...tab })),
     transcript,
     overviews: harness.store,
@@ -384,6 +385,25 @@ test("清点：只看地址和标题、本机概览和任务表，不向平台�
   ]);
   assert.equal(site.calls.length, 0);
   assert.equal(ensured.length, before);
+});
+
+test("清点：YouTube 标签页列出来、标成需逐个打开，开始生成时不进批量，也不读它", async () => {
+  const tube = "https://www.youtube.com/watch?v=jmSample0001";
+  const tabs = [
+    { url: watchUrl(ids[0]), title: "第一个" },
+    { url: tube, title: "(3) 样例英文讲座 - YouTube" },
+  ];
+  const { service, ensured, page } = setup({ tabs });
+  const panel = page("panel");
+  await service.handle({ type: "window.count", windowId: 7 }, panel.listener);
+  assert.deepEqual(panel.last("window.counted")?.items, [
+    { video: keyOf(ids[0]), title: "第一个", state: "to-generate" },
+    { video: "youtube:jmSample0001", title: "样例英文讲座", state: "open-each" },
+  ]);
+  const before = ensured.length;
+  void service.handle({ type: "window.start", windowId: 7 }, panel.listener);
+  assert.ok(await until(() => ensured.length > before));
+  assert.ok(!ensured.slice(before).some((video) => String(video).startsWith("youtube:")));
 });
 
 test("确认后逐个读字幕、两项之间隔 1 秒，新生成的都出结果；关掉侧边栏照常做完，重开时接上", async () => {

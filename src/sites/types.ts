@@ -86,8 +86,10 @@ export interface SiteRules {
   scriptMatches: readonly string[]; // 启用后动态注册内容脚本用的匹配规则；在清单里静态声明的站是空的
 }
 
-// 经内容脚本在页面里读的通道，这里只占位。
-export interface PageChannel {}
+// 经内容脚本在页面里读的通道：只发给这个标签页顶层框架里的内容脚本，送不到、中止或超时时抛错。
+export interface PageChannel {
+  ask(message: unknown, signal: AbortSignal): Promise<unknown>;
+}
 
 // 实现在平台层，平台层不导入站点层，形状相同就行。
 export interface SiteBackoff {

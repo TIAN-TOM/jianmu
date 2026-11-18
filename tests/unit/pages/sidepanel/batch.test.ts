@@ -11,7 +11,7 @@ const video = (n: number) => `bilibili:BV1Sample00${n}:p1` as VideoKey;
 const item = (n: number, state: WindowCountItem["state"]): WindowCountItem => ({ video: video(n), title: `视频 ${n}`, state });
 
 test("确认提示写清本窗口几个视频、跳过几个、要新生成几个", () => {
-  assert.equal(confirmText([]), "本窗口没有打开的 B 站视频。");
+  assert.equal(confirmText([]), "本窗口没有打开的视频。");
   assert.equal(confirmText([item(1, "to-generate"), item(2, "to-generate")]), "本窗口有 2 个视频，要新生成 2 个。");
   assert.equal(confirmText([item(1, "existing"), item(2, "to-generate")]), "本窗口有 2 个视频，跳过 1 个已有概览的，要新生成 1 个。");
   assert.equal(
@@ -19,6 +19,11 @@ test("确认提示写清本窗口几个视频、跳过几个、要新生成几�
     "本窗口有 3 个视频，跳过 2 个（1 个已有概览、1 个正在生成），要新生成 1 个。",
   );
   assert.equal(confirmText([item(1, "existing")]), "本窗口有 1 个视频，1 个已有概览，没有要新生成的。");
+});
+
+test("YouTube 标签页不进批量：另外说一句需逐个打开；只有 YouTube 时只说这一句", () => {
+  assert.equal(confirmText([item(1, "to-generate"), item(2, "open-each")]), "本窗口有 1 个视频，要新生成 1 个。另有 1 个 YouTube 视频需逐个打开，在视频页上点读取字幕。");
+  assert.equal(confirmText([item(1, "open-each"), item(2, "open-each")]), "本窗口的 2 个 YouTube 视频需逐个打开，在视频页上点读取字幕。");
 });
 
 test("进度那一行：完成数、失败、停掉、跳过，整批提前停下时说原因", () => {

@@ -67,11 +67,12 @@ const NETWORK_ALLOWED: Readonly<Record<string, RegExp>> = {
 };
 // 前台模块只许写播放页的地址，接口地址只在后台读取模块里。
 const PAGE_ADDRESS = /^https:\/\/www\.(?:bilibili|youtube)\.com\/(?:video|watch)\b/;
-const BILIBILI_READ = /^src\/sites\/bilibili\/(?!(?:url|page)\.ts$)/;
+const BILIBILI_READ = /^src\/sites\/bilibili\/(?!(?:url|page|page\/[^/]+)\.ts$)/;
 // 前台模块在内容脚本和扩展页面里跑，传递带入的只能是纯逻辑、契约、地址规则和各站的 url.ts。
-const FRONT_MODULE = /^src\/sites\/(?:[^/]+\/(?:url|page)|rules|types|page-types)\.ts$/;
+const FRONT_MODULE = /^src\/sites\/(?:[^/]+\/(?:url|page|page\/[^/]+)|rules|types|page-types)\.ts$/;
 const FRONT_SHARED: ReadonlySet<string> = new Set(["src/sites/types.ts", "src/sites/page-types.ts", "src/sites/rules.ts"]);
-const SITE_FRONT_FILE = /^src\/sites\/([^/]+)\/(?:url|page)\.ts$/;
+const SITE_FRONT_FILE = /^src\/sites\/([^/]+)\/(?:url|page|page\/[^/]+)\.ts$/;
+const SITE_PAGE = /^src\/sites\/([^/]+)\/(?:page|page\/[^/]+)\.ts$/;
 const SITE_URL = /^src\/sites\/([^/]+)\/url\.ts$/;
 const CORE_OR_SHARED = /^src\/(?:core|shared)\//;
 // 第 6 条：url.ts 里只许写这些主机匹配规则（授权和注册内容脚本用），加一条要改这里。
@@ -79,6 +80,20 @@ const HOST_PATTERNS: Readonly<Record<string, ReadonlySet<string>>> = {
   "src/sites/youtube/url.ts": new Set(["https://www.youtube.com/*"]),
 };
 const MATCH_PATTERN = /:\/\/\S*\*|<all_urls>/;
+// 第 6 条：读页面的模块只看不动；点击只在代操作的指令文件里。
+const PAGE_ACTIONS = "click|focus|blur|dispatchEvent|scroll|scrollTo|scrollBy|scrollIntoView|scrollIntoViewIfNeeded|play|pause|fastSeek|requestFullscreen|requestPictureInPicture";
+const PAGE_ACTION = new RegExp(
+  [
+    `\\.(?:${PAGE_ACTIONS})\\b`,
+    `\\[\\s*["'\`](?:${PAGE_ACTIONS})["'\`]\\s*\\]`,
+    `\\{[^{}]*\\b(?:${PAGE_ACTIONS})\\b[^{}]*\\}\\s*=(?!=)`,
+    "\\.(?:currentTime|playbackRate|volume|muted|scrollTop|scrollLeft)\\s*[-+*/]?=(?!=)",
+    "\\bnew\\s+\\w*Event\\(",
+  ].join("|"),
+);
+const CLICK = /\.click\b|\[\s*["'`]click["'`]\s*\]|\{[^{}]*\bclick\b[^{}]*\}\s*=(?!=)|\bnew\s+(?:Mouse|Pointer)Event\(/;
+const PAGE_READER = /^src\/sites\/[^/]+\/page\/read-[^/]+\.ts$/;
+const PAGE_COMMANDS = /^src\/sites\/[^/]+\/page\/commands\.ts$/;
 // 第 6 条：YouTube 读取不发任何请求，放行表也不给它开出口。
 const YOUTUBE_FILE = /^src\/sites\/youtube\//;
 
@@ -144,8 +159,8 @@ function checkImport(file: string, { specifier, target, typeOnly }: Edge): strin
   }
   if (from === "content") {
     const site = /^src\/content\/([a-z]+)\.ts$/.exec(file)?.[1];
-    const own = site !== undefined && target === `src/sites/${site}/page.ts`;
-    if (target !== "src/sites/rules.ts" && target !== "src/sites/page-types.ts" && !own && !isTypes) return `内容脚本只导入自己站的 page.ts 和 rules.ts：${specifier}`;
+    const own = site !== undefined && (target === `src/sites/${site}/page.ts` || SITE_PAGE.exec(target)?.[1] === site);
+    if (target !== "src/sites/rules.ts" && target !== "src/sites/page-types.ts" && !own && !isTypes) return `内容脚本只导入自己站的页面模块（page.ts、page/）和 rules.ts：${specifier}`;
   }
   return null;
 }
@@ -210,7 +225,7 @@ function checkFile(file: Module): Violation[] {
   const lines = text.split("\n").length - (text.endsWith("\n") ? 1 : 0);
   if (lines > MAX_LINES) report(4, `${lines} 行，超过 ${MAX_LINES} 行`);
 
-  if (/^src\/content\//.test(path) || /^src\/sites\/[^/]+\/page\.ts$/.test(path)) {
+  if (/^src\/content\//.test(path) || SITE_PAGE.test(path)) {
     for (const pattern of INJECTION_LITERALS) {
       if (pattern.test(code)) report(5, `注入页面的标识要用 shared/names.ts 的常量：${pattern.source}`);
     }
@@ -245,6 +260,11 @@ function checkFile(file: Module): Violation[] {
         : JOINED_ADDRESS.test(value) || (isAddress(value) && !BILIBILI_ADDRESSES.has(value));
       if (bad) report(6, front ? `url.ts、page.ts 只写播放页地址：${value}` : `请求地址要写成完整常量，并且在放行表里：${value}`);
     }
+  }
+  if (PAGE_READER.test(path)) {
+    if (PAGE_ACTION.test(code)) report(6, "读页面的模块只看不动：不点击、不聚焦、不派发事件、不滚动、不改播放进度和播放状态");
+  } else if ((path.startsWith("src/sites/") || path.startsWith("src/content/")) && !PAGE_COMMANDS.test(path) && CLICK.test(code)) {
+    report(6, "点击页面只许在各站的 page/commands.ts");
   }
   if (path === "src/sites/rules.ts") {
     for (const { specifier, target, typeOnly } of edges) {
@@ -291,9 +311,12 @@ function chain(start: string, target: string, via: ReadonlyMap<string, string>):
 
 function frontMayReach(owner: string, target: string): boolean {
   if (CORE_OR_SHARED.test(target) || FRONT_SHARED.has(target)) return true;
-  const site = SITE_URL.exec(target)?.[1];
   const ownSite = SITE_FRONT_FILE.exec(owner)?.[1];
-  return site !== undefined && (ownSite === undefined || ownSite === site);
+  const urlSite = SITE_URL.exec(target)?.[1];
+  if (urlSite !== undefined) return ownSite === undefined || ownSite === urlSite;
+  // 页面模块之间只在同一个站里互相带入，url.ts 和契约文件不带入页面模块。
+  const pageSite = SITE_PAGE.exec(target)?.[1];
+  return pageSite !== undefined && SITE_PAGE.test(owner) && ownSite === pageSite;
 }
 
 // 第 6 条里要看整张导入图的部分：直接导入和经别的模块转一手的同样算。

@@ -1,6 +1,7 @@
 // 两家模拟的模型服务：Anthropic 和 OpenAI 的 Responses。按提示词里的视频标题认是哪个视频、按提示词认是概览块、结论、问答、整理字幕、
 // 解释画面还是看图探测，
 // 回一份能通过校验的结果。测试可以把某个视频的概览请求挂住，放行或客户端中途断开才收尾；每个请求都记下。
+import { TUBE_VIDEOS } from "./youtube-page.mjs";
 import { ANTHROPIC, OPENAI, SKIPPED_VIDEO, VIDEOS } from "./fixtures.mjs";
 
 /** @typedef {import("./fixtures.mjs").ModelService} ModelService */
@@ -49,7 +50,7 @@ function promptOf(body) {
 /** @param {string} prompt */
 function videoOf(prompt) {
   const title = /^视频：(.+?)(?:（全长 [^）]*）)?$/m.exec(prompt)?.[1]?.trim();
-  return Object.entries(VIDEOS).find(([, video]) => video.title === title)?.[0] ?? "";
+  return [...Object.entries(VIDEOS), ...Object.entries(TUBE_VIDEOS)].find(([, video]) => video.title === title)?.[0] ?? "";
 }
 
 /** 回纯文本的几种请求。 @type {Readonly<Record<string, string>>} */

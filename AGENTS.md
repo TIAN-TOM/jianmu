@@ -21,6 +21,7 @@ npm run check       # 写代码时每轮必跑：类型检查、单元测试、�
 npm run package     # 打出 dist/jianmu-<版本>.zip 和同名的 .sha256，同时校验包的内容
 npm run package:daily  # 开发者本人的日用包 dist/jianmu-<版本>-daily.zip：发行构建加上只给他自己用的开关
 npm run test:e2e    # 端到端冒烟，用 CHROME_PATH 指定 Chrome for Testing 的可执行文件
+npm run test:e2e:youtube     # YouTube 的端到端：打日用包，对着模拟的观看页走读字幕、概览、问答和站内换视频
 npm run test:e2e:lifecycle   # 生命周期冒烟：任务没人认领时收尾，关掉发起页面任务照常跑完，强行终止后台后任务表为空、不自动重发；接着看解压覆盖新版以后后台自己重新加载、资料都在；合并涉及任务、保活和后台生命周期的改动前本机跑
 npm run test:pages  # 页面测试：无头 Chrome 里打开扩展页面，后台接本机模拟服务，只看页面文字和属性；报告写到 e2e/artifacts/
 npm run release -- candidate   # 发布候选：要在远端 main 的最新提交上、工作树干净；其余子命令见 scripts/release.mjs 开头

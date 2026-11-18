@@ -87,7 +87,8 @@ export type BatchOut = TriageOut | WindowOut;
 export interface WindowCountItem {
   readonly video: VideoKey;
   readonly title: string;
-  readonly state: "existing" | "running" | "to-generate";
+  /** open-each：要用户自己打开、点读取的站（YouTube），不进批量。 */
+  readonly state: "existing" | "running" | "to-generate" | "open-each";
 }
 
 /** 这一批里一条的去向。skipped：同一个视频别处正在用别的设置生成，这一批不管它。 */

@@ -13,7 +13,7 @@ export interface TranscriptRouteDeps {
 
 type TranscriptRoutes = { readonly [K in "transcript.get" | "video.checkAvailable"]: Route<K> };
 
-const MODES: ReadonlySet<unknown> = new Set(["full", "cache-only", "light"]);
+const MODES: ReadonlySet<unknown> = new Set(["full", "cache-only", "local", "light"]);
 // 语言码只用来在列出的字幕轨里找同名的那条。
 const LANG = /^[A-Za-z0-9_-]{1,32}$/;
 

@@ -8,6 +8,7 @@ import { createServer } from "node:https";
 import { join } from "node:path";
 import { createModelServices, MODEL_HOSTS } from "./mock-ai.mjs";
 import { QUIET_MEDIA_PATH, quietWav, watchPageHtml } from "./watch-page.mjs";
+import { TUBE_HOST, TUBE_VIDEOS, tubePageHtml } from "./youtube-page.mjs";
 import {
   COVER_SVG,
   FOURTH_VIDEO,
@@ -73,7 +74,7 @@ export const infoRead = ({ host, path }) => apiHost(host) && path === VIEW_PATH;
 
 /** 只把这几个主机映射到本机，其余域名解析失败。 @param {number} port */
 export function hostRulesFor(port) {
-  const hosts = [PAGE_HOST, API_HOST, `*${FILE_HOST_SUFFIX}`, ...MODEL_HOSTS];
+  const hosts = [PAGE_HOST, API_HOST, `*${FILE_HOST_SUFFIX}`, TUBE_HOST, ...MODEL_HOSTS];
   // 127.0.0.1 留给测试自己起的本机 http 模型服务，不映射也不拦，别的主机一律解析不到。
   return [...hosts.map((host) => `MAP ${host} 127.0.0.1:${port}`), "EXCLUDE 127.0.0.1", "MAP * ~NOTFOUND"].join(", ");
 }
@@ -280,6 +281,21 @@ function pageRoute(path, query) {
 }
 
 /**
+ * YouTube 只有观看页和静音媒体：简幕在 YouTube 上不发任何请求，别的路径一律算意外。
+ * @param {string} path @param {URLSearchParams} query @returns {MockResponse}
+ */
+function tubeRoute(path, query) {
+  if (path === "/favicon.ico") return { status: 204 };
+  if (path === QUIET_MEDIA_PATH) {
+    const bytes = quietWav();
+    return { status: 200, headers: { "Content-Type": "audio/wav", "Content-Length": String(bytes.length), "Cache-Control": "no-store" }, bytes };
+  }
+  const id = query.get("v") ?? "";
+  if (path === "/watch" && Object.hasOwn(TUBE_VIDEOS, id)) return text(200, "text/html; charset=utf-8", tubePageHtml(id));
+  return unexpected();
+}
+
+/**
  * 回答一个请求。没带登录状态读视频信息以外的内容、路径不认识、字幕文件带了 Cookie，这些情况都带 unexpected。
  * @param {MockRequest} request
  * @param {string} [scenario] 场景开关，空串是一切正常
@@ -287,6 +303,7 @@ function pageRoute(path, query) {
  */
 export function route({ host, path, query, cookie, now = Date.now() }, scenario = "") {
   if (host === PAGE_HOST) return pageRoute(path, query);
+  if (host === TUBE_HOST) return tubeRoute(path, query);
   if (apiHost(host)) return apiRoute(path, isLoggedIn(cookie, scenario), { query, scenario, now });
   if (fileHost(host)) return fileRoute(path, cookie, scenario);
   return unexpected();

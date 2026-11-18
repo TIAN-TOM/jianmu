@@ -28,12 +28,15 @@ test("模块加载时不碰扩展接口，第一次用到退避时才建", () =>
   assert.ok(createSiteCtx("bilibili", NEVER).backoff);
 });
 
-test("siteService 两次返回同一实例，还没接上的站没有服务", () => {
+test("siteService 两次返回同一实例；YouTube 跟着构建开关，测试构建里有", () => {
   const first = siteService("bilibili");
   assert.ok(first);
   assert.equal(siteService("bilibili"), first);
   assert.equal(first.rules.platform, "bilibili");
-  assert.equal(siteService("youtube"), undefined);
+  const youtube = siteService("youtube");
+  assert.ok(youtube);
+  assert.equal(siteService("youtube"), youtube);
+  assert.equal(youtube.rules.platform, "youtube");
 });
 
 test("createSiteCtx 绑定了 fetch：以方法形式调用不抛错", async () => {

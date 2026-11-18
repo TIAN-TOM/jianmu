@@ -503,3 +503,22 @@ test("导入或移除还没做完（比如作废失败、正在撤回）时来�
   assert.equal(result.transcript.ref.kind, "human", "读到的是撤回之后的样子");
   assert.equal((await h.rows()).some((row) => row.transcript?.ref.kind === "imported"), false);
 });
+
+test("只看本机的读法：有导入的字幕就用它，没有缓存也没导入就回没缓存，不向平台读", async () => {
+  const empty = harness();
+  assert.equal(failure(await empty.service.get(REF, { mode: "local" })).code, "NOT_CACHED");
+  assert.equal(empty.site.calls.length, 0, "一个平台请求都没发");
+
+  const h = harness();
+  await h.service.importFile(REF, FILE);
+  const reply = view(await h.service.get(REF, { mode: "local" }));
+  assert.equal(reply.transcript.ref.kind, "imported");
+  assert.equal(texts({ ok: true, value: reply }), IMPORTED_TEXTS);
+  // 只看缓存的读法不拿导入的文件组装，这条不变。
+  assert.equal(failure(await h.service.get(REF, { mode: "cache-only" })).code, "NOT_CACHED");
+  assert.equal(h.site.calls.length, 0);
+
+  const cached = harness({ seed: [cachedRow()] });
+  assert.equal(view(await cached.service.get(REF, { mode: "local" })).fromCache, true);
+  assert.equal(cached.site.calls.length, 0);
+});
