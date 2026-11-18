@@ -4,9 +4,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import vm from "node:vm";
 import { build } from "esbuild";
-import { applyAppearance } from "../../../../src/pages/shared/theme.ts";
-import { applyCache, CACHE_KEY, FONT_SCALES, MODES, readCache, THEMES } from "../../../../src/pages/shared/theme-boot.ts";
-import { APPEARANCE_CACHE_KEY } from "../../../../src/shared/names.ts";
+import { applyAppearance, hostModeOf } from "../../../../src/pages/shared/theme.ts";
+import { applyCache, CACHE_KEY, FONT_SCALES, MODES, readCache, THEMES, TONE_PARAM, toneOf } from "../../../../src/pages/shared/theme-boot.ts";
+import { APPEARANCE_CACHE_KEY, CARD_TONE } from "../../../../src/shared/names.ts";
 import { ACCENT_THEMES, THEME_MODES, UI_FONT_SCALES } from "../../../../src/shared/settings-schema.ts";
 import { fakePage, memoryLocalStorage, type MemoryLocalStorage } from "../../../helpers/fake-page.ts";
 
@@ -68,6 +68,27 @@ test("applyAppearance 落地外观时把主题、明暗和字号记进页面的 
   // 「跟随系统」记原值，不记解析结果：下次打开时系统可能已经换了明暗
   applyAppearance({ themeMode: "system" }, root);
   assert.equal((cachedIn(localStorage) as { themeMode: string }).themeMode, "system");
+});
+
+test("卡片所在页面的明暗：首帧脚本和页面读地址的写法一致；首帧就按它画，不按缓存的明暗", () => {
+  assert.equal(TONE_PARAM, CARD_TONE.param);
+  for (const hash of ["", "#", "#tone=light", "#tone=dark", "#x=1&tone=dark", "#tone=dark&x=1", "#tone=blue", "#atone=dark", "#tone=darker", "tone=dark"]) {
+    assert.equal(toneOf(hash), hostModeOf(hash), hash);
+  }
+  assert.equal(toneOf("#tone=dark"), "dark");
+  assert.equal(toneOf("#x=1&tone=light"), "light");
+  assert.equal(toneOf("#tone=blue"), null);
+  assert.equal(toneOf("#atone=dark"), null);
+
+  // 设置是深色、系统也是深色，页面是浅色：卡片第一帧就是浅色，主题和字号照缓存。
+  const { root } = fakePage();
+  applyCache({ accentTheme: "ochre", themeMode: "dark", uiFontScale: 125 }, root, true, "light");
+  assert.deepEqual({ ...root.dataset }, { accentTheme: "ochre", themeMode: "light" });
+  assert.equal(root.style.values["--ui-font-zoom"], "1.25");
+  // 没有缓存也按页面的明暗画。
+  const bare = fakePage().root;
+  applyCache({}, bare, false, "dark");
+  assert.equal(bare.dataset.themeMode, "dark");
 });
 
 test("缓存只写扩展自己的页面；存储写不进去时照样落地外观，不抛错", () => {

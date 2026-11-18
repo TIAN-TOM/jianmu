@@ -1,7 +1,7 @@
 /// <reference types="chrome" />
 // 扩展页面的外观：主题、明暗和界面字号落到根节点上，跟着设置变，每次落地都刷新首帧缓存（theme-boot.ts 同步读它）。
 // 设置里不含密钥，这里只取外观三项。
-import { APPEARANCE_CACHE_KEY, SETTINGS_STORAGE_KEY } from "../../shared/names.ts";
+import { APPEARANCE_CACHE_KEY, CARD_TONE, SETTINGS_STORAGE_KEY } from "../../shared/names.ts";
 import { DEFAULTS, normalize, normalizeUiFontScale, THEME_MODES, type AccentTheme, type ThemeMode, type UiFontScale } from "../../shared/settings-schema.ts";
 import type { PageApi } from "./api.ts";
 
@@ -51,6 +51,12 @@ export function resolveThemeMode(mode: ThemeMode = DEFAULTS.themeMode, view: Pic
   return view?.matchMedia?.(DARK_QUERY).matches ? "dark" : "light";
 }
 
+/** 卡片地址 # 后面写的所在页面的明暗；没写或写得不对是 null。首帧脚本里有同样的一份，单元测试核对两边一致。 */
+export function hostModeOf(hash: string): ResolvedThemeMode | null {
+  const found = new RegExp(`(?:^#|&)${CARD_TONE.param}=(light|dark)(?:&|$)`).exec(hash)?.[1];
+  return found === "light" || found === "dark" ? found : null;
+}
+
 /** 界面字号改根字号，四个页面的尺寸都用 rem。返回归档后的那一档。 */
 export function applyUiFontScale(scale: unknown, root: AppearanceRoot | null | undefined): UiFontScale {
   const value = normalizeUiFontScale(scale);
@@ -69,12 +75,15 @@ function cacheAppearance(appearance: Appearance, root: AppearanceRoot): void {
   }
 }
 
-/** 主题和明暗落在 html 的 data 属性上，由主题样式表按属性切换变量；字号写根字号。返回规整后的外观。 */
-export function applyAppearance(input: unknown, root: AppearanceRoot | null | undefined): Appearance {
+/**
+ * 主题和明暗落在 html 的 data 属性上，由主题样式表按属性切换变量；字号写根字号。返回规整后的外观。
+ * 给了 hostMode（嵌在视频页里的卡片所在页面的明暗），明暗跟它，不跟设置。
+ */
+export function applyAppearance(input: unknown, root: AppearanceRoot | null | undefined, hostMode: ResolvedThemeMode | null = null): Appearance {
   const appearance = appearanceOf(input);
   if (!root?.dataset) return appearance;
   root.dataset.accentTheme = appearance.accentTheme;
-  root.dataset.themeMode = resolveThemeMode(appearance.themeMode, viewOf(root));
+  root.dataset.themeMode = hostMode ?? resolveThemeMode(appearance.themeMode, viewOf(root));
   applyUiFontScale(appearance.uiFontScale, root);
   cacheAppearance(appearance, root);
   return appearance;
@@ -87,11 +96,15 @@ export interface WatchAppearanceDeps {
   readonly onChanged?: { addListener(listener: StorageListener): void; removeListener(listener: StorageListener): void };
   /** 订阅清除广播。清除全部数据以后按存储里现在的设置（也就是默认值）重写外观和首帧缓存。 */
   readonly onDataCleared?: (listener: (scope: "cache" | "all") => void) => () => void;
+  /** 嵌在视频页里的卡片：所在页面现在是浅色还是深色。给了而且认得出，明暗跟它，不跟设置。 */
+  readonly hostMode?: () => ResolvedThemeMode | null;
 }
 
 export interface AppearanceWatch {
   /** 最近一次落地的外观；一次都没落地（读设置失败、也还没有变化）时是 null。 */
   readonly current: () => Appearance | null;
+  /** 所在页面的明暗变了：按现在的重新落地。 */
+  readonly refresh: () => void;
   readonly stop: () => void;
 }
 
@@ -117,7 +130,7 @@ export async function watchAppearance(deps: WatchAppearanceDeps, root: Appearanc
   let generation = 0;
   let stopped = false;
   const land = (raw: unknown): void => {
-    if (!stopped) last = applyAppearance(raw, root);
+    if (!stopped) last = applyAppearance(raw, root, deps.hostMode?.() ?? null);
   };
   const reload = async (fallback: unknown): Promise<void> => {
     const started = generation;
@@ -151,6 +164,13 @@ export async function watchAppearance(deps: WatchAppearanceDeps, root: Appearanc
   await reload(undefined);
   return {
     current: () => last,
+    refresh() {
+      if (stopped) return;
+      if (last) return land(last);
+      // 设置还没读回来：先只换明暗，主题和字号留着首帧的样子。
+      const mode = deps.hostMode?.();
+      if (mode && root.dataset) root.dataset.themeMode = mode;
+    },
     stop() {
       stopped = true;
       deps.onChanged?.removeListener(onStorage);

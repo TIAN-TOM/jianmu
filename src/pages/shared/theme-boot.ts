@@ -3,6 +3,8 @@
 // 不导入别的模块，打出来只有这一个小文件；键名和合法取值要和设置模块一致，单元测试核对。
 
 export const CACHE_KEY = "jianmu_appearance";
+/** 卡片嵌在视频页里时，内容脚本把页面的明暗写在卡片地址 # 后面的这个参数里。 */
+export const TONE_PARAM = "tone";
 export const THEMES = Object.freeze(["ink", "graphite", "ochre"] as const);
 export const MODES = Object.freeze(["system", "light", "dark"] as const);
 export const FONT_SCALES = Object.freeze([100, 112, 125] as const);
@@ -37,10 +39,20 @@ export function readCache(storage: Pick<Storage, "getItem"> | null | undefined):
   return valid;
 }
 
-/** 写法和 theme.ts 落地外观时一样：「跟随系统」按系统明暗解析成具体的一种。缺的项不写，交给样式表的默认。 */
-export function applyCache(cached: CachedAppearance, root: BootRoot, prefersDark: boolean): void {
+/** 地址 # 后面写的页面明暗；没写或写得不对是 null。 */
+export function toneOf(hash: string): "light" | "dark" | null {
+  const found = new RegExp(`(?:^#|&)${TONE_PARAM}=(light|dark)(?:&|$)`).exec(hash)?.[1];
+  return found === "light" || found === "dark" ? found : null;
+}
+
+/**
+ * 写法和 theme.ts 落地外观时一样：「跟随系统」按系统明暗解析成具体的一种。缺的项不写，交给样式表的默认。
+ * 给了所在页面的明暗（只有卡片有），明暗跟它，不跟缓存的设置。
+ */
+export function applyCache(cached: CachedAppearance, root: BootRoot, prefersDark: boolean, tone: "light" | "dark" | null = null): void {
   if (cached.accentTheme) root.dataset.accentTheme = cached.accentTheme;
-  if (cached.themeMode) root.dataset.themeMode = cached.themeMode === "system" ? (prefersDark ? "dark" : "light") : cached.themeMode;
+  if (tone) root.dataset.themeMode = tone;
+  else if (cached.themeMode) root.dataset.themeMode = cached.themeMode === "system" ? (prefersDark ? "dark" : "light") : cached.themeMode;
   if (cached.uiFontScale) root.style.setProperty("--ui-font-zoom", String(cached.uiFontScale / 100));
 }
 
@@ -52,7 +64,7 @@ function boot(): void {
     // 存储被禁用时连读这个属性都会抛错，按默认画。
   }
   const prefersDark = typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: dark)").matches;
-  applyCache(readCache(storage), document.documentElement, prefersDark);
+  applyCache(readCache(storage), document.documentElement, prefersDark, typeof location === "undefined" ? null : toneOf(location.hash));
 }
 
 if (typeof document !== "undefined") boot();

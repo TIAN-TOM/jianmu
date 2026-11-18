@@ -89,6 +89,7 @@ function AppearanceSection({ state }: { readonly state: OptionsState }) {
             </option>
           ))}
         </select>
+        <span class="field-hint">播放页卡片的明暗跟着视频页，不跟这一项。</span>
       </label>
       <label class="field">
         <span class="field-label">界面字号</span>
