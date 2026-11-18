@@ -45,9 +45,11 @@ export function createFrameStore({ api, target, enabled }: FrameStoreDeps): Fram
     all.value = reply.ok ? reply.value.entries : [];
   }
 
-  const off = api.on("frame.changed", ({ tabId }) => {
+  const offChanged = api.on("frame.changed", ({ tabId }) => {
     if (tabId === target.peek().tabId) void reload();
   });
+  // 清除了本机数据：后台那边的解释也清掉了，跟着重读。
+  const offCleared = api.on("data.cleared", () => void reload());
   // 换标签页或启用状态变了就重读；同一标签页里换视频不用重读，按视频筛就行。
   const tabKey = computed(() => (enabled.value ? target.value.tabId : null));
   const dispose = effect(() => {
@@ -74,7 +76,8 @@ export function createFrameStore({ api, target, enabled }: FrameStoreDeps): Fram
     },
     stop() {
       generation += 1;
-      off();
+      offChanged();
+      offCleared();
       dispose();
     },
   };

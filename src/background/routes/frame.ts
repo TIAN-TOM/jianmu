@@ -52,7 +52,7 @@ export function frameRoutes({ frame, ai, messenger }: FrameRouteDeps): FrameRout
       validate: isExplainRequest,
       async handler(req) {
         if (!service.admit(req.tabId)) return fail("FRAME_RATE_LIMITED");
-        return ok(service.start(req.tabId, req.video));
+        return ok(await service.start(req.tabId, req.video));
       },
     },
     "frame.explainHere": {
@@ -65,7 +65,7 @@ export function frameRoutes({ frame, ai, messenger }: FrameRouteDeps): FrameRout
         const playing = "site" in sender ? keyOf(sender.video) : null;
         if (!playing || playing !== req.video || sender.tabId === undefined) return fail("FORBIDDEN");
         if (!service.admit(sender.tabId)) return fail("FRAME_RATE_LIMITED");
-        service.start(sender.tabId, playing);
+        await service.start(sender.tabId, playing);
         const opened = (await panelOpened) === true;
         // 侧边栏可能本来就开着、停在别的标签页上，让它跟到这个标签页。
         if (opened) await messenger.toPages({ type: "panel.follow", tabId: sender.tabId });
@@ -76,7 +76,7 @@ export function frameRoutes({ frame, ai, messenger }: FrameRouteDeps): FrameRout
       senders: ["panel"],
       idempotent: true,
       validate: isRecentRequest,
-      handler: async (req) => ok({ entries: service.recent(req.tabId) }),
+      handler: async (req) => ok({ entries: await service.recent(req.tabId) }),
     },
     "ai.probeImage": {
       senders: ["page"],

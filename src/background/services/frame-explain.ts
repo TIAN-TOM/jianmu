@@ -2,7 +2,8 @@
 // 两个入口共用一条路：先查模型配置和看图能力（不能看图就不截、不发），再读视频信息确认不是付费内容
 // （付费、确认不了、没登录读不到的都不截），再向那个标签页的内容脚本要当前一帧，核对截图（前缀、大小、尺寸、
 // 视频身份），登记任务，连同这一刻前后几句字幕交给画面分析的模型。途中清除了本机数据就停下，不截、不发。
-// 截图只在这一次请求里用，不落盘，任务结束就丢；解释的文字记在内存里，按标签页留最近几次，侧边栏来取。
+// 截图只在这一次请求里用，不落盘，任务结束就丢；解释的文字按标签页留最近几次，侧边栏来取。解释记在扩展的会话存储里
+// （只在内存，不写磁盘），后台被回收后醒来还在；醒来时还标着在跑的，按中途停了收尾。清除本机数据时一起删。
 // 模块顶层只放字面量和函数，理由见 content/frame.ts 开头。
 import { throwIfTaskCanceled } from "../../core/ai/transport/index.ts";
 import { extractPromptSection } from "../../core/ai/prompt.ts";
@@ -22,6 +23,7 @@ import type { CueView } from "../../shared/messages/transcript.ts";
 import { DATA_CONSENT_ERROR } from "../../core/consent.ts";
 import { FRAME_PROMPT_FILE } from "../../shared/frame-slot.ts";
 import { aiFailure, type AiWiring } from "../ai.ts";
+import { FRAME_RESULTS_KEY } from "../../shared/names.ts";
 import { createImageSupport, isImageRejection, requireImage, type ImageSupport } from "../image-support.ts";
 import { createRateLimit } from "../limits.ts";
 import { errorLabel, type Log } from "../log.ts";
@@ -104,9 +106,11 @@ interface Material {
 export interface FrameExplainDeps {
   readonly tasks: Pick<TaskRunner, "register" | "run">;
   readonly ai: Pick<AiWiring, "freeze" | "configCheck">;
-  readonly images: Pick<ImageSupport, "ensure" | "rejected">;
-  readonly transcript: Pick<TranscriptService, "get">;
-  readonly clearGuard: Pick<ClearGuard, "epoch" | "clearedSince">;
+  readonly images: Pick<ImageSupport, "ensure" | "probe">;
+  readonly transcript: Pick<TranscriptService, "get" | "verify">;
+  readonly clearGuard: Pick<ClearGuard, "epoch" | "clearedSince" | "track">;
+  /** 扩展的会话存储：只在内存，浏览器关闭就清空。 */
+  readonly session: Pick<StorageArea, "get" | "set">;
   readonly ask: (tabId: number, message: unknown) => Promise<unknown>;
   readonly prompt: (file: string) => string;
   readonly broadcast: (message: Broadcast) => void;
@@ -119,15 +123,21 @@ export interface FrameExplainService {
   /** 这个标签页额度够就记一次。播放页图标和侧边栏共用一份。 */
   readonly admit: (tabId: number) => boolean;
   /** 开始解释，马上交回这一次的记录；之后每一步变化都广播 frame.changed，侧边栏重读。 */
-  readonly start: (tabId: number, video: VideoKey) => FrameEntryView;
+  readonly start: (tabId: number, video: VideoKey) => Promise<FrameEntryView>;
   /** 这个标签页最近几次，新的在前。 */
-  readonly recent: (tabId: number) => readonly FrameEntryView[];
+  readonly recent: (tabId: number) => Promise<readonly FrameEntryView[]>;
   /** 等这一次跑完，测试用。 */
   readonly settled: (id: string) => Promise<void>;
 }
 
+const isEntry = (value: unknown): value is FrameEntryView =>
+  isRecord(value) && typeof value.id === "string" && Number.isInteger(value.tabId) && typeof value.video === "string" && typeof value.createdAt === "number";
+
 export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainService {
-  const entries = new Map<string, FrameEntryView>();
+  let entries = new Map<string, FrameEntryView>();
+  let loaded: Promise<void> | null = null;
+  let loadedAt = deps.clearGuard.epoch();
+  let writing: Promise<void> = Promise.resolve();
   const running = new Map<string, Promise<void>>();
   const limits = new Map<number, () => boolean>();
   // 同一帧连点接上同一个任务时，等那一次的结果，不另跑。
@@ -150,31 +160,67 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
     }
   }
 
+  // 第一次用时从会话存储读回来；清除过本机数据就丢掉内存里的，重新读（清除后是空的）。
+  // 读回来时还标着在跑的，是后台被回收前没做完的：按中途停了收尾。
+  function ensureLoaded(): Promise<void> {
+    if (loaded && !deps.clearGuard.clearedSince(loadedAt, "cache")) return loaded;
+    loadedAt = deps.clearGuard.epoch();
+    entries = new Map();
+    loaded = (async () => {
+      let stored: unknown;
+      try {
+        stored = (await deps.session.get(FRAME_RESULTS_KEY))[FRAME_RESULTS_KEY];
+      } catch {
+        stored = undefined;
+      }
+      for (const item of Array.isArray(stored) ? stored : []) {
+        if (!isEntry(item) || entries.has(item.id)) continue;
+        entries.set(item.id, item.state === "running" && !running.has(item.id) ? { ...item, state: "failed", phase: "finished", error: { code: "FRAME_INTERRUPTED" } } : item);
+      }
+    })();
+    return loaded;
+  }
+
+  // 按先后写回会话存储；清除过本机数据就不写，免得把刚清掉的写回去。
+  function persist(): void {
+    const since = loadedAt;
+    const snapshot = [...entries.values()];
+    writing = writing
+      .then(() =>
+        deps.clearGuard.track(async () => {
+          if (deps.clearGuard.clearedSince(since, "cache")) return;
+          await deps.session.set({ [FRAME_RESULTS_KEY]: snapshot });
+        }),
+      )
+      .catch((error: unknown) => deps.log.warn("记下画面解释失败", errorLabel(error)));
+  }
+
   function update(id: string, patch: Partial<FrameEntryView>): void {
     const entry = entries.get(id);
     if (!entry) return;
     entries.set(id, { ...entry, ...patch });
+    persist();
     deps.broadcast({ type: "frame.changed", tabId: entry.tabId });
   }
 
   const failed = (id: string, failure: Failure): void =>
     update(id, { state: "failed", phase: "finished", error: failure.detail === undefined ? { code: failure.code } : { code: failure.code, detail: failure.detail } });
 
-  // 截帧之前先读视频信息：读到了才算确认过不是付费内容。没有字幕照样解释，只是不带字幕；
-  // 视频信息都没读到（付费、确认不了是不是付费、没登录、被限流）就按那个原因拒，不截。
+  // 截帧之前每次都向平台重新读一次视频信息：确认已登录、不是付费内容（付费、确认不了的不截），不看缓存，
+  // 导入了字幕文件也一样。读不成就按那个原因拒，不截。字幕只当上下文：读不到照样解释，只是不带字幕。
   async function material(video: VideoKey, tabId: number): Promise<Result<Material>> {
     const ref = parseVideoKey(video);
     if (!ref) return fail("FRAME_VIDEO_CHANGED");
-    let reply: Awaited<ReturnType<FrameExplainDeps["transcript"]["get"]>>;
+    const verified = await deps.transcript.verify(ref);
+    if (!verified.ok) return verified;
+    let cues: Material["cues"] = [];
     try {
-      reply = await deps.transcript.get(ref, { mode: "full", tabId });
+      const reply = await deps.transcript.get(ref, { mode: "full", tabId });
+      if (reply.ok) cues = reply.value.transcript.cues;
     } catch (error) {
-      deps.log.warn("读视频信息失败，不解释画面", errorLabel(error));
-      return fail("AI_REQUEST_FAILED");
+      deps.log.warn("读字幕失败，解释画面不带字幕", errorLabel(error));
     }
-    if (reply.ok) return ok({ videoTitle: reply.value.info.title || "未知", cues: reply.value.transcript.cues });
-    if (!reply.info) return reply.detail === undefined ? fail(reply.code) : fail(reply.code, reply.detail);
-    return ok({ videoTitle: reply.info.title || "未知", cues: [] });
+    return ok({ videoTitle: verified.value.title || "未知", cues });
   }
 
   async function explain(gen: FrozenGen, video: VideoKey, capture: FrameCapture, found: Material, id: string): Promise<Result<{ explanation: string; truncated?: true }>> {
@@ -217,9 +263,10 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
           return ok(truncated ? { explanation: `${explanation}${TRUNCATED_NOTE}`, truncated: true as const } : { explanation });
         } catch (error) {
           if (run.signal.aborted || (error as { readonly code?: unknown } | null)?.code === "TASK_CANCELED") return fail("TASK_CANCELED");
+          // 像是看不了图被拒：拿探测图复核一次，复核也说不能看才这么报（并记下）；能看就是别的原因，照常报失败。
           if (isImageRejection(error)) {
-            await deps.images.rejected(gen);
-            return fail("AI_IMAGE_UNSUPPORTED");
+            const probed = await deps.images.probe(gen);
+            if (probed.ok && !probed.value.imageInput) return fail("AI_IMAGE_UNSUPPORTED");
           }
           deps.log.error("解释画面失败", errorLabel(error));
           return aiFailure(error);
@@ -241,6 +288,7 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
     // 不能看图就不截、不发。说不准时发一张 8×8 的图探一次，结果记在本机。
     const image = requireImage(await deps.images.ensure(gen));
     if (!image.ok) return failed(id, image);
+    if (canceled()) return failed(id, fail("TASK_CANCELED"));
     const found = await material(video, tabId);
     if (!found.ok) return failed(id, found);
     if (canceled()) return failed(id, fail("TASK_CANCELED"));
@@ -270,10 +318,12 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
       }
       return limit();
     },
-    start(tabId, video) {
+    async start(tabId, video) {
+      await ensureLoaded();
       prune();
       const entry: FrameEntryView = { id: deps.newId(), tabId, video, state: "running", phase: "checking", createdAt: deps.now() };
       entries.set(entry.id, entry);
+      persist();
       deps.broadcast({ type: "frame.changed", tabId });
       const done = work(entry.id, tabId, video)
         .catch((error: unknown) => {
@@ -284,7 +334,8 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
       running.set(entry.id, done);
       return entry;
     },
-    recent(tabId) {
+    async recent(tabId) {
+      await ensureLoaded();
       prune();
       return [...entries.values()].filter((entry) => entry.tabId === tabId).sort((a, b) => b.createdAt - a.createdAt);
     },
@@ -302,6 +353,7 @@ export function createFrameParts(deps: {
   readonly tasks: FrameExplainDeps["tasks"];
   readonly ai: Pick<AiWiring, "freeze" | "configCheck" | "capabilities" | "forTask" | "prompt">;
   readonly storage: Pick<StorageArea, "get" | "set">;
+  readonly session: Pick<StorageArea, "get" | "set">;
   readonly clearGuard: ClearGuard;
   readonly transcript: FrameExplainDeps["transcript"];
   readonly tabs: Pick<Tabs, "ask">;
@@ -317,6 +369,7 @@ export function createFrameParts(deps: {
     images,
     transcript: deps.transcript,
     clearGuard: deps.clearGuard,
+    session: deps.session,
     ask: deps.tabs.ask,
     prompt: ai.prompt,
     broadcast: (message) => void messenger.toPages(message),

@@ -1,6 +1,7 @@
 // 画面分析的模型能不能看图：只在构建开关 FEATURE_FRAME_EXPLAIN 打开时进包，只从开关分支引用。
-// 先看探测记下的结果，没有就看本机的模型能力（型号表认得出的算能看）；都说不准时发一张 8×8 的图探一次。
-// 探测结果按「API 地址加模型」存在本机，真实请求被服务以看不了图拒掉时也记成不能看。
+// 先看探测记下的结果，没有就看本机的模型能力（型号表认得出的算能看）；都说不准时发一张红色小图探一次，
+// 回答里要说得出是红色才算能看：有的中转会悄悄丢掉图片照常回话。
+// 探测结果按「API 地址加模型」存在本机。真实请求被以看不了图拒掉时，由调用方再探一次复核，不直接记。
 // 模块顶层只放字面量和函数，理由见 content/frame.ts 开头。
 import { fail, ok, type Result } from "../core/errors.ts";
 import type { ClearGuard } from "../core/clear-guard.ts";
@@ -9,11 +10,13 @@ import type { StorageArea } from "../platform/storage.ts";
 import { IMAGE_PROBE_STORAGE_KEY } from "../shared/names.ts";
 import { aiFailure, type AiWiring } from "./ai.ts";
 
-/** 一张 8×8 的纯色 JPEG，探测用，633 字节。 */
+/** 一张 64×64 的红色 JPEG，探测用，693 字节。比 8×8 大，是因为有的服务要求宽高都超过 10 像素、总像素不少于 196。 */
 export const PROBE_IMAGE =
-  "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCAAIAAgDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDiaKKK+PP6QP/Z";
+  "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCABAAEADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDiaKKK+PP6QCiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/Z";
 
 const PROBE_QUESTION = "这张小图是什么颜色？只回一个词。";
+// 回答里说得出是红色才算看到了图。
+const SAW_RED = /红|red|crimson|scarlet/i;
 // 关不掉思考的模型，思考也算在预算里；上限本身不收费。
 const PROBE_MAX_TOKENS = 1024;
 /** 探测结果留 30 天：模型的看图能力很少变，换了模型就是另一条。写成字面量，算式会让模块留在发行包里。 */
@@ -54,8 +57,6 @@ export interface ImageSupport {
   readonly probe: (gen: FrozenGen) => Promise<Result<{ readonly imageInput: boolean }>>;
   /** 说不准就探一次。 */
   readonly ensure: (gen: FrozenGen) => Promise<Result<{ readonly imageInput: boolean }>>;
-  /** 真实请求被服务以看不了图拒掉：记成不能看。 */
-  readonly rejected: (gen: FrozenGen) => Promise<void>;
 }
 
 export function createImageSupport({ storage, clearGuard, ai, now }: ImageSupportDeps): ImageSupport {
@@ -99,12 +100,13 @@ export function createImageSupport({ storage, clearGuard, ai, now }: ImageSuppor
 
   async function probe(gen: FrozenGen): Promise<Result<{ readonly imageInput: boolean }>> {
     const since = clearGuard.epoch();
+    let answer: string;
     try {
-      await ai.forTask(gen).requestAiCompletion({
+      ({ text: answer } = await ai.forTask(gen).requestAiCompletion({
         messages: [{ role: "user", content: [{ type: "image", dataUrl: PROBE_IMAGE }, { type: "text", text: PROBE_QUESTION }] }],
         maxTokens: PROBE_MAX_TOKENS,
         selfRetry: false,
-      });
+      }));
     } catch (error) {
       const answered = ANSWERED.has((error as { readonly code?: unknown } | null)?.code);
       if (answered) {
@@ -115,8 +117,10 @@ export function createImageSupport({ storage, clearGuard, ai, now }: ImageSuppor
       await remember(gen, false, since);
       return ok({ imageInput: false });
     }
-    await remember(gen, true, since);
-    return ok({ imageInput: true });
+    // 回话了但说不出是红色：多半是图被丢掉了，按不能看记。
+    const saw = SAW_RED.test(answer);
+    await remember(gen, saw, since);
+    return ok({ imageInput: saw });
   }
 
   return {
@@ -126,7 +130,6 @@ export function createImageSupport({ storage, clearGuard, ai, now }: ImageSuppor
       const value = await known(gen);
       return value === "unknown" ? probe(gen) : ok({ imageInput: value });
     },
-    rejected: (gen) => remember(gen, false, clearGuard.epoch()),
   };
 }
 

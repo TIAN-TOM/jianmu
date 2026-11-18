@@ -23,7 +23,11 @@ const capture = (_tabId: number, message: unknown) => {
 
 const hasImage = (request: SentRequest): boolean => JSON.stringify(request.body?.messages ?? []).includes("image_url");
 
-function background(handler = () => chatReply("画面上是一张受力分析图。"), options: { readonly panelOpenRefused?: boolean } = {}) {
+// 探测图问的是颜色，答红色；别的请求回一段解释。
+const answering = (request: SentRequest) =>
+  chatReply(JSON.stringify(request.body?.messages ?? []).includes("这张小图是什么颜色") ? "红色" : "画面上是一张受力分析图。");
+
+function background(handler: (request: SentRequest) => ReturnType<typeof chatReply> = answering, options: { readonly panelOpenRefused?: boolean } = {}) {
   return studyBackground({ handler, tabReply: capture, ...options });
 }
 
@@ -50,7 +54,7 @@ test("播放页图标：先打开侧边栏，向发送方标签页要一帧，�
   assert.deepEqual(bg.fake.calls.panelOpens, [3], "打开的是发送方所在窗口的侧边栏");
 
   const entry = await finished(bg);
-  assert.deepEqual([entry.state, entry.explanation, entry.atSec], ["done", "画面上是一张受力分析图。", 12.3]);
+  assert.deepEqual([entry.state, entry.explanation, entry.atSec], ["done", "画面上是一张受力分析图。", 12.3], JSON.stringify(entry.error));
   const asked = bg.fake.calls.tabMessages.filter(({ message }) => (message as { type?: string }).type === "player.captureFrame");
   assert.deepEqual(asked, [{ tabId: TAB, message: { type: "player.captureFrame", req: { video: PLAYING, maxEdge: 1456 } } }]);
   const posts = bg.ai.posts();

@@ -31,11 +31,9 @@ function FrameCard({ panel, frame, entry }: { readonly panel: Panel; readonly fr
             {time}
           </button>
         ) : null}
-        {entry.state === "running" ? null : (
-          <button type="button" class="frame-card-close" aria-label="关掉这条解释" onClick={() => frame.dismiss(entry.id)}>
-            ×
-          </button>
-        )}
+        <button type="button" class="frame-card-close" aria-label="关掉这条解释" onClick={() => frame.dismiss(entry.id)}>
+          ×
+        </button>
       </header>
       {entry.state === "running" ? (
         <p class="frame-card-status" role="status">

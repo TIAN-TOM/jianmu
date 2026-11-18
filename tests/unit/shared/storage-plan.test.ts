@@ -20,6 +20,7 @@ const ROWS: readonly (readonly [string, Plan])[] = [
   ["jianmu_model_caps", { area: "local", clearCache: "clear", clearAll: "clear", backup: false }],
   ["jianmu_relaxed_params", { area: "session", clearCache: "clear", clearAll: "clear", backup: false }],
   ["jianmu_image_probe", { area: "local", clearCache: "clear", clearAll: "clear", backup: false }],
+  ["jianmu_frame_results", { area: "session", clearCache: "clear", clearAll: "clear", backup: false }],
   ["jianmu_settings", { area: "local", clearCache: "keep", clearAll: "clear", backup: false }],
   ["jianmu_api_key", { area: "session", clearCache: "keep", clearAll: "clear", backup: false }],
   ["jianmu_api_key_local", { area: "local", clearCache: "keep", clearAll: "clear", backup: false }],

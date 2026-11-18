@@ -29,15 +29,16 @@ function setup(initial: FrameTarget = { tabId: 7, video: VIDEO }) {
   const asked: { readonly type: string; readonly req: unknown }[] = [];
   let entries: FrameEntryView[] = [entry("a"), entry("b", OTHER)];
   let explainReply: unknown = ok(entry("c", VIDEO, { state: "running", phase: "checking" }));
-  const listeners: ((message: { readonly tabId: number }) => void)[] = [];
+  const listeners: { readonly type: string; readonly listener: (message: { readonly tabId: number }) => void }[] = [];
   const api = {
     async send(type: string, req: unknown) {
       asked.push({ type, req });
       return type === "frame.recent" ? ok({ entries }) : explainReply;
     },
-    on(_type: string, listener: (message: { readonly tabId: number }) => void) {
-      listeners.push(listener);
-      return () => listeners.splice(listeners.indexOf(listener), 1);
+    on(type: string, listener: (message: { readonly tabId: number }) => void) {
+      const entry = { type, listener };
+      listeners.push(entry);
+      return () => listeners.splice(listeners.indexOf(entry), 1);
     },
   };
   const store = createFrameStore({ api: api as never, target, enabled });
@@ -48,7 +49,8 @@ function setup(initial: FrameTarget = { tabId: 7, video: VIDEO }) {
     asked,
     setEntries: (next: FrameEntryView[]) => void (entries = next),
     setExplainReply: (next: unknown) => void (explainReply = next),
-    broadcast: (tabId: number) => listeners.forEach((listener) => listener({ tabId })),
+    broadcast: (tabId: number) => listeners.filter(({ type }) => type === "frame.changed").forEach(({ listener }) => listener({ tabId })),
+    cleared: () => listeners.filter(({ type }) => type === "data.cleared").forEach(({ listener }) => listener({ tabId: -1 })),
     recentCalls: () => asked.filter(({ type }) => type === "frame.recent").length,
   };
 }
@@ -95,5 +97,14 @@ test("关掉的只在这里藏起来；没启用时清空、不读", async () =>
   h.broadcast(7);
   await until(() => h.store.entries.value.length === 0);
   assert.equal(h.recentCalls(), calls, "没启用不读");
+  h.store.stop();
+});
+
+test("清除了本机数据：跟着重读", async () => {
+  const h = setup();
+  await until(() => h.store.entries.value.length === 1);
+  h.setEntries([]);
+  h.cleared();
+  await until(() => h.store.entries.value.length === 0);
   h.store.stop();
 });

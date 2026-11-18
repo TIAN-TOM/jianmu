@@ -20,7 +20,10 @@ import type { Broadcast } from "../../../../src/shared/messages.ts";
 import type { FrameEntryView } from "../../../../src/shared/messages/frame.ts";
 import { createFakeAi, type FakeAiOptions } from "../../../helpers/fake-ai.ts";
 import { manualTimers } from "../../../helpers/manual-timers.ts";
+import { memoryStorage } from "../../../helpers/memory-storage.ts";
 import { cue, OTHER, START, transcriptView, VIDEO } from "../../../helpers/study-service.ts";
+import { until } from "../../../helpers/wait-until.ts";
+import { FRAME_RESULTS_KEY } from "../../../../src/shared/names.ts";
 
 const PROMPT = ["## 系统提示词", "```", "画面/系统", "```", "## 用户提示词", "```", "视频：{videoTitle}", "时间：{frameTime}", "字幕：", "{transcriptContext}", "```", ""].join("\n");
 const JPEG = `data:image/jpeg;base64,${"A".repeat(400)}`;
@@ -32,7 +35,10 @@ interface Options {
   readonly ai?: FakeAiOptions;
   readonly image?: Result<{ readonly imageInput: boolean }>;
   readonly reply?: unknown;
-  readonly transcript?: "no-captions" | "paid" | "signed-out";
+  readonly transcript?: "no-captions" | "paid" | "signed-out" | "throws";
+  /** 复核探测的结果。 */
+  readonly probe?: Result<{ readonly imageInput: boolean }>;
+  readonly session?: Record<string, unknown>;
   /** 截帧时同步做一件事：比如清除本机数据。 */
   readonly duringCapture?: () => Promise<void>;
 }
@@ -46,7 +52,8 @@ function setup(options: Options = {}) {
   const clearGuard = createClearGuard();
   const tasks = createTaskRunner({ ai: fake.ai, keepAlive, timers, broadcast: () => undefined, newId: () => `task-${(ids += 1)}` });
   const asked: unknown[] = [];
-  const rejected: string[] = [];
+  const probed: string[] = [];
+  const session = memoryStorage(options.session ?? {});
   let ensured = 0;
   const service = createFrameExplainService({
     tasks,
@@ -56,18 +63,27 @@ function setup(options: Options = {}) {
         ensured += 1;
         return options.image ?? ok({ imageInput: true });
       },
-      rejected: async (gen) => void rejected.push(gen.model),
+      probe: async (gen) => {
+        probed.push(gen.model);
+        return options.probe ?? ok({ imageInput: true });
+      },
     },
     transcript: {
-      get: async (ref, { mode }) => {
-        assert.equal(mode, "full");
-        if (options.transcript === "no-captions") return { ...fail("NO_CAPTIONS"), info: { title: "没有字幕的视频", author: "", description: "", durationSec: 60 } };
+      // 每次都向平台重新读视频信息：付费、没登录的在这一步拒。
+      verify: async () => {
         if (options.transcript === "paid") return fail("UNPLAYABLE", "paid");
         if (options.transcript === "signed-out") return fail("NEED_LOGIN");
-        return ok(transcriptView(VIDEO, [cue(10, "很早的一句"), cue(70, "先看受力"), cue(80, "牛顿第二定律"), cue(90, "加速度和力成正比"), cue(200, "很晚的一句")], { title: "力学入门" }));
+        return ok({ title: options.transcript === "no-captions" ? "没有字幕的视频" : "力学入门", author: "", description: "", durationSec: 300 });
+      },
+      get: async (_ref, { mode }) => {
+        assert.equal(mode, "full");
+        if (options.transcript === "throws") throw new Error("读不到");
+        if (options.transcript === "no-captions") return fail("NO_CAPTIONS");
+        return ok(transcriptView(VIDEO, [cue(10, "很早的一句"), cue(70, "先看受力"), cue(80, "牛顿第二定律"), cue(90, "加速度和力成正比"), cue(200, "很晚的一句")], { title: "缓存里的标题" }));
       },
     },
     clearGuard,
+    session,
     ask: async (tabId, message) => {
       asked.push({ tabId, message });
       await options.duringCapture?.();
@@ -81,13 +97,13 @@ function setup(options: Options = {}) {
     newId: () => `entry-${(ids += 1)}`,
   });
   const run = async (video = VIDEO): Promise<FrameEntryView> => {
-    const entry = service.start(TAB, video);
+    const entry = await service.start(TAB, video);
     await service.settled(entry.id);
-    const latest = service.recent(TAB).find((item) => item.id === entry.id);
+    const latest = (await service.recent(TAB)).find((item) => item.id === entry.id);
     assert.ok(latest);
     return latest;
   };
-  return { fake, service, asked, broadcasts, rejected, timers, run, clearGuard, ensured: () => ensured };
+  return { fake, service, asked, broadcasts, probed, timers, run, clearGuard, session, ensured: () => ensured };
 }
 
 test("能看图：向标签页要一帧，图在前、提示词在后发给画面分析的模型；结果记下，带时间和尺寸", async () => {
@@ -109,7 +125,7 @@ test("能看图：向标签页要一帧，图在前、提示词在后发给画�
   assert.equal(parts[1]?.text, "视频：力学入门\n时间：1:23\n字幕：\n1:10 先看受力\n1:20 牛顿第二定律\n1:30 加速度和力成正比");
 
   assert.ok(broadcasts.length >= 3 && broadcasts.every((message) => message.type === "frame.changed" && message.tabId === TAB));
-  assert.deepEqual(service.recent(8), [], "别的标签页看不到");
+  assert.deepEqual(await service.recent(8), [], "别的标签页看不到");
 });
 
 test("配置没好、没同意数据说明、模型不能看图：都不截、不发", async () => {
@@ -172,20 +188,27 @@ test("截图核对：前缀、大小、尺寸、播放时间和视频身份不�
   assert.deepEqual(checkCapture("x", VIDEO), { ok: false, code: "FRAME_UNREACHABLE" });
 });
 
-test("服务以看不了图拒掉真实请求：报专门的码，记成不能看，不重试", async () => {
+test("真实请求像是看不了图被拒：拿探测图复核，复核也说不能看才报专门的码；复核能看就按普通失败报", async () => {
   const error = Object.assign(new Error("image input is not supported by this model"), { status: 400 });
-  const h = setup({ ai: { replies: { frame: error } } });
-  const entry = await h.run();
-  assert.equal(entry.error?.code, "AI_IMAGE_UNSUPPORTED");
-  assert.deepEqual(h.rejected, ["fake-model"]);
-  assert.equal(h.fake.calls.length, 1);
+  const blind = setup({ ai: { replies: { frame: error } }, probe: ok({ imageInput: false }) });
+  assert.equal((await blind.run()).error?.code, "AI_IMAGE_UNSUPPORTED");
+  assert.deepEqual(blind.probed, ["fake-model"]);
+  assert.equal(blind.fake.calls.length, 1, "不重试");
+
+  const tooLarge = Object.assign(new Error("image too large"), { status: 400 });
+  const sees = setup({ ai: { replies: { frame: tooLarge } } });
+  const entry = await sees.run();
+  assert.equal(entry.state, "failed");
+  assert.notEqual(entry.error?.code, "AI_IMAGE_UNSUPPORTED");
 });
 
-test("没有字幕时照样解释，字幕写「无」，标题用读到的视频信息", async () => {
-  const h = setup({ transcript: "no-captions" });
-  assert.equal((await h.run()).state, "done");
-  const parts = h.fake.calls[0]?.request.messages?.[1]?.content as readonly { readonly text?: string }[];
-  assert.match(parts[1]?.text ?? "", /视频：没有字幕的视频[\s\S]*字幕：\n无$/);
+test("没有字幕、读字幕出错时照样解释，字幕写「无」，标题用刚核对的视频信息", async () => {
+  for (const transcript of ["no-captions", "throws"] as const) {
+    const h = setup({ transcript });
+    assert.equal((await h.run()).state, "done", transcript);
+    const parts = h.fake.calls[0]?.request.messages?.[1]?.content as readonly { readonly text?: string }[];
+    assert.match(parts[1]?.text ?? "", /视频：(没有字幕的视频|力学入门)[\s\S]*字幕：\n无$/);
+  }
 });
 
 test("付费、确认不了是不是付费、没登录读不到视频信息的：按那个原因拒，不截、不发", async () => {
@@ -198,13 +221,14 @@ test("付费、确认不了是不是付费、没登录读不到视频信息的�
   }
 });
 
-test("截帧途中清除了本机数据：停下，不登记任务、不发", async () => {
+test("截帧途中清除了本机数据：停下，不登记任务、不发，之前那条也不再列出", async () => {
   let h: ReturnType<typeof setup> | null = null;
-  h = setup({ duringCapture: () => h?.clearGuard.clear("cache", () => undefined) ?? Promise.resolve() });
-  const entry = await h.run();
-  assert.deepEqual([entry.state, entry.error?.code], ["failed", "TASK_CANCELED"]);
+  h = setup({ duringCapture: () => h?.clearGuard.clear("all", () => h?.session.remove(FRAME_RESULTS_KEY)) ?? Promise.resolve() });
+  const entry = await h.service.start(TAB, VIDEO);
+  await h.service.settled(entry.id);
   assert.equal(h.asked.length, 1);
-  assert.equal(h.fake.calls.length, 0);
+  assert.equal(h.fake.calls.length, 0, "没发");
+  assert.deepEqual(await h.service.recent(TAB), []);
 });
 
 test("前后字幕：这一刻之前 20 秒到之后 10 秒，太多时以这一刻为中心截到 12 行", () => {
@@ -230,13 +254,36 @@ test("最近几次新的在前；收尾半小时后清掉，每个标签页最�
   const first = await run();
   timers.advance(1000);
   const second = await run();
-  assert.deepEqual(service.recent(TAB).map(({ id }) => id), [second.id, first.id]);
+  assert.deepEqual((await service.recent(TAB)).map(({ id }) => id), [second.id, first.id]);
   timers.advance(KEEP_MS);
   for (let index = 0; index < 12; index += 1) {
     timers.advance(1);
     await run();
   }
-  const kept = service.recent(TAB);
+  const kept = await service.recent(TAB);
   assert.equal(kept.length, 10);
   assert.ok(!kept.some(({ id }) => id === first.id || id === second.id));
+});
+
+test("解释记在会话存储里：后台醒来读得回来；醒来时还标着在跑的按中途停了收尾", async () => {
+  const h = setup();
+  const done = await h.run();
+  await until(() => Array.isArray(h.session.data[FRAME_RESULTS_KEY]) && (h.session.data[FRAME_RESULTS_KEY] as FrameEntryView[]).some((item) => item.state === "done"));
+  const stored = h.session.data[FRAME_RESULTS_KEY] as FrameEntryView[];
+  assert.ok(stored.every((item) => !JSON.stringify(item).includes("data:image")), "会话存储里没有截图");
+
+  const running = { ...done, id: "left-over", state: "running", phase: "thinking", createdAt: done.createdAt + 1 };
+  const woken = setup({ session: { [FRAME_RESULTS_KEY]: [...stored, running] } });
+  const listed = await woken.service.recent(TAB);
+  assert.deepEqual(listed.map(({ id, state }) => [id, state]), [["left-over", "failed"], [done.id, "done"]]);
+  assert.equal(listed[0]?.error?.code, "FRAME_INTERRUPTED");
+});
+
+test("清除本机数据以后，之前的解释不再列出，也不写回会话存储", async () => {
+  const h = setup();
+  await h.run();
+  assert.equal((await h.service.recent(TAB)).length, 1);
+  await h.clearGuard.clear("all", () => h.session.remove(FRAME_RESULTS_KEY));
+  assert.deepEqual(await h.service.recent(TAB), []);
+  assert.equal(h.session.data[FRAME_RESULTS_KEY], undefined);
 });

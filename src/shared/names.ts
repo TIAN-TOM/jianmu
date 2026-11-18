@@ -10,6 +10,8 @@ export const CAPABILITY_STORAGE_KEY = "jianmu_model_caps";
 export const RELAX_STORAGE_KEY = "jianmu_relaxed_params";
 // 画面分析的模型能不能看图，探测过的结果。只有打开解释当前画面的构建会写，清除时照样要认得。
 export const IMAGE_PROBE_STORAGE_KEY = "jianmu_image_probe";
+// 解释当前画面的结果（只有文字，没有截图），在会话存储里，同样只有打开这项功能的构建会写。
+export const FRAME_RESULTS_KEY = "jianmu_frame_results";
 export const API_KEY_SESSION_KEY = "jianmu_api_key";
 export const API_KEY_LOCAL_KEY = "jianmu_api_key_local";
 export const SETTINGS_REVISION_KEY = "jianmu_settings_revision";
@@ -48,6 +50,7 @@ export const STORAGE_KEYS = [
   CAPABILITY_STORAGE_KEY,
   RELAX_STORAGE_KEY,
   IMAGE_PROBE_STORAGE_KEY,
+  FRAME_RESULTS_KEY,
   API_KEY_SESSION_KEY,
   API_KEY_LOCAL_KEY,
   SETTINGS_REVISION_KEY,

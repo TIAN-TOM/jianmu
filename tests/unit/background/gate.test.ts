@@ -86,7 +86,7 @@ const realRoutes = (): Readonly<Record<string, AnyRoute>> =>
     batch: { handle: async () => assert.fail(), leave: () => assert.fail(), state: async () => assert.fail() },
     frame: {
       service: { admit: () => assert.fail(), start: () => assert.fail(), recent: () => assert.fail(), settled: async () => assert.fail() },
-      images: { known: async () => assert.fail(), probe: async () => assert.fail(), ensure: async () => assert.fail(), rejected: async () => assert.fail() },
+      images: { known: async () => assert.fail(), probe: async () => assert.fail(), ensure: async () => assert.fail() },
     },
   });
 

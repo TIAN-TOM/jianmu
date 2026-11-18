@@ -1,4 +1,5 @@
-// 画面分析的模型能不能看图：探测记下的结果优先，再看本机的模型能力；说不准时发一张 8×8 的图探一次。
+// 画面分析的模型能不能看图：探测记下的结果优先，再看本机的模型能力；说不准时发一张 64×64 的红色小图探一次，
+// 答得出红色才算能看（有的中转会悄悄丢掉图片照常回话）。
 // 服务以看不了图拒掉记成不能看，连不上、密钥不对这类和看图无关的失败不记；探测途中清除了缓存就不写回去。
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -23,7 +24,7 @@ function setup(options: FakeAiOptions = {}, start = 1_000) {
 
 const httpError = (status: number, message: string): Error => Object.assign(new Error(message), { status });
 
-test("说不准时探一次：带一张 JPEG 小图和一句问题，图在前；能回话就记成能看，下次不再探", async () => {
+test("说不准时探一次：带一张 JPEG 小图和一句问题，图在前；答得出红色就记成能看，下次不再探", async () => {
   const { fake, storage, images } = setup();
   assert.equal(await images.known(GEN), "unknown");
   assert.deepEqual(await images.ensure(GEN), ok({ imageInput: true }));
@@ -66,9 +67,9 @@ test("本机认得出的型号不探：能看就直接放行", async () => {
   assert.equal(fake.calls.length, 0);
 });
 
-test("探测结果按地址加模型记，过期以后重新看；真实请求被拒也记成不能看", async () => {
-  const { images, tick } = setup({ imageInput: true });
-  await images.rejected(GEN);
+test("探测结果按地址加模型记，过期以后重新看", async () => {
+  const { images, tick } = setup({ imageInput: true, replies: { frame: httpError(400, "image input is not supported") } });
+  await images.probe(GEN);
   assert.equal(await images.known(GEN), false);
   assert.equal(await images.known({ ...GEN, model: "other" }), true, "别的模型不受影响");
   tick(PROBE_TTL_MS);
@@ -91,4 +92,13 @@ test("认得出的拒收：4xx 并且说明里提到图片；鉴权、找不到�
   assert.equal(isImageRejection(httpError(400, "max_tokens too large")), false);
   for (const status of [401, 403, 404, 429, 500]) assert.equal(isImageRejection(httpError(status, "image")), false, String(status));
   assert.equal(isImageRejection(new Error("image")), false);
+});
+
+test("回话了但说不出是红色：多半是图被丢了，记成不能看；探测图够大，宽高都超过 10 像素", async () => {
+  const { images } = setup({ replies: { frame: "我看不到任何图片。" } });
+  assert.deepEqual(await images.probe(GEN), ok({ imageInput: false }));
+  const bytes = Buffer.from(PROBE_IMAGE.slice("data:image/jpeg;base64,".length), "base64");
+  // JPEG 的 SOF0 段里记着高和宽。
+  const at = bytes.indexOf(Buffer.from([0xff, 0xc0]));
+  assert.deepEqual([bytes.readUInt16BE(at + 5), bytes.readUInt16BE(at + 7)], [64, 64]);
 });

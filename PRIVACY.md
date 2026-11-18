@@ -168,6 +168,7 @@ IndexedDB 数据库 `jianmu` 里的仓库：
 | `jianmu_model_caps` | 各个模型能做什么 | 本机 | 删 | 删 |
 | `jianmu_relaxed_params` | 模型服务不接受某些请求参数时的记录 | 会话 | 删 | 删 |
 | `jianmu_image_probe` | 画面分析的模型能不能看图（只有带「解释当前画面」的版本会写） | 本机 | 删 | 删 |
+| `jianmu_frame_results` | 最近几次画面解释的文字，没有截图（只有带「解释当前画面」的版本会写） | 会话 | 删 | 删 |
 | `jianmu_watch_sessions` | 每个标签页正在看的视频用哪个模式、播放了多久、卡片展开没有 | 会话 | 留 | 删 |
 | `jianmu_auto_ledger` | 「打开就出结论」试过哪些视频、最近几次的时间、暂停的原因 | 会话 | 留 | 删 |
 | `jianmu_settings_revision` | 设置的修订号，是个随机值，防止过时的设置页写回旧设置 | 本机 | 留 | 换成新值 |
@@ -180,8 +181,8 @@ IndexedDB 数据库 `jianmu` 里的仓库：
 
 - **读什么**：你点播放器上「解释当前画面」的图标，或者侧边栏里的按钮时，读视频当前的一帧画面。只截视频本身，不截整个网页。加密播放（比如番剧、电影）、付费或确认不了是不是付费的视频、正在播广告、视频页不在前台时不截。
 - **发什么**：这一帧画面、这一刻前后几句字幕和视频标题，发给你在设置页「按功能选模型」里给画面分析选的模型。和别的功能一样，要先同意数据说明。
-- **存什么**：截下的画面只用于这一次请求，不存进任何地方，也不进备份。模型回的解释只留在内存里，最多半小时，扩展的后台停下或浏览器关闭就没了。
-- **能不能看图**：简幕要知道画面分析的模型能不能看图。认不出这个模型时，会发一张 8×8 的纯色小图试一次（不是视频画面），把结果记在 `jianmu_image_probe` 里，清除缓存时删掉。
+- **存什么**：截下的画面只用于这一次请求，不存进任何地方，也不进备份。模型回的解释只有文字，记在扩展的会话存储 `jianmu_frame_results` 里（只在内存，不写磁盘），最多半小时，浏览器关闭、清除缓存或清除全部数据时删掉。
+- **能不能看图**：简幕要知道画面分析的模型能不能看图。认不出这个模型时，会发一张 64×64 的红色小图问它是什么颜色（不是视频画面），答得出才算能看，把结果记在 `jianmu_image_probe` 里，清除缓存时删掉。
 
 ### 待定
 
@@ -356,6 +357,7 @@ Keys in extension storage, none of which go into backups. "Local" is written to 
 | `jianmu_model_caps` | What each model can do | Local | Deleted | Deleted |
 | `jianmu_relaxed_params` | A note of request parameters a model service would not accept | Session | Deleted | Deleted |
 | `jianmu_image_probe` | Whether the frame-analysis model accepts images (only versions with 解释当前画面 write it) | Local | Deleted | Deleted |
+| `jianmu_frame_results` | The text of recent frame explanations, without the frames (only versions with 解释当前画面 write it) | Session | Deleted | Deleted |
 | `jianmu_watch_sessions` | For each tab, the mode of the video being watched, how long it has played and whether the card is expanded | Session | Kept | Deleted |
 | `jianmu_auto_ledger` | Which videos 打开就出结论 has tried, the times of recent attempts and why it is paused | Session | Kept | Deleted |
 | `jianmu_settings_revision` | A random revision number for settings, so an out-of-date Settings page cannot write old settings back | Local | Kept | Replaced with a new value |
@@ -368,8 +370,8 @@ This feature is still being tested in the developer's own daily use and is not i
 
 - **What it reads**: when you click the 解释当前画面 icon on the player, or the button in the side panel, it reads the current frame of the video. It captures only the video itself, never the whole page. It does not capture encrypted playback (anime series and films, for example), paid videos or videos whose payment status cannot be confirmed, ads, or a video page that is not in the foreground.
 - **What it sends**: that frame, a few subtitle lines either side of that moment and the video title, sent to the model you chose for 画面分析 (frame analysis) under 按功能选模型 in Settings. As with every other feature, you need to agree to the data notice first.
-- **What it keeps**: the captured frame is used for that one request only. It is not stored anywhere and never goes into backups. The model's explanation is held in memory for at most half an hour and is gone once the extension's background stops or the browser closes.
-- **Whether the model accepts images**: Jianmu needs to know whether the frame-analysis model can read images. When it does not recognise the model, it sends one 8×8 single-colour image (not a frame from the video) to find out, and records the answer in `jianmu_image_probe`, which clearing the cache deletes.
+- **What it keeps**: the captured frame is used for that one request only. It is not stored anywhere and never goes into backups. The model's explanation is text only and is kept in the extension's session storage, `jianmu_frame_results` (memory only, never written to disk), for at most half an hour. It is deleted when the browser closes or when you clear the cache or all data.
+- **Whether the model accepts images**: Jianmu needs to know whether the frame-analysis model can read images. When it does not recognise the model, it sends one 64×64 red image (not a frame from the video) and asks what colour it is. Only a correct answer counts. The result is recorded in `jianmu_image_probe`, which clearing the cache deletes.
 
 ### Still to be settled
 
