@@ -52,6 +52,9 @@ const KEEP_PER_TAB = 10;
 export const KEEP_MS = 1_800_000; // 半小时
 const TRUNCATED_NOTE = "…（模型输出被截断，解释可能不完整。）";
 
+// 读字幕时这几种失败只说明没有可用的字幕，照样解释；别的（限流、平台拒绝、没登录、读出错）都停下。
+const CONTEXT_OPTIONAL: ReadonlySet<ErrorCode> = new Set<ErrorCode>(["NO_CAPTIONS", "EMPTY_CAPTION_FILE", "SUBTITLE_TRACK_MISSING", "SUBTITLE_MISMATCH"]);
+
 // 内容脚本的拒绝换成给用户看的码。
 const REFUSAL_CODES: Readonly<Record<FrameRefusal, ErrorCode>> = {
   NO_VIDEO: "FRAME_NO_VIDEO",
@@ -212,20 +215,22 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
     update(id, { state: "failed", phase: "finished", error: failure.detail === undefined ? { code: failure.code } : { code: failure.code, detail: failure.detail } });
 
   // 截帧之前每次都向平台重新读一次视频信息：确认已登录、不是付费内容（付费、确认不了的不截），不看缓存，
-  // 导入了字幕文件也一样。读不成就按那个原因拒，不截。字幕只当上下文：读不到照样解释，只是不带字幕。
+  // 导入了字幕文件也一样。读不成就按那个原因拒，不截。字幕只当上下文：这个视频本来就没有字幕、字幕是空的、
+  // 对不上这个视频时照样解释，只是不带字幕；被平台限流、拒绝或者读出错就停下，不截、不发，也不接着读。
   async function material(video: VideoKey, tabId: number): Promise<Result<Material>> {
     const ref = parseVideoKey(video);
     if (!ref) return fail("FRAME_VIDEO_CHANGED");
     const verified = await deps.transcript.verify(ref);
     if (!verified.ok) return verified;
-    let cues: Material["cues"] = [];
+    let reply: Awaited<ReturnType<FrameExplainDeps["transcript"]["get"]>>;
     try {
-      const reply = await deps.transcript.get(ref, { mode: "full", tabId });
-      if (reply.ok) cues = reply.value.transcript.cues;
+      reply = await deps.transcript.get(ref, { mode: "full", tabId });
     } catch (error) {
-      deps.log.warn("读字幕失败，解释画面不带字幕", errorLabel(error));
+      deps.log.warn("读字幕出错，不解释画面", errorLabel(error));
+      return fail("NETWORK");
     }
-    return ok({ videoTitle: verified.value.title || "未知", cues });
+    if (!reply.ok && !CONTEXT_OPTIONAL.has(reply.code)) return reply.detail === undefined ? fail(reply.code) : fail(reply.code, reply.detail);
+    return ok({ videoTitle: verified.value.title || "未知", cues: reply.ok ? reply.value.transcript.cues : [] });
   }
 
   async function explain(gen: FrozenGen, video: VideoKey, capture: FrameCapture, found: Material, id: string): Promise<Result<{ explanation: string; truncated?: true }>> {
