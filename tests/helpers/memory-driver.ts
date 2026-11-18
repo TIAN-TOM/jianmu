@@ -39,6 +39,16 @@ export function createMemoryDriver<T>(storeName: StoreName, initialRecords: read
         .sort((left, right) => compareKeys(left.indexKey, right.indexKey) || compareKeys(left.primary, right.primary))
         .map(({ record }) => structuredClone(record));
     },
+    async keysByIndex(index) {
+      const path = indexes[index];
+      if (path === undefined) throw new Error(`没有名为 ${index} 的索引`);
+      const hits: { indexKey: IdbKey; primary: IdbKey }[] = [];
+      for (const [primary, record] of rows) {
+        const indexKey = readKey(record, path);
+        if (indexKey !== undefined) hits.push({ indexKey, primary });
+      }
+      return hits.sort((left, right) => compareKeys(left.indexKey, right.indexKey) || compareKeys(left.primary, right.primary)).map(({ primary }) => primary);
+    },
     async clear() {
       rows.clear();
     },
