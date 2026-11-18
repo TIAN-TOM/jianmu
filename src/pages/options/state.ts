@@ -426,27 +426,28 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
     },
     async importBackup(readFile) {
       if (busy.peek()) return;
-      let text: string;
-      try {
-        text = await readFile();
-      } catch {
-        dataStatus.value = { text: "读不出这个文件：文件可能太大，或者已经被移走了。", tone: "error" };
-        return;
-      }
-      let payload: unknown;
-      try {
-        payload = JSON.parse(text);
-      } catch {
-        dataStatus.value = { text: "读不懂这个文件，请选简幕导出的 JSON 备份。", tone: "error" };
-        return;
-      }
-      const read = readBackup(payload);
-      if (!read.ok) {
-        dataStatus.value = { text: `恢复失败：${failureText(read)}`, tone: "error" };
-        return;
-      }
+      // 读文件之前就占住：大文件要读一会儿，这期间不能再点导出、清除或另一次导入。
       busy.value = "import";
       try {
+        let text: string;
+        try {
+          text = await readFile();
+        } catch {
+          dataStatus.value = { text: "读不出这个文件：文件可能太大，或者已经被移走了。", tone: "error" };
+          return;
+        }
+        let payload: unknown;
+        try {
+          payload = JSON.parse(text);
+        } catch {
+          dataStatus.value = { text: "读不懂这个文件，请选简幕导出的 JSON 备份。", tone: "error" };
+          return;
+        }
+        const read = readBackup(payload);
+        if (!read.ok) {
+          dataStatus.value = { text: `恢复失败：${failureText(read)}`, tone: "error" };
+          return;
+        }
         const reply = await sendBackup(api, read.value);
         dataStatus.value = reply.ok ? { text: importSummary(reply.value), tone: "ok" } : { text: backupFailureText(reply, "import"), tone: "error" };
       } finally {

@@ -163,3 +163,38 @@ test("推理强度：连着改两次，先问的回复晚到也不盖掉后问�
   await nextTurn();
   assert.equal(w.state.efforts.value?.find((item) => item.feature === "qa")?.requested, "high");
 });
+
+test("恢复备份：读文件的工夫就占着，这期间点导出、清除、另一次恢复都不发；读不出、读不懂、导完都放开", async () => {
+  const sent: string[] = [];
+  const connected: string[] = [];
+  const state = createOptionsState({
+    store: { load: async () => assert.fail(), save: async () => assert.fail(), update: async () => assert.fail(), setDataConsent: async () => assert.fail() },
+    api: {
+      send: (async (type: string) => (sent.push(type), { ok: true, value: {} })) as never,
+      connect: ((name: string) => (connected.push(name), assert.fail("读文件时不该连后台"))) as never,
+    },
+    requestHost: async () => true,
+    download: () => assert.fail("读文件时不该导出"),
+  });
+  let finishReading!: (text: string) => void;
+  const reading = new Promise<string>((resolve) => (finishReading = resolve));
+  const importing = state.importBackup(() => reading);
+  assert.equal(state.busy.value, "import", "读文件之前就占住");
+  await state.exportBackup();
+  await state.clearData("all");
+  let readAgain = false;
+  await state.importBackup(async () => ((readAgain = true), "{}"));
+  assert.deepEqual([sent, connected, readAgain], [[], [], false], "读文件期间别的操作都不发");
+  finishReading("不是 JSON");
+  await importing;
+  assert.equal(state.busy.value, null, "读不懂也放开");
+  assert.match(state.dataStatus.value?.text ?? "", /读不懂这个文件/);
+
+  await state.importBackup(async () => Promise.reject(new Error("文件被移走了")));
+  assert.equal(state.busy.value, null, "读不出也放开");
+  assert.match(state.dataStatus.value?.text ?? "", /读不出这个文件/);
+
+  await state.importBackup(async () => JSON.stringify({ hello: 1 }));
+  assert.equal(state.busy.value, null, "认不出格式也放开");
+  assert.match(state.dataStatus.value?.text ?? "", /^恢复失败/);
+});
