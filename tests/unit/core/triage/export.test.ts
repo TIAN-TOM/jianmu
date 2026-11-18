@@ -59,7 +59,7 @@ test("时长、观看进度和官方总结状态的文字", () => {
   assert.equal(progressText(item()), "还没看");
 
   assert.equal(officialStatusText(undefined), "还没取官方总结");
-  assert.equal(officialStatusText({ status: "queued" }), "B站还在生成总结，过几分钟再点开始");
+  assert.equal(officialStatusText({ status: "queued" }), "B站现在没有这个视频的官方总结");
   assert.equal(officialStatusText({ status: "failed", reason: "TIMEOUT" }), "请求失败，再点开始会重试（TIMEOUT）");
   assert.equal(officialStatusText({ status: "ok", summary: "" }), "没有官方总结");
   assert.equal(officialStatusText({ status: "weird" }), "请求失败，再点开始会重试");

@@ -14,7 +14,7 @@ export interface MarkdownInput {
 export const OFFICIAL_STATUS_TEXT = Object.freeze({
   ok: "有官方总结",
   none: "没有官方总结",
-  queued: "B站还在生成总结，过几分钟再点开始",
+  queued: "B站现在没有这个视频的官方总结",
   unsupported: "B站不给这个视频做总结",
   "need-login": "要先在浏览器里登录 B站",
   failed: "请求失败，再点开始会重试",

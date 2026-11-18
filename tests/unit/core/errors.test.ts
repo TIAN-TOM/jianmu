@@ -111,12 +111,18 @@ test("下一步里说的页面确实有", () => {
   const PLACES: Readonly<Record<string, string>> = {
     设置页: "src/pages/options/app.tsx",
     侧边栏: "src/pages/sidepanel/app.tsx",
-    字幕页签: "src/pages/sidepanel/transcript-tab.tsx",
+    播放页卡片: "src/pages/card/card.tsx",
   };
   for (const { label, copy } of allCopies()) {
     for (const [place, file] of Object.entries(PLACES)) {
       if ((copy.next ?? "").includes(place)) assert.ok(existsSync(join(ROOT, file)), `${label} 提到${place}，${file} 不在`);
     }
+  }
+});
+
+test("不提已经没有的页签：侧边栏现在分速览和精读两种模式，没有字幕、概览、笔记、问答页签", () => {
+  for (const { label, copy } of allCopies()) {
+    for (const part of partsOf(copy)) assert.doesNotMatch(part, /页签/, `${label}：${part}`);
   }
 });
 
