@@ -1,8 +1,8 @@
 // 设置页「打开就出结论」一节：开关和时长门槛。打开要先同意含自动发送的数据说明，没同意时就地列出说明，
 // 「同意并打开」一步做完；关掉、改时长不用同意。
 import { useId, useState } from "preact/hooks";
-import { DATA_CONSENT_TABLE, noticeStatus } from "../../core/consent.ts";
 import { AUTO_OVERVIEW_MINUTES } from "../../shared/settings-schema.ts";
+import { dataConsentStatus } from "./consent-status.ts";
 import { Button } from "../shared/ui/button.tsx";
 import { ConsentLines } from "./ai-section.tsx";
 import { StatusLine } from "./controls.tsx";
@@ -13,7 +13,7 @@ export function AutoSection({ state }: { readonly state: OptionsState }) {
   const [asking, setAsking] = useState(false);
   const id = useId();
   if (!saved) return null;
-  const consent = noticeStatus(DATA_CONSENT_TABLE, { version: saved.dataConsentVersion, fingerprint: saved.dataConsentFingerprint });
+  const consent = dataConsentStatus(saved);
   const showAsk = asking && consent.state === "needed" && !saved.autoOverview;
   return (
     <section class="card" id="auto-overview" aria-labelledby={`${id}-title`}>

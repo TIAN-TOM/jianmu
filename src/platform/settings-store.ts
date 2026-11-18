@@ -21,6 +21,7 @@ import {
   type NormalizedSettings,
   type SettingsInput,
 } from "../shared/settings-schema.ts";
+import { refreshedConsent } from "../shared/settings-carry.ts";
 import { clearTargets } from "../shared/storage-plan.ts";
 import type { Locks } from "./locks.ts";
 import { readItem, restrictToTrustedContexts, type ExtensionStorage } from "./storage.ts";
@@ -306,7 +307,9 @@ export function createSettingsStore({ storage, locks }: SettingsStoreDeps): Sett
     confirmActivation: () =>
       exclusive(async () => {
         const current = await read();
-        return activationStatus(await write({ ...compose(current), ...ACTIVATION_CONFIRMED }, current));
+        // 开发者本人的日用包：侧边栏「说明更新了」看过以后也走这里，同意过的数据说明一起记成当前这一版。
+        const consent = FEATURE_KEEP_CONSENT ? refreshedConsent(compose(current)) : {};
+        return activationStatus(await write({ ...compose(current), ...ACTIVATION_CONFIRMED, ...consent }, current));
       }),
     clearAll: () =>
       exclusive(async () => {

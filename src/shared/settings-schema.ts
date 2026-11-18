@@ -28,6 +28,7 @@ import {
   type ActivationKind,
   type NoticeStatus,
 } from "../core/consent.ts";
+import { carryActivation } from "../core/consent-carry.ts";
 import { FRAME_SLOT } from "./frame-slot.ts";
 
 export { CUSTOM_PRESET_ID };
@@ -482,10 +483,10 @@ export function validate(settings: unknown): SettingsCheck {
   return { ok: errors.length === 0, errors, settings: normalized };
 }
 
-/** 启用确认还算不算数：版本或指纹和当前不一致就按未确认处理，不算时给出这次要显示的说明。 */
+/** 启用确认还算不算数：版本或指纹和当前不一致就按未确认处理。开发者本人的日用包里确认过的照旧算数（core/consent-carry.ts）。 */
 export function activationStatus(settings: unknown): NoticeStatus<ActivationKind> {
-  const { activationVersion, activationFingerprint } = normalize(settings);
-  return noticeStatus(ACTIVATION_TABLE, { version: activationVersion, fingerprint: activationFingerprint });
+  const stored = normalize(settings);
+  return FEATURE_KEEP_CONSENT ? carryActivation(stored) : noticeStatus(ACTIVATION_TABLE, { version: stored.activationVersion, fingerprint: stored.activationFingerprint });
 }
 
 /** 传输层用的规则，后台建传输层时传这一份。 */

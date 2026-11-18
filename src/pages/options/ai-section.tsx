@@ -11,6 +11,7 @@ import {
   EFFORTS,
   type AnalysisChunkMode,
 } from "../../shared/settings-schema.ts";
+import { dataConsentStatus } from "./consent-status.ts";
 import { Button } from "../shared/ui/button.tsx";
 import { Confirmable, StatusLine } from "./controls.tsx";
 import { ImageProbeButton } from "./image-probe-button.tsx";
@@ -63,7 +64,7 @@ export function ConsentLines({ items }: { readonly items: readonly NoticeItem<Da
 function ConsentBox({ state }: { readonly state: OptionsState }) {
   const saved = state.saved.value;
   if (!saved) return null;
-  const status = noticeStatus(DATA_CONSENT_TABLE, { version: saved.dataConsentVersion, fingerprint: saved.dataConsentFingerprint });
+  const status = dataConsentStatus(saved);
   const given = status.state === "current";
   return (
     <div class="consent" id="dataConsentBox">

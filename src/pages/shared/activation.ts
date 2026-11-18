@@ -1,13 +1,14 @@
 // 首次启用状态：问一次后台，确认启用，之后跟着启用广播和清除全部数据变。侧边栏、设置页和粗筛页共用。
 // 还没问到、正在重问、问失败都算没启用：页面只在 enabled 为真时才去读视频、发起工作。
 import { computed, signal, type ReadonlySignal } from "@preact/signals";
-import type { ActivationKind, NoticeItem, NoticeStatus } from "../../core/consent.ts";
+import type { ActivationKind, CarriedItems, NoticeItem, NoticeStatus } from "../../core/consent.ts";
 import type { Failure } from "../../core/errors.ts";
 import type { PageApi } from "./api.ts";
 
 export type ActivationView =
   | { readonly state: "loading" }
-  | { readonly state: "current" }
+  /** carried 只在开发者本人的日用包里有：照旧沿用，说明多出来、还没看过的条目。 */
+  | { readonly state: "current"; readonly carried?: CarriedItems }
   | { readonly state: "needed"; readonly updated: boolean; readonly items: readonly NoticeItem<ActivationKind>[] }
   | { readonly state: "failed"; readonly failure: Failure };
 
@@ -37,7 +38,8 @@ const LOADING: ActivationView = { state: "loading" };
 const CURRENT: ActivationView = { state: "current" };
 
 function viewOf(status: NoticeStatus<ActivationKind>): ActivationView {
-  return status.state === "current" ? CURRENT : { state: "needed", updated: status.updated, items: status.items };
+  if (status.state === "needed") return { state: "needed", updated: status.updated, items: status.items };
+  return status.carried ? { state: "current", carried: status.carried } : CURRENT;
 }
 
 export function createActivation({ api }: ActivationDeps): Activation {
