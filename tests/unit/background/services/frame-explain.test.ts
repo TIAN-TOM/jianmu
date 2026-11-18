@@ -35,7 +35,7 @@ interface Options {
   readonly ai?: FakeAiOptions;
   readonly image?: Result<{ readonly imageInput: boolean }>;
   readonly reply?: unknown;
-  readonly transcript?: "no-captions" | "paid" | "signed-out" | "throws";
+  readonly transcript?: "no-captions" | "paid" | "signed-out" | "throws" | "rate-limited";
   /** 复核探测的结果。 */
   readonly probe?: Result<{ readonly imageInput: boolean }>;
   readonly session?: Record<string, unknown>;
@@ -79,6 +79,7 @@ function setup(options: Options = {}) {
         assert.equal(mode, "full");
         if (options.transcript === "throws") throw new Error("读不到");
         if (options.transcript === "no-captions") return fail("NO_CAPTIONS");
+        if (options.transcript === "rate-limited") return fail("RATE_LIMITED");
         return ok(transcriptView(VIDEO, [cue(10, "很早的一句"), cue(70, "先看受力"), cue(80, "牛顿第二定律"), cue(90, "加速度和力成正比"), cue(200, "很晚的一句")], { title: "缓存里的标题" }));
       },
     },
@@ -202,12 +203,20 @@ test("真实请求像是看不了图被拒：拿探测图复核，复核也说�
   assert.notEqual(entry.error?.code, "AI_IMAGE_UNSUPPORTED");
 });
 
-test("没有字幕、读字幕出错时照样解释，字幕写「无」，标题用刚核对的视频信息", async () => {
-  for (const transcript of ["no-captions", "throws"] as const) {
+test("这个视频本来没有字幕时照样解释，字幕写「无」，标题用刚核对的视频信息", async () => {
+  const h = setup({ transcript: "no-captions" });
+  assert.equal((await h.run()).state, "done");
+  const parts = h.fake.calls[0]?.request.messages?.[1]?.content as readonly { readonly text?: string }[];
+  assert.match(parts[1]?.text ?? "", /视频：没有字幕的视频[\s\S]*字幕：\n无$/);
+});
+
+test("读字幕被限流或者读出错：停下，不截、不发", async () => {
+  for (const [transcript, code] of [["rate-limited", "RATE_LIMITED"], ["throws", "NETWORK"]] as const) {
     const h = setup({ transcript });
-    assert.equal((await h.run()).state, "done", transcript);
-    const parts = h.fake.calls[0]?.request.messages?.[1]?.content as readonly { readonly text?: string }[];
-    assert.match(parts[1]?.text ?? "", /视频：(没有字幕的视频|力学入门)[\s\S]*字幕：\n无$/);
+    const entry = await h.run();
+    assert.deepEqual([entry.state, entry.error?.code], ["failed", code], transcript);
+    assert.deepEqual(h.asked, [], "没向页面要画面");
+    assert.equal(h.fake.calls.length, 0);
   }
 });
 
