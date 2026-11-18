@@ -72,24 +72,29 @@ export function createSelfUpdate(deps: SelfUpdateDeps): SelfUpdate {
       deps.log.warn("重新加载了几次，包里的文件还是对不上，先不再重载；文件换全以后到扩展管理页手动刷新");
       return;
     }
+    // 读记录、写记录都要等一下，这期间可能开始了新的工作：写之前、重载之前各再看一次，看完到重载之间不再等。
+    // 写完记录才发现忙的，这一次照样算进次数，等忙完再重载。
+    if (deps.busy()) return later();
     await deps.saveRecord(record);
+    if (deps.busy()) return later();
     done = true;
     deps.reload();
+  }
+
+  /** 有工作在跑：隔一会儿再看，做完了再重载。等的时候后台本来就醒着。 */
+  function later(): void {
+    if (waiting) return;
+    waiting = true;
+    deps.setTimeout(() => {
+      waiting = false;
+      void settle();
+    }, BUSY_RECHECK_MS);
   }
 
   async function settle(): Promise<void> {
     const target = await changed();
     if (!target || done) return;
-    if (deps.busy()) {
-      // 有工作在跑：隔一会儿再看，做完了再重载。等的时候后台本来就醒着。
-      if (waiting) return;
-      waiting = true;
-      deps.setTimeout(() => {
-        waiting = false;
-        void settle();
-      }, BUSY_RECHECK_MS);
-      return;
-    }
+    if (deps.busy()) return later();
     await reloadFor(target);
   }
 

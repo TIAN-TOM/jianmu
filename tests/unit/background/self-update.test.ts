@@ -6,7 +6,7 @@ import { BUSY_RECHECK_MS, CHECK_INTERVAL_MS, createSelfUpdate, RELOAD_ATTEMPTS, 
 import { manualTimers } from "../../helpers/manual-timers.ts";
 import { until } from "../../helpers/wait-until.ts";
 
-function setup(options: { disk?: string | null | (() => Promise<string | null>); busy?: () => boolean; record?: ReloadRecord | null } = {}) {
+function setup(options: { disk?: string | null | (() => Promise<string | null>); busy?: () => boolean; record?: ReloadRecord | null; onLoadRecord?: () => void; onSaveRecord?: () => void } = {}) {
   const timers = manualTimers(1_000_000);
   let disk = options.disk === undefined ? "new-build" : options.disk;
   let record = options.record ?? null;
@@ -21,8 +21,9 @@ function setup(options: { disk?: string | null | (() => Promise<string | null>);
     },
     busy: options.busy ?? (() => false),
     reload: () => void reloads.push(timers.now()),
-    loadRecord: async () => record,
+    loadRecord: async () => (options.onLoadRecord?.(), record),
     saveRecord: async (next) => {
+      options.onSaveRecord?.();
       record = next;
     },
     now: timers.now,
@@ -81,11 +82,11 @@ test("有工作在跑：先不重载，隔一会儿再看，做完了才重载",
   await h.update.check();
   assert.deepEqual(h.reloads, []);
   h.timers.advance(BUSY_RECHECK_MS);
-  await until(() => h.reads() === 2);
+  assert.ok(await until(() => h.reads() === 2));
   assert.deepEqual(h.reloads, [], "还在忙");
   busy = false;
   h.timers.advance(BUSY_RECHECK_MS);
-  await until(() => h.reloads.length === 1);
+  assert.ok(await until(() => h.reloads.length === 1));
 });
 
 test("等的时候文件又换回原来的：不重载", async () => {
@@ -95,7 +96,7 @@ test("等的时候文件又换回原来的：不重载", async () => {
   busy = false;
   h.setDisk("old-build");
   h.timers.advance(BUSY_RECHECK_MS);
-  await until(() => h.reads() === 2);
+  assert.ok(await until(() => h.reads() === 2));
   assert.deepEqual(h.reloads, []);
 });
 
@@ -119,4 +120,19 @@ test("同一个新标识重载了几次还对不上：先停下，不再重载�
   const later = setup({ record: { target: "new-build", count: RELOAD_ATTEMPTS, since: now - RELOAD_WINDOW_MS - 1 } });
   await later.update.check();
   assert.equal(later.reloads.length, 1);
+});
+
+test("读写重载记录的工夫里开始了新的工作：先不重载，做完了再重载", async () => {
+  for (const when of ["load", "save"] as const) {
+    let busy = false;
+    let started = false;
+    // 只在第一次读写记录时开始一项工作。
+    const start = () => void (started || ((started = true), (busy = true)));
+    const h = setup({ busy: () => busy, ...(when === "load" ? { onLoadRecord: start } : { onSaveRecord: start }) });
+    await h.update.check();
+    assert.deepEqual(h.reloads, [], when);
+    busy = false;
+    h.timers.advance(BUSY_RECHECK_MS);
+    assert.ok(await until(() => h.reloads.length === 1));
+  }
 });
