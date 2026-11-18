@@ -141,7 +141,7 @@ test("地址规则表里的 B 站规则就是这份解析", () => {
   assert.equal(siteRules.bilibili, bilibiliRules);
   assert.equal(bilibiliRules.platform, "bilibili");
   assert.equal(bilibiliRules.optionalPermission, false);
-  assert.equal(siteRules.youtube, undefined);
+  assert.notEqual(siteRules.youtube, bilibiliRules);
 });
 
 test("列表页的视频号参数只在列表页认", () => {

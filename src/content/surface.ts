@@ -15,7 +15,8 @@ export interface SurfaceDeps extends SurfaceEnv {
   readonly document: Document;
   readonly page: SitePage;
   readonly runtime: ContentRuntime;
-  readonly cardPath: string;
+  /** 播放页卡片的页面路径；不放卡片的站不给。 */
+  readonly cardPath?: string;
   readonly miniPlayer: Omit<MiniPlayerDeps, "document" | "overlay">;
   readonly shadowRootOf?: (element: Element) => ShadowRoot | null;
 }
@@ -95,7 +96,7 @@ export function createSurface({ document, page, runtime, player, frame, retire, 
   }
 
   function syncCard(): void {
-    if (!cardEnabled || retired || !player.currentKey()) {
+    if (!cardPath || !cardEnabled || retired || !player.currentKey()) {
       card?.remove();
       card = null;
       return;

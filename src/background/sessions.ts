@@ -5,7 +5,7 @@ import type { ClearGuard } from "../core/clear-guard.ts";
 import { fail, ok, type Result } from "../core/errors.ts";
 import { decideMode, isMode, openingMode } from "../core/mode/decide.ts";
 import type { CardOverride, Mode, ModeSource, SessionView } from "../core/mode/types.ts";
-import { channelKey, parseVideoKey, type ChannelRef, type VideoKey } from "../core/video-ref.ts";
+import { channelKey, parseVideoKey, type ChannelRef, type Platform, type VideoKey } from "../core/video-ref.ts";
 import type { StorageArea } from "../platform/storage.ts";
 import type { Broadcast } from "../shared/messages.ts";
 import { WATCH_SESSIONS_KEY } from "../shared/names.ts";
@@ -69,6 +69,8 @@ export interface Sessions {
   readonly setMode: (tabId: number, video: VideoKey, change: ModeChange) => Promise<Result<ModeOutcome>>;
   readonly setCardOverride: (tabId: number, video: VideoKey, value: CardOverride) => Promise<Result<SessionView>>;
   readonly onTabRemoved: (tabId: number) => Promise<void>;
+  /** 撤了这个站的授权：它的观看会话都删掉，侧边栏不再按旧会话认出那些标签页上的视频。 */
+  readonly forgetPlatform: (platform: Platform) => Promise<void>;
 }
 
 const MODE_SOURCES: ReadonlySet<unknown> = new Set<ModeSource>(["manual", "channel", "short", "default", "auto"]);
@@ -275,6 +277,16 @@ export function createSessions({ storage, channels, guard, now, broadcast, log }
         return ok(base.cardOverride === value ? base : { ...base, cardOverride: value });
       });
       return result.ok ? ok(sessionView(result.value)) : result;
+    },
+
+    async forgetPlatform(platform) {
+      const prefix = `${platform}:`;
+      await gate(guard.epoch(), async () => {
+        const table = await load();
+        const kept = Object.entries(table).filter(([, session]) => !session.video.startsWith(prefix));
+        if (kept.length === Object.keys(table).length) return;
+        await storage.set({ [WATCH_SESSIONS_KEY]: Object.fromEntries(kept) });
+      });
     },
 
     async onTabRemoved(tabId) {

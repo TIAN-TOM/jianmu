@@ -87,7 +87,9 @@ test("设置页：确认启用之前只有启用说明和资料一节，确认�
   assert.deepEqual(before.buttons, ["导出备份", "清除缓存", "清除全部数据"], "确认前不能恢复备份");
   await enable(page);
   const after = await page.evaluate(`[...document.querySelectorAll(".card > h2")].map((node) => node.textContent)`);
-  assert.deepEqual(after, ["外观", "播放页", "AI 服务", "打开就出结论", "速览和精读", "稍后再看粗筛", "学习资料"]);
+  assert.deepEqual(after, ["外观", "播放页", "YouTube", "AI 服务", "打开就出结论", "速览和精读", "稍后再看粗筛", "学习资料"]);
+  // 测试构建里 YouTube 开关打开；没给过授权，这一节只有启用按钮。
+  await page.waitFor("YouTube 的启用按钮", `[...document.querySelectorAll("#youtube button")].map((node) => node.textContent.trim()).join() === "在 YouTube 上启用"`);
   assert.equal(await page.overflowsX(), false);
 });
 

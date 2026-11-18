@@ -18,7 +18,7 @@ import {
   type FeatureName,
   type FeatureSet,
 } from "../src/shared/features.ts";
-import { FRAME_EXPLAIN_PROBE, YOUTUBE_OPEN_PANEL_PROBE, YOUTUBE_SWITCH_LANG_PROBE } from "./fixtures/build-flags/gated.ts";
+import { FRAME_EXPLAIN_PROBE, YOUTUBE_OPEN_PANEL_PROBE, YOUTUBE_PROBE, YOUTUBE_SWITCH_LANG_PROBE } from "./fixtures/build-flags/gated.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BUILD = join(ROOT, "build");
@@ -37,7 +37,10 @@ before(() => {
 });
 
 // 后台的全部顶层监听，都在入口一次注册。标签页激活、更新和窗口焦点给打开就出结论用，开关关着时醒来只读一次设置就返回。
+// 授权增减给要另外授权的站（YouTube）注册内容脚本用，构建开关关着时醒来什么都不做。
 const TOP_LEVEL_LISTENERS = [
+  "permissions.onAdded",
+  "permissions.onRemoved",
   "runtime.onConnect",
   "runtime.onInstalled",
   "runtime.onMessage",
@@ -58,6 +61,7 @@ test("后台包在替身环境里求值不抛错，监听都注册上", () => {
     tabs: Object.fromEntries(["onActivated", "onRemoved", "onUpdated"].map((name) => [name, event(`tabs.${name}`)])),
     windows: { onFocusChanged: event("windows.onFocusChanged") },
     storage: { onChanged: event("storage.onChanged") },
+    permissions: { onAdded: event("permissions.onAdded"), onRemoved: event("permissions.onRemoved") },
   };
   vm.runInNewContext(readBuild("background.js"), { chrome, console, TextEncoder, AbortController }, { filename: "background.js" });
   assert.deepEqual(registered.sort(), TOP_LEVEL_LISTENERS.map((name) => `${name}:function`));
@@ -280,6 +284,7 @@ test("发行构建：开关记录和发行那份一样，包里没有留下没�
 // 用探针核对裁剪本身，和挂在开关下的产品代码无关：选项和真实的后台包一样，只换入口。
 const PROBES: Readonly<Record<FeatureName, string>> = {
   frameExplain: FRAME_EXPLAIN_PROBE,
+  youtube: YOUTUBE_PROBE,
   youtubeOpenPanel: YOUTUBE_OPEN_PANEL_PROBE,
   youtubeSwitchLang: YOUTUBE_SWITCH_LANG_PROBE,
 };
@@ -340,6 +345,36 @@ test("解释当前画面首发带上：发行构建的包里有截帧代码、�
       assert.ok(release.get(file)?.includes(marker), `发行构建的 ${file} 里没有 ${marker}`);
       assert.ok(readBuild(file.replace(/^build\//, "")).includes(marker), `build/ 里的 ${file} 没有 ${marker}`);
       assert.ok(!off.get(file)?.includes(marker), `关掉开关的 ${file} 里有 ${marker}`);
+    }
+  }
+});
+
+// YouTube 挂在开关下的内容：地址规则、内容脚本的注册、侧边栏和设置页的启用按钮、内容脚本本身。
+const YOUTUBE_MARKERS: Readonly<Record<string, readonly string[]>> = {
+  "build/background.js": ["www.youtube.com", "jianmu-youtube", "content/youtube.js", "src/background/site-switch"],
+  "build/pages/sidepanel.js": ["www.youtube.com", "在 YouTube 上启用", "src/pages/shared/youtube-access"],
+  "build/pages/options.js": ["www.youtube.com", "在 YouTube 上启用", "src/pages/options/youtube-section"],
+};
+
+test("YouTube：发行构建的包里没有地址规则、脚本注册和启用按钮，也不构建它的内容脚本；打开开关的构建里都有", async () => {
+  const pick = async (features: FeatureSet) => {
+    const options = bundleOptions(features);
+    const built = await Promise.all(
+      options
+        .filter((option) => typeof option.outfile === "string" && (option.outfile in YOUTUBE_MARKERS || option.outfile === "build/content/youtube.js"))
+        .map(async (option) => [String(option.outfile), (await build({ ...option, write: false })).outputFiles.map((output) => output.text).join("\n")] as const),
+    );
+    return new Map(built);
+  };
+  const release = await pick(RELEASE_FEATURES);
+  const youtube = await pick({ ...RELEASE_FEATURES, youtube: true });
+  assert.ok(!release.has("build/content/youtube.js"), "发行构建不该构建 YouTube 的内容脚本");
+  assert.ok(youtube.has("build/content/youtube.js"), "打开开关的构建要有 YouTube 的内容脚本");
+  for (const [file, markers] of Object.entries(YOUTUBE_MARKERS)) {
+    for (const marker of markers) {
+      assert.ok(!release.get(file)?.includes(marker), `发行构建的 ${file} 里有 ${marker}`);
+      assert.ok(!readBuild(file.replace(/^build\//, "")).includes(marker), `build/ 里的 ${file} 有 ${marker}`);
+      assert.ok(youtube.get(file)?.includes(marker), `打开开关的 ${file} 里没有 ${marker}`);
     }
   }
 });

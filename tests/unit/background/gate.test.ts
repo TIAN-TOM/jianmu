@@ -67,6 +67,7 @@ const realRoutes = (): Readonly<Record<string, AnyRoute>> =>
       setMode: async () => assert.fail(),
       setCardOverride: async () => assert.fail(),
       onTabRemoved: async () => assert.fail(),
+      forgetPlatform: async () => assert.fail(),
     },
     channels: { clear: async () => assert.fail() },
     playbackLimits: { admitMilestone: () => assert.fail() },

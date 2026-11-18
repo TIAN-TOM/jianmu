@@ -14,6 +14,7 @@ import type { PageApi } from "../shared/api.ts";
 import { AiSection } from "./ai-section.tsx";
 import { AutoSection } from "./auto-section.tsx";
 import { ModeSection } from "./mode-section.tsx";
+import { YoutubeSection } from "./youtube-section.tsx";
 import { Confirmable, StatusLine } from "./controls.tsx";
 import type { OptionsState } from "./state.ts";
 
@@ -203,6 +204,9 @@ function DataSection({ state, enabled }: { readonly state: OptionsState; readonl
   );
 }
 
+// 发行构建里这一节连同授权代码一起裁掉。
+const SiteSections = FEATURE_YOUTUBE ? YoutubeSection : null;
+
 export function App({ state, activation, api }: { readonly state: OptionsState; readonly activation: Activation; readonly api: Pick<PageApi, "send"> }) {
   const enabled = activation.enabled.value;
   const loadError = state.loadError.value;
@@ -215,6 +219,7 @@ export function App({ state, activation, api }: { readonly state: OptionsState; 
         <>
           <AppearanceSection state={state} />
           <CardSection state={state} />
+          {SiteSections ? <SiteSections /> : null}
           <AiSection state={state} />
           <AutoSection state={state} />
           <ModeSection api={api} />
