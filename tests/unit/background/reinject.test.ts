@@ -79,7 +79,8 @@ test("已确认时更新扩展：补注入；浏览器自己升级不补", async
 test("清单没有内容脚本时什么都不做：不读启用状态、不查标签页、不注入", async () => {
   const { fake, app } = appOn({ manifest: {}, local: { [SETTINGS_STORAGE_KEY]: CONFIRMED } });
   await app.onInstalled("update");
-  assert.deepEqual(fake.calls.storageReads, []);
+  // 只有右键菜单按设置定勾选读了一次设置；补注入没读启用状态。
+  assert.deepEqual(fake.calls.storageReads, [{ area: "local", keys: SETTINGS_STORAGE_KEY }]);
   assert.deepEqual(fake.calls.tabQueries, []);
   assert.deepEqual(fake.calls.injections, []);
   assert.deepEqual(await app.dispatch({ type: "activation.confirm", req: {} }, senders.panel()), {

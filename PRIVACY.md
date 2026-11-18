@@ -118,6 +118,7 @@
 | `sidePanel` | 显示侧边栏 |
 | `storage` | 在本机保存资料和设置 |
 | `scripting` | 装好、更新或启用以后，给已经打开的 B 站视频页补上简幕的页面脚本，不用刷新 |
+| `contextMenus` | 在工具栏图标的右键菜单里加简幕自己的几项 |
 | 访问 B 站的网页、接口和存放字幕文件的域名 | 在 B 站视频页放播放页卡片、笔记按钮和「解释当前画面」的图标，读播放状态，点那个图标时读视频当前的一帧；读视频信息、字幕、官方总结和稍后再看 |
 | 可选：访问你选的 AI 服务地址 | 点「保存并授权」时，浏览器会问你是否允许简幕访问那个域名。清单里把它声明成可选的 https 地址，加上本机的 `http://localhost` 和 `http://127.0.0.1`，实际只申请你选的那一个地址 |
 
@@ -313,6 +314,7 @@ Everything is kept in the extension storage of this Chrome profile on this compu
 | `sidePanel` | Showing the side panel |
 | `storage` | Keeping data and settings on your computer |
 | `scripting` | After installing, updating or enabling, adding Jianmu's page script to Bilibili video pages that are already open, so you don't need to reload them |
+| `contextMenus` | Adding a few of Jianmu's own items to the menu you get by right-clicking its toolbar icon |
 | Access to Bilibili's web pages, its API and the domain where it keeps subtitle files | Placing the card, the note button and the 解释当前画面 icon on Bilibili video pages, reading playback state, and reading the current frame of the video when you click that icon; reading video details, subtitles, official summaries and Watch Later |
 | Optional: access to the AI service address you chose | When you click 保存并授权 (save and authorise), the browser asks whether Jianmu may access that domain. The manifest declares this as an optional range of https addresses, plus `http://localhost` and `http://127.0.0.1` on your own computer, but Jianmu only ever requests the one address you chose |
 

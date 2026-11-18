@@ -41,7 +41,7 @@ The Chrome versions tested by hand on real pages will be listed before release. 
 2. Unzip it into a folder that will stay put, for example one called `jianmu`, so that `manifest.json` sits directly inside it. You will use the same folder for updates, so don't delete or move it.
 3. Open `chrome://extensions` in Chrome and turn on Developer mode in the top right corner.
 4. Click Load unpacked and choose that folder.
-5. Click the Jianmu icon in the toolbar to open the side panel, read the notice and click 启用简幕 (Enable Jianmu). At first the icon sits in the puzzle-piece menu, and you can pin it to the toolbar from there.
+5. Click the Jianmu icon in the toolbar to open the side panel, read the notice and click 启用简幕 (Enable Jianmu). At first the icon sits in the puzzle-piece menu, and you can pin it to the toolbar from there. Right-click the icon to open Watch Later triage directly, or to switch the card on the video page and 打开就出结论 (verdict on open) on or off.
 6. Open Jianmu's settings page, pick a provider, enter your API key, tick the box to agree to the data notice and click 保存并授权 (save and authorise). The AI features are then ready to use.
 
 ### Update

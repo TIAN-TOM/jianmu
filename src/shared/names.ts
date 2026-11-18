@@ -43,6 +43,13 @@ export const INJECTED = {
   instance: "jianmu-content-instance",
 } as const;
 
+// 工具栏图标右键菜单里简幕自己的几项，以 jianmu- 开头。
+export const ACTION_MENU = {
+  triage: "jianmu-menu-triage",
+  inPageCard: "jianmu-menu-in-page-card",
+  autoOverview: "jianmu-menu-auto-overview",
+} as const;
+
 // 设置读写用的 Web Locks 锁名，不是存储键，不用登记。
 export const SETTINGS_LOCK_NAME = "jianmu_settings";
 

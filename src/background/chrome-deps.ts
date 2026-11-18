@@ -12,6 +12,7 @@ import type { AppDeps } from "./app.ts";
 export function chromeDeps(prompts: PromptTable): AppDeps {
   return {
     runtime: chrome.runtime,
+    contextMenus: chrome.contextMenus,
     tabs: chrome.tabs,
     sidePanel: chrome.sidePanel,
     scripting: chrome.scripting,
