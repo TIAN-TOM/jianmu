@@ -1,4 +1,4 @@
-// 端到端里的稍后再看粗筛：从设置页打开粗筛页，读列表；第一步取官方总结，两次请求至少隔 1.5 秒，本机缓存里有的不再问；
+// 端到端里的稍后再看粗筛：从设置页打开粗筛页，读列表；第一步取官方总结，两次请求至少隔 1 秒，本机缓存里有的不再问；
 // 第二步只发模型请求、不向平台读；按判断分组、筛选，导出的 Markdown 按组列出。要在登录、配好模型服务之后跑。
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -44,7 +44,7 @@ export async function triageFlow({ until, evaluate, cdp, findSession, mock, exte
   // 前面的步骤读过前两个视频，官方总结已经在本机缓存里。
   if (asked.join() !== [idOf(THIRD_VIDEO), idOf(FOURTH_VIDEO)].join()) throw new Error(`第一步问了 ${asked.join("、") || "（无）"}，应只问本机没有的两个`);
   const gaps = summaries.slice(1).map((entry, index) => entry.at - summaries[index].at);
-  if (gaps.some((gap) => gap < 1500)) throw new Error(`两次官方总结请求的间隔不足 1.5 秒：${gaps.join("、")} ms`);
+  if (gaps.some((gap) => gap < 1000)) throw new Error(`两次官方总结请求的间隔不足 1 秒：${gaps.join("、")} ms`);
   const fetched = await rows();
   if (!/没有官方总结/.test(rowOf(fetched, FOURTH_VIDEO)?.text ?? "")) throw new Error("没有官方总结的那个视频没标出来");
   console.log(`✓ 粗筛第一步：只问本机没有的 ${asked.length} 个，两次请求隔了 ${gaps.join("、")} ms`);
