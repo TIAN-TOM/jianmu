@@ -189,13 +189,13 @@ export function createLight(deps: LightDeps): Light {
     const known: Memo | undefined =
       memo.get(video) ?? (cached ? { info: cached.info, official: cached.official ? { record: cached.official, cues: [] } : undefined } : undefined);
     const site = deps.sites.service(ref.platform);
-    // 读取环境用到时才建，视频信息和官方总结共用一个：已登录的结论接着用。
+    // 读取环境用到时才建，视频信息和官方总结共用一个。视频信息没登录也读，官方总结要登录。
     let ctx: SiteCtx | undefined;
     const ctxOf = (): SiteCtx => (ctx ??= deps.sites.ctx(ref.platform, { signal: new AbortController().signal }));
     let info = known?.info;
     if (!info) {
       if (!site) return failure(video, fail("SITE_UNSUPPORTED"));
-      const read = await site.readVideoInfo(ref, ctxOf());
+      const read = await site.readVideoInfo(ref, ctxOf(), { loginOptional: true });
       if (!read.ok) return failure(video, failureOf(read));
       if (!sameVideo(read.value, video)) return failure(video, fail("MALFORMED", "video-mismatch"));
       info = read.value;
@@ -203,11 +203,14 @@ export function createLight(deps: LightDeps): Light {
     const asking = info;
     let official = known?.official;
     const ask = site?.readOfficialSummary?.bind(site);
-    if (ask && (!official || needsRetry(official.record, timers.now()))) {
+    // 要登录的每次都重问：登录以后卡片马上就能读到，不等重问间隔。
+    if (ask && (!official || official.record.status === "need-login" || needsRetry(official.record, timers.now()))) {
       official = await deps.officials.lookup(video, asking, () => ask(asking, ctxOf()));
     }
     if (!guard.clearedSince(since, "cache") && started === epoch) remember(video, { info, official });
-    return success(video, infoView(info), official ? officialView(official.record) : undefined, { hasTranscript: false, fromCache: false });
+    // 官方总结说要登录：没登录，字幕也读不到，告诉卡片，不摆「生成概览」。
+    const needLogin = official?.record.status === "need-login" ? ({ transcriptError: "NEED_LOGIN" } as const) : {};
+    return success(video, infoView(info), official ? officialView(official.record) : undefined, { hasTranscript: false, fromCache: false, ...needLogin });
   }
 
   return {

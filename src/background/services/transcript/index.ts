@@ -424,6 +424,7 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
       const site = deps.sites.service(ref.platform);
       if (!site || !keyOf(ref)) return fail("NOT_FOUND");
       try {
+        // 截帧前的核对照旧要登录：没登录不截。
         const read = await site.readVideoInfo(ref, deps.sites.ctx(ref.platform, { signal: new AbortController().signal }));
         return read.ok ? ok(infoView(read.value)) : read;
       } catch (error) {

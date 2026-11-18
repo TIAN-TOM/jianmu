@@ -78,7 +78,7 @@ test("侧边栏：确认启用前只有启用说明，点启用以后说明怎�
   await waitIn(panel, "没有视频时的说明", `${appText}.includes("打开一个 B 站视频")`);
 });
 
-test("侧边栏：没登录时时长不知道，按长视频进速览；字幕那块说明原因，给重试和导入字幕文件，标题用标签页的", async (ctx) => {
+test("侧边栏：没登录时也读到视频信息，长视频进速览；字幕那块说明原因，给重试和导入字幕文件，标题用读到的", async (ctx) => {
   await withVideo(ctx, async (panel) => {
     const login = errorCopy("NEED_LOGIN");
     await waitIn(panel, "要登录的说明", `document.querySelector(".state-block .state-title")?.textContent === ${JSON.stringify(login.cause)}`);
@@ -93,7 +93,7 @@ test("侧边栏：没登录时时长不知道，按长视频进速览；字幕�
     assert.deepEqual(state.actions, ["重试", "导入字幕文件"]);
     assert.equal(state.impact, login.impact);
     assert.equal(state.next, login.next);
-    assert.ok(state.title.includes(FIRST_TITLE), `视频信息读不到时用标签页的标题：${state.title}`);
+    assert.ok(state.title.includes(FIRST_TITLE), `没登录也用读到的视频标题：${state.title}`);
   });
 });
 

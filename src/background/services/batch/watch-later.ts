@@ -46,7 +46,7 @@ export interface ListRead {
   readonly dropped: number;
 }
 
-// 平台说这个视频看不了：付费、确认不了付费、找不到。之后两步都跳过它。
+// 平台说这个视频看不了：付费、找不到。之后两步都跳过它。
 const UNAVAILABLE: ReadonlySet<string> = new Set<ErrorCode>(["UNPLAYABLE", "NOT_FOUND"]);
 
 const PLATFORM = "bilibili";
