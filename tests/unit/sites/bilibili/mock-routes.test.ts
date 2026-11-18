@@ -231,7 +231,6 @@ test("sign-rejected-once：平台换过密钥时重取一次、重签一次就�
 const STOPPED_AT_INFO = [
   ["paid", "付费内容", "paid"],
   ["upower-only", "付费内容", "paid"],
-  ["paid-unknown", "确认不了是否付费时", "paid-unknown"],
 ] as const;
 
 for (const [scenario, label, detail] of STOPPED_AT_INFO) {
@@ -247,6 +246,17 @@ for (const [scenario, label, detail] of STOPPED_AT_INFO) {
     assertNoStray(state);
   });
 }
+
+test("paid-unknown：确认不了是否付费时照读，字幕轨和官方总结都读得到", async () => {
+  const state = loggedInWorld();
+  state.scenario = "paid-unknown";
+
+  const info = value(await state.service.readVideoInfo(REF, state.ctx));
+  assert.equal(info.ref.videoId, REF.videoId);
+  assert.ok(value(await state.service.listCaptionTracks(info, state.ctx)).length > 0);
+  assert.equal(value(await state.service.readOfficialSummary(info, state.ctx)).status, "ok");
+  assertNoStray(state);
+});
 
 test("paid：稍后再看里的付费项标成不可用，别的项不受影响", async () => {
   const state = loggedInWorld();
@@ -354,10 +364,11 @@ test("模拟路由：不认识的主机和路径都标意外", () => {
   assert.equal(ask("https://www.bilibili.com/favicon.ico", "").unexpected, undefined);
 });
 
-test("模拟路由：没带登录状态读内容标意外，账号接口不标", () => {
-  for (const url of [VIEW_URL, PLAYER_URL, SUMMARY_URL, WATCH_LATER_URL]) {
+test("模拟路由：没带登录状态读内容标意外，账号接口和视频信息不标", () => {
+  for (const url of [PLAYER_URL, SUMMARY_URL, WATCH_LATER_URL]) {
     assert.equal(ask(url, "").unexpected, true, url);
   }
+  assert.equal(ask(VIEW_URL, "").unexpected, undefined, "视频信息没登录也读");
   const account = ask(PROBE.account, "");
   assert.equal(account.unexpected, undefined);
   assert.equal(JSON.parse(account.body ?? "").data.isLogin, false);

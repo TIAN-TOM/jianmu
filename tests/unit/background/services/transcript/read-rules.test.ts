@@ -256,10 +256,10 @@ test("原视频查得到吗：只有平台说找不到才算不在，没登录�
   }
 });
 
-test("看不了的视频按原因换说法：付费内容不读、确认不了可读范围、其余是视频不可用", () => {
+test("看不了的视频按原因换说法：付费内容不读，其余是视频不可用", () => {
   assert.equal(errorCopy("UNPLAYABLE", "paid").cause, "这是付费内容。");
   assert.match(errorCopy("UNPLAYABLE", "paid").impact ?? "", /不读付费内容/);
-  assert.equal(errorCopy("UNPLAYABLE", "paid-unknown").cause, "暂时没法确认这个视频是不是付费内容。");
+  assert.equal(describe("UNPLAYABLE", "paid-unknown"), describe("UNPLAYABLE"), "确认不了是否付费的已经照读，不再有单独的说法");
   assert.equal(errorCopy("UNPLAYABLE").cause, "这个视频现在看不了。");
   assert.equal(describe("UNPLAYABLE", "something-else"), describe("UNPLAYABLE"));
   assert.equal(describe("NETWORK", "paid"), describe("NETWORK"), "别的码不认这几个说明");

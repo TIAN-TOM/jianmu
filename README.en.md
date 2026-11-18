@@ -25,7 +25,7 @@ This describes where the project is heading. Only part of it is built so far, an
 - **Your own model**: use as strong a model as you like, and set the reasoning effort for each feature separately. New installs start on the cheap settings.
 - **Two sites, one tool**: Bilibili and YouTube share one side panel for verdicts, chapters and subtitles. It ships only after it passes checks on real pages.
 
-On Bilibili, Jianmu only reads what a signed-in user can already see, never downloads audio or video, and leaves paid content alone. The rules are in section 8.1 of the [PRD](notes/product-prd.md) (in Chinese).
+On Bilibili, Jianmu reads subtitles and official summaries only for signed-in users (while signed out it reads just the video details such as title and length), never downloads audio or video, and leaves content confirmed as paid alone. The rules are in section 8.1 of the [PRD](notes/product-prd.md) (in Chinese).
 
 ## Install and update
 

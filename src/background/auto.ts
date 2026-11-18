@@ -68,7 +68,9 @@ export function createAutoWiring(deps: AutoWiringDeps): AutoGenerate {
     async lightDuration(ref) {
       // 做一次卡片那样的轻量读取，卡片正在读就接上它，不为短视频去读字幕。
       const reply = await deps.transcript.light(ref).catch(() => null);
-      const stop = reply && !reply.ok ? stopsReading(reply.code) : null;
+      // 没登录时轻量读取读得到视频信息，但字幕要登录：和读字幕报要登录一样整批停下。
+      const signedOut = reply?.ok && "mode" in reply.value && reply.value.transcriptError === "NEED_LOGIN";
+      const stop = signedOut ? stopsReading("NEED_LOGIN") : reply && !reply.ok ? stopsReading(reply.code) : null;
       return stop ?? deps.transcript.knownDuration(ref);
     },
     async readTranscript(ref) {

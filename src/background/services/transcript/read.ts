@@ -1,4 +1,4 @@
-// 向平台读一次字幕：每次新建一个读取环境，先读视频信息（登录门和付费判断在读取实现里），
+// 向平台读一次字幕：每次新建一个读取环境，先读视频信息（没登录也读，付费判断在读取实现里；之后的读取都要登录），
 // 用核对过的视频信息定下这次读取的视频和媒体版本，之后列轨、读分段、读官方总结、读字幕文件都只用它，不从缓存换。
 // 列轨、读分段和官方总结同时发，读取实现会把前两者并成一次列表请求。点名语言时字幕文件读不成（地址可能过期了），
 // 重新列一次轨，还在点名的语种里换文件再试；超时、被限流不重列。
@@ -66,13 +66,13 @@ export async function readFromSite({ site, ref, video, lang, fresh, knownTracks,
   // 这次读取自己的取消信号，不跟着哪个调用方走：几个调用方并在一起等同一次读取。
   const controller = new AbortController();
   const ctx = makeCtx(controller.signal);
-  const read = await site.readVideoInfo(ref, ctx);
+  const read = await site.readVideoInfo(ref, ctx, { loginOptional: true });
   if (!read.ok) return failed(failureOf(read));
   const info = read.value;
   // 读取实现已经核对过返回的视频，这里再守一道：对不上的整份不用，后面的请求都不发。
   if (!sameVideo(info, video)) return failed(fail("MALFORMED", "video-mismatch"));
 
-  // 和这次读取用同一个环境：已登录的结论接着用，不再多问一次登录。下载到点中止环境时它多半早回来了，
+  // 和这次读取用同一个环境：列轨、分段和官方总结一起等同一次登录确认，不多问。下载到点中止环境时它多半早回来了，
   // 真被一起中止也只是记成没问成，下次再问。
   const official = askOfficial?.(info, ctx);
   onInfo?.(info, official);

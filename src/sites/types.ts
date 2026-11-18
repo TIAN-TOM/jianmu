@@ -107,7 +107,8 @@ export interface SiteCtx {
 // 在后台跑。带问号的是站点专属能力，调用方没有就不显示那一块。
 export interface SiteService {
   rules: SiteRules;
-  readVideoInfo(ref: VideoRef, ctx: SiteCtx): R<VideoInfo>;
+  // loginOptional：没登录也读（标题、作者、时长这些公开信息），只给显示和定模式用；别的读取照旧要登录。
+  readVideoInfo(ref: VideoRef, ctx: SiteCtx, options?: { loginOptional?: boolean }): R<VideoInfo>;
   listCaptionTracks(info: VideoInfo, ctx: SiteCtx, options?: { fresh?: boolean }): R<CaptionTrack[]>; // 用户刷新和换语言时带 fresh
   readCaptions(info: VideoInfo, track: CaptionTrack, ctx: SiteCtx): R<Cue[]>;
   readOfficialSummary?(info: VideoInfo, ctx: SiteCtx): R<OfficialSummary>;

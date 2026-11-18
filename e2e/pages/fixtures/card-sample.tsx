@@ -26,6 +26,7 @@ const view: CardView = {
   },
   verdictPending: false,
   noCaptions: false,
+  needLogin: false,
   task: { id: "sample", external: false, auto: false, canceling: false, done: 3, total: 8, message: "" },
   settingsError: false,
   notice: { text: LONG, tone: "" },

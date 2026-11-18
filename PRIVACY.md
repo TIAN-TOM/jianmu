@@ -17,7 +17,7 @@
 
 ### 数据从哪来
 
-- **B 站**：你正在看的视频页，以及简幕替你向 B 站读取的视频信息、字幕、官方总结和稍后再看列表。视频没有字幕轨，或者字幕列表、字幕文件读不成时，简幕会用官方总结里附带的 AI 字幕，并在界面上标明来源。每次向 B 站读取新内容之前都先确认你已登录，没登录时不向 B 站读。本机已经存着的内容和你导入的字幕，不登录也照常显示；播放页上的播放状态（播放、暂停、时长）由页面自己提供，不论是否登录都会读。付费和充电专属的内容不读，确认不了是不是付费内容时也不读。不下载音频和视频。
+- **B 站**：你正在看的视频页，以及简幕替你向 B 站读取的视频信息、字幕、官方总结和稍后再看列表。视频没有字幕轨，或者字幕列表、字幕文件读不成时，简幕会用官方总结里附带的 AI 字幕，并在界面上标明来源。每次向 B 站读取字幕、官方总结和稍后再看之前都先确认你已登录；没登录时只读视频信息（标题、作者、时长这些公开信息），用来显示是哪个视频、决定用速览还是精读，别的都不读。本机已经存着的内容和你导入的字幕，不登录也照常显示；播放页上的播放状态（播放、暂停、时长）由页面自己提供，不论是否登录都会读。付费和充电专属的内容不读；确认不了是不是付费内容时照读，确认是付费的才不读。不下载音频和视频。
 - **你自己**：你输入的问题、选中的文字、记的笔记，导入的字幕文件和备份文件，填的 API 密钥和各项设置。
 - **模型服务**：服务商返回的概览、结论、译文、回答和解释。
 
@@ -33,7 +33,7 @@
 - 用「本窗口全部生成」时，当前窗口里已授权网站的标签页的地址和标题。
 - 打开「打开就出结论」以后，已授权网站各标签页的地址，用来认出打开的 B 站视频，包括在后台打开、还没切过去看的。
 - 在粗筛页点读取时，你的 B 站稍后再看列表，以及每个视频看到了哪里。
-- 你点播放器上「解释当前画面」的图标，或者侧边栏里的按钮时，视频当前的一帧画面。只截视频本身，不截整个网页。加密播放（比如番剧、电影）、付费或确认不了是不是付费的视频、正在播广告、视频页不在前台时不截。
+- 你点播放器上「解释当前画面」的图标，或者侧边栏里的按钮时，视频当前的一帧画面。只截视频本身，不截整个网页。加密播放（比如番剧、电影）、确认是付费的视频、正在播广告、视频页不在前台时不截。确认不了是不是付费的照截。
 
 这些内容用来在侧边栏和播放页卡片里显示，按时长、频道和播放情况选速览或精读，以及作为之后生成概览和回答问题的材料。
 
@@ -200,7 +200,7 @@ YouTube 版加上以后，补上在 YouTube 上读什么、发什么。
 
 ### Where the data comes from
 
-- **Bilibili**: the video page you are watching, plus the video details, subtitles, official summaries and Watch Later list that Jianmu reads from Bilibili for you. When a video has no subtitle track, or its subtitle list or subtitle file cannot be read, Jianmu uses the automatically generated subtitles that come with the official summary and labels where they came from. Before each new request to Bilibili it checks that you are signed in, and it requests nothing from Bilibili while you are signed out. Content already stored on this computer and subtitles you imported still show when you are signed out. Playback state on the video page (playing, paused, duration) comes from the page itself and is read whether or not you are signed in. It does not read paid or supporter-only content, or anything it cannot confirm is free. It never downloads audio or video.
+- **Bilibili**: the video page you are watching, plus the video details, subtitles, official summaries and Watch Later list that Jianmu reads from Bilibili for you. When a video has no subtitle track, or its subtitle list or subtitle file cannot be read, Jianmu uses the automatically generated subtitles that come with the official summary and labels where they came from. Before each request for subtitles, official summaries or the Watch Later list it checks that you are signed in. While you are signed out it reads only the video details (public information such as the title, uploader and length), to show which video you are on and to pick the reading mode, and nothing else. Content already stored on this computer and subtitles you imported still show when you are signed out. Playback state on the video page (playing, paused, duration) comes from the page itself and is read whether or not you are signed in. It does not read paid or supporter-only content. When it cannot tell whether a video is paid, it reads it anyway and only skips videos confirmed as paid. It never downloads audio or video.
 - **You**: the questions you type, text you select, notes you take, subtitle files and backups you import, your API key and your settings.
 - **The model service**: the overviews, verdicts, translations, answers and explanations the service sends back.
 
@@ -216,7 +216,7 @@ After installation, Jianmu reads no video data at all. The first time you open t
 - When you use 本窗口全部生成 (overviews for all videos in this window): the address and title of each tab in the current window that is on a site Jianmu is allowed to access.
 - With 打开就出结论 (verdict on open) switched on: the address of each tab on a site Jianmu is allowed to access, so Jianmu can recognise the Bilibili videos you open, including tabs opened in the background that you haven't looked at yet.
 - When you click to read on the triage page: your Bilibili Watch Later list and how far you have watched each video.
-- When you click the 解释当前画面 (explain the current frame) icon on the player, or the button in the side panel: the current frame of the video. It captures only the video itself, never the whole page. It does not capture encrypted playback (anime series and films, for example), paid videos or videos whose payment status cannot be confirmed, ads, or a video page that is not in the foreground.
+- When you click the 解释当前画面 (explain the current frame) icon on the player, or the button in the side panel: the current frame of the video. It captures only the video itself, never the whole page. It does not capture encrypted playback (anime series and films, for example), videos confirmed as paid, ads, or a video page that is not in the foreground. Videos whose payment status cannot be confirmed are captured.
 
 This is used to show content in the side panel and in the card on the video page, to pick skim or close-reading mode from the video's length, the channel and how you are watching, and as material for overviews and answers later on.
 

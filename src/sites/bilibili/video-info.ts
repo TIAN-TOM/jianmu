@@ -1,4 +1,4 @@
-// 读视频信息，判断付费内容；付费、充电专属和确认不了是否付费的内容到这里就停，后面的读取都不发。
+// 读视频信息，判断付费内容；确认是付费、充电专属的内容到这里就停，后面的读取都不发；确认不了的照读。
 import type { VideoRef } from "../../core/video-ref.ts";
 import type { SiteCtx, SiteResult, VideoInfo } from "../types.ts";
 import { VIEW_URL, type BiliHttp } from "./http.ts";
@@ -32,29 +32,31 @@ const pageNumber = (item: PageData, index: number): number => Number(item?.page)
 // 付费标记只认有限数字和布尔值，别的写法都算读不懂。
 const isMarker = (value: unknown): value is number | boolean =>
   typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value));
+// 写成字符串、但明显是真的标记（"1"、"true" 这类）也算付费：确认不了时照读，宁可在这里多拦一点。
+const looksTrue = (value: unknown): boolean =>
+  (isMarker(value) && Boolean(value)) || (typeof value === "string" && /^\s*(true|-?[1-9]\d*)\s*$/i.test(value));
 
 /**
  * 视频或稍后再看的一项：确认付费、确认免费，还是确认不了。
- * 任一付费标记为真就算付费；四个标记都读到、写法都对、全是假才算免费；其余一律算确认不了，不按免费处理。
+ * 任一付费标记为真（写成 "1"、"true" 的字符串也算）就算付费；四个标记都读到、写法都对、全是假才算免费；其余一律算确认不了。
  */
 export function paidStatus(data: unknown): PaidStatus {
   if (!isRecord(data)) return "unknown";
   const rights = isRecord(data["rights"]) ? data["rights"] : {};
   const markers = [...PAID_RIGHTS.map((flag) => rights[flag]), data["is_upower_exclusive"]];
-  if (markers.some((marker) => isMarker(marker) && Boolean(marker))) return "paid";
+  if (markers.some(looksTrue)) return "paid";
   return markers.every(isMarker) ? "free" : "unknown";
 }
 
 /**
- * 把视频信息规整成内部结构。先核对返回的是不是请求的那个视频，再判断付费，确认是免费的才往下读；
- * 分 P 按身份里的序号取，不退回第 1 P。
+ * 把视频信息规整成内部结构。先核对返回的是不是请求的那个视频，再判断付费：确认是付费或充电专属的不往下读，
+ * 确认免费和确认不了的照读；分 P 按身份里的序号取，不退回第 1 P。
  */
 export function parseVideoInfo(data: unknown, ref: VideoRef): SiteResult<VideoInfo> {
-  if (!isRecord(data)) return { ok: false, code: "UNPLAYABLE", detail: "paid-unknown" };
+  if (!isRecord(data)) return { ok: false, code: "MALFORMED", reach: "item", detail: "no-view-data" };
   // 对不上或看不出是哪个视频时整份不用，也不拿它的付费结论记到请求的视频上。
   if (data["bvid"] !== ref.videoId) return { ok: false, code: "MALFORMED", reach: "source", detail: "video-mismatch" };
-  const paid = paidStatus(data);
-  if (paid !== "free") return { ok: false, code: "UNPLAYABLE", detail: paid === "paid" ? "paid" : "paid-unknown" };
+  if (paidStatus(data) === "paid") return { ok: false, code: "UNPLAYABLE", detail: "paid" };
 
   const video: ViewData = data;
   const segment = ref.segment ?? 1;
@@ -89,8 +91,9 @@ export function parseVideoInfo(data: unknown, ref: VideoRef): SiteResult<VideoIn
   };
 }
 
-// 读当前视频的信息，登录门在请求出口里。
-export async function readVideoInfo(http: BiliHttp, ref: VideoRef, ctx: SiteCtx): Promise<SiteResult<VideoInfo>> {
-  const data = await http.getData({ url: VIEW_URL, params: { bvid: ref.videoId } }, ctx);
+// 读当前视频的信息，登录门在请求出口里；登录可选时没登录也读。
+export async function readVideoInfo(http: BiliHttp, ref: VideoRef, ctx: SiteCtx, options: { readonly loginOptional?: boolean } = {}): Promise<SiteResult<VideoInfo>> {
+  const loginOptional = options.loginOptional === true ? { loginOptional: true } : {};
+  const data = await http.getData({ url: VIEW_URL, params: { bvid: ref.videoId }, ...loginOptional }, ctx);
   return data.ok ? parseVideoInfo(data.value, ref) : data;
 }
