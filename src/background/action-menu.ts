@@ -13,7 +13,8 @@ import type { StorageChange } from "./routes/appearance.ts";
 /** 菜单上的两个开关各自对应的设置项。 */
 const SWITCHES = [
   { id: ACTION_MENU.inPageCard, field: "inPageCard", title: "在视频右侧显示总结卡片" },
-  { id: ACTION_MENU.autoOverview, field: "autoOverview", title: "打开视频就生成概览和结论" },
+  // 菜单里放不下设置页那段说明，后果写在标题里：花额度的开关旁要写明。
+  { id: ACTION_MENU.autoOverview, field: "autoOverview", title: "打开视频就生成概览和结论（每个视频都花 API 额度）" },
 ] as const;
 
 type SwitchField = (typeof SWITCHES)[number]["field"];

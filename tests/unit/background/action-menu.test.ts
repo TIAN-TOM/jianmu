@@ -40,7 +40,7 @@ test("安装时建三项，只放在工具栏图标的菜单里，勾选按当�
     [
       [ACTION_MENU.triage, "稍后再看粗筛", "normal", ["action"]],
       [ACTION_MENU.inPageCard, "在视频右侧显示总结卡片", "checkbox", ["action"]],
-      [ACTION_MENU.autoOverview, "打开视频就生成概览和结论", "checkbox", ["action"]],
+      [ACTION_MENU.autoOverview, "打开视频就生成概览和结论（每个视频都花 API 额度）", "checkbox", ["action"]],
     ],
   );
   for (const id of Object.values(ACTION_MENU)) assert.match(id, /^jianmu-/);

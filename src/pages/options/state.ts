@@ -7,7 +7,7 @@ import { describe, isErrorCode, type Failure } from "../../core/errors.ts";
 import { AI_ERROR_TEXT } from "../../core/errors/ai.ts";
 import type { LoadedSettings, SettingsPatch, SettingsStore, WrittenSettings } from "../../platform/settings-store.ts";
 import type { EffortPreviewItem } from "../../shared/messages/ai.ts";
-import { SETTINGS_REVISION_KEY } from "../../shared/names.ts";
+import { SETTINGS_REVISION_KEY, SETTINGS_STORAGE_KEY } from "../../shared/names.ts";
 import { FEATURE_MODEL_SLOTS, originOf, validate, validateForSave, type FeatureSlotId } from "../../shared/settings-schema.ts";
 import type { PageApi } from "../shared/api.ts";
 import { importSummary, receiveBackup, sendBackup } from "./backup-transfer.ts";
@@ -173,10 +173,22 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
     }
   });
 
+  // 别处改了即改即存的几项（修订号不变，比如从工具栏图标的右键菜单开关）：把存着的值读回来，页面上的开关跟着变，
+  // 表单上还没保存的不动。排在本页自己的写入后面，读到的不会比本页刚写的旧。
+  const refreshSaved = (): Promise<void> =>
+    queued(async () => {
+      const settings = await store.load().catch(() => null);
+      if (!settings || stopped) return;
+      if (settings.settingsRevision !== revision) return reloadStale();
+      saved.value = settings;
+    });
+
   const onStorage: StorageListener = (changes, area) => {
     if (stopped || area !== "local" || ownWrites > 0) return;
-    const change = (changes as Record<string, { newValue?: unknown } | undefined>)[SETTINGS_REVISION_KEY];
+    const record = changes as Record<string, { newValue?: unknown } | undefined>;
+    const change = record[SETTINGS_REVISION_KEY];
     if (change && (change.newValue ?? "") !== revision) void reloadStale();
+    else if (record[SETTINGS_STORAGE_KEY]) void refreshSaved();
   };
   deps.storageChanged?.addListener(onStorage);
 

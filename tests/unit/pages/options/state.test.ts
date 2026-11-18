@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createOptionsState } from "../../../../src/pages/options/state.ts";
 import type { LoadedSettings, WrittenSettings } from "../../../../src/platform/settings-store.ts";
-import { SETTINGS_REVISION_KEY } from "../../../../src/shared/names.ts";
+import { SETTINGS_REVISION_KEY, SETTINGS_STORAGE_KEY } from "../../../../src/shared/names.ts";
 import { DATA_CONSENT_CONFIRMED, DEFAULTS, normalize, type SettingsInput } from "../../../../src/shared/settings-schema.ts";
 import { deferred, nextTurn } from "../../../helpers/deferred.ts";
 import { until } from "../../../helpers/wait-until.ts";
@@ -79,12 +79,18 @@ function world(initial: Record<string, unknown>) {
     current = { ...normalize({ ...current, ...next }), settingsRevision: `${current.settingsRevision}+other` };
     for (const listener of listeners) listener({ [SETTINGS_REVISION_KEY]: { newValue: current.settingsRevision } }, "local");
   };
+  /** 别处改了即改即存的一项（比如工具栏图标的右键菜单）：存储换成 next，修订号不变，只有设置本身的变化事件。 */
+  const externalInstant = (next: Record<string, unknown>) => {
+    current = { ...normalize({ ...current, ...next }), settingsRevision: current.settingsRevision };
+    for (const listener of listeners) listener({ [SETTINGS_STORAGE_KEY]: { newValue: {} } }, "local");
+  };
   return {
     state,
     saves,
     updates,
     permission,
     external,
+    externalInstant,
     previews,
     held,
     echo,
@@ -109,6 +115,24 @@ test("等授权的工夫别的页面清了密钥：这次保存作废，清掉�
   assert.deepEqual(w.saves, []);
   assert.equal(w.current().aiApiKey, "");
   assert.match(w.state.aiStatus.value?.text ?? "", /别的页面改过/);
+});
+
+test("别处改了即改即存的开关（修订号不变）：页面上的开关跟着变，表单上没保存的不动，也不提示别的页面改过", async () => {
+  const w = world({ ...GATEWAY, aiApiKey: "sk-old", aiApiKeyOrigin: "https://gateway.example.com/", inPageCard: true });
+  await w.state.load();
+  w.state.edit({ aiModel: "还没保存的模型" });
+
+  w.externalInstant({ inPageCard: false, autoOverview: true });
+  await until(() => w.state.saved.value?.autoOverview === true);
+  assert.equal(w.state.saved.value?.inPageCard, false);
+  assert.equal(w.state.form.value?.aiModel, "还没保存的模型");
+  assert.equal(w.state.aiStatus.value, null);
+
+  // 本页接着改一项：存得上，别处改的那两项不被盖回去。
+  await w.state.saveInstant({ uiFontScale: 125 });
+  assert.equal(w.current().autoOverview, true);
+  assert.equal(w.current().inPageCard, false);
+  assert.equal(w.state.saved.value?.uiFontScale, 125);
 });
 
 test("刚勾的同意还没落地就点保存：保存排在它后面，同意留着", async () => {
