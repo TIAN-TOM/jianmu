@@ -24,7 +24,7 @@ export const PROBE_TTL_MS = 2_592_000_000;
 const MAX_PROBES = 16;
 
 // 服务收下了请求、只是没写出正常的回答：图是收下了的。
-const ANSWERED: ReadonlySet<unknown> = new Set(["EMPTY_AI_RESPONSE", "AI_RESPONSE_TRUNCATED", "AI_REFUSED"]);
+const ANSWERED: ReadonlySet<unknown> = new Set(["EMPTY_AI_RESPONSE", "AI_RESPONSE_TRUNCATED", "AI_THINKING_EXHAUSTED", "AI_THINKING_EXHAUSTED_LOCKED", "AI_REFUSED"]);
 
 // 服务拒收图片时常见的说法。只在请求里带了图、服务回 4xx 时才拿来比。
 const IMAGE_REJECTION = /image|vision|multi-?modal|input_image|image_url|图片|图像|视觉|多模态/i;

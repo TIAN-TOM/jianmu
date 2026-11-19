@@ -618,6 +618,8 @@ const coded = (message: string, fields: Record<string, unknown>): Error => Objec
 
 const DETERMINISTIC: readonly [string, () => Error][] = [
   ["思考把预算用光（传输层已经加码到顶）", () => coded("还是不够", { code: "EMPTY_AI_RESPONSE", reason: "TRUNCATED" })],
+  ["思考把额度用完、档位还能调低", () => coded("还是不够", { code: "AI_THINKING_EXHAUSTED", reason: "TRUNCATED" })],
+  ["思考把额度用完、档位调不了", () => coded("还是不够", { code: "AI_THINKING_EXHAUSTED_LOCKED", reason: "TRUNCATED" })],
   ["拒绝回答", () => coded("拒绝", { code: "AI_REFUSED" })],
   ["硬超时", () => coded("超时", { code: "AI_HARD_TIMEOUT" })],
   ["响应超过大小上限", () => coded("太大", { code: "AI_RESPONSE_TOO_LARGE" })],

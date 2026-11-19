@@ -1189,3 +1189,27 @@ test("数组形状的错误体取第一项读出原因和参数，空数组按�
   assert.equal(error.param, "model");
   assert.equal(error.message.includes(secret), false);
 });
+
+test("没写出正文就到了上限时，认得出是思考把额度用完了", () => {
+  const { thinkingUsedUpBudget, PROTOCOLS } = provider;
+  const cut = (message: Record<string, unknown>, usage?: unknown) => ({ choices: [{ message, finish_reason: "length" }], ...(usage ? { usage } : {}) });
+  assert.equal(thinkingUsedUpBudget(PROTOCOLS.OPENAI, cut({ content: "", reasoning_content: "想" })), true, "看得见思考内容");
+  assert.equal(thinkingUsedUpBudget(PROTOCOLS.OPENAI, cut({ content: "" }, { completion_tokens_details: { reasoning_tokens: 12 } })), true, "只在用量里报了思考");
+  assert.equal(thinkingUsedUpBudget(PROTOCOLS.OPENAI, cut({ content: "" })), false, "没有思考的痕迹");
+  assert.equal(thinkingUsedUpBudget(PROTOCOLS.OPENAI, cut({ content: "" }, { completion_tokens_details: { reasoning_tokens: 0 } })), false);
+  assert.equal(
+    thinkingUsedUpBudget(PROTOCOLS.OPENAI, { choices: [{ message: { content: "", reasoning_content: "想完了" }, finish_reason: "stop" }] }),
+    false,
+    "没到上限就停的不算额度的事",
+  );
+
+  const claudeCut = (content: unknown[]) => ({ content, stop_reason: "max_tokens" });
+  assert.equal(thinkingUsedUpBudget(PROTOCOLS.ANTHROPIC, claudeCut([{ type: "thinking", thinking: "想" }]), { model: "claude-sonnet-4-5" }), true);
+  assert.equal(thinkingUsedUpBudget(PROTOCOLS.ANTHROPIC, claudeCut([]), { model: "claude-opus-5-5" }), true, "思考关不掉的型号");
+  assert.equal(thinkingUsedUpBudget(PROTOCOLS.ANTHROPIC, claudeCut([]), { model: "claude-sonnet-4-5" }), false);
+
+  const responsesCut = (usage: unknown, output: unknown[] = []) => ({ status: "incomplete", incomplete_details: { reason: "max_output_tokens" }, output, usage });
+  assert.equal(thinkingUsedUpBudget(PROTOCOLS.RESPONSES, responsesCut({ output_tokens_details: { reasoning_tokens: 30 } })), true);
+  assert.equal(thinkingUsedUpBudget(PROTOCOLS.RESPONSES, responsesCut({}, [{ type: "reasoning" }])), true);
+  assert.equal(thinkingUsedUpBudget(PROTOCOLS.RESPONSES, responsesCut({})), false);
+});

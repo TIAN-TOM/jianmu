@@ -20,12 +20,15 @@ export type AiErrorCode =
   | "EMPTY_AI_RESPONSE"
   | "AI_RESPONSE_TOO_LARGE"
   | "AI_RESPONSE_TRUNCATED"
+  | "AI_THINKING_EXHAUSTED"
+  | "AI_THINKING_EXHAUSTED_LOCKED"
   | "TASK_CANCELED"
   | "AI_REQUEST_FAILED";
 
 const NOT_SENT = "这次没有发请求，不花额度。";
 const NO_RESULT = "这次没拿到结果，原来存下的内容都还在。";
 const MAYBE_BILLED = "这次没拿到结果，请求已经发出去了，可能照样计费；原来存下的内容都还在。";
+const THINKING_EXHAUSTED = "模型把输出额度都用在思考上了，还没写出回复。";
 const SWITCH_MODEL = "再试一次；老是这样，就到设置页换个模型。";
 
 export const AI_ERROR_TEXT: Readonly<Record<AiErrorCode, ErrorCopy>> = {
@@ -68,6 +71,17 @@ export const AI_ERROR_TEXT: Readonly<Record<AiErrorCode, ErrorCopy>> = {
   EMPTY_AI_RESPONSE: { cause: "模型没有写出内容。", impact: MAYBE_BILLED, next: SWITCH_MODEL },
   AI_RESPONSE_TOO_LARGE: { cause: "模型的回复太大，简幕没有收下。", impact: MAYBE_BILLED, next: SWITCH_MODEL },
   AI_RESPONSE_TRUNCATED: { cause: "模型的回复没写完就停了。", impact: MAYBE_BILLED, next: SWITCH_MODEL },
+  // 思考把输出额度用完了：换模型不是唯一的办法，能调低档位的先让人调；调不了的（服务自己决定想多少、已经在最低档）只给换型号。
+  AI_THINKING_EXHAUSTED: {
+    cause: THINKING_EXHAUSTED,
+    impact: MAYBE_BILLED,
+    next: "到设置页「推理强度」给这项功能调低一档再试；或者在「按功能选模型」里给它换个型号。",
+  },
+  AI_THINKING_EXHAUSTED_LOCKED: {
+    cause: THINKING_EXHAUSTED,
+    impact: MAYBE_BILLED,
+    next: "这个型号想多久，简幕调不了；到设置页「按功能选模型」给这项功能换个型号再试。",
+  },
   TASK_CANCELED: { cause: "已经停下了。", impact: "已经发出去的请求可能照样计费。" },
   AI_REQUEST_FAILED: { cause: "AI 请求没有成功。", impact: NO_RESULT, next: "稍后再试。" },
 };

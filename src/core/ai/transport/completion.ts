@@ -5,6 +5,7 @@ import {
   canRaiseBudget,
   createRelaxMemory,
   diagnoseEmptyResponse,
+  EFFORTS,
   hostOf,
   isTruncated,
   parseChatResponse,
@@ -12,6 +13,7 @@ import {
   redactSecret,
   refusalOf,
   sendChatWithRelax,
+  thinkingUsedUpBudget,
   type ChatRequest,
   type EmptyDiagnosis,
   type RelaxState,
@@ -126,6 +128,8 @@ export function createAiTransport({
     const added = tokens - Math.min(maxTokens, ceiling);
     const effort = added === planned.outputHeadroom ? planned : { ...planned, outputHeadroom: added };
     let diagnosis: EmptyDiagnosis | null = null;
+    // 最后一次空响应是不是思考把额度用完了：是的话报错要说到点上，并按能不能调低档位给下一步。
+    let thinkingFull = false;
     let relax: RelaxState = {};
     let attempt = 0;
     let spent = 0;
@@ -254,6 +258,9 @@ export function createAiTransport({
         relax,
         capabilities,
       });
+      thinkingFull =
+        diagnosis.reason === "TRUNCATED" &&
+        thinkingUsedUpBudget(settings.protocol, data, { model: settings.aiModel, relax, capabilities });
 
       // 这次重发同样计费，前面加过码时要压到合计预算的余量以内。
       const remaining = TOTAL_OUTPUT_TOKENS_CAP - spent;
@@ -283,7 +290,14 @@ export function createAiTransport({
     // Responses 生成失败时，诊断直接用服务给的报错，同样可能回显密钥。
     // 走到这里一定诊断过：没有截断正文，循环只会从空响应那条路出来。
     const error: TransportError = new Error(redactSecret(diagnosis!.message, settings.aiApiKey));
-    error.code = "EMPTY_AI_RESPONSE";
+    // 能调低档位的才让用户去调：服务自己决定想多少的、已经在最低档的，只能换型号。
+    // 按最后一次请求实际的样子算：参数被拒、放宽以后不再发档位的，同样算调不了。
+    const sentCaps = resolveCapabilities({ protocol: settings.protocol, host, model: settings.aiModel, claude: capabilities, relax });
+    const sentPlan = planEffort({ protocol: settings.protocol, host, model: settings.aiModel, requested, caps: sentCaps });
+    const lowerable =
+      sentPlan.note !== "unknown" &&
+      sentCaps.efforts.some((level) => EFFORTS.indexOf(level) < EFFORTS.indexOf(sentPlan.effective));
+    error.code = !thinkingFull ? "EMPTY_AI_RESPONSE" : lowerable ? "AI_THINKING_EXHAUSTED" : "AI_THINKING_EXHAUSTED_LOCKED";
     error.reason = diagnosis!.reason;
     throw exhausted(error);
   }

@@ -1202,12 +1202,62 @@ test("Opus 5.5 思考占满预算时，报错提示另选型号或把概览分�
   await assert.rejects(
     () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }),
     (error: TransportError) =>
-      error.code === "EMPTY_AI_RESPONSE" &&
+      error.code === "AI_THINKING_EXHAUSTED_LOCKED" &&
       error.reason === "TRUNCATED" &&
       /按功能选模型/.test(error.message) &&
       !/输出上限|effort/.test(error.message) &&
       !/非推理模型/.test(error.message),
   );
+});
+
+// 思考在服务那边进行、不回传内容，只在用量里报了思考用了多少：一个字没写就到了上限。
+function usageOnlyThinkingTruncated(): TransportResponse {
+  return {
+    ok: true,
+    status: 200,
+    text: json({
+      choices: [{ message: { content: "" }, finish_reason: "length" }],
+      usage: { completion_tokens: 900, completion_tokens_details: { reasoning_tokens: 900 } },
+    }),
+  };
+}
+
+test("思考把额度用完、档位还能调低：报思考用完了额度，下一步可以让人调低推理强度", async () => {
+  const t = makeTransport(async () => usageOnlyThinkingTruncated(), {
+    getSettings: async () => makeSettings({ aiBaseUrl: "https://api.deepseek.com", aiModel: "deepseek-sample" }),
+  });
+  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, effort: "high" }));
+  assert.equal(error.code, "AI_THINKING_EXHAUSTED");
+  assert.equal(error.reason, "TRUNCATED");
+  assert.doesNotMatch(error.message, /更简洁/, "用量里报了思考，不再说成普通的截断");
+});
+
+test("思考把额度用完、简幕认不出这个服务的档位：只让人换型号，不让人去调推理强度", async () => {
+  const t = makeTransport(async () => usageOnlyThinkingTruncated());
+  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, effort: "high" }));
+  assert.equal(error.code, "AI_THINKING_EXHAUSTED_LOCKED");
+});
+
+test("思考把额度用完、已经在能选的最低档：同样只让人换型号", async () => {
+  const t = makeTransport(async () => usageOnlyThinkingTruncated(), {
+    getSettings: async () => makeSettings({ aiBaseUrl: "https://api.deepseek.com", aiModel: "deepseek-sample" }),
+  });
+  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, effort: "off" }));
+  assert.equal(error.code, "AI_THINKING_EXHAUSTED_LOCKED");
+});
+
+test("截断了、看不出有思考：照旧报模型没写出内容", async () => {
+  const t = makeTransport(async () => openaiReply("", { finish_reason: "length" }));
+  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, effort: "high" }));
+  assert.equal(error.code, "EMPTY_AI_RESPONSE");
+  assert.equal(error.reason, "TRUNCATED");
+});
+
+test("只有思考、没到上限就停了：不是额度的事，照旧报模型没写出内容", async () => {
+  const t = makeTransport(async () => openaiReply("", { message: { content: "", reasoning_content: "想完了" }, finish_reason: "stop" }));
+  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }));
+  assert.equal(error.code, "EMPTY_AI_RESPONSE");
+  assert.equal(error.reason, "REASONING_ONLY");
 });
 
 test("预算已到天花板就不再加码，两轮后放弃", async () => {
@@ -2671,4 +2721,15 @@ test("这条放宽只针对 JSON 模式：发结构化输出时的 schema 报错
     null,
     "已经不发 JSON 模式了，再报同样的错就交还给调用方",
   );
+});
+
+test("Responses：思考把额度用完时，档位参数被拒、放宽以后不再发档位的，只让人换型号", async () => {
+  const rejected = { error: { message: "Unsupported parameter: reasoning.effort", type: "invalid_request_error", param: "reasoning.effort", code: "unsupported_parameter" } };
+  const relaxed = responsesTransport("gpt-6.1-terra", (_count, body) => (body.reasoning ? RESP.asFetchResponse(rejected, 400) : RESP.asFetchResponse(RESP.incomplete(""))), []);
+  const locked = await failureOf(relaxed.requestAiCompletion({ messages: MESSAGES, maxTokens: 512, effort: "high" }));
+  assert.equal(locked.code, "AI_THINKING_EXHAUSTED_LOCKED");
+
+  const accepted = responsesTransport("gpt-6.1-terra", () => RESP.asFetchResponse(RESP.incomplete("")), []);
+  const lowerable = await failureOf(accepted.requestAiCompletion({ messages: MESSAGES, maxTokens: 512, effort: "high" }));
+  assert.equal(lowerable.code, "AI_THINKING_EXHAUSTED", "档位照常发出去的还能调低");
 });
