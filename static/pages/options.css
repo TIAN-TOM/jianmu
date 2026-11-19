@@ -105,6 +105,36 @@ input.input {
   width: 100%;
 }
 
+/* 模型框和右边的下拉箭头拼成一个控件。 */
+.model-field {
+  display: flex;
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.model-field input.input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.model-field .model-pick {
+  flex: 0 0 2rem;
+  width: 2rem;
+  min-width: 0;
+  padding-inline: 0;
+  border-left: 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.model-field:has(.model-pick) input.input {
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+
+/* 候选列表自带的箭头收起来，只留右边那一个。 */
+.model-field input::-webkit-calendar-picker-indicator {
+  display: none !important;
+}
+
 .check {
   display: flex;
   align-items: flex-start;
