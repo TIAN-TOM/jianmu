@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { ANSWER_MAX_TOKENS, FALLBACK_ANSWER, QA_PROMPT, QA_USER_SECTIONS, QUESTION_MAX } from "../../../../src/background/services/qa.ts";
+import { EFFORT_BUDGETS } from "../../../../src/core/ai/provider/effort.ts";
 import { QA_ANSWER } from "../../../../src/core/ai/schemas.ts";
 import { describe, type Result } from "../../../../src/core/errors.ts";
 import type { QaRecord } from "../../../../src/core/notes/records.ts";
@@ -71,7 +72,11 @@ test("问答端到端：检索、生成、引用校验、历史落库与删除",
   assert.deepEqual(await bg.send("qa.delete", { id: entry.id }), { ok: true, value: {} });
   const emptied = await bg.send<QaHistoryView>("qa.history", { video: FIRST });
   assert.deepEqual(emptied.ok && emptied.value.entries, []);
-  assert.equal(bg.ai.posts()[0]?.body?.max_tokens, ANSWER_MAX_TOKENS, "回答不限字数，输出上限按长回答留");
+  assert.equal(
+    bg.ai.posts()[0]?.body?.max_tokens,
+    ANSWER_MAX_TOKENS + EFFORT_BUDGETS.low.outputHeadroom,
+    "回答不限字数，输出上限按长回答留；测试服务认不出，另按低档给思考留余量",
+  );
   const listed = await bg.send<{ readonly tasks: readonly TaskView[] }>("task.list", {});
   assert.deepEqual(listed.ok && listed.value.tasks, [], "问答任务跑完就收尾");
 });

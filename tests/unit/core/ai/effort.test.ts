@@ -207,8 +207,35 @@ test("「关」不会变成更高的默认档：所有服务上选关，实际�
   for (const settings of all) {
     const plan = planFor(settings, "off");
     assert.ok(plan.effective === "off" || plan.effective === "low", `${settings.aiModel} → ${plan.effective}`);
-    assert.equal(plan.outputHeadroom, 0, settings.aiModel);
+    // 照样会思考的（关不掉、设不了）按低档留余量，其余不加；超时都是关档的。
+    const thinksAnyway = plan.note === "cannot-disable" || plan.note === "unknown";
+    assert.equal(plan.outputHeadroom, thinksAnyway ? P.EFFORT_BUDGETS.low.outputHeadroom : 0, settings.aiModel);
     assert.equal(plan.timeoutSec, 120, settings.aiModel);
+  }
+});
+
+test("照样会思考的模型按低档留输出余量：关不掉思考又选了关的、扩展设不了档位的；超时不变", () => {
+  const low = P.EFFORT_BUDGETS.low.outputHeadroom;
+  for (const settings of [ANTHROPIC("claude-opus-5-5"), RESPONSES("gpt-6-astra"), GEMINI("gemini-3.8-flash")]) {
+    const plan = planFor(settings, "off");
+    assert.equal(plan.note, "cannot-disable", settings.aiModel);
+    assert.deepEqual([plan.outputHeadroom, plan.timeoutSec], [low, 120], settings.aiModel);
+  }
+  // 设不了档位：不管选的哪档都按低档留，不按选的高档留。
+  for (const requested of P.EFFORTS) {
+    const plan = planFor(GATEWAY, requested);
+    assert.equal(plan.note, "unknown", requested);
+    assert.deepEqual([plan.outputHeadroom, plan.timeoutSec], [low, 120], requested);
+  }
+  const unnamed = OPENAI_CHAT("gpt-5.5");
+  assert.equal(planFor(unnamed, "off").note, "unknown");
+  assert.equal(planFor(unnamed, "off").outputHeadroom, low);
+});
+
+test("认得出、关得掉、选了关的，输出余量和超时都和以前一样", () => {
+  for (const settings of [ANTHROPIC("claude-sonnet-5-5"), RESPONSES("gpt-4.1"), DEEPSEEK, GEMINI("gemini-2.5-flash"), OPENAI_CHAT("gpt-4.1")]) {
+    const plan = planFor(settings, "off");
+    assert.deepEqual([plan.effective, plan.note, plan.outputHeadroom, plan.timeoutSec], ["off", undefined, 0, 120], settings.aiModel);
   }
 });
 
@@ -228,7 +255,7 @@ test("输出余量和超时：关 0 和 120 秒、低 2048 和 120 秒、中 614
   const fallback = planFor(DEEPSEEK, "medium");
   assert.deepEqual([fallback.outputHeadroom, fallback.timeoutSec], [2048, 120], "退到低档，按低档算");
   const unknown = planFor(GATEWAY, "high");
-  assert.deepEqual([unknown.outputHeadroom, unknown.timeoutSec], [0, 120], "设不了的服务不加余量");
+  assert.deepEqual([unknown.outputHeadroom, unknown.timeoutSec], [2048, 120], "设不了的服务按低档留余量，不按选的高档");
   // 超时表只有一份：设置模块的超时就是这张表，关档就是默认超时。
   for (const level of ["off", ...LEVELS] as const) assert.equal(SETTINGS.EFFORT_TIMEOUT_SECONDS[level], P.EFFORT_BUDGETS[level].timeoutSec);
   assert.equal(SETTINGS.EFFORT_TIMEOUT_SECONDS.off, SETTINGS.AI_TIMEOUT_SECONDS);
@@ -281,6 +308,37 @@ test("高档被拒放宽后只记在高档：再发高档直接不带档位，�
   assert.equal(sent[2]?.reasoning, undefined);
   await ask("off");
   assert.deepEqual(sent[3]?.reasoning, { effort: "none" }, "选关的请求不受高档的放宽影响");
+});
+
+test("加了余量的输出上限被拒：退回不加余量的上限重发，记住以后同一组设置直接不加", async () => {
+  const memory = P.createRelaxMemory();
+  const plan = planFor(GATEWAY, "off");
+  const sent: number[] = [];
+  const send = async (request: P.ChatRequest): Promise<unknown> => {
+    sent.push(Number(request.body.max_tokens));
+    if (Number(request.body.max_tokens) > 1000) {
+      throw Object.assign(new Error("max_tokens is out of range for this model"), { status: 400 });
+    }
+    return {};
+  };
+  const ask = () =>
+    P.sendChatWithRelax({ settings: GATEWAY, messages: MESSAGES, maxTokens: 1000 + plan.outputHeadroom, effort: plan, memory, send });
+
+  const { relax } = await ask();
+  assert.deepEqual(relax, { headroom: true });
+  assert.deepEqual(sent, [1000 + plan.outputHeadroom, 1000]);
+  await ask();
+  assert.deepEqual(sent.slice(2), [1000], "记住以后直接按原来的上限发");
+});
+
+test("余量的放宽只在这次确实加了余量、报错点名输出上限时才有", () => {
+  const error = { status: 400, message: "max_tokens is out of range for this model" };
+  assert.deepEqual(P.relaxRejectedParams(PROTOCOLS.OPENAI, error, {}, null, 2048), { headroom: true });
+  assert.deepEqual(P.relaxRejectedParams(PROTOCOLS.ANTHROPIC, error, {}, null, 2048), { headroom: true });
+  assert.deepEqual(P.relaxRejectedParams(PROTOCOLS.RESPONSES, { status: 400, param: "max_output_tokens" }, {}, null, 2048), { headroom: true });
+  assert.equal(P.relaxRejectedParams(PROTOCOLS.OPENAI, error, {}, null, 0), null, "没加余量，照旧交还");
+  assert.equal(P.relaxRejectedParams(PROTOCOLS.OPENAI, error, { headroom: true }, null, 2048), null, "放宽过还被拒就交还");
+  assert.equal(P.relaxRejectedParams(PROTOCOLS.OPENAI, { status: 400, message: "temperature" }, {}, null, 2048), null);
 });
 
 function chatReply(): TransportResponse {
