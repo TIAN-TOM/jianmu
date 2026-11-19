@@ -63,6 +63,8 @@ interface Options {
   readonly registerGate?: Promise<void>;
   /** 交了页面读取（能代开文字稿面板的构建）：YouTube 这样回；不给时没有页面读取。 */
   readonly pageRead?: (ref: VideoRef) => TranscriptReply | { readonly later: "ad" | "video-changed" | "no-page" };
+  /** 只看本机的读取：为真时本机有这个视频的字幕；不给时本机什么都没有。 */
+  readonly cached?: (ref: VideoRef) => boolean;
 }
 
 /** 一句话的字幕：概览一块就做完。 */
@@ -95,9 +97,9 @@ function setup(options: Options = {}) {
       if (code) return fail(code as never);
       return ok({ view: transcriptView(ref), generation: 0 });
     },
-    async get(ref): Promise<TranscriptReply> {
+    async get(ref, { mode }): Promise<TranscriptReply> {
       cacheReads.push(videoKey(ref));
-      return fail("NOT_CACHED");
+      return mode === "local" && options.cached?.(ref) ? ok(transcriptView(ref)) : fail("NOT_CACHED");
     },
   };
   const harness: OverviewHarness = overviewHarness({ transcript, ...(options.respond ? { respond: options.respond } : {}) });
@@ -484,6 +486,100 @@ test("有页面读取：YouTube 那一项读不成以后点重试，再经它所
   await service.handle({ type: "window.retry", windowId: 7, video: videoKey({ platform: "youtube", videoId: "jmSample0001" }) }, panel.listener);
   assert.deepEqual(pageReads.at(-1), ["youtube:jmSample0001", 1], "重试也经它所在的标签页读");
   assert.ok(await until(() => entry()?.status === "completed"), "读到了就生成");
+});
+
+test("有页面读取：YouTube 那一项生成失败、关掉它的标签页以后点重试，本机有字幕就直接用，照样生成", async () => {
+  const tube = "https://www.youtube.com/watch?v=jmSample0001";
+  const tabs = [{ url: tube, title: "样例英文讲座 - YouTube" }];
+  let read = false;
+  let broken = true;
+  const { service, pageReads, page } = setup({
+    tabs,
+    // 经页面读到过以后，字幕就在本机了。
+    pageRead: (ref) => ((read = true), { ok: true, value: transcriptView(ref) }),
+    cached: () => read,
+    respond: (ask) => {
+      if (broken && !ask.isVerdict) throw Object.assign(new Error("网络断了"), { code: "NETWORK" });
+      return undefined;
+    },
+  });
+  const panel = page("panel");
+  await service.handle({ type: "window.count", windowId: 7 }, panel.listener);
+  await service.handle({ type: "window.start", windowId: 7 }, panel.listener);
+  const entry = () => panel.last("window.state")?.run?.entries[0];
+  assert.ok(await until(() => entry()?.status === "failed"), "生成失败");
+  assert.equal(pageReads.length, 1);
+  tabs.splice(0);
+  broken = false;
+  await service.handle({ type: "window.retry", windowId: 7, video: videoKey({ platform: "youtube", videoId: "jmSample0001" }) }, panel.listener);
+  assert.ok(await until(() => entry()?.status === "completed"), `本机的字幕照样能生成，现在是 ${JSON.stringify(entry())}`);
+  assert.equal(pageReads.length, 1, "标签页关了，不再经页面读");
+});
+
+test("有页面读取：标签页关了、本机也没有字幕时点重试，照旧报视频已换", async () => {
+  const tube = "https://www.youtube.com/watch?v=jmSample0001";
+  const tabs = [{ url: tube, title: "样例英文讲座 - YouTube" }];
+  const { service, page } = setup({ tabs, pageRead: () => ({ ok: false, code: "UNAVAILABLE" }) });
+  const panel = page("panel");
+  await service.handle({ type: "window.count", windowId: 7 }, panel.listener);
+  await service.handle({ type: "window.start", windowId: 7 }, panel.listener);
+  const entry = () => panel.last("window.state")?.run?.entries[0];
+  assert.ok(await until(() => entry()?.status === "failed"));
+  tabs.splice(0);
+  await service.handle({ type: "window.retry", windowId: 7, video: videoKey({ platform: "youtube", videoId: "jmSample0001" }) }, panel.listener);
+  assert.equal(entry()?.status, "failed");
+  assert.equal(entry()?.failure?.code, "VIDEO_CHANGED");
+});
+
+test("有页面读取：全部停止以后点重试，页面先说稍后再来，重试照样隔一会儿再问，读到就生成", async () => {
+  const tube = "https://www.youtube.com/watch?v=jmSample0001";
+  let answers: ("later" | "ok")[] = [];
+  const { service, timers, pageReads, page } = setup({
+    tabs: [{ url: tube, title: "样例英文讲座 - YouTube" }],
+    pageRead: (ref) => (answers.shift() === "ok" ? { ok: true, value: transcriptView(ref) } : { later: "ad" }),
+  });
+  const panel = page("panel");
+  const video = videoKey({ platform: "youtube", videoId: "jmSample0001" });
+  const entry = () => panel.last("window.state")?.run?.entries[0];
+  await service.handle({ type: "window.count", windowId: 7 }, panel.listener);
+  const running = service.handle({ type: "window.start", windowId: 7 }, panel.listener);
+  assert.ok(await until(() => timers.due(PAGE_WAIT_MS) > 0), "页面没准备好，隔一会儿再问");
+  await service.handle({ type: "window.stop", windowId: 7 }, panel.listener);
+  await running;
+  assert.ok(await until(() => entry()?.status === "failed"), "停下了");
+
+  answers = ["later", "ok"];
+  const asked = pageReads.length;
+  const retried = service.handle({ type: "window.retry", windowId: 7, video }, panel.listener);
+  assert.ok(await until(() => timers.due(PAGE_WAIT_MS) > 0), "重试不拿已经停下的那一批的信号，照样隔一会儿再问");
+  timers.fire(PAGE_WAIT_MS);
+  await retried;
+  assert.equal(pageReads.length, asked + 2);
+  assert.ok(await until(() => entry()?.status === "completed"), "读到了就生成");
+});
+
+test("有页面读取：重试等页面的时候点全部停止，马上不等了，也不生成", async () => {
+  const tube = "https://www.youtube.com/watch?v=jmSample0001";
+  let later = false;
+  const { service, harness, timers, page } = setup({
+    tabs: [{ url: tube, title: "样例英文讲座 - YouTube" }],
+    pageRead: () => (later ? { later: "ad" } : { ok: false, code: "UNAVAILABLE" }),
+  });
+  const panel = page("panel");
+  const video = videoKey({ platform: "youtube", videoId: "jmSample0001" });
+  const entry = () => panel.last("window.state")?.run?.entries[0];
+  await service.handle({ type: "window.count", windowId: 7 }, panel.listener);
+  await service.handle({ type: "window.start", windowId: 7 }, panel.listener);
+  assert.ok(await until(() => entry()?.status === "failed"));
+
+  later = true;
+  const retried = service.handle({ type: "window.retry", windowId: 7, video }, panel.listener);
+  assert.ok(await until(() => timers.due(PAGE_WAIT_MS) > 0));
+  await service.handle({ type: "window.stop", windowId: 7 }, panel.listener);
+  await retried;
+  assert.equal(entry()?.status, "failed");
+  assert.equal(timers.due(PAGE_WAIT_MS), 0, "不再等页面");
+  assert.equal(harness.tasks.list().length, 0, "没登记生成任务");
 });
 
 test("确认后逐个读字幕、两项之间隔 1 秒，新生成的都出结果；关掉侧边栏照常做完，重开时接上", async () => {
