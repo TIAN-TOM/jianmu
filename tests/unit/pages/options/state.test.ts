@@ -292,6 +292,36 @@ test("又点了保存、授权框还开着：上一次的「已保存」先收�
   assert.match(status()?.text ?? "", /已保存并授权/);
 });
 
+test("拉取模型列表先保存过，状态行照实说已保存；模型框里的型号不在列表里时提醒一句，带不带 models/ 前缀都算在列表里", async () => {
+  const ready = { ...GATEWAY, ...DATA_CONSENT_CONFIRMED, aiApiKey: "sk-old", aiApiKeyOrigin: "https://gateway.example.com/" };
+  const fetched = async (patch: Record<string, unknown>) => {
+    const w = world({ ...ready, ...patch });
+    w.permission.resolve();
+    await w.state.load();
+    await w.state.fetchModels();
+    return w.state.aiStatus.value;
+  };
+
+  assert.deepEqual(await fetched({}), { at: "model", tone: "ok", text: "已保存并授权，拉到 2 个模型，可以在模型框里直接选。" });
+  assert.equal((await fetched({ aiModel: "models/M2" }))?.tone, "ok");
+
+  const stale = await fetched({ aiModel: "m-old" });
+  assert.equal(stale?.tone, "warn");
+  assert.match(stale?.text ?? "", /^已保存并授权，拉到 2 个模型，可以在模型框里直接选。模型框里的「m-old」不在列表里/);
+  assert.match(stale?.text ?? "", /有的服务也认列表外的别名/);
+
+  const empty = await fetched({ aiModel: "" });
+  assert.deepEqual({ tone: empty?.tone, text: empty?.text }, { tone: "warn", text: "已保存并授权，拉到 2 个模型，在模型框里选一个，再点「保存并授权」。" });
+
+  // 还差同意：拉取会被后台拦下，状态行仍然说清楚保存是成了的。
+  const refused = world({ ...GATEWAY, aiApiKey: "sk-old", aiApiKeyOrigin: "https://gateway.example.com/" });
+  refused.permission.resolve();
+  await refused.state.load();
+  refused.failModels();
+  await refused.state.fetchModels();
+  assert.match(refused.state.aiStatus.value?.text ?? "", /^已保存并授权，但没拉到模型列表：/);
+});
+
 test("拉取模型没成：服务拒绝、拉取前那次保存没拿到权限，都写在模型框下面", async () => {
   const refused = world({ ...GATEWAY });
   refused.permission.resolve();

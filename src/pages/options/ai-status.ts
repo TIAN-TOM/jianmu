@@ -26,6 +26,8 @@ export interface AiStatus {
   say(at: AiPlace, text: string, tone: Tone): void;
   /** 保存以后那句：都齐了说存好了，还差什么就说差什么。 */
   saySaved(at: AiPlace, written: LoadedSettings): void;
+  /** 拉模型列表以后那句：拉取先保存过，照实说存好了没有、拉到几个；模型框里的型号不在列表里就提醒一句，不拦着用。 */
+  sayFetched(at: AiPlace, written: LoadedSettings, ids: readonly string[]): void;
   /** 同意的勾选变了：眼前还是保存以后那句的话，按新的设置重算，不留着「请勾选我已了解」这种过时的话。 */
   consentChanged(written: LoadedSettings): void;
   /** 密钥框下面那句「还没有密钥」。 */
@@ -61,10 +63,29 @@ export function createAiStatus(): AiStatus {
     savedAt = at;
   }
 
+  function sayFetched(at: AiPlace, written: LoadedSettings, ids: readonly string[]): void {
+    if (!ids.length) {
+      say(at, "已保存并授权，但服务没有返回模型，请手动填写模型名称。", "warn");
+      return;
+    }
+    const head = `已保存并授权，拉到 ${ids.length} 个模型`;
+    const model = written.aiModel;
+    if (!model) {
+      say(at, `${head}，在模型框里选一个，再点「保存并授权」。`, "warn");
+      return;
+    }
+    const notes: string[] = [];
+    if (!listed(ids, model)) notes.push(`模型框里的「${model}」不在列表里，可能是旧名字或打错了，核对一下；有的服务也认列表外的别名。`);
+    const ready = validate(written);
+    if (!ready.ok) notes.push(`AI 功能暂时用不了：${ready.errors.join(" ")}`);
+    say(at, `${head}，可以在模型框里直接选。${notes.join("")}`, notes.length ? "warn" : "ok");
+  }
+
   return {
     current,
     say,
     saySaved,
+    sayFetched,
     consentChanged(written) {
       if (savedAt) saySaved(savedAt, written);
     },
@@ -77,4 +98,11 @@ export function createAiStatus(): AiStatus {
     },
     clear,
   };
+}
+
+// 同一个型号有带 models/ 前缀和不带两种写法，大小写也不讲究：只为提醒，宁可少报。
+function listed(ids: readonly string[], model: string): boolean {
+  const plain = (id: string): string => id.replace(/^models\//i, "").toLowerCase();
+  const wanted = plain(model);
+  return ids.some((id) => plain(id) === wanted);
 }
