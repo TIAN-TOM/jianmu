@@ -29,7 +29,7 @@ export interface PromptCommon {
 /** 分块请求的错误：码给界面和补轮判断，noAutoRetry 是传输层已经为这一块重发过。 */
 export type ChunkError = TransportError;
 
-// 重跑也救不了的失败：配置、权限、拒绝回答、响应过大，以及硬超时（同样大小的块多半还会超时，被掐断的那次可能已经计费）。
+// 重跑也救不了的失败：配置、权限、拒绝回答、响应过大、思考把加过码的额度都用完了，以及硬超时（同样大小的块多半还会超时，被掐断的那次可能已经计费）。
 const DETERMINISTIC_CODES: ReadonlySet<string> = new Set([
   "TASK_CANCELED",
   "NO_AI_CONFIG",
@@ -38,6 +38,8 @@ const DETERMINISTIC_CODES: ReadonlySet<string> = new Set([
   "INVALID_BASE_URL",
   "AI_REFUSED",
   "AI_RESPONSE_TOO_LARGE",
+  "AI_THINKING_EXHAUSTED",
+  "AI_THINKING_EXHAUSTED_LOCKED",
   "AI_REDIRECT_BLOCKED",
   "ANTHROPIC_WORKSPACE_REQUIRED",
   "AI_HARD_TIMEOUT",

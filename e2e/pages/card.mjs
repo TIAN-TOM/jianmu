@@ -3,6 +3,7 @@
 // 密钥随浏览器重启清空时，说明直说要重新填（说法的规则在 pages/shared/config.ts，由单元测试守）；
 // YouTube 上没有官方总结那一块，本机还没有字幕时不摆「生成概览」，请用户先在侧边栏读。
 // 换过字幕时，依据旧字幕的结论标出来。
+// 官方总结晚到时，「生成概览」等它有了结果才摆，摆出来以后不被顶走；一直没结果时等够了照样摆。
 import assert from "node:assert/strict";
 import { CARD_HEIGHT } from "../../src/content/card-frame.ts";
 import { CARD_ROWS, NOT_READ_TEXT } from "../../src/pages/card/model.ts";
@@ -193,4 +194,31 @@ test("卡片（YouTube）：有概览时结论在最前、只露前几章，没�
 
   const ready = await open(`${SAMPLE}#youtube-ready`);
   assert.deepEqual((await read(ready)).buttons, ["card-generate", "card-panel"]);
+});
+
+test("卡片：官方总结晚到时，「生成概览」从第一次露出来到官方总结摆好，位置不变", async ({ open }) => {
+  const page = await open(`${SAMPLE}#official-late`);
+  await page.setWidth(FRAME_WIDTH, CARD_HEIGHT.max);
+  // 每一帧记一次按钮的位置：只要露过，就看它后来有没有被顶走。
+  await page.evaluate(`(() => {
+    window.__buttonTops = [];
+    const tick = () => {
+      const button = document.getElementById("card-generate");
+      if (button) window.__buttonTops.push({ top: Math.round(button.getBoundingClientRect().top), official: Boolean(document.querySelector("#card-official .card-reading")) });
+      requestAnimationFrame(tick);
+    };
+    tick();
+    return true;
+  })()`);
+  await page.waitFor("官方总结摆出来，按钮也在", `Boolean(document.querySelector("#card-official .card-reading") && window.__buttonTops.some((entry) => entry.official))`);
+  const tops = await page.evaluate(`window.__buttonTops`);
+  assert.deepEqual([...new Set(tops.map((entry) => entry.top))].length, 1, `按钮被顶走过：${JSON.stringify(tops.map((entry) => entry.top).filter((top, at, all) => all.indexOf(top) === at))}`);
+});
+
+test("卡片：官方总结一直读不到时，先说正在读、不摆按钮行，等够了照样摆出「生成概览」", async ({ open }) => {
+  const page = await open(`${SAMPLE}#official-never`);
+  await page.waitFor("说正在读官方总结", `document.getElementById("card")?.innerText.includes("正在读 B 站的官方总结")`);
+  assert.equal(await page.evaluate(`Boolean(document.querySelector(".card-actions"))`), false, "官方总结还在读：按钮行先不摆");
+  await page.waitFor("等够了摆出「生成概览」", `Boolean(document.getElementById("card-generate"))`);
+  assert.ok(await page.evaluate(`document.getElementById("card").innerText.includes("正在读 B 站的官方总结")`));
 });

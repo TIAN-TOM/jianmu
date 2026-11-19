@@ -9,7 +9,7 @@ export {
   isOfficialAnthropic,
   parseClaudeModel,
 } from "./anthropic.ts";
-export { diagnoseEmptyResponse } from "./diagnose.ts";
+export { diagnoseEmptyResponse, thinkingUsedUpBudget } from "./diagnose.ts";
 export {
   EFFORT_BUDGETS,
   EFFORTS,

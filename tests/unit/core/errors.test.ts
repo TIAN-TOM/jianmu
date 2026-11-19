@@ -175,3 +175,14 @@ test("连不上模型服务时提一句可能被学校、公司的网络拦了�
   assert.match(next, /核对 API 地址/, "断网和地址填错照样要查");
   assert.doesNotMatch(cause, /拦/, "原因一段不替用户猜是被拦了");
 });
+
+test("思考把额度用完：原因说到点上；调不了档位的那一种不让人去调推理强度", () => {
+  const lowerable = AI_ERROR_TEXT.AI_THINKING_EXHAUSTED;
+  const locked = AI_ERROR_TEXT.AI_THINKING_EXHAUSTED_LOCKED;
+  for (const copy of [lowerable, locked]) assert.match(copy.cause, /思考/);
+  assert.equal(lowerable.cause, locked.cause);
+  assert.match(lowerable.next ?? "", /推理强度/);
+  assert.doesNotMatch(locked.next ?? "", /「推理强度」/);
+  assert.match(locked.next ?? "", /按功能选模型/);
+  assert.notEqual(lowerable.cause, AI_ERROR_TEXT.AI_RESPONSE_TRUNCATED.cause);
+});

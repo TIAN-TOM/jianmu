@@ -13380,7 +13380,7 @@
     }
    ],
    "result": {
-    "message": "输出被 token 上限截断了，放大预算重试后仍然不够。可以换一个输出更简洁的模型试试。",
+    "message": "模型把 token 配额全用在思考上了，没能输出正文。已经放大预算重试过，仍然不够，建议换一个非推理模型。",
     "reason": "TRUNCATED",
     "retryWithMoreTokens": true,
     "retryWithoutJsonMode": false
