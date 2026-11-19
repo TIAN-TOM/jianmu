@@ -19,3 +19,17 @@ export function Notice({ notices }: { readonly notices: readonly (NoticeEntry | 
     </div>
   );
 }
+
+/**
+ * 报错的三段式下面那一行：服务自己说的话，默认收着，点开才看。原话是外来文字，
+ * 只作为文字节点渲染，不当链接也不当标记；后台已经清洗、截短、遮过像密钥的片段。
+ */
+export function ServiceSaid({ said }: { readonly said?: string | undefined }) {
+  if (!said) return null;
+  return (
+    <details class="service-said">
+      <summary>服务的原话</summary>
+      <p class="service-said-text">{said}</p>
+    </details>
+  );
+}

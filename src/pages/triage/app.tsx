@@ -6,6 +6,7 @@ import { GROUPS, groupItems, groupKeyOf, hasVerdict, type TriageVerdict } from "
 import type { TriageItem } from "../../core/triage/state.ts";
 import type { Activation } from "../shared/activation.ts";
 import { Button } from "../shared/ui/button.tsx";
+import { ServiceSaid } from "../shared/ui/notice.tsx";
 import { StateBlock } from "../shared/ui/state-block.tsx";
 import { stateCopy } from "../shared/ui/state.ts";
 import { VerdictBlock } from "../shared/ui/verdict-block.tsx";
@@ -141,7 +142,8 @@ function Row({ state, item }: { readonly state: TriageState; readonly item: Tria
             （在侧边栏里生成，会花 API 额度）
           </p>
         ) : null}
-        {error ? <p class="video-error">{error}</p> : null}
+        {error ? <p class="video-error">{error.text}</p> : null}
+        {error ? <ServiceSaid said={error.said} /> : null}
       </div>
     </li>
   );

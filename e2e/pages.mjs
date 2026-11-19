@@ -130,14 +130,14 @@ try {
 
   for (const file of SCENARIOS) await import(pathToFileURL(join(ROOT, file)).href);
   const harness = createHarness({ cdp, extensionId: id, extensionDir, sessions });
-  for (const { file, title, fn, timeoutMs = TEST_TIMEOUT_MS } of registered()) {
+  for (const { file, title, fn, timeoutMs = TEST_TIMEOUT_MS, expectedErrors = [] } of registered()) {
     const ctx = harness.context();
     const started = Date.now();
     let error = null;
     try {
       await withTimeout(fn(ctx), timeoutMs, title);
       await new Promise((done) => setTimeout(done, SETTLE_MS));
-      const late = errors.filter((entry) => entry.at >= started).map((entry) => entry.text);
+      const late = errors.filter((entry) => entry.at >= started && !expectedErrors.some((pattern) => pattern.test(entry.text))).map((entry) => entry.text);
       if (late.length > 0) throw new Error(`扩展页面有报错：\n${late.join("\n")}`);
     } catch (caught) {
       error = caught instanceof Error ? caught.message : String(caught);

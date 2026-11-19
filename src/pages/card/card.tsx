@@ -8,6 +8,7 @@ import { formatTimestamp } from "../../core/transcript/segment.ts";
 import type { OfficialSummaryView, OutlineSectionView } from "../../shared/messages/transcript.ts";
 import { keyChapterStarts } from "../../core/ai/verdict.ts";
 import { ChapterList, type ChapterItem } from "../shared/ui/chapter-list.tsx";
+import { ServiceSaid } from "../shared/ui/notice.tsx";
 import { StaleTranscriptLine, VerdictBlock } from "../shared/ui/verdict-block.tsx";
 import { staleOverviewMarks, type BasisSource } from "../shared/ui/verdict.ts";
 import { cardRows, hasOverview, type CardView, type TaskProgress } from "./model.ts";
@@ -207,6 +208,7 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
               {view.notice.text}
             </p>
           ) : null}
+          <ServiceSaid said={view.notice?.said} />
           {analysis ? (
             <Overview
               analysis={analysis}

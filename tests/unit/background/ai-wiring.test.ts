@@ -630,3 +630,17 @@ test("后台：配置检查分得清缺什么：只是密钥没了回 missing �
   assert.ok(noModel.ok);
   assert.equal(Object.hasOwn(noModel.value as object, "missing"), false);
 });
+
+test("模型服务的失败带上服务的原话；鉴权失败、取消不带", () => {
+  const http = (status: number, message: string) => Object.assign(new Error(message), { status });
+  assert.deepEqual(AI.aiFailure(http(404, "model sample-old was retired, use sample-new")), {
+    ok: false,
+    code: "MODEL_OR_ENDPOINT_NOT_FOUND",
+    detail: "服务返回 404，多半是模型名写错或 API 地址不对，请到设置页核对。",
+    said: "model sample-old was retired, use sample-new",
+  });
+  assert.equal(AI.aiFailure(http(400, "unsupported parameter: sample")).said, "unsupported parameter: sample", "认不出的错误也带原话");
+  assert.equal(AI.aiFailure(http(400, "unsupported parameter: sample")).code, "AI_REQUEST_FAILED");
+  assert.equal("said" in AI.aiFailure(http(401, "Incorrect API key provided: sk-test-abcd****wxyz")), false);
+  assert.equal("said" in AI.aiFailure(Object.assign(new Error("任务已取消。"), { code: "TASK_CANCELED" })), false);
+});

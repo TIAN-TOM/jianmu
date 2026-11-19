@@ -59,6 +59,11 @@ export interface Failure {
   readonly retryAfterSec?: number;
   /** 站点拒绝了这次读取，已经进了退避。 */
   readonly rejected?: true;
+  /**
+   * 模型服务报错时自己说的话，清洗、截短、遮过密钥的纯文本。只跟着这次回复给界面显示，
+   * 不写进存储和备份：要存失败的地方只挑码和 detail。
+   */
+  readonly said?: string;
 }
 
 export type Result<T> = { readonly ok: true; readonly value: T } | Failure;

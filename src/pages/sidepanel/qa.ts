@@ -15,6 +15,8 @@ export interface QaState {
   /** 还在回答的问题，含重开面板时接上的。 */
   readonly pending: readonly { readonly taskId: string; readonly question: string }[];
   readonly error: string;
+  /** 回答失败时模型服务自己说的话，显示在说明下面，默认收着；没有时是空串。 */
+  readonly errorSaid: string;
   /** 刚回答的这条没存进历史。 */
   readonly unsavedId: string | null;
 }
@@ -23,6 +25,8 @@ export interface ExplainState {
   readonly phase: "idle" | "running" | "done" | "failed";
   readonly selection: string;
   readonly text: string;
+  /** 解释失败时模型服务自己说的话。 */
+  readonly said?: string;
 }
 
 export interface QaStore {
@@ -41,7 +45,7 @@ export interface QaStore {
 const EXPLAIN_IDLE: ExplainState = { phase: "idle", selection: "", text: "" };
 
 export function createQaStore({ api }: { readonly api: Pick<PageApi, "send" | "on"> }): QaStore {
-  const state = signal<QaState>({ video: null, loaded: false, entries: [], pending: [], error: "", unsavedId: null });
+  const state = signal<QaState>({ video: null, loaded: false, entries: [], pending: [], error: "", errorSaid: "", unsavedId: null });
   const explain = signal<ExplainState>(EXPLAIN_IDLE);
   let generation = 0;
   let explainGeneration = 0;
@@ -56,7 +60,7 @@ export function createQaStore({ api }: { readonly api: Pick<PageApi, "send" | "o
 
   async function reload(asked: number, video: VideoKey): Promise<void> {
     const reply = await api.send("qa.history", { video });
-    if (!reply.ok) return patch(asked, { loaded: true, error: describe(reply.code, reply.detail) });
+    if (!reply.ok) return patch(asked, { loaded: true, error: describe(reply.code, reply.detail), errorSaid: "" });
     // 没存进历史的回答只在这一页上，重读历史时留着它。
     const { unsavedId, entries: shown } = state.peek();
     const unsaved = shown.filter((entry) => entry.id === unsavedId && !reply.value.entries.some((item) => item.id === entry.id));
@@ -90,7 +94,7 @@ export function createQaStore({ api }: { readonly api: Pick<PageApi, "send" | "o
       const asked = generation;
       for (const off of offs) off();
       offs = [];
-      state.value = { video, loaded: false, entries: [], pending: [], error: "", unsavedId: null };
+      state.value = { video, loaded: false, entries: [], pending: [], error: "", errorSaid: "", unsavedId: null };
       explainGeneration += 1;
       explain.value = EXPLAIN_IDLE;
       if (!video) return;
@@ -109,9 +113,9 @@ export function createQaStore({ api }: { readonly api: Pick<PageApi, "send" | "o
       const asked = generation;
       const video = state.peek().video;
       if (!video || !question) return;
-      patch(asked, { error: "" });
+      patch(asked, { error: "", errorSaid: "" });
       const started = await api.send("task.start", { kind: "qa", video, question });
-      if (!started.ok) return patch(asked, { error: describe(started.code, started.detail) });
+      if (!started.ok) return patch(asked, { error: describe(started.code, started.detail), errorSaid: started.said ?? "" });
       const taskId = started.value.task.id;
       if (!state.peek().pending.some((item) => item.taskId === taskId)) patch(asked, { pending: [...state.peek().pending, { taskId, question }] });
       awaiting.add(taskId);
@@ -119,7 +123,7 @@ export function createQaStore({ api }: { readonly api: Pick<PageApi, "send" | "o
       if (asked !== generation) return;
       dropPending(asked, taskId);
       if (!reply.ok) {
-        if (reply.code !== "TASK_CANCELED") patch(asked, { error: describe(reply.code, reply.detail) });
+        if (reply.code !== "TASK_CANCELED") patch(asked, { error: describe(reply.code, reply.detail), errorSaid: reply.said ?? "" });
         return;
       }
       const { entry, historySaved } = reply.value;
@@ -129,7 +133,7 @@ export function createQaStore({ api }: { readonly api: Pick<PageApi, "send" | "o
     async remove(id) {
       const asked = generation;
       const reply = await api.send("qa.delete", { id });
-      if (!reply.ok) return patch(asked, { error: describe(reply.code, reply.detail) });
+      if (!reply.ok) return patch(asked, { error: describe(reply.code, reply.detail), errorSaid: "" });
       patch(asked, { entries: state.peek().entries.filter((item) => item.id !== id) });
     },
     async explainSelection(raw, context) {
@@ -142,12 +146,14 @@ export function createQaStore({ api }: { readonly api: Pick<PageApi, "send" | "o
       const started = await api.send("task.start", { kind: "explain", video, selection, ...(context.trim() ? { context: context.trim() } : {}) });
       if (mine !== explainGeneration) return;
       if (!started.ok) {
-        explain.value = { phase: "failed", selection, text: describe(started.code, started.detail) };
+        explain.value = { phase: "failed", selection, text: describe(started.code, started.detail), ...(started.said ? { said: started.said } : {}) };
         return;
       }
       const reply = await api.send("explain.selection", { video, taskId: started.value.task.id });
       if (mine !== explainGeneration) return;
-      explain.value = reply.ok ? { phase: "done", selection, text: reply.value.explanation } : { phase: "failed", selection, text: describe(reply.code, reply.detail) };
+      explain.value = reply.ok
+        ? { phase: "done", selection, text: reply.value.explanation }
+        : { phase: "failed", selection, text: describe(reply.code, reply.detail), ...(reply.said ? { said: reply.said } : {}) };
     },
     closeExplain() {
       explainGeneration += 1;

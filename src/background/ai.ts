@@ -26,6 +26,7 @@ import {
 import {
   aiErrorResponse,
   createAiTransport,
+  serviceSaid,
   type AiFetchInit,
   type AiTransport,
   type CompletionRequest,
@@ -139,7 +140,10 @@ function codedError(code: AiErrorCode, message: string): ProviderError {
 export function aiFailure(error: unknown): Failure {
   const { error: raw, message } = aiErrorResponse(error);
   const code = raw === "RATE_LIMITED" ? "AI_RATE_LIMITED" : raw;
-  return AI_CODES.has(code) && code !== "AI_REQUEST_FAILED" ? fail(code as AiErrorCode, message) : fail("AI_REQUEST_FAILED");
+  const failure = AI_CODES.has(code) && code !== "AI_REQUEST_FAILED" ? fail(code as AiErrorCode, message) : fail("AI_REQUEST_FAILED");
+  // 服务的原话另放一项，界面在三段式下面显示；认不出的错误也带，它往往正是说明。
+  const said = serviceSaid(error);
+  return said ? { ...failure, said } : failure;
 }
 
 // 硬超时随档位放宽，和任务的保活预算用同一张表；关和低档用设置规则里的默认值。

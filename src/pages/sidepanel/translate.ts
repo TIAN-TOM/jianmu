@@ -16,6 +16,8 @@ export interface TranslateState {
   readonly total: number;
   /** 给用户看的一句：失败原因，或者部分批次没译成。 */
   readonly message: string;
+  /** 失败时模型服务自己说的话，显示在那一句下面，默认收着。 */
+  readonly said?: string;
 }
 
 export interface Translation {
@@ -107,13 +109,14 @@ function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | unde
             : event.state === "canceled"
               ? words.stopped
               : "";
-        state.value = { ...state.peek(), phase: failed ? "failed" : "done", message };
+        const { said: _said, ...rest } = state.peek();
+        state.value = { ...rest, phase: failed ? "failed" : "done", message, ...(event.failure?.said ? { said: event.failure.said } : {}) };
         closePort();
         return;
       }
       case "translate.refused":
         if (quiet) return endQuiet();
-        state.value = { ...IDLE, phase: "failed", message: describe(event.failure.code, event.failure.detail) };
+        state.value = { ...IDLE, phase: "failed", message: describe(event.failure.code, event.failure.detail), ...(event.failure.said ? { said: event.failure.said } : {}) };
         closePort();
         return;
       case "port.error":

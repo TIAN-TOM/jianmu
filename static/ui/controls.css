@@ -1,4 +1,4 @@
-/* 共用组件：页面底子、按钮和标记、模式切换、一行提示、底部工具条、状态块、首次启用说明。 */
+/* 共用组件：页面底子、按钮和标记、模式切换、一行提示和报错下的服务原话、底部工具条、状态块、首次启用说明。 */
 
 /* ---------- 页面底子 ---------- */
 
@@ -258,6 +258,24 @@
   font-size: var(--fs-meta);
   font-weight: var(--fw-medium);
   cursor: pointer;
+}
+
+/* 报错下面的「服务的原话」：默认收着，展开后是一段可以选中复制的纯文本。 */
+
+.service-said {
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+}
+
+.service-said > summary {
+  cursor: pointer;
+  width: fit-content;
+}
+
+.service-said-text {
+  margin: var(--space-1) 0 0;
+  overflow-wrap: anywhere;
+  user-select: text;
 }
 
 /* ---------- 底部工具条 ---------- */
