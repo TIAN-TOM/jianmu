@@ -88,7 +88,10 @@ function resultOf(kind, prompt) {
     const first = /^\[(\d+:\d{2})\]/m.exec(prompt)?.[1];
     return { summary: "模拟服务写的一句话结论", value: "样例价值", verdict: videoOf(prompt) === SKIPPED_VIDEO ? "可跳过" : "可以看", reason: "样例理由", keyChapters: first ? [first] : [] };
   }
-  if (kind === "qa") return { answer: "模拟服务的回答，依据在 [0:00]。" };
+  if (kind === "qa") {
+    const row = /^\[(\d+:\d{2})\] (.+)$/m.exec(prompt);
+    return { answer: row ? `模拟服务的回答。【${row[1]}|${row[2]}】` : "" };
+  }
   // 照提示词的要求抄本段开头的时间；金句里的秒数供端到端核对位置。
   const start = /本次范围：(\d+:\d{2})/.exec(prompt)?.[1] ?? "0:00";
   const [minutes = 0, rest = 0] = start.split(":").map(Number);
