@@ -1,4 +1,4 @@
-// 设置页：确认启用之前只有启用说明和资料一节；确认以后能保存服务商、密钥和模型，拉模型列表、测试连接对着模拟的模型服务走通，
+// 设置页：确认启用之前只有启用说明和资料一节；确认以后能保存服务商、密钥和模型，拉模型列表（状态行说已保存，框里的型号不在列表里时提醒）、测试连接对着模拟的模型服务走通，
 // 密钥只进会话存储；本机 http 地址不填密钥也能保存、拉列表和测试连接；导出的备份清除全部数据后能再导回来，
 // 超过单条消息上限的备份也一样。各测试开头先清除全部数据，从没启用的状态开始。
 import assert from "node:assert/strict";
@@ -122,8 +122,13 @@ test("设置页：选服务商、填密钥、勾同意后保存，拉模型列�
   await page.waitFor("那句还差同意的提示换掉了", `${statusText("ai-service")} === "已保存并授权。"`);
 
   // 状态行跟着点的那个控件走：拉取的结果紧挨在模型框下面，不用滚到这一节最底下找。
+  // 拉取先保存过，状态行说出来；框里预填的型号不在拉到的列表里，多提醒一句。
+  const prefilled = await page.evaluate(`document.getElementById("aiModel").value`);
   await clickButton(page, "拉取模型列表");
-  assert.equal(await statusStarts(page, "ai-service", "拉到"), "拉到 1 个模型，可以在模型框里直接选。");
+  assert.equal(
+    await statusStarts(page, "ai-service", "已保存并授权，拉到"),
+    `已保存并授权，拉到 1 个模型，可以在模型框里直接选。模型框里的「${prefilled}」不在列表里，可能是旧名字或打错了，核对一下；有的服务也认列表外的别名。`,
+  );
   const fetched = await placedStatus(page, "#aiModel");
   assert.deepEqual({ at: fetched.at, inView: fetched.inView, shown: fetched.shown }, { at: "model", inView: true, shown: 1 });
   assert.ok(fetched.gap >= 0 && fetched.gap <= 16, `离模型框 ${fetched.gap} 像素`);
@@ -170,6 +175,9 @@ test("设置页：选服务商、填密钥、勾同意后保存，拉模型列�
   await clickButton(page, "测试连接");
   assert.equal(await statusStarts(page, "ai-service", "默认模型"), `默认模型（${ANTHROPIC.model}）连接正常，回复「可用」`);
   assert.deepEqual((({ at, shown }) => ({ at, shown }))(await placedStatus(page, "#aiModel")), { at: "actions", shown: 1 });
+  // 框里换成列表里有的型号以后再拉，不再提醒。
+  await clickButton(page, "拉取模型列表");
+  await page.waitFor("再拉一次只说已保存和拉到几个", `${statusText("ai-service")} === "已保存并授权，拉到 1 个模型，可以在模型框里直接选。"`);
 
   const stored = await page.evaluate(`Promise.all([chrome.storage.local.get(null), chrome.storage.session.get(${JSON.stringify(API_KEY_SESSION_KEY)})])`);
   const [local, session] = stored;
@@ -236,7 +244,7 @@ test("设置页：自定义填本机 http 地址、密钥留空，保存、拉�
     await clickButton(page, "保存并授权");
     assert.equal(await statusStarts(page, "ai-service", "已保存"), "已保存并授权，但 AI 功能暂时用不了：请填写模型名称，或点击「拉取模型列表」进行选择。");
     await clickButton(page, "拉取模型列表");
-    assert.equal(await statusStarts(page, "ai-service", "拉到"), "拉到 1 个模型，可以在模型框里直接选。");
+    assert.equal(await statusStarts(page, "ai-service", "已保存并授权，拉到"), "已保存并授权，拉到 1 个模型，在模型框里选一个，再点「保存并授权」。");
     await fill(page, "#aiModel", "local-model");
     await clickButton(page, "保存并授权");
     await page.waitFor("模型存下", `chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)}).then((items) => items[${JSON.stringify(SETTINGS_STORAGE_KEY)}]?.aiModel === "local-model")`);

@@ -395,12 +395,12 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       afterSave("models", "model", async () => {
         const reply = await api.send("models.list", {});
         if (!reply.ok) {
-          say("model", `没拉到模型列表：${failureText(reply)}`, "error");
+          say("model", `已保存并授权，但没拉到模型列表：${failureText(reply)}`, "error");
           return;
         }
         models.value = reply.value.ids;
-        if (reply.value.ids.length) say("model", `拉到 ${reply.value.ids.length} 个模型，可以在模型框里直接选。`, "ok");
-        else say("model", "服务没有返回模型，请手动填写模型名称。", "warn");
+        const written = saved.peek();
+        if (written) ai.sayFetched("model", written, reply.value.ids);
       }),
     testConnection: (all) =>
       afterSave("test", "actions", async () => {
