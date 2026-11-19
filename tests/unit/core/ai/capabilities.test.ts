@@ -209,6 +209,57 @@ test("OpenAI 的 /models 只发一次，不带翻页参数，也没有能力数�
   assert.deepEqual(result, { ids: ["gpt-5.5", "gpt-6-astra"], capabilities: {} });
 });
 
+test("拉到的模型列表滤掉向量、重排、审核、语音、图像和视频这些不能对话的，顺序照旧", () => {
+  const ids = [
+    "gpt-5.5",
+    "text-embedding-3-small",
+    "models/gemini-embedding-001",
+    "BAAI/bge-reranker-v2-m3",
+    "omni-moderation-latest",
+    "tts-1-hd",
+    "gpt-4o-mini-tts",
+    "whisper-1",
+    "gpt-4o-transcribe",
+    "gpt-realtime",
+    "dall-e-3",
+    "gpt-image-1",
+    "models/imagen-4.0-generate-001",
+    "black-forest-labs/FLUX.1-schnell",
+    "models/veo-3.0-generate-001",
+    "sora-2",
+    "models/gemini-3.5-flash",
+    "deepseek-chat",
+  ];
+  assert.deepEqual(CAPS.chatModelIds(ids), ["gpt-5.5", "models/gemini-3.5-flash", "deepseek-chat"]);
+});
+
+test("认不准的型号留着：名字里只是碰巧带着这些字母的不滤", () => {
+  const ids = ["gpt-4o-audio-preview", "gpt-4o-search-preview", "qwen-max", "glm-flash", "video-chat-1", "uttsu-model", "my-veon-model"];
+  assert.deepEqual(CAPS.chatModelIds(ids), ids);
+});
+
+test("滤完一个不剩就原样给回整份，不给空列表", () => {
+  const ids = ["text-embedding-3-large", "whisper-1"];
+  const kept = CAPS.chatModelIds(ids);
+  assert.deepEqual(kept, ids);
+  assert.notEqual(kept, ids, "给回的是新数组");
+  assert.deepEqual(CAPS.chatModelIds([]), []);
+});
+
+test("拉列表滤掉不能对话的型号，Anthropic 的能力照列表里的全部记", async () => {
+  const openai = await CAPS.listModels({
+    settings: openaiSettings,
+    send: consented(async () => ({ object: "list", data: [{ id: "gpt-6-astra" }, { id: "text-embedding-3-small" }, { id: "whisper-1" }] })),
+  });
+  assert.deepEqual(openai.ids, ["gpt-6-astra"]);
+  const anthropic = await CAPS.listModels({
+    settings: anthropicSettings,
+    send: consented(async () => page([modelInfo("claude-opus-5-5"), modelInfo("claude-embed-1")])),
+  });
+  assert.deepEqual(anthropic.ids, ["claude-opus-5-5"]);
+  assert.deepEqual(Object.keys(anthropic.capabilities).sort(), ["claude-embed-1", "claude-opus-5-5"]);
+});
+
 test("能力缓存按 API 地址存，过期后要求重新拉取", async () => {
   let clock = 1_000_000;
   const storage = memoryStorage();

@@ -127,6 +127,48 @@ export interface ModelListing {
   readonly capabilities: ModelCapabilityMap;
 }
 
+// 型号名里带这些字样的不是对话模型：向量、重排、内容审核、语音合成、语音转写、实时语音、图像和视频生成。
+// 只收认得准的；认不准的留在列表里，滤错了用户也还能在模型框里手填。
+const NOT_CHAT_MODEL = [
+  /embed/,
+  /rerank/,
+  /moderation/,
+  /(?:^|[^a-z0-9])tts(?:[^a-z0-9]|$)/,
+  /cosyvoice/,
+  /whisper/,
+  /transcribe/,
+  /sensevoice/,
+  /paraformer/,
+  /realtime/,
+  /dall-e/,
+  /gpt-image/,
+  /imagen/,
+  /cogview/,
+  /cogvideo/,
+  /wanx/,
+  /kolors/,
+  /stable-diffusion/,
+  /^flux/,
+  /^veo(?:[^a-z0-9]|$)/,
+  /^sora(?:[^a-z0-9]|$)/,
+];
+
+/** 型号名最后一段（去掉 models/、组织名这类前缀），小写。 */
+function modelBaseName(id: string): string {
+  return id.slice(id.lastIndexOf("/") + 1).toLowerCase();
+}
+
+/**
+ * 只留能对话的模型，顺序照旧。一个都不剩时原样返回，宁可多给几个也不给空列表。
+ */
+export function chatModelIds(ids: readonly string[]): string[] {
+  const kept = ids.filter((id) => {
+    const name = modelBaseName(id);
+    return !NOT_CHAT_MODEL.some((pattern) => pattern.test(name));
+  });
+  return kept.length ? kept : [...ids];
+}
+
 /** 发 GET：成功返回响应数据，失败抛出带 status 的错误。 */
 export type ModelsSend = (request: ModelsRequest, settings?: AiSettings) => Promise<unknown>;
 
@@ -229,7 +271,8 @@ export function parseModelCapabilities(item: unknown): ClaudeCapabilities | null
 /**
  * 列出模型名和各模型的能力。send(request, settings) 发 GET，成功返回响应数据，
  * 失败抛出带 status 的错误。Anthropic 按 has_more 和 last_id 翻页；
- * OpenAI 兼容的两种协议只发一次。返回 { ids, capabilities }，capabilities 按模型名索引。
+ * OpenAI 兼容的两种协议只发一次。返回 { ids, capabilities }：ids 滤掉了不是对话用的模型，
+ * capabilities 按模型名索引、照列表里的全部记。
  * 每一页都带着密钥，所以只收核对过同意的 GET：途中取消了确认，后面的页就不再发。
  */
 export async function listModels({
@@ -241,7 +284,7 @@ export async function listModels({
 }): Promise<ModelListing> {
   if (settings.protocol !== PROTOCOLS.ANTHROPIC) {
     const data = await send(buildModelsRequest(settings), settings);
-    return { ids: parseModelsResponse(data), capabilities: {} };
+    return { ids: chatModelIds(parseModelsResponse(data)), capabilities: {} };
   }
   const items: (ModelInfo | null | undefined)[] = [];
   let afterId = "";
@@ -262,7 +305,7 @@ export async function listModels({
     const parsed = parseModelCapabilities(item);
     if (parsed) capabilities[id] = parsed;
   }
-  return { ids: parseModelsResponse({ data: items }), capabilities };
+  return { ids: chatModelIds(parseModelsResponse({ data: items })), capabilities };
 }
 
 /**
