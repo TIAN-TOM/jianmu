@@ -2,6 +2,7 @@
 // 两个入口共用一条路：先查模型配置和看图能力（不能看图就不截、不发），再读视频信息确认不是付费内容
 // （确认是付费的、没登录读不到的都不截，确认不了是否付费的照截），再向那个标签页的内容脚本要当前一帧，核对截图（前缀、大小、尺寸、
 // 视频身份），登记任务，连同这一刻前后几句字幕交给画面分析的模型。途中清除了本机数据就停下，不截、不发。
+// YouTube 的字幕只在用户点读取时读：解释画面不核对视频信息、不读页面，只用本机已有的字幕，没有就只发画面。
 // 截图只在这一次请求里用，不落盘，任务结束就丢；解释的文字按标签页留最近几次，侧边栏来取。解释记在扩展的会话存储里
 // （只在内存，不写磁盘），后台被回收后醒来还在；醒来时还标着在跑的，按中途停了收尾。清除本机数据时一起删。
 // 模块顶层只放字面量和函数，理由见 content/frame.ts 开头。
@@ -16,11 +17,11 @@ import type { Messenger } from "../../platform/messaging.ts";
 import type { StorageArea } from "../../platform/storage.ts";
 import type { Tabs } from "../../platform/tabs.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
-import { parseVideoKey, type VideoKey } from "../../core/video-ref.ts";
+import { parseVideoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
 import type { Broadcast } from "../../shared/messages.ts";
 import type { FrameCapture, FrameRefusal } from "../../shared/messages/content.ts";
 import type { FrameEntryView } from "../../shared/messages/frame.ts";
-import type { CueView } from "../../shared/messages/transcript.ts";
+import type { CueView, TranscriptView } from "../../shared/messages/transcript.ts";
 import { DATA_CONSENT_ERROR } from "../../core/consent.ts";
 import { FRAME_PROMPT_FILE } from "../../shared/frame-slot.ts";
 import { aiFailure, type AiWiring } from "../ai.ts";
@@ -114,6 +115,8 @@ export interface FrameExplainDeps {
   readonly ai: Pick<AiWiring, "freeze" | "configCheck">;
   readonly images: Pick<ImageSupport, "ensure" | "probe">;
   readonly transcript: Pick<TranscriptService, "get" | "verify">;
+  /** 本机没记着视频信息时拿标签页的标题当视频标题。 */
+  readonly tabTitle: (tabId: number) => Promise<string | null>;
   readonly clearGuard: Pick<ClearGuard, "epoch" | "clearedSince" | "track">;
   /** 扩展的会话存储：只在内存，浏览器关闭就清空。 */
   readonly session: Pick<StorageArea, "get" | "set">;
@@ -223,6 +226,7 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
   async function material(video: VideoKey, tabId: number): Promise<Result<Material>> {
     const ref = parseVideoKey(video);
     if (!ref) return fail("FRAME_VIDEO_CHANGED");
+    if (ref.platform === "youtube") return localMaterial(ref, tabId);
     const verified = await deps.transcript.verify(ref);
     if (!verified.ok) return verified;
     let reply: Awaited<ReturnType<FrameExplainDeps["transcript"]["get"]>>;
@@ -234,6 +238,19 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
     }
     if (!reply.ok && !CONTEXT_OPTIONAL.has(reply.code)) return reply.detail === undefined ? fail(reply.code) : fail(reply.code, reply.detail);
     return ok({ videoTitle: verified.value.title || "未知", cues: reply.ok ? reply.value.transcript.cues : [] });
+  }
+
+  // 只看本机：缓存、内存里记着的和导入的字幕，一个请求都不发，也不问页面。读不到就当没有字幕，照样解释。
+  async function localMaterial(ref: VideoRef, tabId: number): Promise<Result<Material>> {
+    let local: TranscriptView | null = null;
+    try {
+      const reply = await deps.transcript.get(ref, { mode: "local", tabId });
+      local = reply.ok ? reply.value : null;
+    } catch (error) {
+      deps.log.warn("读本机字幕出错，只发画面", errorLabel(error));
+    }
+    const videoTitle = local?.info.title || (await deps.tabTitle(tabId)) || "未知";
+    return ok({ videoTitle, cues: local?.transcript.cues ?? [] });
   }
 
   async function explain(gen: FrozenGen, video: VideoKey, capture: FrameCapture, found: Material, id: string): Promise<Result<{ explanation: string; truncated?: true }>> {
@@ -373,7 +390,7 @@ export function createFrameParts(deps: {
   readonly keepAlive: Pick<KeepAlive, "during">;
   readonly clearGuard: ClearGuard;
   readonly transcript: FrameExplainDeps["transcript"];
-  readonly tabs: Pick<Tabs, "ask">;
+  readonly tabs: Pick<Tabs, "ask" | "title">;
   readonly messenger: Pick<Messenger, "toPages">;
   readonly log: Log;
   readonly now: () => number;
@@ -385,6 +402,7 @@ export function createFrameParts(deps: {
     ai,
     images,
     transcript: deps.transcript,
+    tabTitle: deps.tabs.title,
     clearGuard: deps.clearGuard,
     session: deps.session,
     keepAlive: deps.keepAlive,

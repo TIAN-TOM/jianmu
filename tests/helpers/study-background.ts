@@ -27,6 +27,10 @@ export interface StudyBackgroundOptions {
   /** 标签页里的内容脚本怎么回后台的消息（截帧）。 */
   readonly tabReply?: (tabId: number, message: unknown) => unknown;
   readonly panelOpenRefused?: boolean;
+  /** 模型服务之外再授权的来源，比如 YouTube 的观看页。 */
+  readonly grantedOrigins?: readonly string[];
+  /** tabs.get 回的标题。 */
+  readonly tabTitles?: Readonly<Record<number, string>>;
 }
 
 export function studyBackground(options: StudyBackgroundOptions = {}) {
@@ -35,12 +39,13 @@ export function studyBackground(options: StudyBackgroundOptions = {}) {
   const storage = keyedStorage(options.withoutAi ? { presetId: "custom" } : GATEWAY, GATEWAY_ORIGIN);
   const fake = createFakeChrome({
     ...storage,
-    grantedOrigins: [GATEWAY_ORIGIN],
+    grantedOrigins: [GATEWAY_ORIGIN, ...(options.grantedOrigins ?? [])],
     fetch: ai.fetch,
     prompts: PROMPT_FILES,
     site: site.service,
     ...(options.tabReply ? { tabReply: options.tabReply } : {}),
     ...(options.panelOpenRefused ? { panelOpenRefused: true } : {}),
+    ...(options.tabTitles ? { tabTitles: options.tabTitles } : {}),
   });
   const logged: unknown[][] = [];
   const deps = fake.deps({ warn: (...args: unknown[]) => void logged.push(args), error: (...args: unknown[]) => void logged.push(args) });

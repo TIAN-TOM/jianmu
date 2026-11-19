@@ -84,7 +84,7 @@ test("点按钮：带标签页和视频发出去；发不出去回一句原因�
   h.setExplainReply(fail("FRAME_RATE_LIMITED"));
   assert.match(await h.store.explain(), /点得太多/);
   h.target.value = { tabId: 7, video: null };
-  assert.match(await h.store.explain(), /先打开一个 B 站视频/);
+  assert.match(await h.store.explain(), /先打开一个视频/);
 });
 
 test("关掉的只在这里藏起来；没启用时清空、不读", async () => {

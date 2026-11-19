@@ -407,6 +407,20 @@ test("YouTube：发行构建的包里没有地址规则、脚本注册和启用�
   }
 });
 
+test("YouTube 的内容脚本：两个开关都打开时有截帧代码和解释当前画面的图标，关掉解释当前画面的构建里没有", async () => {
+  const pick = async (features: FeatureSet): Promise<string> => {
+    const option = bundleOptions(features).find((candidate) => candidate.outfile === "build/content/youtube.js");
+    assert.ok(option, "打开 YouTube 的构建要有它的内容脚本");
+    return (await build({ ...option, write: false })).outputFiles.map((output) => output.text).join("\n");
+  };
+  const on = await pick({ ...RELEASE_FEATURES, youtube: true });
+  const off = await pick({ ...RELEASE_FEATURES, youtube: true, frameExplain: false });
+  for (const marker of FRAME_MARKERS["build/content/bilibili.js"] ?? []) {
+    assert.ok(on.includes(marker), `打开两个开关的 YouTube 内容脚本里没有 ${marker}`);
+    assert.ok(!off.includes(marker), `关掉解释当前画面的 YouTube 内容脚本里有 ${marker}`);
+  }
+});
+
 // 沿用同意只在开发者本人的日用包里：两份说明的条目变了照旧算数，侧边栏顶上说一句说明更新了。
 const CARRY_MARKERS: Readonly<Record<string, readonly string[]>> = {
   "build/background.js": ["src/core/consent-carry", "src/shared/settings-carry"],

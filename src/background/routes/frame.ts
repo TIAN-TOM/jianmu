@@ -56,7 +56,7 @@ export function frameRoutes({ frame, ai, messenger }: FrameRouteDeps): FrameRout
       },
     },
     "frame.explainHere": {
-      senders: ["content:bilibili"],
+      senders: ["content:bilibili", "content:youtube"],
       video: "from-sender",
       gesture: "open-panel",
       validate: isHereRequest,
