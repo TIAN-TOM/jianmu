@@ -1,7 +1,7 @@
 // 概览：开始生成、补失败块、读本机已有的概览。生成和补块认领的是先经任务登记的任务，服务核对任务的种类和视频；
 // 卡片只能开始生成，只认登记时拿到的一次性令牌，不能重新生成，登记时已经过了卡片开关和限频。
 // 手动生成或补失败块成功一次，打开就出结论就从额度用完、密钥不对的暂停里恢复。卡片在要经页面读字幕的站（YouTube）上点生成时，
-// 先经卡片所在的标签页读到字幕（本机有就不碰页面）；页面这会儿不能点就取消登记的任务、照实说原因。
+// 任务认领以后先经卡片所在的标签页读到字幕（本机有就不碰页面），读不成就按页面报的原因收尾。
 import { fail, type Failure } from "../../core/errors.ts";
 import { parseVideoKey, type VideoKey } from "../../core/video-ref.ts";
 import type { OverviewGetRequest, OverviewResultView, OverviewRetryRequest, OverviewStartRequest } from "../../shared/messages/overview.ts";
@@ -10,14 +10,12 @@ import type { Route } from "../router.ts";
 import type { AutoGenerate } from "../services/auto-generate.ts";
 import type { OverviewService } from "../services/overview/index.ts";
 import type { PageTranscript } from "../services/page-transcript.ts";
-import type { TaskRunner } from "../tasks.ts";
 import { isVideoKey } from "./validate.ts";
 
 export interface OverviewRouteDeps {
   readonly overview: OverviewService;
   readonly cardLimits: Pick<CardLimits, "redeemToken">;
   readonly auto?: Pick<AutoGenerate, "resume">;
-  readonly tasks: Pick<TaskRunner, "cancel">;
   /** 经页面读字幕的站怎么读；构建里没有代开文字稿面板时没有。 */
   readonly pageTranscript?: PageTranscript | null;
 }
@@ -48,15 +46,20 @@ function isGetRequest(req: unknown): req is OverviewGetRequest {
   return isPlainObject(req) && onlyKeys(req, ["video"]) && isVideoKey(req.video);
 }
 
-export function overviewRoutes({ overview, cardLimits, auto, tasks, pageTranscript }: OverviewRouteDeps): OverviewRoutes {
-  /** 卡片要生成的视频在要经页面读的站上：先经卡片所在的标签页读到字幕。页面这会儿不能点时回失败，别的交给生成时的读取去报。 */
-  async function readInPage(video: VideoKey, tabId: number | undefined): Promise<Failure | null> {
+export function overviewRoutes({ overview, cardLimits, auto, pageTranscript }: OverviewRouteDeps): OverviewRoutes {
+  /**
+   * 卡片要生成的视频在要经页面读的站上：交给生成的准备步骤，认领任务以后经卡片所在的标签页读到字幕。
+   * 读不成时交回页面报的原因：生成时的读取连不上页面，只会报连不上。
+   */
+  function readInPage(video: VideoKey, tabId: number | undefined): (() => Promise<Failure | null>) | null {
     const ref = parseVideoKey(video);
-    if (!ref || ref.platform === "bilibili" || !pageTranscript || tabId === undefined) return null;
-    const read = await pageTranscript.read(ref, tabId);
-    if (!("later" in read)) return null;
-    if (read.later === "ad") return fail("PAGE_ACTION_NEEDED", "ad");
-    return read.later === "video-changed" ? fail("VIDEO_CHANGED") : fail("UNAVAILABLE", "no-page");
+    const page = pageTranscript;
+    if (!ref || ref.platform === "bilibili" || !page || tabId === undefined) return null;
+    return async () => {
+      const read = await page.read(ref, tabId);
+      if ("later" in read) return read.later === "ad" ? fail("PAGE_ACTION_NEEDED", "ad") : read.later === "video-changed" ? fail("VIDEO_CHANGED") : fail("UNAVAILABLE", "no-page");
+      return read.ok ? null : fail(read.code, read.detail);
+    };
   }
   // 真的拿到了模型的结果才算：本机已有的直接交回、中途停下的（包括结论那一步被停）都不算；补失败块要至少补上一块。
   const resumeAfter = async (pending: ReturnType<OverviewService["generate"]>, succeeded: (value: OverviewResultView) => boolean): ReturnType<OverviewService["generate"]> => {
@@ -76,12 +79,8 @@ export function overviewRoutes({ overview, cardLimits, auto, tasks, pageTranscri
           if (req.taskId !== undefined || req.token === undefined || req.fresh) return fail("FORBIDDEN");
           const taskId = cardLimits.redeemToken(req.token);
           if (!taskId) return fail("TASK_NOT_FOUND");
-          const notReady = await readInPage(req.video, sender.tabId);
-          if (notReady) {
-            tasks.cancel(taskId);
-            return notReady;
-          }
-          return generated(overview.generate(taskId, req.video, { fresh: false }));
+          const prepare = readInPage(req.video, sender.tabId);
+          return generated(overview.generate(taskId, req.video, { fresh: false, ...(prepare ? { prepare } : {}) }));
         }
         if (req.taskId === undefined) return fail("FORBIDDEN");
         return generated(overview.generate(req.taskId, req.video, { fresh: req.fresh === true }));
