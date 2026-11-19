@@ -10,6 +10,7 @@ import { until } from "../../helpers/wait-until.ts";
 
 const ORIGIN = `${TUBE_ORIGIN}/*`;
 const SCRIPT_ID = "jianmu-youtube";
+const BRIDGE_ID = "jianmu-youtube-bridge";
 const TUBE_TAB = 71;
 
 function appOn(options: FakeChromeOptions = {}) {
@@ -24,7 +25,13 @@ const actions = (fake: ReturnType<typeof appOn>["fake"]) => fake.calls.registrat
 test("安装时授权在就注册，脚本和匹配规则取自站点规则，浏览器重启后也在；没授权就不注册", async () => {
   const granted = appOn({ grantedOrigins: [ORIGIN] });
   await granted.app.onInstalled("install");
-  assert.deepEqual([...granted.fake.registered.entries()], [[SCRIPT_ID, { matches: [ORIGIN], js: ["content/youtube.js"] }]]);
+  assert.deepEqual(
+    [...granted.fake.registered.entries()],
+    [
+      [SCRIPT_ID, { matches: [ORIGIN], js: ["content/youtube.js"] }],
+      [BRIDGE_ID, { matches: [ORIGIN], js: ["content/youtube-bridge.js"], world: "MAIN" }],
+    ],
+  );
 
   const none = appOn();
   await none.app.onInstalled("install");
@@ -37,12 +44,15 @@ test("更新后先撤再注册；浏览器启动时注册还在就不动，没�
   const { fake, app } = appOn({ grantedOrigins: [ORIGIN] });
   await app.onInstalled("install");
   await app.onInstalled("update");
-  assert.deepEqual(actions(fake), [`register ${SCRIPT_ID}`, `unregister ${SCRIPT_ID}`, `register ${SCRIPT_ID}`]);
+  assert.deepEqual(actions(fake), [`register ${SCRIPT_ID}`, `register ${BRIDGE_ID}`, `unregister ${SCRIPT_ID},${BRIDGE_ID}`, `register ${SCRIPT_ID}`, `register ${BRIDGE_ID}`]);
   await app.onStartup();
-  assert.equal(actions(fake).length, 3, "注册还在，浏览器启动时不动");
+  assert.equal(actions(fake).length, 5, "注册还在，浏览器启动时不动");
+  fake.registered.delete(BRIDGE_ID);
+  await app.onStartup();
+  assert.deepEqual(actions(fake).slice(5), [`register ${BRIDGE_ID}`], "少了哪份补哪份");
   fake.registered.clear();
   await app.onStartup();
-  assert.deepEqual(actions(fake).at(-1), `register ${SCRIPT_ID}`);
+  assert.deepEqual(actions(fake).slice(6), [`register ${SCRIPT_ID}`, `register ${BRIDGE_ID}`]);
 });
 
 test("新给了授权：注册，并往已开的页面补注入一次；确认启用之前只注册、不查标签页", async () => {
@@ -53,7 +63,10 @@ test("新给了授权：注册，并往已开的页面补注入一次；确认�
   assert.ok(fake.registered.has(SCRIPT_ID));
   assert.deepEqual(
     fake.calls.injections.map(({ value }) => value),
-    [{ tabId: TUBE_TAB, files: ["content/youtube.js"] }],
+    [
+      { tabId: TUBE_TAB, files: ["content/youtube.js"] },
+      { tabId: TUBE_TAB, files: ["content/youtube-bridge.js"], world: "MAIN" },
+    ],
   );
 
   const before = appOn({ local: {}, urlTabs: { [TUBE_TAB]: tubeUrl() } });
@@ -103,6 +116,7 @@ test("确认启用时的补注入带上授权了的站的脚本", async () => {
   const { fake, app } = appOn({ local: {}, grantedOrigins: [ORIGIN], urlTabs: { [TUBE_TAB]: tubeUrl() } });
   assert.equal((await app.dispatch({ type: "activation.confirm", req: {} }, senders.panel())).ok, true);
   assert.ok(fake.calls.injections.some(({ value }) => value.files.includes("content/youtube.js")));
+  assert.ok(fake.calls.injections.some(({ value }) => value.files.includes("content/youtube-bridge.js") && value.world === "MAIN"));
 });
 
 test("后台被回收以后撤权：注销、通知扩展页面、删掉这个站的观看会话；残留页面一发消息就叫它撤下", async () => {
@@ -133,6 +147,7 @@ test("后台被回收以后撤权：注销、通知扩展页面、删掉这个�
 test("后台刚醒、和 YouTube 无关的授权变化：注册还在就不补注入", async () => {
   const { fake, app } = appOn({ grantedOrigins: [ORIGIN], urlTabs: { [TUBE_TAB]: tubeUrl() } });
   fake.registered.set(SCRIPT_ID, { matches: [ORIGIN], js: ["content/youtube.js"] });
+  fake.registered.set(BRIDGE_ID, { matches: [ORIGIN], js: ["content/youtube-bridge.js"], world: "MAIN" });
   await Promise.all([app.onPermissionsChanged(), app.onPermissionsChanged(), app.onPermissionsChanged()]);
   assert.deepEqual(fake.calls.injections, []);
   assert.deepEqual(fake.calls.registrations, []);

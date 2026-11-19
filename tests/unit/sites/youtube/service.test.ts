@@ -4,8 +4,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { VideoRef } from "../../../../src/core/video-ref.ts";
 import type { PageChannel, SiteCtx, SiteResult } from "../../../../src/sites/types.ts";
-import { panelSnapshotOf, type PanelSnapshot } from "../../../../src/sites/youtube/page/panel-types.ts";
-import { createYoutubeService, cuesOf, langOfLabel, langOfText, trackOfLabel } from "../../../../src/sites/youtube/service.ts";
+import { panelSnapshotOf, playerTracksOf, type PanelSnapshot, type PlayerTrack, type PlayerTracks } from "../../../../src/sites/youtube/page/panel-types.ts";
+import { createYoutubeService, cuesOf, langOfLabel, langOfText, panelTrackOf, scriptFits, trackOfLabel, trackOfPanel } from "../../../../src/sites/youtube/service.ts";
 
 const ID = "jmSample0001";
 const OTHER = "jmSample0002";
@@ -22,6 +22,7 @@ const snapshotOf = (overrides: Partial<PanelSnapshot> = {}): PanelSnapshot => ({
     { start: 4, text: "第二句" },
   ],
   info: INFO,
+  player: null,
   ...overrides,
 });
 
@@ -148,7 +149,6 @@ test("轨的语言按菜单名认，认不出不猜；带自动生成标记的�
   assert.equal(langOfLabel("自造的语言名"), "und");
   assert.equal(trackOfLabel("英语（自动生成）").kind, "auto");
   assert.equal(trackOfLabel("English").kind, "human");
-  assert.deepEqual(trackOfLabel(""), { trackId: "panel:YouTube 文字稿", lang: "und", label: "YouTube 文字稿", kind: "human" });
 });
 
 test("快照核对：大小、类型、时间往后走、状态和内容对得上", () => {
@@ -174,7 +174,7 @@ test("时长：没有视频时长时最后一句按 5 秒", () => {
   assert.deepEqual(cuesOf(snapshotOf({ info: { ...INFO, durationSec: 0 } })).at(-1), { start: 4, duration: 5, text: "第二句" });
 });
 
-test("新式面板没有语言名：按正文的文字认中文、日文、韩文，别的不猜；轨的名字照旧写成 YouTube 文字稿", async () => {
+test("新式面板没有语言名、也问不到播放器的轨：来源记未确认，语言按正文的文字认中文、日文、韩文，别的不猜", async () => {
   assert.equal(langOfText(["今天我们来讲一讲神经网络", "第二句"]), "zh");
   assert.equal(langOfText(["これはテストです"]), "ja");
   assert.equal(langOfText(["안녕하세요 여러분"]), "ko");
@@ -183,5 +183,102 @@ test("新式面板没有语言名：按正文的文字认中文、日文、韩�
   const service = createYoutubeService();
   const { ctx } = ctxWith(() => snapshotOf({ label: "", cues: [{ start: 0, text: "今天讲神经网络" }] }));
   const info = okValue(await service.readVideoInfo(REF, ctx));
-  assert.deepEqual(okValue(await service.listCaptionTracks(info, ctx)), [{ trackId: "panel:YouTube 文字稿", lang: "zh", label: "YouTube 文字稿", kind: "human" }]);
+  assert.deepEqual(okValue(await service.listCaptionTracks(info, ctx)), [
+    { trackId: "panel:YouTube 文字稿（来源未确认）", lang: "zh", label: "YouTube 文字稿（来源未确认）", kind: "unconfirmed" },
+  ]);
+});
+
+const HUMAN_EN: PlayerTrack = { lang: "en", kind: "", name: "English", vssId: ".en" };
+const AUTO_EN: PlayerTrack = { lang: "en", kind: "asr", name: "English (auto-generated)", vssId: "a.en" };
+const AUTO_JA: PlayerTrack = { lang: "ja", kind: "asr", name: "Japanese (auto-generated)", vssId: "a.ja" };
+const HUMAN_ZH: PlayerTrack = { lang: "zh-CN", kind: "", name: "Chinese (China)", vssId: ".zh-CN" };
+const playerOf = (tracks: readonly PlayerTrack[], defaultIndex: number | null = null, overrides: Partial<PlayerTracks> = {}): PlayerTracks => ({
+  videoId: ID,
+  tracks,
+  defaultIndex,
+  hasDefault: defaultIndex === null ? null : true,
+  ...overrides,
+});
+const ENGLISH = ["sample line one", "sample line two"];
+const newPanel = (player: PlayerTracks | null, texts: readonly string[] = ENGLISH): PanelSnapshot =>
+  snapshotOf({ label: "", cues: texts.map((text, index) => ({ start: index * 4, text })), player });
+
+test("新式面板判定是哪条轨：只有一条轨就是它，有默认轨就是默认轨，用轨的语言、来源和显示名", async () => {
+  assert.deepEqual(trackOfPanel(newPanel(playerOf([HUMAN_EN, AUTO_EN], 1))), { trackId: "panel:English (auto-generated)", lang: "en", label: "English (auto-generated)", kind: "auto" });
+  assert.deepEqual(trackOfPanel(newPanel(playerOf([AUTO_EN, HUMAN_EN], 1))), { trackId: "panel:English", lang: "en", label: "English", kind: "human" });
+  assert.deepEqual(trackOfPanel(newPanel(playerOf([AUTO_JA]), ["これは自造の字幕です", "二つ目の文です"])), {
+    trackId: "panel:Japanese (auto-generated)",
+    lang: "ja",
+    label: "Japanese (auto-generated)",
+    kind: "auto",
+  });
+  assert.deepEqual(trackOfPanel(newPanel(playerOf([HUMAN_ZH]), ["今天讲一讲自造的例子", "第二句话"])).kind, "human");
+  // 读取的整条路：列出来的轨和交回正文时核对的轨是同一条。
+  const service = createYoutubeService();
+  const snapshot = newPanel(playerOf([HUMAN_EN, AUTO_EN], 1));
+  const { ctx } = ctxWith((message) => (message.type === "youtube.current" ? { videoId: ID, stamp: snapshot.stamp, label: "" } : snapshot));
+  const info = okValue(await service.readVideoInfo(REF, ctx));
+  const [track] = okValue(await service.listCaptionTracks(info, ctx));
+  assert.equal(track?.kind, "auto");
+  assert.ok(track && okValue(await service.readCaptions(info, track, ctx)).length === 2);
+});
+
+test("新式面板判定不了就记来源未确认，不猜：视频对不上、多条轨没有默认轨、默认轨被标成没有、没有轨、文字和语言对不上", () => {
+  const unconfirmed = (snapshot: PanelSnapshot): void => {
+    const track = trackOfPanel(snapshot);
+    assert.equal(track.kind, "unconfirmed", JSON.stringify(snapshot.player));
+    assert.equal(track.label, "YouTube 文字稿（来源未确认）");
+  };
+  unconfirmed(newPanel(playerOf([AUTO_EN], null, { videoId: OTHER })));
+  unconfirmed(newPanel(playerOf([HUMAN_EN, AUTO_EN])));
+  unconfirmed(newPanel(playerOf([HUMAN_EN, AUTO_EN], 0, { hasDefault: false })));
+  unconfirmed(newPanel(playerOf([])));
+  unconfirmed(newPanel(playerOf([HUMAN_ZH])));
+  unconfirmed(newPanel(playerOf([HUMAN_EN]), ["今天讲一讲自造的例子", "第二句话"]));
+  unconfirmed(newPanel(playerOf([{ ...AUTO_EN, lang: "" }])));
+  // 判定不了时语言照旧按正文的文字认。
+  assert.equal(trackOfPanel(newPanel(playerOf([HUMAN_EN, AUTO_EN]), ["안녕하세요 여러분"])).lang, "ko");
+});
+
+test("文字核对：中日韩的轨要有对应的文字，别的语言的轨正文不能大半是中日韩文字", () => {
+  assert.ok(scriptFits("zh-Hans", ["今天讲一讲"]));
+  assert.ok(scriptFits("ja", ["これは自造の字幕です"]));
+  assert.ok(scriptFits("ko", ["안녕하세요"]));
+  assert.ok(scriptFits("en", ["sample line"]));
+  assert.ok(!scriptFits("zh", ["sample line"]));
+  assert.ok(!scriptFits("ko", ["今天讲一讲"]));
+  assert.ok(!scriptFits("fr", ["これは自造の字幕です"]));
+  assert.ok(!scriptFits("en", []));
+  assert.equal(panelTrackOf(null, ID, ENGLISH), null);
+});
+
+test("旧面板有语言菜单：名字在播放器的轨里只对上一条就用那条的来源和语言，对不上照旧按名字认", () => {
+  const custom: PlayerTrack = { lang: "en", kind: "asr", name: "Sample (machine)", vssId: "a.en" };
+  const withLabel = (label: string, player: PlayerTracks | null): PanelSnapshot => snapshotOf({ label, player });
+  assert.deepEqual(trackOfPanel(withLabel("Sample (machine)", playerOf([HUMAN_EN, custom]))), { trackId: "panel:Sample (machine)", lang: "en", label: "Sample (machine)", kind: "auto" });
+  assert.equal(trackOfPanel(withLabel("Sample (machine)", playerOf([custom], null, { videoId: OTHER }))).kind, "human");
+  assert.equal(trackOfPanel(withLabel("Sample (machine)", playerOf([custom, custom]))).kind, "human");
+  assert.deepEqual(trackOfPanel(withLabel("English (auto-generated)", null)), trackOfLabel("English (auto-generated)"));
+});
+
+test("小桥交回的字幕轨列表按不可信输入核对：不对就当没问到，快照照常能用", () => {
+  const good = playerOf([HUMAN_EN, AUTO_EN], 1);
+  assert.deepEqual(playerTracksOf(good), good);
+  const bad: unknown[] = [
+    null,
+    { ...good, videoId: "" },
+    { ...good, videoId: "jm/Sample" },
+    { ...good, tracks: "English" },
+    { ...good, tracks: Array.from({ length: 201 }, () => HUMAN_EN) },
+    { ...good, defaultIndex: 2 },
+    { ...good, defaultIndex: -1 },
+    { ...good, hasDefault: "yes" },
+    { ...good, tracks: [{ ...HUMAN_EN, lang: "en us" }] },
+    { ...good, tracks: [{ ...HUMAN_EN, name: "长".repeat(201) }] },
+    { ...good, tracks: [{ ...HUMAN_EN, vssId: 3 }] },
+  ];
+  for (const value of bad) assert.equal(playerTracksOf(value), null, JSON.stringify(value)?.slice(0, 80));
+  const snapshot = panelSnapshotOf({ ...snapshotOf(), player: { ...good, defaultIndex: 9 } });
+  assert.equal(snapshot?.player, null);
+  assert.equal(snapshot?.cues.length, 2);
 });

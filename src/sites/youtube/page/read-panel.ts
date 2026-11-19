@@ -3,7 +3,7 @@
 // 就有的内容认不出是谁的，要用户刷新视频页再开。读到的时间不超过视频时长，超过的整份不用；播广告时不拿时长。
 import type { VideoRef } from "../../../core/video-ref.ts";
 import { advertising, ENTRY, LANGUAGE_LABEL, openPanelOf, PANELS, searching, SEGMENTS, SEGMENT_TEXT, SEGMENT_TIME, transcriptShell, videoOnPage } from "./panel-dom.ts";
-import { PANEL_LIMITS, type PanelCue, type PanelCurrent, type PanelInfo, type PanelRequest, type PanelSnapshot, type PanelState } from "./panel-types.ts";
+import { PANEL_LIMITS, type PanelCue, type PanelCurrent, type PanelInfo, type PanelRequest, type PanelSnapshot, type PanelState, type PlayerTracks } from "./panel-types.ts";
 
 // 观看页的标题、作者和简介。
 const TITLE = "ytd-watch-metadata h1";
@@ -28,6 +28,8 @@ export interface PanelReaderDeps {
   readonly document: Document;
   readonly currentRef: () => VideoRef | null;
   readonly channelId: () => string | null;
+  /** 播放器上已有的字幕轨列表，读到面板时问一次；没有就是 null。 */
+  readonly playerTracks?: () => PlayerTracks | null;
   readonly now?: () => number;
   readonly sleep?: (ms: number) => Promise<void>;
   readonly every?: (ms: number, run: () => void) => () => void;
@@ -94,6 +96,7 @@ export function createPanelReader({
   document,
   currentRef,
   channelId,
+  playerTracks = () => null,
   now = Date.now,
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   every = repeat,
@@ -277,7 +280,9 @@ export function createPanelReader({
       const details = info(videoId);
       const usable = videoId === asked && state === "ready" && plausible(cues, details.durationSec);
       const shown: PanelState = state === "ready" && !usable ? "stale" : state;
-      return { videoId, state: shown, stamp, label: clip(squash(document.querySelector(LANGUAGE_LABEL)?.textContent), PANEL_LIMITS.label), cues: shown === "ready" ? cues : [], info: details };
+      const ready = shown === "ready";
+      const label = clip(squash(document.querySelector(LANGUAGE_LABEL)?.textContent), PANEL_LIMITS.label);
+      return { videoId, state: shown, stamp, label, cues: ready ? cues : [], info: details, player: ready ? playerTracks() : null };
     }
   }
 

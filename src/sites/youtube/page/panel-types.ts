@@ -39,6 +39,24 @@ export interface PanelSnapshot {
   /** 只有 ready 时有。 */
   readonly cues: readonly PanelCue[];
   readonly info: PanelInfo;
+  /** 播放器上已有的字幕轨列表，只有 ready 时问；没问、问不到是 null。 */
+  readonly player: PlayerTracks | null;
+}
+
+/** 播放器上的一条字幕轨：语言码、平台标的类别、显示名和轨的编号。 */
+export interface PlayerTrack {
+  readonly lang: string;
+  readonly kind: string;
+  readonly name: string;
+  readonly vssId: string;
+}
+
+/** 页面主世界的小桥交回的字幕轨列表，带着播放器现在放的视频，和默认音轨里的默认字幕轨。 */
+export interface PlayerTracks {
+  readonly videoId: string;
+  readonly tracks: readonly PlayerTrack[];
+  readonly defaultIndex: number | null;
+  readonly hasDefault: boolean | null;
 }
 
 export interface PanelCurrent {
@@ -59,10 +77,16 @@ export const PANEL_LIMITS = {
   totalText: 2_000_000,
   // 一天以内的视频才算。
   seconds: 86_400,
+  tracks: 200,
+  trackLang: 35,
+  trackKind: 16,
+  trackName: 200,
+  trackId: 100,
 } as const;
 
 const STATES: readonly string[] = ["ready", "closed", "reopen", "loading", "stale", "no-entry", "filtered", "chapters"];
 const VIDEO_ID = /^[A-Za-z0-9_-]{1,64}$/;
+const LANG_CODE = /^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/;
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null && !Array.isArray(value);
 const isText = (value: unknown, max: number): value is string => typeof value === "string" && value.length <= max;
@@ -94,7 +118,30 @@ function cuesOf(value: unknown): PanelCue[] | null {
   return cues;
 }
 
-/** 核对页面回的快照，形状不对、超出大小、状态和内容对不上的都是 null。 */
+function trackOf(value: unknown): PlayerTrack | null {
+  if (!isRecord(value)) return null;
+  const { lang, kind, name, vssId } = value;
+  if (!isText(lang, PANEL_LIMITS.trackLang) || !(lang === "" || LANG_CODE.test(lang)) || !isText(kind, PANEL_LIMITS.trackKind)) return null;
+  if (!isText(name, PANEL_LIMITS.trackName) || !isText(vssId, PANEL_LIMITS.trackId)) return null;
+  return { lang, kind, name, vssId };
+}
+
+/** 核对小桥交回的字幕轨列表：主世界和网页共用，形状、大小、视频编号和默认轨的位置有一样不对就整份不用。 */
+export function playerTracksOf(value: unknown): PlayerTracks | null {
+  if (!isRecord(value)) return null;
+  const { videoId, tracks, defaultIndex, hasDefault } = value;
+  if (typeof videoId !== "string" || !VIDEO_ID.test(videoId) || !Array.isArray(tracks) || tracks.length > PANEL_LIMITS.tracks) return null;
+  if (!(defaultIndex === null || (isCount(defaultIndex) && defaultIndex < tracks.length)) || !(hasDefault === null || typeof hasDefault === "boolean")) return null;
+  const list: PlayerTrack[] = [];
+  for (const raw of tracks) {
+    const track = trackOf(raw);
+    if (!track) return null;
+    list.push(track);
+  }
+  return { videoId, tracks: list, defaultIndex, hasDefault };
+}
+
+/** 核对页面回的快照，形状不对、超出大小、状态和内容对不上的都是 null。字幕轨列表不对只当没问到。 */
 export function panelSnapshotOf(value: unknown): PanelSnapshot | null {
   if (!isRecord(value)) return null;
   const { videoId, state, stamp, label } = value;
@@ -104,7 +151,7 @@ export function panelSnapshotOf(value: unknown): PanelSnapshot | null {
   const cues = cuesOf(value.cues);
   if (!info || !cues) return null;
   if ((state === "ready") !== cues.length > 0) return null;
-  return { videoId, state: state as PanelState, stamp, label, cues, info };
+  return { videoId, state: state as PanelState, stamp, label, cues, info, player: playerTracksOf(value.player) };
 }
 
 export function panelCurrentOf(value: unknown): PanelCurrent | null {

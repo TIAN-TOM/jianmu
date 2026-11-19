@@ -11,9 +11,19 @@ import type { SiteRules } from "../sites/types.ts";
 import type { ContentTabs } from "./content-tabs.ts";
 import { errorLabel, type Log } from "./log.ts";
 
-// 各站动态注册的内容脚本：编号和产物里的文件。
-const SCRIPTS: Readonly<Partial<Record<Platform, { readonly id: string; readonly file: string }>>> = {
-  youtube: { id: "jianmu-youtube", file: "content/youtube.js" },
+interface SiteScript {
+  readonly id: string;
+  readonly file: string;
+  readonly world?: "MAIN";
+}
+
+// 各站动态注册的内容脚本：编号、产物里的文件，跑在页面主世界的另外标出来。
+const SCRIPTS: Readonly<Partial<Record<Platform, readonly SiteScript[]>>> = {
+  youtube: [
+    { id: "jianmu-youtube", file: "content/youtube.js" },
+    // 只读的小桥：内容脚本问它播放器上已有哪些字幕轨。
+    { id: "jianmu-youtube-bridge", file: "content/youtube-bridge.js", world: "MAIN" },
+  ],
 };
 
 export interface SiteSwitchDeps {
@@ -45,8 +55,7 @@ export interface SiteSwitch {
 
 interface OptionalSite {
   readonly rules: SiteRules;
-  readonly id: string;
-  readonly file: string;
+  readonly scripts: readonly SiteScript[];
 }
 
 interface Synced {
@@ -58,8 +67,8 @@ interface Synced {
 
 export function createSiteSwitch({ rules, permissions, scripts, tabs, messenger, contentTabs, forgetSessions, enabled, log }: SiteSwitchDeps): SiteSwitch {
   const sites: readonly OptionalSite[] = rules.flatMap((rule) => {
-    const script = SCRIPTS[rule.platform];
-    return rule.optionalPermission && script && rule.permissionOrigins.length > 0 && rule.scriptMatches.length > 0 ? [{ rules: rule, ...script }] : [];
+    const scripts = SCRIPTS[rule.platform] ?? [];
+    return rule.optionalPermission && scripts.length > 0 && rule.permissionOrigins.length > 0 && rule.scriptMatches.length > 0 ? [{ rules: rule, scripts }] : [];
   });
   // 同步排成一条队：刚给就撤这类连着来的事件，后一次看到的是前一次做完的样子。
   let queue: Promise<unknown> = Promise.resolve();
@@ -69,7 +78,8 @@ export function createSiteSwitch({ rules, permissions, scripts, tabs, messenger,
     return next;
   };
 
-  const contentScript = (site: OptionalSite): ContentScript => ({ matches: site.rules.scriptMatches, js: [site.file], css: [], allFrames: false });
+  const contentScripts = (site: OptionalSite): ContentScript[] =>
+    site.scripts.map(({ file, world }) => ({ matches: site.rules.scriptMatches, js: [file], css: [], allFrames: false, ...(world ? { world } : {}) }));
 
   async function isGranted(site: OptionalSite): Promise<boolean> {
     try {
@@ -84,9 +94,13 @@ export function createSiteSwitch({ rules, permissions, scripts, tabs, messenger,
     const granted = await isGranted(site);
     let present = false;
     try {
-      present = (await scripts.registered([site.id])).includes(site.id);
-      if (present && (fresh || !granted)) await scripts.unregister([site.id]);
-      if (granted && (fresh || !present)) await scripts.register({ id: site.id, matches: site.rules.scriptMatches, js: [site.file] });
+      const found = await scripts.registered(site.scripts.map(({ id }) => id));
+      present = found.length > 0;
+      if (present && (fresh || !granted)) await scripts.unregister(found);
+      const missing = fresh ? site.scripts : site.scripts.filter(({ id }) => !found.includes(id));
+      if (granted) {
+        for (const { id, file, world } of missing) await scripts.register({ id, matches: site.rules.scriptMatches, js: [file], ...(world ? { world } : {}) });
+      }
     } catch (error) {
       log.error("同步站点的内容脚本注册失败", errorLabel(error));
     }
@@ -96,10 +110,9 @@ export function createSiteSwitch({ rules, permissions, scripts, tabs, messenger,
   async function injectOpenTabs(site: OptionalSite): Promise<void> {
     try {
       if (!(await enabled())) return;
-      const script = contentScript(site);
-      const tabIds = await tabs.tabsMatching(script.matches);
+      const tabIds = await tabs.tabsMatching(site.rules.scriptMatches);
       // 页面正在加载、已经关了或者不让注入都算补不上，刷新页面后由注册接手。
-      await Promise.all(tabIds.map((tabId) => tabs.inject(tabId, script).catch(() => undefined)));
+      await Promise.all(tabIds.flatMap((tabId) => contentScripts(site).map((script) => tabs.inject(tabId, script).catch(() => undefined))));
     } catch (error) {
       log.error("往已开的页面补注入失败", errorLabel(error));
     }
@@ -133,7 +146,7 @@ export function createSiteSwitch({ rules, permissions, scripts, tabs, messenger,
         }
       }),
     async grantedScripts() {
-      const granted = await Promise.all(sites.map(async (site) => ((await isGranted(site)) ? [contentScript(site)] : [])));
+      const granted = await Promise.all(sites.map(async (site) => ((await isGranted(site)) ? contentScripts(site) : [])));
       return granted.flat();
     },
     async retire(tabId, platform) {

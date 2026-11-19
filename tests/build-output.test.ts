@@ -19,6 +19,7 @@ import {
   type FeatureName,
   type FeatureSet,
 } from "../src/shared/features.ts";
+import { INJECTED } from "../src/shared/names.ts";
 import { FRAME_EXPLAIN_PROBE, KEEP_CONSENT_PROBE, YOUTUBE_OPEN_PANEL_PROBE, YOUTUBE_PROBE, YOUTUBE_SWITCH_LANG_PROBE } from "./fixtures/build-flags/gated.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -358,7 +359,7 @@ test("解释当前画面首发带上：发行构建的包里有截帧代码、�
 
 // YouTube 挂在开关下的内容：地址规则、内容脚本的注册、侧边栏和设置页的启用按钮、内容脚本本身。
 const YOUTUBE_MARKERS: Readonly<Record<string, readonly string[]>> = {
-  "build/background.js": ["www.youtube.com", "jianmu-youtube", "content/youtube.js", "src/background/site-switch", "youtube.panel", "panel-shape", "src/sites/youtube/service", "src/sites/youtube/page/panel-types"],
+  "build/background.js": ["www.youtube.com", "jianmu-youtube", "content/youtube.js", "content/youtube-bridge.js", "src/background/site-switch", "youtube.panel", "panel-shape", "src/sites/youtube/service", "src/sites/youtube/page/panel-types"],
   "build/pages/sidepanel.js": ["www.youtube.com", "在 YouTube 上启用", "src/pages/shared/youtube-access"],
   "build/pages/options.js": ["www.youtube.com", "在 YouTube 上启用", "src/pages/options/youtube-section"],
 };
@@ -368,7 +369,7 @@ test("YouTube：发行构建的包里没有地址规则、脚本注册和启用�
     const options = bundleOptions(features);
     const built = await Promise.all(
       options
-        .filter((option) => typeof option.outfile === "string" && (option.outfile in YOUTUBE_MARKERS || option.outfile === "build/content/youtube.js"))
+        .filter((option) => typeof option.outfile === "string" && (option.outfile in YOUTUBE_MARKERS || option.outfile.startsWith("build/content/youtube")))
         .map(async (option) => [String(option.outfile), (await build({ ...option, write: false })).outputFiles.map((output) => output.text).join("\n")] as const),
     );
     return new Map(built);
@@ -377,6 +378,11 @@ test("YouTube：发行构建的包里没有地址规则、脚本注册和启用�
   const youtube = await pick({ ...RELEASE_FEATURES, youtube: true });
   assert.ok(!release.has("build/content/youtube.js"), "发行构建不该构建 YouTube 的内容脚本");
   assert.ok(youtube.has("build/content/youtube.js"), "打开开关的构建要有 YouTube 的内容脚本");
+  assert.ok(!release.has("build/content/youtube-bridge.js"), "发行构建不该构建 YouTube 主世界的小桥");
+  // 主世界的小桥只带它自己和事件名：不带扩展接口，也不带内容脚本那一套。
+  const bridge = youtube.get("build/content/youtube-bridge.js") ?? "";
+  assert.ok(bridge.includes("src/sites/youtube/page/main-bridge") && bridge.includes(INJECTED.tracksAnswer), "打开开关的构建要有 YouTube 主世界的小桥");
+  for (const absent of ["chrome.", "src/content/app", "src/sites/youtube/page/read-panel", "src/core/"]) assert.ok(!bridge.includes(absent), `主世界的小桥里有 ${absent}`);
   for (const [file, markers] of Object.entries(YOUTUBE_MARKERS)) {
     for (const marker of markers) {
       assert.ok(!release.get(file)?.includes(marker), `发行构建的 ${file} 里有 ${marker}`);

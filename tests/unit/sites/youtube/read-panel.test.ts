@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { VideoRef } from "../../../../src/core/video-ref.ts";
-import type { PanelSnapshot } from "../../../../src/sites/youtube/page/panel-types.ts";
+import type { PanelSnapshot, PlayerTracks } from "../../../../src/sites/youtube/page/panel-types.ts";
 import { createPanelReader, parseTimestamp } from "../../../../src/sites/youtube/page/read-panel.ts";
 
 const ID = "jmSample0001";
@@ -62,9 +62,10 @@ function world(href = `https://www.youtube.com/watch?v=${ID}`) {
   let clock = 0;
   const observers = new Map<FakeNode, () => void>();
   const ticks = new Set<() => void>();
-  const makeReader = () =>
+  const makeReader = (playerTracks?: () => PlayerTracks | null) =>
     createPanelReader({
       document: document as unknown as Document,
+      ...(playerTracks ? { playerTracks } : {}),
       currentRef: (): VideoRef | null => {
         const id = new URL(location.href).searchParams.get("v");
         return id ? { platform: "youtube", videoId: id } : null;
@@ -141,6 +142,24 @@ test("面板在页面上、用户打开以后读到：段落、语言菜单的�
     { start: 60, text: "第三句" },
   ]);
   assert.deepEqual(snapshot.info, { title: "自造的标题", author: "自造频道", channelId: "UCsample0000000000000001", description: "自造的简介", durationSec: 120 });
+});
+
+test("读到面板时才问一次播放器上的字幕轨列表，原样放进快照；面板没读到时不问", async () => {
+  const w = world();
+  const panel = w.addPanel();
+  const player: PlayerTracks = { videoId: ID, tracks: [{ lang: "en", kind: "asr", name: "English (auto-generated)", vssId: "a.en" }], defaultIndex: null, hasDefault: null };
+  let asked = 0;
+  const reader = w.makeReader(() => ((asked += 1), player));
+  w.document.found.set("ytd-video-description-transcript-section-renderer", new FakeNode());
+  const closed = await w.ask(reader);
+  assert.equal(closed.state, "closed");
+  assert.equal(closed.player, null);
+  assert.equal(asked, 0);
+  w.fill(panel, [classic("0:00", "第一句")]);
+  const ready = await w.ask(reader);
+  assert.equal(ready.state, "ready");
+  assert.deepEqual(ready.player, player);
+  assert.equal(asked, 1);
 });
 
 test("新式段落没有类名：时间是开头那一截，剩下的是文字；时间认不出的段落不要", async () => {

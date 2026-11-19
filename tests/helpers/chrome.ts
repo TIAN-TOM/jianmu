@@ -160,7 +160,7 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     siteParses: [] as Call<string>[],
     panelOpens: [] as number[],
     /** 往标签页里注入的脚本和样式。 */
-    injections: [] as Call<{ readonly tabId: number; readonly files: readonly string[]; readonly allFrames?: boolean }>[],
+    injections: [] as Call<{ readonly tabId: number; readonly files: readonly string[]; readonly allFrames?: boolean; readonly world?: string }>[],
     panelBehaviors: [] as unknown[],
     optionsOpened: 0,
     /** 在新标签页里打开的地址。 */
@@ -181,7 +181,7 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
   /** 运行时授权过的来源，测试里可以中途增减。 */
   const granted = new Set(options.grantedOrigins ?? []);
   /** 动态注册着的内容脚本。 */
-  const registered = new Map<string, { readonly matches: readonly string[]; readonly js: readonly string[] }>();
+  const registered = new Map<string, { readonly matches: readonly string[]; readonly js: readonly string[]; readonly world?: string }>();
   const timers = manualTimers();
   /** 建着的右键菜单项，按建的先后：标识到标题、类型和勾选。 */
   const menuItems = new Map<string, { readonly title: string; readonly type: string; readonly contexts: readonly string[]; checked?: boolean }>();
@@ -274,8 +274,8 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
       calls.panelBehaviors.push(behavior);
     },
   };
-  const inject = async ({ target, files }: { target: { tabId: number; allFrames?: boolean }; files: string[] }) => {
-    record(calls.injections, { ...target, files: [...files] });
+  const inject = async ({ target, files, world }: { target: { tabId: number; allFrames?: boolean }; files: string[]; world?: string }) => {
+    record(calls.injections, { ...target, files: [...files], ...(world ? { world } : {}) });
     if ((options.injectRefused ?? []).includes(target.tabId)) throw new Error("Cannot access contents of the page");
     return [];
   };
@@ -285,10 +285,10 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     async getRegisteredContentScripts(filter?: { ids?: string[] }) {
       return [...registered.keys()].filter((id) => !filter?.ids || filter.ids.includes(id)).map((id) => ({ id }));
     },
-    async registerContentScripts(scripts: { id: string; matches: string[]; js: string[] }[]) {
-      for (const { id, matches, js } of scripts) {
+    async registerContentScripts(scripts: { id: string; matches: string[]; js: string[]; world?: string }[]) {
+      for (const { id, matches, js, world } of scripts) {
         if (registered.has(id)) throw new Error(`Duplicate script ID '${id}'`);
-        registered.set(id, { matches: [...matches], js: [...js] });
+        registered.set(id, { matches: [...matches], js: [...js], ...(world ? { world } : {}) });
         record(calls.registrations, { action: "register", ids: [id], matches: [...matches], js: [...js] });
       }
     },

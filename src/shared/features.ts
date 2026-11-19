@@ -53,7 +53,7 @@ export const TEST_BUILD_FEATURES: FeatureSet = Object.freeze({
  * 打开了哪个开关，就在那份清单上加上这里列的文件。
  */
 export const FEATURE_FILES: Readonly<Partial<Record<FeatureName, readonly string[]>>> = Object.freeze({
-  youtube: Object.freeze(["content/youtube.js"]),
+  youtube: Object.freeze(["content/youtube.js", "content/youtube-bridge.js"]),
 });
 
 /** 这组开关下要进包的额外文件。 */

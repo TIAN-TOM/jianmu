@@ -4,6 +4,7 @@
 // 也先不挂解释当前画面的图标：YouTube 一侧的截帧还没验证过，后台的路由也不收。
 import { INJECTED } from "../shared/names.ts";
 import { createPanelOpener } from "../sites/youtube/page/commands.ts";
+import { askPlayerTracks } from "../sites/youtube/page/player-tracks.ts";
 import { createPanelReader } from "../sites/youtube/page/read-panel.ts";
 import { createYoutubePage } from "../sites/youtube/page.ts";
 import { createContentApp, type ContentApp, type SiteReader } from "./app.ts";
@@ -30,8 +31,11 @@ const app = createContentApp({
   page,
   site: "youtube",
   // 后台读字幕时问这里：只读文字稿面板上已经显示的内容。
-  // 构建开关打开时，用户点「读取字幕」的那一次还能替他点开文字稿面板。
-  siteReader: () => withOpener(createPanelReader({ document, currentRef: () => page.currentRef(), channelId: () => page.channelId?.() ?? null })),
+  // 构建开关打开时，用户点「读取字幕」的那一次还能替他点开文字稿面板。读到面板时顺带问主世界的小桥要字幕轨列表。
+  siteReader: () =>
+    withOpener(
+      createPanelReader({ document, currentRef: () => page.currentRef(), channelId: () => page.channelId?.() ?? null, playerTracks: () => askPlayerTracks(document) }),
+    ),
   createSurface: (env) => createSurface({ ...env, document, page, runtime, miniPlayer: MINI_PLAYER }),
   visibility: {
     hidden: () => document.hidden,

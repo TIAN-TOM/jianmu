@@ -22,6 +22,7 @@ export interface SidePanelApi {
 export interface ScriptInjection {
   readonly target: { readonly tabId: number; readonly allFrames?: boolean };
   readonly files: string[];
+  readonly world?: "MAIN";
 }
 
 export interface ScriptingApi {
@@ -46,6 +47,8 @@ export interface ContentScript {
   readonly js: readonly string[];
   readonly css: readonly string[];
   readonly allFrames: boolean;
+  /** 跑在页面主世界里；不写是扩展自己的隔离世界。 */
+  readonly world?: "MAIN";
 }
 
 /** 扩展自己开着的一个页面。 */
@@ -198,10 +201,10 @@ export function createTabs(
       if (typeof tab?.id !== "number") return null;
       return typeof tab.url === "string" ? { id: tab.id, url: tab.url } : { id: tab.id };
     },
-    async inject(tabId, { js, css, allFrames }) {
+    async inject(tabId, { js, css, allFrames, world }) {
       const target = allFrames ? { tabId, allFrames } : { tabId };
       if (css.length > 0) await scripting.insertCSS({ target, files: [...css] });
-      if (js.length > 0) await scripting.executeScript({ target, files: [...js] });
+      if (js.length > 0) await scripting.executeScript({ target, files: [...js], ...(world ? { world } : {}) });
     },
   };
 }

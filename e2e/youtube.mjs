@@ -2,6 +2,7 @@
 // 副本的清单里先写上 YouTube 的主机权限（无头 Chrome 里点不了授权框），装上就算已经启用：后台注册内容脚本。
 // 在真实的侧边栏里走一遍：打开就只看本机、不读页面；没打开文字稿时点读取，说明要先打开；用户打开以后读到，
 // 标出轨和语言；生成概览、存笔记、问答点引用跳转；站内换到另一个视频，面板没更新时不认，更新后读到新视频的，不串台。
+// 新式面板按播放器上已有的字幕轨判定来源：默认人工的标人工，只有一条自动轨的标自动，判定不了的标来源未确认。
 // 第一个加载：装的是日用包，之后导入的产品模块按日用构建的开关取值算。
 import "../scripts/lib/daily-globals.mjs";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -14,7 +15,7 @@ import { ANTHROPIC } from "./fixtures.mjs";
 import { startMockServer } from "./mock-server.mjs";
 import { QUIET_MEDIA_PATH } from "./watch-page.mjs";
 import { storedSettings } from "./settings.mjs";
-import { TUBE_HOST, TUBE_VIDEOS, tubeWatchPage } from "./youtube-page.mjs";
+import { TUBE_HOST, TUBE_TRACK_ADDRESS, TUBE_VIDEOS, tubeWatchPage } from "./youtube-page.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TIMEOUT_MS = 20_000;
@@ -91,8 +92,8 @@ const userClicks = (video, id) => evaluate(video, `(document.getElementById(${JS
 
 async function flow(launcher, panelUrl, worker) {
   const registered = await until("后台注册了 YouTube 的内容脚本", () => evaluate(worker, `chrome.scripting.getRegisteredContentScripts().then((list) => list.map((item) => item.id).join())`));
-  if (!registered.includes("jianmu-youtube")) throw new Error(`注册的脚本不对：${registered}`);
-  console.log("✓ 已有 YouTube 授权，后台注册了内容脚本");
+  if (registered.split(",").sort().join() !== "jianmu-youtube,jianmu-youtube-bridge") throw new Error(`注册的脚本不对：${registered}`);
+  console.log("✓ 已有 YouTube 授权，后台注册了内容脚本和主世界的小桥");
 
   const windowId = await evaluate(launcher, "chrome.tabs.getCurrent().then((tab) => chrome.sidePanel.open({ windowId: tab.windowId }).then(() => tab.windowId))", true);
   const panel = await until("侧边栏打开", () => {
@@ -176,9 +177,22 @@ async function openWatch(launcher, panel, worker, windowId, id) {
   return video;
 }
 
+/** 本机存着的这个视频的字幕：语言、来源和轨名。 */
+async function cachedTrack(panel, id) {
+  const video = videoKey({ platform: "youtube", videoId: id });
+  const cached = await evaluate(panel, `chrome.runtime.sendMessage(${JSON.stringify({ type: "transcript.get", req: { video, mode: "cache-only" } })})`);
+  const transcript = cached?.value?.transcript;
+  return { lang: transcript?.ref?.lang, kind: transcript?.ref?.kind, label: transcript?.label };
+}
+
+async function expectTrack(panel, id, expected) {
+  const found = await cachedTrack(panel, id);
+  if (JSON.stringify(found) !== JSON.stringify(expected)) throw new Error(`${id} 的轨不对：${JSON.stringify(found)}，应是 ${JSON.stringify(expected)}`);
+}
+
 /** 新式面板：页面上留着两个关着的空壳；有章节时选着章节页签要提示切过去，切回文字稿以后读得到；没章节的直接读；搜索框里有字时不交。 */
 async function modernFlow(launcher, panel, worker, windowId) {
-  const [, , CHAPTERS_ID = "", PLAIN_ID = ""] = Object.keys(TUBE_VIDEOS);
+  const [, , CHAPTERS_ID = "", PLAIN_ID = "", UNMARKED_ID = ""] = Object.keys(TUBE_VIDEOS);
   const lastLine = (id) => TUBE_VIDEOS[id]?.lines.at(-1) ?? "";
 
   const chaptersPage = await openWatch(launcher, panel, worker, windowId, CHAPTERS_ID);
@@ -191,7 +205,8 @@ async function modernFlow(launcher, panel, worker, windowId) {
   const cueTexts = await textOf(panel, ".cue-text");
   if (/seconds|Intro/.test(cueTexts)) throw new Error(`把给读屏的那句或章节标题当成了字幕：${cueTexts}`);
   if (await evaluate(chaptersPage, `document.body.hasAttribute("data-e2e-wrong-entry")`)) throw new Error("点了关着的面板里那个入口");
-  console.log("✓ 新式面板带章节：选着章节时点读取，简幕替用户切到文字稿那一页；两个关着的空壳不碍事，不带读屏的那句和章节标题");
+  await expectTrack(panel, CHAPTERS_ID, { lang: "en", kind: "human", label: "English" });
+  console.log("✓ 新式面板带章节：选着章节时点读取，简幕替用户切到文字稿那一页；两个关着的空壳不碍事，不带读屏的那句和章节标题；人工和自动都有时按默认轨标成人工");
 
   const plainPage = await openWatch(launcher, panel, worker, windowId, PLAIN_ID);
   // 用户自己打开、在搜索框里打了字：简幕不点，提示清掉搜索词。
@@ -204,7 +219,18 @@ async function modernFlow(launcher, panel, worker, windowId) {
   await until("点重试", () => clickIn(panel, ".state-block .button", "重试"));
   await until("读到没章节的新式面板", async () => (await textOf(panel, ".cue-text")).includes(lastLine(PLAIN_ID)));
   if (await evaluate(plainPage, `document.body.hasAttribute("data-e2e-wrong-entry")`)) throw new Error("点了关着的面板里那个入口");
-  console.log("✓ 新式面板没章节：搜索框里有字时不点也不交，清掉以后读到");
+  await expectTrack(panel, PLAIN_ID, { lang: "en", kind: "auto", label: "English (auto-generated)" });
+  await until("侧边栏上显示轨名", async () => (await textOf(panel, ".video-meta")).includes("English (auto-generated)"));
+  console.log("✓ 新式面板没章节：搜索框里有字时不点也不交，清掉以后读到；只有一条自动轨，标成自动生成");
+
+  // 两条轨、没有默认轨：判定不了，标来源未确认，不猜。
+  await openWatch(launcher, panel, worker, windowId, UNMARKED_ID);
+  await until("点读取字幕", () => clickIn(panel, ".state-block .button", "读取字幕"));
+  await until("读到没有默认轨的新式面板", async () => (await textOf(panel, ".cue-text")).includes(lastLine(UNMARKED_ID)));
+  await expectTrack(panel, UNMARKED_ID, { lang: "und", kind: "unconfirmed", label: "YouTube 文字稿（来源未确认）" });
+  await until("侧边栏上照实说来源未确认", async () => (await textOf(panel, ".video-meta")).includes("来源未确认"));
+  if (mock.requests.some((entry) => entry.path === TUBE_TRACK_ADDRESS)) throw new Error("读了播放器数据里的字幕地址");
+  console.log("✓ 新式面板有两条轨、没有默认轨：标来源未确认；播放器数据里的字幕地址没人去读");
 }
 
 let failed = false;
