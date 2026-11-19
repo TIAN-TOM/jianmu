@@ -192,7 +192,7 @@ test("存着 DeepSeek 的配置读出来仍是 DeepSeek，密钥照旧", () => {
   assert.equal(normalized.presetId, "deepseek");
   assert.equal(normalized.aiBaseUrl, "https://api.deepseek.com");
   assert.equal(normalized.aiApiKey, "sk-deepseek-1234");
-  assert.equal(normalized.aiModel, "deepseek-v4-flash");
+  assert.equal(normalized.aiModel, "deepseek-flash");
   // 存着 Anthropic、模型自己填过的，模型不被默认值顶掉。
   assert.equal(SETTINGS.normalize({ presetId: "anthropic", aiModel: "claude-haiku-4-5" }).aiModel, "claude-haiku-4-5");
 });
@@ -342,7 +342,7 @@ test("自定义时不填地址会落到空值，由 validate 报错而不是静�
 });
 
 test("换预设时模型回落到该预设的默认值", () => {
-  assert.equal(SETTINGS.normalize({ presetId: "deepseek" }).aiModel, "deepseek-v4-flash");
+  assert.equal(SETTINGS.normalize({ presetId: "deepseek" }).aiModel, "deepseek-flash");
   // 其余预设没有默认模型，留空让用户去拉取。
   assert.equal(SETTINGS.normalize({ presetId: "openai" }).aiModel, "");
 });
