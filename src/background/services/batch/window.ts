@@ -124,8 +124,8 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
   const inPage = (platform: Platform): boolean => platform !== "bilibili";
 
   /**
-   * 读一项的字幕。经页面读的站找到视频所在的标签页去读，页面还没准备好时隔一会儿再问，问够了报暂时读不了，signal 停了就不再等；
-   * 标签页已经关了的，本机有字幕就用本机的。
+   * 读一项的字幕。经页面读的站找到视频所在的标签页去读，页面还没准备好时隔一会儿再问，问够了报暂时读不了；
+   * signal 停了就不再读页面，报已经停下（再读一次会又替用户点开文字稿面板）。标签页已经关了的，本机有字幕就用本机的。
    */
   async function readEntry(run: Run, ref: VideoRef, video: VideoKey, signal: AbortSignal): Promise<Result<unknown>> {
     const page = deps.pageTranscript;
@@ -136,9 +136,11 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
       return local.ok ? local : { ok: false, code: "VIDEO_CHANGED" };
     }
     for (let tries = 1; ; tries += 1) {
+      // 等页面的时候点了停止，sleep 会提前返回：每次读之前都看一眼。
+      if (signal.aborted) return { ok: false, code: "TASK_CANCELED" };
       const reply = await page.read(ref, tab.tabId);
       if (!("later" in reply)) return reply;
-      if (tries >= PAGE_TRIES || signal.aborted) return { ok: false, code: "UNAVAILABLE" };
+      if (tries >= PAGE_TRIES) return { ok: false, code: "UNAVAILABLE" };
       await deps.sleep(PAGE_WAIT_MS, signal);
     }
   }
@@ -241,6 +243,7 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
     entry.status = "running";
     publish(run);
     const snapshot = await deps.keepAlive.during(READ_KEEPALIVE_MS, () => readEntry(run, ref, entry.video, run.halt.signal));
+    if (!snapshot.ok && snapshot.code === "TASK_CANCELED") return { ...cancelEntry(run, entry), requested: true };
     if (!snapshot.ok) {
       entry.status = "failed";
       entry.failure = snapshot.code;
@@ -361,6 +364,7 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
         const halt = new AbortController();
         run.retries.add(halt);
         const read = await deps.keepAlive.during(READ_KEEPALIVE_MS, () => readEntry(run, ref, video, halt.signal)).finally(() => run.retries.delete(halt));
+        if (!read.ok && read.code === "TASK_CANCELED") return void cancelEntry(run, entry);
         if (!read.ok) {
           entry.status = "failed";
           entry.failure = read.code;

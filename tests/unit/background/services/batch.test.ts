@@ -546,7 +546,8 @@ test("有页面读取：全部停止以后点重试，页面先说稍后再来�
   assert.ok(await until(() => timers.due(PAGE_WAIT_MS) > 0), "页面没准备好，隔一会儿再问");
   await service.handle({ type: "window.stop", windowId: 7 }, panel.listener);
   await running;
-  assert.ok(await until(() => entry()?.status === "failed"), "停下了");
+  assert.equal(pageReads.length, 1, "停下以后不再读页面，不会又替用户点开一次文字稿面板");
+  assert.ok(await until(() => entry()?.status === "canceled"), `停下了，现在是 ${JSON.stringify(entry())}`);
 
   answers = ["later", "ok"];
   const asked = pageReads.length;
@@ -561,7 +562,7 @@ test("有页面读取：全部停止以后点重试，页面先说稍后再来�
 test("有页面读取：重试等页面的时候点全部停止，马上不等了，也不生成", async () => {
   const tube = "https://www.youtube.com/watch?v=jmSample0001";
   let later = false;
-  const { service, harness, timers, page } = setup({
+  const { service, harness, timers, pageReads, page } = setup({
     tabs: [{ url: tube, title: "样例英文讲座 - YouTube" }],
     pageRead: () => (later ? { later: "ad" } : { ok: false, code: "UNAVAILABLE" }),
   });
@@ -575,9 +576,11 @@ test("有页面读取：重试等页面的时候点全部停止，马上不等�
   later = true;
   const retried = service.handle({ type: "window.retry", windowId: 7, video }, panel.listener);
   assert.ok(await until(() => timers.due(PAGE_WAIT_MS) > 0));
+  const asked = pageReads.length;
   await service.handle({ type: "window.stop", windowId: 7 }, panel.listener);
   await retried;
-  assert.equal(entry()?.status, "failed");
+  assert.equal(entry()?.status, "canceled");
+  assert.equal(pageReads.length, asked, "停下以后不再读页面");
   assert.equal(timers.due(PAGE_WAIT_MS), 0, "不再等页面");
   assert.equal(harness.tasks.list().length, 0, "没登记生成任务");
 });
