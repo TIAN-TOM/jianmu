@@ -4,6 +4,7 @@ import {
   buildCitationsFromAnswer,
   clickableTimestamps,
   extractTimestamps,
+  groundQaAnswer,
   secondsToTimestamp,
   splitAnswerByTimestamps,
   timestampToSeconds,
@@ -174,4 +175,17 @@ test("时间戳两边的空白不影响解析，秒数转回时间戳时向下�
   assert.equal(timestampToSeconds(" 3:12 "), 192);
   assert.equal(secondsToTimestamp(192.7), "3:12");
   assert.equal(secondsToTimestamp(59.99), "0:59");
+});
+
+test("短引在不同位置重复时只认确实相符的起点；没写原文或引错的要点不能借另一条出处过关", () => {
+  const rows = [{ start: 12, text: "船已经靠岸。" }, { start: 97, text: "船已经靠岸。请带好行李。" }];
+  const result = groundQaAnswer([
+    "靠岸了。【0:30|船已经靠岸】",
+    "请带行李。【0:12|请带好行李】",
+    "第二次靠岸。【1:37|船已经靠岸】",
+    "又问了一遍。[0:12]",
+    "有一条是真的。【0:12|船已经靠岸】【1:37|船已经离岸】",
+  ].join("\n"), rows);
+  assert.equal(result.answer, "请带行李。[1:37]\n第二次靠岸。[1:37]");
+  assert.deepEqual(result.citations, [{ startSeconds: 97, quote: "船已经靠岸。请带好行李。" }]);
 });

@@ -50,16 +50,16 @@ async function startQa(send: ReturnType<typeof studyBackground>["send"], questio
 test("问答端到端：检索、生成、引用校验、历史落库与删除", async () => {
   const bg = studyBackground({
     cues: [{ start: 0, duration: 60, text: "字幕原句" }],
-    handler: () => chatReply(JSON.stringify({ answer: "结论 [0:05]" })),
+    handler: () => chatReply(JSON.stringify({ answer: "结论 【0:00|字幕原句】" })),
   });
   const started = await startQa(bg.send, "这个视频讲了什么？");
   assert.ok(started.ok, JSON.stringify(started));
   const result = await bg.send<QaAnswerView>("qa.ask", { video: FIRST, taskId: started.value.task.id });
   const entry = answerOf(result);
-  assert.equal(entry.answer, "结论 [0:05]");
+  assert.equal(entry.answer, "结论 [0:00]");
   // 依据由本地从字幕里取，不靠模型摘录。
-  assert.deepEqual(entry.citations, [{ startSeconds: 5, quote: "字幕原句" }]);
-  assert.ok(entry.clickable.includes(5), "正文里的时间点可以点");
+  assert.deepEqual(entry.citations, [{ startSeconds: 0, quote: "字幕原句" }]);
+  assert.ok(entry.clickable.includes(0), "正文里的时间点可以点");
   assert.equal(entry.derived.basis.source, "transcript");
   assert.equal(entry.derived.gen?.feature, "qa");
 
@@ -79,6 +79,28 @@ test("问答端到端：检索、生成、引用校验、历史落库与删除",
   );
   const listed = await bg.send<{ readonly tasks: readonly TaskView[] }>("task.list", {});
   assert.deepEqual(listed.ok && listed.value.tasks, [], "问答任务跑完就收尾");
+});
+
+test("再次提问的时间写成了开头时，用实际问句和答句定位；找不到独立依据的补充不显示", async () => {
+  const h = studyHarness({
+    transcripts: { [VIDEO]: [
+      cue(12, "We picked the canal route."), cue(18, "There are three bridges."),
+      cue(22, "We set off tomorrow."), cue(28, "Take your boots."),
+      cue(262, "Was it three bridges on that route?"), cue(268, "Yes, all three are open."),
+    ] },
+    ai: { replies: { qa: JSON.stringify({ answer: [
+      "走运河，经过三座桥。【0:18|There are three bridges.】",
+      "后来又核对了桥的数量。【0:22|Was it three bridges on that route?】【0:28|Yes, all three are open.】",
+      "第三次又问了一遍。【0:28|What about the fourth bridge?】",
+    ].join("\n") }) } },
+  });
+  const entry = answerOf(await h.ask("走哪条路，经过几座桥？").result);
+  assert.equal(entry.answer, "走运河，经过三座桥。[0:18]\n后来又核对了桥的数量。[4:22][4:28]");
+  assert.deepEqual(entry.clickable, [18, 262, 268]);
+  assert.deepEqual(entry.citations.map((citation) => citation.quote), [
+    "There are three bridges.", "Was it three bridges on that route?", "Yes, all three are open.",
+  ]);
+  assert.deepEqual((await h.qaStore.byVideo(VIDEO))[0], entry);
 });
 
 test("空问题与超长问题在入口被拦下，不发起模型请求", async () => {
@@ -102,7 +124,7 @@ function cutChatEnvelope(content: string, marker: string): ServiceReply {
 test("问答的回答来自补齐的信封：返回的结果和存下的记录都标着可能不完整", async () => {
   const bg = studyBackground({
     cues: [{ start: 0, duration: 10, text: "字幕依据" }],
-    handler: () => cutChatEnvelope(JSON.stringify({ answer: "[0:00] 前半句已经到达，后半句尚未到达" }), "后半句"),
+    handler: () => cutChatEnvelope(JSON.stringify({ answer: "【0:00|字幕依据】 前半句已经到达，后半句尚未到达" }), "后半句"),
   });
   const started = await startQa(bg.send, "字幕说了什么？");
   assert.ok(started.ok);
@@ -120,7 +142,7 @@ test("问答的回答来自补齐的信封：返回的结果和存下的记录�
 test("同一个问题连点两下：登记接上同一个任务，两次开始只发一次模型请求，拿到同一份回答", async () => {
   let release!: () => void;
   const gate = new Promise<void>((resolve) => (release = resolve));
-  const bg = studyBackground({ handler: async () => (await gate, chatReply(JSON.stringify({ answer: "第一句 [0:00]" }))) });
+  const bg = studyBackground({ handler: async () => (await gate, chatReply(JSON.stringify({ answer: "第一句 【0:00|字幕】" }))) });
   const first = await startQa(bg.send, "讲了什么");
   const second = await startQa(bg.send, "  讲了什么  ");
   assert.ok(first.ok && second.ok);
@@ -151,7 +173,7 @@ test("引用全是幻觉时整条回答替换为兜底文案", async () => {
 });
 
 test("取消问答任务返回 TASK_CANCELED 且不落历史", async () => {
-  const h = studyHarness({ ai: { replies: { qa: JSON.stringify({ answer: "结论 [0:00]" }) } } });
+  const h = studyHarness({ ai: { replies: { qa: JSON.stringify({ answer: "结论 【0:00|字幕句子】" }) } } });
   h.fake.hold("qa");
   const { taskId, result } = h.ask("会话中途取消");
   assert.ok(await until(() => h.fake.count("qa") === 1), "请求已经发出去");
@@ -164,7 +186,7 @@ test("取消问答任务返回 TASK_CANCELED 且不落历史", async () => {
 
 test("问答历史落库失败时，已生成的回答照常返回并如实标注", async () => {
   const h = studyHarness({
-    ai: { replies: { qa: JSON.stringify({ answer: "结论 [0:00]" }) } },
+    ai: { replies: { qa: JSON.stringify({ answer: "结论 【0:00|字幕句子】" }) } },
     wrapQa: (inner) => ({ ...inner, commit: async () => Promise.reject(Object.assign(new Error("磁盘满"), { name: "UnknownError" })) }),
   });
   const result = await h.ask("结论？").result;
@@ -174,25 +196,25 @@ test("问答历史落库失败时，已生成的回答照常返回并如实标�
   assert.deepEqual(h.logs, [{ level: "error", label: "问答历史保存失败" }]);
 });
 
-test("回答原样透传，不做二次加工", async () => {
-  const h = studyHarness({ ai: { replies: { qa: JSON.stringify({ answer: "  “结论 [0:02]。”  " }) } } });
+test("核对短引后保留正文的标点和排版", async () => {
+  const h = studyHarness({ ai: { replies: { qa: JSON.stringify({ answer: "  “结论 【0:00|字幕句子】。”  " }) } } });
   const entry = answerOf(await h.ask("问题").result);
-  assert.equal(entry.answer, "  “结论 [0:02]。”  ", "模型输出原样保存，样式归页面管");
-  assert.deepEqual(entry.citations, [{ startSeconds: 2, quote: "字幕句子" }], "依据由本地从字幕提取");
+  assert.equal(entry.answer, "  “结论 [0:00]。”  ", "模型输出原样保存，样式归页面管");
+  assert.deepEqual(entry.citations, [{ startSeconds: 0, quote: "字幕句子" }], "依据由本地从字幕提取");
   assert.equal(h.fake.count("qa"), 1);
 });
 
 test("回答由被截断的正文补齐得到时，标上可能不完整并随历史保存", async () => {
-  const h = studyHarness({ ai: { replies: { qa: { text: '{"answer":"结论是 [0:02] 讲到了一半', truncated: true } } } });
+  const h = studyHarness({ ai: { replies: { qa: { text: '{"answer":"结论是 【0:00|字幕句子】 讲到了一半', truncated: true } } } });
   const entry = answerOf(await h.ask("问题").result);
-  assert.equal(entry.answer, "结论是 [0:02] 讲到了一半");
+  assert.equal(entry.answer, "结论是 [0:00] 讲到了一半");
   assert.equal(entry.truncated, true);
   const [saved] = await h.qaStore.byVideo(VIDEO);
   assert.equal(saved?.truncated, true, "截断标记随问答历史落库");
 });
 
 test("没被截断、或换成了兜底文案时，问答记录不带截断标记", async () => {
-  const complete = studyHarness({ ai: { replies: { qa: JSON.stringify({ answer: "结论 [0:02]" }) } } });
+  const complete = studyHarness({ ai: { replies: { qa: JSON.stringify({ answer: "结论 【0:00|字幕句子】" }) } } });
   assert.equal("truncated" in answerOf(await complete.ask("问题").result), false);
 
   // 截断后的回答一条引用都没有：整条换成兜底文案，那段正文没用上。
@@ -205,7 +227,7 @@ test("没被截断、或换成了兜底文案时，问答记录不带截断标�
 });
 
 test("问答按回答正文的 schema 请求结构化输出", async () => {
-  const h = studyHarness({ ai: { replies: { qa: JSON.stringify({ answer: "结论 [0:02]" }) } } });
+  const h = studyHarness({ ai: { replies: { qa: JSON.stringify({ answer: "结论 【0:00|字幕句子】" }) } } });
   answerOf(await h.ask("问题").result);
   assert.deepEqual(
     h.fake.calls.map((call) => call.request.responseFormat),
@@ -220,7 +242,7 @@ test("服务限流或过载、传输层要等一会儿再重发时，等待提�
       replies: {
         qa: (request) => {
           request.onRetry?.({ status: 529, delayMs: 3000, message: "服务繁忙，3 秒后重试…" });
-          return JSON.stringify({ answer: "结论 [0:02]" });
+          return JSON.stringify({ answer: "结论 【0:00|字幕句子】" });
         },
       },
     },
@@ -236,9 +258,9 @@ test("服务限流或过载、传输层要等一会儿再重发时，等待提�
 
 // 不认结构化输出的中转站、不守约定的模型会直接用散文回答。
 test("模型用散文回答时保留这份已付费的回答，引用照样校验", async () => {
-  const h = studyHarness({ ai: { replies: { qa: "根据字幕，结论在 [0:02] 讲到。" } } });
+  const h = studyHarness({ ai: { replies: { qa: "根据字幕，结论在 【0:00|字幕句子】 讲到。" } } });
   const entry = answerOf(await h.ask("结论？").result);
-  assert.equal(entry.answer, "根据字幕，结论在 [0:02] 讲到。");
+  assert.equal(entry.answer, "根据字幕，结论在 [0:00] 讲到。");
   assert.equal(entry.citations.length, 1);
   assert.equal((await h.qaStore.byVideo(VIDEO)).length, 1, "存进了问答历史");
 });
@@ -260,7 +282,7 @@ test("像 JSON 又解析不了的回答报 QA_PARSE_FAILED，提示换模型，�
 test("回答回来时侧边栏已经换了视频：回答只写进发起时那个视频的历史", async () => {
   const h = studyHarness({
     transcripts: { [VIDEO]: [cue(0, "原视频的字幕", 60)], [OTHER]: [cue(0, "新视频的字幕", 60)] },
-    ai: { replies: { qa: (request) => JSON.stringify({ answer: `${userMessage(request).includes("原视频") ? "原视频" : "新视频"}的回答 [0:01]` }) } },
+    ai: { replies: { qa: (request) => JSON.stringify({ answer: `${userMessage(request).includes("原视频") ? "原视频" : "新视频"}的回答 【0:00|的字幕】` }) } },
   });
   const release = h.fake.hold("qa");
   const original = h.ask("原视频讲了什么", VIDEO);
@@ -271,12 +293,12 @@ test("回答回来时侧边栏已经换了视频：回答只写进发起时那�
   release();
   answerOf(await original.result);
   answerOf(await switched.result);
-  assert.deepEqual((await h.qaStore.byVideo(VIDEO)).map((item) => [item.question, item.answer]), [["原视频讲了什么", "原视频的回答 [0:01]"]]);
-  assert.deepEqual((await h.qaStore.byVideo(OTHER)).map((item) => [item.question, item.answer]), [["新视频讲了什么", "新视频的回答 [0:01]"]]);
+  assert.deepEqual((await h.qaStore.byVideo(VIDEO)).map((item) => [item.question, item.answer]), [["原视频讲了什么", "原视频的回答 [0:00]"]]);
+  assert.deepEqual((await h.qaStore.byVideo(OTHER)).map((item) => [item.question, item.answer]), [["新视频讲了什么", "新视频的回答 [0:00]"]]);
 });
 
 test("等模型的工夫清除了本机数据：回答照常交回，不写进问答历史", async () => {
-  const h = studyHarness({ ai: { replies: { qa: JSON.stringify({ answer: "结论 [0:00]" }) } } });
+  const h = studyHarness({ ai: { replies: { qa: JSON.stringify({ answer: "结论 【0:00|字幕句子】" }) } } });
   const release = h.fake.hold("qa");
   const { result } = h.ask("问题");
   assert.ok(await until(() => h.fake.count("qa") === 1));
@@ -289,7 +311,7 @@ test("等模型的工夫清除了本机数据：回答照常交回，不写进�
 });
 
 test("只认登记成问答、而且是这个视频的任务号：别的任务、别的视频都不认，不取字幕也不发请求", async () => {
-  const h = studyHarness({ ai: { replies: { qa: JSON.stringify({ answer: "结论 [0:00]" }) } } });
+  const h = studyHarness({ ai: { replies: { qa: JSON.stringify({ answer: "结论 【0:00|字幕句子】" }) } } });
   const explainTask = await h.register("explain", { selection: "词", context: "" });
   assert.deepEqual(await h.qa.ask(explainTask, VIDEO), { ok: false, code: "TASK_NOT_FOUND" });
   const qaTask = await h.register("qa", { question: "问题" });
@@ -307,15 +329,15 @@ test("没有字幕时照实报取字幕的错，不发模型请求", async () =>
   assert.equal(h.fake.count() + empty.fake.count(), 0);
 });
 
-test("字幕太长、问题又没有内容词时只送每块开头一句：引用只认这几句的时间点，送进去以外的时间点不算依据", async () => {
-  const long = (index: number) => `第${index + 1}分钟这一段讲的是普通的田间管理，`.repeat(25);
+test("只送字幕骨架时，引用不能用同一行被截掉的原文", async () => {
+  const long = (index: number) => `第${index + 1}分钟这一段讲的是普通的田间管理，`.repeat(25) + "末尾才提到番茄。";
   const cues = Array.from({ length: 30 }, (_, index) => cue(index * 60, long(index), 60));
-  const fabricated = studyHarness({ transcripts: { [VIDEO]: cues }, qaBudget: OLD_BUDGET, ai: { replies: { qa: JSON.stringify({ answer: "开头讲的是种番茄 [0:10]" }) } } });
+  const fabricated = studyHarness({ transcripts: { [VIDEO]: cues }, qaBudget: OLD_BUDGET, ai: { replies: { qa: JSON.stringify({ answer: "开头讲的是种番茄 【0:00|末尾才提到番茄】" }) } } });
   const made = answerOf(await fabricated.ask("总结一下").result);
-  assert.equal(made.answer, FALLBACK_ANSWER, "模型没看到第 10 秒那句，不能拿它当依据");
+  assert.equal(made.answer, FALLBACK_ANSWER, "送出的骨架只有行首，不能用同一行末尾的话作证");
   assert.deepEqual(made.citations, []);
 
-  const grounded = studyHarness({ transcripts: { [VIDEO]: cues }, qaBudget: OLD_BUDGET, ai: { replies: { qa: JSON.stringify({ answer: "开头讲田间管理 [0:00]" }) } } });
+  const grounded = studyHarness({ transcripts: { [VIDEO]: cues }, qaBudget: OLD_BUDGET, ai: { replies: { qa: JSON.stringify({ answer: "开头讲田间管理 【0:00|第1分钟这一段讲的是普通的田间管理】" }) } } });
   const kept = answerOf(await grounded.ask("总结一下").result);
   assert.equal(kept.answer, "开头讲田间管理 [0:00]");
   assert.deepEqual(kept.clickable, [0]);
@@ -334,14 +356,14 @@ test("只挑了部分块时：紧挨着没送进去的块，它起点那一秒�
     return answerOf(result);
   };
 
-  const outside = await ask("后面还讲了别的 [15:00]");
+  const outside = await ask("后面还讲了别的 【15:00|第16条：】");
   assert.equal(outside.answer, FALLBACK_ANSWER, "第 15 分钟那句模型没看到，不能拿它当依据");
   assert.deepEqual(outside.citations, []);
 
-  const mixed = await ask("先削口 [14:59]，后面还讲了别的 [15:00]");
-  assert.deepEqual(mixed.citations.map((citation) => citation.startSeconds), [899]);
-  assert.match(mixed.citations[0]?.quote ?? "", /^第15条/, "第 14 分 59 秒对到送进去的最后一句");
-  assert.deepEqual(mixed.clickable, [899], "没送进去的那一秒不能点");
+  const mixed = await ask("这一句来自第十五条 【14:00|第15条：】\n后面还讲了别的 【15:00|第16条：】");
+  assert.deepEqual(mixed.citations.map((citation) => citation.startSeconds), [840]);
+  assert.match(mixed.citations[0]?.quote ?? "", /^第15条/, "第 14 分钟确实送进去了");
+  assert.deepEqual(mixed.clickable, [840], "没送进去的那一秒不能点");
 });
 
 test("问答模板不限回答字数，简洁为先；引用和找不到依据如实说的要求还在", () => {
@@ -371,7 +393,7 @@ test("问答模板的用户消息按视频信息、字幕、问题排，问题�
 });
 
 test("发出的问答：字幕单独一块并打缓存标记，问题在最后一块", async () => {
-  const h = studyHarness({ ai: { replies: { qa: JSON.stringify({ answer: "结论 [0:02]" }) } } });
+  const h = studyHarness({ ai: { replies: { qa: JSON.stringify({ answer: "结论 【0:00|字幕句子】" }) } } });
   answerOf(await h.ask("竹竿插多深").result);
   const parts = userParts(h.fake.calls[0]!.request);
   assert.equal(parts.length, 3);
@@ -392,7 +414,7 @@ const bulky = (count: number) =>
 const tooLong = (): Error => Object.assign(new Error("This model's maximum context length is 32768 tokens."), { status: 400 });
 
 test("预算放宽到约 6 万字：五万字的字幕整份送进去", async () => {
-  const h = studyHarness({ transcripts: { [VIDEO]: bulky(50) }, ai: { replies: { qa: JSON.stringify({ answer: "先削口 [2:00]" }) } } });
+  const h = studyHarness({ transcripts: { [VIDEO]: bulky(50) }, ai: { replies: { qa: JSON.stringify({ answer: "先削口 【2:00|嫁接先削口】" }) } } });
   const result = await h.ask("嫁接怎么做？").result;
   assert.ok(result.ok && result.value.retrievalMode === "full", JSON.stringify(result.ok && result.value.retrievalMode));
   assert.match(userMessage(h.fake.calls[0]!.request), /第50条/, "最后一条也送进去了");
@@ -408,7 +430,7 @@ test("模型嫌太长：缩到小预算再发一次，这一次不再自己重�
         qa: async () => {
           sent += 1;
           if (sent === 1) throw tooLong();
-          return JSON.stringify({ answer: "先削口 [2:00]，后面讲了收尾 [49:00]" });
+          return JSON.stringify({ answer: "先削口 【2:00|嫁接先削口】\n后面讲了收尾 【49:00|第50条：】" });
         },
       },
     },

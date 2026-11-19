@@ -1,11 +1,4 @@
-/**
- * 问答引用的纯函数校验与时间戳解析。防编造的三道闸里，
- * 这里实现前两道（区间闸、原文闸）；第三道「零有效引用替换整条回答」
- * 属于业务编排，在后台的问答服务。
- *
- * 时间戳格式和字幕分段的 formatTimestamp 一致：M:SS
- * （超过一小时是 75:20 这种延续分钟的形式，不做 H:MM:SS）。
- */
+// 回答引文、字幕原句和可跳转的时间点。超过一小时继续用分钟计时。
 
 export interface TimeSpan {
   readonly min: number;
@@ -105,7 +98,7 @@ function isWithin(seconds: number, range: CitationRange | null | undefined): boo
 
 /**
  * 从回答正文提取合法时间戳，并本地查出对应字幕原句作为依据。
- * 原句来自真实字幕（不是模型摘录），想编造都没有载体；
+ * 按播放位置取当时的字幕，不验证它能否支撑回答；
  * 越界的时间戳不生成依据条目，渲染时也不可点击。
  *
  * entries: 字幕原文 [{start, text}]
@@ -119,7 +112,7 @@ export function buildCitationsFromAnswer(
   const list: readonly CitationEntry[] = Array.isArray(entries) ? entries : [];
   if (!list.length) return [];
   const at = (seconds: number): string => {
-    // 早于第一句的时间戳归第一句：字幕开头前的空白里说的话，最近的依据是开场那句。
+    // 按播放位置查字幕时，片头的空白沿用第一句。
     if (seconds < Math.floor(Number(list[0]?.start) || 0)) return String(list[0]?.text || "").trim();
     for (let i = 0; i < list.length; i += 1) {
       const start = Math.floor(Number(list[i]?.start) || 0);
@@ -158,4 +151,51 @@ export function clickableTimestamps(
       .filter((item) => isWithin(item.seconds, timeRange))
       .map((item) => item.seconds),
   );
+}
+
+/** 将回答里的短引对回本次发出的字幕行，再生成历史记录和界面共用的时间点。 */
+export function groundQaAnswer(answer: string, entries: readonly CitationEntry[]): { answer: string; citations: Citation[] } {
+  const rows = entries.map((entry) => ({
+    seconds: Math.floor(entry.start),
+    quote: entry.text,
+    searchable: normaliseQuote(entry.text),
+  }));
+  const accepted: string[] = [];
+  const quotes = new Map<number, Set<string>>();
+  for (const line of answer.split(/\r?\n/)) {
+    const found: typeof rows = [];
+    let invalid = false;
+    const mark = /【(\d{1,5}:[0-5]\d)\s*[|｜]([^【】\n]+)】/g;
+    // 旧式裸时间和不完整的标记都缺少可核对的原文。
+    const prose = line.replace(mark, "");
+    if (/[【】]/.test(prose) || extractTimestamps(prose).length) continue;
+    const text = line.replace(mark, (_marker, time: string, quote: string) => {
+      const needle = normaliseQuote(quote);
+      const matches = needle ? rows.filter((row) => row.searchable.includes(needle)) : [];
+      const seconds = timestampToSeconds(time);
+      const hinted = matches.filter((row) => row.seconds === seconds);
+      const candidates = hinted.length ? hinted : matches;
+      if (candidates.length !== 1) {
+        invalid = true;
+        return "";
+      }
+      const row = candidates[0]!;
+      found.push(row);
+      return `[${secondsToTimestamp(row.seconds)}]`;
+    });
+    if (invalid || !found.length) continue;
+    accepted.push(text);
+    for (const row of found) {
+      const snippets = quotes.get(row.seconds) ?? new Set<string>();
+      snippets.add(row.quote);
+      quotes.set(row.seconds, snippets);
+    }
+  }
+  const citations = [...quotes].sort(([a], [b]) => a - b)
+    .map(([startSeconds, snippets]) => ({ startSeconds, quote: [...snippets].join(" ") }));
+  return { answer: accepted.join("\n"), citations };
+}
+
+function normaliseQuote(text: string): string {
+  return text.normalize("NFC").replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/\s+/g, " ").trim();
 }
