@@ -22,6 +22,7 @@ import type { OverviewService } from "../overview/index.ts";
 import type { VerdictService } from "../overview/verdict.ts";
 import type { SiteAccess } from "../transcript/read.ts";
 import type { TranscriptService } from "../transcript/index.ts";
+import type { PageTranscript } from "../page-transcript.ts";
 import { fetchOfficial, readList, verdictMaterial, verdictView, writeVerdict, type ItemOutcome, type VerdictRound, type WatchLaterDeps } from "./watch-later.ts";
 import { createWindowBatch, type WindowBatch } from "./window.ts";
 
@@ -52,6 +53,8 @@ export interface BatchServiceDeps {
   /** 本窗口全部生成清点用：这个窗口里地址匹配得上视频页的标签页。 */
   readonly windowTabs: (windowId: number) => Promise<readonly WindowTab[]>;
   readonly transcript: Pick<TranscriptService, "get" | "ensure">;
+  /** 经页面读字幕的站怎么读；构建里没有代开文字稿面板时是 null，这些站标成要逐个打开。 */
+  readonly pageTranscript?: PageTranscript | null;
   readonly overviews: Pick<OverviewStore, "find">;
   readonly overview: Pick<OverviewService, "generate" | "retryFailed">;
   readonly tasks: Pick<TaskRunner, "register" | "cancel" | "unsubscribe" | "list">;
@@ -112,6 +115,7 @@ export function createBatchService(deps: BatchServiceDeps): BatchService {
     windowTabs: deps.windowTabs,
     overviews: deps.overviews,
     transcript: deps.transcript,
+    pageTranscript: deps.pageTranscript ?? null,
     overview: deps.overview,
     tasks: deps.tasks,
     ai: deps.ai,

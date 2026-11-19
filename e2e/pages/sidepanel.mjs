@@ -140,7 +140,7 @@ test("侧边栏：速览还没有概览时先摆官方总结；没设置 AI 服�
 
 const OPTIONS_PATH = "/pages/options.html";
 const optionsView = `chrome.extension.getViews({ type: "tab" }).find((view) => view.location.pathname === ${JSON.stringify(OPTIONS_PATH)})`;
-/** 设置页「AI 服务」一节的顶边在视口里的位置、页面滚了多少、地址里还带不带节名；设置页没开或没渲染出这一节时是 null。 */
+/** 设置页「AI 服务」一节的顶边在视口里的位置、页面滚了多少、地址里还带不带节名；设置页没开或没渲染出这一节时是 null。滚到那一节后顶边可能差不到一像素，按零算。 */
 const aiSectionAt = `(() => { const view = ${optionsView}; const top = view?.document.getElementById("ai-service")?.getBoundingClientRect().top; return top === undefined ? null : { top, scrolled: view.scrollY, hash: view.location.hash }; })()`;
 const closeOptions = `chrome.runtime.getContexts({ contextTypes: ["TAB"] }).then((list) => Promise.all(list.filter((item) => new URL(item.documentUrl).pathname === ${JSON.stringify(OPTIONS_PATH)}).map((item) => chrome.tabs.remove(item.tabId)))).then(() => true)`;
 const CONFIG_ACTION = `.notice[data-id="config"] .notice-action`;
@@ -151,7 +151,7 @@ test("侧边栏：没设置 AI 服务时点顶上那行的「打开设置」，�
     await waitIn(panel, "没设置的提示", `Boolean(document.querySelector(${JSON.stringify(CONFIG_ACTION)}))`);
     try {
       await tap(panel, CONFIG_ACTION);
-      await waitIn(panel, "设置页停在 AI 服务", `(() => { const at = ${aiSectionAt}; return at !== null && at.top >= 0 && at.top <= 200 && at.scrolled > 0 && at.hash === ""; })()`);
+      await waitIn(panel, "设置页停在 AI 服务", `(() => { const at = ${aiSectionAt}; return at !== null && at.top > -1 && at.top <= 200 && at.scrolled > 0 && at.hash === ""; })()`);
 
       // 设置页滚到底，回到视频页：侧边栏跟着当前标签页，回到视频才又有那一行。
       const away = await panel.evaluate(`(() => { const view = ${optionsView}; view.scrollTo(0, view.document.documentElement.scrollHeight); return view.document.getElementById("ai-service").getBoundingClientRect().top; })()`);
@@ -159,7 +159,7 @@ test("侧边栏：没设置 AI 服务时点顶上那行的「打开设置」，�
       await panel.evaluate(`chrome.tabs.update(${tabId}, { active: true }).then(() => true)`);
       await waitIn(panel, "回到视频页又有那一行", `Boolean(document.querySelector(${JSON.stringify(CONFIG_ACTION)}))`);
       await tap(panel, CONFIG_ACTION);
-      await waitIn(panel, "再点一次滚回 AI 服务", `(() => { const at = ${aiSectionAt}; return at !== null && at.top >= 0 && at.top <= 200 && at.hash === ""; })()`);
+      await waitIn(panel, "再点一次滚回 AI 服务", `(() => { const at = ${aiSectionAt}; return at !== null && at.top > -1 && at.top <= 200 && at.hash === ""; })()`);
       assert.equal(await panel.evaluate(`chrome.extension.getViews({ type: "tab" }).filter((view) => view.location.pathname === ${JSON.stringify(OPTIONS_PATH)}).length`), 1, "切回开着的设置页，不另开");
     } finally {
       await panel.evaluate(closeOptions);

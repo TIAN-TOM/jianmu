@@ -22,7 +22,7 @@ export function AutoSection({ state }: { readonly state: OptionsState }) {
     <section class="card" id="auto-overview" aria-labelledby={`${id}-title`}>
       <h2 id={`${id}-title`}>打开就出结论</h2>
       <p class="hint">
-        开着时，打开超过设定时长的 B 站视频会自动调用 AI 服务生成概览和一句话结论，显示在播放页卡片上。在后台打开、还没切过去看的标签页也会排队生成，打开开关时已经开着的也算，正在看的先生成。
+        开着时，打开超过设定时长的 B 站视频和已启用的 YouTube 视频，会自动调用 AI 服务生成概览和一句话结论，显示在播放页卡片上。在后台打开、还没切过去看的标签页也会排队生成，打开开关时已经开着的也算，正在看的先生成。
         每个视频都花你的 API 额度，一次开的标签页越多，花得越多；同时最多生成两个，10 分钟最多 40 个。外文视频不自动翻译。
       </p>
       <p class="field-hint">改了马上生效，不用点「保存并授权」。</p>

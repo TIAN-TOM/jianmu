@@ -8,6 +8,8 @@ const PANEL_ID_ATTRIBUTE = "target-id";
 const TRANSCRIPT_PANEL_IDS = ["engagement-panel-searchable-transcript", "PAmodern_transcript_view"];
 export const MODERN_TRANSCRIPT = '[data-target-id="PAmodern_transcript_view"]';
 export const TABS = '[role="tab"]';
+// 面板标题栏上收起面板的按钮。
+export const PANEL_CLOSE = "ytd-engagement-panel-title-header-renderer #visibility-button button";
 const EXPANDED_ATTRIBUTE = "visibility";
 const EXPANDED = "ENGAGEMENT_PANEL_VISIBILITY_EXPANDED";
 // 段落和它的时间、正文：旧面板有两个类名；新面板的时间另有类名，正文是给读屏以外的那段文字。

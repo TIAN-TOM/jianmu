@@ -6,6 +6,7 @@
 // 新式面板按播放器上已有的字幕轨判定来源：默认人工的标人工，只有一条自动轨的标自动，判定不了的标来源未确认。
 // 播放页卡片插在右栏推荐视频上面、不进侧栏面板，本机没有字幕时不去读；侧边栏生成的结论卡片跟着摆出来，
 // 精读时收起、速览时展开，窗口变窄时跟着推荐视频挪到播放器下面。
+// 最后打开「打开就出结论」：新开的视频不用点，简幕替用户点开文字稿读完、关上，生成概览。
 // 第一个加载：装的是日用包，之后导入的产品模块按日用构建的开关取值算。
 import "../scripts/lib/daily-globals.mjs";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -379,6 +380,27 @@ async function modernFlow(launcher, panel, worker, windowId) {
   await until("侧边栏上照实说来源未确认", async () => (await textOf(panel, ".video-meta")).includes("来源未确认"));
   if (mock.requests.some((entry) => entry.path === TUBE_TRACK_ADDRESS)) throw new Error("读了播放器数据里的字幕地址");
   console.log("✓ 新式面板有两条轨、没有默认轨：标来源未确认；播放器数据里的字幕地址没人去读");
+
+  await autoFlow(launcher, panel, worker, windowId);
+}
+
+/** 打开就出结论：门槛调到 0，新开的视频不用点就生成；简幕替用户点开文字稿，读完关上；YouTube 上不发请求。 */
+async function autoFlow(launcher, panel, worker, windowId) {
+  const AUTO_ID = "jmTube00006";
+  const auto = await storedSettings(ANTHROPIC, { minutes: 0 });
+  await evaluate(launcher, `chrome.storage.local.set(${JSON.stringify(auto.local)}).then(() => true)`);
+  const url = tubeWatchPage(AUTO_ID);
+  await evaluate(launcher, `chrome.tabs.create({ windowId: ${windowId}, url: ${JSON.stringify(url)} }).then(() => true)`);
+  const page = await until(`观看页 ${AUTO_ID} 打开`, () => findSession("page", url));
+  const video = videoKey({ platform: "youtube", videoId: AUTO_ID });
+  const verdict = () => evaluate(panel, `chrome.runtime.sendMessage(${JSON.stringify({ type: "overview.get", req: { video } })}).then((reply) => reply?.value?.overview?.analysis?.verdict?.summary ?? "")`);
+  await until("不用点就生成了结论", async () => (await verdict()).includes("模拟服务写的一句话结论"));
+  await until("简幕读完关上了文字稿", () => evaluate(page, `document.body.hasAttribute("data-e2e-panel-closed")`));
+  const visibility = await evaluate(page, `document.getElementById("e2e-open-panel").getAttribute("visibility")`);
+  if (visibility !== "ENGAGEMENT_PANEL_VISIBILITY_HIDDEN") throw new Error(`读完面板还开着：${visibility}`);
+  const cached = await evaluate(panel, `chrome.runtime.sendMessage(${JSON.stringify({ type: "transcript.get", req: { video, mode: "cache-only" } })})`);
+  if (!cached?.ok || !cached.value.transcript.cues.some((cue) => cue.text === TUBE_VIDEOS[AUTO_ID]?.lines.at(-1))) throw new Error(`字幕没读对：${JSON.stringify(cached)}`);
+  console.log("✓ 打开就出结论：新开的 YouTube 视频不用点，简幕替用户点开文字稿读完、关上，生成了结论");
 }
 
 let failed = false;

@@ -114,11 +114,11 @@ export const DATA_CONSENT_TABLE: NoticeTable<DataConsentKind> = [
       {
         kind: "trigger",
         id: "auto-on-open-tabs",
-        text: "打开「打开就出结论」以后，在 B 站打开超过设定时长的视频，包括在后台打开、还没切过去看的标签页和打开开关时已经开着的，会自动发送字幕、视频标题和时长、UP 主名和简介，生成概览和一句话结论；YouTube 不自动发",
+        text: "打开「打开就出结论」以后，在 B 站和已启用的 YouTube 上打开超过设定时长的视频，包括在后台打开、还没切过去看的标签页和打开开关时已经开着的，会自动发送字幕、视频标题和时长、UP 主名或频道名和简介，生成概览和一句话结论",
         shownWith: {
           id: "on-click",
           combined:
-            "平时只在你点按钮时发出；打开「打开就出结论」以后，在 B 站打开超过设定时长的视频，包括在后台打开、还没切过去看的标签页和打开开关时已经开着的，会自动发送字幕、视频标题和时长、UP 主名和简介，生成概览和一句话结论（YouTube 不自动发）",
+            "平时只在你点按钮时发出；打开「打开就出结论」以后，在 B 站和已启用的 YouTube 上打开超过设定时长的视频，包括在后台打开、还没切过去看的标签页和打开开关时已经开着的，会自动发送字幕、视频标题和时长、UP 主名或频道名和简介，生成概览和一句话结论",
         },
       },
     ],
@@ -147,7 +147,7 @@ export const ACTIVATION_TABLE: NoticeTable<ActivationKind> = [
     version: 1,
     items: [
       { kind: "read", id: "video-info", text: "视频信息：标题、作者和频道、时长、简介" },
-      { kind: "read", id: "transcript", text: "字幕。YouTube 上只在你点读取时，读观看页文字稿面板里显示的内容，面板没开时替你点开；另读播放器上已有的字幕轨列表，标出语言和是不是自动生成" },
+      { kind: "read", id: "transcript", text: "字幕。YouTube 上读观看页文字稿面板里显示的内容，面板没开时替你点开，打开就出结论和本窗口全部生成点开的读完替你关上；另读播放器上已有的字幕轨列表，标出语言和是不是自动生成" },
       { kind: "read", id: "official-summary", text: "B 站官方总结和 UP 主分段" },
       { kind: "read", id: "watch-state", text: "观看状态：播放、暂停、累计播放时长" },
       { kind: "read", id: "window-tabs", text: "本窗口全部生成时，已授权网站标签页的地址和标题" },

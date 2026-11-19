@@ -33,7 +33,7 @@ export function YoutubeSection() {
   return (
     <section class="card" id="youtube" aria-labelledby={`${id}-title`}>
       <h2 id={`${id}-title`}>YouTube</h2>
-      <p class="hint">启用后，简幕在 YouTube 的观看页上读字幕和视频信息。不自动生成，要你在侧边栏点。</p>
+      <p class="hint">启用后，简幕在 YouTube 的观看页上读字幕和视频信息，用法和 B 站一样。读字幕时会替你点开视频页上的文字稿。</p>
       {granted === null ? null : granted ? (
         <Confirmable label="停用" question="停用以后，已开的 YouTube 页面里简幕会撤下，本机的笔记和概览不删。" confirmLabel="停用" onConfirm={() => void disable()} />
       ) : (
