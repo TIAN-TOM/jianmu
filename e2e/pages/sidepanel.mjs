@@ -1,5 +1,6 @@
 // 侧边栏：确认启用前只有启用说明；没有视频时说明怎么用；视频页上读不到字幕、读到字幕，速览和精读、问答抽屉、笔记层的主要状态；
-// 打开时按时长定模式，主动切换记住频道，设置页清掉以后回到按时长；换了字幕以后，依据旧字幕的结论和问答标出来。
+// 打开时按时长定模式，主动切换记住频道，设置页清掉以后回到按时长；换了字幕以后，依据旧字幕的结论和问答标出来；
+// 同一个视频换到另一个标签页时重读本机的概览和问答。
 // 页面测试里没有设置模型服务的密钥：概览和问答停在要先设置 AI 服务。
 // 几个测试按顺序共用同一个浏览器：第一个确认启用，第二个还没登录，第三个起已登录。
 import assert from "node:assert/strict";
@@ -245,18 +246,17 @@ const editDatabase = (page, puts, deletes = {}) =>
 
 const STALE_SRT = "1\n00:00:01,000 --> 00:00:04,000\n换过的样例字幕一\n\n2\n00:00:05,000 --> 00:00:08,000\n换过的样例字幕二\n";
 const STALE_QA_ID = "qa_page-test-stale";
+const SWITCH_QA_ID = "qa_page-test-switch";
+
 
 test("侧边栏：换了字幕以后，依据原来那份字幕的结论和问答标「基于旧字幕」，内容照旧；换之前不标", async (ctx) => {
   const from = await ctx.open(LAUNCHER);
   const panel = await ctx.openSidePanel(from);
   const send = (type, req) => panel.evaluate(`chrome.runtime.sendMessage(${JSON.stringify({ type, req })})`);
+  // 同一个视频在新标签页里打开，再关掉旧的：侧边栏直接跟过去，重读本机。
   const reopen = async (tabId) => {
-    if (tabId !== null) {
-      await closeTab(from, tabId);
-      // 先回到没有视频的样子：同一个视频直接换标签页时，概览和问答不重读本机。
-      await waitIn(panel, "回到没有视频", `${appText}.includes("打开一个 B 站或 YouTube 视频")`);
-    }
     const next = await openTab(panel, watchPage(FIRST_ID));
+    if (tabId !== null) await closeTab(from, tabId);
     await waitIn(panel, "字幕读到", `Boolean(document.querySelector(".modes")) && ${appText}.includes(${JSON.stringify(FIRST_TITLE)})`);
     return next;
   };
@@ -315,6 +315,38 @@ test("侧边栏：换了字幕以后，依据原来那份字幕的结论和问�
     await closeTab(from, tabId);
     const left = await send("overview.get", { video: VIDEO });
     assert.equal(left?.value?.overview, undefined, "放进去的概览删掉了");
+  }
+});
+
+test("侧边栏：同一个视频换到另一个标签页，重读本机的概览和问答：别处写进来、没发通知的这时看得到", async (ctx) => {
+  const from = await ctx.open(LAUNCHER);
+  const panel = await ctx.openSidePanel(from);
+  const tabs = [await openTab(panel, watchPage(FIRST_ID))];
+  try {
+    await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
+    const derived = { basis: { source: "legacy-unknown" } };
+    const overview = {
+      schemaVersion: 1,
+      videoKey: VIDEO,
+      snapshot: { title: FIRST_TITLE, author: "" },
+      analysis: { chapters: [{ title: "别处写的章节", timestamp: "0:00", timestampSeconds: 0, summary: "" }], keyQuotes: [], verdict: { verdict: "可以看", summary: "别处写的结论" } },
+      updatedAt: 1,
+    };
+    const qa = { id: SWITCH_QA_ID, video: VIDEO, question: "别处问的问题", answer: "别处的回答", citations: [], clickable: [], derived, createdAt: 1 };
+    // 直接写进本机数据库，不发通知：就像别的窗口问过、侧边栏没收到的样子。
+    await editDatabase(panel, { overviews: [overview], qa: [qa] });
+    assert.equal(await panel.evaluate(`Boolean(document.querySelector(".verdict-text"))`), false, "刚写进去，侧边栏还没读过");
+
+    tabs.push(await openTab(panel, watchPage(FIRST_ID)));
+    await waitIn(panel, "换过去以后结论摆出来", `${textOf(".verdict-text")} === "别处写的结论"`);
+    assert.ok((await panel.evaluate(textOf(".chapter-list"))).includes("别处写的章节"));
+    await tap(panel, ".ask-entry");
+    await waitIn(panel, "问答里有别处问的那一条", `${textOf(".qa-entry .qa-question")}.includes("别处问的问题")`);
+    await panel.evaluate(`(${qaSheet}).querySelector(".overlay-head [aria-label='关闭']").click(), true`);
+    await waitIn(panel, "抽屉关上", `${qaSheet}?.open === false`);
+  } finally {
+    await editDatabase(panel, {}, { overviews: [VIDEO], qa: [SWITCH_QA_ID] });
+    for (const tabId of tabs) await closeTab(from, tabId);
   }
 });
 

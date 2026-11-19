@@ -112,9 +112,15 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
       player.watch(enabled ? tabId : null, active);
       mode.bind(enabled ? tabId : null, active);
       undoLine.bind(enabled && active && tabId !== null ? `${tabId}\n${active}` : null);
+      // 同一个视频换了标签页：概览和问答不重新开始，只重读本机。别的窗口问过的、没发通知写进来的这时才看得到。
+      const sameVideo = active !== null && overview.state.peek().video === active;
       overview.bind(active);
       notes.bind(active);
       qa.bind(active);
+      if (sameVideo) {
+        overview.refresh();
+        qa.refresh();
+      }
       if (active) void transcript.load(active, tabId, readsOnClick(active) ? { localOnly: true } : {});
       else transcript.clear();
     }),
