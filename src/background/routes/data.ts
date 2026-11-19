@@ -58,13 +58,14 @@ export function dataPorts({ data, log }: DataRouteDeps): DataPorts {
       validate: isExportIn,
       starts: () => false,
       onConnect(port) {
+        const session = data.openExport();
         let started = false;
         return {
           async onMessage() {
             if (started) return;
             started = true;
             try {
-              const backup = await data.exportBackup();
+              const backup = await session.read();
               const { exportedAt, notes, overviews, qa, translations } = backup;
               port.post({ type: "head", exportedAt, counts: { notes: notes.length, overviews: overviews.length, qa: qa.length, translations: translations.length } });
               for (const part of splitBackup(backup)) port.post({ type: "part", part });
@@ -73,6 +74,8 @@ export function dataPorts({ data, log }: DataRouteDeps): DataPorts {
               abort(port, log, "导出备份", error);
             }
           },
+          // 页面收完、出错断开、确认失效被关，都走到这里。
+          onDisconnect: () => session.close(),
         };
       },
     },
@@ -102,6 +105,7 @@ export function dataPorts({ data, log }: DataRouteDeps): DataPorts {
             });
             return queue;
           },
+          // 在合并的那一段做完才关上：整次导入（不只单条消息）都算忙。
           onDisconnect: () => void queue.then(() => session.close()),
         };
       },

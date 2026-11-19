@@ -180,8 +180,9 @@ test("合并时存储写满：先告诉页面写满了再断开；已经写进�
   let calls = 0;
   const spec = dataPorts({
     data: {
-      exportBackup: async () => assert.fail(),
+      openExport: () => assert.fail(),
       clear: async () => assert.fail(),
+      busy: () => false,
       openImport: () => ({
         async merge() {
           calls += 1;
@@ -252,7 +253,7 @@ test("确认启用之前：设置页能导出和清除，不查标签页、不�
 });
 
 test("备份的两个端口：发送方、页面和确认前放不放行，都等于允许矩阵里那一行", () => {
-  const ports = dataPorts({ data: { exportBackup: async () => assert.fail(), openImport: () => assert.fail(), clear: async () => assert.fail() }, log: { error: () => assert.fail() } });
+  const ports = dataPorts({ data: { openExport: () => assert.fail(), openImport: () => assert.fail(), clear: async () => assert.fail(), busy: () => false }, log: { error: () => assert.fail() } });
   for (const [name, spec] of Object.entries(ports)) {
     const expected = ROUTE_MATRIX.find((row) => row.name === name && row.port);
     assert.ok(expected, `${name} 不在允许矩阵里`);

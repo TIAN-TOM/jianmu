@@ -451,7 +451,7 @@ export function createApp(deps: AppDeps): App {
   const setPanelBehavior = () => core.tabs.setPanelBehavior().catch((error: unknown) => deps.log.error("设置侧边栏的打开方式失败", errorLabel(error)));
   const menu = createActionMenu({ menus: deps.contextMenus, runtime: deps.runtime, settings: core.settings, tabs: core.tabs, log: deps.log });
   const consider = () => void core.auto.consider().catch((error: unknown) => deps.log.error("打开就出结论的判断失败", errorLabel(error)));
-  const selfUpdate = wireSelfUpdate({ ...deps, busy: () => core.keepAlive.busy() || core.batch.busy() || core.tasks.list().some((task) => task.state === "running") });
+  const selfUpdate = wireSelfUpdate({ ...deps, busy: () => core.keepAlive.busy() || core.batch.busy() || core.data.busy() || core.tasks.list().some((task) => task.state === "running") });
   return {
     onWake: () => void selfUpdate?.check(),
     dispatch: router.dispatch,
