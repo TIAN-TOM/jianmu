@@ -2253,6 +2253,16 @@ test("覆盖留空或只有空白时回到默认模型", async () => {
   assert.deepEqual(bodies.map((body) => body.model), ["m-default", "m-default"]);
 });
 
+test("记住了不加余量、上限又被型号上限封住时，只减掉实际加上的那部分，不低于调用方给的预算", async () => {
+  const settings = customSettings();
+  const relaxMemory = PROVIDER.createRelaxMemory();
+  await relaxMemory.remember(settings, { headroom: true });
+  const { transport, bodies } = recordingTransport(settings, { relaxMemory, getModelCapabilities: async () => ({ maxTokens: 2048 }) });
+  await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 1024 });
+  await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 4096 });
+  assert.deepEqual(bodies.map((body) => body.max_tokens), [1024, 2048]);
+});
+
 test("模型能力按实际模型查询，单轮预算按它的上限封顶", async () => {
   const asked: string[] = [];
   const { transport, bodies } = recordingTransport(customSettings({ featureModels: { rewrite: "m-small" } }), {

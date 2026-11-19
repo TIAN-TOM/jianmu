@@ -118,10 +118,13 @@ export function createAiTransport({
     // 服务拒过的写法（包括加了余量的上限）在那边拼请求时去掉。
     const host = hostOf(settings.aiBaseUrl);
     const caps = resolveCapabilities({ protocol: settings.protocol, host, model: settings.aiModel, claude: capabilities });
-    const effort = planEffort({ protocol: settings.protocol, host, model: settings.aiModel, requested, caps });
+    const planned = planEffort({ protocol: settings.protocol, host, model: settings.aiModel, requested, caps });
 
     let format = responseFormat;
-    let tokens = Math.min(maxTokens + effort.outputHeadroom, ceiling);
+    let tokens = Math.min(maxTokens + planned.outputHeadroom, ceiling);
+    // 封顶以后实际加上的余量。余量被拒、退回不加时只减掉这么多，不会低于调用方给的预算。
+    const added = tokens - Math.min(maxTokens, ceiling);
+    const effort = added === planned.outputHeadroom ? planned : { ...planned, outputHeadroom: added };
     let diagnosis: EmptyDiagnosis | null = null;
     let relax: RelaxState = {};
     let attempt = 0;
