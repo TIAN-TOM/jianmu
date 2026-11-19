@@ -1,6 +1,7 @@
 // 内容脚本的生命周期：过了启用闸门才读页面，页面激活稳定后才挂界面，之后定时自查；启用失效时整套撤下、重新等确认。
-// 扩展重新加载后旧脚本和扩展断了联系：撤卡片，笔记图标留着只提示刷新页面。
+// 扩展重新加载后旧脚本和扩展断了联系：撤卡片，笔记图标留着只提示刷新页面；补注入的新一份挂上来时，旧的整套撤下。
 import type { Broadcast } from "../shared/messages.ts";
+import { INJECTED } from "../shared/names.ts";
 import type { AppearanceView } from "../shared/messages/core.ts";
 import type { Platform } from "../core/video-ref.ts";
 import type { SitePage } from "../sites/page-types.ts";
@@ -39,12 +40,35 @@ export interface ContentAppDeps {
   readonly visibility: { readonly hidden: () => boolean; readonly onChange: (run: () => void) => () => void };
   /** 媒体元素开始加载新内容。 */
   readonly onMediaLoading: (run: () => void) => () => void;
+  /** 同一页面新注入了一份：开始时先喊一声，再听之后新的一份喊。 */
+  readonly superseded: Superseded;
   /** 站点自己的页面读取（YouTube 的文字稿面板）：过了启用闸门才建，撤下时停；认得的后台问话由它回。 */
   readonly siteReader?: () => SiteReader;
   /** 截帧工具的工厂，构建开关打开时才传：挂界面时建，撤下时停。 */
   readonly frame?: (identity: FrameIdentity) => FrameTool;
   readonly every?: (ms: number, run: () => void) => () => void;
   readonly gateTimers?: GateTimers;
+}
+
+/**
+ * 新注入的一份叫旧的撤下。同一个扩展上下文里注入的几份共用一个隔离世界，入口靠全局变量就找得到旧的；
+ * 扩展重新加载以后，新的一份在新的隔离世界里，看不到旧的全局变量，两边只共用页面，所以靠页面事件喊。
+ * 页面脚本也能发这个事件，所以听到了只有和扩展断了联系的那份撤下，还连着的不理。
+ */
+export interface Superseded {
+  readonly announce: () => void;
+  readonly listen: (run: () => void) => () => void;
+}
+
+/** 用页面上的事件喊和听。 */
+export function pageSuperseded(document: Pick<Document, "addEventListener" | "removeEventListener" | "dispatchEvent">): Superseded {
+  return {
+    announce: () => void document.dispatchEvent(new CustomEvent(INJECTED.contentRetire)),
+    listen(run) {
+      document.addEventListener(INJECTED.contentRetire, run);
+      return () => document.removeEventListener(INJECTED.contentRetire, run);
+    },
+  };
 }
 
 export interface SiteReader {
@@ -90,6 +114,7 @@ export function createContentApp(deps: ContentAppDeps): ContentApp {
   let appearanceVersion = 0;
   const cleanups: (() => void)[] = [];
   let stopListening: (() => void) | null = null;
+  let stopSuperseded: (() => void) | null = null;
 
   function retire(): void {
     if (retired) return;
@@ -201,6 +226,8 @@ export function createContentApp(deps: ContentAppDeps): ContentApp {
   }
 
   function stop(): void {
+    stopSuperseded?.();
+    stopSuperseded = null;
     stopListening?.();
     stopListening = null;
     gate.stop();
@@ -209,6 +236,11 @@ export function createContentApp(deps: ContentAppDeps): ContentApp {
 
   return {
     start() {
+      // 先喊再听：自己喊的自己听不到。
+      deps.superseded.announce();
+      stopSuperseded = deps.superseded.listen(() => {
+        if (!runtime.alive()) stop();
+      });
       stopListening = runtime.listen(onMessage);
       gate.start();
     },

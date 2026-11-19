@@ -1,8 +1,9 @@
 /// <reference types="chrome" />
-// B 站播放页的内容脚本入口。同一页面再注入一份时（安装、更新或确认启用后的补注入），新的一份把旧的整套撤下再接手。
+// B 站播放页的内容脚本入口。同一页面再注入一份时（安装、更新或确认启用后的补注入），新的一份把旧的整套撤下再接手：
+// 同一个扩展上下文里的旧一份靠全局变量找，扩展重新加载以前的旧一份靠页面事件叫（见 app.ts 的 Superseded）。
 import { INJECTED, PAGE_PATHS } from "../shared/names.ts";
 import { createBilibiliPage } from "../sites/bilibili/page.ts";
-import { createContentApp, type ContentApp } from "./app.ts";
+import { createContentApp, pageSuperseded, type ContentApp } from "./app.ts";
 import { createBrowserFrameTool } from "./frame.ts";
 import { createContentRuntime } from "./runtime.ts";
 import { createSurface } from "./surface.ts";
@@ -43,6 +44,7 @@ const app = createContentApp({
       return () => document.removeEventListener("visibilitychange", onVisibility);
     },
   },
+  superseded: pageSuperseded(document),
   // 媒体事件不冒泡，在捕获阶段听整个文档。
   onMediaLoading(run) {
     document.addEventListener("loadstart", run, true);

@@ -41,6 +41,8 @@ export const INJECTED = {
   cardMessage: "jianmu-card-message",
   hostMessage: "jianmu-card-host",
   instance: "jianmu-content-instance",
+  // 扩展重新加载以后新注入的一份看不到旧的全局变量，用这个页面事件叫旧的撤下。
+  contentRetire: "jianmu-content-retire",
   // YouTube 页面主世界的只读小桥和内容脚本之间的页面事件：问、答，和新注入的一份叫旧的停下。
   tracksAsk: "jianmu-tracks-ask",
   tracksAnswer: "jianmu-tracks-answer",

@@ -2,11 +2,12 @@
 // 清除全部数据（启用失效）以后整套撤下，重新等确认；再确认一次又挂上。问不到后台时隔一会儿再问。
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createContentApp, type Surface } from "../../../src/content/app.ts";
+import { createContentApp, pageSuperseded, type Surface } from "../../../src/content/app.ts";
 import type { FrameIdentity, FrameTool } from "../../../src/content/frame.ts";
 import { ASK_RETRY_MS } from "../../../src/content/gate.ts";
 import { createContentRuntime, type RuntimeLike } from "../../../src/content/runtime.ts";
 import type { VideoRef } from "../../../src/core/video-ref.ts";
+import { INJECTED } from "../../../src/shared/names.ts";
 import type { SitePage } from "../../../src/sites/page-types.ts";
 import { EXTENSION_ID } from "../../helpers/chrome.ts";
 import { fakeRuntime } from "../../helpers/fake-runtime.ts";
@@ -17,7 +18,8 @@ const VIDEO: VideoRef = { platform: "bilibili", videoId: "BV1Sample001", segment
 const NEEDED = { ok: true, value: { state: "needed", updated: false, items: [] } };
 const CURRENT = { ok: true, value: { state: "current" } };
 
-function setup(options: { readonly frame?: (identity: FrameIdentity) => FrameTool; readonly site?: VideoRef["platform"]; readonly durationSec?: number } = {}) {
+/** page 是几份内容脚本共用的页面：扩展重新加载前后注入的两份只共用它。 */
+function setup(options: { readonly frame?: (identity: FrameIdentity) => FrameTool; readonly site?: VideoRef["platform"]; readonly durationSec?: number; readonly page?: EventTarget } = {}) {
   const fake = fakeRuntime();
   let activation: unknown = NEEDED;
   fake.reply("activation.get", (_req) => activation);
@@ -75,6 +77,7 @@ function setup(options: { readonly frame?: (identity: FrameIdentity) => FrameToo
     },
     visibility: { hidden: () => false, onChange: () => (hooks.push("visibility"), () => undefined) },
     onMediaLoading: () => (hooks.push("media"), () => undefined),
+    superseded: pageSuperseded(options.page ?? new EventTarget()),
     every: (_ms, run) => (hooks.push("every"), repeating.push(run), () => undefined),
     gateTimers: { set: (run, ms) => timers.setTimeout(run, ms), clear: (timer) => timers.clearTimeout(timer) },
     ...(options.frame ? { frame: options.frame } : {}),
@@ -246,6 +249,36 @@ test("扩展重新加载以后旧的一份和扩展断了联系：下一轮自�
   assert.equal(surfaces[0]?.retired, true);
   tick();
   assert.equal(surfaces[0]?.ticks, before, "收场以后不再自查");
+});
+
+test("补注入的新一份挂上来：和扩展断了联系的旧一份整套撤下；还连着的不理页面上的这个事件，新一份也不撤自己", async () => {
+  const page = new EventTarget();
+  const old = setup({ page });
+  old.setActivation(CURRENT);
+  old.app.start();
+  assert.ok(await until(() => old.pageReads.includes("whenPageReady")));
+  old.pageReady();
+  assert.ok(await until(() => old.surfaces.length === 1));
+
+  // 页面脚本也能发这个事件：还连着扩展的那份不理。
+  page.dispatchEvent(new CustomEvent(INJECTED.contentRetire));
+  assert.equal(old.surfaces[0]?.removed, false);
+
+  // 扩展重新加载：旧的一份断了联系，自查时撤卡片，图标留着提示刷新。
+  old.disconnect();
+  old.tick();
+  assert.deepEqual([old.surfaces[0]?.retired, old.surfaces[0]?.removed], [true, false]);
+
+  // 补注入的新一份在新的隔离世界里，看不到旧的全局变量，靠页面事件叫旧的撤下。
+  const fresh = setup({ page });
+  fresh.setActivation(CURRENT);
+  fresh.app.start();
+  assert.equal(old.surfaces[0]?.removed, true, "旧的图标也撤下，页面上不留两套");
+  assert.ok(await until(() => fresh.pageReads.includes("whenPageReady")));
+  fresh.pageReady();
+  assert.ok(await until(() => fresh.surfaces.length === 1));
+  page.dispatchEvent(new CustomEvent(INJECTED.contentRetire));
+  assert.equal(fresh.surfaces[0]?.removed, false);
 });
 
 test("截帧指令：确认以后才建截帧工具、交给它，等它异步回；播放器指令照旧同步回；撤下时停掉截帧工具", async () => {
