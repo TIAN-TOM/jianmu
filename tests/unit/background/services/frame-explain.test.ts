@@ -22,7 +22,7 @@ import type { FrameEntryView } from "../../../../src/shared/messages/frame.ts";
 import { createFakeAi, type FakeAiOptions } from "../../../helpers/fake-ai.ts";
 import { manualTimers } from "../../../helpers/manual-timers.ts";
 import { memoryStorage } from "../../../helpers/memory-storage.ts";
-import { cue, OTHER, START, transcriptView, VIDEO } from "../../../helpers/study-service.ts";
+import { cue, OTHER, START, transcriptView, TUBE, VIDEO } from "../../../helpers/study-service.ts";
 import { until } from "../../../helpers/wait-until.ts";
 import { FRAME_RESULTS_KEY } from "../../../../src/shared/names.ts";
 
@@ -42,6 +42,10 @@ interface Options {
   readonly session?: Record<string, unknown>;
   /** 截帧时同步做一件事：比如清除本机数据。 */
   readonly duringCapture?: () => Promise<void>;
+  /** YouTube 视频本机有没有字幕：有、没有、读本机出错。 */
+  readonly local?: "cached" | "none" | "throws";
+  /** 标签页的标题，null 是读不到。 */
+  readonly tabTitle?: string | null;
 }
 
 function setup(options: Options = {}) {
@@ -53,6 +57,7 @@ function setup(options: Options = {}) {
   const clearGuard = createClearGuard();
   const tasks = createTaskRunner({ ai: fake.ai, keepAlive, timers, broadcast: () => undefined, newId: () => `task-${(ids += 1)}` });
   const asked: unknown[] = [];
+  const reads: { readonly method: "verify" | "get"; readonly mode?: string; readonly tabId?: number | undefined }[] = [];
   const probed: string[] = [];
   const session = memoryStorage(options.session ?? {});
   let ensured = 0;
@@ -74,11 +79,18 @@ function setup(options: Options = {}) {
     transcript: {
       // 每次都向平台重新读视频信息：付费、没登录的在这一步拒。
       verify: async () => {
+        reads.push({ method: "verify" });
         if (options.transcript === "paid") return fail("UNPLAYABLE", "paid");
         if (options.transcript === "signed-out") return fail("NEED_LOGIN");
         return ok({ title: options.transcript === "no-captions" ? "没有字幕的视频" : "力学入门", author: "", description: "", durationSec: 300 });
       },
-      get: async (_ref, { mode }) => {
+      get: async (_ref, { mode, tabId }) => {
+        reads.push({ method: "get", mode, tabId });
+        if (mode === "local") {
+          if (options.local === "throws") throw new Error("本机读不出");
+          if (options.local !== "cached") return fail("NOT_CACHED");
+          return ok(transcriptView(TUBE, [cue(70, "first look at the forces"), cue(80, "second law"), cue(200, "much later")], { title: "本机记着的标题" }));
+        }
         assert.equal(mode, "full");
         if (options.transcript === "throws") throw new Error("读不到");
         if (options.transcript === "no-captions") return fail("NO_CAPTIONS");
@@ -86,6 +98,7 @@ function setup(options: Options = {}) {
         return ok(transcriptView(VIDEO, [cue(10, "很早的一句"), cue(70, "先看受力"), cue(80, "牛顿第二定律"), cue(90, "加速度和力成正比"), cue(200, "很晚的一句")], { title: "缓存里的标题" }));
       },
     },
+    tabTitle: async () => (options.tabTitle === undefined ? "标签页上的标题" : options.tabTitle),
     clearGuard,
     session,
     keepAlive: {
@@ -102,7 +115,7 @@ function setup(options: Options = {}) {
       asked.push({ tabId, message });
       await options.duringCapture?.();
       if (options.reply instanceof Error) throw options.reply;
-      return options.reply === undefined ? captured() : options.reply;
+      return options.reply === undefined ? captured({ video: (message as { readonly req: { readonly video: string } }).req.video }) : options.reply;
     },
     prompt: (file) => fake.ai.prompt(file),
     broadcast: (message) => void broadcasts.push(message),
@@ -117,7 +130,7 @@ function setup(options: Options = {}) {
     assert.ok(latest);
     return latest;
   };
-  return { fake, service, asked, broadcasts, probed, timers, run, clearGuard, session, ensured: () => ensured, held, released: () => released };
+  return { fake, service, asked, reads, broadcasts, probed, timers, run, clearGuard, session, ensured: () => ensured, held, released: () => released };
 }
 
 test("能看图：向标签页要一帧，图在前、提示词在后发给画面分析的模型；结果记下，带时间和尺寸", async () => {
@@ -221,6 +234,27 @@ test("这个视频本来没有字幕时照样解释，字幕写「无」，标�
   assert.equal((await h.run()).state, "done");
   const parts = h.fake.calls[0]?.request.messages?.[1]?.content as readonly { readonly text?: string }[];
   assert.match(parts[1]?.text ?? "", /视频：没有字幕的视频[\s\S]*字幕：\n无$/);
+});
+
+const promptText = (h: ReturnType<typeof setup>): string => (h.fake.calls[0]?.request.messages?.[1]?.content as readonly { readonly text?: string }[])[1]?.text ?? "";
+
+test("YouTube 视频：不核对视频信息、不问页面，只看本机；本机有字幕就带前后几句，标题用本机记着的", async () => {
+  const h = setup({ local: "cached" });
+  const entry = await h.run(TUBE);
+  assert.equal(entry.state, "done", JSON.stringify(entry));
+  assert.deepEqual(h.reads, [{ method: "get", mode: "local", tabId: TAB }], "只读本机，不向平台核对、不读页面");
+  assert.deepEqual(h.asked, [{ tabId: TAB, message: { type: "player.captureFrame", req: { video: TUBE, maxEdge: 1456 } } }]);
+  assert.equal(promptText(h), "视频：本机记着的标题\n时间：1:23\n字幕：\n1:10 first look at the forces\n1:20 second law");
+});
+
+test("YouTube 视频本机没有字幕、读本机出错：照样只发画面，字幕写「无」，标题用标签页的，读不到写「未知」", async () => {
+  for (const [local, tabTitle, title] of [["none", undefined, "标签页上的标题"], ["throws", undefined, "标签页上的标题"], ["none", null, "未知"]] as const) {
+    const h = setup({ local, tabTitle });
+    const entry = await h.run(TUBE);
+    assert.equal(entry.state, "done", `${local}：${JSON.stringify(entry)}`);
+    assert.deepEqual(h.reads, [{ method: "get", mode: "local", tabId: TAB }], local);
+    assert.equal(promptText(h), `视频：${title}\n时间：1:23\n字幕：\n无`, local);
+  }
 });
 
 test("读字幕被限流或者读出错：停下，不截、不发", async () => {

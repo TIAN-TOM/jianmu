@@ -63,7 +63,7 @@ export const ROUTE_MATRIX: readonly MatrixRow[] = [
   ...row(["data.clear"], { ...OPTIONS_ONLY, card: false, content: [], beforeEnable: true }),
   // 解释当前画面：只在构建开关打开时有，测试构建打开了开关。
   ...row(["frame.explain", "frame.recent"], { ...PANEL_ONLY, card: false, content: [], beforeEnable: false }),
-  ...row(["frame.explainHere"], { ...NO_PAGES, card: false, content: ["bilibili"], beforeEnable: false }),
+  ...row(["frame.explainHere"], { ...NO_PAGES, card: false, content: BOTH, beforeEnable: false }),
   ...row(["youtube.openTranscript"], { ...PANEL_ONLY, card: false, content: [], beforeEnable: false }),
   ...row(["ai.probeImage"], { ...OPTIONS_ONLY, card: false, content: [], beforeEnable: false }),
 ];

@@ -1,5 +1,5 @@
 // 截帧：每种拒绝分开报（视频已换、找不到视频、正在播广告、受保护、画面没加载好、不在前台、画布被污染），
-// 播放中等下一帧、等完再核对一遍，按长边缩小，只回 JPEG 的 data URL；指令形状不对的不认。
+// 播放中等下一帧、等完再核对一遍，按长边缩小，只回 JPEG 的 data URL；指令形状不对的不认。YouTube 观看页经它的页面适配层照样截。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -16,8 +16,10 @@ import {
   scaledSize,
   type FrameEnv,
 } from "../../../src/content/frame.ts";
+import { createPlayer } from "../../../src/content/player.ts";
 import { videoKey, type VideoKey } from "../../../src/core/video-ref.ts";
 import type { MainVideo } from "../../../src/sites/page-types.ts";
+import { createYoutubePage } from "../../../src/sites/youtube/page.ts";
 import { until } from "../../helpers/wait-until.ts";
 
 const KEY = videoKey({ platform: "bilibili", videoId: "BV1Sample001", segment: 1 });
@@ -273,4 +275,39 @@ test("截帧工具停下以后：在途的那次等完下一帧不编码、不�
   assert.deepEqual(await pending, { ok: false, code: "VIDEO_CHANGED" });
   assert.deepEqual(await tool.capture(), { ok: false, code: "VIDEO_CHANGED" });
   assert.deepEqual(encoded, []);
+});
+
+test("YouTube 观看页：经页面适配层找主视频，截到的带 YouTube 的视频身份；播广告时不截；站内换了视频、播放器还没换上时按视频已换拒绝", async () => {
+  // 观看页的结构替身：只有播放器和主视频元素两处，编号是自造的。
+  const classes = new Set<string>();
+  const video = fakeVideo();
+  const nodes: Readonly<Record<string, unknown>> = {
+    "ytd-watch-flexy .html5-video-player": { classList: { contains: (name: string) => classes.has(name) } },
+    "ytd-watch-flexy .html5-video-player video.html5-main-video": video,
+  };
+  const location = { href: "https://www.youtube.com/watch?v=jmSample0001" };
+  const page = createYoutubePage({ document: { querySelector: (selector: string) => nodes[selector] ?? null } as unknown as Document, location });
+  const player = createPlayer({ currentRef: () => page.currentRef(), findMainVideo: () => page.findMainVideo() });
+  const tool = createFrameTool({
+    currentKey: player.currentKey,
+    confirmed: player.confirmed,
+    findMainVideo: () => page.findMainVideo(),
+    foreground: () => true,
+    sawEncrypted: () => false,
+    nextFrame: async () => null,
+    encode: async () => JPEG,
+  });
+  const first = videoKey({ platform: "youtube", videoId: "jmSample0001" });
+  assert.deepEqual(await tool.capture(), { ok: true, value: { dataUrl: JPEG, width: 1456, height: 819, atSec: 42, video: first } });
+
+  classes.add("ad-showing");
+  assert.deepEqual(await tool.handle({ type: "player.captureFrame", req: { video: first, maxEdge: 640 } }), { ok: false, code: "AD_PLAYING" });
+  classes.delete("ad-showing");
+
+  location.href = "https://www.youtube.com/watch?v=jmSample0002";
+  player.videoChanged();
+  assert.deepEqual(await tool.capture(), { ok: false, code: "VIDEO_CHANGED" });
+  player.mediaLoading();
+  const second = await tool.capture();
+  assert.equal(second.ok && second.value.video, videoKey({ platform: "youtube", videoId: "jmSample0002" }));
 });

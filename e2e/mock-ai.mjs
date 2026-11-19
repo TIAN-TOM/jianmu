@@ -11,7 +11,9 @@ import { ANTHROPIC, OPENAI, SKIPPED_VIDEO, VIDEOS } from "./fixtures.mjs";
 /**
  * 一次模型请求。video 是视频的编号（fixtures 里 VIDEOS 的键），认不出时是空串。
  * @typedef {{ host: string, path: string, cookie: string, unexpected: boolean, at: number, answeredAt?: number, aborted?: true,
- *   provider: string, kind: "analysis" | "verdict" | "qa" | "tidy" | "frame" | "probe" | "models" | "test" | "", video: string, held?: true, image?: true }} ModelCall
+ *   provider: string, kind: "analysis" | "verdict" | "qa" | "tidy" | "frame" | "probe" | "models" | "test" | "", video: string, held?: true, image?: true,
+ *   frame?: { title: string, context: string } }} ModelCall
+ * frame 是解释画面时提示词里的视频标题和前后字幕。
  */
 
 const SERVICES = [
@@ -198,8 +200,9 @@ export function createModelServices({ record }) {
       call.video = videoOf(prompt);
       // 带图的请求记一笔：两家的图片块写法不同。
       if (/"type":"(?:image|input_image)"/.test(raw)) call.image = true;
-      // 测试连接和看图探测不带视频，其余请求要认得出是哪个视频。
-      if (req.method !== "POST" || path !== endpoint || !call.kind || (!call.video && call.kind !== "test" && call.kind !== "probe")) {
+      if (call.kind === "frame") call.frame = { title: /^视频：(.*)$/m.exec(prompt)?.[1]?.trim() ?? "", context: /这一刻前后的字幕：\n([\s\S]*)$/.exec(prompt)?.[1]?.trim() ?? "" };
+      // 测试连接和看图探测不带视频；YouTube 上没读过字幕时解释画面的标题取自标签页，不一定认得出是哪个视频。其余请求要认得出。
+      if (req.method !== "POST" || path !== endpoint || !call.kind || (!call.video && !["test", "probe", "frame"].includes(call.kind))) {
         call.unexpected = true;
         return send(res, 404, { error: { message: "sample refusal" } });
       }

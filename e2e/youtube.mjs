@@ -1,7 +1,8 @@
 // YouTube 的端到端：日用包装进 Chrome for Testing，YouTube 观看页和模型服务都由本机模拟服务器扮演。
 // 副本的清单里先写上 YouTube 的主机权限（无头 Chrome 里点不了授权框），装上就算已经启用：后台注册内容脚本。
-// 在真实的侧边栏里走一遍：打开就只看本机、不读页面；没打开文字稿时点读取，说明要先打开；用户打开以后读到，
-// 标出轨和语言；生成概览、存笔记、问答点引用跳转；站内换到另一个视频，面板没更新时不认，更新后读到新视频的，不串台。
+// 在真实的侧边栏里走一遍：打开就只看本机、不读页面；还没读字幕时点播放器上解释当前画面的图标，只发画面，结果进侧边栏；
+// 点读取时替用户点开文字稿，读到，标出轨和语言，这时再解释画面就带上前后几句；生成概览、存笔记、问答点引用跳转；
+// 站内换到另一个视频，面板没更新时不认，更新后读到新视频的，不串台。
 // 新式面板按播放器上已有的字幕轨判定来源：默认人工的标人工，只有一条自动轨的标自动，判定不了的标来源未确认。
 // 播放页卡片插在右栏推荐视频上面、不进侧栏面板，本机没有字幕时不去读；侧边栏生成的结论卡片跟着摆出来，
 // 精读时收起、速览时展开，窗口变窄时跟着推荐视频挪到播放器下面。
@@ -25,6 +26,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TIMEOUT_MS = 20_000;
 const [FIRST_ID = "", SECOND_ID = ""] = Object.keys(TUBE_VIDEOS);
 const FIRST = videoKey({ platform: "youtube", videoId: FIRST_ID });
+/** 模拟观看页的标签页标题。 */
+const TAB_TITLE = "样例观看页";
 
 async function until(label, read) {
   const deadline = Date.now() + TIMEOUT_MS;
@@ -117,6 +120,82 @@ const placedAt = async (video, parent) => {
   return at?.parent === parent && at.next === "related" && !at.inPanel;
 };
 
+/** 经调试协议发的鼠标点击：浏览器派发的真实点击，简幕的图标只认这种。 */
+async function mouseClick(session, x, y) {
+  await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y }, session);
+  for (const type of ["mousePressed", "mouseReleased"]) await cdp.send("Input.dispatchMouseEvent", { type, x, y, button: "left", clickCount: 1 }, session);
+}
+
+/** 页面主世界里给视频元素喂一路画布的媒体流：模拟页上的视频元素平时只放一段静音，没有画面。颜色是自造的。 */
+const FEED_FRAMES = `(async () => {
+  const canvas = document.createElement("canvas");
+  canvas.width = 640;
+  canvas.height = 360;
+  const context = canvas.getContext("2d");
+  const draw = () => {
+    context.fillStyle = "rgb(48, 96, 200)";
+    context.fillRect(0, 0, 640, 360);
+    requestAnimationFrame(draw);
+  };
+  draw();
+  const video = document.querySelector("video");
+  video.srcObject = canvas.captureStream(30);
+  await video.play();
+  return true;
+})()`;
+
+/** 撤下画布的媒体流，视频元素回到原来那段静音：后面要跳时间点，媒体流跳不了。 */
+const UNFEED_FRAMES = `(() => { document.querySelector("video").srcObject = null; return true; })()`;
+
+/**
+ * 点播放器上解释当前画面的图标：给视频喂上画面，真实点击图标，等侧边栏里多出一条解释，回这一次发给模型的解释画面请求。
+ * 途中不读文字稿面板，也不替用户打开，不向 YouTube 发请求。
+ */
+async function explainFrame(video, panel, tubeCalls) {
+  const tubeBefore = tubeCalls();
+  const panelBefore = await evaluate(video, `document.querySelector("ytd-engagement-panel-section-list-renderer")?.getAttribute("visibility")`);
+  await evaluate(video, FEED_FRAMES, true);
+  await until("视频出了画面", () => evaluate(video, `document.querySelector("video").readyState >= 2 && document.querySelector("video").videoWidth > 0`));
+  const icons = await until("浮层里笔记和解释当前画面两个图标", () =>
+    evaluate(video, `(() => { const ids = [...document.querySelectorAll("#${INJECTED.overlay} > button")].map((node) => node.id); return ids.length === 2 ? ids : null; })()`),
+  );
+  if (icons.join() !== [INJECTED.noteButton, INJECTED.frameButton].join()) throw new Error(`浮层里的图标不对：${icons.join()}`);
+  await cdp.send("Page.bringToFront", {}, video);
+  // 侧边栏占掉一大块，无头窗口里剩下的视口比播放器还窄，图标落在视口外面：这一步把视口放宽。
+  await cdp.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false }, video);
+  const spot = await until("解释当前画面的图标露出来", () =>
+    evaluate(
+      video,
+      `(() => { const overlay = document.getElementById("${INJECTED.overlay}"); const node = document.getElementById("${INJECTED.frameButton}"); if (!overlay || !node || getComputedStyle(overlay).visibility !== "visible") return null; const box = node.getBoundingClientRect(); return { x: box.left + box.width / 2, y: box.top + box.height / 2 }; })()`,
+    ),
+  );
+  const framesBefore = mock.requests.filter((entry) => entry.kind === "frame").length;
+  const cardsBefore = await evaluate(panel, `document.querySelectorAll(".frame-card-text").length`);
+  await mouseClick(video, spot.x, spot.y);
+  let shown = "";
+  const hint = await until("图标说结果去哪儿看", async () => {
+    shown = await evaluate(video, `JSON.stringify([document.querySelector(".${INJECTED.frameLabel}")?.textContent ?? "", document.getElementById("${INJECTED.frameButton}")?.title ?? ""])`);
+    const [text = ""] = JSON.parse(shown);
+    return /结果在侧边栏|点简幕图标看结果/.test(text) ? text : null;
+  }).catch((error) => {
+    throw new Error(`${error.message}；图标上是 ${shown}`);
+  });
+  const explained = await until("侧边栏里多出这一帧的解释", async () => {
+    const texts = await evaluate(panel, `[...document.querySelectorAll(".frame-card-text")].map((node) => node.textContent)`);
+    return texts.length > cardsBefore && texts[0]?.includes("模拟服务的画面解释") ? texts[0] : null;
+  });
+  const stamp = await evaluate(panel, `document.querySelector(".frame-card .stamp")?.textContent ?? ""`);
+  if (!/^\d+:\d{2}$/.test(stamp)) throw new Error(`画面卡片上没有时间：${stamp}`);
+  const frames = mock.requests.filter((entry) => entry.kind === "frame").slice(framesBefore);
+  if (frames.length !== 1 || !frames[0]?.image) throw new Error(`解释画面的请求不对：${JSON.stringify(frames)}`);
+  if ((await evaluate(video, `document.querySelector("ytd-engagement-panel-section-list-renderer")?.getAttribute("visibility")`)) !== panelBefore) throw new Error("解释画面时动了文字稿面板");
+  if (tubeCalls() !== tubeBefore) throw new Error("解释画面时向 YouTube 发了请求");
+  await cdp.send("Emulation.clearDeviceMetricsOverride", {}, video);
+  await evaluate(video, UNFEED_FRAMES);
+  await until("视频元素回到原来的媒体", () => evaluate(video, `(() => { const node = document.querySelector("video"); return node.srcObject === null && node.duration > 300; })()`));
+  return { hint, explained, sent: frames[0] };
+}
+
 async function flow(launcher, panelUrl, worker) {
   const registered = await until("后台注册了 YouTube 的内容脚本", () => evaluate(worker, `chrome.scripting.getRegisteredContentScripts().then((list) => list.map((item) => item.id).join())`));
   if (registered.split(",").sort().join() !== "jianmu-youtube,jianmu-youtube-bridge") throw new Error(`注册的脚本不对：${registered}`);
@@ -145,10 +224,14 @@ async function flow(launcher, panelUrl, worker) {
   const modelCalls = () => mock.requests.filter((entry) => entry.host !== TUBE_HOST).length;
   // 页面自己取的图标和视频媒体不算：播放循环、浏览器取图标的时刻都不固定。
   const tubeCalls = () => mock.requests.filter((entry) => entry.host === TUBE_HOST && entry.path !== "/favicon.ico" && entry.path !== QUIET_MEDIA_PATH).length;
-  const before = modelCalls();
-  const tubeBefore = tubeCalls();
   if (await evaluate(video, `document.querySelector("ytd-engagement-panel-section-list-renderer")?.getAttribute("visibility")`) !== "ENGAGEMENT_PANEL_VISIBILITY_HIDDEN") throw new Error("打开视频时就替用户打开了文字稿");
   console.log("✓ 打开视频不读页面，也不替用户打开文字稿");
+  // 还没读字幕：只发画面，前后字幕写「无」，标题取标签页的；文字稿面板照旧关着。
+  const blind = await explainFrame(video, panel, tubeCalls);
+  if (blind.sent.frame?.context !== "无" || blind.sent.frame?.title !== TAB_TITLE) throw new Error(`没读字幕时解释画面发的不对：${JSON.stringify(blind.sent.frame)}`);
+  console.log(`✓ 还没读字幕时点播放器上解释当前画面的图标（「${blind.hint}」）：截到一帧、只发画面，侧边栏显示「${blind.explained.slice(0, 12)}…」；没读文字稿，也没替用户打开`);
+  const before = modelCalls();
+  const tubeBefore = tubeCalls();
 
   // 用户只点简幕的「读取字幕」：简幕替他点开文字稿，再读。
   await until("点读取字幕", () => clickIn(panel, ".state-block .button", "读取字幕"));
@@ -166,6 +249,11 @@ async function flow(launcher, panelUrl, worker) {
   await until("卡片上点重试", () => clickIn(card, "#card-retry"));
   await until("卡片上出现「生成概览」", () => evaluate(card, `Boolean(document.getElementById("card-generate"))`));
   console.log("✓ 文字稿面板开着时卡片排在面板下面；侧边栏读过字幕，卡片重试以后能生成概览");
+
+  // 读过字幕以后再解释画面：带上本机字幕里这一刻前后的几句，标题用本机记着的。
+  const seen = await explainFrame(video, panel, tubeCalls);
+  if (!seen.sent.frame?.context.includes(lineOne) || seen.sent.frame?.title !== TUBE_VIDEOS[FIRST_ID]?.title) throw new Error(`读过字幕以后解释画面发的不对：${JSON.stringify(seen.sent.frame)}`);
+  console.log("✓ 读过字幕以后再点：带上本机字幕里这一刻前后的几句，标题用本机记着的");
 
   await until("生成概览可以点", () => clickIn(panel, "button", "生成概览"));
   await until("概览生成完", async () => (await textOf(panel, ".chapter-name")).includes("模拟服务写的章节"));

@@ -65,7 +65,7 @@ export function createFrameStore({ api, target, enabled }: FrameStoreDeps): Fram
     }),
     async explain() {
       const { tabId, video } = target.peek();
-      if (tabId === null || video === null) return "先打开一个 B 站视频";
+      if (tabId === null || video === null) return "先打开一个视频";
       const reply = await api.send("frame.explain", { tabId, video });
       if (!reply.ok) return describe(reply.code, reply.detail);
       void reload();
