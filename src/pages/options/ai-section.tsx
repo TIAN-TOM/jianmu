@@ -140,6 +140,47 @@ function EffortBlock({ state }: { readonly state: OptionsState }) {
   );
 }
 
+interface ModelFieldProps {
+  readonly models: readonly string[];
+  readonly value: string;
+  readonly placeholder: string;
+  /** 下拉箭头的无障碍名称。 */
+  readonly pickLabel: string;
+  readonly id?: string;
+  readonly feature?: string;
+  readonly onValue: (value: string) => void;
+}
+
+/** 模型框：能手填，边打字边出候选。拉到列表以后右边多一个箭头，点开是拉到的全部模型，框里已经有字也一样。 */
+function ModelField({ models, value, placeholder, pickLabel, id, feature, onValue }: ModelFieldProps) {
+  return (
+    <span class="model-field">
+      <input
+        class="input"
+        id={id}
+        data-feature={feature}
+        type="text"
+        list={MODEL_LIST_ID}
+        autocomplete="off"
+        spellcheck={false}
+        placeholder={placeholder}
+        value={value}
+        onInput={(event) => onValue(event.currentTarget.value)}
+      />
+      {models.length ? (
+        <select class="input model-pick" aria-label={pickLabel} data-model-pick={id ?? feature} value={models.includes(value) ? value : ""} onChange={(event) => onValue(event.currentTarget.value)}>
+          <option value="" hidden />
+          {models.map((model) => (
+            <option key={model} value={model}>
+              {model}
+            </option>
+          ))}
+        </select>
+      ) : null}
+    </span>
+  );
+}
+
 export function AiSection({ state }: { readonly state: OptionsState }) {
   const form = state.form.value;
   const saved = state.saved.value;
@@ -272,16 +313,13 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
         </label>
         <div>
           <span class="field-row">
-            <input
-              class="input"
+            <ModelField
               id="aiModel"
-              type="text"
-              list={MODEL_LIST_ID}
-              autocomplete="off"
-              spellcheck={false}
-              placeholder="填写模型名称，或点右边的按钮拉取"
+              models={state.models.value}
               value={form.aiModel}
-              onInput={(event) => state.edit({ aiModel: event.currentTarget.value })}
+              placeholder="填写模型名称，或点右边的按钮拉取"
+              pickLabel="从拉到的模型里选"
+              onValue={(aiModel) => state.edit({ aiModel })}
             />
             <Button disabled={working} onClick={() => void state.fetchModels()}>
               {busy === "models" ? "正在拉取" : "拉取模型列表"}
@@ -300,16 +338,13 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
         {FEATURE_MODEL_SLOTS.map((slot) => (
           <label key={slot.id} class="feature-row">
             <span class="feature-label">{slot.label}</span>
-            <input
-              class="input"
-              data-feature={slot.id}
-              type="text"
-              list={MODEL_LIST_ID}
-              autocomplete="off"
-              spellcheck={false}
-              placeholder={form.aiModel || "默认模型"}
+            <ModelField
+              feature={slot.id}
+              models={state.models.value}
               value={form.featureModels[slot.id] ?? ""}
-              onInput={(event) => state.editFeatureModel(slot.id, event.currentTarget.value)}
+              placeholder={form.aiModel || "默认模型"}
+              pickLabel={`${slot.label}：从拉到的模型里选`}
+              onValue={(model) => state.editFeatureModel(slot.id, model)}
             />
           </label>
         ))}

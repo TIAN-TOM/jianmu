@@ -129,7 +129,30 @@ test("设置页：选服务商、填密钥、勾同意后保存，拉模型列�
   assert.ok(fetched.gap >= 0 && fetched.gap <= 16, `离模型框 ${fetched.gap} 像素`);
   const listed = await page.evaluate(`[...document.querySelectorAll("#model-options option")].map((node) => node.value)`);
   assert.deepEqual(listed, [ANTHROPIC.model]);
-  await fill(page, "#aiModel", ANTHROPIC.model);
+  // 框里预填的型号不在拉到的列表里：右边的下拉照样列出拉到的全部，紧贴着模型框；选一个就填进框里。
+  const pick = `select[data-model-pick="aiModel"]`;
+  const picker = await page.evaluate(`(() => {
+    const field = document.getElementById("aiModel");
+    const select = document.querySelector(${JSON.stringify(pick)});
+    const a = field.getBoundingClientRect();
+    const b = select.getBoundingClientRect();
+    return {
+      prefilled: field.value,
+      options: [...select.options].map((node) => node.value).filter(Boolean),
+      chosen: select.value,
+      joined: Math.abs(b.left - a.right) <= 1 && Math.abs(b.top - a.top) <= 1 && Math.abs(b.height - a.height) <= 1,
+      width: b.width,
+      featurePicks: document.querySelectorAll("#featureModels select.model-pick").length,
+      featureInputs: document.querySelectorAll("#featureModels input[data-feature]").length,
+    };
+  })()`);
+  assert.notEqual(picker.prefilled, ANTHROPIC.model);
+  assert.deepEqual({ options: picker.options, chosen: picker.chosen, joined: picker.joined }, { options: [ANTHROPIC.model], chosen: "", joined: true });
+  assert.ok(picker.width > 0 && picker.width <= 40, `下拉箭头宽 ${picker.width} 像素`);
+  assert.ok(picker.featurePicks > 0 && picker.featurePicks === picker.featureInputs, `按功能选模型的 ${picker.featureInputs} 个框里有 ${picker.featurePicks} 个带下拉`);
+  await fill(page, pick, ANTHROPIC.model);
+  await page.waitFor("选的型号填进模型框", `document.getElementById("aiModel").value === ${JSON.stringify(ANTHROPIC.model)}`);
+  assert.equal(await page.overflowsX(), false);
 
   // 勾记住密钥：要点保存才算数的那句话写在勾选框下面；取消以后也写在那里。没保存过，密钥还是只在会话里。
   await page.click("#rememberApiKey");
