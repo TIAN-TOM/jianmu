@@ -76,11 +76,11 @@ export interface EffortPlan {
   /** 实际生效的档位：任务的生成配置记这个，设置页也显示这个。 */
   readonly effective: Effort;
   readonly note?: EffortNote;
-  /** 按合并补丁的规则并进请求体：值为 null 的键删掉，对象逐层合并。选关时多半是空的，请求和以前一样。 */
+  /** 这一档要并进请求体的改动。 */
   readonly patch: Readonly<Record<string, unknown>>;
   /** 给思考留的输出余量，加在调用方给的预算上。 */
   readonly outputHeadroom: number;
-  /** 单次请求的硬超时，秒。 */
+  /** 单次请求的硬超时。 */
   readonly timeoutSec: number;
 }
 
