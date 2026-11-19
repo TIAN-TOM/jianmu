@@ -6,6 +6,11 @@
 //
 //   npm run test:e2e:lifecycle   打包后运行，约两分半；用 CHROME_PATH 指定 Chrome for Testing 的可执行文件
 //
+// 加 --high-effort 只跑另一个场景，要真等高档的硬超时，五分多钟（npm run test:e2e:lifecycle:high）：
+// - 概览的推理强度设成「高」，模拟服务一直不回。两路同时挂着：一路关掉发起页面、只靠保活，一路像侧边栏那样开着页面一直等回复，
+//   而浏览器对一次没处理完的消息有时间限制，离高档的硬超时很近。到点之前 worker 一直在、从没被附加；到点简幕自己停掉请求，
+//   开着的页面收到「模型太久没有回应」那一类错误，任务按失败收尾，不重发。
+//
 // 单独成一个脚本，不放进 run.mjs：那边给 service worker 挂了调试器，挂着调试器 Chrome 就不回收 worker，
 // 这里要看它被回收、被终止的样子。所以只附加扩展页面，从不附加 worker。
 // 第一个加载：装的是发行包，之后导入的产品模块按发行构建的开关取值算。
@@ -16,6 +21,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { videoKey } from "../src/core/video-ref.ts";
 import { createSettingsStore } from "../src/platform/settings-store.ts";
+import { EFFORT_TIMEOUT_SECONDS } from "../src/shared/settings-schema.ts";
 import { PAGE_PATHS } from "../src/shared/names.ts";
 import { launchChrome, prepareExtension } from "./browser.mjs";
 import { ANTHROPIC, OPENAI, VIDEOS } from "./fixtures.mjs";
@@ -23,7 +29,12 @@ import { PROBE, slowed, startMockServer } from "./mock-server.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const STEP_TIMEOUT_MS = 20_000;
-const HARD_TIMEOUT_MS = 300_000;
+const HIGH_EFFORT = process.argv.includes("--high-effort");
+// 高档一次模型请求最多等这么久，到点简幕自己停掉。
+const HIGH_LIMIT_MS = EFFORT_TIMEOUT_SECONDS.high * 1000;
+// 到点以后多久之内要看到请求断开：传输层的计时器加上页面、模拟服务各自收尾的工夫。
+const STOP_SLACK_MS = 15_000;
+const HARD_TIMEOUT_MS = HIGH_EFFORT ? HIGH_LIMIT_MS + 120_000 : 300_000;
 // 后台的认领时限是 15 秒。收尾早于这个时间说明不是按时限收的；晚太多说明计时器没起作用。
 const CLAIM_MS = 15_000;
 const CLAIM_LATEST_MS = CLAIM_MS + 10_000;
@@ -61,7 +72,7 @@ async function until(label, read, timeoutMs = STEP_TIMEOUT_MS) {
 const fatal = (message) => Object.assign(new Error(message), { fatal: true });
 
 /** 用真实的设置读写算出存储里该有的样子：选好服务商、填好密钥、同意数据说明、确认启用。脚本里不手写键名和形状。 */
-async function storedSettings(service) {
+async function storedSettings(service, efforts) {
   const area = (data) => ({
     async get(keys) {
       return Object.fromEntries((typeof keys === "string" ? [keys] : keys).filter((key) => key in data).map((key) => [key, structuredClone(data[key])]));
@@ -77,7 +88,7 @@ async function storedSettings(service) {
   const session = {};
   const locks = { exclusive: (_name, work) => Promise.resolve().then(work), shared: (_name, work) => Promise.resolve().then(work) };
   const store = createSettingsStore({ storage: { local: area(local), session: area(session) }, locks });
-  await store.save({ presetId: service.presetId, aiApiKey: service.key, aiModel: service.model }, "");
+  await store.save({ presetId: service.presetId, aiApiKey: service.key, aiModel: service.model, featureEfforts: efforts }, "");
   await store.setDataConsent(true);
   await store.confirmActivation();
   return { local, session };
@@ -184,9 +195,9 @@ async function saved(page, video) {
   return { chapters: analysis?.chapters?.length ?? 0, verdict: analysis?.verdict?.summary ?? "" };
 }
 
-/** 换一家模型服务：写进存储的是真实设置读写算出来的，再核对后台认为配置可用。 */
-async function useService(page, service) {
-  const { local, session } = await storedSettings(service);
+/** 换一家模型服务，可以顺带给几项功能选推理强度：写进存储的是真实设置读写算出来的，再核对后台认为配置可用。 */
+async function useService(page, service, efforts = {}) {
+  const { local, session } = await storedSettings(service, efforts);
   await evaluate(page, `Promise.all([chrome.storage.local.set(${JSON.stringify(local)}), chrome.storage.session.set(${JSON.stringify(session)})]).then(() => true)`);
   const check = await ask(page, "config.check");
   if (!check?.ok || check.value.ready !== true) throw new Error(`模型服务的配置不可用：${JSON.stringify(check)}`);
@@ -205,20 +216,16 @@ async function killWorker() {
   return killedAt;
 }
 
-let failed = false;
-try {
-  const { product } = await cdp.send("Browser.getVersion", {}, undefined, STEP_TIMEOUT_MS);
-  await cdp.send("Target.setDiscoverTargets", { discover: true });
-  const { id } = await cdp.send("Extensions.loadUnpacked", { path: extensionDir }, undefined, STEP_TIMEOUT_MS);
-  workerUrl = `chrome-extension://${id}/background.js`;
-  await until("service worker 启动", findWorker);
-  console.log(`✓ ${product} 装上了扩展，只附加扩展页面、不附加 service worker`);
+/** 登录模拟的 B 站：开它的登录页，等页面写好登录状态再关掉。 */
+async function signIn() {
+  const { targetId: loginTab } = await cdp.send("Target.createTarget", { url: PROBE.login });
+  const { sessionId: loginSession } = await cdp.send("Target.attachToTarget", { targetId: loginTab, flatten: true });
+  await until("模拟登录页打开", () => evaluate({ sessionId: loginSession }, `document.readyState === "complete" && document.title === "login"`));
+  await cdp.send("Target.closeTarget", { targetId: loginTab });
+}
 
-  let page = await openPage(id);
-  const confirmed = await ask(page, "activation.confirm");
-  if (!confirmed?.ok || confirmed.value.state !== "current") throw new Error(`确认启用失败：${JSON.stringify(confirmed)}`);
-  console.log("✓ 从侧边栏页面确认了启用");
-
+/** 平时的几个场景：认领时限、关掉页面照常跑完、慢读取、终止后不重发。 */
+async function everyday(id, page) {
   // ---- 任务表：认领时限、终止后不恢复 ----
   const phantom = await registered(page, FIRST);
   const registeredAt = Date.now();
@@ -245,10 +252,7 @@ try {
   console.log("✓ 强行终止 service worker 后再唤醒，任务表是空的，没有恢复，模拟服务器一个请求都没收到");
 
   // ---- 准备：登录模拟的 B 站，配好第一家模型服务 ----
-  const { targetId: loginTab } = await cdp.send("Target.createTarget", { url: PROBE.login });
-  const { sessionId: loginSession } = await cdp.send("Target.attachToTarget", { targetId: loginTab, flatten: true });
-  await until("模拟登录页打开", () => evaluate({ sessionId: loginSession }, `document.readyState === "complete" && document.title === "login"`));
-  await cdp.send("Target.closeTarget", { targetId: loginTab });
+  await signIn();
   await useService(page, ANTHROPIC);
   console.log("✓ 登录了模拟的 B 站，模型服务换成模拟的 Anthropic");
 
@@ -325,6 +329,89 @@ try {
   const calls = modelCalls(FIRST_ID, "analysis").slice(before - 1);
   if (calls.length !== 2 || !calls[0].aborted || calls[1].answeredAt === undefined) throw new Error(`模型请求应是一次被中止的、一次回来的：${JSON.stringify(calls)}`);
   console.log(`✓ 模型请求在途时强行终止 worker：挂着的请求断了，任务表是空的，${seconds(NO_RESEND_WINDOW_MS)}内没有重发；再发起一次跑完了`);
+}
+
+/**
+ * 推理强度「高」档：概览请求一直不回，后台要一直撑到简幕自己的硬超时，到点停掉请求、任务按超时收尾、不重发。
+ * 两路同时挂着：一路关掉发起页面，只靠保活；一路开着页面，像侧边栏那样一直等这条消息的回复。
+ */
+async function highEffort(id, first) {
+  await signIn();
+  await useService(first, ANTHROPIC, { analysis: "high" });
+  const worker = findWorker();
+  if (!worker) throw new Error("找不到 service worker");
+  models.hold(FIRST_ID);
+  models.hold(SECOND_ID);
+  const startedAt = Date.now();
+  const at = (time) => seconds(time - startedAt);
+
+  await startOverview(first, "closed", FIRST);
+  await until("关掉页面那一路的概览请求挂到模拟服务上", () => models.held(FIRST_ID) === 1);
+  await closePage(first);
+  const closedAt = Date.now();
+  const page = await openPage(id);
+  await startOverview(page, "open", SECOND);
+  await until("开着页面那一路的概览请求挂到模拟服务上", () => models.held(SECOND_ID) === 1);
+  const [closedCall] = modelCalls(FIRST_ID, "analysis");
+  const [openCall] = modelCalls(SECOND_ID, "analysis");
+  const calls = [
+    ["关掉页面", closedCall],
+    ["开着页面", openCall],
+  ];
+  console.log(`✓ 概览选了「高」档，两路请求都挂在模拟服务上，简幕的硬超时是 ${seconds(HIGH_LIMIT_MS)}`);
+
+  let reported = 0;
+  await until(
+    `两路请求过了 ${seconds(HIGH_LIMIT_MS)} 的硬超时被停掉`,
+    () => {
+      if (goneSince(startedAt)) throw fatal(`发起 ${at(Date.now())}后 service worker 没了，${calls.filter(([, call]) => !call.aborted).length} 路请求还挂着`);
+      const minute = Math.floor((Date.now() - startedAt) / 60_000);
+      if (minute > reported) {
+        reported = minute;
+        console.log(`  · ${minute} 分钟：worker 一直在，${calls.filter(([, call]) => !call.aborted).length} 路请求还挂着`);
+      }
+      return calls.every(([, call]) => call.aborted);
+    },
+    HIGH_LIMIT_MS + STOP_SLACK_MS + 30_000,
+  );
+  for (const [label, call] of calls) {
+    const lasted = call.abortedAt - call.at;
+    if (lasted < HIGH_LIMIT_MS - 1000) throw new Error(`${label}那一路的请求挂了 ${seconds(lasted)}就断了，硬超时还没到`);
+    if (lasted > HIGH_LIMIT_MS + STOP_SLACK_MS) throw new Error(`${label}那一路的请求挂了 ${seconds(lasted)}才断，硬超时到点以后没及时停`);
+  }
+  const reply = await until("开着的页面收到回复", () => doneOf(page, "open"));
+  const repliedAt = Date.now();
+  if (reply.ok || reply.code !== "AI_HARD_TIMEOUT") throw new Error(`开着的页面收到的应是模型太久没有回应：${JSON.stringify(reply)}`);
+  const state = await evaluate(page, `globalThis.seen.filter((message) => message.type === "task.changed" && message.task.video === ${JSON.stringify(SECOND)}).at(-1)?.task.state`);
+  if (state !== "failed") throw new Error(`开着的页面最后收到的任务状态是 ${state}，应为失败`);
+
+  await sleep(NO_RESEND_WINDOW_MS);
+  if (modelCalls(FIRST_ID, "analysis").length !== 1 || modelCalls(SECOND_ID, "analysis").length !== 1) throw new Error("硬超时以后又发了概览请求");
+  if ((await listed(page)).length !== 0) throw new Error("硬超时以后任务表不是空的");
+  if (goneSince(startedAt) || findWorker()?.targetId !== worker.targetId) throw new Error("这段时间里 service worker 换过");
+  const { targetInfos } = await cdp.send("Target.getTargets", {});
+  if (targetInfos.find((info) => info.targetId === worker.targetId)?.attached !== false) throw new Error("service worker 被附加过，保活的结果不作数");
+  console.log(`✓ worker 从头到尾是同一个、没被附加；两路请求都在硬超时到点后被简幕停掉，没有重发，任务表收空`);
+  console.log(`  关掉页面的一路：${at(closedCall.at)}发出，${at(closedAt)}关掉页面，${at(closedCall.abortedAt)}断开（挂了 ${seconds(closedCall.abortedAt - closedCall.at)}）`);
+  console.log(`  开着页面的一路：${at(openCall.at)}发出，${at(openCall.abortedAt)}断开（挂了 ${seconds(openCall.abortedAt - openCall.at)}），${at(repliedAt)}前页面收到 ${reply.code}，任务按失败收尾`);
+}
+
+let failed = false;
+try {
+  const { product } = await cdp.send("Browser.getVersion", {}, undefined, STEP_TIMEOUT_MS);
+  await cdp.send("Target.setDiscoverTargets", { discover: true });
+  const { id } = await cdp.send("Extensions.loadUnpacked", { path: extensionDir }, undefined, STEP_TIMEOUT_MS);
+  workerUrl = `chrome-extension://${id}/background.js`;
+  await until("service worker 启动", findWorker);
+  console.log(`✓ ${product} 装上了扩展，只附加扩展页面、不附加 service worker`);
+
+  const page = await openPage(id);
+  const confirmed = await ask(page, "activation.confirm");
+  if (!confirmed?.ok || confirmed.value.state !== "current") throw new Error(`确认启用失败：${JSON.stringify(confirmed)}`);
+  console.log("✓ 从侧边栏页面确认了启用");
+
+  if (HIGH_EFFORT) await highEffort(id, page);
+  else await everyday(id, page);
 
   if (errors.length > 0) throw new Error(`扩展页面有报错：\n${errors.join("\n")}`);
   const stray = mock.requests.filter((entry) => entry.unexpected);
