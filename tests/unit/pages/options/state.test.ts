@@ -1,7 +1,7 @@
 // 设置页的状态：等授权的工夫别的页面清了密钥，点击时的表单作废，不把清掉的密钥写回去；
 // 本页刚勾的同意还没落地就点保存，保存等它写完，同意不被盖回去；推理强度和概览分块改了马上存，不等保存、不申请权限，
 // 保存也不把它们盖回去；实际档位按存着的档位问，只认最后一问；「AI 服务」一节的状态行落在点的那个控件下面；
-// 保存以后那句「还差什么」跟着同意的勾选更新，不留着过时的话。
+// 保存以后那句「还差什么」跟着同意的勾选更新，不留着过时的话；点了保存就先收起上一次的结果。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createOptionsState } from "../../../../src/pages/options/state.ts";
@@ -24,6 +24,8 @@ function world(initial: Record<string, unknown>) {
   let modelsFail = false;
   const listeners = new Set<Listener>();
   const permission = deferred();
+  // 之后的授权申请等哪一个放行；holdHost 换一个新的，模拟又弹了一次授权框。
+  let popup = permission;
   const previews: { efforts: Record<string, string> }[] = [];
   // 推理强度预览：默认按选的照回；hold 以后每一问都挂起，按需要的顺序放行。
   let hold = false;
@@ -73,7 +75,7 @@ function world(initial: Record<string, unknown>) {
     },
     requestHost: async () => {
       hostAsks += 1;
-      await permission.promise;
+      await popup.promise;
       return hostGranted;
     },
     download: () => {},
@@ -105,6 +107,7 @@ function world(initial: Record<string, unknown>) {
     failUpdates: () => void (updateFails = true),
     hostAsks: () => hostAsks,
     refuseHost: () => void (hostGranted = false),
+    holdHost: () => (popup = deferred()),
     failModels: () => void (modelsFail = true),
   };
 }
@@ -270,6 +273,23 @@ test("AI 服务一节的状态行落在点的那个控件下面：记住密钥�
   await w.state.clearKey();
   assert.equal(at(), "key");
   assert.match(text(), /已删除/);
+});
+
+test("又点了保存、授权框还开着：上一次的「已保存」先收起，不和「正在保存」一起挂着；允许以后照常说存好了", async () => {
+  const w = world({ ...GATEWAY, aiApiKey: "sk-old", aiApiKeyOrigin: "https://gateway.example.com/" });
+  w.permission.resolve();
+  await w.state.load();
+  const status = () => w.state.aiStatus.value;
+  assert.equal(await w.state.save(), true);
+  assert.match(status()?.text ?? "", /已保存并授权/);
+
+  const popup = w.holdHost();
+  const saving = w.state.save();
+  assert.equal(w.state.busy.value, "save");
+  assert.equal(status(), null);
+  popup.resolve();
+  assert.equal(await saving, true);
+  assert.match(status()?.text ?? "", /已保存并授权/);
 });
 
 test("拉取模型没成：服务拒绝、拉取前那次保存没拿到权限，都写在模型框下面", async () => {

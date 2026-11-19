@@ -226,6 +226,8 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
     const asked = deps.requestHost(`${origin}*`);
     const reloadsAtClick = reloads;
     busy.value = "save";
+    // 按钮写着「正在保存」的时候，下面不留上一次的「已保存」：授权弹窗可能开着一阵。
+    ai.clear();
     try {
       let granted = false;
       try {
