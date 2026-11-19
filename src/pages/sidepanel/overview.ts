@@ -27,6 +27,8 @@ export interface OverviewState {
   readonly result: OverviewResultView | null;
   /** 最近一次失败的说明。 */
   readonly error: string;
+  /** 失败时模型服务自己说的话，显示在说明下面，默认收着；没有时是空串。 */
+  readonly errorSaid: string;
 }
 
 export interface OverviewStore {
@@ -42,13 +44,13 @@ export interface OverviewStore {
   stop(): void;
 }
 
-const EMPTY: OverviewState = { video: null, loaded: false, saved: null, task: null, verdictTask: null, preview: null, result: null, error: "" };
+const EMPTY: OverviewState = { video: null, loaded: false, saved: null, task: null, verdictTask: null, preview: null, result: null, error: "", errorSaid: "" };
 
 const isRunning = (task: TaskView | null | undefined): task is TaskView => task?.state === "running";
 
 /** 失败说明：用户点了停止不算失败。 */
-function failureText(failure: Failure): string {
-  return failure.code === "TASK_CANCELED" ? "" : describe(failure.code, failure.detail);
+function failureFields(failure: Failure): Pick<OverviewState, "error" | "errorSaid"> {
+  return failure.code === "TASK_CANCELED" ? { error: "", errorSaid: "" } : { error: describe(failure.code, failure.detail), errorSaid: failure.said ?? "" };
 }
 
 export function createOverviewStore({ api }: { readonly api: Pick<PageApi, "send" | "on"> }): OverviewStore {
@@ -67,7 +69,7 @@ export function createOverviewStore({ api }: { readonly api: Pick<PageApi, "send
   async function reload(asked: number, video: VideoKey): Promise<void> {
     const reply = await api.send("overview.get", { video });
     if (reply.ok) patch(asked, { loaded: true, ...(keepLocal ? {} : { saved: reply.value.overview ?? null }) });
-    else patch(asked, { loaded: true, error: failureText(reply) });
+    else patch(asked, { loaded: true, ...failureFields(reply) });
   }
 
   // 任务收尾时（不管是不是这个页面发起的）重读本机的概览。
@@ -101,10 +103,10 @@ export function createOverviewStore({ api }: { readonly api: Pick<PageApi, "send
     if (!video) return;
     const slot = kind === "overview" ? "task" : "verdictTask";
     if (isRunning(state.peek()[slot])) return;
-    patch(asked, { error: "" });
+    patch(asked, { error: "", errorSaid: "" });
     const started = await api.send("task.start", { kind, video });
     if (!started.ok) {
-      patch(asked, { error: failureText(started) });
+      patch(asked, { ...failureFields(started) });
       return;
     }
     const { task, joined } = started.value;
@@ -118,7 +120,7 @@ export function createOverviewStore({ api }: { readonly api: Pick<PageApi, "send
       const { analysis, analysisFailures, transcriptBasis } = reply.value;
       patch(asked, { [slot]: null, preview: kind === "overview" ? null : state.peek().preview, result: reply.value, saved: { analysis, analysisFailures, ...(transcriptBasis ? { transcriptBasis } : {}) } });
     } else {
-      patch(asked, { [slot]: null, ...(kind === "overview" ? { preview: null } : {}), error: failureText(reply) });
+      patch(asked, { [slot]: null, ...(kind === "overview" ? { preview: null } : {}), ...failureFields(reply) });
       void reload(asked, video);
     }
   }
@@ -159,7 +161,7 @@ export function createOverviewStore({ api }: { readonly api: Pick<PageApi, "send
     verdictFromOfficial: () => run("verdict", (taskId, video) => api.send("verdict.fromOfficial", { video, taskId })),
     async cancel(taskId) {
       const reply = await api.send("task.cancel", { taskId });
-      if (!reply.ok && reply.code !== "TASK_NOT_FOUND") state.value = { ...state.peek(), error: describe(reply.code, reply.detail) };
+      if (!reply.ok && reply.code !== "TASK_NOT_FOUND") state.value = { ...state.peek(), error: describe(reply.code, reply.detail), errorSaid: "" };
     },
     stop() {
       generation += 1;

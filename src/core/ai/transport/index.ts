@@ -2,7 +2,7 @@
 // 协议差异（请求、响应的形状）归 provider/，这里只管策略；环境依赖全部由调用方注入。
 export { repairTruncatedJson } from "../parse.ts";
 export { createAiTransport } from "./completion.ts";
-export { aiErrorResponse, taskCanceledError, throwIfTaskCanceled } from "./errors.ts";
+export { aiErrorResponse, serviceSaid, serviceWords, taskCanceledError, throwIfTaskCanceled } from "./errors.ts";
 export { OUTPUT_TOKENS_CEILING, TOTAL_OUTPUT_TOKENS_CAP } from "./policy.ts";
 export type {
   AiErrorResponse,

@@ -202,7 +202,7 @@ export function createBatchService(deps: BatchServiceDeps): BatchService {
       ...(official ? { official } : {}),
       ...(verdict ? { verdict } : {}),
       ...(unavailable ? { unavailable } : {}),
-      ...(failure ? { failure: { code: failure.code } } : {}),
+      ...(failure ? { failure: { code: failure.code, ...(failure.said ? { said: failure.said } : {}) } } : {}),
     });
   }
 

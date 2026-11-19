@@ -17,6 +17,8 @@ export type TriageStop = BatchStop | "stopped";
 
 export interface BatchFailure {
   readonly code: ErrorCode;
+  /** 模型服务报错时自己说的话，只给页面显示，不存。 */
+  readonly said?: string;
 }
 
 export type TriageIn =

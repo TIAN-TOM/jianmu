@@ -10,6 +10,7 @@ import type { CueView } from "../../shared/messages/transcript.ts";
 import { useMemo, useState } from "preact/hooks";
 import { Button } from "../shared/ui/button.tsx";
 import { ChapterList } from "../shared/ui/chapter-list.tsx";
+import { ServiceSaid } from "../shared/ui/notice.tsx";
 import { StaleTranscriptLine, VerdictBlock } from "../shared/ui/verdict-block.tsx";
 import { staleOverviewMarks, type BasisSource } from "../shared/ui/verdict.ts";
 import { BatchBar } from "./batch-bar.tsx";
@@ -226,6 +227,7 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
           {state.error}
         </p>
       ) : null}
+      {state.error ? <ServiceSaid said={state.errorSaid} /> : null}
       {state.result?.failedChunks ? <p class="note-line">有 {state.result.failedChunks} 块没生成成功，可以只补这几块。</p> : null}
       {state.result?.saveFailed ? <p class="note-line">概览已经生成，但没能存进本机。</p> : null}
       {state.result?.canceled ? <p class="note-line">停在中途，已完成的 {state.result.savedChunks ?? 0} 块存下了。</p> : null}

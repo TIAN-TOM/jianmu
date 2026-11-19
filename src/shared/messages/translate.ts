@@ -25,6 +25,8 @@ export type TranslateIn =
 export interface TranslateFailure {
   readonly code: ErrorCode;
   readonly detail?: string;
+  /** 模型服务报错时自己说的话，只给页面显示，不存。 */
+  readonly said?: string;
 }
 
 export type TranslateOut =

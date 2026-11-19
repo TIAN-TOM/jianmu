@@ -4,6 +4,7 @@
 // 页面测试里没有设置模型服务的密钥：概览和问答停在要先设置 AI 服务。
 // 几个测试按顺序共用同一个浏览器：第一个确认启用，第二个还没登录，第三个起已登录。
 import assert from "node:assert/strict";
+import { createServer } from "node:http";
 import { errorCopy } from "../../src/core/errors.ts";
 import { channelKey, videoKey } from "../../src/core/video-ref.ts";
 import { API_KEY_SESSION_KEY, AUTO_LEDGER_KEY, DATABASE_NAME, SETTINGS_STORAGE_KEY, WATCH_SESSIONS_KEY } from "../../src/shared/names.ts";
@@ -404,6 +405,92 @@ test("侧边栏：打开就出结论因为额度用完停着时，顶上一行�
     }
   });
 });
+
+// 服务的原话里故意带一段标记：页面只能把它当文字显示。
+const RETIRED_SAID = 'The model sample-old is no longer available to new users. Use sample-new instead. <a href="https://example.com/x">details</a> <img src=x onerror="alert(1)">';
+const WRONG_KEY = "sk-test-wrongkey0000aaaa1111bbbb";
+const GOOD_KEY = "sk-test-goodkey2222cccc3333dddd";
+
+/** 本机的 OpenAI 兼容服务：错的密钥回 401 并回显半截密钥（有的服务就这样），对的密钥回 404 说型号下线了。 */
+async function startRefusingService() {
+  const server = createServer((req, res) => {
+    req.resume();
+    req.on("end", () => {
+      const wrong = String(req.headers.authorization ?? "").includes(WRONG_KEY);
+      res.writeHead(wrong ? 401 : 404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: { message: wrong ? `Incorrect API key provided: ${WRONG_KEY.slice(0, 11)}****${WRONG_KEY.slice(-4)}.` : RETIRED_SAID } }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(undefined)));
+  const { port } = /** @type {import("node:net").AddressInfo} */ (server.address());
+  return {
+    base: `http://127.0.0.1:${port}/v1`,
+    close: () => new Promise((resolve) => {
+      server.closeAllConnections();
+      server.close(() => resolve(undefined));
+    }),
+  };
+}
+
+test("侧边栏：模型服务回了带说明的报错时，三段式下面有一行默认收着的「服务的原话」，展开是纯文本；密钥不对时不带原话，看不到密钥", async (ctx) => {
+  const service = await startRefusingService();
+  try {
+    await withVideo(ctx, async (panel) => {
+      await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
+      const before = await panel.evaluate(`chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)})`);
+      const configure = async (key) => {
+        const stored = await storedSettings({ presetId: "custom", key, model: "sample-old", fields: { protocol: "openai", aiBaseUrl: service.base } });
+        await panel.evaluate(`Promise.all([chrome.storage.local.set(${JSON.stringify({ [SETTINGS_STORAGE_KEY]: stored.local[SETTINGS_STORAGE_KEY] })}), chrome.storage.session.set(${JSON.stringify(stored.session)})]).then(() => true)`);
+      };
+      const generateButton = `[...document.querySelectorAll(".button")].find((node) => node.textContent === "生成概览")`;
+      const generate = async (label) => {
+        await waitIn(panel, `${label}：生成概览能点`, `${generateButton}?.disabled === false`);
+        await panel.evaluate(`(${generateButton}).click(), true`);
+        await waitIn(panel, `${label}：报错`, `Boolean(document.querySelector(".error-line"))`, 20_000);
+      };
+      try {
+        await configure(WRONG_KEY);
+        await generate("密钥不对");
+        assert.equal(await panel.evaluate(textOf(".error-line")), errorCopy("INVALID_AI_KEY").cause + errorCopy("INVALID_AI_KEY").impact + errorCopy("INVALID_AI_KEY").next);
+        assert.equal(await panel.evaluate(`document.querySelectorAll(".service-said").length`), 0, "鉴权失败不带原话");
+        const shown = await panel.evaluate(`document.documentElement.innerHTML`);
+        for (const piece of [WRONG_KEY.slice(0, 11), WRONG_KEY.slice(-4)]) assert.ok(!shown.includes(piece), `页面上出现了密钥的片段 ${piece}`);
+
+        await configure(GOOD_KEY);
+        await generate("型号下线");
+        await waitIn(panel, "原话那一行", `Boolean(document.querySelector(".service-said"))`);
+        const said = await panel.evaluate(`(() => {
+          const details = document.querySelector(".service-said");
+          // 收起的 details 里，新版 Chrome 照样排版、只是不画，看得见与否用 checkVisibility 判断。
+          const before = { open: details.open, visible: details.querySelector(".service-said-text").checkVisibility() };
+          details.open = true;
+          const text = details.querySelector(".service-said-text");
+          return {
+            before,
+            summary: details.querySelector("summary")?.textContent,
+            visible: text.checkVisibility(),
+            text: text.textContent,
+            elements: text.querySelectorAll("*").length,
+            links: details.querySelectorAll("a, img").length,
+          };
+        })()`);
+        assert.deepEqual(said.before, { open: false, visible: false }, "默认收着");
+        assert.equal(said.summary, "服务的原话");
+        assert.equal(said.visible, true, "点开以后看得到");
+        assert.equal(said.text, RETIRED_SAID, "原样当文字显示");
+        assert.equal(said.elements, 0, "原话里的标记没有变成元素");
+        assert.equal(said.links, 0);
+        assert.equal(await panel.evaluate(textOf(".error-line")), errorCopy("MODEL_OR_ENDPOINT_NOT_FOUND").cause + errorCopy("MODEL_OR_ENDPOINT_NOT_FOUND").impact + errorCopy("MODEL_OR_ENDPOINT_NOT_FOUND").next, "三段式照旧");
+        assert.ok(!(await panel.evaluate(`document.documentElement.innerHTML`)).includes(GOOD_KEY.slice(8, 20)));
+      } finally {
+        await panel.evaluate(`Promise.all([chrome.storage.local.set(${JSON.stringify(before)}), chrome.storage.session.remove(${JSON.stringify(API_KEY_SESSION_KEY)})]).then(() => true)`);
+      }
+    });
+  } finally {
+    await service.close();
+  }
+  // 这两次生成都是故意失败的，后台照常记一笔。
+}, { expectedErrors: [/background\.js：概览生成失败 Error$/] });
 
 test("侧边栏：不到 5 分钟的短视频打开就进精读，跟着播放的字幕在，不摆生成概览", async (ctx) => {
   await withVideo(

@@ -2733,3 +2733,64 @@ test("Responses：思考把额度用完时，档位参数被拒、放宽以后�
   const lowerable = await failureOf(accepted.requestAiCompletion({ messages: MESSAGES, maxTokens: 512, effort: "high" }));
   assert.equal(lowerable.code, "AI_THINKING_EXHAUSTED", "档位照常发出去的还能调低");
 });
+
+// ============================================================
+// 服务的原话：界面在三段式下面显示，先清洗、截短、遮掉像密钥的片段
+// ============================================================
+
+test("服务的原话：去掉控制字符、压成一行、限长", () => {
+  assert.equal(TRANSPORT.serviceWords("  第一行\n\t第二行\u0000\u202e尾巴  "), "第一行 第二行 尾巴");
+  const long = TRANSPORT.serviceWords("字".repeat(500));
+  assert.equal(long.length, 201);
+  assert.ok(long.endsWith("…"));
+  assert.equal(TRANSPORT.serviceWords(""), "");
+});
+
+test("服务的原话：像密钥、令牌的片段遮掉，型号名照留", () => {
+  const cases: readonly (readonly [string, RegExp])[] = [
+    ["Incorrect API key provided: sk-test-abcd****************wxyz. Check it.", /sk-test|wxyz/],
+    ["key xai-AbCdEf0123456789 is not allowed", /xai-AbCd/],
+    ["bad key AIzaSyA0000000000000000000000000000000", /AIzaSy/],
+    ["header Authorization: Bearer abc.def.ghi rejected", /abc\.def/],
+    ["token 9f8e7d6c5b4a39281706f5e4d3c2b1a0 expired", /9f8e7d6c5b4a/],
+  ];
+  for (const [raw, leak] of cases) {
+    const shown = TRANSPORT.serviceWords(raw);
+    assert.doesNotMatch(shown, leak, raw);
+    assert.match(shown, /\[已隐藏\]/, raw);
+  }
+  const model = "The model sample-chat-2-5-20990101 has been retired; use sample-chat-3-flash instead.";
+  assert.equal(TRANSPORT.serviceWords(model), model, "带连字符的型号名不当成密钥");
+});
+
+test("服务的原话：只在服务回了带说明的 HTTP 报错时才有", () => {
+  const http = (status: number, message: string, extra: Record<string, unknown> = {}) => Object.assign(new Error(message), { status, ...extra });
+  assert.equal(TRANSPORT.serviceSaid(http(404, "model sample-old is no longer available, try sample-new")), "model sample-old is no longer available, try sample-new");
+  assert.equal(TRANSPORT.serviceSaid(http(400, "max_tokens is too large")), "max_tokens is too large");
+  assert.equal(TRANSPORT.serviceSaid(http(429, "You exceeded your current quota")), "You exceeded your current quota");
+  assert.equal(TRANSPORT.serviceSaid(http(503, "无可用渠道")), "无可用渠道");
+  // 鉴权失败不带：有的服务在这里回显密钥的一部分。
+  assert.equal(TRANSPORT.serviceSaid(http(401, "Incorrect API key provided: sk-test-abcd****wxyz")), "");
+  assert.equal(TRANSPORT.serviceSaid(http(403, "key sample is not allowed")), "");
+  // 没说什么具体的、简幕自己写的提示、取消、没有状态码的都不带。
+  assert.equal(TRANSPORT.serviceSaid(http(404, "服务返回 404")), "");
+  assert.equal(TRANSPORT.serviceSaid(http(502, "Bad Gateway")), "");
+  assert.equal(TRANSPORT.serviceSaid(http(400, "这把 Anthropic 密钥没有限定工作区", { code: "ANTHROPIC_WORKSPACE_REQUIRED" })), "");
+  assert.equal(TRANSPORT.serviceSaid(Object.assign(new Error("连不上"), { code: "AI_NETWORK_ERROR" })), "");
+  assert.equal(TRANSPORT.serviceSaid(Object.assign(new Error("任务已取消。"), { code: "TASK_CANCELED", status: 499 })), "");
+  assert.equal(TRANSPORT.serviceSaid(new Error("模型没有写出内容")), "");
+  assert.equal(TRANSPORT.serviceSaid(null), "");
+});
+
+test("服务的原话：请求时回显了完整密钥，原话里也看不到", async () => {
+  const key = "sk-test-0000aaaa1111bbbb2222cccc";
+  const t = makeTransport(
+    async () => ({ ok: false, status: 400, text: json({ error: { message: `key ${key} cannot use model sample-x` } }) }),
+    { getSettings: async () => makeSettings({ aiApiKey: key }) },
+  );
+  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }));
+  const said = TRANSPORT.serviceSaid(error);
+  assert.match(said, /cannot use model sample-x/);
+  assert.ok(!said.includes(key));
+  assert.ok(!said.includes("0000aaaa"));
+});

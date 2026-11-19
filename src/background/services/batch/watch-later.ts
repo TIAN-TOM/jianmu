@@ -213,7 +213,7 @@ export async function writeVerdict(deps: WatchLaterDeps, { item, ref }: VerdictR
   round.taskIds.add(taskId);
   try {
     const result = await deps.verdict.fromOfficial(taskId, video, { since: round.since, read: material });
-    if (!result.ok) return { requested: true, failure: failure(result.code) };
+    if (!result.ok) return { requested: true, failure: { ...failure(result.code), ...(result.said ? { said: result.said } : {}) } };
     const written = result.value.analysis.verdict;
     return written ? { requested: !result.value.fromCache, verdict: verdictView(written) } : { requested: true, failure: failure("EMPTY_VERDICT") };
   } finally {

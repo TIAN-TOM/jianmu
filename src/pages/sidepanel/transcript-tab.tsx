@@ -14,6 +14,7 @@ const READ_HINT = FEATURE_YOUTUBE_OPEN_PANEL ? OPEN_READ_HINT : MANUAL_READ_HINT
 import { Button, IconButton } from "../shared/ui/button.tsx";
 import { Icon } from "../shared/ui/icon.tsx";
 import { Menu, type MenuItem } from "../shared/ui/menu.tsx";
+import { ServiceSaid } from "../shared/ui/notice.tsx";
 import { Sheet } from "../shared/ui/overlay.tsx";
 import { StateBlock } from "../shared/ui/state-block.tsx";
 import { stateCopy } from "../shared/ui/state.ts";
@@ -71,6 +72,7 @@ function ExplainSheet({ panel }: { readonly panel: Panel }) {
       <p class="explain-body" data-phase={explain.phase} aria-live="polite">
         {explain.phase === "running" ? "正在请模型解释…" : explain.text}
       </p>
+      {explain.phase === "failed" ? <ServiceSaid said={explain.said} /> : null}
     </Sheet>
   );
 }
@@ -131,7 +133,7 @@ const tidiedOf = (panel: Panel): Readonly<Record<string, string>> => (panel.tidy
  * 没整理完的可以接着整理。只在用户点的时候做，不自动做。
  */
 function TidyRow({ panel, segments }: { readonly panel: Panel; readonly segments: number }) {
-  const { phase, done, total, message } = panel.tidy.state.value;
+  const { phase, done, total, message, said } = panel.tidy.state.value;
   const count = Object.keys(panel.tidy.lines.value).length;
   const show = panel.tidy.show.value;
   const start = (): void => {
@@ -169,12 +171,13 @@ function TidyRow({ panel, segments }: { readonly panel: Panel; readonly segments
         </>
       )}
       {message ? <p class="note-line">{message}</p> : null}
+      {message ? <ServiceSaid said={said} /> : null}
     </div>
   );
 }
 
 function TranslateRow({ panel }: { readonly panel: Panel }) {
-  const { phase, done, total, message } = panel.translation.state.value;
+  const { phase, done, total, message, said } = panel.translation.state.value;
   if (panel.translation.mode.value === "original" && phase !== "running") return null;
   if (phase === "running") {
     return (
@@ -186,7 +189,12 @@ function TranslateRow({ panel }: { readonly panel: Panel }) {
       </div>
     );
   }
-  return message ? <p class="progress-row">{message}</p> : null;
+  return message ? (
+    <>
+      <p class="progress-row">{message}</p>
+      <ServiceSaid said={said} />
+    </>
+  ) : null;
 }
 
 function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: TranscriptView; readonly follow: boolean }) {

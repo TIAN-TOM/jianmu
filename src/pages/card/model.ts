@@ -68,7 +68,7 @@ export interface CardView {
   readonly notRead: boolean;
   readonly task: TaskProgress | null;
   readonly settingsError: boolean;
-  readonly notice: { readonly text: string; readonly tone: Tone } | null;
+  readonly notice: { readonly text: string; readonly tone: Tone; /** 模型服务报错时自己说的话。 */ readonly said?: string } | null;
   /** 章节（还没有概览时是官方提纲）默认只露前几条，点了「展开全部」才全露。换了视频回到默认。 */
   readonly showAll: boolean;
   /** 有 AI 概览时 B 站官方总结收成一行，点开才露。换了视频回到收着。 */
@@ -153,7 +153,7 @@ export function createCardModel(deps: CardDeps) {
   const patch = (next: Partial<CardView>): void => {
     view.value = { ...view.peek(), ...next };
   };
-  const notice = (text: string, tone: Tone = ""): Pick<CardView, "notice"> => ({ notice: text ? { text, tone } : null });
+  const notice = (text: string, tone: Tone = "", said?: string): Pick<CardView, "notice"> => ({ notice: text ? { text, tone, ...(said ? { said } : {}) } : null });
   const actionRow = createActionHold(timers.after, (held) => patch({ holdActions: held }));
 
   const aiReady = computed<boolean | null>(() => {
@@ -247,7 +247,7 @@ export function createCardModel(deps: CardDeps) {
       if (HIDDEN_CODES.has(reply.code)) return void deps.recheckConfig();
       const known = (reply as GuidesFailure).overview;
       if (known) [saved, savedBasis] = [known.analysis, known.transcriptBasis ?? null];
-      return failLoad(describe(reply.code, reply.detail));
+      return failLoad(describe(reply.code, reply.detail), reply.said);
     }
     const value = reply.value;
     if (!("mode" in value) || value.video !== current) return failLoad("读到的不是当前视频的数据。");
@@ -277,10 +277,10 @@ export function createCardModel(deps: CardDeps) {
     if (!quiet) await followRunning(asked);
   }
 
-  function failLoad(text: string): void {
+  function failLoad(text: string, said?: string): void {
     loadedTicket = -1;
     actionRow.show();
-    patch({ phase: "failed", ...shownSaved(), ...notice(text, "error") });
+    patch({ phase: "failed", ...shownSaved(), ...notice(text, "error", said) });
   }
 
   function progressOf(task: TaskView, external: boolean, canceling = false): TaskProgress {
@@ -329,7 +329,7 @@ export function createCardModel(deps: CardDeps) {
     patch({ task: { id: "", external: false, auto: false, canceling: false, done: 0, total: 0, message: "" }, settingsError: false, ...notice("") });
     const started = await api.send("task.start", { kind: "overview", video: current });
     if (asked !== ticket) return;
-    if (!started.ok) return finishOwn(null, started.code, describe(started.code, started.detail));
+    if (!started.ok) return finishOwn(null, started.code, describe(started.code, started.detail), started.said);
     const { task, joined, token } = started.value;
     if (joined || !token) {
       patch({ task: null });
@@ -346,7 +346,7 @@ export function createCardModel(deps: CardDeps) {
     const result = await api.send("overview.start", { video: current, token });
     settled.add(task.id);
     if (asked !== ticket) return;
-    if (!result.ok) return finishOwn(null, result.code, result.code === "TASK_CANCELED" ? "已停止生成。" : describe(result.code, result.detail));
+    if (!result.ok) return finishOwn(null, result.code, result.code === "TASK_CANCELED" ? "已停止生成。" : describe(result.code, result.detail), result.said);
     const value = result.value;
     [saved, savedBasis] = [value.analysis, value.transcriptBasis ?? null];
     const text = value.saveFailed
@@ -357,14 +357,14 @@ export function createCardModel(deps: CardDeps) {
     patch({ task: null, ...shownSaved(), verdictPending: false, ...notice(text, value.saveFailed ? "warn" : "") });
   }
 
-  function finishOwn(analysis: LearningAnalysis | null, code: ErrorCode, text: string): void {
+  function finishOwn(analysis: LearningAnalysis | null, code: ErrorCode, text: string, said?: string): void {
     patch({
       task: null,
       ...(analysis ? { analysis, transcriptBasis: null } : shownSaved()),
       verdictPending: false,
       settingsError: SETTINGS_CODES.has(code),
       noCaptions: view.peek().noCaptions || code === "NO_CAPTIONS",
-      ...notice(text, code === "TASK_CANCELED" ? "" : "error"),
+      ...(code === "TASK_CANCELED" ? notice(text) : notice(text, "error", said)),
     });
     if (code === "NO_AI_CONFIG") void deps.recheckConfig();
   }
