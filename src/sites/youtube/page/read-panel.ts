@@ -108,6 +108,8 @@ export function createPanelReader({
   let fresh = false;
   /** 段落变空之前的那份和它的归属：重建出来的还是同一份（切页签、关上再开），就沿用原来的归属，不当成新取来的。 */
   let emptied: { readonly content: string; readonly owner: string | null } | null = null;
+  /** 简幕接上时各个面板里就有的内容（开着的、收着的都算）：之后在哪个面板、什么时候原样出现，都认不出是谁的。 */
+  const leftovers = new Set<string>();
   /** 面板上次是不是展开着，和最近一次从收起变成展开的时刻。 */
   let wasExpanded = false;
   /** 上次打开着的那个面板：页面整个换了一个面板，里面的内容按新取来的算。 */
@@ -167,7 +169,8 @@ export function createPanelReader({
     }
     const current = videoNow();
     const justReopened = current !== "" && reopenedFor === current && now() - reopenedAt <= REOPEN_WINDOW_MS;
-    if (fresh && emptied?.content === content) owner = emptied.owner;
+    if (leftovers.has(content)) owner = null;
+    else if (fresh && emptied?.content === content) owner = emptied.owner;
     else if (!afterSearch && (fresh || justReopened)) owner = current;
     else if (owner !== current || current === "") owner = owner === null ? null : "";
     fresh = false;
@@ -199,8 +202,10 @@ export function createPanelReader({
     fresh = lastContent === "";
     wasExpanded = open !== null;
     lastOpen = open;
-    const leftover = panels.find((panel) => panel.querySelector(SEGMENTS) !== null);
-    if (!lastContent && leftover) emptied = { content: contentOf(leftover), owner: null };
+    for (const panel of panels) {
+      const content = contentOf(panel);
+      if (content) leftovers.add(content);
+    }
   };
   attach();
   attached = true;

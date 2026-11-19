@@ -530,3 +530,33 @@ test("站内换视频时页面把整个面板换成一个已经填好的新面�
   again.tick();
   assert.equal((await again.ask(reader2, OTHER)).state, "stale");
 });
+
+test("简幕接上时两个收着的面板各留着一份不同的文字稿：之后打开哪一个，都认不出", async () => {
+  const w = modernWorld();
+  const first = w.addPanel("PAmodern_transcript_view");
+  const second = w.addPanel(null);
+  const firstLines = [modern("0:00", "first leftover line")];
+  const secondLines = [modern("0:00", "second leftover line")];
+  first.lists.set(SEGMENTS, firstLines);
+  second.lists.set(SEGMENTS, secondLines);
+  const reader = w.makeReader();
+  showTranscript(w, second, secondLines);
+  assert.equal((await w.ask(reader)).state, "reopen", "第二个面板里的那份");
+  w.close(second);
+  showTranscript(w, first, firstLines);
+  assert.equal((await w.ask(reader)).state, "reopen", "第一个面板里的那份");
+});
+
+test("接上以后先读了一份新取来的，再打开早就收着的那个面板：那份照样认不出", async () => {
+  const w = modernWorld();
+  const fresh = w.addPanel("PAmodern_transcript_view");
+  const stale = w.addPanel(null);
+  const staleLines = [modern("0:00", "leftover line")];
+  stale.lists.set(SEGMENTS, staleLines);
+  const reader = w.makeReader();
+  showTranscript(w, fresh, [modern("0:00", "fresh line")]);
+  assert.equal((await w.ask(reader)).state, "ready");
+  w.close(fresh);
+  showTranscript(w, stale, staleLines);
+  assert.equal((await w.ask(reader)).state, "reopen");
+});
