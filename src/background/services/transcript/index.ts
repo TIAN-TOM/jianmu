@@ -3,6 +3,7 @@
 // 结果按发起时的视频写回缓存，读取途中侧边栏换了视频也不写到别的视频上。缓存仓储里已有清除闸门，这里不再包一层。
 import type { ClearEpoch, ClearGuard, ClearScope } from "../../../core/clear-guard.ts";
 import { fail, ok, type ErrorCode, type Result } from "../../../core/errors.ts";
+import { transcriptFingerprint } from "../../../core/transcript/fingerprint.ts";
 import { videoKey, type VideoKey, type VideoRef } from "../../../core/video-ref.ts";
 import type { EmptyRequest } from "../../../shared/messages/core.ts";
 import type { ImportReceipt } from "../../../shared/messages/imports.ts";
@@ -187,6 +188,10 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
     joinable,
     fromCache: (ref, video, cached) => fromCache(ref, video, cached),
     local: (ref) => service.get(ref, { mode: "local" }),
+    importedFingerprint: async (video) => {
+      const imported = await imports.load(video);
+      return imported ? transcriptFingerprint(imported.cues) : null;
+    },
   });
 
   async function guidesFailure(failure: TranscriptFailure, guides: ReadGuides, cached: CachedTranscript | null, tabId: number | undefined): Promise<TranscriptFailure> {

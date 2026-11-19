@@ -113,7 +113,8 @@ export function createOverviewStore({ api }: { readonly api: Pick<PageApi, "send
     if (asked !== generation) return;
     if (reply.ok) {
       keepLocal = reply.value.saveFailed === true;
-      patch(asked, { [slot]: null, preview: kind === "overview" ? null : state.peek().preview, result: reply.value, saved: { analysis: reply.value.analysis, analysisFailures: reply.value.analysisFailures } });
+      const { analysis, analysisFailures, transcriptBasis } = reply.value;
+      patch(asked, { [slot]: null, preview: kind === "overview" ? null : state.peek().preview, result: reply.value, saved: { analysis, analysisFailures, ...(transcriptBasis ? { transcriptBasis } : {}) } });
     } else {
       patch(asked, { [slot]: null, ...(kind === "overview" ? { preview: null } : {}), error: failureText(reply) });
       void reload(asked, video);

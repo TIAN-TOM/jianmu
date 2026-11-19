@@ -102,6 +102,30 @@ export interface OverviewParts {
   readonly verdict?: OverviewPart;
 }
 
+/** 结果依据的那份字幕的指纹；依据不是字幕的（官方总结、标题和简介、旧版未知）没有。 */
+export function transcriptFingerprintOf(derived: Derived | undefined): string | undefined {
+  const basis = derived?.basis;
+  return basis?.source === "transcript" && basis.transcript.fingerprint !== "" ? basis.transcript.fingerprint : undefined;
+}
+
+/** 概览里依据字幕写的章节和结论，各自依据的字幕指纹。 */
+export interface OverviewTranscriptBasis {
+  readonly chapters?: string;
+  readonly verdict?: string;
+}
+
+export function overviewTranscriptBasis(parts: OverviewParts | undefined): OverviewTranscriptBasis | undefined {
+  const chapters = transcriptFingerprintOf(parts?.chapters?.derived);
+  const verdict = transcriptFingerprintOf(parts?.verdict?.derived);
+  if (!chapters && !verdict) return undefined;
+  return { ...(chapters ? { chapters } : {}), ...(verdict ? { verdict } : {}) };
+}
+
+/** 依据的字幕和现在用的不是同一份，标「基于旧字幕」。哪一边不知道都不标。 */
+export function onOldTranscript(basedOn: string | undefined, current: string | null | undefined): boolean {
+  return Boolean(basedOn) && Boolean(current) && basedOn !== current;
+}
+
 /** 重新生成已有的概览时先写在这里，结论写好才换上；停在中途或结论没写成时，生效的那份不动。 */
 export interface OverviewDraft {
   readonly analysis: LearningAnalysis;

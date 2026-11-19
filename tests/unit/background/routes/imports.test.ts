@@ -1,5 +1,5 @@
 // 导入和移除字幕文件的路由：只收侧边栏；确认前不收、什么都不存；只收认得的请求形状；导入以后取字幕拿到的是导入的那份，
-// 导入和读取导入的字幕都不向平台发请求。
+// 导入和读取导入的字幕都不向平台发请求；导入、移除做成了告诉各页面这个视频的字幕换了。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createApp } from "../../../../src/background/app.ts";
@@ -82,4 +82,15 @@ test("导入和移除只收侧边栏：设置页、粗筛页、卡片和内容�
   }
   assert.deepEqual(await send("transcript.get", { video: VIDEO, mode: "cache-only" }), { ok: false, code: "NOT_CACHED" });
   assert.equal(site.calls.length, 0);
+});
+
+test("导入和移除做成了才告诉各页面这个视频的字幕换了，没做成的不说", async () => {
+  const { fake, send } = appOn({ videoInfo: () => failed("NEED_LOGIN") });
+  const changed = () => fake.calls.broadcasts.filter((message) => (message as { type?: string }).type === "transcript.changed");
+  assert.equal(((await send("imports.add", { ...ADD, text: "不是字幕" })) as { ok: boolean }).ok, false);
+  assert.deepEqual(changed(), [], "解析不出来的文件没换字幕");
+  assert.equal(((await send("imports.add", ADD)) as { ok: boolean }).ok, true);
+  assert.deepEqual(changed(), [{ type: "transcript.changed", video: VIDEO }]);
+  assert.equal(((await send("imports.remove", { video: VIDEO })) as { ok: boolean }).ok, true);
+  assert.equal(changed().length, 2);
 });

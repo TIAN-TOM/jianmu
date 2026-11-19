@@ -20,6 +20,8 @@ const keyCleared = location.hash === "#setup-key";
 const youtube = location.hash.startsWith("#youtube");
 const unread = location.hash === "#youtube" || location.hash === "#youtube-unread";
 const noOverview = location.hash === "#youtube-unread" || location.hash === "#youtube-ready";
+// 换过字幕：结论和章节都依据旧的那份。
+const stale = location.hash === "#stale";
 const KEY_CLEARED = cardSetupHint({ state: "checked", view: { ready: false, errors: [], missing: "key" } });
 const SHORT_SUMMARY = "这是一段自造的官方总结，一共一百来个字，用来看正文被截成三行以后，底下还有没有藏着的字。卡片很宽的时候三行放得下，一个字都不藏；卡片很窄、字号又调大的时候三行放不下，后面的字就被截掉了，这时候要有地方点开看全。";
 
@@ -42,6 +44,8 @@ const view = signal<CardView>({
     // 重点是第 2 章和第 11 章：一个时间四位、一个五位，章节名要和别的章对齐。
     verdict: { verdict: "可以看", summary: LONG.repeat(2), keyStarts: [90, 900] },
   },
+  transcriptBasis: stale ? { chapters: "old-sample", verdict: "old-sample" } : null,
+  transcriptFingerprint: stale ? "new-sample" : null,
   verdictPending: false,
   noCaptions: false,
   needLogin: false,

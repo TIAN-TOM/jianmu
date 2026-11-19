@@ -2,6 +2,7 @@
 // 全部展开、最大字号、内容很长时，正文区滚动，标题栏、进度行和底部按钮都在框架高度上限以内；
 // 密钥随浏览器重启清空时，说明直说要重新填（说法的规则在 pages/shared/config.ts，由单元测试守）；
 // YouTube 上没有官方总结那一块，本机还没有字幕时不摆「生成概览」，请用户先在侧边栏读。
+// 换过字幕时，依据旧字幕的结论标出来。
 import assert from "node:assert/strict";
 import { CARD_HEIGHT } from "../../src/content/card-frame.ts";
 import { CARD_ROWS, NOT_READ_TEXT } from "../../src/pages/card/model.ts";
@@ -141,6 +142,14 @@ test("卡片：时间一列定宽，章节名从同一条线起，重点的圆�
   assert.ok(edges.short && edges.long, "样张里四位和五位的时间都有");
   assert.equal(edges.names.length, 1, `章节名的左边不齐：${edges.names}`);
   assert.equal(edges.outline.length, 1, `官方提纲标题的左边不齐：${edges.outline}`);
+});
+
+test("卡片：换过字幕时结论块标「基于旧字幕」，章节和结论同一份依据只标一次；没换过时不标", async ({ open }) => {
+  const read = (page) => page.evaluate(`(() => ({ basis: document.querySelector("#card-overview .verdict-basis")?.textContent ?? "", marks: (document.getElementById("card").innerText.match(/基于旧字幕/g) ?? []).length }))()`);
+  const stale = await read(await open(`${SAMPLE}#stale`));
+  assert.ok(stale.basis.includes("基于旧字幕"), stale.basis);
+  assert.equal(stale.marks, 1);
+  assert.equal((await read(await open(SAMPLE))).marks, 0);
 });
 
 test("卡片：配好过、密钥随浏览器重启清空时，说明直说要到设置页重新填密钥、提一句记住密钥，「打开设置」是主按钮，不摆「生成概览」", async ({ open }) => {

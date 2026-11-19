@@ -1,11 +1,11 @@
 // 侧边栏：确认启用前只有启用说明；没有视频时说明怎么用；视频页上读不到字幕、读到字幕，速览和精读、问答抽屉、笔记层的主要状态；
-// 打开时按时长定模式，主动切换记住频道，设置页清掉以后回到按时长。
+// 打开时按时长定模式，主动切换记住频道，设置页清掉以后回到按时长；换了字幕以后，依据旧字幕的结论和问答标出来。
 // 页面测试里没有设置模型服务的密钥：概览和问答停在要先设置 AI 服务。
 // 几个测试按顺序共用同一个浏览器：第一个确认启用，第二个还没登录，第三个起已登录。
 import assert from "node:assert/strict";
 import { errorCopy } from "../../src/core/errors.ts";
 import { channelKey, videoKey } from "../../src/core/video-ref.ts";
-import { API_KEY_SESSION_KEY, AUTO_LEDGER_KEY, SETTINGS_STORAGE_KEY, WATCH_SESSIONS_KEY } from "../../src/shared/names.ts";
+import { API_KEY_SESSION_KEY, AUTO_LEDGER_KEY, DATABASE_NAME, SETTINGS_STORAGE_KEY, WATCH_SESSIONS_KEY } from "../../src/shared/names.ts";
 import { ANTHROPIC, BRIEF_SAMPLE, PLAYING_SAMPLE, VIDEOS } from "../fixtures.mjs";
 import { playingWatchPage, PROBE, watchPage } from "../mock-server.mjs";
 import { storedSettings } from "../settings.mjs";
@@ -227,6 +227,95 @@ test("侧边栏：头部的笔记按钮打开笔记层，列出本视频的笔�
     await tap(panel, ".layer [aria-label='返回']");
     await waitIn(panel, "笔记层关上", `document.querySelector(".layer")?.open === false`);
   });
+});
+
+/** 在扩展页面里直接改本机数据库：放进或删掉记录，测试做完自己收拾。 */
+const editDatabase = (page, puts, deletes = {}) =>
+  page.evaluate(`(async () => {
+    const db = await new Promise((done, failed) => { const open = indexedDB.open(${JSON.stringify(DATABASE_NAME)}); open.onsuccess = () => done(open.result); open.onerror = () => failed(open.error); });
+    const puts = ${JSON.stringify(puts)};
+    const deletes = ${JSON.stringify(deletes)};
+    const tx = db.transaction([...new Set([...Object.keys(puts), ...Object.keys(deletes)])], "readwrite");
+    for (const [store, rows] of Object.entries(puts)) for (const row of rows) tx.objectStore(store).put(row);
+    for (const [store, keys] of Object.entries(deletes)) for (const key of keys) tx.objectStore(store).delete(key);
+    await new Promise((done, failed) => { tx.oncomplete = done; tx.onerror = () => failed(tx.error); });
+    db.close();
+    return true;
+  })()`);
+
+const STALE_SRT = "1\n00:00:01,000 --> 00:00:04,000\n换过的样例字幕一\n\n2\n00:00:05,000 --> 00:00:08,000\n换过的样例字幕二\n";
+const STALE_QA_ID = "qa_page-test-stale";
+
+test("侧边栏：换了字幕以后，依据原来那份字幕的结论和问答标「基于旧字幕」，内容照旧；换之前不标", async (ctx) => {
+  const from = await ctx.open(LAUNCHER);
+  const panel = await ctx.openSidePanel(from);
+  const send = (type, req) => panel.evaluate(`chrome.runtime.sendMessage(${JSON.stringify({ type, req })})`);
+  const reopen = async (tabId) => {
+    if (tabId !== null) {
+      await closeTab(from, tabId);
+      // 先回到没有视频的样子：同一个视频直接换标签页时，概览和问答不重读本机。
+      await waitIn(panel, "回到没有视频", `${appText}.includes("打开一个 B 站或 YouTube 视频")`);
+    }
+    const next = await openTab(panel, watchPage(FIRST_ID));
+    await waitIn(panel, "字幕读到", `Boolean(document.querySelector(".modes")) && ${appText}.includes(${JSON.stringify(FIRST_TITLE)})`);
+    return next;
+  };
+  const askedSheet = async () => {
+    await tap(panel, ".ask-entry");
+    await waitIn(panel, "问答里列出那一条", `${textOf(".qa-entry .qa-question")}.includes("页面测试的问题")`);
+  };
+  const closeSheet = async () => {
+    await panel.evaluate(`(${qaSheet}).querySelector(".overlay-head [aria-label='关闭']").click(), true`);
+    await waitIn(panel, "抽屉关上", `${qaSheet}?.open === false`);
+  };
+  let tabId = await reopen(null);
+  try {
+    const read = await send("transcript.get", { video: VIDEO, mode: "cache-only" });
+    assert.equal(read?.ok, true, JSON.stringify(read).slice(0, 200));
+    const ref = read.value.transcript.ref;
+    const derived = { basis: { source: "transcript", transcript: ref }, gen: { feature: "analysis", promptVersion: "p", model: "sample-model", effort: "off" } };
+    const part = { derived, taskCreatedAt: 1 };
+    const overview = {
+      schemaVersion: 1,
+      videoKey: VIDEO,
+      snapshot: { title: FIRST_TITLE, author: "" },
+      analysis: { chapters: [{ title: "页面测试的章节", timestamp: "0:00", timestampSeconds: 0, summary: "" }], keyQuotes: [], verdict: { verdict: "可以看", summary: "页面测试的结论" } },
+      parts: { chapters: part, verdict: part },
+      updatedAt: 1,
+    };
+    const qa = { id: STALE_QA_ID, video: VIDEO, question: "页面测试的问题", answer: "页面测试的回答", citations: [], clickable: [], derived, createdAt: 1 };
+    await editDatabase(panel, { overviews: [overview], qa: [qa] });
+
+    // 同一份字幕：结论和问答都不标。
+    tabId = await reopen(tabId);
+    await waitIn(panel, "结论摆出来", `${textOf(".verdict-text")} === "页面测试的结论"`);
+    assert.doesNotMatch(await panel.evaluate(appText), /基于旧字幕/);
+    await askedSheet();
+    assert.doesNotMatch(await panel.evaluate(textOf(".qa-entry")), /基于旧字幕/);
+    await closeSheet();
+
+    // 导入字幕文件，换成另一份：结论块和那条问答标出来，结论、章节和回答都还在。
+    const imported = await send("imports.add", { video: VIDEO, fileName: "换过的样例.srt", text: STALE_SRT });
+    assert.equal(imported?.ok, true, JSON.stringify(imported));
+    tabId = await reopen(tabId);
+    await waitIn(panel, "结论块标基于旧字幕", `${textOf(".verdict .verdict-basis")}.includes("基于旧字幕")`);
+    assert.equal(await panel.evaluate(textOf(".verdict-text")), "页面测试的结论", "结论不删不改");
+    assert.ok((await panel.evaluate(textOf(".chapter-list"))).includes("页面测试的章节"), "章节照旧");
+    const now = await send("transcript.get", { video: VIDEO, mode: "cache-only" });
+    assert.equal(now?.value?.transcript?.ref?.kind, "imported", "侧边栏用的是导入的那份");
+    assert.equal(await panel.evaluate(`(${appText}.match(/基于旧字幕/g) ?? []).length`), 1, "章节和结论同一份依据，只在结论块里标一次");
+    await askedSheet();
+    await waitIn(panel, "问答标基于旧字幕", `${textOf(".qa-entry")}.includes("基于旧字幕")`);
+    assert.ok((await panel.evaluate(textOf(".qa-answer"))).includes("页面测试的回答"), "回答照旧");
+    await closeSheet();
+  } finally {
+    // 收拾干净：后面的测试打开同一个视频时要的是没有概览、用平台字幕的样子。
+    await send("imports.remove", { video: VIDEO });
+    await editDatabase(panel, {}, { overviews: [VIDEO], qa: [STALE_QA_ID] });
+    await closeTab(from, tabId);
+    const left = await send("overview.get", { video: VIDEO });
+    assert.equal(left?.value?.overview, undefined, "放进去的概览删掉了");
+  }
 });
 
 test("侧边栏：没设置 AI 服务时本窗口全部生成停用；设置好以后清点写清几个视频、要新生成几个，取消回到按钮", async (ctx) => {

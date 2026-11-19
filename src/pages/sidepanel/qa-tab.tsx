@@ -1,10 +1,11 @@
-// 问答页签：针对当前视频提问，回答里的时间点能点就跳过去，下面列出引用的原句；历史可以删。
+// 问答页签：针对当前视频提问，回答里的时间点能点就跳过去，下面列出引用的原句；历史可以删。换过字幕时，依据旧字幕的回答标「基于旧字幕」。
 import { useState } from "preact/hooks";
 import { splitAnswerByTimestamps } from "../../core/qa/citations.ts";
-import type { QaRecord } from "../../core/notes/records.ts";
+import { onOldTranscript, transcriptFingerprintOf, type QaRecord } from "../../core/notes/records.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
 import { Button, IconButton } from "../shared/ui/button.tsx";
 import { StateBlock } from "../shared/ui/state-block.tsx";
+import { StaleTranscriptLine } from "../shared/ui/verdict-block.tsx";
 import type { Panel } from "./panel.ts";
 import { setupReason } from "../shared/config.ts";
 
@@ -25,13 +26,14 @@ function Answer({ panel, entry }: { readonly panel: Panel; readonly entry: QaRec
   );
 }
 
-function Entry({ panel, entry, unsaved }: { readonly panel: Panel; readonly entry: QaRecord; readonly unsaved: boolean }) {
+function Entry({ panel, entry, unsaved, current }: { readonly panel: Panel; readonly entry: QaRecord; readonly unsaved: boolean; readonly current: string | null }) {
   return (
     <li class="qa-entry" data-id={entry.id}>
       <div class="qa-question">
         <span>{entry.question}</span>
         <IconButton icon="trash" label="删除这条问答" onClick={() => void panel.qa.remove(entry.id)} />
       </div>
+      {onOldTranscript(transcriptFingerprintOf(entry.derived), current) ? <StaleTranscriptLine /> : null}
       <Answer panel={panel} entry={entry} />
       {entry.truncated ? <p class="note-line">回答被截断了，可能不完整。</p> : null}
       {unsaved ? <p class="note-line">这条回答没能存进问答历史。</p> : null}
@@ -56,7 +58,9 @@ export function QaTab({ panel }: { readonly panel: Panel }) {
   const state = panel.qa.state.value;
   const config = panel.config.state.value;
   const ready = config.state === "checked" && config.view.ready;
-  const transcriptReady = panel.transcript.state.value.state === "ready";
+  const transcript = panel.transcript.state.value;
+  const transcriptReady = transcript.state === "ready";
+  const current = transcript.state === "ready" ? transcript.view.transcript.ref.fingerprint : null;
   const reason = !ready ? (setupReason(config) ?? "") : !transcriptReady ? "要先读到字幕" : "";
   const submit = (event: Event): void => {
     event.preventDefault();
@@ -88,7 +92,7 @@ export function QaTab({ panel }: { readonly panel: Panel }) {
           </li>
         ))}
         {state.entries.map((entry) => (
-          <Entry key={entry.id} panel={panel} entry={entry} unsaved={state.unsavedId === entry.id} />
+          <Entry key={entry.id} panel={panel} entry={entry} unsaved={state.unsavedId === entry.id} current={current} />
         ))}
       </ol>
       {state.loaded && state.entries.length === 0 && state.pending.length === 0 ? (

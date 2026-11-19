@@ -18,6 +18,15 @@ export interface VerdictBlockProps {
   readonly menu?: ComponentChildren;
 }
 
+/** 不在结论块里的结果（章节、问答）基于旧字幕时，单独标一行。 */
+export function StaleTranscriptLine() {
+  return (
+    <p class="verdict-basis">
+      <Badge tone="line">基于旧字幕</Badge>
+    </p>
+  );
+}
+
 export function VerdictBlock({ label, text, basis, staleTranscript = false, incomplete = false, menu }: VerdictBlockProps) {
   const shape = markOf(label);
   const name = shape ? labelOf(label) : "";

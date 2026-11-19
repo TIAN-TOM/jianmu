@@ -65,6 +65,8 @@ export interface LightDeps {
   readonly fromCache: (ref: VideoRef, video: VideoKey, cached: TranscriptRecord) => Promise<TranscriptReply>;
   /** 只看本机的读取：缓存、内存和导入的文件，没有时回 NOT_CACHED，不向平台和页面发任何请求。 */
   readonly local: (ref: VideoRef) => Promise<TranscriptReply>;
+  /** 这个视频导入的字幕文件的指纹，没有导入时是 null：没点名语言的读取先用它，它就是现在用的字幕。 */
+  readonly importedFingerprint: (video: VideoKey) => Promise<string | null>;
 }
 
 export interface Light {
@@ -116,6 +118,15 @@ export function createLight(deps: LightDeps): Light {
     }
   }
 
+  async function importedOf(video: VideoKey): Promise<string | null> {
+    try {
+      return await deps.importedFingerprint(video);
+    } catch (error) {
+      log.warn("读导入的字幕失败", errorLabel(error));
+      return null;
+    }
+  }
+
   // 只给生效中的那份：重新生成写到一半的草稿不摆到卡片上。
   async function overviewOf(video: VideoKey): Promise<OverviewView | undefined> {
     try {
@@ -130,9 +141,11 @@ export function createLight(deps: LightDeps): Light {
     video: VideoKey,
     info: VideoInfoView,
     official: OfficialSummaryView | undefined,
-    marks: { readonly hasTranscript: boolean; readonly fromCache: boolean; readonly transcriptError?: TranscriptUnavailable },
+    marks: { readonly hasTranscript: boolean; readonly fromCache: boolean; readonly transcriptFingerprint?: string; readonly transcriptError?: TranscriptUnavailable },
   ): Promise<GuidesReply> {
     const overview = await overviewOf(video);
+    // 刚导入、缓存里的字幕作废了还没重读时，也认得出现在用的是导入的那份。
+    const transcriptFingerprint = (await importedOf(video)) ?? marks.transcriptFingerprint;
     const view: GuidesView = {
       mode: "light",
       video,
@@ -141,6 +154,7 @@ export function createLight(deps: LightDeps): Light {
       ...(overview ? { overview } : {}),
       hasTranscript: marks.hasTranscript,
       fromCache: marks.fromCache,
+      ...(transcriptFingerprint ? { transcriptFingerprint } : {}),
       ...(marks.transcriptError ? { transcriptError: marks.transcriptError } : {}),
     };
     return ok(view);
@@ -160,7 +174,7 @@ export function createLight(deps: LightDeps): Light {
       const filled = deps.officials.lateFor(video, reading.info);
       if (filled) official = officialView(await filled);
     }
-    return success(video, view.info, official, { hasTranscript: true, fromCache: view.fromCache });
+    return success(video, view.info, official, { hasTranscript: true, fromCache: view.fromCache, transcriptFingerprint: view.transcript.ref.fingerprint });
   }
 
   // 并进的完整读取没读到字幕：读到了视频信息就照样给卡片摆官方总结；视频信息都没读到时如实报错，不再单独问一遍。
@@ -188,7 +202,7 @@ export function createLight(deps: LightDeps): Light {
   // 本机有字幕（读过、导入过）就照常摆，能生成概览；没有就告诉卡片先在侧边栏读，视频信息也只用缓存里记着的。
   async function localOnly(ref: VideoRef, video: VideoKey): Promise<GuidesReply> {
     const reply = await deps.local(ref);
-    if (reply.ok) return success(video, reply.value.info, undefined, { hasTranscript: true, fromCache: reply.value.fromCache });
+    if (reply.ok) return success(video, reply.value.info, undefined, { hasTranscript: true, fromCache: reply.value.fromCache, transcriptFingerprint: reply.value.transcript.ref.fingerprint });
     if (reply.code !== "NOT_CACHED") return failure(video, reply);
     const cached = await cache.load(video);
     return success(video, cached ? infoView(cached.info) : NO_INFO, undefined, { hasTranscript: false, fromCache: false, transcriptError: "NOT_CACHED" });
@@ -200,7 +214,9 @@ export function createLight(deps: LightDeps): Light {
     const cached = await cache.load(video);
     if (hasTranscript(cached)) {
       const reply = await deps.fromCache(ref, video, cached);
-      return reply.ok ? success(video, reply.value.info, reply.value.official, { hasTranscript: true, fromCache: true }) : failure(video, reply);
+      return reply.ok
+        ? success(video, reply.value.info, reply.value.official, { hasTranscript: true, fromCache: true, transcriptFingerprint: reply.value.transcript.ref.fingerprint })
+        : failure(video, reply);
     }
     // 缓存里没有字幕但还有视频信息和官方总结（字幕被作废了）：一样接着用。
     const known: Memo | undefined =

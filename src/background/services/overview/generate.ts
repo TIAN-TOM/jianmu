@@ -9,7 +9,7 @@ import type { ClearEpoch, ClearGuard } from "../../../core/clear-guard.ts";
 import type { Limiter } from "../../../core/concurrency.ts";
 import { fail, isErrorCode, ok, type Failure, type Result } from "../../../core/errors.ts";
 import type { LearningAnalysis } from "../../../core/notes/markdown.ts";
-import { normalizeAnalysisFailures, type Basis, type GenInfo, type OverviewPart, type OverviewRecord } from "../../../core/notes/records.ts";
+import { normalizeAnalysisFailures, overviewTranscriptBasis, type Basis, type GenInfo, type OverviewPart, type OverviewRecord } from "../../../core/notes/records.ts";
 import type { FrozenGen } from "../../../core/tasks.ts";
 import { parseVideoKey, type VideoKey } from "../../../core/video-ref.ts";
 import type { Broadcast } from "../../../shared/messages.ts";
@@ -83,7 +83,8 @@ function failureOf(error: unknown, whole = false): Failure {
 
 function storedView(video: VideoKey, record: OverviewRecord): OverviewResultView {
   const failures = normalizeAnalysisFailures(record.analysisFailures);
-  return { video, analysis: record.analysis, analysisFailures: failures, fromCache: true, failedChunks: failures.length };
+  const transcriptBasis = overviewTranscriptBasis(record.parts);
+  return { video, analysis: record.analysis, analysisFailures: failures, ...(transcriptBasis ? { transcriptBasis } : {}), fromCache: true, failedChunks: failures.length };
 }
 
 function commonOf(view: TranscriptView): PromptCommon {
@@ -132,6 +133,7 @@ export function createGenerator(deps: GenerateDeps) {
       video: job.video,
       analysis: saved.analysis,
       analysisFailures: [...saved.analysisFailures],
+      ...(saved.transcriptBasis ? { transcriptBasis: saved.transcriptBasis } : {}),
       fromCache: false,
       failedChunks: saved.analysisFailures.length,
       chunkCount,

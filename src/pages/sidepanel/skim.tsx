@@ -1,6 +1,6 @@
 // 速览：一句话结论在最上面，然后是模型生成的章节，每章展开看要点、金句和这一段的字幕，再是视频网站的官方总结和 UP 主分段。
 // 还没有概览时先摆官方总结和 UP 主分段，下面是「生成概览」和字幕。长视频边生成边显示，能停止、补失败块、重新生成；
-// 没有结论时可以只用官方总结写一句。
+// 没有结论时可以只用官方总结写一句。换过字幕时，依据旧字幕写的结论和章节标「基于旧字幕」，不删不改。
 import { groupQuotesIntoChapters, type ChapterPart, type QuotePart } from "../../core/ai/chunking.ts";
 import { keyChapterStarts } from "../../core/ai/verdict.ts";
 import { learningAsMarkdown, type LearningAnalysis } from "../../core/notes/markdown.ts";
@@ -10,8 +10,8 @@ import type { CueView } from "../../shared/messages/transcript.ts";
 import { useMemo, useState } from "preact/hooks";
 import { Button } from "../shared/ui/button.tsx";
 import { ChapterList } from "../shared/ui/chapter-list.tsx";
-import { VerdictBlock } from "../shared/ui/verdict-block.tsx";
-import type { BasisSource } from "../shared/ui/verdict.ts";
+import { StaleTranscriptLine, VerdictBlock } from "../shared/ui/verdict-block.tsx";
+import { staleOverviewMarks, type BasisSource } from "../shared/ui/verdict.ts";
 import { BatchBar } from "./batch-bar.tsx";
 import { downloadText, safeFileName, videoBaseOf } from "./files.ts";
 import { CreatorChapters, OfficialSummary } from "./guides.tsx";
@@ -116,7 +116,19 @@ function Chapters({ panel, analysis, segments, cues }: { readonly panel: Panel; 
   );
 }
 
-function Verdict({ panel, analysis, canOffer, failures }: { readonly panel: Panel; readonly analysis: LearningAnalysis | null; readonly canOffer: boolean; readonly failures: number }) {
+function Verdict({
+  panel,
+  analysis,
+  canOffer,
+  failures,
+  stale,
+}: {
+  readonly panel: Panel;
+  readonly analysis: LearningAnalysis | null;
+  readonly canOffer: boolean;
+  readonly failures: number;
+  readonly stale: boolean;
+}) {
   const { verdictTask } = panel.overview.state.value;
   const verdict = analysis?.verdict;
   const summary = text(verdict?.summary);
@@ -132,7 +144,15 @@ function Verdict({ panel, analysis, canOffer, failures }: { readonly panel: Pane
     );
   }
   if (summary) {
-    return <VerdictBlock label={text(verdict?.verdict)} text={summary} basis={BASIS.find((item) => item === source) ?? null} incomplete={failures > 0 || verdict?.incomplete === true} />;
+    return (
+      <VerdictBlock
+        label={text(verdict?.verdict)}
+        text={summary}
+        basis={BASIS.find((item) => item === source) ?? null}
+        staleTranscript={stale}
+        incomplete={failures > 0 || verdict?.incomplete === true}
+      />
+    );
   }
   if (!canOffer) return null;
   return (
@@ -159,6 +179,8 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
   const hasChapters = Boolean(analysis?.chapters?.length);
   const hasOverview = Boolean(analysis && (hasChapters || analysis.keyQuotes?.length));
   const notReady = ready ? undefined : setupReason(config);
+  const verdictShown = !state.verdictTask && text(state.saved?.analysis.verdict?.summary) !== "";
+  const stale = staleOverviewMarks(state.saved?.transcriptBasis, view?.transcript.ref.fingerprint, verdictShown);
   const seek = (at: number): void => void panel.seek(at);
   const guides = (
     <>
@@ -190,7 +212,7 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
   return (
     <div class="overview skim">
       <BatchBar panel={panel} ready={ready} />
-      <Verdict panel={panel} analysis={state.saved?.analysis ?? null} canOffer={ready && official?.status === "ok" && !running} failures={failures} />
+      <Verdict panel={panel} analysis={state.saved?.analysis ?? null} canOffer={ready && official?.status === "ok" && !running} failures={failures} stale={stale.verdict} />
       {running ? (
         <div class="progress-row" role="status">
           <span>{running.total > 0 ? `正在生成概览 ${running.done}/${running.total} 块` : running.message || "正在生成概览…"}</span>
@@ -209,6 +231,7 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
       {state.result?.canceled ? <p class="note-line">停在中途，已完成的 {state.result.savedChunks ?? 0} 块存下了。</p> : null}
       {hasOverview ? null : guides}
       <section class="ai-overview" aria-label="模型生成的概览">
+        {stale.chapters && hasOverview && !running ? <StaleTranscriptLine /> : null}
         {analysis && hasOverview ? <Chapters panel={panel} analysis={analysis} segments={view?.transcript.segments ?? NO_SEGMENTS} cues={view?.transcript.cues ?? NO_CUES} /> : null}
         {!running && state.loaded ? (
           <div class="state-actions">

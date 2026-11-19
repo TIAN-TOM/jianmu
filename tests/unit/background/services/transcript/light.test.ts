@@ -635,3 +635,40 @@ test("YouTube 导入过字幕文件：算本机有字幕，卡片能生成", asy
   assert.equal(card.transcriptError, undefined);
   assert.equal(h.ctxs.length, 0);
 });
+
+test("命中字幕缓存：带上现在这份字幕的指纹和概览依据的指纹，卡片据此标基于旧字幕；没读到字幕时不带指纹", async () => {
+  const h = rig({ seed: [cachedRow(undefined, { official: storedOfficial("ok") })] });
+  const derived = {
+    basis: { source: "transcript", transcript: { video: KEY, kind: "human", lang: "zh-CN", fingerprint: "旧字幕" } },
+    gen: { feature: "analysis", promptVersion: "p1", model: "m", effort: "off" },
+  } as const;
+  const part = { derived, taskCreatedAt: 1 };
+  await createOverviewStore({ driver: h.overviewsDriver, guard: h.guard }).put({
+    schemaVersion: 1,
+    videoKey: KEY,
+    snapshot: { title: "", author: "" },
+    analysis: ANALYSIS,
+    parts: { chapters: part, verdict: part },
+    updatedAt: 1,
+  });
+  const cached = guides(await h.service.light(REF));
+  assert.equal(cached.transcriptFingerprint, (await h.rows())[0]?.transcript?.ref.fingerprint);
+  assert.deepEqual(cached.overview?.transcriptBasis, { chapters: "旧字幕", verdict: "旧字幕" });
+
+  const uncached = guides(await rig().service.light(REF));
+  assert.equal(uncached.hasTranscript, false);
+  assert.equal("transcriptFingerprint" in uncached, false);
+});
+
+test("刚导入字幕文件、缓存里的字幕作废了还没重读：卡片拿到的指纹是导入的那份；移除以后不带", async () => {
+  const h = rig({ seed: [cachedRow(undefined, { official: storedOfficial("ok") })] });
+  const platform = guides(await h.service.light(REF)).transcriptFingerprint;
+  assert.ok(platform);
+  const srt = ["1", "00:00:01,000 --> 00:00:04,000", "导入的一句", ""].join("\n");
+  assert.equal((await h.service.importFile(REF, { name: "课程.srt", text: srt })).ok, true);
+  const imported = guides(await h.service.light(REF)).transcriptFingerprint;
+  assert.ok(imported);
+  assert.notEqual(imported, platform);
+  assert.equal((await h.service.removeImport(REF)).ok, true);
+  assert.equal("transcriptFingerprint" in guides(await h.service.light(REF)), false, "平台字幕还没重读，不知道是哪份");
+});

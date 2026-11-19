@@ -1,8 +1,10 @@
 // 概览落库的规矩：章节和结论各看写它的任务的创建时间，较早创建的不覆盖较晚的；依据字幕的结论优先于只依据官方总结的；
 // 官方总结写的结论先留着，等这次的结论写好再换；章节依据的字幕换过时不按区间补块；错误日志里不带密钥。
+// 交给页面的概览带上章节和结论各自依据的字幕指纹，换过字幕时页面据此标「基于旧字幕」。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { planChapters, planDraft, planOfficialVerdict, planVerdict, verdictWins } from "../../../../../src/background/services/overview/persist.ts";
+import { overviewView } from "../../../../../src/background/services/overview/view.ts";
 import type { OverviewPart, OverviewRecord } from "../../../../../src/core/notes/records.ts";
 import { deferred } from "../../../../helpers/deferred.ts";
 import { SAMPLE_KEY } from "../../../../helpers/fake-model-service.ts";
@@ -117,4 +119,24 @@ test("没登录时只报需要登录：不改用官方总结或标题简介写�
   assert.equal(h.asks.length, 0);
   assert.equal(await h.record(TRANSCRIPT_KEY), null);
   assert.deepEqual(transcript.site.calls.map((call) => call.method), ["readVideoInfo"], "官方总结也没去问");
+});
+
+test("交给页面的概览带上章节和结论各自依据的字幕指纹：新生成的是这次的字幕，本机已有的照记下的交、不改记录", async () => {
+  const h = overviewHarness({ respond: ({ isVerdict }) => (isVerdict ? verdictReply() : undefined) });
+  const fresh = value(await h.generate().result);
+  assert.ok(fresh.analysis.verdict?.summary, "结论也写好了");
+  const saved = await h.record();
+  const basis = saved?.parts?.chapters?.derived.basis;
+  const fingerprint = basis?.source === "transcript" ? basis.transcript.fingerprint : "";
+  assert.ok(fingerprint, "章节记下了依据的字幕");
+  assert.deepEqual(fresh.transcriptBasis, { chapters: fingerprint, verdict: fingerprint });
+  assert.deepEqual(overviewView(saved)?.transcriptBasis, { chapters: fingerprint, verdict: fingerprint });
+
+  const old = stored({ parts: { chapters: { derived: { basis: { source: "transcript", transcript: { ...TRANSCRIPT, fingerprint: "旧字幕" } }, gen: GEN }, taskCreatedAt: 1 }, verdict: byOfficial(2) } });
+  const kept = overviewHarness({ records: [old] });
+  const cached = value(await kept.generate().result);
+  assert.equal(cached.fromCache, true);
+  assert.deepEqual(cached.transcriptBasis, { chapters: "旧字幕" }, "结论依据官方总结，不带");
+  assert.deepEqual(await kept.record(), old, "只标不改");
+  assert.equal(overviewView(stored())?.transcriptBasis, undefined, "旧记录没写来历时不带");
 });

@@ -55,6 +55,8 @@ export type Broadcast =
   | { readonly type: "overview.preview"; readonly video: VideoKey; readonly taskId: string; readonly analysis: LearningAnalysis; readonly done: number; readonly total: number }
   | { readonly type: "overview.updated"; readonly video: VideoKey; readonly verdictPending: boolean }
   | { readonly type: "notes.changed"; readonly video?: VideoKey }
+  /** 这个视频导入或移除了字幕文件：卡片重读，跟现在用的字幕比结论是不是基于旧字幕。 */
+  | { readonly type: "transcript.changed"; readonly video: VideoKey }
   | { readonly type: "session.changed"; readonly tabId: number; readonly session: SessionView }
   | { readonly type: "data.cleared"; readonly scope: "cache" | "all" }
   | { readonly type: "panel.follow"; readonly tabId: number }

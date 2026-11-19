@@ -68,7 +68,7 @@ export type BroadcastOf<T extends BroadcastType> = Extract<Broadcast, { readonly
 /** 每种广播能按什么过滤。清除、外观、启用、自动生成停没停这几种不带这些，总是送到。 */
 export type BroadcastFilter<T extends BroadcastType> = T extends "task.changed" | "overview.preview"
   ? { readonly taskId?: string; readonly video?: VideoKey }
-  : T extends "overview.updated" | "notes.changed"
+  : T extends "overview.updated" | "notes.changed" | "transcript.changed"
     ? { readonly video?: VideoKey }
     : T extends "session.changed" | "panel.follow" | "frame.changed"
       ? { readonly tabId?: number }
@@ -91,6 +91,7 @@ const BROADCAST_SHAPES = {
   "overview.preview": ({ video, taskId, analysis }) => isText(video) && isText(taskId) && isRecord(analysis),
   "overview.updated": ({ video, verdictPending }) => isText(video) && typeof verdictPending === "boolean",
   "notes.changed": ({ video }) => video === undefined || isText(video),
+  "transcript.changed": ({ video }) => isText(video),
   "session.changed": ({ tabId, session }) => isTabId(tabId) && isRecord(session),
   "data.cleared": ({ scope }) => scope === "cache" || scope === "all",
   "panel.follow": ({ tabId }) => isTabId(tabId),
@@ -112,6 +113,7 @@ function keysOf(message: Broadcast): BroadcastKeys {
     case "overview.preview":
       return { taskId: message.taskId, video: message.video };
     case "overview.updated":
+    case "transcript.changed":
       return { video: message.video };
     // 不带视频的是所有视频的笔记都变了（导入、清除），按视频订阅的也要收到。
     case "notes.changed":
