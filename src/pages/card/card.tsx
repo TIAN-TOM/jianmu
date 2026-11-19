@@ -1,4 +1,5 @@
 // 卡片的界面：标题栏（展开收起）、提示、AI 概览（结论在最前，章节默认只露前几章）、B 站官方总结（有概览时收成一行）、进度和按钮。
+// 按钮行在内容还在来时先不摆（规则在 model.ts），摆出来以后不被晚到的内容顶走。
 // 规则在 model.ts。视频标题不在卡片里再写一遍：页面顶上就是。
 import type { RefObject } from "preact";
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
@@ -250,7 +251,7 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
           </button>
         </div>
       ) : null}
-      {view.collapsed ? null : (
+      {view.collapsed || view.holdActions ? null : (
         <div class="card-actions">
           {canGenerate && !needsSetup ? (
             <button type="button" class="button" data-variant="primary" id="card-generate" onClick={actions.generate}>

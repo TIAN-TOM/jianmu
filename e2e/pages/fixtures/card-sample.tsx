@@ -4,11 +4,15 @@
 // 带 #youtube 时是 YouTube 上已有概览、本机没有字幕（没有官方总结），带 #youtube-unread 时是没有代开文字稿的构建里，YouTube 上本机既没有概览也没有字幕，
 // 带 #youtube-ready 时是 YouTube 上还没有概览、字幕已经读过；不带时是刚打开的默认样子；
 // 「展开全部」和官方总结那一行点得动。卡片的界面组件原样用，样式用产品的 card.css。
+// 带 #official-late、#official-never 时接上真实的卡片模型，后台换成本页的替身：官方总结先回「还在读」，
+// 前者过一会儿读到、照后台的做法广播一次重读，后者一直读不到。
 import { signal } from "@preact/signals";
 import { render } from "preact";
+import { videoKey } from "../../../src/core/video-ref.ts";
 import { Card, type CardActions } from "../../../src/pages/card/card.tsx";
-import { NOT_READ_TEXT, type CardView } from "../../../src/pages/card/model.ts";
-import { cardSetupHint } from "../../../src/pages/shared/config.ts";
+import { createCardModel, NOT_READ_TEXT, type CardView } from "../../../src/pages/card/model.ts";
+import { createPageApi, type PageRuntime } from "../../../src/pages/shared/api.ts";
+import { cardSetupHint, type ConfigState } from "../../../src/pages/shared/config.ts";
 
 const LONG = "这是一段自造的样例文字，用来把卡片撑得很高，看底部的按钮会不会被裁掉。";
 const full = location.hash === "#full";
@@ -55,6 +59,7 @@ const view = signal<CardView>({
   notice: full ? { text: LONG, tone: "" } : location.hash === "#youtube-unread" ? { text: NOT_READ_TEXT, tone: "" } : null,
   showAll: full,
   officialOpen: full,
+  holdActions: false,
 });
 
 const noop = (): void => undefined;
@@ -74,5 +79,60 @@ function App() {
   return <Card view={view.value} aiReady={!keyCleared} setupHint={keyCleared ? KEY_CLEARED : ""} actions={actions} />;
 }
 
+/** 官方总结晚到多久。 */
+const OFFICIAL_LATE_MS = 1_500;
+const SAMPLE_REF = { platform: "bilibili", videoId: "BV1Sample001", segment: 1 } as const;
+const SAMPLE_URL = "https://www.bilibili.com/video/BV1Sample001";
+
+/** 官方总结晚到的卡片：模型原样用，后台的回复由这里现编。 */
+function lateOfficial(root: HTMLElement, arrives: boolean): void {
+  const key = videoKey(SAMPLE_REF);
+  const startedAt = performance.now();
+  const arrived = (): boolean => arrives && performance.now() - startedAt >= OFFICIAL_LATE_MS;
+  const listeners = new Set<Parameters<PageRuntime["onMessage"]["addListener"]>[0]>();
+  const replies: Readonly<Record<string, () => unknown>> = {
+    "session.get": () => ({ ok: true, value: { session: { video: key, mode: "skim", modeSource: "default", autoSwitched: false, playedSec: 0 } } }),
+    "task.list": () => ({ ok: true, value: { tasks: [] } }),
+    "transcript.get": () => ({
+      ok: true,
+      value: {
+        mode: "light",
+        video: key,
+        info: { title: "样例视频", author: "", description: "", durationSec: 1800 },
+        official: arrived() ? { status: "ok", summary: SHORT_SUMMARY, outline: Array.from({ length: 3 }, (_, index) => ({ title: `样例小节 ${index + 1}`, timestamp: index * 60, points: [] })) } : { status: "pending", summary: "", outline: [] },
+        hasTranscript: true,
+        fromCache: true,
+      },
+    }),
+  };
+  const runtime: PageRuntime = {
+    id: "card-sample",
+    sendMessage: async (message) => replies[(message as { readonly type: string }).type]?.() ?? { ok: false, code: "UNKNOWN_ROUTE" },
+    onMessage: { addListener: (listener) => void listeners.add(listener), removeListener: (listener) => void listeners.delete(listener) },
+    connect: () => {
+      throw new Error("样张不开长连接");
+    },
+  };
+  if (arrives) setTimeout(() => listeners.forEach((listener) => listener({ type: "transcript.changed", video: key }, { id: runtime.id })), OFFICIAL_LATE_MS);
+  const ready: ConfigState = { state: "checked", view: { ready: true, errors: [] } };
+  const model = createCardModel({
+    api: createPageApi({ runtime }),
+    config: signal(ready),
+    recheckConfig: async () => undefined,
+    currentTab: async () => ({ id: 1, url: SAMPLE_URL }),
+    parseVideo: (url) => (url === SAMPLE_URL ? SAMPLE_REF : null),
+    seek: noop,
+  });
+  const live: CardActions = { ...actions, retry: model.retry, toggleShowAll: model.toggleShowAll, toggleOfficial: model.toggleOfficial };
+  render(<LiveApp model={model} actions={live} />, root);
+  model.configChanged();
+  void model.start();
+}
+
+function LiveApp({ model, actions: live }: { readonly model: ReturnType<typeof createCardModel>; readonly actions: CardActions }) {
+  return <Card view={model.view.value} aiReady={model.aiReady.value} setupHint="" actions={live} />;
+}
+
 const root = document.getElementById("app");
-if (root) render(<App />, root);
+if (root && (location.hash === "#official-late" || location.hash === "#official-never")) lateOfficial(root, location.hash === "#official-late");
+else if (root) render(<App />, root);

@@ -13,6 +13,7 @@ import { videoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts"
 import type { GuidesFailure, OfficialSummaryView } from "../../shared/messages/transcript.ts";
 import type { PageApi } from "../shared/api.ts";
 import type { ConfigState } from "../shared/config.ts";
+import { createActionHold, realTimers, type CardTimers } from "./timers.ts";
 
 export interface CardTab {
   readonly id: number;
@@ -28,12 +29,7 @@ export interface CardDeps {
   readonly parseVideo: (url: string) => VideoRef | null;
   /** 让本标签页的播放器跳到这里。 */
   readonly seek: (tabId: number, video: VideoKey, atSec: number) => void;
-  readonly timers?: {
-    every(ms: number, run: () => void): () => void;
-    timeout<T>(work: Promise<T>, ms: number): Promise<T | "timeout">;
-    /** 过这么久调一次，返回取消函数。 */
-    after(ms: number, run: () => void): () => void;
-  };
+  readonly timers?: CardTimers;
   /** 卡片所在的标签页在不在前台；不给时当一直在前台。 */
   readonly page?: { visible(): boolean; onVisible(run: () => void): () => void };
 }
@@ -77,6 +73,8 @@ export interface CardView {
   readonly showAll: boolean;
   /** 有 AI 概览时 B 站官方总结收成一行，点开才露。换了视频回到收着。 */
   readonly officialOpen: boolean;
+  /** 这个视频的内容还在来：按钮行先不摆。 */
+  readonly holdActions: boolean;
 }
 
 /** 章节和官方提纲默认露几条：卡片嵌在右栏里，太高会把下面的选集和推荐顶下去。 */
@@ -105,6 +103,7 @@ const INITIAL: CardView = {
   notice: null,
   showAll: false,
   officialOpen: false,
+  holdActions: false,
 };
 
 const LOAD_TIMEOUT_MS = 30_000;
@@ -121,22 +120,6 @@ export const NOT_READ_TEXT = "在侧边栏点「读取字幕」以后，这里�
 export function hasOverview(analysis: LearningAnalysis | null): boolean {
   return Boolean(analysis?.chapters?.length || analysis?.keyQuotes?.length);
 }
-
-const realTimers = {
-  every(ms: number, run: () => void): () => void {
-    const timer = setInterval(run, ms);
-    return () => clearInterval(timer);
-  },
-  timeout<T>(work: Promise<T>, ms: number): Promise<T | "timeout"> {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const late = new Promise<"timeout">((resolve) => (timer = setTimeout(() => resolve("timeout"), ms)));
-    return Promise.race([work, late]).finally(() => clearTimeout(timer));
-  },
-  after(ms: number, run: () => void): () => void {
-    const timer = setTimeout(run, ms);
-    return () => clearTimeout(timer);
-  },
-};
 
 const keyOf = (ref: VideoRef | null): VideoKey | null => {
   try {
@@ -171,6 +154,7 @@ export function createCardModel(deps: CardDeps) {
     view.value = { ...view.peek(), ...next };
   };
   const notice = (text: string, tone: Tone = ""): Pick<CardView, "notice"> => ({ notice: text ? { text, tone } : null });
+  const actionRow = createActionHold(timers.after, (held) => patch({ holdActions: held }));
 
   const aiReady = computed<boolean | null>(() => {
     const state = deps.config.value;
@@ -187,7 +171,8 @@ export function createCardModel(deps: CardDeps) {
     loadedTicket = -1;
     saved = null;
     savedBasis = null;
-    patch({ phase, title: "", official: null, analysis: null, transcriptBasis: null, transcriptFingerprint: null, verdictPending: false, noCaptions: false, notRead: false, task: null, settingsError: false, notice: null, showAll: false, officialOpen: false });
+    actionRow.reset();
+    patch({ phase, title: "", official: null, analysis: null, transcriptBasis: null, transcriptFingerprint: null, verdictPending: false, noCaptions: false, notRead: false, task: null, settingsError: false, notice: null, showAll: false, officialOpen: false, holdActions: false });
   }
 
   function syncVideo(url: string): void {
@@ -251,7 +236,10 @@ export function createCardModel(deps: CardDeps) {
     const asked = ticket;
     const current = video;
     loadedTicket = asked;
-    if (!quiet) patch({ phase: "loading", ...notice("正在读取这个视频的总结…") });
+    if (!quiet) {
+      actionRow.hold();
+      patch({ phase: "loading", ...notice("正在读取这个视频的总结…") });
+    }
     const reply = await timers.timeout(api.send("transcript.get", { video: current, mode: "light" }), LOAD_TIMEOUT_MS);
     if (asked !== ticket) return;
     if (reply === "timeout") return failLoad("读取超时，没读到这个视频的总结。");
@@ -283,11 +271,15 @@ export function createCardModel(deps: CardDeps) {
     });
     // 没登录、本机还没有字幕：登录或在侧边栏读过以后，重试、收起再展开都要能重读，不当成已经读过。
     if (needLogin || notRead) loadedTicket = -1;
+    // 官方总结还在读：按钮行接着等，再轻读一次，后台会等这次问询回来再答。
+    if (value.official?.status !== "pending") actionRow.show();
+    else if (!quiet && actionRow.holding()) void load(true);
     if (!quiet) await followRunning(asked);
   }
 
   function failLoad(text: string): void {
     loadedTicket = -1;
+    actionRow.show();
     patch({ phase: "failed", ...shownSaved(), ...notice(text, "error") });
   }
 
@@ -491,6 +483,7 @@ export function createCardModel(deps: CardDeps) {
     stop(): void {
       stopTimer?.();
       stopWaiting?.();
+      actionRow.stop();
       stopWatching?.();
       for (const off of subscriptions) off();
     },

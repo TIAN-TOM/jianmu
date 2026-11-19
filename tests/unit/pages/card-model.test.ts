@@ -2,6 +2,7 @@
 // 侧边栏为同一视频起的任务就跟着看进度，结束后重读；换了视频，迟到的结果不渲染。
 // 展开收起跟着模式（PRD 6.5）：速览展开、精读收起，手动展开收起过的为准；收起时不读，后台标签页第一次到前台才读。
 // 新视频的会话还没有时先收着等它定模式，等不到才按速览展开。
+// 按钮行在每个视频第一次读完、官方总结有了结果才摆，等不到也有上限；摆出来以后不再收回。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { signal } from "@preact/signals";
@@ -426,4 +427,67 @@ test("侧边栏给这个视频换了字幕：卡片重读，换上现在这份�
   fake.broadcast({ type: "transcript.changed", video: KEY });
   assert.ok(await until(() => model.view.value.transcriptFingerprint === "new"));
   assert.deepEqual(model.view.value.transcriptBasis, { chapters: "old", verdict: "old" }, "概览不动，页面据此标基于旧字幕");
+});
+
+const PENDING_OFFICIAL = { status: "pending", summary: "", outline: [] };
+const skim = (video = KEY) => ({ value: { ok: true, value: { session: { video, mode: "skim", modeSource: "default", autoSwitched: false, playedSec: 0 } } } });
+
+test("按钮行：读的时候、官方总结还在读时先不摆，再轻读一次；读到了才摆，摆出来以后同一视频再读也不收回；换了视频重新等", async () => {
+  const { fake, model, setUrl, elapse } = setup(READY, undefined, { manualWait: true });
+  fake.reply("session.get", skim());
+  fake.reply("transcript.get", { value: guides(KEY, { official: PENDING_OFFICIAL }) });
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  assert.equal(model.view.value.holdActions, true, "官方总结还在读");
+  assert.ok(await until(() => fake.attempts("transcript.get") === 2), "再轻读一次");
+  assert.ok(await stillFalse(() => !model.view.value.holdActions));
+
+  fake.reply("transcript.get", { value: guides() });
+  fake.broadcast({ type: "transcript.changed", video: KEY });
+  assert.ok(await until(() => !model.view.value.holdActions));
+  assert.equal(model.view.value.official?.status, "ok");
+
+  fake.reply("transcript.get", { value: guides(KEY, { official: PENDING_OFFICIAL }) });
+  fake.broadcast({ type: "transcript.changed", video: KEY });
+  assert.ok(await until(() => model.view.value.official?.status === "pending"));
+  assert.ok(await stillFalse(() => model.view.value.holdActions), "摆出来以后不再收回");
+
+  const second = videoKey(SECOND);
+  fake.reply("transcript.get", { value: guides(second, { official: PENDING_OFFICIAL }) });
+  setUrl("https://www.bilibili.com/video/BV1Sample002");
+  model.urlChanged("https://www.bilibili.com/video/BV1Sample002");
+  elapse();
+  assert.ok(await until(() => model.view.value.phase === "loaded" && model.view.value.title === "样例长视频"));
+  assert.equal(model.view.value.holdActions, true, "新视频重新等");
+});
+
+test("按钮行：官方总结一直没结果时，等够了照样摆；没有官方总结、读失败时读完就摆", async () => {
+  const pending = setup(READY, undefined, { manualWait: true });
+  pending.fake.reply("session.get", skim());
+  pending.fake.reply("transcript.get", { value: guides(KEY, { official: PENDING_OFFICIAL }) });
+  pending.model.configChanged();
+  await pending.model.start();
+  assert.ok(await until(() => pending.model.view.value.phase === "loaded" && pending.fake.attempts("transcript.get") === 2));
+  assert.equal(pending.model.view.value.holdActions, true);
+  assert.equal(pending.waiting(), 1, "挂着等内容的定时");
+  pending.elapse();
+  assert.equal(pending.model.view.value.holdActions, false);
+
+  const none = setup(READY, undefined, { manualWait: true });
+  none.fake.reply("session.get", skim());
+  none.fake.reply("transcript.get", { value: guides(KEY, { official: undefined }) });
+  none.model.configChanged();
+  await none.model.start();
+  assert.ok(await until(() => none.model.view.value.phase === "loaded"));
+  assert.equal(none.model.view.value.holdActions, false);
+  assert.equal(none.waiting(), 0);
+
+  const failed = setup(READY, undefined, { manualWait: true });
+  failed.fake.reply("session.get", skim());
+  failed.fake.reply("transcript.get", { value: { ok: false, code: "NETWORK" } });
+  failed.model.configChanged();
+  await failed.model.start();
+  assert.ok(await until(() => failed.model.view.value.phase === "failed"));
+  assert.equal(failed.model.view.value.holdActions, false);
 });
