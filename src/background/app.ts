@@ -201,15 +201,11 @@ function assembleSessions(deps: AppDeps, clearGuard: ClearGuard, messenger: Mess
 }
 
 // 取字幕：缓存、导入字幕两个仓储的驱动第一次读写时才建；概览仓储和概览服务共用一份，轻量读取只读它带回已有的。
-// 官方总结附带的字幕兜底按官方总结模块的开关。
-function assembleTranscript(deps: AppDeps, clearGuard: ClearGuard, tabs: Tabs, overviews: OverviewStore): TranscriptService {
+// 官方总结附带的字幕兜底按官方总结模块的开关。移除导入的字幕以后读到了新字幕，告诉各页面这个视频的字幕换了。
+function assembleTranscript(deps: AppDeps, clearGuard: ClearGuard, tabs: Tabs, overviews: OverviewStore, messenger: Messenger): TranscriptService {
   return createTranscriptService({
     sites: deps.sites,
-    cache: createCacheStore<CachedTranscript>({
-      driver: lazyDriver<CacheEntry<CachedTranscript>>("cache", deps.indexedDB),
-      guard: clearGuard,
-      now: deps.timers.now,
-    }),
+    cache: createCacheStore<CachedTranscript>({ driver: lazyDriver<CacheEntry<CachedTranscript>>("cache", deps.indexedDB), guard: clearGuard, now: deps.timers.now }),
     imports: createImportStore({ driver: lazyDriver<ImportRecord>("imports", deps.indexedDB), guard: clearGuard }),
     overviews,
     guard: clearGuard,
@@ -217,6 +213,7 @@ function assembleTranscript(deps: AppDeps, clearGuard: ClearGuard, tabs: Tabs, o
     timers: deps.timers,
     log: deps.log,
     officialCaptionsFallback: OFFICIAL_CAPTIONS_FALLBACK,
+    replaced: (video) => void messenger.toPages({ type: "transcript.changed", video }),
   });
 }
 
@@ -386,7 +383,7 @@ function assembleCore(deps: AppDeps): Core {
   const keepAlive = assembleKeepAlive(deps);
   const tasks = assembleTasks(deps, ai, messenger, keepAlive);
   const overviews = createOverviewStore({ driver: lazyDriver<OverviewRecord>("overviews", deps.indexedDB), guard: clearGuard, now: deps.timers.now });
-  const transcript = assembleTranscript(deps, clearGuard, tabs, overviews);
+  const transcript = assembleTranscript(deps, clearGuard, tabs, overviews, messenger);
   const generation: OverviewParts = { settings, clearGuard, ai, tasks, messenger, transcript, overviews, gate: createLimiter() };
   const studyStores = assembleStudyStores(deps, clearGuard);
   const overview = assembleOverview(deps, generation);

@@ -50,6 +50,8 @@ export interface TranscriptDeps {
   readonly stillCurrent?: (ref: VideoRef) => Promise<boolean>;
   /** 播放器字幕取不到时，拿官方总结附带的 AI 字幕兜底。生产里由装配函数按官方总结模块的开关给。 */
   readonly officialCaptionsFallback: boolean;
+  /** 移除导入的字幕文件以后，读到的字幕第一次写进缓存时调：卡片据此重读，和概览依据的那份比。 */
+  readonly replaced?: (video: VideoKey) => void;
 }
 
 export interface TranscriptGetOptions {
@@ -141,6 +143,8 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
   const memory = createMismatchMemory(guard);
   const generations = new Map<VideoKey, number>();
   const generationOf = (video: VideoKey): number => generations.get(video) ?? 0;
+  /** 移除了导入的字幕文件、还没有新字幕写进缓存的视频。 */
+  const awaitingReplacement = new Set<VideoKey>();
 
   // 缓存改了以后才发起的读取，不能再并进改之前的在途读取：那份结果是改之前的快照。已经在等的照旧拿各自的结果。
   function forgetVideo(video: VideoKey): void {
@@ -218,6 +222,7 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
     if (!mismatch) {
       // 写不进去（存储出错）也照样把这次读到的交给调用方。
       const saved = persist ? await writer.save(video, record, start.since, stale, keep) : null;
+      if (saved?.wrote && awaitingReplacement.delete(video)) deps.replaced?.(video);
       if (saved?.kept) return ok(viewOf(video, saved.kept, true));
       if (!stale()) memory.drop(video);
       return ok(viewOf(video, record, false));
@@ -457,14 +462,20 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
       }
     },
 
-    importFile(ref, file) {
+    async importFile(ref, file) {
       const video = keyOf(ref);
-      return video ? imports.add(video, file) : Promise.resolve(fail("INVALID_REQUEST"));
+      if (!video) return fail("INVALID_REQUEST");
+      const added = await imports.add(video, file);
+      if (added.ok) awaitingReplacement.delete(video);
+      return added;
     },
 
-    removeImport(ref) {
+    async removeImport(ref) {
       const video = keyOf(ref);
-      return video ? imports.remove(video) : Promise.resolve(fail("INVALID_REQUEST"));
+      if (!video) return fail("INVALID_REQUEST");
+      const removed = await imports.remove(video);
+      if (removed.ok) awaitingReplacement.add(video);
+      return removed;
     },
 
     generation(ref) {
@@ -477,6 +488,7 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
     // 两种清除都清：内存里记着的只是缓存的替身，清除缓存也该没有。
     forget(_scope) {
       inFlight.clear();
+      awaitingReplacement.clear();
       memory.forget();
       officials.forget();
       light.forget();
