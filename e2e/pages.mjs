@@ -27,15 +27,15 @@ const TEST_TIMEOUT_MS = 30_000;
 // 扩展页面里晚到的报错等这么久再算。
 const SETTLE_MS = 150;
 
-/** 场景文件，按页面分。后面的页面加进来时在这里登记。stale 改磁盘上的页面文件，排在最后。 */
+/** 场景文件，按页面分。后面的页面加进来时在这里登记。usage 开头清除全部数据，排在要用前面留下的密钥的 frame 后面；stale 改磁盘上的页面文件，排在最后。 */
 const SCENARIOS = [
   "e2e/pages/gallery.mjs",
   "e2e/pages/sidepanel.mjs",
   "e2e/pages/triage.mjs",
   "e2e/pages/options.mjs",
-  "e2e/pages/usage.mjs",
   "e2e/pages/card.mjs",
   "e2e/pages/frame.mjs",
+  "e2e/pages/usage.mjs",
   "e2e/pages/stale.mjs",
 ];
 

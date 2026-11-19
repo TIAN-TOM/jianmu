@@ -2,7 +2,7 @@
 // 传输层每收到一份回复交出一次用量。样例都是自己造的。
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { assembleEventStream, PROTOCOLS, usageOf } from "../../../../src/core/ai/provider/index.ts";
+import { assembleEventStream, PROTOCOLS, usageOf, type TokenUsage } from "../../../../src/core/ai/provider/index.ts";
 import * as TRANSPORT from "../../../../src/core/ai/transport/index.ts";
 import type { AiFetch, TransportResponse } from "../../../../src/core/ai/transport/index.ts";
 import * as SETTINGS from "../../../../src/shared/settings-schema.ts";
@@ -83,7 +83,7 @@ test("强制流式拼回以后照样取得到用量：三种协议", () => {
 
 const reply = (data: unknown): TransportResponse => ({ ok: true, status: 200, text: async () => JSON.stringify(data) });
 
-function transportWith(fetch: AiFetch, onUsage: (usage: unknown) => void) {
+function transportWith(fetch: AiFetch, onUsage: (usage: TokenUsage) => void) {
   return TRANSPORT.createAiTransport({
     getSettings: async () =>
       SETTINGS.normalize({
@@ -109,7 +109,7 @@ test("传输层每收到一份回复交出一次用量：加码重发的那次�
     reply({ choices: [{ message: { content: "{\"a\":", reasoning_content: "想" }, finish_reason: "length" }], usage: { prompt_tokens: 10, completion_tokens: 100, completion_tokens_details: { reasoning_tokens: 90 } } }),
     reply({ choices: [{ message: { content: "{\"a\":1}" }, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 30 } }),
   ];
-  const seen: unknown[] = [];
+  const seen: TokenUsage[] = [];
   const transport = transportWith(async () => replies.shift() ?? assert.fail("多发了一次"), (usage) => seen.push(usage));
   const result = await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 64 });
   assert.equal(result.text, "{\"a\":1}");
@@ -120,7 +120,7 @@ test("传输层每收到一份回复交出一次用量：加码重发的那次�
 });
 
 test("传输层：服务没回用量照样交出一份空的；请求被拒的不交；记用量出错不影响请求", async () => {
-  const seen: unknown[] = [];
+  const seen: TokenUsage[] = [];
   const quiet = transportWith(async () => reply({ choices: [{ message: { content: "好" }, finish_reason: "stop" }] }), (usage) => seen.push(usage));
   await quiet.requestAiCompletion({ messages: MESSAGES, maxTokens: 64 });
   assert.deepEqual(seen, [{}]);
