@@ -127,8 +127,8 @@ export interface OverviewView {
   readonly analysisFailures: readonly FailureRange[];
 }
 
-/** 读不到字幕的这两种原因要告诉卡片：它据此决定还摆不摆「生成概览」。 */
-export type TranscriptUnavailable = "NO_CAPTIONS" | "NEED_LOGIN";
+/** 读不到字幕的这几种原因要告诉卡片：它据此决定还摆不摆「生成概览」。NOT_CACHED 是字幕要用户点了读取才读的站，本机还没有。 */
+export type TranscriptUnavailable = "NO_CAPTIONS" | "NEED_LOGIN" | "NOT_CACHED";
 
 /** 轻量读取的回复：只有卡片要摆的东西，不带字幕、字幕轨和分段。 */
 export interface GuidesView {
@@ -141,7 +141,7 @@ export interface GuidesView {
   readonly hasTranscript: boolean;
   /** 字幕缓存命中。 */
   readonly fromCache: boolean;
-  /** 并进的完整读取读不到字幕的原因。 */
+  /** 并进的完整读取读不到字幕的原因，或者只看本机的站本机还没有字幕。 */
   readonly transcriptError?: TranscriptUnavailable;
 }
 

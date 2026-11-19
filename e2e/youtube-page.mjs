@@ -5,6 +5,8 @@
 // 两个页面上都一直留着关着的旧面板和新式面板空壳，段落是新写法，搜索框是多行文本框，没有语言菜单。
 // 文字稿入口在页面上有两份：简介里一份，一直关着的简介面板里一份；点了后面那份，页面记一笔，测试据此判点错了。
 // 新式面板的页面另有播放器自己的数据：字幕轨列表和默认音轨里的默认字幕轨，交给页面主世界的小桥读。
+// 播放器右边有一栏：上面是装侧栏面板（文字稿在里面）的一层，下面是推荐视频。页面上另有一个按钮扮演窗口变窄，
+// 把推荐视频挪到播放器下面，再点一下挪回右栏；这只是简化的替身，不照着真实页面的排版逻辑写。
 import { QUIET_MEDIA_PATH } from "./watch-page.mjs";
 
 export const TUBE_HOST = "www.youtube.com";
@@ -39,6 +41,14 @@ export const tubeWatchPage = (id) => `https://${TUBE_HOST}/watch?v=${id}`;
 
 const STEP_SEC = 20;
 
+const RELATED_HTML = `<div id="related">样例推荐视频</div>`;
+// 扮演窗口变窄、再变宽：推荐视频在右栏和播放器下面之间来回挪。
+const NARROW_SCRIPT = `document.getElementById("e2e-narrow").addEventListener("click", () => {
+    const related = document.getElementById("related");
+    const below = document.getElementById("below");
+    (related.parentElement === below ? document.getElementById("secondary-inner") : below).append(related);
+  });`;
+
 /** @param {string} id */
 export function tubePageHtml(id) {
   const video = TUBE_VIDEOS[/** @type {keyof typeof TUBE_VIDEOS} */ (id)];
@@ -59,25 +69,38 @@ function classicPageHtml(id) {
   .html5-video-player { position: relative; width: 640px; height: 360px; background: #000; }
   video { width: 100%; height: 100%; }
   ytd-engagement-panel-section-list-renderer[visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN"] { display: none; }
+  #columns { display: flex; gap: 24px; }
+  #secondary { width: 400px; }
 </style>
 </head>
 <body>
 <ytd-app>
   <ytd-watch-flexy video-id="${id}">
-    <div class="html5-video-player"><video class="html5-main-video" muted autoplay loop src="${QUIET_MEDIA_PATH}"></video></div>
-    <ytd-watch-metadata>
-      <h1></h1>
-      <ytd-channel-name><a></a></ytd-channel-name>
-      <div id="description-inline-expander">样例简介</div>
-    </ytd-watch-metadata>
-    <ytd-video-description-transcript-section-renderer><button id="e2e-open-transcript">Show transcript</button></ytd-video-description-transcript-section-renderer>
-    <button id="e2e-close-transcript">关上文字稿</button>
-    <button id="e2e-next">下一个视频</button>
+    <div id="columns">
+      <div id="primary">
+        <div class="html5-video-player"><video class="html5-main-video" muted autoplay loop src="${QUIET_MEDIA_PATH}"></video></div>
+        <ytd-watch-metadata>
+          <h1></h1>
+          <ytd-channel-name><a></a></ytd-channel-name>
+          <div id="description-inline-expander">样例简介</div>
+        </ytd-watch-metadata>
+        <ytd-video-description-transcript-section-renderer><button id="e2e-open-transcript">Show transcript</button></ytd-video-description-transcript-section-renderer>
+        <button id="e2e-close-transcript">关上文字稿</button>
+        <button id="e2e-next">下一个视频</button>
+        <button id="e2e-narrow">窗口变窄</button>
+        <div id="below"></div>
+      </div>
+      <div id="secondary"><div id="secondary-inner">
+        <div id="panels">
+          <ytd-engagement-panel-section-list-renderer target-id="engagement-panel-searchable-transcript" visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN">
+            <div id="segments"></div>
+            <ytd-transcript-footer-renderer><yt-dropdown-menu><span id="label-text"></span></yt-dropdown-menu></ytd-transcript-footer-renderer>
+          </ytd-engagement-panel-section-list-renderer>
+        </div>
+        ${RELATED_HTML}
+      </div></div>
+    </div>
   </ytd-watch-flexy>
-  <ytd-engagement-panel-section-list-renderer target-id="engagement-panel-searchable-transcript" visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN">
-    <div id="segments"></div>
-    <ytd-transcript-footer-renderer><yt-dropdown-menu><span id="label-text"></span></yt-dropdown-menu></ytd-transcript-footer-renderer>
-  </ytd-engagement-panel-section-list-renderer>
 </ytd-app>
 <script>
   const videos = ${videos};
@@ -125,6 +148,7 @@ function classicPageHtml(id) {
     showMeta();
     document.dispatchEvent(new Event("yt-navigate-finish"));
   });
+  ${NARROW_SCRIPT}
   showMeta();
 </script>
 </body>
@@ -161,25 +185,38 @@ function modernPageHtml(id, video) {
   .html5-video-player { position: relative; width: 640px; height: 360px; background: #000; }
   video { width: 100%; height: 100%; }
   ytd-engagement-panel-section-list-renderer[visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN"] { display: none; }
+  #columns { display: flex; gap: 24px; }
+  #secondary { width: 400px; }
 </style>
 </head>
 <body>
 <ytd-app>
   <ytd-watch-flexy video-id="${id}">
-    <div class="html5-video-player" id="movie_player"><video class="html5-main-video" muted autoplay loop src="${QUIET_MEDIA_PATH}"></video></div>
-    <ytd-watch-metadata>
-      <h1>${video.title}</h1>
-      <ytd-channel-name><a href="/${video.channel}">${video.author}</a></ytd-channel-name>
-      <div id="description-inline-expander">样例简介</div>
-    </ytd-watch-metadata>
-    <ytd-video-description-transcript-section-renderer><button id="e2e-open-transcript">Show transcript</button></ytd-video-description-transcript-section-renderer>
-    <button id="e2e-close-transcript">关上文字稿</button>
+    <div id="columns">
+      <div id="primary">
+        <div class="html5-video-player" id="movie_player"><video class="html5-main-video" muted autoplay loop src="${QUIET_MEDIA_PATH}"></video></div>
+        <ytd-watch-metadata>
+          <h1>${video.title}</h1>
+          <ytd-channel-name><a href="/${video.channel}">${video.author}</a></ytd-channel-name>
+          <div id="description-inline-expander">样例简介</div>
+        </ytd-watch-metadata>
+        <ytd-video-description-transcript-section-renderer><button id="e2e-open-transcript">Show transcript</button></ytd-video-description-transcript-section-renderer>
+        <button id="e2e-close-transcript">关上文字稿</button>
+        <button id="e2e-narrow">窗口变窄</button>
+        <div id="below"></div>
+      </div>
+      <div id="secondary"><div id="secondary-inner">
+        <div id="panels">
+          <ytd-engagement-panel-section-list-renderer target-id="engagement-panel-searchable-transcript" visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN"></ytd-engagement-panel-section-list-renderer>
+          <ytd-engagement-panel-section-list-renderer target-id="engagement-panel-structured-description" visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN">
+            <ytd-video-description-transcript-section-renderer><button id="e2e-hidden-entry">Show transcript</button></ytd-video-description-transcript-section-renderer>
+          </ytd-engagement-panel-section-list-renderer>
+          ${opened}
+        </div>
+        ${RELATED_HTML}
+      </div></div>
+    </div>
   </ytd-watch-flexy>
-  <ytd-engagement-panel-section-list-renderer target-id="engagement-panel-searchable-transcript" visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN"></ytd-engagement-panel-section-list-renderer>
-  <ytd-engagement-panel-section-list-renderer target-id="engagement-panel-structured-description" visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN">
-    <ytd-video-description-transcript-section-renderer><button id="e2e-hidden-entry">Show transcript</button></ytd-video-description-transcript-section-renderer>
-  </ytd-engagement-panel-section-list-renderer>
-  ${opened}
 </ytd-app>
 <script>
   const lines = ${lines};
@@ -246,6 +283,7 @@ function modernPageHtml(id, video) {
     select("e2e-transcript-tab");
     setTimeout(showTranscript, 50);
   });
+  ${NARROW_SCRIPT}
 </script>
 </body>
 </html>`;

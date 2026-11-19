@@ -1,4 +1,4 @@
-// YouTube 观看页：页面用结构替身代替，这里只看地址比对、站内跳转、广告、挂载点、控制栏和频道，渲染留给无头 Chrome。
+// YouTube 观看页：页面用结构替身代替，这里只看地址比对、站内跳转、广告、挂载点、卡片位置、控制栏和频道，渲染留给无头 Chrome。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createYoutubePage } from "../../../../src/sites/youtube/page.ts";
@@ -145,4 +145,120 @@ test("频道：外壳上的视频和地址对得上才读，认频道编号和 @
   assert.equal(page.channelId?.(), "@sample.channel");
   channel.attributes.set("href", "https://other.example/channel/UCsample");
   assert.equal(page.channelId?.(), null);
+});
+
+// ============================================================
+// 卡片的位置：右栏推荐视频上面，侧栏面板（文字稿在里面）排在它前面；推荐视频挪到哪里卡片跟到哪里
+// ============================================================
+
+const PANEL_TAG = "YTD-ENGAGEMENT-PANEL-SECTION-LIST-RENDERER";
+const PANEL_SELECTOR = "ytd-engagement-panel-section-list-renderer";
+
+/** 卡片位置要看的一小棵树：只认侧栏面板这一个选择器。 */
+interface Box {
+  readonly tagName: string;
+  readonly children: Box[];
+  parentElement: Box | null;
+  firstChild: Box | null;
+  nextSibling: Box | null;
+  matches(selector: string): boolean;
+  querySelector(selector: string): Box | null;
+  closest(selector: string): Box | null;
+}
+
+function box(tagName = "DIV", children: Box[] = []): Box {
+  const self: Box = {
+    tagName,
+    children,
+    parentElement: null,
+    firstChild: children[0] ?? null,
+    nextSibling: null,
+    matches: (selector) => selector === PANEL_SELECTOR && self.tagName === PANEL_TAG,
+    querySelector(selector) {
+      for (const child of self.children) {
+        const found = child.matches(selector) ? child : child.querySelector(selector);
+        if (found) return found;
+      }
+      return null;
+    },
+    closest(selector) {
+      for (let at: Box | null = self; at; at = at.parentElement) if (at.matches(selector)) return at;
+      return null;
+    },
+  };
+  children.forEach((child, index) => {
+    child.parentElement = self;
+    child.nextSibling = children[index + 1] ?? null;
+  });
+  return self;
+}
+
+function assertSlot(slot: { parent: Element; before: Node | null } | null | undefined, parent: Box, before: Box | null): void {
+  assert.ok(slot);
+  assert.equal(slot.parent as unknown, parent);
+  assert.equal(slot.before as unknown, before);
+}
+
+const RELATED = "ytd-watch-flexy #related";
+const SECONDARY_INNER = "ytd-watch-flexy #secondary-inner";
+const SECONDARY = "ytd-watch-flexy #secondary";
+
+test("卡片排在右栏推荐视频的上面，装着文字稿面板的那一层在它前面；不在观看页时没有位置", () => {
+  const panels = box("DIV", [box(PANEL_TAG), box(PANEL_TAG)]);
+  const related = box();
+  const column = box("DIV", [panels, related]);
+  const watching = pageAt(watch(ID));
+  watching.document.matches.set(RELATED, related as unknown as FakeElement);
+  assertSlot(watching.page.cardSlot?.(), column, related);
+
+  const home = pageAt("https://www.youtube.com/");
+  home.document.matches.set(RELATED, related as unknown as FakeElement);
+  assert.equal(home.page.cardSlot?.(), null, "首页上外壳还在，只是藏着");
+});
+
+test("剧场模式、窄窗口时推荐视频挪到播放器下面：卡片跟着它走", () => {
+  const { page, document } = pageAt(watch(ID));
+  const related = box();
+  const column = box("DIV", [box(), related]);
+  document.matches.set(RELATED, related as unknown as FakeElement);
+  assertSlot(page.cardSlot?.(), column, related);
+
+  const moved = box();
+  const under = box("DIV", [box(), moved]);
+  document.matches.set(RELATED, moved as unknown as FakeElement);
+  assertSlot(page.cardSlot?.(), under, moved);
+});
+
+test("推荐视频还没出来：排在右栏里最后一个侧栏面板后面，没有面板时在最上面；右栏也没有时是 null，卡片悬浮", () => {
+  const { page, document } = pageAt(watch(ID));
+  assert.equal(page.cardSlot?.(), null);
+
+  const first = box();
+  const plain = box("DIV", [first]);
+  document.matches.set(SECONDARY, plain as unknown as FakeElement);
+  assertSlot(page.cardSlot?.(), plain, first);
+
+  const chat = box();
+  const inner = box("DIV", [box("DIV", [box(PANEL_TAG)]), box(PANEL_TAG), chat]);
+  document.matches.set(SECONDARY_INNER, inner as unknown as FakeElement);
+  assertSlot(page.cardSlot?.(), inner, chat);
+
+  const onlyPanels = box("DIV", [box(PANEL_TAG)]);
+  document.matches.set(SECONDARY_INNER, onlyPanels as unknown as FakeElement);
+  assertSlot(page.cardSlot?.(), onlyPanels, null);
+});
+
+test("找到的位置在侧栏面板里面时不插：卡片不挤进文字稿面板，也不会被当成面板内容读到", () => {
+  const { page, document } = pageAt(watch(ID));
+  const related = box();
+  box(PANEL_TAG, [box("DIV", [related])]);
+  document.matches.set(RELATED, related as unknown as FakeElement);
+  const inner = box("DIV", [box(PANEL_TAG)]);
+  document.matches.set(SECONDARY_INNER, inner as unknown as FakeElement);
+  assertSlot(page.cardSlot?.(), inner, null);
+
+  const nested = box();
+  box(PANEL_TAG, [nested]);
+  document.matches.set(SECONDARY_INNER, nested as unknown as FakeElement);
+  assert.equal(page.cardSlot?.(), null);
 });

@@ -3,6 +3,8 @@
 // 在真实的侧边栏里走一遍：打开就只看本机、不读页面；没打开文字稿时点读取，说明要先打开；用户打开以后读到，
 // 标出轨和语言；生成概览、存笔记、问答点引用跳转；站内换到另一个视频，面板没更新时不认，更新后读到新视频的，不串台。
 // 新式面板按播放器上已有的字幕轨判定来源：默认人工的标人工，只有一条自动轨的标自动，判定不了的标来源未确认。
+// 播放页卡片插在右栏推荐视频上面、不进侧栏面板，本机没有字幕时不去读；侧边栏生成的结论卡片跟着摆出来，
+// 精读时收起、速览时展开，窗口变窄时跟着推荐视频挪到播放器下面。
 // 第一个加载：装的是日用包，之后导入的产品模块按日用构建的开关取值算。
 import "../scripts/lib/daily-globals.mjs";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -10,6 +12,8 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { videoKey } from "../src/core/video-ref.ts";
+import { NOT_READ_TEXT } from "../src/pages/card/model.ts";
+import { INJECTED } from "../src/shared/names.ts";
 import { launchChrome, prepareExtension } from "./browser.mjs";
 import { ANTHROPIC } from "./fixtures.mjs";
 import { startMockServer } from "./mock-server.mjs";
@@ -90,6 +94,29 @@ const stateTitle = (panel) => textOf(panel, ".state-block .state-title");
 /** 视频页上扮演用户的按钮：真实点击，不是简幕点的。 */
 const userClicks = (video, id) => evaluate(video, `(document.getElementById(${JSON.stringify(id)}).click(), true)`, true);
 
+/** 嵌在某个观看页里的卡片框架：卡片框架都是同一个地址，按它所在的标签页认。 */
+async function cardOf(watchUrl) {
+  const { targetInfos } = await cdp.send("Target.getTargets");
+  for (const info of targetInfos.filter((item) => item.type === "iframe" && item.url.includes("/pages/card.html"))) {
+    const { sessionId } = await cdp.send("Target.attachToTarget", { targetId: info.targetId, flatten: true });
+    await cdp.send("Runtime.runIfWaitingForDebugger", {}, sessionId).catch(() => {});
+    if ((await evaluate(sessionId, "chrome.tabs.getCurrent().then((tab) => tab?.url ?? '')")) === watchUrl) return sessionId;
+  }
+  return null;
+}
+const cardText = (card) => evaluate(card, `document.getElementById("card")?.textContent ?? ""`);
+const cardCollapsed = (card) => evaluate(card, `document.getElementById("card")?.dataset.collapsed ?? ""`);
+/** 卡片框架在观看页上的位置：父节点、后一个节点的编号，在不在侧栏面板里。 */
+const cardPlace = (video) =>
+  evaluate(
+    video,
+    `(() => { const frame = document.getElementById(${JSON.stringify(INJECTED.cardFrame)}); if (!frame) return null; return { parent: frame.parentElement?.id ?? "", next: frame.nextElementSibling?.id ?? "", inPanel: Boolean(frame.closest("ytd-engagement-panel-section-list-renderer")) }; })()`,
+  );
+const placedAt = async (video, parent) => {
+  const at = await cardPlace(video);
+  return at?.parent === parent && at.next === "related" && !at.inPanel;
+};
+
 async function flow(launcher, panelUrl, worker) {
   const registered = await until("后台注册了 YouTube 的内容脚本", () => evaluate(worker, `chrome.scripting.getRegisteredContentScripts().then((list) => list.map((item) => item.id).join())`));
   if (registered.split(",").sort().join() !== "jianmu-youtube,jianmu-youtube-bridge") throw new Error(`注册的脚本不对：${registered}`);
@@ -109,6 +136,12 @@ async function flow(launcher, panelUrl, worker) {
   // 内容脚本挂上、过了启用闸门才回话：从后台问一句当前视频，回得上来就算页面连上了。
   const tabId = await evaluate(panel, `chrome.tabs.query({ windowId: ${windowId} }).then((tabs) => tabs.find((tab) => tab.url === ${JSON.stringify(firstUrl)})?.id)`);
   await until("视频页连上", () => evaluate(worker, `chrome.tabs.sendMessage(${tabId}, ${JSON.stringify({ type: "youtube.current", req: { videoId: FIRST_ID } })}, { frameId: 0 }).then((reply) => reply?.videoId === ${JSON.stringify(FIRST_ID)}, () => false)`));
+  // 卡片插在右栏推荐视频上面，装文字稿的那一层在它前面；本机还没有字幕，卡片不去读，说先在侧边栏读。
+  await until("卡片插在右栏推荐视频上面", () => placedAt(video, "secondary-inner"));
+  const card = await until("观看页的卡片", () => cardOf(firstUrl));
+  await until("卡片说先在侧边栏读字幕", async () => (await cardText(card)).includes(NOT_READ_TEXT));
+  if (await evaluate(card, `Boolean(document.getElementById("card-generate"))`)) throw new Error("本机还没有字幕时卡片摆了「生成概览」");
+  console.log("✓ 卡片插在右栏推荐视频上面，不进侧栏面板；本机还没有字幕时不去读，说先在侧边栏读");
   const modelCalls = () => mock.requests.filter((entry) => entry.host !== TUBE_HOST).length;
   // 页面自己取的图标和视频媒体不算：播放循环、浏览器取图标的时刻都不固定。
   const tubeCalls = () => mock.requests.filter((entry) => entry.host === TUBE_HOST && entry.path !== "/favicon.ico" && entry.path !== QUIET_MEDIA_PATH).length;
@@ -128,10 +161,20 @@ async function flow(launcher, panelUrl, worker) {
   if (modelCalls() !== before || tubeCalls() !== tubeBefore) throw new Error("读文字稿时发了不该发的请求");
   console.log("✓ 点读取字幕时简幕替用户点开文字稿，读到，标出英文、自动生成，存进本机；YouTube 上没发任何请求");
 
+  // 文字稿面板打开以后卡片还在面板下面；卡片上点重试，本机有字幕了，「生成概览」回来。
+  if (!(await placedAt(video, "secondary-inner"))) throw new Error(`文字稿打开以后卡片不在原处：${JSON.stringify(await cardPlace(video))}`);
+  await until("卡片上点重试", () => clickIn(card, "#card-retry"));
+  await until("卡片上出现「生成概览」", () => evaluate(card, `Boolean(document.getElementById("card-generate"))`));
+  console.log("✓ 文字稿面板开着时卡片排在面板下面；侧边栏读过字幕，卡片重试以后能生成概览");
+
   await until("生成概览可以点", () => clickIn(panel, "button", "生成概览"));
   await until("概览生成完", async () => (await textOf(panel, ".chapter-name")).includes("模拟服务写的章节"));
   await until("结论写好", async () => (await textOf(panel, ".verdict-text")).includes("模拟服务写的一句话结论"));
   console.log("✓ 生成概览：章节和一句话结论都显示出来");
+  await until("卡片跟着摆出结论", async () => (await cardText(card)).includes("模拟服务写的一句话结论"));
+  await until("卡片上也有章节", async () => (await cardText(card)).includes("模拟服务写的章节"));
+  if ((await cardCollapsed(card)) !== "false") throw new Error("速览时卡片该展开");
+  console.log("✓ 侧边栏生成的概览，卡片跟着摆出结论和章节");
 
   await until("展开章节", () => clickIn(panel, ".chapter-toggle"));
   await until("把金句存为笔记", () => clickIn(panel, ".quote button", "存为笔记"));
@@ -148,9 +191,26 @@ async function flow(launcher, panelUrl, worker) {
   await evaluate(panel, `(() => { const sheet = [...document.querySelectorAll(".sheet")].find((node) => node.open); sheet?.querySelector(".overlay-head [aria-label='关闭']")?.click(); return true; })()`);
   console.log(`✓ 金句存成笔记；问答带引用，点引用跳到视频里的时间点（第一句是「${lineOne}」）`);
 
+  await until("切到精读", () => clickIn(panel, ".mode", "精读"));
+  await until("精读时卡片收起", async () => (await cardCollapsed(card)) === "true");
+  await until("切回速览", () => clickIn(panel, ".mode", "速览"));
+  await until("回到速览卡片展开", async () => (await cardCollapsed(card)) === "false");
+  console.log("✓ 精读时卡片收起，回到速览展开");
+
+  // 窗口变窄：推荐视频挪到播放器下面，卡片跟过去；变宽再回右栏。挪过的卡片重新载入，结论照样在。
+  await userClicks(video, "e2e-narrow");
+  await until("卡片跟着推荐视频挪到播放器下面", () => placedAt(video, "below"));
+  await userClicks(video, "e2e-narrow");
+  await until("卡片回到右栏", () => placedAt(video, "secondary-inner"));
+  const moved = await until("挪过的卡片", () => cardOf(firstUrl));
+  await until("挪过以后结论还在", async () => (await cardText(moved)).includes("模拟服务写的一句话结论"));
+  console.log("✓ 窗口变窄时卡片跟着推荐视频挪到播放器下面，变宽回到右栏，结论照样在");
+
   // 站内换到另一个视频：面板还留着上一个视频的内容，读取时不认；用户重新打开以后读到新视频的。
   await userClicks(video, "e2e-next");
   await until("侧边栏跟到新视频，让用户点读取", async () => (await stateTitle(panel)).includes("读取这个视频的字幕"));
+  const secondCard = await until("换视频以后的卡片", () => cardOf(tubeWatchPage(SECOND_ID)));
+  await until("卡片跟到新视频，本机还没有字幕时说先在侧边栏读", async () => (await cardText(secondCard)).includes(NOT_READ_TEXT));
   await until("点读取字幕", () => clickIn(panel, ".state-block .button", "读取字幕"));
   await until("说文字稿还没换过来", async () => (await stateTitle(panel)).includes("还没换成这个视频的"));
   await userClicks(video, "e2e-close-transcript");
@@ -161,7 +221,7 @@ async function flow(launcher, panelUrl, worker) {
   await until("标题换成新视频的", async () => (await textOf(panel, ".video-title")) === TUBE_VIDEOS[SECOND_ID]?.title);
   const firstAgain = await evaluate(panel, `chrome.runtime.sendMessage(${JSON.stringify({ type: "transcript.get", req: { video: FIRST, mode: "cache-only" } })})`);
   if (!firstAgain?.ok || !firstAgain.value.transcript.cues.some((cue) => cue.text === lineOne)) throw new Error(`上一个视频的字幕被改了：${JSON.stringify(firstAgain)}`);
-  console.log("✓ 站内换视频：面板没更新时不认，更新后读到新视频的，上一个视频的字幕不受影响");
+  console.log("✓ 站内换视频：卡片跟到新视频；面板没更新时不认，更新后读到新视频的，上一个视频的字幕不受影响");
 
   await modernFlow(launcher, panel, worker, windowId);
 }

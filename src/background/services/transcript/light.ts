@@ -2,9 +2,10 @@
 // 没缓存时只问视频信息和官方总结，不列轨、不读字幕文件，也不新建缓存条目。问到的只记在内存里（最近 10 个），
 // 同一个视频再读不再问；用户随后完整读取时，有定论的官方总结（连同附带的字幕）也接着用。
 // 同一个视频的完整读取已经在路上就并进去，最多等 4 秒；等不到就用它已经读到的视频信息和官方总结，不再多问一遍。
+// 字幕要用户点了读取才读的站（YouTube）只看本机：不向平台和页面要任何东西，也不并进完整读取。
 import type { ClearGuard } from "../../../core/clear-guard.ts";
 import { fail, ok, type Failure } from "../../../core/errors.ts";
-import { videoKey, type VideoKey, type VideoRef } from "../../../core/video-ref.ts";
+import { videoKey, type Platform, type VideoKey, type VideoRef } from "../../../core/video-ref.ts";
 import type {
   GuidesFailure,
   GuidesReply,
@@ -34,6 +35,11 @@ export const LIGHT_JOIN_MS = 4_000;
 // 读不到字幕的这两种情况告诉卡片；被限流、超时这些过一阵再试可能就好了，不说成没有字幕。
 const UNAVAILABLE: ReadonlySet<string> = new Set<TranscriptUnavailable>(["NO_CAPTIONS", "NEED_LOGIN"]);
 
+// 字幕和视频信息都只能经页面读、而且要用户点了读取才读的站：卡片不为自己去读。
+const LOCAL_ONLY: ReadonlySet<Platform> = new Set<Platform>(["youtube"]);
+// 本机连视频信息都没有时给卡片的：卡片不写标题，也不按它定模式。
+const NO_INFO: VideoInfoView = { title: "", author: "", description: "", durationSec: 0 };
+
 /** 在途的完整读取已经读到的：核对过的视频信息和它问出去的官方总结。 */
 export interface ReadingGuides {
   readonly info: VideoInfo;
@@ -57,6 +63,8 @@ export interface LightDeps {
   readonly joinable: (video: VideoKey) => JoinableRead | undefined;
   /** 命中字幕缓存时的回复：过了重问时间的官方总结在后台重问，占位要等。 */
   readonly fromCache: (ref: VideoRef, video: VideoKey, cached: TranscriptRecord) => Promise<TranscriptReply>;
+  /** 只看本机的读取：缓存、内存和导入的文件，没有时回 NOT_CACHED，不向平台和页面发任何请求。 */
+  readonly local: (ref: VideoRef) => Promise<TranscriptReply>;
 }
 
 export interface Light {
@@ -177,6 +185,15 @@ export function createLight(deps: LightDeps): Light {
     return success(video, infoView(reading.info), official ? officialView(official) : undefined, { hasTranscript: false, fromCache: false });
   }
 
+  // 本机有字幕（读过、导入过）就照常摆，能生成概览；没有就告诉卡片先在侧边栏读，视频信息也只用缓存里记着的。
+  async function localOnly(ref: VideoRef, video: VideoKey): Promise<GuidesReply> {
+    const reply = await deps.local(ref);
+    if (reply.ok) return success(video, reply.value.info, undefined, { hasTranscript: true, fromCache: reply.value.fromCache });
+    if (reply.code !== "NOT_CACHED") return failure(video, reply);
+    const cached = await cache.load(video);
+    return success(video, cached ? infoView(cached.info) : NO_INFO, undefined, { hasTranscript: false, fromCache: false, transcriptError: "NOT_CACHED" });
+  }
+
   async function load(ref: VideoRef, video: VideoKey): Promise<GuidesReply> {
     const since = guard.epoch();
     const started = epoch;
@@ -215,6 +232,7 @@ export function createLight(deps: LightDeps): Light {
 
   return {
     async read(ref, video) {
+      if (LOCAL_ONLY.has(ref.platform)) return localOnly(ref, video);
       // 已经有轻量读取在路上就并进它；没有时看完整读取。
       if (!requests.has(video)) {
         const full = deps.joinable(video);

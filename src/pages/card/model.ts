@@ -1,4 +1,4 @@
-// 卡片的状态和操作。认哪个视频只看所在标签页的地址；读数据只用轻量读取（官方总结和本机已有的概览）；
+// 卡片的状态和操作。认哪个视频只看所在标签页的地址；读数据只用轻量读取（官方总结和本机已有的概览，YouTube 只有后者）；
 // 生成概览只认真实点击，登记时换到一次性令牌才开始；侧边栏为同一视频起的、打开就出结论自动起的任务就跟着看进度。
 // 没启用、卡片关着时什么都不显示。展开收起跟着本标签页的观看会话：用户在这个视频里手动展开收起过的为准，
 // 否则速览展开、精读收起（短视频进精读，所以默认收起）；收起时不读，后台打开的标签页第一次到前台才读。
@@ -63,6 +63,8 @@ export interface CardView {
   readonly noCaptions: boolean;
   /** 没登录 B 站：读得到视频信息，字幕要登录才读得到。 */
   readonly needLogin: boolean;
+  /** 字幕要用户在侧边栏点读取才读的站（YouTube），本机还没有字幕：卡片不去读，先请用户在侧边栏读。 */
+  readonly notRead: boolean;
   readonly task: TaskProgress | null;
   readonly settingsError: boolean;
   readonly notice: { readonly text: string; readonly tone: Tone } | null;
@@ -90,6 +92,7 @@ const INITIAL: CardView = {
   verdictPending: false,
   noCaptions: false,
   needLogin: false,
+  notRead: false,
   task: null,
   settingsError: false,
   notice: null,
@@ -105,6 +108,7 @@ const HIDDEN_CODES: ReadonlySet<ErrorCode> = new Set(["NOT_ENABLED", "CARD_DISAB
 const SETTINGS_CODES: ReadonlySet<ErrorCode> = new Set(["NO_AI_CONFIG", "NO_DATA_CONSENT", "INVALID_AI_KEY", "INVALID_BASE_URL", "NEED_HOST_PERMISSION", "MODEL_OR_ENDPOINT_NOT_FOUND", "ANTHROPIC_WORKSPACE_REQUIRED"]);
 export const NO_CAPTIONS_TEXT = "这个视频没有 CC 字幕，生成不了概览。";
 export const NEED_LOGIN_TEXT = "登录 B 站后才读得到字幕、生成概览；也可以在侧边栏导入字幕文件。";
+export const NOT_READ_TEXT = "在侧边栏点「读取字幕」以后，这里才能生成概览。";
 
 /** 有章节或金句才算已经有概览；只有一句话结论的，「生成概览」照样留着。 */
 export function hasOverview(analysis: LearningAnalysis | null): boolean {
@@ -173,7 +177,7 @@ export function createCardModel(deps: CardDeps) {
     ticket += 1;
     loadedTicket = -1;
     saved = null;
-    patch({ phase, title: "", official: null, analysis: null, verdictPending: false, noCaptions: false, task: null, settingsError: false, notice: null, showAll: false, officialOpen: false });
+    patch({ phase, title: "", official: null, analysis: null, verdictPending: false, noCaptions: false, notRead: false, task: null, settingsError: false, notice: null, showAll: false, officialOpen: false });
   }
 
   function syncVideo(url: string): void {
@@ -252,19 +256,21 @@ export function createCardModel(deps: CardDeps) {
     saved = value.overview?.analysis ?? null;
     const noCaptions = value.hasTranscript ? false : value.transcriptError === "NO_CAPTIONS" || view.peek().noCaptions;
     const needLogin = !value.hasTranscript && value.transcriptError === "NEED_LOGIN";
+    const notRead = !value.hasTranscript && value.transcriptError === "NOT_CACHED";
     const following = view.peek().task;
-    const blocked = hasOverview(saved) ? "" : needLogin ? NEED_LOGIN_TEXT : noCaptions ? NO_CAPTIONS_TEXT : "";
+    const blocked = hasOverview(saved) ? "" : needLogin ? NEED_LOGIN_TEXT : notRead ? NOT_READ_TEXT : noCaptions ? NO_CAPTIONS_TEXT : "";
     patch({
       phase: "loaded",
       title: value.info.title,
       official: value.official ?? null,
       noCaptions,
       needLogin,
+      notRead,
       ...(following && !quiet ? {} : { analysis: saved, verdictPending: false }),
       ...(quiet ? {} : notice(blocked)),
     });
-    // 没登录：登录以后重试、收起再展开都要能重读，不当成已经读过。
-    if (needLogin) loadedTicket = -1;
+    // 没登录、本机还没有字幕：登录或在侧边栏读过以后，重试、收起再展开都要能重读，不当成已经读过。
+    if (needLogin || notRead) loadedTicket = -1;
     if (!quiet) await followRunning(asked);
   }
 
@@ -313,7 +319,7 @@ export function createCardModel(deps: CardDeps) {
     // 花的是用户的额度：卡片嵌在别人的页面里，只认真实点击。
     if (!trusted || !visible.peek() || !video || aiReady.peek() === false) return;
     const v = view.peek();
-    if (v.task || v.phase !== "loaded" || v.noCaptions || hasOverview(saved)) return;
+    if (v.task || v.phase !== "loaded" || v.noCaptions || v.notRead || hasOverview(saved)) return;
     const asked = ticket;
     const current = video;
     patch({ task: { id: "", external: false, auto: false, canceling: false, done: 0, total: 0, message: "" }, settingsError: false, ...notice("") });

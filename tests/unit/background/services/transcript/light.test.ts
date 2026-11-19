@@ -1,17 +1,19 @@
 // 卡片的轻量读取：卡片摆的是官方总结、本机已有的概览和结论，用不着字幕。没缓存时只问视频信息和官方总结，
 // 不取字幕，也不新建缓存条目；已缓存时照常用缓存。同一个视频的完整读取在路上时并进去，最多等 4 秒；
-// 先轻量后完整时，完整读取接着用记着的官方总结。站点是替身，缓存和概览用真实仓储加内存驱动，计时器手动推进。
+// 先轻量后完整时，完整读取接着用记着的官方总结。YouTube 只看本机，不向平台和页面要任何东西。
+// 站点是替身，缓存和概览用真实仓储加内存驱动，计时器手动推进。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { LIGHT_JOIN_MS, LIGHT_MEMO_LIMIT } from "../../../../../src/background/services/transcript/light.ts";
 import { OFFICIAL_GRACE_MS } from "../../../../../src/background/services/transcript/official.ts";
 import { createOverviewStore } from "../../../../../src/background/stores/overviews.ts";
 import type { LearningAnalysis } from "../../../../../src/core/notes/markdown.ts";
+import { videoKey, type VideoRef } from "../../../../../src/core/video-ref.ts";
 import type { GuidesReply, GuidesView } from "../../../../../src/shared/messages/transcript.ts";
 import type { Cue, OfficialSummary, SiteResult } from "../../../../../src/sites/types.ts";
 import { deferred } from "../../../../helpers/deferred.ts";
 import { failed, type SiteMethod } from "../../../../helpers/fake-site-service.ts";
-import { cachedRow, harness, KEY, REF, sampleInfo, START, texts, view, type Harness, type HarnessOptions } from "../../../../helpers/transcript-service.ts";
+import { cachedRow, harness, KEY, REF, sampleInfo, START, texts, view, ZH, type Harness, type HarnessOptions } from "../../../../helpers/transcript-service.ts";
 import { stillFalse, until } from "../../../../helpers/wait-until.ts";
 
 const MINUTE = 60_000;
@@ -583,4 +585,53 @@ test("本机知道的时长：缓存里的、轻量读取记着的都算，不�
   await reading;
   assert.equal(await known, 900, "在路上的轻量读取等它回来");
   assert.equal(light.site.count("readVideoInfo"), 1);
+});
+
+// ============================================================
+// YouTube：字幕要用户点了读取才读，卡片只看本机
+// ============================================================
+
+const TUBE: VideoRef = { platform: "youtube", videoId: "jmTubeSample1" };
+const TUBE_KEY = videoKey(TUBE);
+
+test("YouTube 本机没有字幕：告诉卡片本机没有，不向平台和页面要视频信息，也不建读取环境", async () => {
+  const h = rig();
+  const card = guides(await h.service.light(TUBE));
+  assert.equal(card.video, TUBE_KEY);
+  assert.equal(card.hasTranscript, false);
+  assert.equal(card.transcriptError, "NOT_CACHED");
+  assert.equal(card.official, undefined, "YouTube 没有官方总结");
+  assert.equal(card.info.title, "", "视频信息也不去读，卡片本来不写标题");
+  assert.deepEqual(h.site.calls, []);
+  assert.equal(h.ctxs.length, 0, "没建读取环境，也就没向页面问");
+  assert.deepEqual(await h.rows(), [], "不新建字幕缓存条目");
+});
+
+test("YouTube 本机读过字幕：照常摆，带回本机已有的概览；只有概览、字幕缓存清了时也带回概览", async () => {
+  const cached = rig({ seed: [cachedRow(ZH, {}, TUBE)] });
+  await createOverviewStore({ driver: cached.overviewsDriver, guard: cached.guard }).save({ videoKey: TUBE_KEY, analysis: ANALYSIS });
+  const card = guides(await cached.service.light(TUBE));
+  assert.equal(card.hasTranscript, true);
+  assert.equal(card.fromCache, true);
+  assert.equal(card.transcriptError, undefined);
+  assert.equal(card.info.title, sampleInfo(TUBE).title);
+  assert.deepEqual(card.overview?.analysis, ANALYSIS);
+  assertSlim(card);
+  assert.deepEqual(cached.site.calls, []);
+
+  const overviewOnly = rig();
+  await createOverviewStore({ driver: overviewOnly.overviewsDriver, guard: overviewOnly.guard }).save({ videoKey: TUBE_KEY, analysis: ANALYSIS });
+  const known = guides(await overviewOnly.service.light(TUBE));
+  assert.equal(known.transcriptError, "NOT_CACHED");
+  assert.deepEqual(known.overview?.analysis, ANALYSIS);
+  assert.equal(overviewOnly.ctxs.length, 0);
+});
+
+test("YouTube 导入过字幕文件：算本机有字幕，卡片能生成", async () => {
+  const h = rig();
+  assert.equal((await h.service.importFile(TUBE, { name: "样例.srt", text: "1\n00:00:00,000 --> 00:00:02,000\n导入的第一句\n" })).ok, true);
+  const card = guides(await h.service.light(TUBE));
+  assert.equal(card.hasTranscript, true);
+  assert.equal(card.transcriptError, undefined);
+  assert.equal(h.ctxs.length, 0);
 });
