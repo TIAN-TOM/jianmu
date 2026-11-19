@@ -156,7 +156,6 @@ export function createCardModel(deps: CardDeps) {
   let loadedTicket = -1;
   let saved: LearningAnalysis | null = null;
   let savedBasis: OverviewTranscriptBasis | null = null;
-  /** 摆存着的那份概览。 */
   const shownSaved = (): Pick<CardView, "analysis" | "transcriptBasis"> => ({ analysis: saved, transcriptBasis: savedBasis });
   const settled = new Set<string>();
   // 这个视频的手动展开收起和模式，从会话里读。
@@ -259,16 +258,12 @@ export function createCardModel(deps: CardDeps) {
     if (!reply.ok) {
       if (HIDDEN_CODES.has(reply.code)) return void deps.recheckConfig();
       const known = (reply as GuidesFailure).overview;
-      if (known) {
-        saved = known.analysis;
-        savedBasis = known.transcriptBasis ?? null;
-      }
+      if (known) [saved, savedBasis] = [known.analysis, known.transcriptBasis ?? null];
       return failLoad(describe(reply.code, reply.detail));
     }
     const value = reply.value;
     if (!("mode" in value) || value.video !== current) return failLoad("读到的不是当前视频的数据。");
-    saved = value.overview?.analysis ?? null;
-    savedBasis = value.overview?.transcriptBasis ?? null;
+    [saved, savedBasis] = [value.overview?.analysis ?? null, value.overview?.transcriptBasis ?? null];
     const noCaptions = value.hasTranscript ? false : value.transcriptError === "NO_CAPTIONS" || view.peek().noCaptions;
     const needLogin = !value.hasTranscript && value.transcriptError === "NEED_LOGIN";
     const notRead = !value.hasTranscript && value.transcriptError === "NOT_CACHED";
@@ -360,8 +355,7 @@ export function createCardModel(deps: CardDeps) {
     if (asked !== ticket) return;
     if (!result.ok) return finishOwn(null, result.code, result.code === "TASK_CANCELED" ? "已停止生成。" : describe(result.code, result.detail));
     const value = result.value;
-    saved = value.analysis;
-    savedBasis = value.transcriptBasis ?? null;
+    [saved, savedBasis] = [value.analysis, value.transcriptBasis ?? null];
     const text = value.saveFailed
       ? "概览已生成，但没能保存到本机，以后打开可能要重新生成。"
       : value.canceled
@@ -434,6 +428,12 @@ export function createCardModel(deps: CardDeps) {
       void load(true).then(() => {
         if (view.peek().task && message.verdictPending) patch({ ...shownSaved(), verdictPending: true });
       });
+    }),
+    // 侧边栏给这个视频导入或移除了字幕文件：重读，看结论是不是基于旧字幕。收着时等展开再读。
+    api.on("transcript.changed", (message) => {
+      if (message.video !== video) return;
+      loadedTicket = -1;
+      void load(true);
     }),
     // 本视频的模式变了（侧边栏里切的、播满 1 分钟自动切的）：重读自己标签页的会话，别的标签页同一视频的不算。
     api.on("session.changed", ({ session }) => {

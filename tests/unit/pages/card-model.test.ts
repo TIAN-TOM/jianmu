@@ -422,3 +422,21 @@ test("换过字幕：摆着的概览带上依据的字幕指纹和现在这份�
   fake.broadcast({ type: "task.changed", task: task("side", "completed") });
   assert.ok(await until(() => model.view.value.task === null && model.view.value.transcriptBasis?.verdict === "new"));
 });
+
+test("侧边栏给这个视频换了字幕：卡片重读，换上现在这份的指纹；别的视频换了不读", async () => {
+  const { fake, model } = setup();
+  const overview = { analysis: ANALYSIS, analysisFailures: [], transcriptBasis: { chapters: "old", verdict: "old" } };
+  fake.reply("transcript.get", { value: guides(KEY, { hasTranscript: true, transcriptFingerprint: "old", overview }) });
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.transcriptFingerprint === "old"));
+  const reads = fake.attempts("transcript.get");
+
+  fake.broadcast({ type: "transcript.changed", video: videoKey(SECOND) });
+  assert.ok(await stillFalse(() => fake.attempts("transcript.get") > reads));
+
+  fake.reply("transcript.get", { value: guides(KEY, { hasTranscript: true, transcriptFingerprint: "new", overview }) });
+  fake.broadcast({ type: "transcript.changed", video: KEY });
+  assert.ok(await until(() => model.view.value.transcriptFingerprint === "new"));
+  assert.deepEqual(model.view.value.transcriptBasis, { chapters: "old", verdict: "old" }, "概览不动，页面据此标基于旧字幕");
+});

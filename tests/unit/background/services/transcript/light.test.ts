@@ -659,3 +659,16 @@ test("命中字幕缓存：带上现在这份字幕的指纹和概览依据的�
   assert.equal(uncached.hasTranscript, false);
   assert.equal("transcriptFingerprint" in uncached, false);
 });
+
+test("刚导入字幕文件、缓存里的字幕作废了还没重读：卡片拿到的指纹是导入的那份；移除以后不带", async () => {
+  const h = rig({ seed: [cachedRow(undefined, { official: storedOfficial("ok") })] });
+  const platform = guides(await h.service.light(REF)).transcriptFingerprint;
+  assert.ok(platform);
+  const srt = ["1", "00:00:01,000 --> 00:00:04,000", "导入的一句", ""].join("\n");
+  assert.equal((await h.service.importFile(REF, { name: "课程.srt", text: srt })).ok, true);
+  const imported = guides(await h.service.light(REF)).transcriptFingerprint;
+  assert.ok(imported);
+  assert.notEqual(imported, platform);
+  assert.equal((await h.service.removeImport(REF)).ok, true);
+  assert.equal("transcriptFingerprint" in guides(await h.service.light(REF)), false, "平台字幕还没重读，不知道是哪份");
+});
