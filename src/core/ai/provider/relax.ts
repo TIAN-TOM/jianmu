@@ -31,6 +31,9 @@ const JSON_WORD_REQUIRED = /must contain the word ['"`]?json/i;
 // 兼容网关拒收 JSON 输出格式参数时，报错会点名这个参数或它的取值。
 const RESPONSE_FORMAT_REJECTED = /response_format|json_object|json[ _-]?mode/i;
 
+// 输出上限超过型号自己的上限被拒时，报错会点名这个参数。
+const OUTPUT_LIMIT_REJECTED = /max_(?:completion_|output_)?tokens/i;
+
 function sentStructuredOutput(body: ChatRequestBody | null | undefined): boolean {
   return Boolean(body?.output_config?.format || body?.text?.format?.type === "json_schema");
 }
@@ -44,18 +47,24 @@ function sentStructuredOutput(body: ChatRequestBody | null | undefined): boolean
  * relax.jsonObject 为 true 表示连 JSON 模式也不发（Responses），只靠提示词约束格式。
  * relax.effort 为 true 表示不发 reasoning.effort（Responses），用型号的默认档。
  * relax.responseFormat 为 true 表示不发 response_format（Chat Completions），只靠提示词约束格式。
+ * relax.headroom 为 true 表示输出上限不加给思考留的余量：headroom 是这次加上的余量，
+ * 加了以后超过型号自己的上限被拒，就退回不加余量的上限，和留余量之前一样。
  * 一路只往不传的方向走，所以重发次数有限。
- * Chat Completions 只放宽 JSON 输出格式参数，别的报错照旧交还：兼容服务商的请求体尽量保持原样。
+ * Chat Completions 只放宽 JSON 输出格式参数和余量，别的报错照旧交还：兼容服务商的请求体尽量保持原样。
  */
 export function relaxRejectedParams(
   protocol: Protocol,
   error: RejectedError | null | undefined,
   current: RelaxState = {},
   body: ChatRequestBody | null = null,
+  headroom = 0,
 ): RelaxState | null {
   if (error?.status !== 400) return null;
   // OpenAI 的报错把出问题的参数单独放在 param 里，比如 reasoning.effort。
   const message = [error.message, error.param].filter(Boolean).join(" ");
+  if (headroom > 0 && !current.headroom && OUTPUT_LIMIT_REJECTED.test(message)) {
+    return { ...current, headroom: true };
+  }
   if (protocol === PROTOCOLS.OPENAI) {
     return !current.responseFormat && body?.response_format && RESPONSE_FORMAT_REJECTED.test(message)
       ? { ...current, responseFormat: true }
@@ -215,12 +224,13 @@ export async function sendChatWithRelax({
   await memory?.ready?.();
   const since = memory?.epoch?.();
   const level = effort?.requested;
+  const headroom = effort?.outputHeadroom ?? 0;
   let current: RelaxState = { ...memory?.recall(settings, level), ...relax };
   for (;;) {
     const request = buildChatRequest({
       settings,
       messages,
-      maxTokens,
+      maxTokens: current.headroom ? Math.max(1, maxTokens - headroom) : maxTokens,
       temperature,
       responseFormat,
       relax: current,
@@ -232,7 +242,7 @@ export async function sendChatWithRelax({
       await memory?.remember(settings, current, level && level !== "off" ? { since, effort: level } : { since });
       return { data, relax: current };
     } catch (error) {
-      const next = relaxRejectedParams(settings.protocol, error as RejectedError, current, request.body);
+      const next = relaxRejectedParams(settings.protocol, error as RejectedError, current, request.body, headroom);
       if (!next) throw error;
       current = next;
       onRelax(current);

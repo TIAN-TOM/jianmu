@@ -1,5 +1,5 @@
 // 推理强度的映射，集中在这一张表：协议 × 域名 × 型号 × 档位 → 请求体补丁、实际生效的档位、输出余量和超时。
-// 选关时请求和以前一样；Google 模型服务的兼容端点例外：关得掉的显式关，关不掉的按最低档发并标出。
+// 选关时请求体的参数和以前一样（照样会思考的模型多留输出余量，见 planEffort）；Google 模型服务的兼容端点例外：关得掉的显式关，关不掉的按最低档发并标出。
 // 做不到的档位退到最接近的一档并标出，不悄悄退回不发。各档的数值都是初值。
 import type { Effort } from "../../notes/records.ts";
 import { parseClaudeModel } from "./anthropic.ts";
@@ -162,7 +162,9 @@ const rank = (effort: Effort): number => EFFORTS.indexOf(effort);
 /**
  * 按用户选的档位和这个服务、型号的能力，算出实际生效的档位和请求体补丁。
  * 「关」不会变成更高的默认档：关不掉的按最低档发，扩展设不了的照旧不发。
- * 输出余量和超时按选的和实际的两者中低的那档算，所以选关时预算和超时都和以前一样。
+ * 超时按选的和实际的两者中低的那档算。输出余量也一样，只有两种情况例外，按低档留：
+ * 关不掉思考、选了关的，和扩展设不了档位的（不管选的哪档）。这两种模型照样会思考，
+ * 思考和回复共用一个输出上限，不留余量回复就容易被截断。认得出、关得掉、选了关的，预算和以前一样。
  */
 export function planEffort({ protocol, host, model, requested, caps }: EffortPlanInput): EffortPlan {
   const supported = EFFORTS.filter((effort) => caps.efforts.includes(effort));
@@ -191,12 +193,13 @@ export function planEffort({ protocol, host, model, requested, caps }: EffortPla
     patch = effective === "off" ? patches.off : patches.level(effective);
   }
   const budget = EFFORT_BUDGETS[rank(effective) < rank(requested) ? effective : requested];
+  const thinksAnyway = note === "unknown" || note === "cannot-disable";
   return {
     requested,
     effective,
     ...(note ? { note } : {}),
     patch,
-    outputHeadroom: budget.outputHeadroom,
+    outputHeadroom: thinksAnyway ? EFFORT_BUDGETS.low.outputHeadroom : budget.outputHeadroom,
     timeoutSec: budget.timeoutSec,
   };
 }
