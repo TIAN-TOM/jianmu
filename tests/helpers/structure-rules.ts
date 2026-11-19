@@ -158,7 +158,7 @@ function checkImport(file: string, { specifier, target, typeOnly }: Edge): strin
     return `扩展页面只用 sites/rules.ts：${specifier}`;
   }
   if (from === "content") {
-    const site = /^src\/content\/([a-z]+)\.ts$/.exec(file)?.[1];
+    const site = /^src\/content\/([a-z]+)(?:-[a-z]+)?\.ts$/.exec(file)?.[1];
     const own = site !== undefined && (target === `src/sites/${site}/page.ts` || SITE_PAGE.exec(target)?.[1] === site);
     if (target !== "src/sites/rules.ts" && target !== "src/sites/page-types.ts" && !own && !isTypes) return `内容脚本只导入自己站的页面模块（page.ts、page/）和 rules.ts：${specifier}`;
   }

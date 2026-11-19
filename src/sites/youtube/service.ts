@@ -1,9 +1,9 @@
 // YouTube 的读取服务：不向平台发任何请求，只经内容脚本读观看页上用户自己打开的文字稿面板。
 // 开始读时核对页面上是不是这个视频；交回正文之前隔一会儿再问一次，视频、面板内容和语言有一样变了就整份不用。
-// 读到的只有面板当前显示的那一条轨，语言和来源按面板语言菜单上的名字认，认不出就照实显示名字。
+// 读到的只有面板当前显示的那一条轨：对照播放器上已有的字幕轨列表判定是哪一条，判定不了就记来源未确认。
 import type { VideoRef } from "../../core/video-ref.ts";
 import type { CaptionTrack, Cue, PageChannel, SiteCtx, SiteFailure, SiteResult, SiteService, VideoInfo } from "../types.ts";
-import { panelCurrentOf, panelSnapshotOf, type PanelSnapshot } from "./page/panel-types.ts";
+import { panelCurrentOf, panelSnapshotOf, type PanelSnapshot, type PlayerTrack, type PlayerTracks } from "./page/panel-types.ts";
 import { youtubeRules } from "./url.ts";
 
 // 等页面回话的上限：面板还在加载时页面那头最多等几秒。
@@ -14,6 +14,8 @@ const RECHECK_DELAY_MS = 300;
 const LAST_CUE_SEC = 5;
 const TRACK_PREFIX = "panel:";
 const UNNAMED_TRACK = "YouTube 文字稿";
+const UNCONFIRMED_TRACK = "YouTube 文字稿（来源未确认）";
+const AUTO_KIND = "asr";
 
 // 菜单名里标着自动生成的几种写法。
 const AUTO_MARK = /auto-generated|automatisch|automática|automatique|automatico|automatyczn|автоматическ|自动生成|自動生成|自動產生|자동 생성/i;
@@ -62,20 +64,74 @@ const SCRIPTS: readonly (readonly [RegExp, string])[] = [
   [/[\u4e00-\u9fff]/gu, "zh"],
 ];
 
+// 中日韩各自用到的文字，判定出的轨拿它和正文核一遍。
+const OWN_SCRIPT: Readonly<Record<string, RegExp>> = {
+  zh: /[\u4e00-\u9fff]/gu,
+  yue: /[\u4e00-\u9fff]/gu,
+  ja: /[\u3040-\u30ff\u4e00-\u9fff]/gu,
+  ko: /[\uac00-\ud7af]/gu,
+};
+const ANY_CJK = /[\u3040-\u30ff\u4e00-\u9fff\uac00-\ud7af]/gu;
+
+const sampleOf = (texts: readonly string[]): string => texts.join("").replace(/\s+/g, "").slice(0, SCRIPT_SAMPLE);
+const shareOf = (pattern: RegExp, sample: string): number => (sample.match(pattern)?.length ?? 0) / sample.length;
+
 /** 面板上没有语言名时，按正文用的文字认中文、日文、韩文；别的认不出，不猜。 */
 export function langOfText(texts: readonly string[]): string {
-  const sample = texts.join("").replace(/\s+/g, "").slice(0, SCRIPT_SAMPLE);
+  const sample = sampleOf(texts);
   if (!sample) return UNKNOWN_LANG;
   for (const [pattern, lang] of SCRIPTS) {
-    if ((sample.match(pattern)?.length ?? 0) / sample.length >= SCRIPT_SHARE) return lang;
+    if (shareOf(pattern, sample) >= SCRIPT_SHARE) return lang;
   }
   return UNKNOWN_LANG;
 }
 
-/** 面板语言菜单上的名字认语言和来源；新面板没有语言菜单，名字是空的，语言按正文的文字认。 */
-export function trackOfLabel(label: string, texts: readonly string[] = []): CaptionTrack {
+/** 轨的语言和正文用的文字对得上：中日韩的轨正文要有足够的对应文字，别的语言的轨正文不能大半是中日韩文字。 */
+export function scriptFits(lang: string, texts: readonly string[]): boolean {
+  const sample = sampleOf(texts);
+  if (!sample) return false;
+  const own = OWN_SCRIPT[lang.split("-")[0]?.toLowerCase() ?? ""];
+  return own ? shareOf(own, sample) >= SCRIPT_SHARE : shareOf(ANY_CJK, sample) < SCRIPT_SHARE;
+}
+
+/**
+ * 判定新面板显示的是播放器上的哪条轨：播放器放的视频和面板归属的对得上，只有一条轨就是它，有默认轨就是默认轨，
+ * 再拿正文的文字核一遍语言。判定不了是 null，不猜。
+ */
+export function panelTrackOf(player: PlayerTracks | null, videoId: string, texts: readonly string[]): PlayerTrack | null {
+  if (!player || player.videoId !== videoId) return null;
+  const index = player.tracks.length === 1 ? 0 : player.hasDefault !== false ? player.defaultIndex : null;
+  const track = index === null ? undefined : player.tracks[index];
+  return track && track.lang && scriptFits(track.lang, texts) ? track : null;
+}
+
+/** 旧面板语言菜单上的名字在播放器的轨里只对上一条时，就是那一条。 */
+function namedTrack(player: PlayerTracks | null, videoId: string, label: string): PlayerTrack | null {
+  if (!player || player.videoId !== videoId) return null;
+  const named = player.tracks.filter((track) => track.name === label);
+  return named.length === 1 && named[0]?.lang ? named[0] : null;
+}
+
+/** 面板语言菜单上的名字认语言和来源，认不出来源的记人工。 */
+export function trackOfLabel(label: string): CaptionTrack {
   const shown = label.trim() || UNNAMED_TRACK;
-  return { trackId: `${TRACK_PREFIX}${shown}`, lang: label.trim() ? langOfLabel(label) : langOfText(texts), label: shown, kind: AUTO_MARK.test(label) ? "auto" : "human" };
+  return { trackId: `${TRACK_PREFIX}${shown}`, lang: langOfLabel(label), label: shown, kind: AUTO_MARK.test(label) ? "auto" : "human" };
+}
+
+/**
+ * 面板上这份正文是哪条轨。旧面板有语言菜单，名字对上播放器的轨就用那条，对不上按名字认；
+ * 新面板没有语言菜单，判定出轨就用轨的语言、来源和显示名，判定不了记来源未确认，语言按正文的文字认。
+ */
+export function trackOfPanel(snapshot: Pick<PanelSnapshot, "videoId" | "label" | "cues" | "player">): CaptionTrack {
+  const label = snapshot.label.trim();
+  const texts = snapshot.cues.map((cue) => cue.text);
+  const track = label ? namedTrack(snapshot.player, snapshot.videoId, label) : panelTrackOf(snapshot.player, snapshot.videoId, texts);
+  if (track) {
+    const shown = track.name || UNNAMED_TRACK;
+    return { trackId: `${TRACK_PREFIX}${shown}`, lang: track.lang, label: shown, kind: track.kind === AUTO_KIND ? "auto" : "human" };
+  }
+  if (label) return trackOfLabel(label);
+  return { trackId: `${TRACK_PREFIX}${UNCONFIRMED_TRACK}`, lang: langOfText(texts), label: UNCONFIRMED_TRACK, kind: "unconfirmed" };
 }
 
 /** 段落的时长按下一段的开始算，最后一段按视频剩下的时间、最多几秒。 */
@@ -184,7 +240,7 @@ export function createYoutubeService({ askTimeoutMs = ASK_TIMEOUT_MS }: { readon
         snapshots.set(ctx, snapshot);
       }
       const failure = failureOfState(snapshot);
-      return failure ?? { ok: true, value: [trackOfLabel(snapshot.label, snapshot.cues.map((cue) => cue.text))] };
+      return failure ?? { ok: true, value: [trackOfPanel(snapshot)] };
     },
 
     async readCaptions(info, track, ctx) {
@@ -193,7 +249,7 @@ export function createYoutubeService({ askTimeoutMs = ASK_TIMEOUT_MS }: { readon
       const failure = failureOfState(snapshot);
       if (failure) return failure;
       // 面板上的轨换了（用户在面板里换了语言）：这份不是要的那条。
-      if (trackOfLabel(snapshot.label).trackId !== track.trackId) return fail("UNAVAILABLE", "stale");
+      if (trackOfPanel(snapshot).trackId !== track.trackId) return fail("UNAVAILABLE", "stale");
       const changed = await stillSame(info.ref, ctx, snapshot, askTimeoutMs);
       return changed ?? { ok: true, value: cuesOf(snapshot) };
     },

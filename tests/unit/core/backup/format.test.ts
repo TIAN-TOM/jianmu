@@ -294,6 +294,20 @@ test("第 2 版备份带上译文和整理后的字幕：导出再导回来是�
   assert.deepEqual(read(JSON.parse(JSON.stringify(backup))).contents.translations, [TIDIED, TRANSLATED]);
 });
 
+test("来源未确认的字幕做出来的笔记和译文：导出再导回来来源照旧是未确认，不升备份版本；认不出的来源照旧跳过", () => {
+  const unconfirmed = { video: KEY_Y, kind: "unconfirmed" as const, lang: "und", fingerprint: "fp-sample-y" };
+  const note: NoteRecord = { ...NOTE, id: "note_sample-y", video: KEY_Y, derived: { ...DERIVED, basis: { source: "transcript", transcript: unconfirmed } } };
+  const tidied: TranslationRecord = { ...TIDIED, id: translationId(unconfirmed, "tidy"), video: KEY_Y, transcript: unconfirmed, derived: { basis: { source: "transcript", transcript: unconfirmed }, gen: { feature: "tidy", promptVersion: "v1", model: "m", effort: "off" } } };
+  const backup = buildBackup({ notes: [note], translations: [tidied] }, EXPORTED_AT);
+  assert.equal(backup.version, 2);
+  const imported = read(JSON.parse(JSON.stringify(backup)));
+  assert.deepEqual(imported.contents.notes, [note]);
+  assert.deepEqual(imported.contents.translations, [tidied]);
+  const unknown = { ...unconfirmed, kind: "guessed" };
+  const bad = read({ ...JSON.parse(JSON.stringify(backup)), translations: [{ ...tidied, transcript: unknown, derived: { ...tidied.derived, basis: { source: "transcript", transcript: unknown } } }] });
+  assert.equal(bad.skipped.translations, 1);
+});
+
 test("第 1 版的备份照常能读，没有译文这一类", () => {
   const v1 = { kind: BACKUP_KIND, version: 1, exportedAt: "2026-11-01T08:00:00.000Z", notes: [NOTE], overviews: [OVERVIEW], qa: [QA] };
   const imported = read(v1);

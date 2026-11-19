@@ -53,7 +53,8 @@ const QA_ID_PREFIX = "qa_";
 const TITLE_MAX = 500;
 const AUTHOR_MAX = 300;
 
-const CAPTION_KINDS: readonly CaptionKind[] = ["human", "auto", "official-ai", "imported"];
+// 认得的字幕来源类别。旧备份里没有「来源未确认」，照常导入。
+const CAPTION_KINDS: readonly CaptionKind[] = ["human", "auto", "official-ai", "imported", "unconfirmed"];
 const EFFORTS: readonly Effort[] = ["off", "low", "medium", "high"];
 
 export type Fields = Readonly<Record<string, unknown>>;

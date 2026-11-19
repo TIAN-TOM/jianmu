@@ -80,9 +80,12 @@ const bundles = [
 ];
 
 // 只在开关打开时构建的入口：YouTube 的内容脚本运行时按授权动态注册，开关关着时这个文件不出现在产物里。
-/** @type {Readonly<Record<string, import("esbuild").BuildOptions>>} */
+/** @type {Readonly<Record<string, readonly import("esbuild").BuildOptions[]>>} */
 const FEATURE_BUNDLES = {
-  youtube: { entryPoints: ["src/content/youtube.ts"], outfile: "build/content/youtube.js", format: "iife" },
+  youtube: [
+    { entryPoints: ["src/content/youtube.ts"], outfile: "build/content/youtube.js", format: "iife" },
+    { entryPoints: ["src/content/youtube-bridge.ts"], outfile: "build/content/youtube-bridge.js", format: "iife" },
+  ],
 };
 
 /**
@@ -93,7 +96,7 @@ const FEATURE_BUNDLES = {
  */
 export function bundleOptions(features) {
   const define = { __JIANMU_BUILD_ID__: JSON.stringify(buildId(features)), ...featureDefines(features) };
-  const gated = Object.entries(FEATURE_BUNDLES).flatMap(([name, bundle]) => (features[/** @type {keyof typeof features} */ (name)] === true ? [bundle] : []));
+  const gated = Object.entries(FEATURE_BUNDLES).flatMap(([name, list]) => (features[/** @type {keyof typeof features} */ (name)] === true ? list : []));
   return [...bundles, ...gated].map((bundle) => ({ ...shared, ...bundle, define }));
 }
 

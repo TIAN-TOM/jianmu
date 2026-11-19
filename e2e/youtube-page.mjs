@@ -4,6 +4,7 @@
 // 另有两个新式面板的视频：有章节的打开的是带「章节」「文字稿」页签的面板，没章节的打开新式文字稿面板；
 // 两个页面上都一直留着关着的旧面板和新式面板空壳，段落是新写法，搜索框是多行文本框，没有语言菜单。
 // 文字稿入口在页面上有两份：简介里一份，一直关着的简介面板里一份；点了后面那份，页面记一笔，测试据此判点错了。
+// 新式面板的页面另有播放器自己的数据：字幕轨列表和默认音轨里的默认字幕轨，交给页面主世界的小桥读。
 import { QUIET_MEDIA_PATH } from "./watch-page.mjs";
 
 export const TUBE_HOST = "www.youtube.com";
@@ -14,7 +15,21 @@ export const TUBE_VIDEOS = Object.freeze({
   jmTube00002: { layout: "classic", title: "样例第二个视频", author: "样例频道", channel: "@sample.channel", label: "English", lines: ["second video line one", "second video line two"] },
   jmTube00003: { layout: "chapters", title: "样例新面板带章节", author: "样例频道", channel: "@sample.channel", label: "", lines: ["modern line one", "modern line two", "modern line three"] },
   jmTube00004: { layout: "modern", title: "样例新面板没章节", author: "样例频道", channel: "@sample.channel", label: "", lines: ["plain modern line one", "plain modern line two"] },
+  jmTube00005: { layout: "modern", title: "样例新面板没有默认轨", author: "样例频道", channel: "@sample.channel", label: "", lines: ["unmarked line one", "unmarked line two"] },
 });
+
+const HUMAN_EN = { name: { simpleText: "English" }, vssId: ".en", languageCode: "en" };
+const AUTO_EN = { name: { runs: [{ text: "English (auto-generated)" }] }, vssId: "a.en", languageCode: "en", kind: "asr" };
+/**
+ * 播放器上已有的字幕轨：人工和自动都有、默认人工；只有一条自动轨；两条轨但没有默认轨。
+ * 带一个不该读的字幕地址，测试据此看小桥没把它交出去。
+ */
+export const TUBE_PLAYER_TRACKS = Object.freeze({
+  jmTube00003: { tracks: [HUMAN_EN, AUTO_EN], audioTracks: [{ defaultCaptionTrackIndex: 0, hasDefaultTrack: true }] },
+  jmTube00004: { tracks: [AUTO_EN], audioTracks: [{}] },
+  jmTube00005: { tracks: [HUMAN_EN, AUTO_EN], audioTracks: [{}] },
+});
+export const TUBE_TRACK_ADDRESS = "/e2e-never-read-track";
 
 /** 旧式页面上「下一个视频」在这两个之间来回跳。 */
 const CLASSIC_IDS = ["jmTube00001", "jmTube00002"];
@@ -151,7 +166,7 @@ function modernPageHtml(id, video) {
 <body>
 <ytd-app>
   <ytd-watch-flexy video-id="${id}">
-    <div class="html5-video-player"><video class="html5-main-video" muted autoplay loop src="${QUIET_MEDIA_PATH}"></video></div>
+    <div class="html5-video-player" id="movie_player"><video class="html5-main-video" muted autoplay loop src="${QUIET_MEDIA_PATH}"></video></div>
     <ytd-watch-metadata>
       <h1>${video.title}</h1>
       <ytd-channel-name><a href="/${video.channel}">${video.author}</a></ytd-channel-name>
@@ -168,6 +183,18 @@ function modernPageHtml(id, video) {
 </ytd-app>
 <script>
   const lines = ${lines};
+  // 播放器自己的数据：页面上的方法，只在页面主世界里看得见。
+  const player = ${JSON.stringify(TUBE_PLAYER_TRACKS[/** @type {keyof typeof TUBE_PLAYER_TRACKS} */ (id)] ?? { tracks: [], audioTracks: [] })};
+  document.getElementById("movie_player").getPlayerResponse = () => ({
+    videoDetails: { videoId: ${JSON.stringify(id)} },
+    captions: {
+      playerCaptionsTracklistRenderer: {
+        captionTracks: player.tracks.map((track) => ({ ...track, baseUrl: ${JSON.stringify(TUBE_TRACK_ADDRESS)} })),
+        audioTracks: player.audioTracks,
+        defaultAudioTrackIndex: 0,
+      },
+    },
+  });
   const panel = document.getElementById("e2e-open-panel");
   const content = panel.querySelector("#content");
   const stamp = (seconds) => Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0");

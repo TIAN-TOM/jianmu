@@ -41,6 +41,10 @@ export const INJECTED = {
   cardMessage: "jianmu-card-message",
   hostMessage: "jianmu-card-host",
   instance: "jianmu-content-instance",
+  // YouTube 页面主世界的只读小桥和内容脚本之间的页面事件：问、答，和新注入的一份叫旧的停下。
+  tracksAsk: "jianmu-tracks-ask",
+  tracksAnswer: "jianmu-tracks-answer",
+  bridgeRetire: "jianmu-bridge-retire",
 } as const;
 
 // 工具栏图标右键菜单里简幕自己的几项，以 jianmu- 开头。
