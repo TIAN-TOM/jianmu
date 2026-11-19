@@ -413,7 +413,7 @@ test("第 4 版的说明：同意过第 3 版的只看到自动发送这一行�
   const [only] = lines(fromThird.items);
   assert.deepEqual(only?.ids, ["auto-on-open-tabs"]);
   assert.match(only?.text ?? "", /^打开「打开就出结论」以后/);
-  for (const word of ["字幕", "视频标题和时长", "UP 主名和简介", "超过设定时长", "YouTube 不自动发"]) assert.ok(only?.text.includes(word), word);
+  for (const word of ["字幕", "视频标题和时长", "UP 主名或频道名和简介", "超过设定时长", "B 站和已启用的 YouTube"]) assert.ok(only?.text.includes(word), word);
 
   const full = noticeStatus(DATA_CONSENT_TABLE, {});
   assert.ok(full.state === "needed");

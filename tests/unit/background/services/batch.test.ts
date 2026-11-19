@@ -2,6 +2,7 @@
 // 任务运行器、概览和写结论服务、概览仓储是真的（测试架子），站点读取和字幕是替身，计时器手动推进。
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { PAGE_WAIT_MS } from "../../../../src/background/services/auto-generate.ts";
 import { createBatchService, type BatchListener } from "../../../../src/background/services/batch/index.ts";
 import { titleOfTab } from "../../../../src/background/services/batch/window.ts";
 import { youtubeRules } from "../../../../src/sites/youtube/url.ts";
@@ -60,6 +61,8 @@ interface Options {
   readonly freezeGate?: Promise<void>;
   /** 登记任务前先等它：测试在登记还没回来时停下这一轮。 */
   readonly registerGate?: Promise<void>;
+  /** 交了页面读取（能代开文字稿面板的构建）：YouTube 这样回；不给时没有页面读取。 */
+  readonly pageRead?: (ref: VideoRef) => TranscriptReply | "later";
 }
 
 /** 一句话的字幕：概览一块就做完。 */
@@ -106,12 +109,25 @@ function setup(options: Options = {}) {
   let ready = true;
   let idCount = 0;
   const tabs = options.tabs ?? [];
+  /** 经页面读的：视频和标签页。 */
+  const pageReads: (readonly [VideoKey, number])[] = [];
+  const pageRead = options.pageRead;
+  const pageTranscript = pageRead
+    ? {
+        duration: async () => null,
+        async read(ref: VideoRef, tabId: number) {
+          pageReads.push([videoKey(ref), tabId]);
+          return pageRead(ref);
+        },
+      }
+    : null;
   const service = createBatchService({
     triage: createTriageStore({ storage, guard: harness.guard, now: timers.now }),
     sites: { service: (platform) => (platform === "bilibili" ? site.service : undefined), ctx: (_platform, { signal }) => ({ fetch, signal, backoff: { admit: async () => ({ ok: true }), trip: async () => {}, clear: async () => {} } }) },
     rules: [bilibiliRules, youtubeRules],
     windowTabs: async () => tabs.map((tab, index) => ({ tabId: index + 1, ...tab })),
     transcript,
+    pageTranscript,
     overviews: harness.store,
     overview: harness.service,
     tasks: {
@@ -146,7 +162,7 @@ function setup(options: Options = {}) {
     const listener: BatchListener = { id, post: (event) => void events.push(structuredClone(event)) };
     return { listener, events, last: <T extends BatchOut["type"]>(type: T) => events.filter((event): event is Extract<BatchOut, { type: T }> => event.type === type).at(-1) };
   };
-  return { site, harness, service, storage, timers, ensured, cacheReads, materials, page, setReady: (value: boolean) => void (ready = value) };
+  return { site, harness, service, storage, timers, ensured, cacheReads, materials, page, pageReads, setReady: (value: boolean) => void (ready = value) };
 }
 
 /** 等到间隔计时器排上，再让它到点。 */
@@ -387,7 +403,7 @@ test("清点：只看地址和标题、本机概览和任务表，不向平台�
   assert.equal(ensured.length, before);
 });
 
-test("清点：YouTube 标签页列出来、标成需逐个打开，开始生成时不进批量，也不读它", async () => {
+test("没有页面读取的构建：YouTube 标签页列出来、标成需逐个打开，开始生成时不进批量，也不读它", async () => {
   const tube = "https://www.youtube.com/watch?v=jmSample0001";
   const tabs = [
     { url: watchUrl(ids[0]), title: "第一个" },
@@ -404,6 +420,70 @@ test("清点：YouTube 标签页列出来、标成需逐个打开，开始生成
   void service.handle({ type: "window.start", windowId: 7 }, panel.listener);
   assert.ok(await until(() => ensured.length > before));
   assert.ok(!ensured.slice(before).some((video) => String(video).startsWith("youtube:")));
+});
+
+test("有页面读取：YouTube 标签页照常进批量，经它所在的标签页读，读到了就生成", async () => {
+  const tube = "https://www.youtube.com/watch?v=jmSample0001";
+  const tabs = [
+    { url: watchUrl(ids[0]), title: "第一个" },
+    { url: tube, title: "样例英文讲座 - YouTube" },
+  ];
+  const { service, timers, ensured, pageReads, page } = setup({ tabs, pageRead: (ref) => ({ ok: true, value: transcriptView(ref) }) });
+  const panel = page("panel");
+  await service.handle({ type: "window.count", windowId: 7 }, panel.listener);
+  assert.deepEqual(
+    panel.last("window.counted")?.items.map((item) => item.state),
+    ["to-generate", "to-generate"],
+  );
+  void service.handle({ type: "window.start", windowId: 7 }, panel.listener);
+  assert.ok(await until(() => ensured.includes(keyOf(ids[0]))));
+  await tick(timers);
+  assert.ok(await until(() => pageReads.length === 1));
+  assert.deepEqual(pageReads, [["youtube:jmSample0001", 2]]);
+  assert.ok(!ensured.slice(0, 1).some((video) => String(video).startsWith("youtube:")), "B 站以外的不走直接读");
+  assert.ok(await until(() => panel.last("window.state")?.run?.entries.every((entry) => entry.status === "completed") === true), "两个都生成完");
+});
+
+test("有页面读取：页面一直没准备好，问几次就报暂时读不了，只算这一项，后面的照做", async () => {
+  const tube = "https://www.youtube.com/watch?v=jmSample0001";
+  const tabs = [
+    { url: tube, title: "样例英文讲座 - YouTube" },
+    { url: watchUrl(ids[0]), title: "第一个" },
+  ];
+  const { service, timers, ensured, pageReads, page } = setup({ tabs, pageRead: () => "later" });
+  const panel = page("panel");
+  await service.handle({ type: "window.count", windowId: 7 }, panel.listener);
+  void service.handle({ type: "window.start", windowId: 7 }, panel.listener);
+  for (let wait = 1; wait < 3; wait += 1) {
+    assert.ok(await until(() => timers.due(PAGE_WAIT_MS) > 0), `第 ${wait} 次隔一会儿再问`);
+    timers.fire(PAGE_WAIT_MS);
+  }
+  assert.ok(await until(() => pageReads.length === 3));
+  const entry = () => panel.last("window.state")?.run?.entries.find((item) => item.video === "youtube:jmSample0001");
+  assert.ok(await until(() => entry()?.status === "failed"));
+  assert.equal(entry()?.failure?.code, "UNAVAILABLE");
+  await tick(timers);
+  assert.ok(await until(() => ensured.includes(keyOf(ids[0]))), "后面的照做");
+  assert.equal(panel.last("window.state")?.run?.stop, undefined);
+});
+
+test("有页面读取：YouTube 那一项读不成以后点重试，再经它所在的标签页读，读到了就生成", async () => {
+  const tube = "https://www.youtube.com/watch?v=jmSample0001";
+  let ready = false;
+  const { service, timers, pageReads, page } = setup({ tabs: [{ url: tube, title: "样例英文讲座 - YouTube" }], pageRead: (ref) => (ready ? { ok: true, value: transcriptView(ref) } : "later") });
+  const panel = page("panel");
+  await service.handle({ type: "window.count", windowId: 7 }, panel.listener);
+  void service.handle({ type: "window.start", windowId: 7 }, panel.listener);
+  const entry = () => panel.last("window.state")?.run?.entries[0];
+  for (let wait = 1; wait < 3; wait += 1) {
+    assert.ok(await until(() => timers.due(PAGE_WAIT_MS) > 0));
+    timers.fire(PAGE_WAIT_MS);
+  }
+  assert.ok(await until(() => entry()?.status === "failed"));
+  ready = true;
+  await service.handle({ type: "window.retry", windowId: 7, video: videoKey({ platform: "youtube", videoId: "jmSample0001" }) }, panel.listener);
+  assert.deepEqual(pageReads.at(-1), ["youtube:jmSample0001", 1], "重试也经它所在的标签页读");
+  assert.ok(await until(() => entry()?.status === "completed"), "读到了就生成");
 });
 
 test("确认后逐个读字幕、两项之间隔 1 秒，新生成的都出结果；关掉侧边栏照常做完，重开时接上", async () => {

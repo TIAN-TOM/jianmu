@@ -16,7 +16,7 @@ import type { StoreName } from "../shared/names.ts";
 import type { SiteRules } from "../sites/types.ts";
 import { createActionMenu, type ContextMenusDeps, type MenuClick } from "./action-menu.ts";
 import { createAiWiring, type AiWiring, type ModelServiceFetch, type PromptTable } from "./ai.ts";
-import { autoSwitchToggled, createAutoWiring } from "./auto.ts";
+import { autoSwitchToggled, createAutoWiring, pageTranscriptOf, watchPagesOf } from "./auto.ts";
 import { createContentTabs, siteTabs, type ContentTabs } from "./content-tabs.ts";
 import { createGrants, siteOriginsOf, type Grants } from "./grants.ts";
 import { createCardLimits, createPlaybackLimits, createPlayerNoteLimit, type CardLimits, type PlaybackLimits } from "./limits.ts";
@@ -326,19 +326,17 @@ function assembleTranslate(deps: AppDeps, parts: OverviewParts, translations: Tr
   });
 }
 
-// 批次：粗筛的列表和官方总结存在扩展本机存储里；写结论和本窗口全部生成都排概览那道并发闸门。已授权的站（YouTube）的观看页也清点。
-function assembleBatch(deps: AppDeps, parts: OverviewParts, tabs: Tabs, keepAlive: KeepAlive, services: { readonly overview: OverviewService; readonly verdict: VerdictService }, siteSwitch: SiteSwitch | null): BatchService {
-  const watchPages = tabs.contentScripts().flatMap((script) => script.matches);
+// 批次：粗筛的列表和官方总结存在扩展本机存储里；写结论和本窗口全部生成都排概览那道并发闸门。已授权的站（YouTube）的观看页也清点、也经页面读。
+function assembleBatch(deps: AppDeps, parts: OverviewParts, tabs: Tabs, keepAlive: KeepAlive, services: { readonly overview: OverviewService; readonly verdict: VerdictService; readonly pageTranscript: ReturnType<typeof pageTranscriptOf> }, watchPages: () => Promise<readonly string[]>): BatchService {
   return createBatchService({
     triage: createTriageStore({ storage: deps.storage.local, guard: parts.clearGuard, now: deps.timers.now }),
     sites: deps.sites,
     rules: deps.siteRules,
-    windowTabs: async (windowId) => tabs.windowTabs(windowId, [...watchPages, ...((await siteSwitch?.grantedScripts()) ?? []).flatMap((script) => script.matches)]),
+    windowTabs: async (windowId) => tabs.windowTabs(windowId, [...(await watchPages())]),
     transcript: parts.transcript,
     overviews: parts.overviews,
-    overview: services.overview,
+    ...services,
     tasks: parts.tasks,
-    verdict: services.verdict,
     ai: parts.ai,
     guard: parts.clearGuard,
     keepAlive,
@@ -394,7 +392,9 @@ function assembleCore(deps: AppDeps): Core {
   const overview = assembleOverview(deps, generation);
   const verdict = assembleVerdict(deps, generation);
   const sleep = (ms: number) => new Promise<void>((resolve) => void deps.timers.setTimeout(resolve, ms));
-  const autoParts = { settings, tabs, watchPages: tabs.contentScripts().flatMap((script) => script.matches), sleep, rules: deps.siteRules, ai, tasks, overviews, transcript, overview, storage: deps.storage.session, guard: clearGuard };
+  const watchPages = watchPagesOf(tabs, siteSwitch?.grantedScripts);
+  const pageTranscript = pageTranscriptOf({ ask: tabs.ask, transcript, sites: deps.sites });
+  const autoParts = { settings, tabs, watchPages, pageTranscript, sleep, rules: deps.siteRules, ai, tasks, overviews, transcript, overview, storage: deps.storage.session, guard: clearGuard };
   return {
     settings,
     clearGuard,
@@ -418,7 +418,7 @@ function assembleCore(deps: AppDeps): Core {
     ...assembleStudy(deps, generation, keepAlive, studyStores),
     translate: assembleTranslate(deps, generation, studyStores.translations),
     data: assembleData(deps, generation, studyStores),
-    batch: assembleBatch(deps, generation, tabs, keepAlive, { overview, verdict }, siteSwitch),
+    batch: assembleBatch(deps, generation, tabs, keepAlive, { overview, verdict, pageTranscript }, watchPages),
     auto: createAutoWiring({ ...autoParts, now: deps.timers.now, broadcast: (message) => void messenger.toPages(message), log: deps.log }),
   };
 }

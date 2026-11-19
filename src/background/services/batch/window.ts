@@ -1,12 +1,14 @@
 // 本窗口全部生成，分两段。确认前只在本机清点，跟着页面走：只看标签页的地址和标题、本机已有的概览和任务表，不向平台读，
 // 清点结果记在发起清点的端口上，端口断开就忘掉。确认后不跟页面走：后台逐个读字幕（两项之间有间隔，被限流、连着要登录、
 // 读取路线读不了就整批停下），读到了就登记一个概览任务交给概览服务，模型请求和单个概览排同一道并发闸门；
-// 关掉侧边栏照常做完，重开时按窗口接上；清除本机数据以后整批停下。只认 B 站的视频，同一个视频同一分 P 只算一次。这一批只记在内存里。
+// 关掉侧边栏照常做完，重开时按窗口接上；清除本机数据以后整批停下。同一个视频同一分 P 只算一次。这一批只记在内存里。
+// 经页面读字幕的站（YouTube）经视频所在的标签页读：让视频页替用户点开文字稿面板，读完关上；页面还没准备好时等几次。
+// 构建里没有代开文字稿面板时，这些站只列出来、标成要逐个打开。
 import { hasAnalysisContent } from "../../../core/ai/verdict.ts";
 import type { ClearEpoch, ClearGuard } from "../../../core/clear-guard.ts";
 import type { ErrorCode, Result } from "../../../core/errors.ts";
 import { OFFICIAL_INTERVAL_MS, runPaced, type BatchStop, type PacedOutcome, type SleepFn } from "../../../core/triage/batch.ts";
-import { parseVideoKey, videoKey, type Platform, type VideoKey } from "../../../core/video-ref.ts";
+import { parseVideoKey, videoKey, type Platform, type VideoKey, type VideoRef } from "../../../core/video-ref.ts";
 import type { KeepAlive } from "../../../platform/keepalive.ts";
 import type { WindowTab } from "../../../platform/tabs.ts";
 import type { WindowCountItem, WindowEntryStatus, WindowEntryView, WindowOut, WindowRunView } from "../../../shared/messages/batch.ts";
@@ -18,9 +20,13 @@ import type { OverviewStore } from "../../stores/overviews.ts";
 import type { TaskRunner } from "../../tasks.ts";
 import type { OverviewService } from "../overview/index.ts";
 import type { TranscriptService } from "../transcript/index.ts";
+import { PAGE_WAIT_MS } from "../auto-generate.ts";
+import type { PageTranscript } from "../page-transcript.ts";
 
 /** 读一个视频的字幕最多撑着后台多久：平台请求各有自己的超时，这里再留足余量。 */
 const READ_KEEPALIVE_MS = 2 * 60_000;
+/** 经页面读的站页面还没准备好时最多问几次，每次隔 PAGE_WAIT_MS。 */
+const PAGE_TRIES = 3;
 
 export interface WindowListener {
   readonly id: string;
@@ -33,6 +39,7 @@ export interface WindowBatchDeps {
   readonly windowTabs: (windowId: number) => Promise<readonly WindowTab[]>;
   readonly overviews: Pick<OverviewStore, "find">;
   readonly transcript: Pick<TranscriptService, "ensure">;
+  readonly pageTranscript: PageTranscript | null;
   readonly overview: Pick<OverviewService, "generate" | "retryFailed">;
   readonly tasks: Pick<TaskRunner, "register" | "cancel" | "list">;
   readonly ai: Pick<AiWiring, "configCheck" | "freeze">;
@@ -89,8 +96,6 @@ export function titleOfTab(title: string, fallback: string): string {
   return trimmed || fallback;
 }
 
-// 只在用户点读取时读字幕的站：清点时列出来，标成要逐个打开，不进批量（PRD F13）。
-const OPEN_EACH: ReadonlySet<Platform> = new Set<Platform>(["youtube"]);
 
 export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
   const { log } = deps;
@@ -113,6 +118,22 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
   }
 
   const cleared = (since: ClearEpoch | undefined): boolean => deps.guard.clearedSince(since, "cache");
+  /** 要经页面读字幕的站：B 站以外的都是。 */
+  const inPage = (platform: Platform): boolean => platform !== "bilibili";
+
+  /** 读一项的字幕。经页面读的站找到视频所在的标签页去读，页面还没准备好时隔一会儿再问，问够了报暂时读不了；给了 signal 时它停了就不再等。 */
+  async function readEntry(run: Run, ref: VideoRef, video: VideoKey, signal: AbortSignal | undefined = run.halt.signal): Promise<Result<unknown>> {
+    const page = deps.pageTranscript;
+    if (!inPage(ref.platform) || !page) return deps.transcript.ensure(ref);
+    const tab = (await deps.windowTabs(run.windowId)).find((item) => videoOf(item.url) === video);
+    if (!tab) return { ok: false, code: "VIDEO_CHANGED" };
+    for (let tries = 1; ; tries += 1) {
+      const reply = await page.read(ref, tab.tabId);
+      if (reply !== "later") return reply;
+      if (tries >= PAGE_TRIES || signal?.aborted) return { ok: false, code: "UNAVAILABLE" };
+      await deps.sleep(PAGE_WAIT_MS, signal);
+    }
+  }
 
   const cancelEntry = (run: Run, entry: Entry): PacedOutcome => {
     entry.status = "canceled";
@@ -211,13 +232,13 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
     if (!ref || entry.stopRequested || run.halt.signal.aborted) return cancelEntry(run, entry);
     entry.status = "running";
     publish(run);
-    const snapshot = await deps.keepAlive.during(READ_KEEPALIVE_MS, () => deps.transcript.ensure(ref));
+    const snapshot = await deps.keepAlive.during(READ_KEEPALIVE_MS, () => readEntry(run, ref, entry.video));
     if (!snapshot.ok) {
       entry.status = "failed";
       entry.failure = snapshot.code;
       publish(run);
-      // 取字幕服务交回的失败不带影响范围：格式不对时按整体读不了算，整批停下。
-      return { requested: true, failure: { code: snapshot.code } };
+      // 取字幕服务交回的失败不带影响范围：格式不对时按整体读不了算，整批停下。经页面读的只算这一项读不成。
+      return { requested: true, failure: { code: snapshot.code, ...(inPage(ref.platform) ? { reach: "item" as const } : {}) } };
     }
     if (cleared(run.since)) run.halt.abort();
     if (entry.stopRequested || cleared(run.since)) return { ...cancelEntry(run, entry), requested: true };
@@ -266,7 +287,7 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
         // 只用官方总结写过结论的不算有概览：章节和金句都还没有。
         const existing = hasAnalysisContent((await deps.overviews.find(video))?.analysis);
         const platform = parseVideoKey(video)?.platform;
-        const state = existing ? "existing" : running.has(video) ? "running" : platform && OPEN_EACH.has(platform) ? "open-each" : "to-generate";
+        const state = existing ? "existing" : running.has(video) ? "running" : platform && inPage(platform) && !deps.pageTranscript ? "open-each" : "to-generate";
         items.push({ video, title: titleOfTab(tab.title, parseVideoKey(video)?.videoId ?? video), state });
       }
       // 清点期间页面走了：不记，也不回。
@@ -324,6 +345,17 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
       entry.failure = undefined;
       entry.status = "running";
       publish(run);
+      // 经页面读的站先经它所在的标签页读到字幕（本机有就不碰页面），概览服务自己读不了页面。这一批先前停过也照样读。
+      const ref = parseVideoKey(video);
+      if (ref && inPage(ref.platform) && deps.pageTranscript) {
+        const read = await deps.keepAlive.during(READ_KEEPALIVE_MS, () => readEntry(run, ref, video, undefined));
+        if (!read.ok) {
+          entry.status = "failed";
+          entry.failure = read.code;
+          publish(run);
+          return;
+        }
+      }
       // 停掉时存下了一部分的，只补没做完的块；别的从头生成，读字幕交给概览服务自己做。
       const stored = await deps.overviews.find(video);
       const gaps = hasAnalysisContent(stored?.analysis) && (stored?.analysisFailures?.length ?? 0) > 0;

@@ -1,6 +1,6 @@
 // 打开就出结论接进后台：标签页和窗口事件经 App 交给自动生成。走真实的后台装配、任务表、取字幕和概览服务，
 // 窗口、标签页、站点读取和模型服务是替身。确认前、开关关着时不问窗口、不读地址；开着时开着的长视频都排进来，前台的先，
-// 每个只生成一次；关掉的标签页撤掉；被限流整批停下；侧边栏再点「生成概览」接上同一个任务；额度用完停下，
+// 每个只生成一次；授权了的 YouTube 观看页也排进来，经视频页点开文字稿面板读、读完关上；关掉的标签页撤掉；被限流整批停下；侧边栏再点「生成概览」接上同一个任务；额度用完停下，
 // 配置检查和广播带出来，重开开关或手动成功一次后恢复。
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -11,7 +11,7 @@ import { PROTOCOLS } from "../../../src/core/ai/provider/index.ts";
 import { videoKey } from "../../../src/core/video-ref.ts";
 import { AUTO_LEDGER_KEY, SETTINGS_STORAGE_KEY } from "../../../src/shared/names.ts";
 import { readFileSync } from "node:fs";
-import { createFakeChrome, senders, watchUrl, tubeUrl } from "../../helpers/chrome.ts";
+import { createFakeChrome, senders, TUBE_ORIGIN, watchUrl, tubeUrl } from "../../helpers/chrome.ts";
 import { chatReply, keyedStorage, modelService, reply, type SentRequest } from "../../helpers/fake-model-service.ts";
 import { failed, fakeSiteService, sampleInfo } from "../../helpers/fake-site-service.ts";
 import { stillFalse, until } from "../../helpers/wait-until.ts";
@@ -43,9 +43,11 @@ interface Options {
   readonly captions?: (videoId: string) => "ok" | "rate-limited" | "none";
   /** 没登录 B 站：视频信息读得到，官方总结和字幕轨要登录。 */
   readonly signedOut?: boolean;
+  /** 读取服务换成 YouTube 的，YouTube 已授权；视频页的内容脚本这样回话。 */
+  readonly tube?: (message: unknown) => unknown;
 }
 
-function appOn({ enabled = true, on = true, handler = answer, captions = () => "ok", signedOut = false }: Options = {}) {
+function appOn({ enabled = true, on = true, handler = answer, captions = () => "ok", signedOut = false, tube }: Options = {}) {
   const ai = modelService(handler);
   const stored = keyedStorage(GATEWAY, ORIGIN);
   const settings = stored.local[SETTINGS_STORAGE_KEY] as Record<string, unknown>;
@@ -67,8 +69,21 @@ function appOn({ enabled = true, on = true, handler = answer, captions = () => "
     activeTabs: { [FOCUSED]: { id: 3, url: watchUrl(LONG_ID) }, [BACKGROUND]: { id: 4, url: watchUrl(OTHER_ID) } } as Record<number, { id: number; url: string }>,
     urlTabs: { 3: watchUrl(LONG_ID), 4: watchUrl(OTHER_ID) } as Record<number, string>,
   };
+  const service = tube ? { ...site.service, rules: { ...site.service.rules, platform: "youtube" as const } } : site.service;
   const fake = createFakeChrome(
-    withWindows({ local, session: stored.session, grantedOrigins: [ORIGIN], fetch: ai.fetch, prompts: PROMPTS, site: site.service, manifest: { content_scripts: TEMPLATE.content_scripts } }, windows),
+    withWindows(
+      {
+        local,
+        session: stored.session,
+        grantedOrigins: tube ? [ORIGIN, `${TUBE_ORIGIN}/*`] : [ORIGIN],
+        fetch: ai.fetch,
+        prompts: PROMPTS,
+        site: service,
+        manifest: { content_scripts: TEMPLATE.content_scripts },
+        ...(tube ? { tabReply: (_tabId: number, message: unknown) => tube(message) } : {}),
+      },
+      windows,
+    ),
   );
   const app = createApp(fake.deps({ warn() {}, error() {} }));
   const ask = (type: string, req: unknown = {}, sender = senders.panel()) => app.dispatch({ type, req }, sender) as Promise<{ ok: boolean; code?: string; value?: any }>;
@@ -180,7 +195,7 @@ test("只认地址变了或加载完成的标签页更新，后台的也算；�
   assert.ok(await until(() => fake.calls.storageReads.length > 0), "后台标签页地址变了也判断");
 });
 
-test("短视频（不读字幕）和 YouTube 视频不生成；焦点不在 Chrome 时后台开着的照样生成", async () => {
+test("短视频（不读字幕）不生成；焦点不在 Chrome 时后台开着的照样生成", async () => {
   const short = appOn();
   short.windows.activeTabs[FOCUSED] = { id: 3, url: watchUrl(SHORT_ID) };
   short.windows.urlTabs = { 3: watchUrl(SHORT_ID) };
@@ -188,16 +203,24 @@ test("短视频（不读字幕）和 YouTube 视频不生成；焦点不在 Chro
   assert.ok(await until(() => short.site.count("readVideoInfo") > 0));
   assert.ok(await stillFalse(() => short.site.count("readCaptions") + short.ai.posts().length > 0), "本机不知道时长先做轻量读取：时长不够，不读字幕、不发模型请求");
 
-  const tube = appOn();
-  tube.windows.activeTabs[FOCUSED] = { id: 3, url: tubeUrl() };
-  tube.windows.urlTabs = { 3: tubeUrl() };
-  tube.app.onTabActivated();
-  assert.ok(await stillFalse(() => tube.site.calls.length + tube.ai.sent.length > 0));
-
   const away = appOn();
   away.windows.focusedWindow = null;
   away.app.onTabActivated();
   assert.ok(await away.pumped(async () => (await away.overviewOf())?.verdict?.summary === "自动写的结论"));
+});
+
+const TUBE = videoKey({ platform: "youtube", videoId: "tube-sample" });
+const typeOf = (message: unknown): unknown => (message as { readonly type?: unknown }).type;
+
+test("YouTube：授权了就排进来，经视频页替用户点开文字稿面板，读完关上，再生成", async () => {
+  const outcomes: Record<string, string> = { "youtube.openTranscript": "opened", "youtube.closeTranscript": "closed" };
+  const { app, fake, windows, overviewOf, pumped } = appOn({ tube: (message) => ({ outcome: outcomes[String(typeOf(message))] }) });
+  windows.activeTabs[FOCUSED] = { id: 3, url: tubeUrl() };
+  windows.urlTabs = { 3: tubeUrl() };
+  app.onTabActivated();
+  assert.ok(await pumped(async () => (await overviewOf(TUBE))?.verdict?.summary === "自动写的结论"));
+  const asked = fake.calls.tabMessages.map(({ tabId, message }) => [tabId, typeOf(message)]);
+  assert.deepEqual(asked, [[3, "youtube.openTranscript"], [3, "youtube.closeTranscript"]], "先点开、读完关上，只对视频所在的标签页");
 });
 
 test("自动生成在跑时侧边栏点「生成概览」：接上同一个任务，不另发", async () => {

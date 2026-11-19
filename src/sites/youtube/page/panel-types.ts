@@ -166,3 +166,6 @@ export function panelCurrentOf(value: unknown): PanelCurrent | null {
  * no-entry 页面上没有入口；ad 正在播广告，没点；video-changed 页面上已经不是这个视频；searching 搜索框里有字，没点。
  */
 export type OpenTranscriptOutcome = "already-open" | "opened" | "not-opened" | "no-entry" | "ad" | "video-changed" | "searching";
+
+/** 读完关面板的结果：关上了，或者不是这次从简介点开的、已经不开着、换了视频、搜索框里有字，留着没动。 */
+export type CloseTranscriptOutcome = "closed" | "kept";

@@ -3,6 +3,7 @@
 // 关上文字稿（只收起，段落留着），站内跳到另一个视频（改地址和外壳、派发跳转完成的事件，面板留着旧内容）。
 // 另有两个新式面板的视频：有章节的打开的是带「章节」「文字稿」页签的面板，没章节的打开新式文字稿面板；
 // 两个页面上都一直留着关着的旧面板和新式面板空壳，段落是新写法，搜索框是多行文本框，没有语言菜单。
+// 新式面板的标题栏上有收起按钮，点了面板收起，页面记一笔，测试据此判简幕读完关上了面板。
 // 文字稿入口在页面上有两份：简介里一份，一直关着的简介面板里一份；点了后面那份，页面记一笔，测试据此判点错了。
 // 新式面板的页面另有播放器自己的数据：字幕轨列表和默认音轨里的默认字幕轨，交给页面主世界的小桥读。
 // 播放器右边有一栏：上面是装侧栏面板（文字稿在里面）的一层，下面是推荐视频。页面上另有一个按钮扮演窗口变窄，
@@ -18,6 +19,7 @@ export const TUBE_VIDEOS = Object.freeze({
   jmTube00003: { layout: "chapters", title: "样例新面板带章节", author: "样例频道", channel: "@sample.channel", label: "", lines: ["modern line one", "modern line two", "modern line three"] },
   jmTube00004: { layout: "modern", title: "样例新面板没章节", author: "样例频道", channel: "@sample.channel", label: "", lines: ["plain modern line one", "plain modern line two"] },
   jmTube00005: { layout: "modern", title: "样例新面板没有默认轨", author: "样例频道", channel: "@sample.channel", label: "", lines: ["unmarked line one", "unmarked line two"] },
+  jmTube00006: { layout: "modern", title: "样例自动生成的视频", author: "样例频道", channel: "@sample.channel", label: "", lines: ["auto line one", "auto line two"] },
 });
 
 const HUMAN_EN = { name: { simpleText: "English" }, vssId: ".en", languageCode: "en" };
@@ -171,7 +173,7 @@ function modernPageHtml(id, video) {
   </ytd-engagement-panel-section-list-renderer>
   <ytd-engagement-panel-section-list-renderer target-id="PAmodern_transcript_view" visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN"><div class="spinner"></div></ytd-engagement-panel-section-list-renderer>`
     : `<ytd-engagement-panel-section-list-renderer id="e2e-open-panel" target-id="PAmodern_transcript_view" visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN">
-    <div id="header"><span>Transcript</span></div>
+    <ytd-engagement-panel-title-header-renderer><span>Transcript</span><div id="visibility-button"><button id="e2e-panel-close" aria-label="Close transcript">×</button></div></ytd-engagement-panel-title-header-renderer>
     <div id="content"></div>
   </ytd-engagement-panel-section-list-renderer>`;
   return `<!doctype html>
@@ -273,6 +275,10 @@ function modernPageHtml(id, video) {
   document.getElementById("e2e-hidden-entry").addEventListener("click", () => document.body.setAttribute("data-e2e-wrong-entry", "1"));
   document.getElementById("e2e-close-transcript").addEventListener("click", () => {
     panel.setAttribute("visibility", "ENGAGEMENT_PANEL_VISIBILITY_HIDDEN");
+  });
+  document.getElementById("e2e-panel-close")?.addEventListener("click", () => {
+    panel.setAttribute("visibility", "ENGAGEMENT_PANEL_VISIBILITY_HIDDEN");
+    document.body.setAttribute("data-e2e-panel-closed", "1");
   });
   // 页签：切到章节时文字稿那一块整个拿掉，切回来重新建。
   document.getElementById("e2e-chapters-tab")?.addEventListener("click", () => {

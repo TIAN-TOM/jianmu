@@ -1,6 +1,6 @@
 // 打开就出结论的判断：用替身跑完每道闸门。确认前、开关关着时不问窗口和标签页、不读地址；后台打开的视频标签页也排进来，
 // 前台的排最前，其余按打开的先后；一轮最多为一个视频读平台，两次读之间隔开；被限流这类整体读不了时整批停下；
-// YouTube 不取字幕不记尝试；同意里没有自动发送就不发；时长按本机知道的先判断、读到以后再判断；发第一个请求之前再核对
+// 不能自动读的站不取字幕不记尝试，经页面读的站页面没准备好时隔一会儿再看；同意里没有自动发送就不发；时长按本机知道的先判断、读到以后再判断；发第一个请求之前再核对
 // 标签页还开着、还是这个视频，变了就放弃、不记尝试；试过的整个会话不再试；额度用完或密钥不对时停下，恢复以后照常。
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -12,6 +12,8 @@ import {
   AUTO_WINDOW_LIMIT,
   AUTO_WINDOW_MS,
   createAutoGenerate,
+  PAGE_WAIT_LIMIT,
+  PAGE_WAIT_MS,
   parseLedger,
   pauseReasonOf,
   triedKey,
@@ -67,6 +69,8 @@ interface Setup {
   readonly read?: Read;
   readonly ledger?: unknown;
   readonly launch?: "joined" | "conflict";
+  /** 另一个站（经页面读的那种）能不能自动读。 */
+  readonly pageReads?: boolean;
 }
 
 /** 测试决定自动任务什么时候收尾；没收尾的算在跑。 */
@@ -83,7 +87,7 @@ function setup(options: Setup = {}) {
   const guard = createClearGuard();
   const started: Run[] = [];
   const paused: (AutoPauseReason | null)[] = [];
-  const calls = { windows: 0, listed: 0, known: 0, light: [] as VideoKey[], reads: [] as VideoKey[], sleeps: [] as number[] };
+  const calls = { windows: 0, listed: 0, known: 0, light: [] as VideoKey[], reads: [] as VideoKey[], sleeps: [] as number[], readTabs: [] as number[] };
   const state = {
     focused: WINDOW as number | null,
     front: FRONT as number | null,
@@ -116,6 +120,7 @@ function setup(options: Setup = {}) {
       return [...state.tabs].map(([id, url]) => ({ id, url }));
     },
     parseWatchUrl,
+    autoReads: (platform) => platform === "bilibili" || options.pageReads === true,
     configReady: async () => options.configReady ?? true,
     running: () => started.filter((run) => !run.settled).length,
     hasOverview: async () => options.overview ?? false,
@@ -128,8 +133,9 @@ function setup(options: Setup = {}) {
       timers.advance(state.readMs);
       return state.lightOf.get(keyOfRef(ref)) ?? state.light;
     },
-    readTranscript: async (ref) => {
+    readTranscript: async (ref, tabId) => {
       calls.reads.push(keyOfRef(ref));
+      calls.readTabs.push(tabId);
       timers.advance(state.readMs);
       state.onRead?.();
       return state.readOf.get(keyOfRef(ref)) ?? state.read;
@@ -179,7 +185,7 @@ test("确认启用之前、开关关着时，不问窗口和标签页、不读�
   for (const options of [{ enabled: false }, { on: false }] satisfies Setup[]) {
     const { auto, started, calls } = setup(options);
     assert.deepEqual(await auto.consider(), { skipped: "on" in options ? "switch-off" : "not-enabled" });
-    assert.deepEqual(calls, { windows: 0, listed: 0, known: 0, light: [], reads: [], sleeps: [] }, JSON.stringify(options));
+    assert.deepEqual(calls, { windows: 0, listed: 0, known: 0, light: [], reads: [], sleeps: [], readTabs: [] }, JSON.stringify(options));
     assert.deepEqual(started, []);
   }
 });
@@ -350,12 +356,54 @@ test("被限流这类整体读不了：整批停下，一阵子里谁都不再�
   }
 });
 
-test("YouTube 视频不进这条路径：不取字幕，不记尝试", async () => {
+test("不能自动读的站（构建里没有代开文字稿面板时的 YouTube）不进这条路径：不取字幕，不记尝试", async () => {
   const { auto, state, calls, started, ledger } = setup();
   state.tabs.set(FRONT, tubeUrl());
   assert.deepEqual(await auto.consider(), { skipped: "site-unsupported" });
   assert.deepEqual(calls.reads, []);
   assert.deepEqual(calls.light, []);
+  assert.deepEqual(started, []);
+  assert.deepEqual(ledger().tried, []);
+});
+
+const TUBE = videoKey({ platform: "youtube", videoId: "tube-sample" });
+
+test("经页面读的站能自动读时照常生成：经视频所在的那个标签页读", async () => {
+  const { auto, state, calls, started } = setup({ pageReads: true });
+  state.tabs.set(FRONT, tubeUrl());
+  assert.deepEqual(await auto.consider(), { started: TUBE });
+  assert.deepEqual(calls.reads, [TUBE]);
+  assert.deepEqual(calls.readTabs, [FRONT]);
+  assert.equal(started.length, 1);
+});
+
+test("页面还没准备好：隔一会儿再看，不记尝试、不算读不成；这期间先看别的视频，页面好了照常生成", async () => {
+  const { auto, state, calls, started, ledger } = setup({ pageReads: true });
+  state.tabs.set(FRONT, tubeUrl());
+  state.tabs.set(5, videoPageUrl(OTHER_ID));
+  let waits = 0;
+  state.readOf.set(TUBE, "later");
+  state.onRead = () => {
+    if (calls.reads.at(-1) !== TUBE) return;
+    waits += 1;
+    // 前两次页面没好，第三次好了。
+    if (waits === 3) state.readOf.set(TUBE, { durationSec: LONG });
+  };
+  assert.deepEqual(await auto.consider(), { started: OTHER }, "前台的页面没好，先生成后台那个");
+  assert.ok(calls.sleeps.includes(PAGE_WAIT_MS), "隔一会儿再看");
+  assert.ok(await until(() => started.some((run) => run.video === TUBE)), "页面好了照常生成");
+  assert.equal(calls.reads.filter((video) => video === TUBE).length, 3);
+  assert.deepEqual(ledger().unavailable ?? {}, {});
+});
+
+test("页面一直没准备好：等够次数才按读不成记下，在前台的冷却一阵", async () => {
+  const { auto, state, calls, started, ledger } = setup({ pageReads: true });
+  state.tabs.set(FRONT, tubeUrl());
+  state.read = "later";
+  await auto.consider();
+  assert.ok(await until(() => calls.reads.length === PAGE_WAIT_LIMIT), "等够次数");
+  assert.ok(await until(() => (ledger().unavailable?.[TUBE] ?? 0) > 0), "按读不成记下");
+  assert.ok(await stillFalse(() => calls.reads.length > PAGE_WAIT_LIMIT), "冷却期间不再问");
   assert.deepEqual(started, []);
   assert.deepEqual(ledger().tried, []);
 });
