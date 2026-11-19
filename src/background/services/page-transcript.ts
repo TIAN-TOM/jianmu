@@ -1,4 +1,4 @@
-// 打开就出结论和本窗口全部生成读要经页面读字幕的站（YouTube）：本机有字幕就用本机的；没有就让视频页替用户点开文字稿面板，
+// 打开就出结论和本窗口全部生成读要经页面读字幕的站（YouTube）：本机有字幕（缓存、内存、导入的文件）就用本机的；没有就让视频页替用户点开文字稿面板，
 // 读面板上显示的内容，读完把这次点开的面板关上，用户自己开着的不关。只从构建开关 FEATURE_YOUTUBE_OPEN_PANEL 的分支引用，
 // 开关关着时整个模块不进包。页面还没准备好（内容脚本还没接上、在播广告、正在换视频）时回 later，由调用方过一会儿再来。
 import type { VideoRef } from "../../core/video-ref.ts";
@@ -51,8 +51,8 @@ export function createPageTranscript(deps: PageTranscriptDeps): PageTranscript {
     },
 
     async read(ref, tabId) {
-      const cached = await deps.transcript.get(ref, { mode: "cache-only" });
-      if (cached.ok) return cached;
+      const local = await deps.transcript.get(ref, { mode: "local" });
+      if (local.ok) return local;
       const answer = await ask(tabId, { type: "youtube.openTranscript", req: { videoId: ref.videoId } });
       const outcome = outcomeOf(answer);
       if (outcome === undefined || NOT_YET.has(outcome)) return "later";

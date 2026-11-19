@@ -28,7 +28,7 @@ function setup(options: { readonly answer?: (message: unknown) => unknown; reado
     transcript: {
       async get(_ref, { mode, tabId }) {
         reads.push({ mode, tabId });
-        if (mode === "cache-only") return options.cached ? READ : MISSING;
+        if (mode === "local") return options.cached ? READ : MISSING;
         return READ;
       },
     },
@@ -42,11 +42,11 @@ function setup(options: { readonly answer?: (message: unknown) => unknown; reado
 
 const outcome = (value: string) => () => ({ outcome: value });
 
-test("本机有字幕：直接用，不碰页面", async () => {
+test("本机有字幕（缓存、内存、导入的文件）：直接用，不碰页面", async () => {
   const { page, asked, reads } = setup({ cached: true, answer: outcome("opened") });
   assert.equal(await page.read(REF, TAB), READ);
   assert.deepEqual(asked, []);
-  assert.deepEqual(reads, [{ mode: "cache-only", tabId: undefined }]);
+  assert.deepEqual(reads, [{ mode: "local", tabId: undefined }]);
 });
 
 test("这次点开了：经这个标签页读，读完让页面关上", async () => {
@@ -69,7 +69,7 @@ test("页面没接上、在播广告、正在换视频、回话认不出：later
   for (const answer of [undefined, outcome("ad"), outcome("video-changed"), () => undefined]) {
     const { page, reads } = setup(answer ? { answer } : {});
     assert.equal(await page.read(REF, TAB), "later");
-    assert.deepEqual(reads, [{ mode: "cache-only", tabId: undefined }]);
+    assert.deepEqual(reads, [{ mode: "local", tabId: undefined }]);
   }
 });
 

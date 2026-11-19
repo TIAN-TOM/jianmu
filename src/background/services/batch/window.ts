@@ -121,8 +121,8 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
   /** 要经页面读字幕的站：B 站以外的都是。 */
   const inPage = (platform: Platform): boolean => platform !== "bilibili";
 
-  /** 读一项的字幕。经页面读的站找到视频所在的标签页去读，页面还没准备好时隔一会儿再问，问够了报暂时读不了。 */
-  async function readEntry(run: Run, ref: VideoRef, video: VideoKey): Promise<Result<unknown>> {
+  /** 读一项的字幕。经页面读的站找到视频所在的标签页去读，页面还没准备好时隔一会儿再问，问够了报暂时读不了；给了 signal 时它停了就不再等。 */
+  async function readEntry(run: Run, ref: VideoRef, video: VideoKey, signal: AbortSignal | undefined = run.halt.signal): Promise<Result<unknown>> {
     const page = deps.pageTranscript;
     if (!inPage(ref.platform) || !page) return deps.transcript.ensure(ref);
     const tab = (await deps.windowTabs(run.windowId)).find((item) => videoOf(item.url) === video);
@@ -130,8 +130,8 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
     for (let tries = 1; ; tries += 1) {
       const reply = await page.read(ref, tab.tabId);
       if (reply !== "later") return reply;
-      if (tries >= PAGE_TRIES || run.halt.signal.aborted) return { ok: false, code: "UNAVAILABLE" };
-      await deps.sleep(PAGE_WAIT_MS, run.halt.signal);
+      if (tries >= PAGE_TRIES || signal?.aborted) return { ok: false, code: "UNAVAILABLE" };
+      await deps.sleep(PAGE_WAIT_MS, signal);
     }
   }
 
@@ -345,6 +345,17 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
       entry.failure = undefined;
       entry.status = "running";
       publish(run);
+      // 经页面读的站先经它所在的标签页读到字幕（本机有就不碰页面），概览服务自己读不了页面。这一批先前停过也照样读。
+      const ref = parseVideoKey(video);
+      if (ref && inPage(ref.platform) && deps.pageTranscript) {
+        const read = await deps.keepAlive.during(READ_KEEPALIVE_MS, () => readEntry(run, ref, video, undefined));
+        if (!read.ok) {
+          entry.status = "failed";
+          entry.failure = read.code;
+          publish(run);
+          return;
+        }
+      }
       // 停掉时存下了一部分的，只补没做完的块；别的从头生成，读字幕交给概览服务自己做。
       const stored = await deps.overviews.find(video);
       const gaps = hasAnalysisContent(stored?.analysis) && (stored?.analysisFailures?.length ?? 0) > 0;

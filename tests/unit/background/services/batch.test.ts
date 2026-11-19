@@ -467,6 +467,25 @@ test("有页面读取：页面一直没准备好，问几次就报暂时读不�
   assert.equal(panel.last("window.state")?.run?.stop, undefined);
 });
 
+test("有页面读取：YouTube 那一项读不成以后点重试，再经它所在的标签页读，读到了就生成", async () => {
+  const tube = "https://www.youtube.com/watch?v=jmSample0001";
+  let ready = false;
+  const { service, timers, pageReads, page } = setup({ tabs: [{ url: tube, title: "样例英文讲座 - YouTube" }], pageRead: (ref) => (ready ? { ok: true, value: transcriptView(ref) } : "later") });
+  const panel = page("panel");
+  await service.handle({ type: "window.count", windowId: 7 }, panel.listener);
+  void service.handle({ type: "window.start", windowId: 7 }, panel.listener);
+  const entry = () => panel.last("window.state")?.run?.entries[0];
+  for (let wait = 1; wait < 3; wait += 1) {
+    assert.ok(await until(() => timers.due(PAGE_WAIT_MS) > 0));
+    timers.fire(PAGE_WAIT_MS);
+  }
+  assert.ok(await until(() => entry()?.status === "failed"));
+  ready = true;
+  await service.handle({ type: "window.retry", windowId: 7, video: videoKey({ platform: "youtube", videoId: "jmSample0001" }) }, panel.listener);
+  assert.deepEqual(pageReads.at(-1), ["youtube:jmSample0001", 1], "重试也经它所在的标签页读");
+  assert.ok(await until(() => entry()?.status === "completed"), "读到了就生成");
+});
+
 test("确认后逐个读字幕、两项之间隔 1 秒，新生成的都出结果；关掉侧边栏照常做完，重开时接上", async () => {
   const tabs = ids.slice(0, 3).map((id) => ({ url: watchUrl(id), title: id }));
   const { service, harness, timers, ensured, page } = setup({ tabs });
