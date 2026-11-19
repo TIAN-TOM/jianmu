@@ -29,6 +29,7 @@ import {
   createAiTransport,
   type AiFetchInit,
   type AiTransport,
+  type AiTransportDeps,
   type CompletionRequest,
   type CompletionResult,
   type TransportResponse,
@@ -183,7 +184,7 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
     relaxMemory: createRelaxMemory({ storage: storage.session, clearGuard }),
     getModelCapabilities: createCapabilityResolver({ storage: storage.local, send: consentedGet, clearGuard, now }),
   };
-  const build = (getSettings: () => Promise<AiSettings>, timeoutMs?: number, onUsage?: (usage: TokenUsage) => void): AiTransport =>
+  const build = (getSettings: () => Promise<AiSettings>, timeoutMs?: number, onUsage?: AiTransportDeps["onUsage"]): AiTransport =>
     createAiTransport({ ...shared, getSettings, timeoutMs, onUsage });
   // 测试连接和不按任务发的请求不记用量，只记任务里真正干活的那些。
   const transport = build(load);
@@ -299,8 +300,8 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
     forTask(frozen) {
       const effort = frozen.requestedEffort ?? frozen.effort;
       const since = clearGuard.epoch();
-      const onUsage = (usage: TokenUsage): void =>
-        void usageLog.record(frozen.feature, { model: frozen.model, effort: frozen.effort, usage }, since);
+      const onUsage = (usage: TokenUsage, sent: Pick<EffortPlan, "effective" | "note">): void =>
+        void usageLog.record(frozen.feature, { model: frozen.model, effort: sent.effective, ...(sent.note ? { note: sent.note } : {}), usage }, since);
       const bound = build(async () => frozenSettings(await load(), frozen), taskTimeoutMs(budgetEffort(frozen)), onUsage);
       return { requestAiCompletion: (request) => bound.requestAiCompletion({ ...request, feature: frozen.feature, effort }) };
     },

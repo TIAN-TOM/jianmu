@@ -120,16 +120,27 @@ test("几项功能的用量差不多同时回来：排队写，哪一项都不�
   await Promise.all(["analysis", "verdict", "qa"].map((feature, index) => log.record(feature, { model: "m", effort: "medium", usage: { output: index } }, undefined)));
   assert.deepEqual(Object.keys(await log.read()).sort(), ["analysis", "qa", "verdict"]);
 
-  await session.set({ [USAGE_STORAGE_KEY]: { qa: { model: "m", effort: "最高", usage: {} }, notes: "坏的", explain: { model: "m", effort: "off", usage: { input: -3, output: 2 } } } });
-  assert.deepEqual(await log.read(), { explain: { model: "m", effort: "off", usage: { output: 2 } } });
+  await session.set({
+    [USAGE_STORAGE_KEY]: {
+      qa: { model: "m", effort: "最高", usage: {} },
+      notes: "坏的",
+      explain: { model: "m", effort: "off", note: "随便写的", usage: { input: -3, output: 2 } },
+      verdict: { model: "m", effort: "off", note: "unknown", usage: {} },
+    },
+  });
+  assert.deepEqual(await log.read(), {
+    explain: { model: "m", effort: "off", usage: { output: 2 } },
+    verdict: { model: "m", effort: "off", note: "unknown", usage: {} },
+  });
 });
 
-test("设置页那一行：报了几项写几项，思考没单独报照实说，服务一项都没报时说没回报；换过模型带上那次的模型名", () => {
+test("设置页那一行：报了几项写几项，思考没单独报照实说，服务一项都没报时说没回报；扩展设不了档位时写由服务决定；换过模型带上那次的模型名", () => {
   const item = (usage: object, model = "m") => ({ model: "m", lastUsage: { model, effort: "high" as const, usage } });
   assert.equal(usageText(item({ input: 12345, output: 2345, reasoning: 1800 })), "最近一次（高）：输入 12,345 · 输出 2,345 · 思考 1,800");
   assert.equal(usageText(item({ input: 30, output: 7 })), "最近一次（高）：输入 30 · 输出 7 · 思考没单独报");
   assert.equal(usageText(item({ input: 30, output: 7, reasoning: 0 })), "最近一次（高）：输入 30 · 输出 7 · 思考 0");
   assert.equal(usageText(item({})), "最近一次（高）：服务没回报用量");
   assert.equal(usageText(item({ input: 1, output: 1 }, "old-model")), "最近一次（高，old-model）：输入 1 · 输出 1 · 思考没单独报");
+  assert.equal(usageText({ model: "m", lastUsage: { model: "m", effort: "off", note: "unknown", usage: { input: 5, output: 2 } } }), "最近一次（由服务决定）：输入 5 · 输出 2 · 思考没单独报");
   assert.equal(usageText({ model: "m" }), null);
 });

@@ -140,3 +140,53 @@ test("传输层：服务没回用量照样交出一份空的；请求被拒的�
   );
   assert.equal((await broken.requestAiCompletion({ messages: MESSAGES, maxTokens: 64 })).text, "照常");
 });
+
+test("传输层交出的档位是这次实际按的：服务拒掉档位参数、去掉以后发成功的，记成由服务决定，不记成选的那档", async () => {
+  const bodies: Record<string, unknown>[] = [];
+  const seen: unknown[] = [];
+  const transport = TRANSPORT.createAiTransport({
+    getSettings: async () =>
+      SETTINGS.normalize({
+        presetId: "custom",
+        protocol: PROTOCOLS.RESPONSES,
+        aiApiKey: "test-key",
+        aiBaseUrl: "https://api.openai.com/v1",
+        aiModel: "gpt-9",
+        ...SETTINGS.DATA_CONSENT_CONFIRMED,
+      }),
+    ensureHostPermission: async () => {},
+    settingsRules: SETTINGS.settingsRules,
+    sleep: async () => {},
+    fetch: async (_url, init) => {
+      const body = JSON.parse(init.body) as Record<string, unknown>;
+      bodies.push(body);
+      if (body["reasoning"]) {
+        return { ok: false, status: 400, text: async () => JSON.stringify({ error: { message: "这个模型不接受 reasoning 参数", param: "reasoning.effort" } }) };
+      }
+      return reply({
+        status: "completed",
+        output: [{ type: "message", content: [{ type: "output_text", text: "好" }] }],
+        usage: { input_tokens: 20, output_tokens: 8, output_tokens_details: { reasoning_tokens: 5 } },
+      });
+    },
+    onUsage: (usage, effort) => seen.push({ usage, effective: effort.effective, note: effort.note }),
+  });
+
+  assert.equal((await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 64, effort: "high" })).text, "好");
+  assert.equal(bodies.length, 2, "第一次带着档位被拒，去掉以后重发");
+  assert.deepEqual(seen, [{ usage: { input: 20, output: 8, reasoning: 5 }, effective: "off", note: "unknown" }]);
+});
+
+test("传输层：没有放宽过的，交出的就是按选的档位算出来的那一档", async () => {
+  const seen: unknown[] = [];
+  const deepseek = TRANSPORT.createAiTransport({
+    getSettings: async () => SETTINGS.normalize({ presetId: "deepseek", aiApiKey: "test-key", aiModel: "deepseek-flash", ...SETTINGS.DATA_CONSENT_CONFIRMED }),
+    ensureHostPermission: async () => {},
+    settingsRules: SETTINGS.settingsRules,
+    sleep: async () => {},
+    fetch: async () => reply({ choices: [{ message: { content: "好" }, finish_reason: "stop" }], usage: { prompt_tokens: 1, completion_tokens: 1 } }),
+    onUsage: (_usage, effort) => seen.push([effort.effective, effort.note ?? null]),
+  });
+  await deepseek.requestAiCompletion({ messages: MESSAGES, maxTokens: 64, effort: "high" });
+  assert.deepEqual(seen, [["high", null]]);
+});

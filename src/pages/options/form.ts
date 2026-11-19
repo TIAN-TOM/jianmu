@@ -134,14 +134,15 @@ export function effortNoteText(item: Pick<EffortPreviewItem, "requested" | "effe
 const tokens = (count: number): string => count.toLocaleString("zh-CN");
 
 /**
- * 这项功能最近一次请求的用量那一行。数字都是服务回报的；思考没单独报时照实说，不估算；
- * 那次用的模型和现在的不一样时带上模型名。没请求过时不说。
+ * 这项功能最近一次请求的用量那一行。数字都是服务回报的；思考没单独报时照实说，不估算；档位写那次实际按的，
+ * 扩展设不了时写由服务决定；那次用的模型和现在的不一样时带上模型名。没请求过时不说。
  */
 export function usageText(item: Pick<EffortPreviewItem, "model" | "lastUsage">): string | null {
   const last = item.lastUsage;
   if (!last) return null;
   const { input, output, reasoning } = last.usage;
-  const head = `最近一次（${EFFORT_LABELS[last.effort]}${last.model === item.model ? "" : `，${last.model}`}）`;
+  const level = last.note === "unknown" ? "由服务决定" : EFFORT_LABELS[last.effort];
+  const head = `最近一次（${level}${last.model === item.model ? "" : `，${last.model}`}）`;
   const parts = [
     ...(input === undefined ? [] : [`输入 ${tokens(input)}`]),
     ...(output === undefined ? [] : [`输出 ${tokens(output)}`]),

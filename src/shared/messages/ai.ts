@@ -53,7 +53,10 @@ export interface EffortPreviewItem {
 /** 一次请求服务回报的用量，连同当时实际用的模型和档位。只有数字，不带请求和回复的内容。 */
 export interface LastUsageView {
   readonly model: string;
+  /** 这次实际按的档位。 */
   readonly effort: Effort;
+  /** 和预览一样：note 为 unknown 时档位由服务自己决定，effort 只是占位的关。 */
+  readonly note?: EffortNote;
   /** 服务没报的那一项就没有；一项都没报时是空的。 */
   readonly usage: TokenUsage;
 }

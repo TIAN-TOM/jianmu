@@ -6,6 +6,7 @@ import type {
   ChatRequest,
   ChatRequestInput,
   ClaudeCapabilities,
+  EffortPlan,
   KEYED_FETCH_REDIRECT,
   ProviderError,
   RedirectProbe,
@@ -124,8 +125,11 @@ export interface AiTransportDeps {
   readonly sleep?: Sleep | undefined;
   readonly random?: (() => number) | undefined;
   readonly fetch?: AiFetch | undefined;
-  /** 每收到一份回复调一次，交出服务回报的这次用量；被拒、没回来的请求不调。出错不影响请求本身。 */
-  readonly onUsage?: ((usage: TokenUsage) => void) | undefined;
+  /**
+   * 每收到一份回复调一次，交出服务回报的这次用量和这次实际按的档位（参数被拒放宽过的按放宽以后的算）；
+   * 被拒、没回来的请求不调。出错不影响请求本身。
+   */
+  readonly onUsage?: ((usage: TokenUsage, effort: Pick<EffortPlan, "effective" | "note">) => void) | undefined;
 }
 
 export interface CompletionRequest {
