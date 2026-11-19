@@ -367,30 +367,17 @@ test("没登录：摆出标题，提示登录或导入字幕，不摆「生成�
   assert.equal(fake.attempts("transcript.get"), 2);
 });
 
-test("YouTube 本机还没有字幕：说先在侧边栏读，不摆「生成概览」，点了也不起任务；收起再展开、读过以后点重试都重读", async () => {
+test("YouTube 本机还没有字幕：能代开文字稿的构建里和 B 站一样能点生成，后台经视频页读", async () => {
   const { fake, model } = setup();
   fake.reply("transcript.get", { value: guides(KEY, { official: undefined, transcriptError: "NOT_CACHED" }) });
-  fake.reply("card.setOverride", { value: { ok: true, value: { session: {} } } });
   model.configChanged();
   await model.start();
   assert.ok(await until(() => model.view.value.phase === "loaded"));
-  assert.equal(model.view.value.notRead, true);
+  assert.equal(model.view.value.notRead, false);
   assert.equal(model.view.value.official, null);
-  assert.equal(model.view.value.notice?.text, NOT_READ_TEXT);
+  assert.notEqual(model.view.value.notice?.text, NOT_READ_TEXT);
   await model.generate(true);
-  assert.equal(fake.attempts("task.start"), 0, "本机没有字幕时卡片不起生成");
-
-  // 收起再展开：本机还没有字幕时不当成已经读过。
-  const before = fake.attempts("transcript.get");
-  await model.toggle();
-  await model.toggle();
-  assert.ok(await until(() => fake.attempts("transcript.get") === before + 1));
-
-  // 在侧边栏读过字幕：点重试重读，提示收起，「生成概览」回来。
-  fake.reply("transcript.get", { value: guides(KEY, { official: undefined, hasTranscript: true, fromCache: true }) });
-  model.retry();
-  assert.ok(await until(() => model.view.value.notRead === false));
-  assert.equal(model.view.value.notice, null);
+  assert.equal(fake.attempts("task.start"), 1, "点了就起生成");
 });
 
 test("YouTube 已有概览、本机没有字幕：摆出结论和章节，不再提读字幕", async () => {

@@ -129,7 +129,7 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
     if (!tab) return { ok: false, code: "VIDEO_CHANGED" };
     for (let tries = 1; ; tries += 1) {
       const reply = await page.read(ref, tab.tabId);
-      if (reply !== "later") return reply;
+      if (!("later" in reply)) return reply;
       if (tries >= PAGE_TRIES || signal?.aborted) return { ok: false, code: "UNAVAILABLE" };
       await deps.sleep(PAGE_WAIT_MS, signal);
     }

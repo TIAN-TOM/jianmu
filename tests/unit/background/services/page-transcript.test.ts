@@ -65,10 +65,10 @@ test("本来就开着、点不开、没有入口、搜索框里有字：照常�
   }
 });
 
-test("页面没接上、在播广告、正在换视频、回话认不出：later，不读", async () => {
-  for (const answer of [undefined, outcome("ad"), outcome("video-changed"), () => undefined]) {
+test("页面没接上、在播广告、正在换视频、回话认不出：说明是哪一种，过一会儿再来，不读", async () => {
+  for (const [answer, later] of [[undefined, "no-page"], [outcome("ad"), "ad"], [outcome("video-changed"), "video-changed"], [() => undefined, "no-page"]] as const) {
     const { page, reads } = setup(answer ? { answer } : {});
-    assert.equal(await page.read(REF, TAB), "later");
+    assert.deepEqual(await page.read(REF, TAB), { later });
     assert.deepEqual(reads, [{ mode: "local", tabId: undefined }]);
   }
 });

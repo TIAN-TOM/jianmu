@@ -62,7 +62,7 @@ interface Options {
   /** 登记任务前先等它：测试在登记还没回来时停下这一轮。 */
   readonly registerGate?: Promise<void>;
   /** 交了页面读取（能代开文字稿面板的构建）：YouTube 这样回；不给时没有页面读取。 */
-  readonly pageRead?: (ref: VideoRef) => TranscriptReply | "later";
+  readonly pageRead?: (ref: VideoRef) => TranscriptReply | { readonly later: "ad" | "video-changed" | "no-page" };
 }
 
 /** 一句话的字幕：概览一块就做完。 */
@@ -450,7 +450,7 @@ test("有页面读取：页面一直没准备好，问几次就报暂时读不�
     { url: tube, title: "样例英文讲座 - YouTube" },
     { url: watchUrl(ids[0]), title: "第一个" },
   ];
-  const { service, timers, ensured, pageReads, page } = setup({ tabs, pageRead: () => "later" });
+  const { service, timers, ensured, pageReads, page } = setup({ tabs, pageRead: () => ({ later: "ad" }) });
   const panel = page("panel");
   await service.handle({ type: "window.count", windowId: 7 }, panel.listener);
   void service.handle({ type: "window.start", windowId: 7 }, panel.listener);
@@ -470,7 +470,7 @@ test("有页面读取：页面一直没准备好，问几次就报暂时读不�
 test("有页面读取：YouTube 那一项读不成以后点重试，再经它所在的标签页读，读到了就生成", async () => {
   const tube = "https://www.youtube.com/watch?v=jmSample0001";
   let ready = false;
-  const { service, timers, pageReads, page } = setup({ tabs: [{ url: tube, title: "样例英文讲座 - YouTube" }], pageRead: (ref) => (ready ? { ok: true, value: transcriptView(ref) } : "later") });
+  const { service, timers, pageReads, page } = setup({ tabs: [{ url: tube, title: "样例英文讲座 - YouTube" }], pageRead: (ref) => (ready ? { ok: true, value: transcriptView(ref) } : { later: "no-page" }) });
   const panel = page("panel");
   await service.handle({ type: "window.count", windowId: 7 }, panel.listener);
   void service.handle({ type: "window.start", windowId: 7 }, panel.listener);

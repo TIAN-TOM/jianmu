@@ -104,7 +104,7 @@ test("手动补失败块至少补上一块：打开就出结论从暂停里恢�
   let resumed = 0;
   let value: { fromCache: boolean; recoveredChunks?: number; canceled?: true } = { fromCache: false, recoveredChunks: 1 };
   const overview = { retryFailed: async () => ({ ok: true, value }) } as unknown as OverviewService;
-  const routes = overviewRoutes({ overview, cardLimits: { redeemToken: () => null }, auto: { resume: async () => void (resumed += 1) } });
+  const routes = overviewRoutes({ overview, cardLimits: { redeemToken: () => null }, auto: { resume: async () => void (resumed += 1) }, tasks: { cancel: () => null } });
   const retry = () => routes["overview.retryFailed"].handler({ taskId: "t", video: KEY }, {} as Parameters<(typeof routes)["overview.retryFailed"]["handler"]>[1]);
 
   assert.equal((await retry()).ok, true);
@@ -123,9 +123,46 @@ test("手动生成或补失败块在结论那一步被停：不算成功，不�
   let resumed = 0;
   const stopped = { fromCache: false, recoveredChunks: 1, verdictCanceled: true };
   const overview = { generate: async () => ({ ok: true, value: stopped }), retryFailed: async () => ({ ok: true, value: stopped }) } as unknown as OverviewService;
-  const routes = overviewRoutes({ overview, cardLimits: { redeemToken: () => null }, auto: { resume: async () => void (resumed += 1) } });
+  const routes = overviewRoutes({ overview, cardLimits: { redeemToken: () => null }, auto: { resume: async () => void (resumed += 1) }, tasks: { cancel: () => null } });
   const ctx = { sender: { kind: "panel" } } as unknown as Parameters<(typeof routes)["overview.start"]["handler"]>[1];
   await routes["overview.start"].handler({ video: KEY, taskId: "t" }, ctx);
   await routes["overview.retryFailed"].handler({ taskId: "t", video: KEY }, ctx);
   assert.equal(resumed, 0);
+});
+
+test("卡片在 YouTube 上点生成：先经卡片所在的标签页读到字幕再生成；页面这会儿不能点就取消登记的任务、照实说原因", async () => {
+  const TUBE = videoKey({ platform: "youtube", videoId: "tube-sample" });
+  const reads: (readonly [string, number])[] = [];
+  const canceled: string[] = [];
+  let later: "ad" | "video-changed" | "no-page" | null = null;
+  const generated: string[] = [];
+  const overview = { generate: async (taskId: string) => (generated.push(taskId), { ok: true, value: { fromCache: true } }) } as unknown as OverviewService;
+  const routes = overviewRoutes({
+    overview,
+    cardLimits: { redeemToken: (token: string) => token },
+    tasks: { cancel: (taskId: string) => (canceled.push(taskId), null) },
+    pageTranscript: {
+      duration: async () => null,
+      async read(ref, tabId) {
+        reads.push([ref.videoId, tabId]);
+        return later ? { later } : ({ ok: true, value: {} } as never);
+      },
+    },
+  });
+  const ctx = { sender: { kind: "card", tabId: 9 } } as unknown as Parameters<(typeof routes)["overview.start"]["handler"]>[1];
+  assert.equal((await routes["overview.start"].handler({ video: TUBE, token: "t1" }, ctx)).ok, true);
+  assert.deepEqual(reads, [["tube-sample", 9]]);
+  assert.deepEqual(generated, ["t1"]);
+
+  for (const [reason, code, detail] of [["ad", "PAGE_ACTION_NEEDED", "ad"], ["video-changed", "VIDEO_CHANGED", undefined], ["no-page", "UNAVAILABLE", "no-page"]] as const) {
+    later = reason;
+    const result = (await routes["overview.start"].handler({ video: TUBE, token: `t-${reason}` }, ctx)) as { ok: boolean; code?: string; detail?: string };
+    assert.deepEqual([result.ok, result.code, result.detail], [false, code, detail], reason);
+    assert.ok(canceled.includes(`t-${reason}`), `${reason}：登记的任务取消掉`);
+  }
+  assert.deepEqual(generated, ["t1"], "页面不能点时不生成");
+
+  later = null;
+  await routes["overview.start"].handler({ video: KEY, token: "t-bili" }, ctx);
+  assert.equal(reads.length, 4, "B 站视频不经页面读");
 });

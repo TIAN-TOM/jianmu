@@ -6,8 +6,10 @@ import type { TranscriptReply } from "../../shared/messages/transcript.ts";
 import type { SiteAccess } from "./transcript/index.ts";
 import type { TranscriptService } from "./transcript/index.ts";
 
-/** 页面还没准备好，过一会儿再来。 */
-export type PageLater = "later";
+/** 页面还没准备好，过一会儿再来：在播广告、正在换视频、内容脚本没回话。 */
+export interface PageLater {
+  readonly later: "ad" | "video-changed" | "no-page";
+}
 
 export interface PageTranscriptDeps {
   /** 发给标签页的内容脚本并等它回话；送不到时抛错。 */
@@ -18,13 +20,12 @@ export interface PageTranscriptDeps {
 
 export interface PageTranscript {
   /** 页面上视频的时长；不知道是 null。 */
-  duration(ref: VideoRef, tabId: number): Promise<number | null | PageLater>;
+  duration(ref: VideoRef, tabId: number): Promise<number | null | "later">;
   /** 读字幕：本机有就用本机的，没有就经页面读。 */
   read(ref: VideoRef, tabId: number): Promise<TranscriptReply | PageLater>;
 }
 
-// 代开面板的结果里，这几种是页面这会儿还不能点：过一会儿再来。
-const NOT_YET: ReadonlySet<unknown> = new Set(["ad", "video-changed"]);
+
 // 等页面回话的上限：代开面板那头最多等几秒看面板开没开。
 const OPEN_TIMEOUT_MS = 10_000;
 
@@ -55,7 +56,9 @@ export function createPageTranscript(deps: PageTranscriptDeps): PageTranscript {
       if (local.ok) return local;
       const answer = await ask(tabId, { type: "youtube.openTranscript", req: { videoId: ref.videoId } });
       const outcome = outcomeOf(answer);
-      if (outcome === undefined || NOT_YET.has(outcome)) return "later";
+      // 页面这会儿还不能点：过一会儿再来。
+      if (outcome === undefined) return { later: "no-page" };
+      if (outcome === "ad" || outcome === "video-changed") return { later: outcome };
       // 点不开、没有入口、搜索框里有字：照常去读，按页面上的实际样子报。
       const reply = await deps.transcript.get(ref, { mode: "full", tabId });
       if (outcome === "opened") await ask(tabId, { type: "youtube.closeTranscript", req: { videoId: ref.videoId } });
