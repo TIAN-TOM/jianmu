@@ -1,7 +1,7 @@
 // 模型返回 200 却没有正文时，判断成因并给出下一步。
 import { claudeRequestTraits } from "./anthropic.ts";
 import { PROTOCOLS, type Protocol } from "./endpoint.ts";
-import { hasReasoningItem, responsesMessages, responsesReasoningTokens } from "./response.ts";
+import { hasReasoningItem, isTruncated, responsesMessages, responsesReasoningTokens } from "./response.ts";
 import type { ClaudeCapabilities, EmptyDiagnosis, ProviderResponse, RelaxState, ResponseChoice } from "./types.ts";
 
 /**
@@ -108,9 +108,11 @@ export function diagnoseEmptyResponse(
   const reasoning = message.reasoning_content || message.reasoning;
 
   if (choice.finish_reason === "length") {
+    // 有的服务不回传思考的内容，只在用量里报思考用了多少。
+    const thought = Boolean(reasoning) || Number(payload.usage?.completion_tokens_details?.reasoning_tokens) > 0;
     return {
       reason: "TRUNCATED",
-      message: !reasoning
+      message: !thought
         ? "输出被 token 上限截断了，放大预算重试后仍然不够。可以换一个输出更简洁的模型试试。"
         : locked
           ? "模型把 token 配额全用在思考上了，没能输出正文。已经放大预算重试过，仍然不够。这个型号的思考关不掉，扩展已经替你放大过预算。可以在设置页「按功能选模型」里给这项功能另选一个型号；生成概览时，也可以把「概览分块」改成「较短」。"
@@ -134,6 +136,25 @@ export function diagnoseEmptyResponse(
     message: "模型返回了空内容，请重试。",
     retryWithoutJsonMode: true,
   };
+}
+
+/**
+ * 没写出正文就到了输出上限时，是不是思考把额度用掉了：看得见思考的内容，服务回报的用量里有思考，
+ * 或者这个型号的思考关不掉。只在没有正文的时候问：这时只要有思考，额度就都是思考用掉的。
+ * 判断不了的（没有思考的痕迹）回 false，照旧按普通的截断说。
+ */
+export function thinkingUsedUpBudget(protocol: Protocol, data: unknown, { model, relax, capabilities }: DiagnoseContext = {}): boolean {
+  if (!isTruncated(protocol, data)) return false;
+  const payload = (data && typeof data === "object" ? data : {}) as ProviderResponse;
+  if (protocol === PROTOCOLS.RESPONSES) {
+    return payload.incomplete_details?.reason === "max_output_tokens" && (responsesReasoningTokens(payload) > 0 || hasReasoningItem(payload));
+  }
+  if (protocol === PROTOCOLS.ANTHROPIC) {
+    const thought = Array.isArray(payload.content) && payload.content.some((block) => block?.type === "thinking" || block?.type === "redacted_thinking");
+    return thought || thinkingAlwaysOn(model, relax, capabilities);
+  }
+  const message = payload.choices?.[0]?.message || {};
+  return Boolean(message.reasoning_content || message.reasoning) || Number(payload.usage?.completion_tokens_details?.reasoning_tokens) > 0;
 }
 
 // Responses 的空响应：status、incomplete_details 和 output 里的项说明了成因。
