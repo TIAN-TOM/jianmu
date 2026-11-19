@@ -7,6 +7,39 @@ const GENERIC_SERVER_ERROR =
   /^\s*(?:服务返回 \d+|overloaded(?:_error)?|service unavailable|internal server error|bad gateway|gateway time-?out|server error|upstream (?:connect )?error|too many requests|error)\.?\s*$/i;
 const SERVER_ERROR_DETAIL_MAX_CHARS = 160;
 
+// 服务的原话是不可信的外来文字：界面只当纯文本显示，这里先去掉控制字符、压掉换行、限长，
+// 再把像密钥、令牌的片段遮掉。鉴权失败的报错不带原话，有的服务会在那里回显密钥的一部分。
+const SAID_MAX_CHARS = 200;
+const NO_SAID_STATUSES: ReadonlySet<number> = new Set([401, 403]);
+const FALLBACK_SAID = /^服务返回 \d+$/;
+const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]+/g;
+const AUTH_VALUE = /\b(Bearer|Basic)\s+\S+/gi;
+const KEY_LIKE = [
+  // 常见服务商密钥的开头，连同回显时打了星号的半截。
+  /\b(?:sk|xai|gsk)[-_][A-Za-z0-9*._-]{4,}/gi,
+  /\bAIza[A-Za-z0-9_-]{8,}/g,
+  // 又长又同时有字母和数字、不带连字符的一串（密钥、令牌）；型号名带连字符，不会被当成密钥。
+  /\b(?=[A-Za-z0-9_]*\d)(?=[A-Za-z0-9_]*[A-Za-z])[A-Za-z0-9_]{24,}\b/g,
+];
+const HIDDEN = "[已隐藏]";
+
+/** 服务原话给界面显示前的清洗：纯文本、一行、限长，遮掉像密钥的片段。先遮再截，截断处不会露出半截密钥。 */
+export function serviceWords(text: unknown): string {
+  let words = String(text ?? "").replace(CONTROL_CHARS, " ").replace(/\s+/g, " ").trim();
+  words = words.replace(AUTH_VALUE, `$1 ${HIDDEN}`);
+  for (const pattern of KEY_LIKE) words = words.replace(pattern, HIDDEN);
+  return words.length > SAID_MAX_CHARS ? `${words.slice(0, SAID_MAX_CHARS)}…` : words;
+}
+
+// 只有服务回了 HTTP 报错、又说了点具体的话时才有原话；简幕自己写的提示、笼统的状态码说明都不算。
+function saidOf(error: AiErrorLike): string {
+  const status = error.status;
+  if (status === undefined || status < 400 || NO_SAID_STATUSES.has(status)) return "";
+  const raw = String(error.message ?? "").trim();
+  if (!raw || FALLBACK_SAID.test(raw) || GENERIC_SERVER_ERROR.test(raw)) return "";
+  return serviceWords(raw);
+}
+
 export function taskCanceledError(): TransportError {
   const error: TransportError = new Error("任务已取消。");
   error.code = "TASK_CANCELED";
@@ -37,20 +70,31 @@ export function aiErrorResponse(error: unknown): AiErrorResponse {
   return failure?.noAutoRetry && !response.success ? { ...response, noAutoRetry: true } : response;
 }
 
+/**
+ * 服务报错时自己说的话，给界面在三段式下面另起一行显示：清洗、截短、遮掉像密钥的片段以后的纯文本。
+ * 取消、要用户去设置页动手的、鉴权失败的都没有；它只跟着这次的结果走，不进存储和备份。
+ */
+export function serviceSaid(error: unknown): string {
+  const failure = (error ?? {}) as AiErrorLike;
+  if (failure.code === "TASK_CANCELED" || (failure.code !== undefined && ACTIONABLE.has(failure.code))) return "";
+  return saidOf(failure);
+}
+
+// 这几类都要用户去设置页动手，原样透出简幕自己的提示即可。
+const ACTIONABLE: ReadonlySet<string> = new Set([
+  "NO_AI_CONFIG",
+  "NEED_HOST_PERMISSION",
+  "INVALID_BASE_URL",
+  "AI_NETWORK_ERROR",
+  "AI_REDIRECT_BLOCKED",
+  "ANTHROPIC_WORKSPACE_REQUIRED",
+]);
+
 function errorResponseOf(error: AiErrorLike): AiErrorResponse {
-  // 这几类都要用户去设置页动手，原样透出提示即可。
-  const actionable = [
-    "NO_AI_CONFIG",
-    "NEED_HOST_PERMISSION",
-    "INVALID_BASE_URL",
-    "AI_NETWORK_ERROR",
-    "AI_REDIRECT_BLOCKED",
-    "ANTHROPIC_WORKSPACE_REQUIRED",
-  ];
   if (error.code === "TASK_CANCELED") {
     return { success: false, error: "TASK_CANCELED", message: "任务已取消。" };
   }
-  if (error.code !== undefined && actionable.includes(error.code)) {
+  if (error.code !== undefined && ACTIONABLE.has(error.code)) {
     return { success: false, error: error.code, message: error.message as string };
   }
   if (error.status === 401 || error.status === 403) {

@@ -4,6 +4,7 @@ import { splitAnswerByTimestamps } from "../../core/qa/citations.ts";
 import { onOldTranscript, transcriptFingerprintOf, type QaRecord } from "../../core/notes/records.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
 import { Button, IconButton } from "../shared/ui/button.tsx";
+import { ServiceSaid } from "../shared/ui/notice.tsx";
 import { StateBlock } from "../shared/ui/state-block.tsx";
 import { StaleTranscriptLine } from "../shared/ui/verdict-block.tsx";
 import type { Panel } from "./panel.ts";
@@ -82,6 +83,7 @@ export function QaTab({ panel }: { readonly panel: Panel }) {
           {state.error}
         </p>
       ) : null}
+      {state.error ? <ServiceSaid said={state.errorSaid} /> : null}
       <ol class="qa-list">
         {state.pending.map((item) => (
           <li key={item.taskId} class="qa-entry" data-pending="true" role="status">

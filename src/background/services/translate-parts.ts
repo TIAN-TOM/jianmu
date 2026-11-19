@@ -37,11 +37,10 @@ export function parseFailed(sends: number): TransportError {
 
 export function failureOf(error: unknown): TranslateFailure {
   if ((error as { readonly code?: unknown } | null)?.code === "TRANSLATE_PARSE_FAILED") return { code: "TRANSLATE_PARSE_FAILED" };
-  const { code, detail } = aiFailure(error);
-  return detail === undefined ? { code } : { code, detail };
+  return bare(aiFailure(error));
 }
 
-export const bare = ({ code, detail }: Failure): TranslateFailure => (detail === undefined ? { code } : { code, detail });
+export const bare = ({ code, detail, said }: Failure): TranslateFailure => ({ code, ...(detail === undefined ? {} : { detail }), ...(said ? { said } : {}) });
 
 /** 从这一秒往后的先译：眼前的内容几秒内就有结果，前面的随后补齐，总量和费用不变。 */
 export function fromPlayback(segments: readonly TranscriptSegment[], fromSec: number | undefined): TranscriptSegment[] {

@@ -47,8 +47,8 @@ export interface TriageState {
   readonly listStatus: ReadonlySignal<Status | null>;
   readonly officialStatus: ReadonlySignal<Status | null>;
   readonly verdictStatus: ReadonlySignal<Status | null>;
-  /** 这一次打开页面里写结论失败的原因，只显示，不存。 */
-  readonly errors: ReadonlySignal<Readonly<Record<string, string>>>;
+  /** 这一次打开页面里写结论失败的原因，连同模型服务自己说的话，只显示，不存。 */
+  readonly errors: ReadonlySignal<Readonly<Record<string, ItemError>>>;
   readonly filter: ReadonlySignal<Filter>;
   readonly items: ReadonlySignal<readonly TriageItem[]>;
   readonly videoUrl: (item: TriageItem) => string;
@@ -67,6 +67,12 @@ export interface TriageState {
 }
 
 const EMPTY: TriageSnapshot = { list: null, official: {}, verdicts: {}, running: null };
+
+/** 一个视频写结论失败的说明；said 是模型服务自己说的话。 */
+export interface ItemError {
+  readonly text: string;
+  readonly said?: string;
+}
 
 /** 官方总结没取成的原因：被限流单说一句，别的照错误码的说明。 */
 export function officialRecordText(record: OfficialRecord | undefined, item: TriageItem): string {
@@ -148,7 +154,7 @@ export function createTriageState(deps: TriageDeps): TriageState {
   const listStatus = signal<Status | null>(null);
   const officialStatus = signal<Status | null>(null);
   const verdictStatus = signal<Status | null>(null);
-  const errors = signal<Readonly<Record<string, string>>>({});
+  const errors = signal<Readonly<Record<string, ItemError>>>({});
   const filter = signal<Filter>("all");
   const items = computed(() => snapshot.value?.list?.items ?? []);
   let port: PagePort<"batch"> | null = null;
@@ -194,7 +200,8 @@ export function createTriageState(deps: TriageDeps): TriageState {
       if (event.verdict) tally = { ...tally, written: tally.written + 1 };
       else if (event.failure && event.failure.code !== "TASK_CANCELED" && event.failure.code !== "TASK_ALREADY_RUNNING") {
         tally = { ...tally, failed: tally.failed + 1 };
-        errors.value = { ...errors.peek(), [event.video]: `结论没写成：${errorCopy(event.failure.code).cause}` };
+        const text = `结论没写成：${errorCopy(event.failure.code).cause}`;
+        errors.value = { ...errors.peek(), [event.video]: event.failure.said ? { text, said: event.failure.said } : { text } };
       }
     }
     if (!stopping.peek()) statusOf(event.step).value = { text: `${event.step === "official" ? "正在取" : "正在写"} ${event.done} / ${runningTotal}…` };
