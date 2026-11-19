@@ -216,12 +216,12 @@ async function flow(launcher, panelUrl, worker) {
   // 内容脚本挂上、过了启用闸门才回话：从后台问一句当前视频，回得上来就算页面连上了。
   const tabId = await evaluate(panel, `chrome.tabs.query({ windowId: ${windowId} }).then((tabs) => tabs.find((tab) => tab.url === ${JSON.stringify(firstUrl)})?.id)`);
   await until("视频页连上", () => evaluate(worker, `chrome.tabs.sendMessage(${tabId}, ${JSON.stringify({ type: "youtube.current", req: { videoId: FIRST_ID } })}, { frameId: 0 }).then((reply) => reply?.videoId === ${JSON.stringify(FIRST_ID)}, () => false)`));
-  // 卡片插在右栏推荐视频上面，装文字稿的那一层在它前面；本机还没有字幕，卡片不去读，说先在侧边栏读。
+  // 卡片插在右栏推荐视频上面，装文字稿的那一层在它前面；本机还没有字幕，卡片不去读，和 B 站一样摆「生成概览」。
   await until("卡片插在右栏推荐视频上面", () => placedAt(video, "secondary-inner"));
   const card = await until("观看页的卡片", () => cardOf(firstUrl));
-  await until("卡片说先在侧边栏读字幕", async () => (await cardText(card)).includes(NOT_READ_TEXT));
-  if (await evaluate(card, `Boolean(document.getElementById("card-generate"))`)) throw new Error("本机还没有字幕时卡片摆了「生成概览」");
-  console.log("✓ 卡片插在右栏推荐视频上面，不进侧栏面板；本机还没有字幕时不去读，说先在侧边栏读");
+  await until("卡片上摆着「生成概览」", () => evaluate(card, `Boolean(document.getElementById("card-generate"))`));
+  if ((await cardText(card)).includes(NOT_READ_TEXT)) throw new Error("能代开文字稿的构建里卡片还让人先去侧边栏读");
+  console.log("✓ 卡片插在右栏推荐视频上面，不进侧栏面板；本机还没有字幕时不去读，和 B 站一样摆「生成概览」");
   const modelCalls = () => mock.requests.filter((entry) => entry.host !== TUBE_HOST).length;
   // 页面自己取的图标和视频媒体不算：播放循环、浏览器取图标的时刻都不固定。
   const tubeCalls = () => mock.requests.filter((entry) => entry.host === TUBE_HOST && entry.path !== "/favicon.ico" && entry.path !== QUIET_MEDIA_PATH).length;
@@ -245,11 +245,10 @@ async function flow(launcher, panelUrl, worker) {
   if (modelCalls() !== before || tubeCalls() !== tubeBefore) throw new Error("读文字稿时发了不该发的请求");
   console.log("✓ 点读取字幕时简幕替用户点开文字稿，读到，标出英文、自动生成，存进本机；YouTube 上没发任何请求");
 
-  // 文字稿面板打开以后卡片还在面板下面；卡片上点重试，本机有字幕了，「生成概览」回来。
+  // 文字稿面板打开以后卡片还在面板下面，「生成概览」照旧在。
   if (!(await placedAt(video, "secondary-inner"))) throw new Error(`文字稿打开以后卡片不在原处：${JSON.stringify(await cardPlace(video))}`);
-  await until("卡片上点重试", () => clickIn(card, "#card-retry"));
-  await until("卡片上出现「生成概览」", () => evaluate(card, `Boolean(document.getElementById("card-generate"))`));
-  console.log("✓ 文字稿面板开着时卡片排在面板下面；侧边栏读过字幕，卡片重试以后能生成概览");
+  await until("卡片上还摆着「生成概览」", () => evaluate(card, `Boolean(document.getElementById("card-generate"))`));
+  console.log("✓ 文字稿面板开着时卡片排在面板下面，「生成概览」照旧在");
 
   // 读过字幕以后再解释画面：带上本机字幕里这一刻前后的几句，标题用本机记着的。
   const seen = await explainFrame(video, panel, tubeCalls);
@@ -299,7 +298,7 @@ async function flow(launcher, panelUrl, worker) {
   await userClicks(video, "e2e-next");
   await until("侧边栏跟到新视频，让用户点读取", async () => (await stateTitle(panel)).includes("读取这个视频的字幕"));
   const secondCard = await until("换视频以后的卡片", () => cardOf(tubeWatchPage(SECOND_ID)));
-  await until("卡片跟到新视频，本机还没有字幕时说先在侧边栏读", async () => (await cardText(secondCard)).includes(NOT_READ_TEXT));
+  await until("卡片跟到新视频，本机还没有字幕时摆「生成概览」", () => evaluate(secondCard, `Boolean(document.getElementById("card-generate"))`));
   await until("点读取字幕", () => clickIn(panel, ".state-block .button", "读取字幕"));
   await until("说文字稿还没换过来", async () => (await stateTitle(panel)).includes("还没换成这个视频的"));
   await userClicks(video, "e2e-close-transcript");
@@ -381,7 +380,40 @@ async function modernFlow(launcher, panel, worker, windowId) {
   if (mock.requests.some((entry) => entry.path === TUBE_TRACK_ADDRESS)) throw new Error("读了播放器数据里的字幕地址");
   console.log("✓ 新式面板有两条轨、没有默认轨：标来源未确认；播放器数据里的字幕地址没人去读");
 
+  await cardGenerateFlow(launcher, panel, worker, windowId);
   await autoFlow(launcher, panel, worker, windowId);
+}
+
+/** 卡片上点「生成概览」：本机还没有字幕，简幕经这个视频页替用户点开文字稿读完、关上，再生成，结论摆在卡片上。 */
+async function cardGenerateFlow(launcher, panel, worker, windowId) {
+  const CARD_ID = "jmTube00007";
+  const url = tubeWatchPage(CARD_ID);
+  const page = await openWatch(launcher, panel, worker, windowId, CARD_ID);
+  const card = await until("观看页的卡片", () => cardOf(url));
+  await until("卡片上摆着「生成概览」", () => evaluate(card, `Boolean(document.getElementById("card-generate"))`));
+  await cdp.send("Page.bringToFront", {}, page);
+  // 侧边栏占掉一大块，无头窗口里剩下的视口太窄、卡片被挤扁：把窗口真的拉大（模拟视口尺寸时点击进不了卡片框架），做完再还原。
+  const { windowId: browserWindow, bounds } = await cdp.send("Browser.getWindowForTarget", {}, page);
+  await cdp.send("Browser.setWindowBounds", { windowId: browserWindow, bounds: { width: 1700, height: 1000 } });
+  // 卡片重排、再把新高度报给页面：等按钮落在框架露出来的那一块里再点。
+  const { frame, button } = await until("「生成概览」露在卡片框架里", async () => {
+    const at = await evaluate(page, `(() => { const node = document.getElementById(${JSON.stringify(INJECTED.cardFrame)}); if (!node) return null; node.scrollIntoView({ block: "start" }); const box = node.getBoundingClientRect(); return { x: box.left, y: box.top, height: box.height }; })()`);
+    const spot = await evaluate(card, `(() => { const node = document.getElementById("card-generate"); if (!node) return null; const box = node.getBoundingClientRect(); return { x: box.left + box.width / 2, y: box.top + box.height / 2 }; })()`);
+    return at && spot && spot.y > 0 && spot.y < at.height - 2 ? { frame: at, button: spot } : null;
+  });
+  await mouseClick(page, frame.x + button.x, frame.y + button.y);
+  const video = videoKey({ platform: "youtube", videoId: CARD_ID });
+  await until("卡片上摆出结论", async () => (await cardText(card)).includes("模拟服务写的一句话结论")).catch(async (error) => {
+    const panelState = await evaluate(page, `document.getElementById("e2e-open-panel")?.getAttribute("visibility") ?? ""`);
+    const hit = await evaluate(page, `(() => { const node = document.elementFromPoint(${frame.x + button.x}, ${frame.y + button.y}); return node ? node.tagName + "#" + node.id : "无"; })()`);
+    const now = await evaluate(page, `JSON.stringify(document.getElementById(${JSON.stringify(INJECTED.cardFrame)})?.getBoundingClientRect())`);
+    throw new Error(`${error.message}；卡片上是「${await cardText(card)}」，文字稿面板 ${panelState}，点的位置 ${JSON.stringify({ frame, button })}，那里是 ${hit}，卡片框架现在在 ${now}`);
+  });
+  await until("简幕读完关上了文字稿", () => evaluate(page, `document.body.hasAttribute("data-e2e-panel-closed")`));
+  const cached = await evaluate(panel, `chrome.runtime.sendMessage(${JSON.stringify({ type: "transcript.get", req: { video, mode: "cache-only" } })})`);
+  if (!cached?.ok || !cached.value.transcript.cues.some((cue) => cue.text === TUBE_VIDEOS[CARD_ID]?.lines.at(-1))) throw new Error(`字幕没读对：${JSON.stringify(cached)}`);
+  await cdp.send("Browser.setWindowBounds", { windowId: browserWindow, bounds: { width: bounds.width, height: bounds.height } });
+  console.log("✓ 卡片上点「生成概览」：本机还没有字幕，简幕经视频页替用户点开文字稿读完、关上，生成后结论摆在卡片上");
 }
 
 /** 打开就出结论：门槛调到 0，新开的视频不用点就生成；简幕替用户点开文字稿，读完关上；YouTube 上不发请求。 */

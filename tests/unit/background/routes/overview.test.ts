@@ -129,3 +129,48 @@ test("手动生成或补失败块在结论那一步被停：不算成功，不�
   await routes["overview.retryFailed"].handler({ taskId: "t", video: KEY }, ctx);
   assert.equal(resumed, 0);
 });
+
+test("卡片在 YouTube 上点生成：交给生成一个准备步骤，经卡片所在的标签页读到字幕；页面这会儿不能点、读不成，按页面报的原因收尾", async () => {
+  const TUBE = videoKey({ platform: "youtube", videoId: "tube-sample" });
+  const reads: (readonly [string, number])[] = [];
+  let read: unknown = { ok: true, value: {} };
+  let prepared = 0;
+  const overview = {
+    async generate(_taskId: string, _video: string, options: { prepare?: () => Promise<unknown> }) {
+      if (options.prepare) prepared += 1;
+      const failure = options.prepare ? await options.prepare() : null;
+      return failure ?? { ok: true, value: { fromCache: true } };
+    },
+  } as unknown as OverviewService;
+  const routes = overviewRoutes({
+    overview,
+    cardLimits: { redeemToken: (token: string) => token },
+    pageTranscript: {
+      duration: async () => null,
+      async read(ref, tabId) {
+        reads.push([ref.videoId, tabId]);
+        return read as never;
+      },
+    },
+  });
+  const ctx = { sender: { kind: "card", tabId: 9 } } as unknown as Parameters<(typeof routes)["overview.start"]["handler"]>[1];
+  const start = async (video = TUBE) => (await routes["overview.start"].handler({ video, token: "t" }, ctx)) as { ok: boolean; code?: string; detail?: string };
+  assert.equal((await start()).ok, true);
+  assert.deepEqual(reads, [["tube-sample", 9]]);
+
+  const cases = [
+    [{ later: "ad" }, "PAGE_ACTION_NEEDED", "ad"],
+    [{ later: "video-changed" }, "VIDEO_CHANGED", undefined],
+    [{ later: "no-page" }, "UNAVAILABLE", "no-page"],
+    [{ ok: false, code: "PAGE_ACTION_NEEDED", detail: "filtered" }, "PAGE_ACTION_NEEDED", "filtered"],
+  ] as const;
+  for (const [answer, code, detail] of cases) {
+    read = answer;
+    const result = await start();
+    assert.deepEqual([result.ok, result.code, result.detail], [false, code, detail], JSON.stringify(answer));
+  }
+
+  const before = prepared;
+  await start(KEY);
+  assert.equal(prepared, before, "B 站视频不经页面读");
+});

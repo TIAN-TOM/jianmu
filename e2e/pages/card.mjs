@@ -155,7 +155,7 @@ test("卡片：配好过、密钥随浏览器重启清空时，说明直说要�
   assert.equal(shown.generate, false);
 });
 
-test("卡片（YouTube）：有概览时结论在最前、只露前几章，没有官方总结那一行；本机还没有字幕时不摆「生成概览」，说先在侧边栏读、给「重试」；字幕读过就和 B 站一样摆「生成概览」", async ({ open }) => {
+test("卡片（YouTube）：有概览时结论在最前、只露前几章，没有官方总结那一行；没有代开文字稿的构建里本机还没有字幕时不摆「生成概览」，说先在侧边栏读、给「重试」；字幕读过就和 B 站一样摆「生成概览」", async ({ open }) => {
   const read = (page) =>
     page.evaluate(`(() => ({
       text: document.getElementById("card").innerText,
@@ -180,7 +180,7 @@ test("卡片（YouTube）：有概览时结论在最前、只露前几章，没�
   const empty = await read(unread);
   assert.equal(empty.status, NOT_READ_TEXT);
   assert.equal(empty.official, false);
-  assert.deepEqual(empty.buttons, ["card-retry", "card-panel"], "本机没有字幕：卡片不去读，不摆「生成概览」");
+  assert.deepEqual(empty.buttons, ["card-retry", "card-panel"], "本机没有字幕（没有代开文字稿的构建）：卡片不去读，不摆「生成概览」");
 
   const ready = await open(`${SAMPLE}#youtube-ready`);
   assert.deepEqual((await read(ready)).buttons, ["card-generate", "card-panel"]);

@@ -20,6 +20,7 @@ export const TUBE_VIDEOS = Object.freeze({
   jmTube00004: { layout: "modern", title: "样例新面板没章节", author: "样例频道", channel: "@sample.channel", label: "", lines: ["plain modern line one", "plain modern line two"] },
   jmTube00005: { layout: "modern", title: "样例新面板没有默认轨", author: "样例频道", channel: "@sample.channel", label: "", lines: ["unmarked line one", "unmarked line two"] },
   jmTube00006: { layout: "modern", title: "样例自动生成的视频", author: "样例频道", channel: "@sample.channel", label: "", lines: ["auto line one", "auto line two"] },
+  jmTube00007: { layout: "modern", title: "样例卡片上生成的视频", author: "样例频道", channel: "@sample.channel", label: "", lines: ["card line one", "card line two"] },
 });
 
 const HUMAN_EN = { name: { simpleText: "English" }, vssId: ".en", languageCode: "en" };

@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { createApp } from "../../../../../src/background/app.ts";
+import { CLAIM_MS } from "../../../../../src/background/tasks.ts";
 import { ANALYSIS_CHUNK, VERDICT } from "../../../../../src/core/ai/schemas.ts";
 import { PROTOCOLS } from "../../../../../src/core/ai/provider/index.ts";
 import type { OverviewRecord } from "../../../../../src/core/notes/records.ts";
@@ -61,6 +62,29 @@ test("认不出的视频直接拒绝", async () => {
   assert.equal(codeOf(await h.service.generate(taskId, OTHER, { fresh: false })), "TASK_NOT_FOUND", "别的视频登记的任务不认");
   assert.equal(h.asks.length, 0);
   assert.equal(h.ensures(), 0);
+});
+
+test("生成前的准备在认领以后做：准备得再久也不会过了认领时限；准备回失败就按它收尾，不读字幕、不请求模型", async () => {
+  const h = overviewHarness();
+  const taskId = await h.register();
+  let stateWhilePreparing: string | undefined;
+  const failed = await h.service.generate(taskId, VIDEO, {
+    fresh: false,
+    async prepare() {
+      stateWhilePreparing = h.tasks.list().find((task) => task.id === taskId)?.state;
+      h.timers.advance(CLAIM_MS * 2);
+      return { ok: false, code: "PAGE_ACTION_NEEDED", detail: "filtered" };
+    },
+  });
+  assert.equal(stateWhilePreparing, "running", "准备时任务已经认领");
+  assert.deepEqual([codeOf(failed), (failed as { detail?: string }).detail], ["PAGE_ACTION_NEEDED", "filtered"]);
+  assert.equal(h.ensures(), 0);
+  assert.equal(h.asks.length, 0);
+
+  const ready = overviewHarness();
+  const readyId = await ready.register();
+  const done = await ready.service.generate(readyId, VIDEO, { fresh: false, prepare: async () => (ready.timers.advance(CLAIM_MS * 2), null) });
+  assert.ok(done.ok, "准备好了照常生成");
 });
 
 test("同一个概览任务开始两次（连点、两个面板接上同一个任务）：接上在跑的那次，每块和结论只请求一遍模型", async () => {

@@ -3,7 +3,7 @@
 import type { ChunkPlanOptions } from "../../../core/ai/chunking.ts";
 import type { ClearGuard } from "../../../core/clear-guard.ts";
 import type { Limiter } from "../../../core/concurrency.ts";
-import { ok, type Result } from "../../../core/errors.ts";
+import { ok, type Failure, type Result } from "../../../core/errors.ts";
 import type { VideoKey } from "../../../core/video-ref.ts";
 import type { Broadcast } from "../../../shared/messages.ts";
 import type { OverviewGetView, OverviewResultView } from "../../../shared/messages/overview.ts";
@@ -32,8 +32,8 @@ export interface OverviewServiceDeps {
 }
 
 export interface OverviewService {
-  /** 认领登记好的概览任务：已有概览时直接交回，fresh 时重新生成。 */
-  generate(taskId: string, video: VideoKey, options: { readonly fresh: boolean }): Promise<Result<OverviewResultView>>;
+  /** 认领登记好的概览任务：已有概览时直接交回，fresh 时重新生成。prepare 在认领以后、生成之前做，回失败就按它收尾。 */
+  generate(taskId: string, video: VideoKey, options: { readonly fresh: boolean; readonly prepare?: () => Promise<Failure | null> }): Promise<Result<OverviewResultView>>;
   /** 认领登记好的概览任务，只补失败区间。 */
   retryFailed(taskId: string, video: VideoKey): Promise<Result<OverviewResultView>>;
   /** 本机已有的概览，只交生效中的那份。 */
@@ -53,7 +53,11 @@ export function createOverviewService(deps: OverviewServiceDeps): OverviewServic
   }
 
   return {
-    generate: (taskId, video, { fresh }) => claim(taskId, video, (job) => generator.generate(job, fresh)),
+    generate: (taskId, video, { fresh, prepare }) =>
+      claim(taskId, video, async (job) => {
+        const notReady = prepare ? await prepare() : null;
+        return notReady ?? generator.generate(job, fresh);
+      }),
     retryFailed: (taskId, video) => claim(taskId, video, (job) => generator.retryFailed(job)),
     async get(video) {
       try {

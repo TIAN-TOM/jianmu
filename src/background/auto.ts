@@ -84,7 +84,8 @@ export function createAutoWiring(deps: AutoWiringDeps): AutoGenerate {
     async readTranscript(ref, tabId) {
       if (ref.platform !== "bilibili") {
         const reply = (await deps.pageTranscript?.read(ref, tabId)) ?? null;
-        if (reply === null || reply === "later") return reply;
+        if (reply === null) return null;
+        if ("later" in reply) return "later";
         // 页面读不成只算这个视频读不成：不是平台整体读不了，不让别的视频跟着停。
         return reply.ok ? { durationSec: durationOf(reply.value) } : null;
       }

@@ -256,7 +256,8 @@ export function createCardModel(deps: CardDeps) {
     saved = value.overview?.analysis ?? null;
     const noCaptions = value.hasTranscript ? false : value.transcriptError === "NO_CAPTIONS" || view.peek().noCaptions;
     const needLogin = !value.hasTranscript && value.transcriptError === "NEED_LOGIN";
-    const notRead = !value.hasTranscript && value.transcriptError === "NOT_CACHED";
+    // 能代开文字稿面板的构建里，本机没有字幕也能点生成：后台先经这个视频页读到字幕。
+    const notRead = !value.hasTranscript && value.transcriptError === "NOT_CACHED" && !FEATURE_YOUTUBE_OPEN_PANEL;
     const following = view.peek().task;
     const blocked = hasOverview(saved) ? "" : needLogin ? NEED_LOGIN_TEXT : notRead ? NOT_READ_TEXT : noCaptions ? NO_CAPTIONS_TEXT : "";
     patch({
