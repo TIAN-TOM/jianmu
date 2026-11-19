@@ -4,6 +4,7 @@
 // 点读取时替用户点开文字稿，读到，标出轨和语言，这时再解释画面就带上前后几句；生成概览、存笔记、问答点引用跳转；
 // 站内换到另一个视频，面板没更新时不认，更新后读到新视频的，不串台。
 // 新式面板按播放器上已有的字幕轨判定来源：默认人工的标人工，只有一条自动轨的标自动，判定不了的标来源未确认。
+// 点读取时简介里的入口还没出来（页面还在加载）：等它出来再点开，读得到。
 // 播放页卡片插在右栏推荐视频上面、不进侧栏面板，本机没有字幕时不去读；侧边栏生成的结论卡片跟着摆出来，
 // 精读时收起、速览时展开，窗口变窄时跟着推荐视频挪到播放器下面。
 // 最后打开「打开就出结论」：新开的视频不用点，简幕替用户点开文字稿读完、关上，生成概览。
@@ -380,8 +381,23 @@ async function modernFlow(launcher, panel, worker, windowId) {
   if (mock.requests.some((entry) => entry.path === TUBE_TRACK_ADDRESS)) throw new Error("读了播放器数据里的字幕地址");
   console.log("✓ 新式面板有两条轨、没有默认轨：标来源未确认；播放器数据里的字幕地址没人去读");
 
+  await lateEntryFlow(launcher, panel, worker, windowId);
   await cardGenerateFlow(launcher, panel, worker, windowId);
   await autoFlow(launcher, panel, worker, windowId);
+}
+
+/** 点读取时简介里还没有文字稿入口，页面过一会儿才放上去：简幕等它出来再点开，读得到，不报找不到文字稿。 */
+async function lateEntryFlow(launcher, panel, worker, windowId) {
+  const LATE_ID = "jmTube00008";
+  const page = await openWatch(launcher, panel, worker, windowId, LATE_ID);
+  if (await evaluate(page, `Boolean(document.getElementById("e2e-open-transcript"))`)) throw new Error("入口一开始就在");
+  await until("点读取字幕", () => clickIn(panel, ".state-block .button", "读取字幕"));
+  await evaluate(page, "e2eShowEntryLater(1500)");
+  await until("入口出来以后读到文字稿", async () => (await textOf(panel, ".cue-text")).includes(TUBE_VIDEOS[LATE_ID]?.lines.at(-1) ?? "")).catch(async (error) => {
+    throw new Error(`${error.message}；侧边栏上是「${await stateTitle(panel)}」`);
+  });
+  if (await evaluate(page, `document.body.hasAttribute("data-e2e-wrong-entry")`)) throw new Error("点了关着的面板里那个入口");
+  console.log("✓ 入口晚出来：点读取时简介里还没有入口，简幕等它出来再点开，读到了，没报找不到文字稿");
 }
 
 /** 卡片上点「生成概览」：本机还没有字幕，简幕经这个视频页替用户点开文字稿读完、关上，再生成，结论摆在卡片上。 */

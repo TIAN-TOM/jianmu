@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { VideoRef } from "../../../../src/core/video-ref.ts";
-import { createPanelOpener } from "../../../../src/sites/youtube/page/commands.ts";
+import { createPanelOpener, ENTRY_WAIT_MS } from "../../../../src/sites/youtube/page/commands.ts";
 
 const ID = "jmSample0001";
 const OTHER = "jmSample0002";
@@ -57,12 +57,21 @@ function world() {
   document.found.set("ytd-watch-flexy .html5-video-player", player);
   document.lists.set(PANELS, []);
   let clock = 0;
+  /** 到了这个时刻页面才做的事：入口晚出来、广告开始之类。 */
+  const scheduled: { at: number; run: () => void }[] = [];
   const opener = createPanelOpener({
     document: document as unknown as Document,
     currentRef: (): VideoRef | null => ({ platform: "youtube", videoId: new URL(location.href).searchParams.get("v") ?? "" }),
     now: () => clock,
-    sleep: async (ms) => void (clock += ms),
+    sleep: async (ms) => {
+      clock += ms;
+      for (const due of scheduled.filter((item) => item.at <= clock)) {
+        scheduled.splice(scheduled.indexOf(due), 1);
+        due.run();
+      }
+    },
   });
+  const after = (ms: number, run: () => void): void => void scheduled.push({ at: clock + ms, run });
   const addPanel = (targetId: string | null): FakeNode => {
     const panel = new FakeNode();
     panel.tag = PANELS;
@@ -96,7 +105,7 @@ function world() {
     panel.found.set(CLOSE, button);
     return button;
   };
-  return { document, location, shell, player, addPanel, addEntry, addClose, show, ask, close, elapsed: () => clock };
+  return { document, location, shell, player, addPanel, addEntry, addClose, show, ask, close, after, elapsed: () => clock };
 }
 
 test("没打开时点简介里的入口一下，等到段落出来；一直关着的面板里那个入口不点", async () => {
@@ -163,6 +172,39 @@ test("正在播广告、页面上不是这个视频、页面上没有入口：�
 
   const bare = world();
   assert.equal(await bare.ask(), "no-entry");
+  assert.ok(bare.elapsed() >= ENTRY_WAIT_MS, "页面上一直没有入口：等满了才报");
+});
+
+test("页面还在加载、入口晚一点才出来：等到它出来再点一下，读得到", async () => {
+  const w = world();
+  const panel = w.addPanel("PAmodern_transcript_view");
+  const late: { button?: FakeNode } = {};
+  w.after(1200, () => {
+    late.button = w.addEntry();
+    late.button.onClick = () => w.show(panel);
+  });
+  assert.equal(await w.ask(), "opened");
+  assert.equal(late.button?.clicks, 1);
+  assert.ok(w.elapsed() < ENTRY_WAIT_MS);
+});
+
+test("等入口的途中开始播广告、换了视频、用户自己打开了面板：按那时的样子回，不点", async () => {
+  const ad = world();
+  ad.after(600, () => ad.player.classes.add("ad-showing"));
+  assert.equal(await ad.ask(), "ad");
+
+  const moved = world();
+  moved.after(600, () => moved.shell.attributes.set("video-id", OTHER));
+  assert.equal(await moved.ask(), "video-changed");
+
+  const own = world();
+  const panel = own.addPanel("PAmodern_transcript_view");
+  own.after(600, () => {
+    own.addEntry();
+    own.show(panel);
+  });
+  assert.equal(await own.ask(), "already-open");
+  assert.ok(own.elapsed() < ENTRY_WAIT_MS);
 });
 
 test("点了以后等的途中换了视频：报视频已换", async () => {
@@ -189,6 +231,7 @@ test("简介里没有入口、只剩关着的面板里那一份：不点它，�
   const hidden = w.addEntry(shellPanel);
   assert.equal(await w.ask(), "no-entry");
   assert.equal(hidden.clicks, 0);
+  assert.ok(w.elapsed() >= ENTRY_WAIT_MS);
 });
 
 test("读完关上：只关这次从简介点开、还开着的那个，只点一下收起按钮", async () => {
