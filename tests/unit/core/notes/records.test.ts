@@ -3,6 +3,9 @@ import { test } from "node:test";
 import {
   normalizeAnalysisFailures,
   noteList,
+  onOldTranscript,
+  overviewTranscriptBasis,
+  transcriptFingerprintOf,
   videoIdOf,
   type Derived,
   type GenInfo,
@@ -56,4 +59,29 @@ test("依据：依据已知的结果必须带生成配置，读的时候先判�
   const unchecked = (derived: Derived): string => derived.gen.model;
   assert.throws(() => unchecked(transcript), TypeError);
   assert.deepEqual([fresh, transcript, summary, title].map((derived) => derived.gen?.model ?? "未知"), ["sample-model", "未知", "未知", "未知"]);
+});
+
+test("依据的字幕指纹：只有依据字幕的结果有，官方总结、标题和简介、旧版未知的都没有", () => {
+  assert.equal(transcriptFingerprintOf({ basis: { source: "transcript", transcript: TRANSCRIPT }, gen: GEN }), TRANSCRIPT.fingerprint);
+  assert.equal(transcriptFingerprintOf({ basis: { source: "official-summary", video: VIDEO, fingerprint: "official" }, gen: GEN }), undefined);
+  assert.equal(transcriptFingerprintOf({ basis: { source: "title-description", video: VIDEO, fingerprint: "title" }, gen: GEN }), undefined);
+  assert.equal(transcriptFingerprintOf({ basis: { source: "legacy-unknown" } }), undefined);
+  assert.equal(transcriptFingerprintOf(undefined), undefined);
+});
+
+test("概览各部分依据的字幕指纹：章节和结论分开记，都不依据字幕时没有", () => {
+  const byTranscript = (fingerprint: string) => ({ derived: { basis: { source: "transcript", transcript: { ...TRANSCRIPT, fingerprint } }, gen: GEN } as Derived, taskCreatedAt: 1 });
+  const byOfficial = { derived: { basis: { source: "official-summary", video: VIDEO, fingerprint: "official" }, gen: GEN } as Derived, taskCreatedAt: 1 };
+  assert.deepEqual(overviewTranscriptBasis({ chapters: byTranscript("a"), verdict: byTranscript("b") }), { chapters: "a", verdict: "b" });
+  assert.deepEqual(overviewTranscriptBasis({ chapters: byTranscript("a"), verdict: byOfficial }), { chapters: "a" });
+  assert.equal(overviewTranscriptBasis({ verdict: byOfficial }), undefined);
+  assert.equal(overviewTranscriptBasis(undefined), undefined, "旧记录没写来历");
+});
+
+test("基于旧字幕：依据的和现在用的指纹不一样才算，哪一边不知道都不算", () => {
+  assert.equal(onOldTranscript("old", "new"), true);
+  assert.equal(onOldTranscript("same", "same"), false);
+  assert.equal(onOldTranscript(undefined, "new"), false, "依据不是字幕");
+  assert.equal(onOldTranscript("old", null), false, "现在还没读到字幕");
+  assert.equal(onOldTranscript("old", ""), false);
 });

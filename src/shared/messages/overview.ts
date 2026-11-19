@@ -2,6 +2,7 @@
 // 卡片只能开始生成，凭登记时拿到的一次性令牌。回复里的概览是生效中的那份，重新生成写到一半的草稿不给页面。
 import type { FailureRange } from "../../core/ai/chunking.ts";
 import type { LearningAnalysis } from "../../core/notes/markdown.ts";
+import type { OverviewTranscriptBasis } from "../../core/notes/records.ts";
 import type { VideoKey } from "../../core/video-ref.ts";
 import type { OverviewView } from "./transcript.ts";
 
@@ -34,6 +35,8 @@ export interface OverviewResultView {
   readonly video: VideoKey;
   readonly analysis: LearningAnalysis;
   readonly analysisFailures: readonly FailureRange[];
+  /** 生效中的章节和结论各自依据的字幕指纹，同 OverviewView。 */
+  readonly transcriptBasis?: OverviewTranscriptBasis;
   /** 本机已有，没向模型发请求。 */
   readonly fromCache: boolean;
   /** 还缺的分块：部分块失败也照样出结果，如实告诉用户这份不完整。 */

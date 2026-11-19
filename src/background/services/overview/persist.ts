@@ -6,7 +6,14 @@
 import type { FailureRange } from "../../../core/ai/chunking.ts";
 import type { ClearEpoch } from "../../../core/clear-guard.ts";
 import type { LearningAnalysis, LearningVerdict } from "../../../core/notes/markdown.ts";
-import { normalizeAnalysisFailures, OVERVIEW_RECORD_VERSION, type OverviewPart, type OverviewRecord } from "../../../core/notes/records.ts";
+import {
+  normalizeAnalysisFailures,
+  OVERVIEW_RECORD_VERSION,
+  overviewTranscriptBasis,
+  type OverviewPart,
+  type OverviewRecord,
+  type OverviewTranscriptBasis,
+} from "../../../core/notes/records.ts";
 import type { VideoKey } from "../../../core/video-ref.ts";
 import { errorLabel, type Log } from "../../log.ts";
 import type { OverviewChange, OverviewStore } from "../../stores/overviews.ts";
@@ -21,6 +28,8 @@ export interface Saved {
   /** 生效中的那份：写进去的，没写成时是打算写的。 */
   readonly analysis: LearningAnalysis;
   readonly analysisFailures: readonly FailureRange[];
+  /** 生效中的章节和结论各自依据的字幕指纹；没存上时不带，交回的是刚依据现在的字幕生成的。 */
+  readonly transcriptBasis?: OverviewTranscriptBasis;
   readonly saveFailed?: true;
   /** 更晚创建的任务已经写了这一部分，这次没写。 */
   readonly superseded?: true;
@@ -81,10 +90,10 @@ function blank(fields: SnapshotFields, now: number): OverviewRecord {
   };
 }
 
-const effectiveOf = (record: OverviewRecord | null | undefined): Saved => ({
-  analysis: record?.analysis ?? {},
-  analysisFailures: normalizeAnalysisFailures(record?.analysisFailures),
-});
+function effectiveOf(record: OverviewRecord | null | undefined): Saved {
+  const transcriptBasis = overviewTranscriptBasis(record?.parts);
+  return { analysis: record?.analysis ?? {}, analysisFailures: normalizeAnalysisFailures(record?.analysisFailures), ...(transcriptBasis ? { transcriptBasis } : {}) };
+}
 
 function withoutField<K extends keyof OverviewRecord>(record: OverviewRecord, key: K): OverviewRecord {
   const { [key]: _dropped, ...rest } = record;

@@ -7,7 +7,7 @@ import { hasOfficialSummaryContent, officialVerdictInputs } from "../../../core/
 import type { ClearEpoch, ClearGuard } from "../../../core/clear-guard.ts";
 import type { Limiter } from "../../../core/concurrency.ts";
 import { fail, ok, type Failure, type Result } from "../../../core/errors.ts";
-import { normalizeAnalysisFailures, type Basis, type OverviewPart, type OverviewRecord } from "../../../core/notes/records.ts";
+import { normalizeAnalysisFailures, overviewTranscriptBasis, type Basis, type OverviewPart, type OverviewRecord } from "../../../core/notes/records.ts";
 import { equivalenceKey } from "../../../core/task-keys.ts";
 import type { FrozenGen } from "../../../core/tasks.ts";
 import { formatTimestamp } from "../../../core/transcript/segment.ts";
@@ -90,7 +90,8 @@ const bare = ({ code, detail, retryAfterSec }: Failure): Failure => ({
 
 function storedView(video: VideoKey, record: OverviewRecord): OverviewResultView {
   const failures = normalizeAnalysisFailures(record.analysisFailures);
-  return { video, analysis: record.analysis, analysisFailures: failures, fromCache: true, failedChunks: failures.length };
+  const transcriptBasis = overviewTranscriptBasis(record.parts);
+  return { video, analysis: record.analysis, analysisFailures: failures, ...(transcriptBasis ? { transcriptBasis } : {}), fromCache: true, failedChunks: failures.length };
 }
 
 function savedView(video: VideoKey, saved: Saved): OverviewResultView {
@@ -98,6 +99,7 @@ function savedView(video: VideoKey, saved: Saved): OverviewResultView {
     video,
     analysis: saved.analysis,
     analysisFailures: [...saved.analysisFailures],
+    ...(saved.transcriptBasis ? { transcriptBasis: saved.transcriptBasis } : {}),
     fromCache: false,
     failedChunks: saved.analysisFailures.length,
     ...(saved.saveFailed ? { saveFailed: true } : {}),

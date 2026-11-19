@@ -402,3 +402,23 @@ test("YouTube 已有概览、本机没有字幕：摆出结论和章节，不再
   assert.deepEqual(model.view.value.analysis, ANALYSIS);
   assert.equal(model.view.value.notice, null);
 });
+
+test("换过字幕：摆着的概览带上依据的字幕指纹和现在这份的指纹；生成中的临时概览不带，结束后照本机的摆", async () => {
+  const { fake, model } = setup();
+  const overview = { analysis: ANALYSIS, analysisFailures: [], transcriptBasis: { chapters: "old", verdict: "old" } };
+  fake.reply("transcript.get", { value: guides(KEY, { hasTranscript: true, transcriptFingerprint: "new", overview }) });
+  fake.reply("task.list", { value: { ok: true, value: { tasks: [task("side", "running")] } } });
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.task?.id === "side"));
+  assert.deepEqual(model.view.value.transcriptBasis, { chapters: "old", verdict: "old" });
+  assert.equal(model.view.value.transcriptFingerprint, "new");
+
+  fake.broadcast({ type: "overview.preview", taskId: "side", video: KEY, analysis: { chapters: [{ title: "生成中", timestampSeconds: 0 }] }, done: 1, total: 2 });
+  assert.ok(await until(() => model.view.value.analysis?.chapters?.[0]?.title === "生成中"));
+  assert.equal(model.view.value.transcriptBasis, null);
+
+  fake.reply("transcript.get", { value: guides(KEY, { hasTranscript: true, transcriptFingerprint: "new", overview: { ...overview, transcriptBasis: { chapters: "new", verdict: "new" } } }) });
+  fake.broadcast({ type: "task.changed", task: task("side", "completed") });
+  assert.ok(await until(() => model.view.value.task === null && model.view.value.transcriptBasis?.verdict === "new"));
+});

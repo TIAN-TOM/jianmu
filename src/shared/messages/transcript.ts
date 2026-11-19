@@ -2,7 +2,7 @@
 import type { FailureRange } from "../../core/ai/chunking.ts";
 import type { Failure } from "../../core/errors.ts";
 import type { LearningAnalysis } from "../../core/notes/markdown.ts";
-import type { TranscriptRef } from "../../core/notes/records.ts";
+import type { OverviewTranscriptBasis, TranscriptRef } from "../../core/notes/records.ts";
 import type { TranscriptSegment } from "../../core/transcript/segment.ts";
 import type { CaptionKind } from "../../core/transcript/sources.ts";
 import type { ChannelRef, VideoKey } from "../../core/video-ref.ts";
@@ -125,6 +125,8 @@ export type TranscriptReply = { readonly ok: true; readonly value: TranscriptVie
 export interface OverviewView {
   readonly analysis: LearningAnalysis;
   readonly analysisFailures: readonly FailureRange[];
+  /** 依据字幕写的章节和结论各自依据的字幕指纹：页面和现在用的字幕对不上就标「基于旧字幕」。 */
+  readonly transcriptBasis?: OverviewTranscriptBasis;
 }
 
 /** 读不到字幕的这几种原因要告诉卡片：它据此决定还摆不摆「生成概览」。NOT_CACHED 是字幕要用户点了读取才读的站，本机还没有。 */
@@ -141,6 +143,8 @@ export interface GuidesView {
   readonly hasTranscript: boolean;
   /** 字幕缓存命中。 */
   readonly fromCache: boolean;
+  /** 读到了字幕时，这份字幕的指纹：卡片拿它和概览依据的比。 */
+  readonly transcriptFingerprint?: string;
   /** 并进的完整读取读不到字幕的原因，或者只看本机的站本机还没有字幕。 */
   readonly transcriptError?: TranscriptUnavailable;
 }

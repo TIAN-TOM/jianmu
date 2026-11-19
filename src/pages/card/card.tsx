@@ -7,8 +7,8 @@ import { formatTimestamp } from "../../core/transcript/segment.ts";
 import type { OfficialSummaryView, OutlineSectionView } from "../../shared/messages/transcript.ts";
 import { keyChapterStarts } from "../../core/ai/verdict.ts";
 import { ChapterList, type ChapterItem } from "../shared/ui/chapter-list.tsx";
-import { VerdictBlock } from "../shared/ui/verdict-block.tsx";
-import type { BasisSource } from "../shared/ui/verdict.ts";
+import { StaleTranscriptLine, VerdictBlock } from "../shared/ui/verdict-block.tsx";
+import { staleOverviewMarks, type BasisSource } from "../shared/ui/verdict.ts";
 import { cardRows, hasOverview, type CardView, type TaskProgress } from "./model.ts";
 
 // 没有官方总结是常态，不占一行；要登录、没读到、还在读才说。
@@ -125,12 +125,15 @@ function basisOf(analysis: LearningAnalysis): BasisSource | null {
 
 function Overview({
   analysis,
+  stale,
   pending,
   showAll,
   onSeek,
   onToggleAll,
 }: {
   readonly analysis: LearningAnalysis;
+  /** 换过字幕：结论块里标结论的，章节的单独一行。 */
+  readonly stale: { readonly verdict: boolean; readonly chapters: boolean };
   readonly pending: boolean | string;
   readonly showAll: boolean;
   readonly onSeek: (atSec: number) => void;
@@ -148,8 +151,9 @@ function Overview({
           {typeof pending === "string" ? pending : "正在写一句话结论…"}
         </p>
       ) : summary ? (
-        <VerdictBlock label={text(verdict?.verdict)} text={summary} basis={basisOf(analysis)} incomplete={verdict?.incomplete === true} />
+        <VerdictBlock label={text(verdict?.verdict)} text={summary} basis={basisOf(analysis)} staleTranscript={stale.verdict} incomplete={verdict?.incomplete === true} />
       ) : null}
+      {stale.chapters && shown.length ? <StaleTranscriptLine /> : null}
       {shown.length ? <ChapterList chapters={shown} keyStarts={keyChapterStarts(analysis)} heading={false} onSeek={onSeek} /> : null}
       {cut ? <More open={showAll} label={`展开全部 ${chapters.length} 章`} onToggle={onToggleAll} /> : null}
     </section>
@@ -202,7 +206,15 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
               {view.notice.text}
             </p>
           ) : null}
-          {analysis ? <Overview analysis={analysis} pending={view.verdictPending} showAll={view.showAll} onSeek={actions.seek} onToggleAll={actions.toggleShowAll} /> : null}
+          {analysis ? (
+            <Overview
+              analysis={analysis}
+              stale={staleOverviewMarks(view.transcriptBasis ?? undefined, view.transcriptFingerprint, !view.verdictPending && text(analysis.verdict?.summary) !== "")}
+              pending={view.verdictPending}               showAll={view.showAll}
+              onSeek={actions.seek}
+              onToggleAll={actions.toggleShowAll}
+            />
+          ) : null}
           {official && analysis ? (
             // 已经有结论和章节：官方总结收成一行，点开才露。
             <section class="card-block" id="card-official" aria-label="B 站官方总结">

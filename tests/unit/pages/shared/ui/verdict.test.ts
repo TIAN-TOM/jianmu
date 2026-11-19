@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { LEGACY_VERDICT, VERDICT_LABELS } from "../../../../../src/core/ai/verdict.ts";
 import { MARK_PARTS } from "../../../../../src/pages/shared/ui/icons.ts";
-import { basisText, labelOf, MARK_SHAPES, markOf } from "../../../../../src/pages/shared/ui/verdict.ts";
+import { basisText, labelOf, MARK_SHAPES, markOf, staleOverviewMarks } from "../../../../../src/pages/shared/ui/verdict.ts";
 
 test("四档和旧判断都有标记，形状互不相同；旧版的「看概览就够」是方块，不混进圆形那几档", () => {
   const labels = [...VERDICT_LABELS, LEGACY_VERDICT];
@@ -43,4 +43,15 @@ test("依据行按四种依据写", () => {
   assert.equal(basisText("official-summary"), "依据 B 站官方总结，没有通读字幕");
   assert.equal(basisText("title-description"), "依据标题和简介");
   assert.equal(basisText("legacy-unknown"), "依据未知（旧版）");
+});
+
+test("基于旧字幕标在哪：结论块标结论自己的，章节基于旧字幕而结论块没标时单独标一行，同一件事不标两遍", () => {
+  const both = { chapters: "old", verdict: "old" };
+  assert.deepEqual(staleOverviewMarks(both, "new", true), { verdict: true, chapters: false }, "两处都旧：标在结论块里就够");
+  assert.deepEqual(staleOverviewMarks(both, "new", false), { verdict: false, chapters: true }, "结论还没摆出来：标在章节上");
+  assert.deepEqual(staleOverviewMarks({ chapters: "old" }, "new", true), { verdict: false, chapters: true }, "结论依据官方总结，章节依据旧字幕");
+  assert.deepEqual(staleOverviewMarks({ chapters: "new", verdict: "old" }, "new", true), { verdict: true, chapters: false }, "章节重新生成了、结论没写成");
+  assert.deepEqual(staleOverviewMarks(both, "old", true), { verdict: false, chapters: false });
+  assert.deepEqual(staleOverviewMarks(both, null, true), { verdict: false, chapters: false }, "现在没读到字幕时不标");
+  assert.deepEqual(staleOverviewMarks(undefined, "new", true), { verdict: false, chapters: false });
 });

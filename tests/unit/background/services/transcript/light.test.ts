@@ -635,3 +635,27 @@ test("YouTube 导入过字幕文件：算本机有字幕，卡片能生成", asy
   assert.equal(card.transcriptError, undefined);
   assert.equal(h.ctxs.length, 0);
 });
+
+test("命中字幕缓存：带上现在这份字幕的指纹和概览依据的指纹，卡片据此标基于旧字幕；没读到字幕时不带指纹", async () => {
+  const h = rig({ seed: [cachedRow(undefined, { official: storedOfficial("ok") })] });
+  const derived = {
+    basis: { source: "transcript", transcript: { video: KEY, kind: "human", lang: "zh-CN", fingerprint: "旧字幕" } },
+    gen: { feature: "analysis", promptVersion: "p1", model: "m", effort: "off" },
+  } as const;
+  const part = { derived, taskCreatedAt: 1 };
+  await createOverviewStore({ driver: h.overviewsDriver, guard: h.guard }).put({
+    schemaVersion: 1,
+    videoKey: KEY,
+    snapshot: { title: "", author: "" },
+    analysis: ANALYSIS,
+    parts: { chapters: part, verdict: part },
+    updatedAt: 1,
+  });
+  const cached = guides(await h.service.light(REF));
+  assert.equal(cached.transcriptFingerprint, (await h.rows())[0]?.transcript?.ref.fingerprint);
+  assert.deepEqual(cached.overview?.transcriptBasis, { chapters: "旧字幕", verdict: "旧字幕" });
+
+  const uncached = guides(await rig().service.light(REF));
+  assert.equal(uncached.hasTranscript, false);
+  assert.equal("transcriptFingerprint" in uncached, false);
+});

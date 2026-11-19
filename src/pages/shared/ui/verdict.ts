@@ -1,7 +1,7 @@
 // 结论块的显示规则：判断档位配什么标记、依据行怎么写。
 // 形状带信息，颜色只是第二层，色弱和黑白截图下也分得清。档位名照数据写，这里只认现有的几档。
 import { verdictLabelOf } from "../../../core/ai/verdict.ts";
-import type { Basis } from "../../../core/notes/records.ts";
+import { onOldTranscript, type Basis, type OverviewTranscriptBasis } from "../../../core/notes/records.ts";
 
 export type MarkShape = "go" | "fair" | "skip" | "unknown" | "square";
 
@@ -39,4 +39,17 @@ const BASIS_TEXT: Readonly<Record<BasisSource, string>> = Object.freeze({
 /** 依据行：结论按实际依据标注。 */
 export function basisText(source: BasisSource): string {
   return BASIS_TEXT[source];
+}
+
+/**
+ * 概览哪几处标「基于旧字幕」：结论块标结论自己的；章节基于旧字幕、结论块里又没标出来时，章节上面单独标一行。
+ * current 是现在用的字幕的指纹，不知道时哪处都不标。
+ */
+export function staleOverviewMarks(
+  basis: OverviewTranscriptBasis | undefined,
+  current: string | null | undefined,
+  verdictShown: boolean,
+): { readonly verdict: boolean; readonly chapters: boolean } {
+  const verdict = verdictShown && onOldTranscript(basis?.verdict, current);
+  return { verdict, chapters: !verdict && onOldTranscript(basis?.chapters, current) };
 }

@@ -7,6 +7,7 @@ import { computed, signal, type ReadonlySignal } from "@preact/signals";
 import { describe, type ErrorCode } from "../../core/errors.ts";
 import type { CardOverride, Mode, SessionView } from "../../core/mode/types.ts";
 import type { LearningAnalysis } from "../../core/notes/markdown.ts";
+import type { OverviewTranscriptBasis } from "../../core/notes/records.ts";
 import type { TaskView } from "../../core/tasks.ts";
 import { videoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
 import type { GuidesFailure, OfficialSummaryView } from "../../shared/messages/transcript.ts";
@@ -58,6 +59,10 @@ export interface CardView {
   readonly title: string;
   readonly official: OfficialSummaryView | null;
   readonly analysis: LearningAnalysis | null;
+  /** 摆着的概览里章节和结论各自依据的字幕指纹；生成中的临时概览没有。 */
+  readonly transcriptBasis: OverviewTranscriptBasis | null;
+  /** 本机有字幕时，现在用的那份的指纹：和上面的对不上就标「基于旧字幕」。 */
+  readonly transcriptFingerprint: string | null;
   /** 结论还没写好：true 写「正在写」，字符串原样显示。 */
   readonly verdictPending: boolean | string;
   readonly noCaptions: boolean;
@@ -89,6 +94,8 @@ const INITIAL: CardView = {
   title: "",
   official: null,
   analysis: null,
+  transcriptBasis: null,
+  transcriptFingerprint: null,
   verdictPending: false,
   noCaptions: false,
   needLogin: false,
@@ -148,6 +155,9 @@ export function createCardModel(deps: CardDeps) {
   let ticket = 0;
   let loadedTicket = -1;
   let saved: LearningAnalysis | null = null;
+  let savedBasis: OverviewTranscriptBasis | null = null;
+  /** 摆存着的那份概览。 */
+  const shownSaved = (): Pick<CardView, "analysis" | "transcriptBasis"> => ({ analysis: saved, transcriptBasis: savedBasis });
   const settled = new Set<string>();
   // 这个视频的手动展开收起和模式，从会话里读。
   let override: CardOverride | null = null;
@@ -177,7 +187,8 @@ export function createCardModel(deps: CardDeps) {
     ticket += 1;
     loadedTicket = -1;
     saved = null;
-    patch({ phase, title: "", official: null, analysis: null, verdictPending: false, noCaptions: false, notRead: false, task: null, settingsError: false, notice: null, showAll: false, officialOpen: false });
+    savedBasis = null;
+    patch({ phase, title: "", official: null, analysis: null, transcriptBasis: null, transcriptFingerprint: null, verdictPending: false, noCaptions: false, notRead: false, task: null, settingsError: false, notice: null, showAll: false, officialOpen: false });
   }
 
   function syncVideo(url: string): void {
@@ -248,12 +259,16 @@ export function createCardModel(deps: CardDeps) {
     if (!reply.ok) {
       if (HIDDEN_CODES.has(reply.code)) return void deps.recheckConfig();
       const known = (reply as GuidesFailure).overview;
-      if (known) saved = known.analysis;
+      if (known) {
+        saved = known.analysis;
+        savedBasis = known.transcriptBasis ?? null;
+      }
       return failLoad(describe(reply.code, reply.detail));
     }
     const value = reply.value;
     if (!("mode" in value) || value.video !== current) return failLoad("读到的不是当前视频的数据。");
     saved = value.overview?.analysis ?? null;
+    savedBasis = value.overview?.transcriptBasis ?? null;
     const noCaptions = value.hasTranscript ? false : value.transcriptError === "NO_CAPTIONS" || view.peek().noCaptions;
     const needLogin = !value.hasTranscript && value.transcriptError === "NEED_LOGIN";
     const notRead = !value.hasTranscript && value.transcriptError === "NOT_CACHED";
@@ -266,7 +281,8 @@ export function createCardModel(deps: CardDeps) {
       noCaptions,
       needLogin,
       notRead,
-      ...(following && !quiet ? {} : { analysis: saved, verdictPending: false }),
+      transcriptFingerprint: value.transcriptFingerprint ?? null,
+      ...(following && !quiet ? {} : { ...shownSaved(), verdictPending: false }),
       ...(quiet ? {} : notice(blocked)),
     });
     // 没登录、本机还没有字幕：登录或在侧边栏读过以后，重试、收起再展开都要能重读，不当成已经读过。
@@ -276,7 +292,7 @@ export function createCardModel(deps: CardDeps) {
 
   function failLoad(text: string): void {
     loadedTicket = -1;
-    patch({ phase: "failed", analysis: saved, ...notice(text, "error") });
+    patch({ phase: "failed", ...shownSaved(), ...notice(text, "error") });
   }
 
   function progressOf(task: TaskView, external: boolean, canceling = false): TaskProgress {
@@ -301,7 +317,7 @@ export function createCardModel(deps: CardDeps) {
   function settle(id: string): void {
     settled.add(id);
     if (view.peek().task?.id !== id) return;
-    patch({ task: null, analysis: saved, verdictPending: false });
+    patch({ task: null, ...shownSaved(), verdictPending: false });
     loadedTicket = -1;
     void load();
   }
@@ -345,18 +361,19 @@ export function createCardModel(deps: CardDeps) {
     if (!result.ok) return finishOwn(null, result.code, result.code === "TASK_CANCELED" ? "已停止生成。" : describe(result.code, result.detail));
     const value = result.value;
     saved = value.analysis;
+    savedBasis = value.transcriptBasis ?? null;
     const text = value.saveFailed
       ? "概览已生成，但没能保存到本机，以后打开可能要重新生成。"
       : value.canceled
         ? `已停止生成，已保存 ${value.savedChunks ?? 0}/${value.chunkCount ?? 0} 块，可以在侧边栏里补失败块。`
         : "";
-    patch({ task: null, analysis: saved, verdictPending: false, ...notice(text, value.saveFailed ? "warn" : "") });
+    patch({ task: null, ...shownSaved(), verdictPending: false, ...notice(text, value.saveFailed ? "warn" : "") });
   }
 
   function finishOwn(analysis: LearningAnalysis | null, code: ErrorCode, text: string): void {
     patch({
       task: null,
-      analysis: analysis ?? saved,
+      ...(analysis ? { analysis, transcriptBasis: null } : shownSaved()),
       verdictPending: false,
       settingsError: SETTINGS_CODES.has(code),
       noCaptions: view.peek().noCaptions || code === "NO_CAPTIONS",
@@ -405,7 +422,7 @@ export function createCardModel(deps: CardDeps) {
   function onPreview(message: { readonly taskId: string; readonly video: VideoKey; readonly analysis: LearningAnalysis; readonly done: number; readonly total: number }): void {
     if (message.video !== video || view.peek().task?.id !== message.taskId) return;
     // 进度行已经写着完成了几块，这里只说结论什么时候有。
-    patch({ analysis: message.analysis, verdictPending: "章节还在生成，结论最后写。" });
+    patch({ analysis: message.analysis, transcriptBasis: null, verdictPending: "章节还在生成，结论最后写。" });
   }
 
   const subscriptions = [
@@ -415,7 +432,7 @@ export function createCardModel(deps: CardDeps) {
     api.on("overview.updated", (message) => {
       if (message.video !== video || !view.peek().task) return;
       void load(true).then(() => {
-        if (view.peek().task && message.verdictPending) patch({ analysis: saved, verdictPending: true });
+        if (view.peek().task && message.verdictPending) patch({ ...shownSaved(), verdictPending: true });
       });
     }),
     // 本视频的模式变了（侧边栏里切的、播满 1 分钟自动切的）：重读自己标签页的会话，别的标签页同一视频的不算。
