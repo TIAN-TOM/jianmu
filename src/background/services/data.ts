@@ -2,6 +2,7 @@
 // 导出只读本机的四个仓储（笔记、概览、问答、译文和整理后的字幕），不发平台和模型请求，确认启用之前也能用；
 // 导入分段进来（单条消息有大小上限），每段在对应仓储的写入队列里读本机的再合并，清除闸门的代数从连上那一刻算起；
 // 清除先停下在跑的任务，再在清除闸门里删仓库和存储键，删完广播给各页面。
+// 这三样从开始到完全结束（成功失败都算）都记作忙：文件换了要重新加载时等它们做完，不留清了一半、导了一半的数据，也不关掉发起的页面。
 import { buildBackup, type Backup } from "../../core/backup/format.ts";
 import { mergeNotes, mergeOverviews, mergeQa, mergeTranslations, type MergeResult } from "../../core/backup/merge.ts";
 import { checkNote, checkOverview, checkQa, checkTranslation, keepValid, type RecordKind } from "../../core/backup/records.ts";
@@ -42,16 +43,24 @@ export interface MergedPart {
   readonly skipped: number;
 }
 
-/** 一次导入：各段按顺序交进来；结束时（不管是不是导完）有改动就广播一次。 */
+/** 一次导入：各段按顺序交进来；结束时（不管是不是导完）有改动就广播一次。打开到关上都算忙。 */
 export interface ImportSession {
   readonly merge: (kind: RecordKind, records: readonly unknown[]) => Promise<Result<MergedPart>>;
   readonly close: () => void;
 }
 
+/** 一次导出：读出整份备份，页面收完断开时关上。打开到关上都算忙。 */
+export interface ExportSession {
+  readonly read: () => Promise<Backup>;
+  readonly close: () => void;
+}
+
 export interface DataService {
-  readonly exportBackup: () => Promise<Backup>;
+  readonly openExport: () => ExportSession;
   readonly openImport: () => ImportSession;
   readonly clear: (scope: ClearScope) => Promise<void>;
+  /** 有导出、导入或清除没做完。 */
+  readonly busy: () => boolean;
 }
 
 /** 清除时停下任务的原因。 */
@@ -65,8 +74,32 @@ const mergedPart = <T>(merged: MergeResult<T>, skipped: number): MergedPart => (
 
 export function createDataService(deps: DataServiceDeps): DataService {
   const { notes, overviews, qa, guard } = deps;
+  let active = 0;
+
+  /** 记一次忙，回一个放开的函数；放开多次只算一次。 */
+  function hold(): () => void {
+    active += 1;
+    let held = true;
+    return () => {
+      if (!held) return;
+      held = false;
+      active -= 1;
+    };
+  }
+
+  function openExport(): ExportSession {
+    const release = hold();
+    return {
+      async read() {
+        const [noteList, overviewList, qaList, translationList] = await Promise.all([notes.all(), overviews.all(), qa.all(), deps.translations.all()]);
+        return buildBackup({ notes: noteList, overviews: overviewList, qa: qaList, translations: translationList }, deps.now());
+      },
+      close: release,
+    };
+  }
 
   function openImport(): ImportSession {
+    const release = hold();
     const since = guard.epoch();
     let changed = false;
 
@@ -112,6 +145,7 @@ export function createDataService(deps: DataServiceDeps): DataService {
         return ok(part);
       },
       close() {
+        release();
         if (!changed) return;
         changed = false;
         deps.broadcast({ type: "notes.changed" });
@@ -120,28 +154,26 @@ export function createDataService(deps: DataServiceDeps): DataService {
   }
 
   async function clear(scope: ClearScope): Promise<void> {
-    // 在跑的生成先停下：它们回来写的那一下也会被闸门拦住，停下是为了不再花钱。
-    deps.tasks.cancelAll(CLEARING);
-    const targets = clearTargets(scope);
-    await guard.clear(scope, async () => {
-      deps.forgetMemory(scope);
-      await Promise.all(targets.stores.map((name) => deps.clearStore(name)));
-      if (scope === "all") {
-        await deps.settings.clearAll();
-        return;
-      }
-      await deps.storage.local.remove([...targets.local]);
-      await deps.storage.session.remove([...targets.session]);
-    });
-    deps.broadcast({ type: "data.cleared", scope });
+    const release = hold();
+    try {
+      // 在跑的生成先停下：它们回来写的那一下也会被闸门拦住，停下是为了不再花钱。
+      deps.tasks.cancelAll(CLEARING);
+      const targets = clearTargets(scope);
+      await guard.clear(scope, async () => {
+        deps.forgetMemory(scope);
+        await Promise.all(targets.stores.map((name) => deps.clearStore(name)));
+        if (scope === "all") {
+          await deps.settings.clearAll();
+          return;
+        }
+        await deps.storage.local.remove([...targets.local]);
+        await deps.storage.session.remove([...targets.session]);
+      });
+      deps.broadcast({ type: "data.cleared", scope });
+    } finally {
+      release();
+    }
   }
 
-  return {
-    exportBackup: async () => {
-      const [noteList, overviewList, qaList, translationList] = await Promise.all([notes.all(), overviews.all(), qa.all(), deps.translations.all()]);
-      return buildBackup({ notes: noteList, overviews: overviewList, qa: qaList, translations: translationList }, deps.now());
-    },
-    openImport,
-    clear,
-  };
+  return { openExport, openImport, clear, busy: () => active > 0 };
 }

@@ -1,6 +1,6 @@
 // 文件换了就自己重新加载：解压覆盖新版以后，浏览器不会自己发现扩展目录里的文件变了，后台还跑着旧代码，
 // 新打开的页面和旧后台对不上。后台醒来时看一眼包里的构建标识文件（读到的是磁盘上现在的内容），和自己编进去的不一样就重新加载。
-// 只读本机自己的文件，不联网；不常驻轮询，一分钟最多看一次；有花额度的工作在跑就等它做完再重载；
+// 只读本机自己的文件，不联网；不常驻轮询，一分钟最多看一次；有花额度的工作或者导出、导入、清除数据在跑，等它做完再重载；
 // 同一个新标识重载过几次还是对不上（文件没换全、坏了），先停下，不来回重载。
 import { readItem, type ExtensionStorage } from "../platform/storage.ts";
 import { BUILD_ID, BUILD_ID_FILE } from "../shared/build-id.ts";
@@ -27,7 +27,7 @@ export interface SelfUpdateDeps {
   readonly buildId: string;
   /** 读包里的构建标识文件；读不到回 null。 */
   readonly readBuildId: () => Promise<string | null>;
-  /** 有没有花额度的工作在跑：任务、批次、润色。 */
+  /** 有没有不能被重载打断的工作在跑：任务、批次、润色，导出、导入备份，清除数据。 */
   readonly busy: () => boolean;
   readonly reload: () => void;
   readonly loadRecord: () => Promise<ReloadRecord | null>;

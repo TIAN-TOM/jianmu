@@ -1,6 +1,7 @@
 // 解压覆盖新版以后简幕自己重新加载：后台醒来时发现扩展目录里的构建标识换了，就重新加载自己。
 // - 覆盖之前：确认启用、存一条笔记，视频页上挂着图标。
-// - 覆盖之后：等过一分钟的节流，下一个事件叫醒后台时，它自己要重新加载，没有谁替它点刷新。
+// - 覆盖之后：等过一分钟的节流，下一个事件叫醒后台时，它自己要重新加载，没有谁替它点刷新；
+//   设置页正在恢复备份（导入的长连接开着）时先不重载，导入结束、连接断开以后才重载。
 // - 重新加载以后：后台是新构建，启用确认和笔记都还在；已开的视频页补注入了新的内容脚本；之后不再要重载。
 //
 //   在 npm run test:e2e:lifecycle 里跟在生命周期冒烟后面跑，用的是同一个发行包，约一分半；用 CHROME_PATH 指定 Chrome for Testing 的可执行文件
@@ -15,7 +16,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { videoKey } from "../src/core/video-ref.ts";
-import { CHECK_INTERVAL_MS } from "../src/background/self-update.ts";
+import { BUSY_RECHECK_MS, CHECK_INTERVAL_MS } from "../src/background/self-update.ts";
 import { BUILD_ID_FILE } from "../src/shared/build-id.ts";
 import { DATABASE_NAME, INJECTED, PAGE_PATHS, SETTINGS_STORAGE_KEY } from "../src/shared/names.ts";
 import { launchChrome, prepareExtension } from "./browser.mjs";
@@ -111,12 +112,12 @@ async function open(url) {
 }
 
 /**
- * 开一个占标签页的侧边栏页面，用它给后台发消息。扩展刚重新加载完的一小会儿里，打开扩展页面会被浏览器拦下，
+ * 开一个占标签页的扩展页面（默认侧边栏），用它给后台发消息。扩展刚重新加载完的一小会儿里，打开扩展页面会被浏览器拦下，
  * 拦下了就关掉重开。
  */
-async function openPanel(extensionId, timeoutMs = STEP_TIMEOUT_MS) {
+async function openPanel(extensionId, timeoutMs = STEP_TIMEOUT_MS, path = PAGE_PATHS.sidepanel) {
   return until("扩展页面的脚本就绪", async () => {
-    const page = await open(`chrome-extension://${extensionId}/${PAGE_PATHS.sidepanel}`);
+    const page = await open(`chrome-extension://${extensionId}/${path}`);
     try {
       await until("页面加载", () => evaluate(page.sessionId, `document.readyState === "complete"`), 5000);
       if (await evaluate(page.sessionId, `typeof chrome?.runtime?.sendMessage === "function"`)) return page;
@@ -163,14 +164,34 @@ try {
   const { sessionId: workerSession } = await cdp.send("Target.attachToTarget", { targetId: worker.targetId, flatten: true });
   await evaluate(workerSession, `(chrome.runtime.reload = () => void (globalThis.e2eReloadAt = Date.now()), true)`);
 
+  // 设置页开始恢复备份：导入的长连接连上、合并完一段，还开着（后面几段还没发）。覆盖之前就连上，后台看文件时它一定已经在了。
+  const options = await openPanel(id, STEP_TIMEOUT_MS, PAGE_PATHS.options);
+  const firstPart = await evaluate(
+    options.sessionId,
+    `(async () => {
+      const port = chrome.runtime.connect({ name: "backup.import" });
+      globalThis.e2eImport = port;
+      const reply = new Promise((done) => port.onMessage.addListener(done));
+      port.postMessage({ type: "part", seq: 0, kind: "notes", records: [] });
+      return JSON.stringify(await reply);
+    })()`,
+  );
+  if (JSON.parse(firstPart)?.type !== "merged") throw new Error(`恢复备份的第一段没合并：${firstPart}`);
+
   const touched = overwriteWithNewBuild(extensionDir, oldBuild);
   if (touched < 3) throw new Error(`覆盖新版只换了 ${touched} 个文件，构建标识没写进包里`);
   // 后台一分钟最多看一次文件：等过这一分钟，下一个事件就会看。
   await sleep(CHECK_INTERVAL_MS + 1000);
   if (await evaluate(workerSession, `globalThis.e2eReloadAt ?? null`)) throw new Error("没有事件就重新加载了");
   await ask(panel, "build.id");
-  await until("后台发现文件换了，自己要重新加载", () => evaluate(workerSession, `globalThis.e2eReloadAt ?? null`));
-  step("覆盖之后：后台下一次醒来就要重新加载自己，没有谁替它点刷新");
+  // 后台这时看了文件，发现换了，但导入还开着：隔一会儿再看，先不重载。
+  await sleep(SETTLE_MS);
+  if (await evaluate(workerSession, `globalThis.e2eReloadAt ?? null`)) throw new Error("恢复备份还没完就重新加载了");
+  step("覆盖之后：设置页正在恢复备份，后台先不重新加载");
+
+  await evaluate(options.sessionId, `(globalThis.e2eImport.disconnect(), true)`);
+  await until("导入结束以后，后台自己要重新加载", () => evaluate(workerSession, `globalThis.e2eReloadAt ?? null`), BUSY_RECHECK_MS + STEP_TIMEOUT_MS);
+  step("导入结束、连接断开以后，后台自己要重新加载，没有谁替它点刷新");
 
   const again = await browser.loadExtension();
   if (again.id !== id) throw new Error(`再加载以后扩展 ID 变了：${again.id}`);
