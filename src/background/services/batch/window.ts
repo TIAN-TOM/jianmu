@@ -38,7 +38,7 @@ export interface WindowBatchDeps {
   /** 这个窗口里地址匹配得上视频页的标签页。 */
   readonly windowTabs: (windowId: number) => Promise<readonly WindowTab[]>;
   readonly overviews: Pick<OverviewStore, "find">;
-  readonly transcript: Pick<TranscriptService, "ensure">;
+  readonly transcript: Pick<TranscriptService, "ensure" | "get">;
   readonly pageTranscript: PageTranscript | null;
   readonly overview: Pick<OverviewService, "generate" | "retryFailed">;
   readonly tasks: Pick<TaskRunner, "register" | "cancel" | "list">;
@@ -79,6 +79,8 @@ interface Run {
   readonly entries: Map<VideoKey, Entry>;
   readonly listeners: Map<string, WindowListener>;
   readonly halt: AbortController;
+  /** 单条重来时各自读字幕用的停止信号：这一批先前停过也不受影响，全部停止时一起停。 */
+  readonly retries: Set<AbortController>;
   /** 确认时记下的清除代数：之后清除了本机数据，这一批就停下。 */
   readonly since: ClearEpoch | undefined;
   stopping: boolean;
@@ -121,16 +123,22 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
   /** 要经页面读字幕的站：B 站以外的都是。 */
   const inPage = (platform: Platform): boolean => platform !== "bilibili";
 
-  /** 读一项的字幕。经页面读的站找到视频所在的标签页去读，页面还没准备好时隔一会儿再问，问够了报暂时读不了；给了 signal 时它停了就不再等。 */
-  async function readEntry(run: Run, ref: VideoRef, video: VideoKey, signal: AbortSignal | undefined = run.halt.signal): Promise<Result<unknown>> {
+  /**
+   * 读一项的字幕。经页面读的站找到视频所在的标签页去读，页面还没准备好时隔一会儿再问，问够了报暂时读不了，signal 停了就不再等；
+   * 标签页已经关了的，本机有字幕就用本机的。
+   */
+  async function readEntry(run: Run, ref: VideoRef, video: VideoKey, signal: AbortSignal): Promise<Result<unknown>> {
     const page = deps.pageTranscript;
     if (!inPage(ref.platform) || !page) return deps.transcript.ensure(ref);
     const tab = (await deps.windowTabs(run.windowId)).find((item) => videoOf(item.url) === video);
-    if (!tab) return { ok: false, code: "VIDEO_CHANGED" };
+    if (!tab) {
+      const local = await deps.transcript.get(ref, { mode: "local" });
+      return local.ok ? local : { ok: false, code: "VIDEO_CHANGED" };
+    }
     for (let tries = 1; ; tries += 1) {
       const reply = await page.read(ref, tab.tabId);
       if (!("later" in reply)) return reply;
-      if (tries >= PAGE_TRIES || signal?.aborted) return { ok: false, code: "UNAVAILABLE" };
+      if (tries >= PAGE_TRIES || signal.aborted) return { ok: false, code: "UNAVAILABLE" };
       await deps.sleep(PAGE_WAIT_MS, signal);
     }
   }
@@ -232,7 +240,7 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
     if (!ref || entry.stopRequested || run.halt.signal.aborted) return cancelEntry(run, entry);
     entry.status = "running";
     publish(run);
-    const snapshot = await deps.keepAlive.during(READ_KEEPALIVE_MS, () => readEntry(run, ref, entry.video));
+    const snapshot = await deps.keepAlive.during(READ_KEEPALIVE_MS, () => readEntry(run, ref, entry.video, run.halt.signal));
     if (!snapshot.ok) {
       entry.status = "failed";
       entry.failure = snapshot.code;
@@ -311,6 +319,7 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
         entries: new Map(items.map((item) => [item.video, { video: item.video, title: item.title, status: "pending" as const }])),
         listeners: new Map([...(again?.listeners ?? []), [listener.id, listener]]),
         halt: new AbortController(),
+        retries: new Set(),
         since: deps.guard.epoch(),
         stopping: false,
         pacing: false,
@@ -325,6 +334,7 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
       if (!run || !busy(run)) return;
       run.stopping = true;
       run.halt.abort();
+      for (const halt of run.retries) halt.abort();
       for (const entry of run.entries.values()) {
         if (entry.status !== "running") continue;
         entry.stopRequested = true;
@@ -348,7 +358,9 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
       // 经页面读的站先经它所在的标签页读到字幕（本机有就不碰页面），概览服务自己读不了页面。这一批先前停过也照样读。
       const ref = parseVideoKey(video);
       if (ref && inPage(ref.platform) && deps.pageTranscript) {
-        const read = await deps.keepAlive.during(READ_KEEPALIVE_MS, () => readEntry(run, ref, video, undefined));
+        const halt = new AbortController();
+        run.retries.add(halt);
+        const read = await deps.keepAlive.during(READ_KEEPALIVE_MS, () => readEntry(run, ref, video, halt.signal)).finally(() => run.retries.delete(halt));
         if (!read.ok) {
           entry.status = "failed";
           entry.failure = read.code;
