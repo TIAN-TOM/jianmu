@@ -1,13 +1,14 @@
 // 解压覆盖新版以后简幕自己重新加载：后台醒来时发现扩展目录里的构建标识换了，就重新加载自己。
-// - 覆盖之前：确认启用、存一条笔记，视频页上挂着图标。
+// - 覆盖之前：确认启用、存一条笔记，开着两个视频页，一个在前台、一个在后台，都挂着图标。
 // - 覆盖之后：等过一分钟的节流，下一个事件叫醒后台时，它自己要重新加载，没有谁替它点刷新；
 //   设置页正在恢复备份（导入的长连接开着）时先不重载，导入结束、连接断开以后才重载。
-// - 重新加载以后：后台是新构建，启用确认和笔记都还在；已开的视频页补注入了新的内容脚本；之后不再要重载。
+// - 重新加载以后：扩展还启用着，后台是新构建，启用确认和笔记都还在；两个视频页都补注入了新的内容脚本，旧的那份撤下。
+//   前台那页的卡片不用刷新就摆出官方总结和按钮；后台那页的卡片照常等切到前台才读，切过去也摆全。之后不再要重载。
 //
 //   在 npm run test:e2e:lifecycle 里跟在生命周期冒烟后面跑，用的是同一个发行包，约一分半；用 CHROME_PATH 指定 Chrome for Testing 的可执行文件
 //
-// 无头的测试 Chrome 里，扩展自己调 runtime.reload() 以后就回不来了，启动参数加载的也打不开页面；用户从文件夹加载的没有这个问题。
-// 所以把后台的 runtime.reload 换成只记一笔的，看到它被调用，再用调试协议对同一个目录加载一次，代替浏览器的重新加载。
+// 走的是浏览器真的重新加载。新建的资料目录默认关着开发者模式，从文件夹加载的扩展自己重新加载以后会被停用
+// （停用原因 unsupportedDeveloperExtension），所以先在扩展管理页里打开它；用户从文件夹加载扩展时本来就开着。
 // 「新版」是把这份发行包里的构建标识整个换成另一个：编进各个包的和标识文件里的一起换，和真的换了一版一样对得上。
 // 第一个加载：装的是发行包，之后导入的产品模块按发行构建的开关取值算。
 import "../scripts/lib/release-globals.mjs";
@@ -29,8 +30,10 @@ const HARD_TIMEOUT_MS = 180_000;
 // 重新加载以后看这么久，确认没有接着再重载。
 const SETTLE_MS = 5000;
 const NEW_BUILD = "0e2e0e2e0e2e0e2e";
-const [VIDEO_ID = ""] = Object.keys(VIDEOS);
+const [VIDEO_ID = "", BACKGROUND_VIDEO_ID = ""] = Object.keys(VIDEOS);
 const VIDEO = videoKey({ platform: "bilibili", videoId: VIDEO_ID });
+// 登录了的样例视频都有官方总结；模型服务没配，卡片上的按钮是「打开设置」。
+const CARD_LOADED = ["自造的样例总结", "打开设置"];
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
@@ -134,6 +137,40 @@ const workers = (extensionId) =>
 
 const step = (label) => console.log(`✓ ${label}`);
 
+/** 在扩展管理页里打开开发者模式。回这个页面，之后用它看扩展是不是还启用着。 */
+async function developerMode() {
+  const page = await open("chrome://extensions");
+  await until("扩展管理页的接口就绪", () => evaluate(page.sessionId, `typeof chrome?.developerPrivate?.updateProfileConfiguration === "function"`));
+  await evaluate(page.sessionId, `new Promise((done) => chrome.developerPrivate.updateProfileConfiguration({ inDeveloperMode: true }, done)).then(() => true)`);
+  return page;
+}
+
+/** 扩展管理页上这个扩展的状态和停用原因。 */
+const extensionState = (manager, extensionId) =>
+  evaluate(
+    manager.sessionId,
+    `new Promise((done) => chrome.developerPrivate.getExtensionsInfo({ includeDisabled: true }, done)).then((list) => {
+      const found = list.find((item) => item.id === ${JSON.stringify(extensionId)});
+      return found ? JSON.stringify({ state: found.state, reasons: Object.keys(found.disableReasons).filter((key) => found.disableReasons[key]) }) : "没装";
+    })`,
+  );
+
+/** 这个视频页里的卡片框架：卡片按所在标签页的地址认，skip 里的不算，接不上的跳过。 */
+async function cardOf(videoId, extensionId, skip = new Set()) {
+  const frames = [...targets.values()].filter((info) => info.type === "iframe" && info.url === `chrome-extension://${extensionId}/${PAGE_PATHS.card}` && !skip.has(info.targetId));
+  for (const info of frames.reverse()) {
+    try {
+      const { sessionId } = await cdp.send("Target.attachToTarget", { targetId: info.targetId, flatten: true });
+      const url = await evaluate(sessionId, `chrome.tabs.getCurrent().then((tab) => tab?.url ?? "")`);
+      if (url === watchPage(videoId)) return { sessionId, targetId: info.targetId };
+    } catch {}
+  }
+  return null;
+}
+
+const cardText = (card) => evaluate(card.sessionId, `document.getElementById("card")?.textContent ?? ""`);
+const loaded = (text) => CARD_LOADED.every((part) => text.includes(part));
+
 try {
   await cdp.send("Target.setDiscoverTargets", { discover: true });
   const { id } = await browser.loadExtension();
@@ -152,17 +189,31 @@ try {
   if (before?.value?.build !== oldBuild) throw new Error(`后台的构建标识和包里的对不上：${JSON.stringify(before)}，包里是 ${oldBuild}`);
   step("覆盖之前：确认启用、存了一条笔记，后台是包里的那一版");
 
-  const video = await open(watchPage(VIDEO_ID));
-  await until("视频页上挂上图标", () => evaluate(video.sessionId, `document.getElementById(${JSON.stringify(INJECTED.overlay)}) !== null`));
-  // 给旧的图标浮层做个记号：补注入的新脚本挂的是新节点，没有这个记号。
-  await evaluate(video.sessionId, `(document.getElementById(${JSON.stringify(INJECTED.overlay)}).dataset.e2eOld = "1", true)`);
+  const manager = await developerMode();
+  step("扩展管理页里打开了开发者模式");
 
-  // 测试 Chrome 里扩展调 runtime.reload() 以后就回不来了（用户从文件夹加载的会回来）：把它换成只记一笔的，
-  // 看到后台自己要重新加载以后，用同一个目录再加载一次，这是浏览器重新加载扩展时做的事。
+  // 两个视频页：后台那页先开，前台那页后开。图标和卡片在页面到过前台以后才挂，所以挂上一页再开下一页。
+  const pages = [];
+  for (const videoId of [BACKGROUND_VIDEO_ID, VIDEO_ID]) {
+    const page = await open(watchPage(videoId));
+    await until("视频页上挂上图标", () => evaluate(page.sessionId, `document.getElementById(${JSON.stringify(INJECTED.overlay)}) !== null`));
+    // 给旧的图标浮层做个记号：补注入的新脚本挂的是新节点，没有这个记号。
+    await evaluate(page.sessionId, `(document.getElementById(${JSON.stringify(INJECTED.overlay)}).dataset.e2eOld = "1", true)`);
+    pages.push(page);
+  }
+  const [background, video] = pages;
+  const oldCard = await until("前台那页的卡片读出官方总结", async () => {
+    const card = await cardOf(VIDEO_ID, id);
+    return card && loaded(await cardText(card)) ? card : null;
+  });
+  const oldCards = new Set([oldCard.targetId, (await until("后台那页的卡片框架", () => cardOf(BACKGROUND_VIDEO_ID, id))).targetId]);
+
+  // 接上 worker，它就不会因为空闲停掉：测试里导入的长连接一分钟不发消息，真实的导入一直在发。
   const [worker] = workers(id);
   if (!worker) throw new Error("没有 worker");
-  const { sessionId: workerSession } = await cdp.send("Target.attachToTarget", { targetId: worker.targetId, flatten: true });
-  await evaluate(workerSession, `(chrome.runtime.reload = () => void (globalThis.e2eReloadAt = Date.now()), true)`);
+  await cdp.send("Target.attachToTarget", { targetId: worker.targetId, flatten: true });
+  // 扩展重新加载会关掉它自己的页面：侧边栏一关就是重新加载了。
+  const reloaded = () => destroyed.has(panel.targetId);
 
   // 设置页开始恢复备份：导入的长连接连上、合并完一段，还开着（后面几段还没发）。覆盖之前就连上，后台看文件时它一定已经在了。
   const options = await openPanel(id, STEP_TIMEOUT_MS, PAGE_PATHS.options);
@@ -177,47 +228,62 @@ try {
     })()`,
   );
   if (JSON.parse(firstPart)?.type !== "merged") throw new Error(`恢复备份的第一段没合并：${firstPart}`);
+  // 设置页开在了最前面：把前台那页切回来，重新加载时它在前台、另一页在后台。
+  await cdp.send("Page.bringToFront", {}, video.sessionId);
+  const shown = await Promise.all([video, background].map((page) => evaluate(page.sessionId, "document.visibilityState")));
+  if (shown.join() !== "visible,hidden") throw new Error(`两个视频页不是一前一后：${shown.join()}`);
 
   const touched = overwriteWithNewBuild(extensionDir, oldBuild);
   if (touched < 3) throw new Error(`覆盖新版只换了 ${touched} 个文件，构建标识没写进包里`);
   // 后台一分钟最多看一次文件：等过这一分钟，下一个事件就会看。
   await sleep(CHECK_INTERVAL_MS + 1000);
-  if (await evaluate(workerSession, `globalThis.e2eReloadAt ?? null`)) throw new Error("没有事件就重新加载了");
+  if (reloaded()) throw new Error("没有事件就重新加载了");
   await ask(panel, "build.id");
   // 后台这时看了文件，发现换了，但导入还开着：隔一会儿再看，先不重载。
   await sleep(SETTLE_MS);
-  if (await evaluate(workerSession, `globalThis.e2eReloadAt ?? null`)) throw new Error("恢复备份还没完就重新加载了");
+  if (reloaded()) throw new Error("恢复备份还没完就重新加载了");
   step("覆盖之后：设置页正在恢复备份，后台先不重新加载");
 
   await evaluate(options.sessionId, `(globalThis.e2eImport.disconnect(), true)`);
-  await until("导入结束以后，后台自己要重新加载", () => evaluate(workerSession, `globalThis.e2eReloadAt ?? null`), BUSY_RECHECK_MS + STEP_TIMEOUT_MS);
-  step("导入结束、连接断开以后，后台自己要重新加载，没有谁替它点刷新");
+  await until("导入结束以后，后台自己重新加载，扩展页面跟着关掉", reloaded, BUSY_RECHECK_MS + STEP_TIMEOUT_MS);
+  step("导入结束、连接断开以后，后台自己重新加载，没有谁替它点刷新");
 
-  const again = await browser.loadExtension();
-  if (again.id !== id) throw new Error(`再加载以后扩展 ID 变了：${again.id}`);
-  await until("扩展重新加载，扩展页面跟着关掉", () => destroyed.has(panel.targetId));
+  const state = await until("扩展管理页上看得到扩展", () => extensionState(manager, id));
+  if (state !== JSON.stringify({ state: "ENABLED", reasons: [] })) throw new Error(`重新加载以后扩展不是启用着：${state}`);
+  step("重新加载以后扩展还启用着");
 
-  await until(
-    "已开的视频页补注入了新的内容脚本",
-    // 只看新的浮层挂上了：调试协议的重新加载不切断旧脚本和扩展的联系，旧的那份在这里不会自己撤下（用户那边会，内容脚本的单元测试守着）。
-    () => evaluate(video.sessionId, `[...document.querySelectorAll("#${INJECTED.overlay}")].some((node) => node.dataset.e2eOld === undefined)`),
-  );
-  step("已开的视频页补注入了新的内容脚本");
+  /** 补注入的新脚本挂上了自己的图标和卡片，旧的那份整套撤下了：页面上只有一套。等不到时把页面上挂着的带进报错。 */
+  const untilReplaced = (label, page) => {
+    const mounted = () =>
+      evaluate(
+        page.sessionId,
+        `JSON.stringify({ overlays: [...document.querySelectorAll("#${INJECTED.overlay}")].map((node) => node.dataset.e2eOld ? "旧" : "新"), cards: document.querySelectorAll("#${INJECTED.cardFrame}").length })`,
+      );
+    return until(label, async () => (await mounted()) === JSON.stringify({ overlays: ["新"], cards: 1 })).catch(async (error) => {
+      throw new Error(`${error.message}；页面上是 ${await mounted().catch(() => "读不到")}`);
+    });
+  };
+  /** 卡片上的字等到摆全；等不到时把卡片上的字带进报错。 */
+  const untilLoaded = (label, card) =>
+    until(label, async () => loaded(await cardText(card))).catch(async (error) => {
+      throw new Error(`${error.message}；卡片上是「${await cardText(card).catch(() => "读不到")}」`);
+    });
 
-  // 测试 Chrome 里扩展重新加载以后，新开的扩展页面会被拦下，改从视频页里新插的卡片问后台的构建标识。
-  const card = await until("视频页里有了新的卡片框架", async () => {
-    const frames = [...targets.values()].filter((info) => info.type === "iframe" && info.url === `chrome-extension://${id}/${PAGE_PATHS.card}`);
-    for (const info of frames.reverse()) {
-      try {
-        const { sessionId } = await cdp.send("Target.attachToTarget", { targetId: info.targetId, flatten: true });
-        const reply = await evaluate(sessionId, `chrome.runtime.sendMessage({ type: "build.id", req: {} })`);
-        if (reply?.ok) return { sessionId, build: reply.value.build };
-      } catch {}
-    }
-    return null;
-  });
-  if (card.build !== NEW_BUILD) throw new Error(`重新加载以后后台还不是新的一版：${card.build}`);
+  await untilReplaced("前台那页补注入了新的内容脚本，旧的那份整套撤下", video);
+  const card = await until("前台那页有了新的卡片框架", () => cardOf(VIDEO_ID, id, oldCards));
+  const build = await evaluate(card.sessionId, `chrome.runtime.sendMessage({ type: "build.id", req: {} })`);
+  if (build?.value?.build !== NEW_BUILD) throw new Error(`重新加载以后后台还不是新的一版：${JSON.stringify(build)}`);
   step("重新加载以后后台是新的一版");
+  await untilLoaded("前台那页的卡片不用刷新就摆出官方总结和按钮", card);
+  step("前台那页补注入了新的内容脚本，旧的那份整套撤下；卡片不用刷新就摆出了官方总结和按钮");
+
+  // 后台那页：图标和卡片照常等切到前台才挂、才读。
+  if ((await evaluate(background.sessionId, "document.visibilityState")) !== "hidden") throw new Error("后台那页不在后台，测不到切到前台的这一步");
+  await cdp.send("Page.bringToFront", {}, background.sessionId);
+  await untilReplaced("后台那页切到前台以后，换上了新的内容脚本，旧的那份整套撤下", background);
+  const hiddenCard = await until("后台那页有了新的卡片框架", () => cardOf(BACKGROUND_VIDEO_ID, id, oldCards));
+  await untilLoaded("后台那页切到前台以后，卡片摆出官方总结和按钮", hiddenCard);
+  step("后台那页切到前台以后，也换上了新的内容脚本，卡片摆全了");
 
   // 资料直接在 worker 里读：启用确认在本机设置里，笔记在数据库里。
   const fresh = await until("新的 worker", () => workers(id).find((info) => info.targetId !== worker.targetId));
@@ -235,7 +301,7 @@ try {
   step("启用确认和笔记都还在");
 
   await sleep(SETTLE_MS);
-  if (destroyed.has(fresh.targetId) || (await evaluate(freshSession, `globalThis.e2eReloadAt ?? null`)) || (await evaluate(card.sessionId, `chrome.runtime.sendMessage({ type: "build.id", req: {} })`))?.value?.build !== NEW_BUILD) throw new Error("重新加载以后又接着重载了");
+  if (destroyed.has(fresh.targetId) || (await evaluate(card.sessionId, `chrome.runtime.sendMessage({ type: "build.id", req: {} })`))?.value?.build !== NEW_BUILD) throw new Error("重新加载以后又接着重载了");
   step(`之后 ${SETTLE_MS / 1000} 秒里没有再要重载`);
   console.log("✓ 解压覆盖以后自己重新加载：全部通过");
 } catch (error) {

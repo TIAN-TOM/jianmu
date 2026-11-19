@@ -1,12 +1,12 @@
 /// <reference types="chrome" />
 // YouTube 的内容脚本入口，只在构建开关打开时构建，用户在 YouTube 上启用以后由后台动态注册。
-// 同一页面再注入一份时（启用、更新后的补注入），新的一份把旧的整套撤下再接手。播放页卡片和解释当前画面的图标都和 B 站一样挂。
+// 同一页面再注入一份时（启用、更新后的补注入），新的一份把旧的整套撤下再接手，找旧一份的办法和 B 站一样。播放页卡片和解释当前画面的图标都和 B 站一样挂。
 import { INJECTED, PAGE_PATHS } from "../shared/names.ts";
 import { createPanelOpener } from "../sites/youtube/page/commands.ts";
 import { askPlayerTracks } from "../sites/youtube/page/player-tracks.ts";
 import { createPanelReader } from "../sites/youtube/page/read-panel.ts";
 import { createYoutubePage } from "../sites/youtube/page.ts";
-import { createContentApp, type ContentApp, type SiteReader } from "./app.ts";
+import { createContentApp, pageSuperseded, type ContentApp, type SiteReader } from "./app.ts";
 import { createBrowserFrameTool } from "./frame.ts";
 import { createContentRuntime } from "./runtime.ts";
 import { createSurface } from "./surface.ts";
@@ -47,6 +47,7 @@ const app = createContentApp({
       return () => document.removeEventListener("visibilitychange", onVisibility);
     },
   },
+  superseded: pageSuperseded(document),
   // 媒体事件不冒泡，在捕获阶段听整个文档。
   onMediaLoading(run) {
     document.addEventListener("loadstart", run, true);
