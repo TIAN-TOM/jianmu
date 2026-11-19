@@ -29,7 +29,7 @@ npm run release -- candidate   # 发布候选：要在远端 main 的最新提�
 
 单项命令：`npm run typecheck`、`npm test`、`npm run build`、`npm run test:build`、`npm run check:public`。
 
-`npm run build` 是发行构建，开关取值是 `src/shared/features.ts` 的 `RELEASE_FEATURES`（解释当前画面打开，YouTube 和它的代操作关着）。`node scripts/build.mjs --test-build` 打开全部开关，只给测试用，`npm run test:pages` 用的就是它；`--daily` 是日用构建，开关取值是 `DAILY_FEATURES`（发行构建加上只给开发者本人用的开关，现在是 YouTube 和代开文字稿），经 `npm run package:daily` 打成文件名带 `-daily` 的包，发布脚本不认；`--youtube-ops` 在发行构建上再打开 YouTube 和它的代开面板、代换语言，给开发者本人在 YouTube 上验证用。这几种可以加 `--watch`，只有发行构建和 `--daily` 能打包。
+`npm run build` 是发行构建。几种构建的开关取值都在 `src/shared/features.ts`（发行 `RELEASE_FEATURES`、日用 `DAILY_FEATURES`、测试 `TEST_BUILD_FEATURES`），每个开关为什么开、为什么关也写在那里，这里不列。`node scripts/build.mjs --test-build` 是测试构建，只给测试用，`npm run test:pages` 用的就是它；`--daily` 是日用构建，发行构建加上只给开发者本人用的开关，经 `npm run package:daily` 打成文件名带 `-daily` 的包，发布脚本不认；`--youtube-ops` 在发行构建上再打开 YouTube 和它的代开面板、代换语言，给开发者本人在 YouTube 上验证用。这几种可以加 `--watch`，只有发行构建和 `--daily` 能打包。
 
 打完发布候选，在 GitHub Actions 里手动触发「发布前核对」（`.github/workflows/release-check.yml`），填候选的提交号和校验值：它在 Chrome for Testing 116 和当前稳定版上各跑一遍端到端，在 Linux 上重新打包核对校验值。这个工作流不在必需检查里。
 
@@ -68,6 +68,7 @@ npm run release -- candidate   # 发布候选：要在远端 main 的最新提�
 - 文档、注释、提交说明，以及 PR 和 issue 的文字里，平台接口只按能力描述，例如「读取字幕轨」「B 站接口要求的请求签名」「被平台限流」，不写成接口文档。审查意见里引了接口细节，回复时也不照抄。接口细节只出现在 `src/sites/` 的源码、它的测试和模拟路由里，另有结构测试的地址放行表和清单的主机权限。
 - 代码注释只写用途，不写字段说明、错误码含义和请求细节，也不写来历（参考了谁、文档怎么说、实测结果）。`src/sites/` 的注释不放路径和外部链接。
 - B 站读取实现（含请求签名）在 `src/sites/bilibili/`，随这个仓库和 Releases 的 zip 公开。不抄第三方接口文档，不带它们的文字和注释，沿用 MIT 代码的部分保留版权声明；字幕、官方总结和稍后再看只给已登录用户读，每次读取先确认登录，没登录时只读视频信息；不下载音视频，不碰确认是付费的内容（确认不了时照读），保持低频，被限流或遇到人机验证就停，不读 Cookie 值，不冒充其他客户端。见 PRD 第 8.1 节。
+- YouTube 读取实现在 `src/sites/youtube/`，只读平台已经在页面上给这位观众的字幕：不读 Cookie 内容，不构造、复用或伪造校验信息，不引起机器翻译字幕轨的请求，不改变播放器状态；替用户点开文字稿面板的点击只写在 `page/commands.ts`。见 PRD 第 8.2 节。
 - 测试样例和黄金样本的输入一律自己造，不用真实视频的编号、标题、字幕和平台返回文字，不用真实备份，也不用第三方资料里的示例值。
 - `notes/` 只放白名单里的文档。主要使用者写作「开发者本人」。
 - README 用的截图和演示动图放 `.github/assets/`，只许 PNG 和 GIF，单个不超过 5 MB；`.github/` 别处不放图片。公开结构检查会拦。
