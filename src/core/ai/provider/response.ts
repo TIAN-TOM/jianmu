@@ -152,13 +152,15 @@ export function canRaiseBudget(protocol: Protocol, data: unknown): boolean {
 }
 
 /**
- * 服务回报的这次用量：输入、输出，和单独报了的思考。只取服务给的数，没报的那一项就没有，不估算、不拿别的项推。
+ * 服务回报的这次用量：输入、输出、单独报了的思考，和服务自己报的合计。只取服务给的数，没报的那一项就没有，不估算、不拿别的项推。
  * 输入算上服务分开报的缓存命中和缓存写入；输出是服务报的数，各家对思考算不算在里面说法不一，不拿它减思考。
+ * 合计也只取服务报的，不拿输入加输出去凑：有的服务思考不单独报、也不算进输出，只有合计里看得出来。Anthropic 不报合计。
  */
 export interface TokenUsage {
   readonly input?: number;
   readonly output?: number;
   readonly reasoning?: number;
+  readonly total?: number;
 }
 
 const countOf = (value: unknown): number | undefined =>
@@ -187,11 +189,13 @@ export function usageOf(protocol: Protocol, data: unknown): TokenUsage {
             input: countOf(usage.input_tokens),
             output: countOf(usage.output_tokens),
             reasoning: countOf(recordOf(usage.output_tokens_details).reasoning_tokens),
+            total: countOf(usage.total_tokens),
           }
         : {
             input: countOf(usage.prompt_tokens),
             output: countOf(usage.completion_tokens),
             reasoning: countOf(recordOf(usage.completion_tokens_details).reasoning_tokens),
+            total: countOf(usage.total_tokens),
           };
   return Object.fromEntries(Object.entries(picked).filter(([, count]) => count !== undefined));
 }

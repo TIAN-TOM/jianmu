@@ -13,7 +13,7 @@ export interface UsageLog {
   readonly read: () => Promise<Readonly<Record<string, LastUsageView>>>;
 }
 
-const USAGE_FIELDS = ["input", "output", "reasoning"] as const;
+const USAGE_FIELDS = ["input", "output", "reasoning", "total"] as const;
 const EFFORT_NOTES: readonly EffortNote[] = ["cannot-disable", "fallback", "unknown"];
 
 const countOf = (value: unknown): number | undefined =>

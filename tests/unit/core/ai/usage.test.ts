@@ -9,7 +9,16 @@ import * as SETTINGS from "../../../../src/shared/settings-schema.ts";
 
 test("OpenAI 兼容：输入、输出取服务报的数，思考取单独报的那项", () => {
   const data = { choices: [], usage: { prompt_tokens: 1200, completion_tokens: 340, total_tokens: 1540, completion_tokens_details: { reasoning_tokens: 210 } } };
-  assert.deepEqual(usageOf(PROTOCOLS.OPENAI, data), { input: 1200, output: 340, reasoning: 210 });
+  assert.deepEqual(usageOf(PROTOCOLS.OPENAI, data), { input: 1200, output: 340, reasoning: 210, total: 1540 });
+});
+
+test("合计只取服务报的那个数，不拿输入加输出去凑；Anthropic 不报合计，带了这个字段也不认", () => {
+  // 思考不单独报、也不算进输出的服务：合计比输入加输出多，照原样取。
+  assert.deepEqual(usageOf(PROTOCOLS.OPENAI, { usage: { prompt_tokens: 1000, completion_tokens: 200, total_tokens: 1900 } }), { input: 1000, output: 200, total: 1900 });
+  assert.deepEqual(usageOf(PROTOCOLS.RESPONSES, { usage: { input_tokens: 8, output_tokens: 6, total_tokens: 14 } }), { input: 8, output: 6, total: 14 });
+  assert.deepEqual(usageOf(PROTOCOLS.OPENAI, { usage: { prompt_tokens: 1000, completion_tokens: 200 } }), { input: 1000, output: 200 });
+  assert.deepEqual(usageOf(PROTOCOLS.OPENAI, { usage: { prompt_tokens: 1000, completion_tokens: 200, total_tokens: "1900" } }), { input: 1000, output: 200 });
+  assert.deepEqual(usageOf(PROTOCOLS.ANTHROPIC, { usage: { input_tokens: 12, output_tokens: 3, total_tokens: 99 } }), { input: 12, output: 3 });
 });
 
 test("OpenAI 兼容：思考没单独报就没有这一项，不拿输出去推；报了 0 就是 0", () => {
@@ -61,11 +70,11 @@ test("强制流式拼回以后照样取得到用量：三种协议", () => {
     `${sse([
       { id: "c1", choices: [{ index: 0, delta: { content: "好" } }] },
       { id: "c1", choices: [{ index: 0, delta: {}, finish_reason: "stop" }] },
-      { id: "c1", choices: [], usage: { prompt_tokens: 40, completion_tokens: 20, completion_tokens_details: { reasoning_tokens: 15 } } },
+      { id: "c1", choices: [], usage: { prompt_tokens: 40, completion_tokens: 20, total_tokens: 75, completion_tokens_details: { reasoning_tokens: 15 } } },
     ])}data: [DONE]\n\n`,
   );
   assert.ok(chat.ok);
-  assert.deepEqual(usageOf(PROTOCOLS.OPENAI, chat.data), { input: 40, output: 20, reasoning: 15 });
+  assert.deepEqual(usageOf(PROTOCOLS.OPENAI, chat.data), { input: 40, output: 20, reasoning: 15, total: 75 });
 
   const anthropic = assembleEventStream(
     PROTOCOLS.ANTHROPIC,
