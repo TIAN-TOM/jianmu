@@ -10,7 +10,7 @@ import { ANTHROPIC, OPENAI, SKIPPED_VIDEO, VIDEOS } from "./fixtures.mjs";
 
 /**
  * 一次模型请求。video 是视频的编号（fixtures 里 VIDEOS 的键），认不出时是空串。
- * @typedef {{ host: string, path: string, cookie: string, unexpected: boolean, at: number, answeredAt?: number, aborted?: true,
+ * @typedef {{ host: string, path: string, cookie: string, unexpected: boolean, at: number, answeredAt?: number, aborted?: true, abortedAt?: number,
  *   provider: string, kind: "analysis" | "verdict" | "qa" | "tidy" | "frame" | "probe" | "models" | "test" | "", video: string, held?: true, image?: true,
  *   frame?: { title: string, context: string } }} ModelCall
  * frame 是解释画面时提示词里的视频标题和前后字幕。
@@ -208,6 +208,7 @@ export function createModelServices({ record }) {
       }
       if (call.kind === "analysis" && holding.has(call.video) && (await park(call, res))) {
         call.aborted = true;
+        call.abortedAt = Date.now();
         return undefined;
       }
       serial += 1;
