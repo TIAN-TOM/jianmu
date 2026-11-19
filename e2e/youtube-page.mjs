@@ -6,6 +6,7 @@
 // 新式面板的标题栏上有收起按钮，点了面板收起，页面记一笔，测试据此判简幕读完关上了面板。
 // 文字稿入口在页面上有两份：简介里一份，一直关着的简介面板里一份；点了后面那份，页面记一笔，测试据此判点错了。
 // 新式面板的页面另有播放器自己的数据：字幕轨列表和默认音轨里的默认字幕轨，交给页面主世界的小桥读。
+// 另有一个入口晚出来的视频：简介里起初没有文字稿入口，测试叫页面过一会儿再放上去，扮演页面还在加载。
 // 播放器右边有一栏：上面是装侧栏面板（文字稿在里面）的一层，下面是推荐视频。页面上另有一个按钮扮演窗口变窄，
 // 把推荐视频挪到播放器下面，再点一下挪回右栏；这只是简化的替身，不照着真实页面的排版逻辑写。
 import { QUIET_MEDIA_PATH } from "./watch-page.mjs";
@@ -21,6 +22,7 @@ export const TUBE_VIDEOS = Object.freeze({
   jmTube00005: { layout: "modern", title: "样例新面板没有默认轨", author: "样例频道", channel: "@sample.channel", label: "", lines: ["unmarked line one", "unmarked line two"] },
   jmTube00006: { layout: "modern", title: "样例自动生成的视频", author: "样例频道", channel: "@sample.channel", label: "", lines: ["auto line one", "auto line two"] },
   jmTube00007: { layout: "modern", title: "样例卡片上生成的视频", author: "样例频道", channel: "@sample.channel", label: "", lines: ["card line one", "card line two"] },
+  jmTube00008: { layout: "modern", lateEntry: true, title: "样例入口晚出来的视频", author: "样例频道", channel: "@sample.channel", label: "", lines: ["late line one", "late line two"] },
 });
 
 const HUMAN_EN = { name: { simpleText: "English" }, vssId: ".en", languageCode: "en" };
@@ -161,11 +163,13 @@ function classicPageHtml(id) {
 /**
  * 新式面板的页面。有章节时打开的是带页签的面板（没有 target-id），没章节时打开新式文字稿面板；
  * 旧面板和新式面板的空壳都关着留在页面上。段落的时间、给读屏的一句和正文各占一块。
- * @param {string} id @param {{ layout: string, title: string, author: string, channel: string, lines: readonly string[] }} video
+ * 入口晚出来的视频起初简介里没有入口，页面上的 e2eShowEntryLater(毫秒) 过这么久再放上去。
+ * @param {string} id @param {{ layout: string, lateEntry?: boolean, title: string, author: string, channel: string, lines: readonly string[] }} video
  */
 function modernPageHtml(id, video) {
   const chapters = video.layout === "chapters";
   const lines = JSON.stringify(video.lines);
+  const entry = `<ytd-video-description-transcript-section-renderer><button id="e2e-open-transcript">Show transcript</button></ytd-video-description-transcript-section-renderer>`;
   // 有章节时，开着的是带页签的面板，新式面板那个空壳一直关着；没章节时打开的就是新式面板。
   const opened = chapters
     ? `<ytd-engagement-panel-section-list-renderer id="e2e-open-panel" visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN">
@@ -203,7 +207,7 @@ function modernPageHtml(id, video) {
           <ytd-channel-name><a href="/${video.channel}">${video.author}</a></ytd-channel-name>
           <div id="description-inline-expander">样例简介</div>
         </ytd-watch-metadata>
-        <ytd-video-description-transcript-section-renderer><button id="e2e-open-transcript">Show transcript</button></ytd-video-description-transcript-section-renderer>
+        ${video.lateEntry ? '<div id="e2e-entry-slot"></div>' : entry}
         <button id="e2e-close-transcript">关上文字稿</button>
         <button id="e2e-narrow">窗口变窄</button>
         <div id="below"></div>
@@ -268,11 +272,20 @@ function modernPageHtml(id, video) {
   const select = (id) => {
     for (const tab of panel.querySelectorAll('[role="tab"]')) tab.setAttribute("aria-selected", String(tab.id === id));
   };
-  document.getElementById("e2e-open-transcript").addEventListener("click", () => {
+  const openTranscript = () => {
     panel.setAttribute("visibility", "ENGAGEMENT_PANEL_VISIBILITY_EXPANDED");
     select("e2e-transcript-tab");
     setTimeout(showTranscript, 50);
-  });
+  };
+  document.getElementById("e2e-open-transcript")?.addEventListener("click", openTranscript);
+  // 页面还在加载：过一会儿才把简介里的入口放上去。
+  window.e2eShowEntryLater = (ms) => {
+    setTimeout(() => {
+      document.getElementById("e2e-entry-slot").innerHTML = ${JSON.stringify(entry)};
+      document.getElementById("e2e-open-transcript").addEventListener("click", openTranscript);
+    }, ms);
+    return true;
+  };
   document.getElementById("e2e-hidden-entry").addEventListener("click", () => document.body.setAttribute("data-e2e-wrong-entry", "1"));
   document.getElementById("e2e-close-transcript").addEventListener("click", () => {
     panel.setAttribute("visibility", "ENGAGEMENT_PANEL_VISIBILITY_HIDDEN");
