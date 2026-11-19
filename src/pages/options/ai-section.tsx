@@ -17,7 +17,7 @@ import { dataConsentStatus } from "../../shared/consent-status.ts";
 import { Button } from "../shared/ui/button.tsx";
 import { AiStatusLine, Confirmable } from "./controls.tsx";
 import { ImageProbeButton } from "./image-probe-button.tsx";
-import { EFFORT_LABELS, effortNoteText, serviceChanged, showsRegionChooser } from "./form.ts";
+import { EFFORT_LABELS, effortNoteText, serviceChanged, showsRegionChooser, usageText } from "./form.ts";
 import type { OptionsState } from "./state.ts";
 
 const MODEL_LIST_ID = "model-options";
@@ -110,6 +110,8 @@ function EffortBlock({ state }: { readonly state: OptionsState }) {
       {FEATURE_MODEL_SLOTS.map((slot) => {
         const item = pending ? undefined : items?.find((entry) => entry.feature === slot.id && entry.requested === saved.featureEfforts[slot.id]);
         const note = item ? effortNoteText(item) : null;
+        const latest = items?.find((entry) => entry.feature === slot.id);
+        const usage = latest ? usageText(latest) : null;
         return (
           <label key={slot.id} class="feature-row">
             <span class="feature-label">{slot.label}</span>
@@ -129,6 +131,11 @@ function EffortBlock({ state }: { readonly state: OptionsState }) {
               {note ? (
                 <span class="field-hint effort-note" data-effort-note={slot.id}>
                   {note}
+                </span>
+              ) : null}
+              {usage ? (
+                <span class="field-hint effort-usage" data-usage={slot.id}>
+                  {usage}
                 </span>
               ) : null}
             </span>

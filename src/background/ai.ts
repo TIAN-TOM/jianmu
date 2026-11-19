@@ -22,6 +22,7 @@ import {
   type ClaudeCapabilities,
   type EffortPlan,
   type ProviderError,
+  type TokenUsage,
 } from "../core/ai/provider/index.ts";
 import {
   aiErrorResponse,
@@ -29,6 +30,7 @@ import {
   serviceSaid,
   type AiFetchInit,
   type AiTransport,
+  type AiTransportDeps,
   type CompletionRequest,
   type CompletionResult,
   type TransportResponse,
@@ -61,6 +63,7 @@ import {
   validateForSave,
   type FeatureSlotId,
 } from "../shared/settings-schema.ts";
+import { createUsageLog } from "./usage.ts";
 
 /** 模型请求和模型列表共用的 fetch：浏览器的 fetch 两种都满足。 */
 export type ModelServiceFetch = (url: string, init: AiFetchInit | JsonFetchInit) => Promise<TransportResponse & JsonResponse>;
@@ -185,9 +188,11 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
     relaxMemory: createRelaxMemory({ storage: storage.session, clearGuard }),
     getModelCapabilities: createCapabilityResolver({ storage: storage.local, send: consentedGet, clearGuard, now }),
   };
-  const build = (getSettings: () => Promise<AiSettings>, timeoutMs?: number): AiTransport =>
-    createAiTransport({ ...shared, getSettings, timeoutMs });
+  const build = (getSettings: () => Promise<AiSettings>, timeoutMs?: number, onUsage?: AiTransportDeps["onUsage"]): AiTransport =>
+    createAiTransport({ ...shared, getSettings, timeoutMs, onUsage });
+  // 测试连接和不按任务发的请求不记用量，只记任务里真正干活的那些。
   const transport = build(load);
+  const usageLog = createUsageLog({ storage: storage.session, clearGuard });
 
   // 本机缓存里的模型能力，过期或没有就是 null，按型号名判断。
   async function cachedCapabilities(settings: LoadedSettings): Promise<ClaudeCapabilities | null> {
@@ -298,16 +303,28 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
     },
     forTask(frozen) {
       const effort = frozen.requestedEffort ?? frozen.effort;
-      const bound = build(async () => frozenSettings(await load(), frozen), taskTimeoutMs(budgetEffort(frozen)));
+      const since = clearGuard.epoch();
+      const onUsage = (usage: TokenUsage, sent: Pick<EffortPlan, "effective" | "note">): void =>
+        void usageLog.record(frozen.feature, { model: frozen.model, effort: sent.effective, ...(sent.note ? { note: sent.note } : {}), usage }, since);
+      const bound = build(async () => frozenSettings(await load(), frozen), taskTimeoutMs(budgetEffort(frozen)), onUsage);
       return { requestAiCompletion: (request) => bound.requestAiCompletion({ ...request, feature: frozen.feature, effort }) };
     },
     async effortPreview(requested = {}) {
       const current = await load();
+      const used = await usageLog.read();
       const items: EffortPreviewItem[] = [];
       for (const { id } of FEATURE_MODEL_SLOTS) {
         const model = modelForFeature(current, id);
         const plan = await localPlan(current, model, requested[id] ?? effortForFeature(current, id));
-        items.push({ feature: id, model, requested: plan.requested, effective: plan.effective, ...(plan.note ? { note: plan.note } : {}) });
+        const lastUsage = used[id];
+        items.push({
+          feature: id,
+          model,
+          requested: plan.requested,
+          effective: plan.effective,
+          ...(plan.note ? { note: plan.note } : {}),
+          ...(lastUsage ? { lastUsage } : {}),
+        });
       }
       return { items };
     },

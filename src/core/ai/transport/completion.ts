@@ -14,7 +14,9 @@ import {
   refusalOf,
   sendChatWithRelax,
   thinkingUsedUpBudget,
+  usageOf,
   type ChatRequest,
+  type EffortPlan,
   type EmptyDiagnosis,
   type RelaxState,
 } from "../provider/index.ts";
@@ -71,6 +73,7 @@ export function createAiTransport({
   sleep = abortableSleep,
   random = Math.random,
   fetch: fetchImpl,
+  onUsage,
 }: AiTransportDeps): AiTransport {
   if (!getSettings || !ensureHostPermission) {
     throw new Error("AI 传输层需要 getSettings 与 ensureHostPermission");
@@ -121,6 +124,12 @@ export function createAiTransport({
     const host = hostOf(settings.aiBaseUrl);
     const caps = resolveCapabilities({ protocol: settings.protocol, host, model: settings.aiModel, claude: capabilities });
     const planned = planEffort({ protocol: settings.protocol, host, model: settings.aiModel, requested, caps });
+    // 这次回复实际按哪一档：服务拒过档位参数、去掉以后发成功的，按放宽以后的能力重算，多半成了由服务决定。
+    const effortSent = (sentWith: RelaxState): EffortPlan => {
+      if (!Object.keys(sentWith).length) return planned;
+      const relaxed = resolveCapabilities({ protocol: settings.protocol, host, model: settings.aiModel, claude: capabilities, relax: sentWith });
+      return planEffort({ protocol: settings.protocol, host, model: settings.aiModel, requested, caps: relaxed });
+    };
 
     let format = responseFormat;
     let tokens = Math.min(maxTokens + planned.outputHeadroom, ceiling);
@@ -221,6 +230,11 @@ export function createAiTransport({
       }
       attempt += 1;
       spent += tokens;
+      try {
+        onUsage?.(usageOf(settings.protocol, data), effortSent(relax));
+      } catch {
+        // 记用量出错不影响请求本身。
+      }
 
       const refusal = refusalOf(settings.protocol, data);
       if (refusal !== null) {

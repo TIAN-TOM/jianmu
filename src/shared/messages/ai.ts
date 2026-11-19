@@ -1,5 +1,5 @@
-// 模型服务这几条消息的请求和回复：配置检查、拉模型列表、测试连接、推理强度预览。回复里都不带密钥。
-import type { EffortNote } from "../../core/ai/provider/index.ts";
+// 模型服务这几条消息的请求和回复：配置检查、拉模型列表、测试连接、推理强度预览（带最近一次的用量）。回复里都不带密钥。
+import type { EffortNote, TokenUsage } from "../../core/ai/provider/index.ts";
 import type { Effort } from "../../core/notes/records.ts";
 import type { FeatureSlotId } from "../settings-schema.ts";
 import type { EmptyRequest } from "./core.ts";
@@ -46,6 +46,19 @@ export interface EffortPreviewItem {
   readonly effective: Effort;
   /** 实际档位和选的不一样、或者扩展设不了时的原因。 */
   readonly note?: EffortNote;
+  /** 这项功能在本次浏览器会话里最近一次请求的用量，没请求过就没有。 */
+  readonly lastUsage?: LastUsageView;
+}
+
+/** 一次请求服务回报的用量，连同当时实际用的模型和档位。只有数字，不带请求和回复的内容。 */
+export interface LastUsageView {
+  readonly model: string;
+  /** 这次实际按的档位。 */
+  readonly effort: Effort;
+  /** 和预览一样：note 为 unknown 时档位由服务自己决定，effort 只是占位的关。 */
+  readonly note?: EffortNote;
+  /** 服务没报的那一项就没有；一项都没报时是空的。 */
+  readonly usage: TokenUsage;
 }
 
 export interface EffortPreviewView {
