@@ -46,7 +46,12 @@ export const AI_ERROR_TEXT: Readonly<Record<AiErrorCode, ErrorCopy>> = {
   AI_RATE_LIMITED: { cause: "AI 服务限流了，也可能是账户额度用完了。", impact: NO_RESULT, next: "等几分钟再试；一直这样，就到服务商后台看看额度。" },
   AI_SERVICE_BUSY: { cause: "AI 服务那边暂时繁忙或出错。", impact: NO_RESULT, next: "稍后再试。" },
   AI_SERVICE_ERROR: { cause: "AI 服务那边出错了。", impact: NO_RESULT, next: "稍后再试；一直这样，到设置页点「测试连接」看看具体原因。" },
-  AI_NETWORK_ERROR: { cause: "连不上 AI 服务。", impact: NO_RESULT, next: "检查一下网络，再到设置页核对 API 地址。" },
+  // 扩展分不出断网和被防火墙拦下，所以两种都提一句，不替用户猜是哪种。
+  AI_NETWORK_ERROR: {
+    cause: "连不上 AI 服务。",
+    impact: NO_RESULT,
+    next: "检查一下网络，再到设置页核对 API 地址；学校、公司的网络可能拦了这个服务，可以换个网络再试。",
+  },
   AI_REDIRECT_BLOCKED: {
     cause: "API 地址把请求转去了别的地方。",
     impact: "为了不把密钥带出去，简幕没有跟过去，这次没拿到结果。",

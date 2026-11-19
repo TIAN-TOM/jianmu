@@ -167,3 +167,11 @@ test("成功和失败的结果形状", () => {
   assert.deepEqual(fail("FORBIDDEN"), { ok: false, code: "FORBIDDEN" });
   assert.deepEqual(fail("UNPLAYABLE", "detail"), { ok: false, code: "UNPLAYABLE", detail: "detail" });
 });
+
+test("连不上模型服务时提一句可能被学校、公司的网络拦了，只提醒、不下结论", () => {
+  const { cause, next = "" } = AI_ERROR_TEXT.AI_NETWORK_ERROR;
+  assert.match(next, /学校、公司的网络可能拦了这个服务/);
+  assert.match(next, /换个网络再试/);
+  assert.match(next, /核对 API 地址/, "断网和地址填错照样要查");
+  assert.doesNotMatch(cause, /拦/, "原因一段不替用户猜是被拦了");
+});
