@@ -1,7 +1,8 @@
-// YouTube 观看页：认当前视频、听站内换视频、找主视频和悬停图标的挂载点、读控制栏显隐和频道。
+// YouTube 观看页：认当前视频、听站内换视频、找主视频、悬停图标和卡片的挂载点、读控制栏显隐和频道。
 // 只读页面结构，不插节点，不发请求，不碰播放器。站内跳转不重新加载页面，脚本在整个站点上跑，只有观看页认得出视频。
 import { videoKey, type VideoRef } from "../../core/video-ref.ts";
 import type { MainVideo, SitePage } from "../page-types.ts";
+import { PANELS } from "./page/panel-dom.ts";
 import { youtubeRules } from "./url.ts";
 
 // 观看页外壳里的播放器和它的主视频元素。
@@ -20,6 +21,11 @@ const CHANNEL_LINK_SELECTORS = ["ytd-watch-metadata ytd-channel-name a", "ytd-vi
 const CHANNEL_PATH = /^\/(?:channel\/(UC[\w-]{1,62})|(@[\w.-]{1,64}))(?:[/?#]|$)/;
 // 站内跳转完成时页面派发的事件。
 const NAVIGATED = "yt-navigate-finish";
+// 卡片排在推荐视频上面：右栏里文字稿这些侧栏面板排在推荐视频前面，面板打开时卡片落在面板下面，不挤进面板。
+// 剧场模式、窄窗口时页面把推荐视频挪到播放器下面，卡片跟着它走。
+const RELATED = "ytd-watch-flexy #related";
+// 推荐视频还没出来时排在右栏里，侧栏面板后面。
+const SECONDARY_COLUMNS = ["ytd-watch-flexy #secondary-inner", "ytd-watch-flexy #secondary"];
 
 // 等页面外壳：先密后疏，没有外壳的页面（嵌入页、弹出的聊天窗口）不一直密集地查。
 const READY_POLL_MS = 200;
@@ -63,6 +69,18 @@ function watchAttribute(element: Element, name: string, run: () => void): () => 
 }
 
 const keyOf = (ref: VideoRef | null): string | null => (ref ? videoKey(ref) : null);
+
+/** 在侧栏面板里面：卡片不能插进去，也就不会被当成面板内容读到。 */
+const inPanel = (element: Element): boolean => element.closest(PANELS) !== null;
+
+/** 右栏里最后一个侧栏面板（或装着面板的那一层）后面；没有面板时是右栏最上面。 */
+function afterPanels(column: Element): Node | null {
+  let before: Node | null = column.firstChild;
+  for (const child of Array.from(column.children)) {
+    if (child.matches(PANELS) || child.querySelector(PANELS) !== null) before = child.nextSibling;
+  }
+  return before;
+}
 
 export function createYoutubePage({ document, location, sleep = waitFor, every = repeat, observeAttribute = watchAttribute }: YoutubePageDeps): SitePage {
   const currentRef = (): VideoRef | null => youtubeRules.parseWatchUrl(location.href);
@@ -161,6 +179,19 @@ export function createYoutubePage({ document, location, sleep = waitFor, every =
           const id = match?.[1] ?? match?.[2];
           if (id) return id;
         }
+      }
+      return null;
+    },
+
+    // 不在观看页时没有位置：外壳留在页面上，只是藏着。
+    cardSlot() {
+      if (!currentRef()) return null;
+      const related = document.querySelector(RELATED);
+      const parent = related?.parentElement;
+      if (related && parent && !inPanel(parent)) return { parent, before: related };
+      for (const selector of SECONDARY_COLUMNS) {
+        const column = document.querySelector(selector);
+        if (column && !inPanel(column)) return { parent: column, before: afterPanels(column) };
       }
       return null;
     },

@@ -178,7 +178,9 @@ export interface CardActions {
 /** setupHint 是 AI 服务没设置好时生成概览按钮旁的说明，按缺什么说。 */
 export function Card({ view, aiReady, setupHint, actions }: { readonly view: CardView; readonly aiReady: boolean | null; readonly setupHint: string; readonly actions: CardActions }) {
   if (!view.visible) return null;
-  const canGenerate = view.phase === "loaded" && !view.noCaptions && !view.needLogin && !hasOverview(view.analysis) && !view.task;
+  const canGenerate = view.phase === "loaded" && !view.noCaptions && !view.needLogin && !view.notRead && !hasOverview(view.analysis) && !view.task;
+  // 本机还没有字幕：在侧边栏读过以后点重试，不用刷新页面就能生成。已经有概览时用不着。
+  const retryRead = view.notRead && !hasOverview(view.analysis);
   const needsSetup = canGenerate && aiReady === false;
   const analysis = view.analysis && (view.analysis.verdict || hasOverview(view.analysis) || view.verdictPending) ? view.analysis : null;
   const official = view.official?.status === "ok" ? view.official : null;
@@ -248,7 +250,7 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
               打开设置
             </button>
           ) : null}
-          {(view.phase === "failed" || view.needLogin) && !task ? (
+          {(view.phase === "failed" || view.needLogin || retryRead) && !task ? (
             <button type="button" class="button" id="card-retry" onClick={actions.retry}>
               重试
             </button>

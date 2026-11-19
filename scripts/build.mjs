@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 import { build, context } from "esbuild";
 import { BUILD_ID_FILE } from "../src/shared/build-id.ts";
 import { DAILY_FEATURES, featureDefines, FEATURE_GLOBALS, FEATURE_NAMES, RELEASE_FEATURES } from "../src/shared/features.ts";
+import { PAGE_PATHS } from "../src/shared/names.ts";
+import { youtubeRules } from "../src/sites/youtube/url.ts";
 import { buildFlagsRecord, clearBuildFlags, featuresFromArgs, writeBuildFlags } from "./lib/build-flags.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -100,10 +102,24 @@ export function bundleOptions(features) {
   return [...bundles, ...gated].map((bundle) => ({ ...shared, ...bundle, define }));
 }
 
-function writeManifest() {
+/**
+ * 产物清单：模板写上版本号。打开 YouTube 的构建里，卡片页也开放给 YouTube 的页面；发行构建照模板，只对 B 站。
+ * @param {Record<string, any>} template @param {string} version @param {import("../src/shared/features.ts").FeatureSet} features
+ * @returns {Record<string, any>}
+ */
+export function manifestFor(template, version, features) {
+  const manifest = { ...template, version };
+  if (!features.youtube) return manifest;
+  /** @param {{ resources: string[], matches: string[] }} entry */
+  const widen = (entry) => (entry.resources.includes(PAGE_PATHS.card) ? { ...entry, matches: [...entry.matches, ...youtubeRules.scriptMatches] } : entry);
+  return { ...manifest, web_accessible_resources: (template.web_accessible_resources ?? []).map(widen) };
+}
+
+/** @param {import("../src/shared/features.ts").FeatureSet} features */
+function writeManifest(features) {
   const { version } = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
-  const manifest = JSON.parse(readFileSync(join(ROOT, "manifest.template.json"), "utf8"));
-  writeFileSync(join(OUT, "manifest.json"), `${JSON.stringify({ ...manifest, version }, null, 2)}\n`);
+  const template = JSON.parse(readFileSync(join(ROOT, "manifest.template.json"), "utf8"));
+  writeFileSync(join(OUT, "manifest.json"), `${JSON.stringify(manifestFor(template, version, features), null, 2)}\n`);
 }
 
 // 打进包的依赖：它们的许可证要随包提供，换依赖时这里跟着改。
@@ -123,12 +139,13 @@ function writeBuildIdFile(features) {
   writeFileSync(join(OUT, BUILD_ID_FILE), `${buildId(features)}\n`);
 }
 
-function prepareOutput() {
+/** @param {import("../src/shared/features.ts").FeatureSet} features */
+function prepareOutput(features) {
   clearBuildFlags();
   rmSync(OUT, { recursive: true, force: true });
   mkdirSync(OUT, { recursive: true });
   if (existsSync(join(ROOT, "static"))) cpSync(join(ROOT, "static"), OUT, { recursive: true });
-  writeManifest();
+  writeManifest(features);
   writeLicenses();
 }
 
@@ -145,7 +162,7 @@ function describeFeatures(features) {
 async function main() {
   const args = process.argv.slice(2);
   const features = featuresFromArgs(args);
-  prepareOutput();
+  prepareOutput(features);
   if (args.includes("--watch")) {
     // 只盯打包入口；改 static/ 或清单模板要重新运行。
     for (const options of bundleOptions(features)) {

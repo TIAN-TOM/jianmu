@@ -1,9 +1,10 @@
 // 播放页卡片：刚打开时只露结论和前几章，结论排在官方总结前面，官方总结收成一行，章节名对得齐；
 // 全部展开、最大字号、内容很长时，正文区滚动，标题栏、进度行和底部按钮都在框架高度上限以内；
-// 密钥随浏览器重启清空时，说明直说要重新填（说法的规则在 pages/shared/config.ts，由单元测试守）。
+// 密钥随浏览器重启清空时，说明直说要重新填（说法的规则在 pages/shared/config.ts，由单元测试守）；
+// YouTube 上没有官方总结那一块，本机还没有字幕时不摆「生成概览」，请用户先在侧边栏读。
 import assert from "node:assert/strict";
 import { CARD_HEIGHT } from "../../src/content/card-frame.ts";
-import { CARD_ROWS } from "../../src/pages/card/model.ts";
+import { CARD_ROWS, NOT_READ_TEXT } from "../../src/pages/card/model.ts";
 import { UI_FONT_SCALES } from "../../src/shared/settings-schema.ts";
 import { scenario } from "./harness.mjs";
 
@@ -152,4 +153,35 @@ test("卡片：配好过、密钥随浏览器重启清空时，说明直说要�
   assert.equal(shown.setup, "API 密钥随浏览器重启或扩展更新清空了，生成概览要先到设置页重新填；勾选「在这台电脑上记住密钥」就不用每次填。");
   assert.equal(shown.settings, "primary");
   assert.equal(shown.generate, false);
+});
+
+test("卡片（YouTube）：有概览时结论在最前、只露前几章，没有官方总结那一行；本机还没有字幕时不摆「生成概览」，说先在侧边栏读、给「重试」；字幕读过就和 B 站一样摆「生成概览」", async ({ open }) => {
+  const read = (page) =>
+    page.evaluate(`(() => ({
+      text: document.getElementById("card").innerText,
+      status: document.getElementById("card-status")?.textContent ?? null,
+      chapters: document.querySelectorAll("#card-overview .chapter").length,
+      verdict: Boolean(document.querySelector("#card-overview .verdict")),
+      official: Boolean(document.getElementById("card-official")),
+      buttons: [...document.querySelectorAll(".card-actions button")].map((button) => button.id),
+    }))()`);
+
+  const known = await open(`${SAMPLE}#youtube`);
+  await known.setWidth(FRAME_WIDTH, CARD_HEIGHT.max);
+  const withOverview = await read(known);
+  assert.equal(withOverview.verdict, true, "结论摆出来");
+  assert.equal(withOverview.chapters, CARD_ROWS);
+  assert.equal(withOverview.official, false, "YouTube 没有官方总结，也不占一行去说");
+  assert.ok(!withOverview.text.includes("官方总结"));
+  assert.equal(withOverview.status, null, "有概览时不再提读字幕");
+  assert.deepEqual(withOverview.buttons, ["card-panel"], "已经有概览：不摆「生成概览」，也用不着「重试」");
+
+  const unread = await open(`${SAMPLE}#youtube-unread`);
+  const empty = await read(unread);
+  assert.equal(empty.status, NOT_READ_TEXT);
+  assert.equal(empty.official, false);
+  assert.deepEqual(empty.buttons, ["card-retry", "card-panel"], "本机没有字幕：卡片不去读，不摆「生成概览」");
+
+  const ready = await open(`${SAMPLE}#youtube-ready`);
+  assert.deepEqual((await read(ready)).buttons, ["card-generate", "card-panel"]);
 });

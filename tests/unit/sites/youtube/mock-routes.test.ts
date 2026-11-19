@@ -19,7 +19,7 @@ test("模拟观看页：认得的两个视频回页面，别的视频、别的�
   assert.ok(hostRulesFor(4321).includes(`MAP ${TUBE_HOST} 127.0.0.1:4321`));
 });
 
-test("模拟观看页的结构：应用外壳、带视频编号的观看页外壳、播放器、文字稿入口和面板、语言菜单", () => {
+test("模拟观看页的结构：应用外壳、带视频编号的观看页外壳、播放器、文字稿入口和面板、语言菜单、放卡片的右栏", () => {
   const [id = ""] = Object.keys(TUBE_VIDEOS);
   const html = tubePageHtml(id);
   for (const piece of [
@@ -33,6 +33,8 @@ test("模拟观看页的结构：应用外壳、带视频编号的观看页外�
     "segment-timestamp",
     "segment-text",
     "yt-navigate-finish",
+    '<div id="secondary-inner">',
+    '<div id="related">',
   ]) {
     assert.ok(html.includes(piece), piece);
   }

@@ -186,6 +186,7 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
     log,
     joinable,
     fromCache: (ref, video, cached) => fromCache(ref, video, cached),
+    local: (ref) => service.get(ref, { mode: "local" }),
   });
 
   async function guidesFailure(failure: TranscriptFailure, guides: ReadGuides, cached: CachedTranscript | null, tabId: number | undefined): Promise<TranscriptFailure> {

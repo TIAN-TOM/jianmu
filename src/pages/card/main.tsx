@@ -2,6 +2,7 @@
 // 卡片页入口：先核对后台是不是同一次构建，再接上消息、配置检查、外观、标签页地址和高度上报。父页面的来源按所在标签页的地址算，高度只报给它。
 import { effect, signal } from "@preact/signals";
 import { render } from "preact";
+import type { VideoRef } from "../../core/video-ref.ts";
 import { CARD_TONE, INJECTED } from "../../shared/names.ts";
 import { siteRules } from "../../sites/rules.ts";
 import { createPageApi, type PageApi } from "../shared/api.ts";
@@ -34,6 +35,15 @@ function originOf(url: string): string | null {
   }
 }
 
+/** 按各站的地址规则认标签页上的视频。YouTube 的规则只在构建开关打开时登记。 */
+function videoOfUrl(url: string): VideoRef | null {
+  for (const rules of Object.values(siteRules)) {
+    const ref = rules?.parseWatchUrl(url);
+    if (ref) return ref;
+  }
+  return null;
+}
+
 // 后台旧了：只显示重新加载的提示，高度照常报给父页面，提示才露得出来。
 function stale(root: HTMLElement): void {
   renderStaleBackground(root);
@@ -58,7 +68,7 @@ function start(root: HTMLElement, api: PageApi): void {
     config: config.state,
     recheckConfig: () => config.check(),
     currentTab,
-    parseVideo: (url) => siteRules.bilibili?.parseWatchUrl(url) ?? null,
+    parseVideo: videoOfUrl,
     seek(tabId, video, atSec) {
       void chrome.tabs.sendMessage(tabId, { type: "player.seek", req: { video, atSec } }, { frameId: 0 }).catch(() => undefined);
     },

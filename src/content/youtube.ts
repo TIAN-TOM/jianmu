@@ -1,8 +1,8 @@
 /// <reference types="chrome" />
 // YouTube 的内容脚本入口，只在构建开关打开时构建，用户在 YouTube 上启用以后由后台动态注册。
-// 同一页面再注入一份时（启用、更新后的补注入），新的一份把旧的整套撤下再接手。YouTube 上不放播放页卡片，
-// 也先不挂解释当前画面的图标：YouTube 一侧的截帧还没验证过，后台的路由也不收。
-import { INJECTED } from "../shared/names.ts";
+// 同一页面再注入一份时（启用、更新后的补注入），新的一份把旧的整套撤下再接手。播放页卡片和 B 站一样放，
+// 只是先不挂解释当前画面的图标：YouTube 一侧的截帧还没验证过，后台的路由也不收。
+import { INJECTED, PAGE_PATHS } from "../shared/names.ts";
 import { createPanelOpener } from "../sites/youtube/page/commands.ts";
 import { askPlayerTracks } from "../sites/youtube/page/player-tracks.ts";
 import { createPanelReader } from "../sites/youtube/page/read-panel.ts";
@@ -36,7 +36,7 @@ const app = createContentApp({
     withOpener(
       createPanelReader({ document, currentRef: () => page.currentRef(), channelId: () => page.channelId?.() ?? null, playerTracks: () => askPlayerTracks(document) }),
     ),
-  createSurface: (env) => createSurface({ ...env, document, page, runtime, miniPlayer: MINI_PLAYER }),
+  createSurface: (env) => createSurface({ ...env, document, page, runtime, cardPath: PAGE_PATHS.card, miniPlayer: MINI_PLAYER }),
   visibility: {
     hidden: () => document.hidden,
     onChange(run) {

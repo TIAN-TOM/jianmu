@@ -7,7 +7,7 @@ import { before, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { build } from "esbuild";
-import { bundleOptions } from "../scripts/build.mjs";
+import { bundleOptions, manifestFor } from "../scripts/build.mjs";
 import { buildFlagsRecord, readBuildFlags } from "../scripts/lib/build-flags.mjs";
 import { extractPromptSection } from "../src/core/ai/prompt.ts";
 import {
@@ -82,12 +82,27 @@ test("清单不变量", () => {
   assert.deepEqual(manifest.optional_host_permissions, OPTIONAL_HOST_PERMISSIONS);
   // 右键菜单第一行的扩展名链到这里。
   assert.equal(manifest.homepage_url, "https://github.com/TIAN-TOM/jianmu");
-  // 网页能加载的只有卡片页，而且只能从每次会话都变的地址加载：卡片关着时网页拼不出能用的地址。
+  // 网页能加载的只有卡片页，而且只能从每次会话都变的地址加载：卡片关着时网页拼不出能用的地址。发行构建只对 B 站。
   assert.deepEqual(manifest.web_accessible_resources, [{ resources: ["pages/card.html"], matches: ["https://www.bilibili.com/*"], use_dynamic_url: true }]);
   // 补注入按清单取脚本：清单里的每个脚本都在构建里。
   for (const script of manifest.content_scripts) {
     for (const file of script.js) assert.ok(existsSync(join(BUILD, file)), `构建里没有内容脚本 ${file}`);
   }
+});
+
+test("打开 YouTube 的构建里卡片页也对 YouTube 的页面开放，清单别的地方照模板；YouTube 关着的构建只对 B 站", () => {
+  const template = JSON.parse(readFileSync(join(ROOT, "manifest.template.json"), "utf8"));
+  const pristine = structuredClone(template);
+  const both = [{ resources: ["pages/card.html"], matches: ["https://www.bilibili.com/*", "https://www.youtube.com/*"], use_dynamic_url: true }];
+  for (const features of [DAILY_FEATURES, TEST_BUILD_FEATURES, { ...RELEASE_FEATURES, youtube: true }]) {
+    const manifest = manifestFor(template, "1.2.3", features);
+    assert.deepEqual(manifest.web_accessible_resources, both);
+    assert.deepEqual({ ...manifest, web_accessible_resources: null }, { ...template, version: "1.2.3", web_accessible_resources: null });
+  }
+  for (const features of [RELEASE_FEATURES, { ...TEST_BUILD_FEATURES, youtube: false }]) {
+    assert.deepEqual(manifestFor(template, "1.2.3", features), { ...template, version: "1.2.3" });
+  }
+  assert.deepEqual(template, pristine, "不改模板本身");
 });
 
 const PACKAGE_FILES = readFileSync(join(ROOT, "tests/fixtures/package-files.txt"), "utf8").split("\n").filter(Boolean);
