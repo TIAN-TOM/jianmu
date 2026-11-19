@@ -180,6 +180,7 @@ export function usageOf(protocol: Protocol, data: unknown): TokenUsage {
       ? {
           input: sumOf(usage.input_tokens, usage.cache_creation_input_tokens, usage.cache_read_input_tokens),
           output: countOf(usage.output_tokens),
+          reasoning: countOf(recordOf(usage.output_tokens_details).thinking_tokens),
         }
       : protocol === PROTOCOLS.RESPONSES
         ? {

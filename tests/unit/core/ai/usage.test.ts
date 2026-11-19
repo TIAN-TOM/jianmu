@@ -27,10 +27,20 @@ test("OpenAI Responses：输入、输出和输出里单独报的思考", () => {
   assert.deepEqual(usageOf(PROTOCOLS.RESPONSES, { usage: { input_tokens: 8, output_tokens: 6 } }), { input: 8, output: 6 });
 });
 
-test("Anthropic：输入算上缓存命中和缓存写入，思考不单独报就没有", () => {
-  const data = { content: [], usage: { input_tokens: 30, cache_creation_input_tokens: 1000, cache_read_input_tokens: 2000, output_tokens: 700 } };
-  assert.deepEqual(usageOf(PROTOCOLS.ANTHROPIC, data), { input: 3030, output: 700 });
+test("Anthropic：输入算上缓存命中和缓存写入，思考取输出明细里单独报的那项；没有这一项才算没单独报", () => {
+  const data = {
+    content: [],
+    usage: { input_tokens: 30, cache_creation_input_tokens: 1000, cache_read_input_tokens: 2000, output_tokens: 700, output_tokens_details: { thinking_tokens: 520 } },
+  };
+  assert.deepEqual(usageOf(PROTOCOLS.ANTHROPIC, data), { input: 3030, output: 700, reasoning: 520 });
+  assert.deepEqual(usageOf(PROTOCOLS.ANTHROPIC, { usage: { input_tokens: 12, output_tokens: 3, output_tokens_details: { thinking_tokens: 0 } } }), {
+    input: 12,
+    output: 3,
+    reasoning: 0,
+  });
   assert.deepEqual(usageOf(PROTOCOLS.ANTHROPIC, { usage: { input_tokens: 12, output_tokens: 3 } }), { input: 12, output: 3 });
+  // 别的协议的思考字段名不认：Anthropic 只看自己那一项。
+  assert.deepEqual(usageOf(PROTOCOLS.ANTHROPIC, { usage: { input_tokens: 1, output_tokens: 1, output_tokens_details: { reasoning_tokens: 9 } } }), { input: 1, output: 1 });
 });
 
 test("服务不回用量、用量形状不对或数字不像话：那几项就没有", () => {
@@ -63,12 +73,12 @@ test("强制流式拼回以后照样取得到用量：三种协议", () => {
       { type: "message_start", message: { id: "m1", content: [], usage: { input_tokens: 25, cache_read_input_tokens: 5, output_tokens: 1 } } },
       { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
       { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "好" } },
-      { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 33 } },
+      { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 33, output_tokens_details: { thinking_tokens: 21 } } },
       { type: "message_stop" },
     ]),
   );
   assert.ok(anthropic.ok);
-  assert.deepEqual(usageOf(PROTOCOLS.ANTHROPIC, anthropic.data), { input: 30, output: 33 });
+  assert.deepEqual(usageOf(PROTOCOLS.ANTHROPIC, anthropic.data), { input: 30, output: 33, reasoning: 21 });
 
   const responses = assembleEventStream(
     PROTOCOLS.RESPONSES,
