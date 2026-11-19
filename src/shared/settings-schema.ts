@@ -51,7 +51,7 @@ const PRESET_DETAILS: Readonly<Record<PresetId, PresetDetail>> = {
     docsUrl: "https://platform.claude.com/settings/keys",
   },
   openai: { label: "OpenAI", model: "", docsUrl: "https://platform.openai.com/api-keys" },
-  deepseek: { label: "DeepSeek", model: "deepseek-v4-flash", docsUrl: "https://platform.deepseek.com/api_keys" },
+  deepseek: { label: "DeepSeek", model: "deepseek-flash", docsUrl: "https://platform.deepseek.com/api_keys" },
   gemini: { label: "Google Gemini（OpenAI 兼容端点）", model: "", docsUrl: "https://aistudio.google.com/apikey" },
   moonshot: { label: "月之暗面 Kimi", model: "", docsUrl: "https://platform.kimi.com/console/api-keys" },
   zhipu: { label: "智谱 GLM", model: "", docsUrl: "https://bigmodel.cn/usercenter/proj-mgmt/apikeys" },
