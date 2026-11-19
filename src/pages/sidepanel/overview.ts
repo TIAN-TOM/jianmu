@@ -32,6 +32,8 @@ export interface OverviewState {
 export interface OverviewStore {
   readonly state: ReadonlySignal<OverviewState>;
   bind(video: VideoKey | null): void;
+  /** 同一个视频换了标签页：重读本机存着的，接上在跑的任务，眼下的进度和说明不清。 */
+  refresh(): void;
   generate(fresh: boolean): Promise<void>;
   retryFailed(): Promise<void>;
   verdictFromOfficial(): Promise<void>;
@@ -145,6 +147,12 @@ export function createOverviewStore({ api }: { readonly api: Pick<PageApi, "send
       ];
       void reload(asked, video);
       void attach(asked, video);
+    },
+    refresh() {
+      const { video } = state.peek();
+      if (!video) return;
+      void reload(generation, video);
+      void attach(generation, video);
     },
     generate: (fresh) => run("overview", (taskId, video) => api.send("overview.start", { video, taskId, ...(fresh ? { fresh: true } : {}) })),
     retryFailed: () => run("overview", (taskId, video) => api.send("overview.retryFailed", { video, taskId })),

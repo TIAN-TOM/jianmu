@@ -1,5 +1,6 @@
 // 侧边栏换视频：跟随标签页时地址在认的途中才到也能认出来，别的窗口的跟随广播不理；
 // 换了视频以后，旧视频的字幕和问答回复都不串到新视频上；接上别处在跑的概览只跟着广播，不再认领一次。
+// 同一个视频换了标签页，概览和问答只重读本机、接上在跑的任务，眼下的状态不清。
 import assert from "node:assert/strict";
 import { signal } from "@preact/signals";
 import { test } from "node:test";
@@ -303,4 +304,54 @@ test("跟随：同一个标签页、同一个视频再确认一次，目标不�
   assert.equal(changes, 0, "订阅方没收到变化");
   off();
   follow.stop();
+});
+
+test("同一个视频换了标签页：概览重读本机、接上别处在跑的任务，不重新开始", async () => {
+  const { fake, api } = setup();
+  const running: TaskView = { id: "o9", kind: "overview", origin: "user", video: FIRST, state: "running", done: 1, total: 3, phase: "", message: "", createdAt: 1, updatedAt: 1 };
+  let stored = false;
+  let tasks: TaskView[] = [];
+  fake.reply("overview.get", () => ({ ok: true, value: stored ? { video: FIRST, overview: { analysis: { chapters: [{ title: "别处写的", timestampSeconds: 0 }] }, analysisFailures: [] } } : { video: FIRST } }));
+  fake.reply("task.list", () => ({ ok: true, value: { tasks } }));
+  const overview = createOverviewStore({ api });
+  overview.bind(FIRST);
+  await until(() => overview.state.value.loaded);
+  assert.equal(overview.state.value.saved, null);
+
+  stored = true;
+  tasks = [running];
+  overview.bind(FIRST);
+  await nextTurn();
+  assert.equal(fake.attempts("overview.get"), 1, "同一个视频再绑一次不重读");
+  overview.refresh();
+  await until(() => overview.state.value.saved !== null && overview.state.value.task?.id === "o9");
+  assert.equal(overview.state.peek().saved?.analysis.chapters?.[0]?.title, "别处写的");
+  assert.equal(overview.state.value.video, FIRST);
+  overview.stop();
+});
+
+test("同一个视频换了标签页：问答重读历史、接上别处在答的问题，没存上的回答留着", async () => {
+  const { fake, api } = setup();
+  const entry = (id: string, createdAt: number) => ({ id, video: FIRST, question: `问${id}`, answer: "答", citations: [], clickable: [], createdAt });
+  let history = [] as ReturnType<typeof entry>[];
+  let tasks: TaskView[] = [];
+  fake.reply("qa.history", () => ({ ok: true, value: { entries: history } }));
+  fake.reply("task.list", () => ({ ok: true, value: { tasks } }));
+  fake.reply("task.start", { value: { ok: true, value: { task: { id: "t1" }, joined: false } } });
+  fake.reply("qa.ask", { value: { ok: true, value: { entry: entry("mine", 1), retrievalMode: "full", historySaved: false } } });
+  const qa = createQaStore({ api });
+  qa.bind(FIRST);
+  await until(() => qa.state.value.loaded);
+  await qa.ask("问mine");
+  assert.equal(qa.state.value.unsavedId, "mine");
+
+  // 别的窗口问过一个、还在答另一个。
+  history = [entry("other", 2)];
+  tasks = [{ id: "t9", kind: "qa", origin: "user", video: FIRST, state: "running", done: 0, total: 1, phase: "", message: "别处的问题", createdAt: 3, updatedAt: 3 }];
+  qa.refresh();
+  await until(() => qa.state.value.entries.length === 2 && qa.state.value.pending.length === 1);
+  assert.deepEqual(qa.state.value.entries.map((item) => item.id), ["other", "mine"]);
+  assert.equal(qa.state.value.unsavedId, "mine");
+  assert.equal(qa.state.value.pending[0]?.question, "别处的问题");
+  qa.stop();
 });

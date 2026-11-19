@@ -29,6 +29,8 @@ export interface QaStore {
   readonly state: ReadonlySignal<QaState>;
   readonly explain: ReadonlySignal<ExplainState>;
   bind(video: VideoKey | null): void;
+  /** 同一个视频换了标签页：重读问答历史，接上别处在答的问题，没存上的回答和在等的问题留着。 */
+  refresh(): void;
   ask(question: string): Promise<void>;
   remove(id: string): Promise<void>;
   explainSelection(selection: string, context: string): Promise<void>;
@@ -95,6 +97,12 @@ export function createQaStore({ api }: { readonly api: Pick<PageApi, "send" | "o
       offs = [api.on("task.changed", ({ task }) => onTask(asked, video, task), { video })];
       void reload(asked, video);
       void attach(asked, video);
+    },
+    refresh() {
+      const { video } = state.peek();
+      if (!video) return;
+      void reload(generation, video);
+      void attach(generation, video);
     },
     async ask(raw) {
       const question = raw.trim();
