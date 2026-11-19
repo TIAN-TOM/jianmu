@@ -54,7 +54,7 @@ function setup(handler: ServiceHandler) {
 test("任务里的请求按功能记下最近一次的用量、模型和实际档位，预览带出来；后一次盖掉前一次", async () => {
   const usages = [
     { prompt_tokens: 3000, completion_tokens: 900, completion_tokens_details: { reasoning_tokens: 700 } },
-    { prompt_tokens: 2800, completion_tokens: 500 },
+    { prompt_tokens: 2800, completion_tokens: 500, total_tokens: 4100 },
   ];
   const { ai, fake, preview } = setup(() => answered(usages.shift()));
   const task = ai.forTask(await ai.freeze("qa"));
@@ -67,7 +67,7 @@ test("任务里的请求按功能记下最近一次的用量、模型和实际�
   assert.equal((await preview())["analysis"], undefined, "没请求过的功能没有");
 
   await task.requestAiCompletion(ASK);
-  const second = JSON.stringify({ model: "deepseek-flash", effort: "high", usage: { input: 2800, output: 500 } });
+  const second = JSON.stringify({ model: "deepseek-flash", effort: "high", usage: { input: 2800, output: 500, total: 4100 } });
   assert.ok(await until(async () => (await qaUsage()) === second), await qaUsage());
 
   // 存下的只有数字、模型和档位：没有请求、回复的内容，也没有密钥。
@@ -143,4 +143,15 @@ test("设置页那一行：报了几项写几项，思考没单独报照实说�
   assert.equal(usageText(item({ input: 1, output: 1 }, "old-model")), "最近一次（高，old-model）：输入 1 · 输出 1 · 思考没单独报");
   assert.equal(usageText({ model: "m", lastUsage: { model: "m", effort: "off", note: "unknown", usage: { input: 5, output: 2 } } }), "最近一次（由服务决定）：输入 5 · 输出 2 · 思考没单独报");
   assert.equal(usageText({ model: "m" }), null);
+});
+
+test("设置页那一行：服务报的合计比输入加输出多时在最后写上，不替它算成思考；一样多或更少时不写", () => {
+  const item = (usage: object) => ({ model: "m", lastUsage: { model: "m", effort: "high" as const, usage } });
+  assert.equal(usageText(item({ input: 1000, output: 200, total: 1900 })), "最近一次（高）：输入 1,000 · 输出 200 · 思考没单独报 · 合计 1,900");
+  assert.equal(usageText(item({ input: 1000, output: 200, reasoning: 700, total: 1900 })), "最近一次（高）：输入 1,000 · 输出 200 · 思考 700 · 合计 1,900");
+  assert.equal(usageText(item({ input: 1000, output: 200, total: 1200 })), "最近一次（高）：输入 1,000 · 输出 200 · 思考没单独报");
+  assert.equal(usageText(item({ input: 1000, output: 200, total: 900 })), "最近一次（高）：输入 1,000 · 输出 200 · 思考没单独报");
+  // 输入或输出有一项没报时没法比，合计照样写出来；只报了合计也不算「没回报用量」。
+  assert.equal(usageText(item({ output: 200, total: 1900 })), "最近一次（高）：输出 200 · 思考没单独报 · 合计 1,900");
+  assert.equal(usageText(item({ total: 1900 })), "最近一次（高）：思考没单独报 · 合计 1,900");
 });

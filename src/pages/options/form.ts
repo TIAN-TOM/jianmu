@@ -136,18 +136,21 @@ const tokens = (count: number): string => count.toLocaleString("zh-CN");
 /**
  * 这项功能最近一次请求的用量那一行。数字都是服务回报的；思考没单独报时照实说，不估算；档位写那次实际按的，
  * 扩展设不了时写由服务决定；那次用的模型和现在的不一样时带上模型名。没请求过时不说。
+ * 服务报的合计比输入加输出多时在最后写上：多出来的那部分服务没说是什么，照原样摆出来，不替它算成思考；一样多时不重复写。
  */
 export function usageText(item: Pick<EffortPreviewItem, "model" | "lastUsage">): string | null {
   const last = item.lastUsage;
   if (!last) return null;
-  const { input, output, reasoning } = last.usage;
+  const { input, output, reasoning, total } = last.usage;
+  const showTotal = total !== undefined && (input === undefined || output === undefined || total > input + output);
   const level = last.note === "unknown" ? "由服务决定" : EFFORT_LABELS[last.effort];
   const head = `最近一次（${level}${last.model === item.model ? "" : `，${last.model}`}）`;
   const parts = [
     ...(input === undefined ? [] : [`输入 ${tokens(input)}`]),
     ...(output === undefined ? [] : [`输出 ${tokens(output)}`]),
   ];
-  if (!parts.length && reasoning === undefined) return `${head}：服务没回报用量`;
+  if (!parts.length && reasoning === undefined && !showTotal) return `${head}：服务没回报用量`;
   parts.push(reasoning === undefined ? "思考没单独报" : `思考 ${tokens(reasoning)}`);
+  if (showTotal) parts.push(`合计 ${tokens(total)}`);
   return `${head}：${parts.join(" · ")}`;
 }

@@ -44,8 +44,9 @@ test("设置页：推理强度那一节按功能显示最近一次的用量，�
     `(key, value) => chrome.storage.session.set({ [key]: value }).then(() => true)`,
     USAGE_STORAGE_KEY,
     {
-      qa: { model: modelOf("qa"), effort: "high", usage: { input: 12345, output: 2345, reasoning: 1800 } },
-      verdict: { model: modelOf("verdict"), effort: "low", usage: { input: 900, output: 120 } },
+      // 合计等于输入加输出的不多写一遍，比两项加起来多的才写在最后。
+      qa: { model: modelOf("qa"), effort: "high", usage: { input: 12345, output: 2345, reasoning: 1800, total: 14690 } },
+      verdict: { model: modelOf("verdict"), effort: "low", usage: { input: 900, output: 120, total: 1700 } },
       analysis: { model: "page-test-old-model", effort: "medium", usage: { input: 40000, output: 3000, reasoning: 0 } },
       explain: { model: modelOf("explain"), effort: "off", usage: {} },
     },
@@ -53,7 +54,7 @@ test("设置页：推理强度那一节按功能显示最近一次的用量，�
   await page.waitFor("四行用量出来", `document.querySelectorAll("[data-usage]").length === 4`);
   assert.deepEqual(await page.evaluate(usageLines), {
     analysis: "最近一次（中，page-test-old-model）：输入 40,000 · 输出 3,000 · 思考 0",
-    verdict: "最近一次（低）：输入 900 · 输出 120 · 思考没单独报",
+    verdict: "最近一次（低）：输入 900 · 输出 120 · 思考没单独报 · 合计 1,700",
     qa: "最近一次（高）：输入 12,345 · 输出 2,345 · 思考 1,800",
     explain: "最近一次（关）：服务没回报用量",
   });
