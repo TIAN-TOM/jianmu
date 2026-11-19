@@ -33,6 +33,8 @@ import { memoryStorage } from "../../../helpers/memory-storage.ts";
 import * as RESP from "../../../helpers/responses-fixtures.ts";
 
 const { PROTOCOLS } = PROVIDER;
+// 默认的测试服务认不出、设不了档位，和关不掉思考的型号一样，选关也按低档给思考留余量，加在调用方给的预算上。
+const H = PROVIDER.EFFORT_BUDGETS.low.outputHeadroom;
 
 function makeSettings(overrides: SETTINGS.SettingsInput = {}) {
   return SETTINGS.normalize({
@@ -304,7 +306,7 @@ test("发出的请求体照构造时的键序原样序列化，不重排", async
     JSON.stringify({
       model: "test-model",
       messages: MESSAGES,
-      max_tokens: 512,
+      max_tokens: 512 + H,
       temperature: 0.2,
       response_format: { type: "json_object" },
     }),
@@ -456,7 +458,7 @@ test("加码之后脱掉 JSON 模式重发，也不超过合计预算", async ()
   );
 
   const budgets = requests.map((request) => Number(request.max_tokens));
-  assert.deepEqual(budgets, [8192, 32768, 24576]);
+  assert.deepEqual(budgets, [8192 + H, TRANSPORT.OUTPUT_TOKENS_CEILING, TRANSPORT.TOTAL_OUTPUT_TOKENS_CAP - TRANSPORT.OUTPUT_TOKENS_CEILING - (8192 + H)]);
   assert.equal(
     budgets.reduce((sum, budget) => sum + budget, 0),
     TRANSPORT.TOTAL_OUTPUT_TOKENS_CAP,
@@ -474,7 +476,7 @@ test("输出被截断时按四倍放大预算，直到天花板", async () => {
 
   assert.deepEqual(
     requests.map((request) => request.max_tokens),
-    [100, 400, 1600],
+    [100 + H, 4 * (100 + H), TRANSPORT.OUTPUT_TOKENS_CEILING],
   );
 });
 
@@ -632,7 +634,7 @@ test("有正文但被截断时，放大预算要一次完整的", async () => {
 
   const { text } = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 });
   assert.equal(text, '{"chapters": []}');
-  assert.deepEqual(requests.map((request) => request.max_tokens), [100, 400]);
+  assert.deepEqual(requests.map((request) => request.max_tokens), [100 + H, 4 * (100 + H)]);
 });
 
 test("截断的正文轮次用完后交出已有部分，由调用方补齐", async () => {
@@ -884,7 +886,7 @@ test("业务请求经共用的 sendChatWithRelax 发出，和设置页的测试�
   const { text } = await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 512 });
   assert.equal(text, "模型的话");
   assert.deepEqual(used, ["ready", "epoch", "recall", "remember"]);
-  assert.deepEqual(requests.map((request) => request.max_tokens), [512]);
+  assert.deepEqual(requests.map((request) => request.max_tokens), [512 + H]);
 });
 
 test("放宽过的参数再被拒绝时，原样报错，不无限重发", async () => {
@@ -1113,7 +1115,7 @@ test("OpenAI 兼容服务报告了思考 token 时，截断正文照样加码重
   const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 2048 });
   assert.equal(result.text, "完整正文");
   assert.equal(result.truncated, undefined);
-  assert.deepEqual(requests.map((request) => request.max_tokens), [2048, 8192]);
+  assert.deepEqual(requests.map((request) => request.max_tokens), [2048 + H, 4 * (2048 + H)]);
 });
 
 test("各轮预算合计有上限：额度不够再放大一轮时就不再重发", async () => {
@@ -1219,7 +1221,7 @@ test("预算已到天花板就不再加码，两轮后放弃", async () => {
     () =>
       t.requestAiCompletion({
         messages: MESSAGES,
-        maxTokens: TRANSPORT.OUTPUT_TOKENS_CEILING - 1000,
+        maxTokens: TRANSPORT.OUTPUT_TOKENS_CEILING - 1000 - H,
       }),
     (error: TransportError) => error.reason === "TRUNCATED",
   );
@@ -1581,7 +1583,7 @@ test("Responses：completed 的正文原样交回，请求发到 /responses 且�
   assert.equal(requests.length, 1);
   assert.equal(requests[0]!.url, "https://api.openai.com/v1/responses");
   assert.equal(requests[0]!.body.store, false);
-  assert.equal(requests[0]!.body.max_output_tokens, 1200);
+  assert.equal(requests[0]!.body.max_output_tokens, 1200 + H);
   assert.equal(requests[0]!.body.text?.format.name, "qa_answer");
 });
 
@@ -1594,7 +1596,7 @@ test("Responses：推理占满预算被截断时加大预算重发，补全后�
   );
   const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 2048 });
   assert.equal(result.text, '{"chapters": []}');
-  assert.deepEqual(requests.map((request) => request.body.max_output_tokens), [2048, 8192]);
+  assert.deepEqual(requests.map((request) => request.body.max_output_tokens), [2048 + H, 4 * (2048 + H)]);
 });
 
 test("Responses：一个字没写就用完预算时同样加码重发", async () => {
@@ -1606,7 +1608,7 @@ test("Responses：一个字没写就用完预算时同样加码重发", async ()
   );
   const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 512 });
   assert.equal(result.text, '{"quote":"好"}');
-  assert.deepEqual(requests.map((request) => request.body.max_output_tokens), [512, 2048]);
+  assert.deepEqual(requests.map((request) => request.body.max_output_tokens), [512 + H, 4 * (512 + H)]);
 });
 
 test("Responses：内容过滤截停时不重发，交回已有正文并标明不完整", async () => {
@@ -1870,7 +1872,7 @@ test("限流重发不占自愈轮次：重发之后三轮加码照常走完", as
     { code: "EMPTY_AI_RESPONSE" },
   );
   assert.equal(waits.length, 1);
-  assert.deepEqual(requests.map((request) => request.max_tokens), [100, 100, 400, 1600]);
+  assert.deepEqual(requests.map((request) => request.max_tokens), [100 + H, 100 + H, 4 * (100 + H), TRANSPORT.OUTPUT_TOKENS_CEILING]);
 });
 
 test("任务取消之后，在途那次回来的截断正文不再加码重发", async () => {
@@ -2263,7 +2265,7 @@ test("模型能力按实际模型查询，单轮预算按它的上限封顶", as
   await transport.requestAiCompletion({ feature: "qa", messages: MESSAGES, maxTokens: 4096 });
 
   assert.deepEqual(asked, ["m-small", "m-default"]);
-  assert.deepEqual(bodies.map((body) => body.max_tokens), [1000, 4096]);
+  assert.deepEqual(bodies.map((body) => body.max_tokens), [1000, 4096 + H], "余量也不超过型号的上限");
 });
 
 test("放宽记忆按实际模型区分：一个模型拒绝过的参数不连累另一个", async () => {

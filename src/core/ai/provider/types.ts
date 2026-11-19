@@ -32,6 +32,7 @@ export interface RelaxState {
   effort?: boolean;
   jsonObject?: boolean;
   responseFormat?: boolean;
+  headroom?: boolean;
 }
 
 /** 从模型服务读到的能力，见 capabilities.ts。 */
@@ -217,6 +218,8 @@ export interface RelaxMemory {
 }
 
 export interface SendChatInput extends ChatRequestInput {
+  /** 推理强度。余量被拒时要从 maxTokens 里减掉它。 */
+  readonly effort?: Pick<EffortPlan, "requested" | "patch" | "outputHeadroom"> | null | undefined;
   readonly memory?: RelaxMemory | undefined;
   readonly send: (request: ChatRequest, settings: AiSettings) => Promise<unknown>;
   readonly onRelax?: ((relax: RelaxState) => void) | undefined;

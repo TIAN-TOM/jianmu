@@ -515,7 +515,7 @@ test("任务按冻结的档位发：请求带上档位和给思考留的余量�
   assert.deepEqual(bodies[2]?.thinking, { type: "disabled" }, "新任务按改过的设置：关");
 });
 
-test("关不掉思考时任务按用户选的关发，请求和以前一样；退了一档的按实际那档发", async () => {
+test("关不掉思考时任务按用户选的关发：按最低档发，按低档给思考留余量；退了一档的按实际那档发", async () => {
   const opus = setup({
     ...keyedStorage({ ...ANTHROPIC, aiModel: "claude-opus-5-5" }, ANTHROPIC_ORIGIN),
     handler: ({ url }) => (isModelList(url) ? reply({ data: [] }) : anthropicReply("好")),
@@ -523,7 +523,7 @@ test("关不掉思考时任务按用户选的关发，请求和以前一样；�
   });
   await opus.ai.forTask(await opus.ai.freeze("qa")).requestAiCompletion(EXPLAIN);
   const body = opus.service.posts()[0]?.body;
-  assert.equal(body?.max_tokens, 512, "选关不加余量");
+  assert.equal(body?.max_tokens, 512 + 2048, "关不掉思考，选关也按低档留余量");
   assert.equal(body && "thinking" in body, false);
   assert.deepEqual(body?.output_config, { effort: "low" });
 

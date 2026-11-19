@@ -114,8 +114,8 @@ export function createAiTransport({
       .then(() => getModelCapabilities(settings))
       .catch(() => null);
     const ceiling = ceilingFor(capabilities);
-    // 推理强度：按模型能力算出补丁和给思考留的余量，选关时什么都不加。放宽记忆只由 sendChatWithRelax 读写，
-    // 服务拒过的写法在那边拼请求时去掉。
+    // 推理强度：按模型能力算出补丁和给思考留的余量，选关时只给照样会思考的模型留余量。放宽记忆只由 sendChatWithRelax 读写，
+    // 服务拒过的写法（包括加了余量的上限）在那边拼请求时去掉。
     const host = hostOf(settings.aiBaseUrl);
     const caps = resolveCapabilities({ protocol: settings.protocol, host, model: settings.aiModel, claude: capabilities });
     const effort = planEffort({ protocol: settings.protocol, host, model: settings.aiModel, requested, caps });
