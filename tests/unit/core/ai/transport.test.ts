@@ -2722,3 +2722,14 @@ test("这条放宽只针对 JSON 模式：发结构化输出时的 schema 报错
     "已经不发 JSON 模式了，再报同样的错就交还给调用方",
   );
 });
+
+test("Responses：思考把额度用完时，档位参数被拒、放宽以后不再发档位的，只让人换型号", async () => {
+  const rejected = { error: { message: "Unsupported parameter: reasoning.effort", type: "invalid_request_error", param: "reasoning.effort", code: "unsupported_parameter" } };
+  const relaxed = responsesTransport("gpt-6.1-terra", (_count, body) => (body.reasoning ? RESP.asFetchResponse(rejected, 400) : RESP.asFetchResponse(RESP.incomplete(""))), []);
+  const locked = await failureOf(relaxed.requestAiCompletion({ messages: MESSAGES, maxTokens: 512, effort: "high" }));
+  assert.equal(locked.code, "AI_THINKING_EXHAUSTED_LOCKED");
+
+  const accepted = responsesTransport("gpt-6.1-terra", () => RESP.asFetchResponse(RESP.incomplete("")), []);
+  const lowerable = await failureOf(accepted.requestAiCompletion({ messages: MESSAGES, maxTokens: 512, effort: "high" }));
+  assert.equal(lowerable.code, "AI_THINKING_EXHAUSTED", "档位照常发出去的还能调低");
+});
