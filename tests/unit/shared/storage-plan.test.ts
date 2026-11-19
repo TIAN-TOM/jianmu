@@ -19,6 +19,7 @@ const ROWS: readonly (readonly [string, Plan])[] = [
   ["jianmu_triage", { area: "local", clearCache: "clear", clearAll: "clear", backup: false }],
   ["jianmu_model_caps", { area: "local", clearCache: "clear", clearAll: "clear", backup: false }],
   ["jianmu_relaxed_params", { area: "session", clearCache: "clear", clearAll: "clear", backup: false }],
+  ["jianmu_usage", { area: "session", clearCache: "clear", clearAll: "clear", backup: false }],
   ["jianmu_image_probe", { area: "local", clearCache: "clear", clearAll: "clear", backup: false }],
   ["jianmu_frame_results", { area: "session", clearCache: "clear", clearAll: "clear", backup: false }],
   ["jianmu_settings", { area: "local", clearCache: "keep", clearAll: "clear", backup: false }],
@@ -45,6 +46,7 @@ function seeded() {
     session: memoryStorage({
       jianmu_api_key: { key: "test-key" },
       jianmu_relaxed_params: { someModel: { temperature: false } },
+      jianmu_usage: { analysis: { effort: "high", model: "some-model", usage: { input: 10, output: 5 } } },
       jianmu_auto_ledger: { attempts: 1 },
       jianmu_watch_sessions: { 7: { mode: "skim" } },
     }),
@@ -59,7 +61,7 @@ async function runClear(world: ReturnType<typeof seeded>, scope: ClearScope) {
   return targets;
 }
 
-test("清除缓存：只清字幕缓存、粗筛、模型能力和放宽记录，笔记、概览、问答、设置和密钥都在", async () => {
+test("清除缓存：只清字幕缓存、粗筛、模型能力、放宽记录和用量，笔记、概览、问答、设置和密钥都在", async () => {
   const world = seeded();
   const targets = await runClear(world, "cache");
 

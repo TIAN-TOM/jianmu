@@ -99,12 +99,12 @@
 
 - **长期保存，直到你删掉**：概览和一句话结论、问答、笔记、译文、导入的字幕、按频道记住的模式、设置。
 - **缓存**：字幕、视频信息、B 站官方总结和 UP 主分段最多留 500 个视频，超过 90 天或超出条数的，在下次存新内容时删掉。粗筛读到的稍后再看列表和官方总结、各个模型能做什么（比如能不能看图）、画面分析的模型能不能看图的检测结果，过了有效期就不再使用，但要等重新读取或你清除缓存时才从存储里删掉。字幕文件的地址不存。
-- **只留到浏览器关闭**：正在看的视频用哪个模式、播放了多久，「打开就出结论」试过哪些视频，最近几次画面解释的文字（超过半小时就不再显示，下次打开侧边栏或解释画面时删掉），以及默认方式下的 API 密钥（见「API 密钥」一节）。B 站限流以后要等多久，也只留到浏览器关闭。
+- **只留到浏览器关闭**：正在看的视频用哪个模式、播放了多久，「打开就出结论」试过哪些视频，最近几次画面解释的文字（超过半小时就不再显示，下次打开侧边栏或解释画面时删掉），每项功能最近一次模型请求用了多少 token，以及默认方式下的 API 密钥（见「API 密钥」一节）。B 站限流以后要等多久，也只留到浏览器关闭。
 - **不存**：解释当前画面截下的画面只用于这一次请求，哪里都不存，也不进备份。
 
 ### 删除和备份
 
-- **清除缓存**（设置页）：删掉上面说的缓存。概览、问答、笔记、译文、导入的字幕、设置和密钥都留着。
+- **清除缓存**（设置页）：删掉上面说的缓存，以及各项功能最近一次请求的用量。概览、问答、笔记、译文、导入的字幕、设置和密钥都留着。
 - **清除全部数据**（设置页）：删掉简幕在这台电脑上存的全部资料，包括笔记、概览、问答、译文、导入的字幕、设置、密钥、数据同意和启用确认。删了不能恢复，之后要重新启用、重新同意。只留下一样：B 站限流以后要等多久。留着它是为了清除以后不马上又去请求，它不含你的内容，浏览器关闭后就没了。
 - **一条一条删**：笔记和问答可以在侧边栏里单独删。
 - **卸载扩展**：Chrome 会删掉扩展存在这台电脑上的数据。
@@ -172,6 +172,7 @@ IndexedDB 数据库 `jianmu` 里的仓库：
 | `jianmu_triage` | 粗筛读到的稍后再看列表和官方总结 | 本机 | 删 | 删 |
 | `jianmu_model_caps` | 各个模型能做什么 | 本机 | 删 | 删 |
 | `jianmu_relaxed_params` | 模型服务不接受某些请求参数时的记录 | 会话 | 删 | 删 |
+| `jianmu_usage` | 每项功能最近一次模型请求的用量：服务回报的输入、输出和思考的 token 数，加上当时的模型名和推理档位，没有请求和回复的内容 | 会话 | 删 | 删 |
 | `jianmu_image_probe` | 画面分析的模型能不能看图 | 本机 | 删 | 删 |
 | `jianmu_frame_results` | 最近几次画面解释的文字，没有截图；超过半小时不再显示，下次用到时删掉 | 会话 | 删 | 删 |
 | `jianmu_watch_sessions` | 每个标签页正在看的视频用哪个模式、播放了多久、卡片展开没有 | 会话 | 留 | 删 |
@@ -297,12 +298,12 @@ Everything is kept in the extension storage of this Chrome profile on this compu
 
 - **Kept until you delete it**: overviews and one-line verdicts, Q&A, notes, translations, imported subtitles, the mode remembered for each channel, and settings.
 - **Caches**: subtitles, video details, Bilibili official summaries and chapter markers are kept for up to 500 videos. Entries older than 90 days, or beyond that number, are deleted the next time something new is cached. The Watch Later list and official summaries read for triage, what each model can do (for example whether it accepts images), and the result of checking whether the frame-analysis model accepts images, stop being used once they expire, but stay in storage until they are read again or you clear the cache. Subtitle file addresses are not stored.
-- **Kept only until the browser closes**: which mode each video you are watching uses and how long it has played, which videos 打开就出结论 has already tried, the text of recent frame explanations (no longer shown after half an hour, and deleted the next time you open the side panel or explain a frame), and your API key in the default setup (see "API key"). How long to wait after Bilibili rate-limits requests is also kept only until the browser closes.
+- **Kept only until the browser closes**: which mode each video you are watching uses and how long it has played, which videos 打开就出结论 has already tried, the text of recent frame explanations (no longer shown after half an hour, and deleted the next time you open the side panel or explain a frame), how many tokens each feature's most recent model request used, and your API key in the default setup (see "API key"). How long to wait after Bilibili rate-limits requests is also kept only until the browser closes.
 - **Not stored**: a frame captured for 解释当前画面 is used for that one request only. It is not stored anywhere and never goes into backups.
 
 ### Deleting data and backups
 
-- **Clear cache** (清除缓存, in Settings) deletes the caches above. Overviews, Q&A, notes, translations, imported subtitles, settings and the key stay.
+- **Clear cache** (清除缓存, in Settings) deletes the caches above and the usage of each feature's most recent request. Overviews, Q&A, notes, translations, imported subtitles, settings and the key stay.
 - **Clear all data** (清除全部数据, in Settings) deletes everything Jianmu keeps on this computer, including notes, overviews, Q&A, translations, imported subtitles, settings, the key, your data consent and your confirmation to enable Jianmu. It cannot be undone, and you will need to enable Jianmu and agree again afterwards. Only one thing is left: how long to wait after Bilibili rate-limits requests. It is kept so Jianmu does not start requesting again straight after clearing. It holds none of your content and is gone once the browser closes.
 - **One at a time**: notes and Q&A entries can be deleted individually in the side panel.
 - **Uninstalling**: Chrome deletes the data the extension kept on this computer.
@@ -370,6 +371,7 @@ Keys in extension storage, none of which go into backups. "Local" is written to 
 | `jianmu_triage` | The Watch Later list and official summaries read for triage | Local | Deleted | Deleted |
 | `jianmu_model_caps` | What each model can do | Local | Deleted | Deleted |
 | `jianmu_relaxed_params` | A note of request parameters a model service would not accept | Session | Deleted | Deleted |
+| `jianmu_usage` | The usage of each feature's most recent model request: the input, output and reasoning token counts the service reported, plus the model name and reasoning level used, with nothing from the request or the reply | Session | Deleted | Deleted |
 | `jianmu_image_probe` | Whether the frame-analysis model accepts images | Local | Deleted | Deleted |
 | `jianmu_frame_results` | The text of recent frame explanations, without the frames; no longer shown after half an hour and deleted the next time it is used | Session | Deleted | Deleted |
 | `jianmu_watch_sessions` | For each tab, the mode of the video being watched, how long it has played and whether the card is expanded | Session | Kept | Deleted |

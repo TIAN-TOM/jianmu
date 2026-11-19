@@ -11,6 +11,7 @@ import type {
   RedirectProbe,
   RelaxMemory,
   ResponseFormat,
+  TokenUsage,
 } from "../provider/index.ts";
 
 /** 传输层抛出的错误。status、code 来自协议层，其余几项给重发判断和上层的补轮用。 */
@@ -123,6 +124,8 @@ export interface AiTransportDeps {
   readonly sleep?: Sleep | undefined;
   readonly random?: (() => number) | undefined;
   readonly fetch?: AiFetch | undefined;
+  /** 每收到一份回复调一次，交出服务回报的这次用量；被拒、没回来的请求不调。出错不影响请求本身。 */
+  readonly onUsage?: ((usage: TokenUsage) => void) | undefined;
 }
 
 export interface CompletionRequest {

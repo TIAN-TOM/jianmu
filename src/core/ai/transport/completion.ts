@@ -12,6 +12,7 @@ import {
   redactSecret,
   refusalOf,
   sendChatWithRelax,
+  usageOf,
   type ChatRequest,
   type EmptyDiagnosis,
   type RelaxState,
@@ -69,6 +70,7 @@ export function createAiTransport({
   sleep = abortableSleep,
   random = Math.random,
   fetch: fetchImpl,
+  onUsage,
 }: AiTransportDeps): AiTransport {
   if (!getSettings || !ensureHostPermission) {
     throw new Error("AI 传输层需要 getSettings 与 ensureHostPermission");
@@ -214,6 +216,11 @@ export function createAiTransport({
       }
       attempt += 1;
       spent += tokens;
+      try {
+        onUsage?.(usageOf(settings.protocol, data));
+      } catch {
+        // 记用量出错不影响请求本身。
+      }
 
       const refusal = refusalOf(settings.protocol, data);
       if (refusal !== null) {

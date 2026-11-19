@@ -8,7 +8,7 @@ import { isLocalBaseUrl } from "../../core/ai/provider/index.ts";
 import { AI_ERROR_TEXT } from "../../core/errors/ai.ts";
 import type { LoadedSettings, SettingsPatch, SettingsStore, WrittenSettings } from "../../platform/settings-store.ts";
 import type { EffortPreviewItem } from "../../shared/messages/ai.ts";
-import { SETTINGS_REVISION_KEY, SETTINGS_STORAGE_KEY } from "../../shared/names.ts";
+import { SETTINGS_REVISION_KEY, SETTINGS_STORAGE_KEY, USAGE_STORAGE_KEY } from "../../shared/names.ts";
 import { FEATURE_MODEL_SLOTS, originOf, validateForSave, type FeatureSlotId } from "../../shared/settings-schema.ts";
 import type { PageApi } from "../shared/api.ts";
 import { createAiStatus, type AiPlace, type PlacedStatus, type Status } from "./ai-status.ts";
@@ -186,8 +186,10 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
     });
 
   const onStorage: StorageListener = (changes, area) => {
-    if (stopped || area !== "local" || ownWrites > 0) return;
     const record = changes as Record<string, { newValue?: unknown } | undefined>;
+    // 别的页面发的请求记下了用量，或者清除删掉了它：推理强度那一节跟着重问。
+    if (!stopped && area === "session" && record[USAGE_STORAGE_KEY]) void refreshEfforts();
+    if (stopped || area !== "local" || ownWrites > 0) return;
     const change = record[SETTINGS_REVISION_KEY];
     if (change && (change.newValue ?? "") !== revision) void reloadStale();
     else if (record[SETTINGS_STORAGE_KEY]) void refreshSaved();

@@ -33,6 +33,7 @@ const SCENARIOS = [
   "e2e/pages/sidepanel.mjs",
   "e2e/pages/triage.mjs",
   "e2e/pages/options.mjs",
+  "e2e/pages/usage.mjs",
   "e2e/pages/card.mjs",
   "e2e/pages/frame.mjs",
   "e2e/pages/stale.mjs",

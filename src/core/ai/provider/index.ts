@@ -48,6 +48,8 @@ export {
   parseErrorMessage,
   parseModelsResponse,
   refusalOf,
+  usageOf,
+  type TokenUsage,
 } from "./response.ts";
 export { assembleEventStream, looksLikeEventStream, type StreamAssembly } from "./stream.ts";
 export type {

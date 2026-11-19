@@ -21,6 +21,8 @@ export const APPEARANCE_CACHE_KEY = "jianmu_appearance";
 export const SITE_BACKOFF_KEY = "jianmu_site_backoff";
 /** 文件换了自己重新加载的记录：对着哪个新标识重载过几次，防止文件没换全时来回重载。 */
 export const SELF_RELOAD_KEY = "jianmu_self_reload";
+/** 每项功能最近一次模型请求服务回报的用量，只在会话存储里。 */
+export const USAGE_STORAGE_KEY = "jianmu_usage";
 
 // 扩展自己的页面，相对扩展根目录，不带前导斜杠；认发送方时拼成完整地址再比。
 export const PAGE_PATHS = Object.freeze({
@@ -77,5 +79,6 @@ export const STORAGE_KEYS = [
   APPEARANCE_CACHE_KEY,
   SITE_BACKOFF_KEY,
   SELF_RELOAD_KEY,
+  USAGE_STORAGE_KEY,
 ] as const;
 export type StorageKey = (typeof STORAGE_KEYS)[number];

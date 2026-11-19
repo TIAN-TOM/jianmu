@@ -150,3 +150,47 @@ export function canRaiseBudget(protocol: Protocol, data: unknown): boolean {
   if (message.reasoning_content || message.reasoning) return true;
   return Number(payload?.usage?.completion_tokens_details?.reasoning_tokens) > 0;
 }
+
+/**
+ * 服务回报的这次用量：输入、输出，和单独报了的思考。只取服务给的数，没报的那一项就没有，不估算、不拿别的项推。
+ * 输入算上服务分开报的缓存命中和缓存写入；输出是服务报的数，各家对思考算不算在里面说法不一，不拿它减思考。
+ */
+export interface TokenUsage {
+  readonly input?: number;
+  readonly output?: number;
+  readonly reasoning?: number;
+}
+
+const countOf = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+
+const recordOf = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+
+// 几项里有一项报了就相加，一项都没报就是没有。
+function sumOf(...values: readonly unknown[]): number | undefined {
+  const counts = values.map(countOf).filter((count): count is number => count !== undefined);
+  return counts.length ? counts.reduce((total, count) => total + count, 0) : undefined;
+}
+
+export function usageOf(protocol: Protocol, data: unknown): TokenUsage {
+  const usage = recordOf(recordOf(data).usage);
+  const picked =
+    protocol === PROTOCOLS.ANTHROPIC
+      ? {
+          input: sumOf(usage.input_tokens, usage.cache_creation_input_tokens, usage.cache_read_input_tokens),
+          output: countOf(usage.output_tokens),
+        }
+      : protocol === PROTOCOLS.RESPONSES
+        ? {
+            input: countOf(usage.input_tokens),
+            output: countOf(usage.output_tokens),
+            reasoning: countOf(recordOf(usage.output_tokens_details).reasoning_tokens),
+          }
+        : {
+            input: countOf(usage.prompt_tokens),
+            output: countOf(usage.completion_tokens),
+            reasoning: countOf(recordOf(usage.completion_tokens_details).reasoning_tokens),
+          };
+  return Object.fromEntries(Object.entries(picked).filter(([, count]) => count !== undefined));
+}
