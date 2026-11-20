@@ -35,7 +35,7 @@ export function createGlance({ timers, visible, position, wanted, chapters, stat
   let stopPolling: (() => void) | null = null;
   let asks = 0;
   let cancelNote: (() => void) | null = null;
-  // 说话时标签页不在前台：回到前台才开始数。
+  // 说话时、或者到点时标签页不在前台：回到前台再从头数。
   let noteWaitsForSight = false;
 
   async function read(): Promise<void> {
@@ -61,6 +61,11 @@ export function createGlance({ timers, visible, position, wanted, chapters, stat
     }
     cancelNote = timers.after(HEAD_NOTE_MS, () => {
       cancelNote = null;
+      // 说完以后标签页切到了后台，到点时还没回来：这句话没被看够，先留着。
+      if (!visible()) {
+        noteWaitsForSight = true;
+        return;
+      }
       set({ headNote: "" });
     });
   }

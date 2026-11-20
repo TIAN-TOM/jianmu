@@ -555,6 +555,35 @@ test("播满时长自动切到精读：展开着的卡片收起时在那一行�
   assert.deepEqual([reloaded.model.view.value.collapsed, reloaded.model.view.value.headNote], [true, ""]);
 });
 
+test("那一句话说出来以后标签页切到后台：到点不收，回到前台从头数，再到点才收回", async () => {
+  let visible = true;
+  let shown: () => void = () => undefined;
+  const page = { visible: () => visible, onVisible: (run: () => void) => ((shown = run), () => undefined) };
+  const { fake, model, elapse, waiting } = setup(READY, page, { manualWait: true });
+  let mine = session();
+  fake.reply("session.get", () => ({ ok: true, value: { session: mine } }));
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  elapse();
+
+  mine = session({ mode: "study", modeSource: "auto", autoSwitched: true });
+  fake.broadcast({ type: "session.changed", tabId: 3, session: mine });
+  assert.ok(await until(() => model.view.value.headNote === AUTO_FOLD_NOTE));
+  assert.equal(waiting(), 1, "看得见，开始数");
+
+  visible = false;
+  elapse();
+  assert.equal(model.view.value.headNote, AUTO_FOLD_NOTE, "到点时在后台，不收");
+  assert.equal(waiting(), 0);
+
+  visible = true;
+  shown();
+  assert.equal(waiting(), 1, "回到前台从头数");
+  elapse();
+  assert.equal(model.view.value.headNote, "");
+});
+
 test("那一句话只在看得见时计时：标签页不在前台时自动收起，回到前台才开始数；换了视频马上收回", async () => {
   let visible = true;
   let shown: () => void = () => undefined;
