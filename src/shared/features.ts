@@ -7,7 +7,6 @@ export const FEATURE_GLOBALS = Object.freeze({
   frameExplain: "FEATURE_FRAME_EXPLAIN",
   youtube: "FEATURE_YOUTUBE",
   youtubeOpenPanel: "FEATURE_YOUTUBE_OPEN_PANEL",
-  youtubeSwitchLang: "FEATURE_YOUTUBE_SWITCH_LANG",
   keepConsent: "FEATURE_KEEP_CONSENT",
 } as const);
 
@@ -24,7 +23,6 @@ export const RELEASE_FEATURES: FeatureSet = Object.freeze({
   frameExplain: true,
   youtube: false,
   youtubeOpenPanel: false,
-  youtubeSwitchLang: false,
   keepConsent: false,
 });
 
@@ -44,7 +42,6 @@ export const TEST_BUILD_FEATURES: FeatureSet = Object.freeze({
   frameExplain: true,
   youtube: true,
   youtubeOpenPanel: true,
-  youtubeSwitchLang: true,
   keepConsent: false,
 });
 

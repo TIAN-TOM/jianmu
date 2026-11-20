@@ -6,6 +6,5 @@ declare global {
   const FEATURE_FRAME_EXPLAIN: boolean;
   const FEATURE_YOUTUBE: boolean;
   const FEATURE_YOUTUBE_OPEN_PANEL: boolean;
-  const FEATURE_YOUTUBE_SWITCH_LANG: boolean;
   const FEATURE_KEEP_CONSENT: boolean;
 }
