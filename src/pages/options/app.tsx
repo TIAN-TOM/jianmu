@@ -1,4 +1,4 @@
-// 设置页。确认启用之前只显示启用说明，和确认前就允许的导出备份、清除本机数据；确认之后才有外观、播放页卡片、AI 服务和打开就出结论。
+// 设置页。确认启用之前只显示启用说明，和确认前就允许的导出备份、清除本机数据；确认之后才有外观、播放页卡片、AI 服务和打开就出结论。「关于」一节启用前后都有。
 // 状态和动作都在 state.ts，这里只渲染。
 import { useId, useRef } from "preact/hooks";
 import { ACTIVATION_TABLE, noticeLines, noticeStatus, type ActivationKind, type NoticeItem } from "../../core/consent.ts";
@@ -11,6 +11,7 @@ import { Button } from "../shared/ui/button.tsx";
 import { StateBlock } from "../shared/ui/state-block.tsx";
 import { stateCopy } from "../shared/ui/state.ts";
 import type { PageApi } from "../shared/api.ts";
+import { AboutSection } from "./about-section.tsx";
 import { AiSection } from "./ai-section.tsx";
 import { AutoSection } from "./auto-section.tsx";
 import { ModeSection } from "./mode-section.tsx";
@@ -208,7 +209,17 @@ function DataSection({ state, enabled }: { readonly state: OptionsState; readonl
 // 关掉 YouTube 开关的构建里这一节连同授权代码一起裁掉。
 const SiteSections = FEATURE_YOUTUBE ? YoutubeSection : null;
 
-export function App({ state, activation, api }: { readonly state: OptionsState; readonly activation: Activation; readonly api: Pick<PageApi, "send"> }) {
+export function App({
+  state,
+  activation,
+  api,
+  version,
+}: {
+  readonly state: OptionsState;
+  readonly activation: Activation;
+  readonly api: Pick<PageApi, "send">;
+  readonly version: string;
+}) {
   const enabled = activation.enabled.value;
   const loadError = state.loadError.value;
   return (
@@ -228,6 +239,7 @@ export function App({ state, activation, api }: { readonly state: OptionsState; 
         </>
       ) : null}
       <DataSection state={state} enabled={enabled} />
+      <AboutSection version={version} />
     </main>
   );
 }

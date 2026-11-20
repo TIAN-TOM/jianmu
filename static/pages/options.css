@@ -309,6 +309,46 @@ details.field[open] {
   color: var(--danger);
 }
 
+/* 「关于」一节：版本号后面跟着弱一些的构建标识，下面一行是两个外部链接。 */
+.about-facts {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-4);
+}
+
+.about-facts dt {
+  font-weight: var(--fw-medium);
+}
+
+.about-facts dd {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.about-build {
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.about-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+}
+
+.about-links a {
+  color: var(--accent-text);
+}
+
 /* 打开粗筛页的入口是链接，长得和按钮一样。 */
 a.button {
   text-decoration: none;
