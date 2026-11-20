@@ -5,6 +5,7 @@
 // 换过字幕时，依据旧字幕的结论标出来。
 // 官方总结晚到时，「生成概览」等它有了结果才摆，摆出来以后不被顶走；一直没结果时等够了照样摆。
 // 收起的一行写着判断档和播放到的章节，放不下就截断、不撑高，旁边是打开侧边栏的入口；侧边栏开着时不摆打开侧边栏的入口和按钮。
+// 展开收起有过渡：收起时内容留到过渡走完才拿掉，没有过渡时马上拿掉。
 import assert from "node:assert/strict";
 import { CARD_HEIGHT } from "../../src/content/card-frame.ts";
 import { AUTO_FOLD_NOTE } from "../../src/pages/card/glance.ts";
@@ -124,6 +125,52 @@ test("卡片：收起时整张卡片和载入前占位的高度一样，载入�
   await page.setWidth(FRAME_WIDTH, CARD_HEIGHT.max);
   const height = await page.evaluate(`Math.ceil(document.getElementById("card").getBoundingClientRect().height)`);
   assert.equal(height, CARD_HEIGHT.initial);
+});
+
+test("卡片：展开收起有过渡，收起时内容留到过渡走完才拿掉、这期间点不到，高度一路往下走；再展开回到原来的高度；没有过渡时马上拿掉", async ({ open }) => {
+  const page = await open(SAMPLE);
+  await page.setWidth(FRAME_WIDTH, CARD_HEIGHT.max);
+  const height = `document.getElementById("card").getBoundingClientRect().height`;
+  const settled = `document.getAnimations().every((item) => !(item instanceof CSSTransition))`;
+  const full = await page.evaluate(height);
+  assert.ok(full > CARD_HEIGHT.initial * 3, `展开着高 ${full} 像素`);
+
+  // 点一下收起：标题栏马上换成收起的样子，下面那一块开始过渡；内容还在，但点不到。隔几帧高度已经在往下走。
+  const closing = await page.evaluate(`(async () => {
+    const frame = () => new Promise((done) => requestAnimationFrame(done));
+    document.getElementById("card-toggle").click();
+    await frame();
+    const sheet = document.querySelector(".card-sheet");
+    const first = {
+      collapsed: document.getElementById("card").dataset.collapsed,
+      open: sheet.dataset.open,
+      body: document.getElementById("card-body") !== null,
+      inert: sheet.firstElementChild.inert,
+      moving: sheet.getAnimations().some((item) => item instanceof CSSTransition && item.transitionProperty === "grid-template-rows"),
+    };
+    await frame();
+    await frame();
+    await frame();
+    return { ...first, later: ${height} };
+  })()`);
+  assert.deepEqual({ collapsed: closing.collapsed, open: closing.open, body: closing.body, inert: closing.inert, moving: closing.moving }, { collapsed: "true", open: "false", body: true, inert: true, moving: true });
+  assert.ok(closing.later < full, `过渡开始几帧以后高 ${closing.later} 像素，展开着是 ${full}`);
+  await page.waitFor("过渡走完，内容拿掉", `document.getElementById("card-body") === null && ${settled}`);
+  assert.equal(Math.ceil(await page.evaluate(height)), CARD_HEIGHT.initial);
+
+  // 再点一下展开：内容马上回来、点得到，高度长回原来那么高。
+  await page.click("#card-toggle");
+  await page.waitFor("展开的过渡走完", `document.querySelector(".card-sheet").dataset.open === "true" && document.getElementById("card-body") !== null && ${settled}`);
+  assert.deepEqual(await page.evaluate(`({ height: ${height}, inert: document.querySelector(".card-sheet-in").inert })`), { height: full, inert: false });
+
+  // 没有过渡（系统设了减少动效时各个时长都是零）：点收起以后内容马上拿掉，不等过渡结束的事件。
+  await page.evaluate(`(document.documentElement.style.setProperty("--dur-mode", "0ms"), true)`);
+  const instant = await page.evaluate(`(async () => {
+    document.getElementById("card-toggle").click();
+    await new Promise((done) => requestAnimationFrame(done));
+    return { body: document.getElementById("card-body") !== null, height: Math.ceil(${height}) };
+  })()`);
+  assert.deepEqual(instant, { body: false, height: CARD_HEIGHT.initial });
 });
 
 test("卡片：收起的一行写判断档和播放到的章节，放不下就截断、不撑高；旁边是打开侧边栏的入口，侧边栏开着时没有", async ({ open }) => {

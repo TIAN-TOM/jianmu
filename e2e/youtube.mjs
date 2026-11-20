@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import { videoKey } from "../src/core/video-ref.ts";
 import { NOT_READ_TEXT } from "../src/pages/card/model.ts";
 import { stillFalse } from "../tests/helpers/wait-until.ts";
+import { CARD_HEIGHT } from "../src/content/card-frame.ts";
 import { INJECTED } from "../src/shared/names.ts";
 import { launchChrome, prepareExtension } from "./browser.mjs";
 import { ANTHROPIC } from "./fixtures.mjs";
@@ -123,6 +124,36 @@ async function openCard(card, yields) {
     await evaluate(card, `(document.getElementById("card-toggle").click(), true)`);
   }
   await until("卡片展开", async () => (await cardCollapsed(card)) === "false");
+}
+/**
+ * 手动收起再展开卡片：页面上的框架跟着卡片一帧一帧变高度，不是一下跳到头，最后和卡片一样高。
+ * 只用在这个视频里手动点开过的卡片上：点完还是展开的，手动的那一下照旧算数。
+ */
+async function frameFollowsFold(video, card) {
+  const frameHeight = `document.getElementById(${JSON.stringify(INJECTED.cardFrame)}).offsetHeight`;
+  const cardHeight = () => evaluate(card, `Math.ceil(document.getElementById("card").getBoundingClientRect().height)`);
+  // 从现在起每帧记一次框架的高度，到了 stop 那么高就停。
+  const heightsUntil = async (stop, toggle) => {
+    const watching = evaluate(
+      video,
+      `(async () => { const seen = []; const deadline = performance.now() + 5000; for (;;) { const now = ${frameHeight}; if (seen.at(-1) !== now) seen.push(now); if (now === ${stop} || performance.now() > deadline) return JSON.stringify(seen); await new Promise((done) => requestAnimationFrame(done)); } })()`,
+    );
+    await toggle();
+    return JSON.parse(await watching);
+  };
+  const toggle = () => evaluate(card, `(document.getElementById("card-toggle").click(), true)`);
+  // 框架滚出窗口时浏览器不给它画，卡片量不到自己的高度：先滚到眼前。内容刚摆好时框架还差一两帧，等两边一样高再开始。
+  await evaluate(video, `(document.getElementById(${JSON.stringify(INJECTED.cardFrame)}).scrollIntoView({ block: "center" }), true)`);
+  const full = await until("框架和展开着的卡片一样高", async () => {
+    const [card, frame] = [await cardHeight(), await evaluate(video, frameHeight)];
+    return card === frame && card > CARD_HEIGHT.min ? card : null;
+  });
+  const down = await heightsUntil(CARD_HEIGHT.min, toggle);
+  const up = await heightsUntil(full, toggle);
+  const steady = (heights, sign) => heights.every((height, index) => index === 0 || (height - heights[index - 1]) * sign > 0);
+  if (down[0] !== full || down.at(-1) !== CARD_HEIGHT.min || down.length < 3 || !steady(down, -1)) throw new Error(`收起时框架的高度不是一路降到标题栏：${JSON.stringify(down)}`);
+  if (up[0] !== CARD_HEIGHT.min || up.at(-1) !== full || up.length < 3 || !steady(up, 1)) throw new Error(`展开时框架的高度不是一路长回原来那么高：${JSON.stringify(up)}`);
+  await until("展开以后卡片和原来一样高", async () => (await cardHeight()) === full);
 }
 /** 卡片框架在观看页上的位置：父节点、后一个节点的编号，在不在侧栏面板里。 */
 const cardPlace = (video) =>
@@ -279,6 +310,11 @@ async function flow(launcher, panelUrl, worker) {
   await until("卡片上也有章节", async () => (await cardText(card)).includes("模拟服务写的章节"));
   if ((await cardCollapsed(card)) !== "false") throw new Error("卡片该展开着");
   console.log("✓ 侧边栏生成的概览，卡片跟着摆出结论和章节");
+  // 只在手动点开过的卡片上试：没点过的卡片再点一下，就不跟模式和侧边栏走了，后面的步骤要它跟。
+  if (yields) {
+    await frameFollowsFold(video, card);
+    console.log("✓ 卡片收起、展开有过渡：页面上的框架一帧一帧跟着变高度，最后和卡片一样高");
+  }
 
   await until("展开章节", () => clickIn(panel, ".chapter-toggle"));
   await until("把金句存为笔记", () => clickIn(panel, ".quote button", "存为笔记"));
