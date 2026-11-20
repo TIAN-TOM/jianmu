@@ -145,7 +145,7 @@
 ### 联系方式
 
 - 问题和建议：到本仓库的 [Issues](https://github.com/TIAN-TOM/jianmu/issues) 页面提。issue 是公开的，别在里面贴 API 密钥、Cookie 或其他个人信息。
-- 邮箱：**［待填］** <!-- 待定：联系邮箱由开发者本人定 -->
+- 邮箱：<tiantom.dev@gmail.com>
 - 安全漏洞请按 [SECURITY.md](SECURITY.md) 私下报告。
 
 ### 存储明细
@@ -343,7 +343,7 @@ Changes are recorded in this repository's commit history. If what is sent to a m
 ### Contact
 
 - Questions and suggestions: open an issue on this repository's [Issues](https://github.com/TIAN-TOM/jianmu/issues) page. Issues are public, so please don't post API keys, cookies or other personal information there.
-- Email: **[to be added]** <!-- 待定：联系邮箱由开发者本人定 -->
+- Email: <tiantom.dev@gmail.com>
 - Please report security vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 ### Storage details
