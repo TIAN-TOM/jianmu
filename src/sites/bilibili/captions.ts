@@ -27,6 +27,7 @@ interface RawLine {
 interface Row {
   readonly track: CaptionTrack;
   readonly url: string;
+  readonly translated: boolean; // 平台机器翻译出来的轨
 }
 
 // 一次列表请求读到的全部内容。
@@ -75,6 +76,7 @@ function rowOf(raw: RawTrack | null): Row | null {
   return {
     track: { trackId: lang, lang, label: String(raw?.lan_doc || lang), kind: generated ? "auto" : "human" },
     url,
+    translated: lang.startsWith("ai-") && Number(raw?.ai_type) === 1,
   };
 }
 
@@ -109,12 +111,18 @@ function withoutRepeats(rows: readonly Row[]): Row[] {
   return kept;
 }
 
+// 机器翻译的轨只是转了一手的译文，有别的能用的轨就不列；能用的全是译文时照留，免得没字幕可读。
+function withoutTranslations(rows: readonly Row[]): readonly Row[] {
+  return rows.some((row) => !row.translated) ? rows.filter((row) => !row.translated) : rows;
+}
+
 // 不标原语言：这里没有可靠的依据，只有一种人工字幕语言也不算。
 function parseTracks(raw: unknown): readonly Row[] {
   const list: readonly (RawTrack | null)[] = Array.isArray(raw) ? raw : [];
+  const usable = list.map(rowOf).filter((row): row is Row => row !== null);
   const byLang = new Map<string, Row>();
-  for (const row of list.map(rowOf)) {
-    if (row && !byLang.has(row.track.trackId)) byLang.set(row.track.trackId, row);
+  for (const row of withoutTranslations(usable)) {
+    if (!byLang.has(row.track.trackId)) byLang.set(row.track.trackId, row);
   }
   return withoutRepeats([...byLang.values()]);
 }
