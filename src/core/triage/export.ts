@@ -1,7 +1,9 @@
-// 粗筛的展示文字和 Markdown 清单导出。视频地址的前缀由调用方传入。
+// 粗筛的展示文字和 Markdown 清单导出。视频地址的前缀由调用方传入。固定文字按语言出，缺省中文；
+// 标题、UP 主名、官方总结和模型写的结论原样写。
+import type { OutputLang } from "../output-lang.ts";
 import { parseVideoKey } from "../video-ref.ts";
 import { hasOfficialContent } from "./batch.ts";
-import { GROUPS, groupItems, hasVerdict, type TriageVerdict, type VerdictMap } from "./groups.ts";
+import { GROUPS, groupItems, groupName, hasVerdict, type TriageVerdict, type VerdictMap } from "./groups.ts";
 import type { OfficialMap, OfficialRecord, TriageItem } from "./state.ts";
 
 export interface MarkdownInput {
@@ -11,25 +13,83 @@ export interface MarkdownInput {
   readonly exportedAt?: number;
 }
 
-export const OFFICIAL_STATUS_TEXT = Object.freeze({
-  ok: "有官方总结",
-  none: "没有官方总结",
-  queued: "B站现在没有这个视频的官方总结",
-  unsupported: "B站不给这个视频做总结",
-  "need-login": "要先在浏览器里登录 B站",
-  failed: "请求失败，再点开始会重试",
-});
+const EXPORT_ZH = {
+  status: {
+    ok: "有官方总结",
+    none: "没有官方总结",
+    queued: "B站现在没有这个视频的官方总结",
+    unsupported: "B站不给这个视频做总结",
+    "need-login": "要先在浏览器里登录 B站",
+    failed: "请求失败，再点开始会重试",
+  },
+  unavailable: "视频已失效或暂时看不了，没有去取官方总结",
+  notFetched: "还没取官方总结",
+  withReason: (text: string, reason: string) => `${text}（${reason}）`,
+  finished: "已看完",
+  notStarted: "还没看",
+  percent: (percent: number) => `（${percent}%）`,
+  watchedTo: (at: string, percent: string) => `看到 ${at}${percent}`,
+  fromOfficial: "基于 B站官方总结",
+  fromOverview: "基于概览",
+  heading: "# 稍后再看粗筛",
+  exported: (at: string, count: number) => `导出于 ${at}，共 ${count} 个视频。`,
+  group: (name: string, count: number) => `## ${name}（${count}）`,
+  verdict: (summary: string, source: string) => `  - 结论：${summary}（${source}）`,
+  value: (text: string) => `  - 核心价值：${text}`,
+  reason: (text: string) => `  - 理由：${text}`,
+  official: (text: string) => `  - 官方总结：${text}`,
+  fileName: (stamp: string) => `简幕-稍后再看-${stamp}.md`,
+};
+
+type ExportText = typeof EXPORT_ZH;
+
+const plural = (count: number, one: string, many: string): string => `${count} ${count === 1 ? one : many}`;
+
+const EXPORT_EN: ExportText = {
+  status: {
+    ok: "Has an official summary",
+    none: "No official summary",
+    queued: "Bilibili has no official summary for this video yet",
+    unsupported: "Bilibili doesn't summarise this video",
+    "need-login": "Sign in to Bilibili in this browser first",
+    failed: "Request failed. Click start again to retry",
+  },
+  unavailable: "Video is unavailable or can't be watched right now, so no official summary was fetched",
+  notFetched: "Official summary not fetched yet",
+  withReason: (text, reason) => `${text} (${reason})`,
+  finished: "Finished",
+  notStarted: "Not started",
+  percent: (percent) => ` (${percent}%)`,
+  watchedTo: (at, percent) => `Watched to ${at}${percent}`,
+  fromOfficial: "based on the Bilibili official summary",
+  fromOverview: "based on the overview",
+  heading: "# Watch Later triage",
+  exported: (at, count) => `Exported ${at}. ${plural(count, "video", "videos")} in total.`,
+  group: (name, count) => `## ${name} (${count})`,
+  verdict: (summary, source) => `  - Verdict: ${summary} (${source})`,
+  value: (text) => `  - Core value: ${text}`,
+  reason: (text) => `  - Reasoning: ${text}`,
+  official: (text) => `  - Official summary: ${text}`,
+  fileName: (stamp) => `jianmu-watch-later-${stamp}.md`,
+};
+
+const textOf = (lang: OutputLang): ExportText => (lang === "en" ? EXPORT_EN : EXPORT_ZH);
+
+/** 官方总结各种结果的说法，中文这份。 */
+export const OFFICIAL_STATUS_TEXT = Object.freeze(EXPORT_ZH.status);
 
 export function officialStatusText(
   record: OfficialRecord | null | undefined,
   item: TriageItem | null = null,
+  lang: OutputLang = "zh",
 ): string {
-  if (item && item.available === false) return "视频已失效或暂时看不了，没有去取官方总结";
-  if (!record) return "还没取官方总结";
-  if (record.status === "ok" && !hasOfficialContent(record)) return OFFICIAL_STATUS_TEXT.none;
-  const known: Readonly<Record<string, string | undefined>> = OFFICIAL_STATUS_TEXT;
-  const text = known[record.status as string] || OFFICIAL_STATUS_TEXT.failed;
-  return record.status === "failed" && record.reason ? `${text}（${record.reason}）` : text;
+  const t = textOf(lang);
+  if (item && item.available === false) return t.unavailable;
+  if (!record) return t.notFetched;
+  if (record.status === "ok" && !hasOfficialContent(record)) return t.status.none;
+  const known: Readonly<Record<string, string | undefined>> = t.status;
+  const text = known[record.status as string] || t.status.failed;
+  return record.status === "failed" && record.reason ? t.withReason(text, record.reason) : text;
 }
 
 export function videoUrl(videoId: string, baseUrl: string): string {
@@ -53,16 +113,17 @@ export function formatDateTime(timestamp: number): string {
 }
 
 // 分 P 视频的进度只是当前那一 P 的位置，总时长却是全部分 P 的，不算百分比。
-export function progressText(item: TriageItem | null | undefined): string {
-  if (item?.finished) return "已看完";
+export function progressText(item: TriageItem | null | undefined, lang: OutputLang = "zh"): string {
+  const t = textOf(lang);
+  if (item?.finished) return t.finished;
   const progress = Math.floor(Number(item?.progress) || 0);
-  if (progress <= 0) return "还没看";
+  if (progress <= 0) return t.notStarted;
   const duration = Math.floor(Number(item?.duration) || 0);
   const percent =
     duration > 0 && Number(item?.pageCount || 1) <= 1
-      ? `（${Math.min(99, Math.round((progress / duration) * 100))}%）`
+      ? t.percent(Math.min(99, Math.round((progress / duration) * 100)))
       : "";
-  return `看到 ${formatDuration(progress)}${percent}`;
+  return t.watchedTo(formatDuration(progress), percent);
 }
 
 function oneLine(text: string | undefined): string {
@@ -74,8 +135,13 @@ function escapeMarkdown(text: string | undefined): string {
   return oneLine(text).replace(/([\\`*_[\]<>])/g, "\\$1");
 }
 
-export function verdictSourceText(verdict: TriageVerdict | null | undefined): string {
-  return verdict?.source === "official" ? "基于 B站官方总结" : "基于概览";
+export function verdictSourceText(verdict: TriageVerdict | null | undefined, lang: OutputLang = "zh"): string {
+  return verdict?.source === "official" ? textOf(lang).fromOfficial : textOf(lang).fromOverview;
+}
+
+/** 导出的文件名：按导出时刻（本机时区）编号。 */
+export function exportFileName(exportedAt: number, lang: OutputLang = "zh"): string {
+  return textOf(lang).fileName(formatDateTime(exportedAt).replace(/[-: ]/g, ""));
 }
 
 // 标题和链接用站点自己的视频编号；键认不出时原样用键。
@@ -87,18 +153,15 @@ function videoIdOf(item: TriageItem): string {
 export function toMarkdown(
   { items = [], official = {}, verdicts = {}, exportedAt = Date.now() }: MarkdownInput = {},
   videoBaseUrl: string,
+  lang: OutputLang = "zh",
 ): string {
+  const t = textOf(lang);
   const groups = groupItems(items, verdicts);
-  const lines = [
-    "# 稍后再看粗筛",
-    "",
-    `导出于 ${formatDateTime(exportedAt)}，共 ${items.length} 个视频。`,
-    "",
-  ];
+  const lines = [t.heading, "", t.exported(formatDateTime(exportedAt), items.length), ""];
   for (const group of GROUPS) {
     const members = groups[group.key];
     if (!members.length) continue;
-    lines.push(`## ${group.label}（${members.length}）`, "");
+    lines.push(t.group(groupName(group.key, lang), members.length), "");
     for (const item of members) {
       const meta = [item.ownerName, item.duration ? formatDuration(item.duration) : ""]
         .filter(Boolean)
@@ -108,16 +171,16 @@ export function toMarkdown(
       lines.push(`- [ ] [${title}](${videoUrl(videoIdOf(item), videoBaseUrl)})${meta ? ` · ${meta}` : ""}`);
       const verdict = verdicts[item.videoKey];
       if (hasVerdict(verdict)) {
-        lines.push(`  - 结论：${escapeMarkdown(verdict.summary)}（${verdictSourceText(verdict)}）`);
-        if (oneLine(verdict.value)) lines.push(`  - 核心价值：${escapeMarkdown(verdict.value)}`);
-        if (oneLine(verdict.reason)) lines.push(`  - 理由：${escapeMarkdown(verdict.reason)}`);
+        lines.push(t.verdict(escapeMarkdown(verdict.summary), verdictSourceText(verdict, lang)));
+        if (oneLine(verdict.value)) lines.push(t.value(escapeMarkdown(verdict.value)));
+        if (oneLine(verdict.reason)) lines.push(t.reason(escapeMarkdown(verdict.reason)));
         continue;
       }
       const record = official[item.videoKey];
       if (hasOfficialContent(record) && oneLine(record.summary)) {
-        lines.push(`  - 官方总结：${escapeMarkdown(record.summary)}`);
+        lines.push(t.official(escapeMarkdown(record.summary)));
       } else {
-        lines.push(`  - ${officialStatusText(record, item)}`);
+        lines.push(`  - ${officialStatusText(record, item, lang)}`);
       }
     }
     lines.push("");

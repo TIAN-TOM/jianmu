@@ -1,7 +1,10 @@
 // 笔记和学习稿的 Markdown 导出。视频地址的前缀由调用方传入，链接只从视频键现拼。
+// 标题、小标题、来源说明这些固定文字按语言出，缺省中文；模型写的内容、平台来的内容和用户自己的笔记原样写。
 import { groupQuotesIntoChapters, type ChapterPart, type QuotePart } from "../ai/chunking.ts";
 import { keyChapterStarts, verdictLabelOf, type OfficialSummary } from "../ai/verdict.ts";
+import type { OutputLang } from "../output-lang.ts";
 import { formatTimestamp } from "../transcript/segment.ts";
+import { verdictName } from "../triage/groups.ts";
 import { parseVideoKey, type VideoKey } from "../video-ref.ts";
 import {
   normalizeAnalysisFailures,
@@ -13,6 +16,71 @@ import {
 
 export interface NotesExportOptions {
   readonly grouped?: boolean;
+  /** 固定文字用哪种语言，缺省中文。 */
+  readonly lang?: OutputLang;
+}
+
+const MARKDOWN_ZH = {
+  untitled: "未命名视频",
+  tag: "简幕",
+  officialHeading: "## B站官方总结",
+  officialSource: "> 来源：B站官方 AI 总结，由 B站生成，不是你配置的模型。",
+  untitledSection: "（这一段没有标题）",
+  creatorHeading: "## UP 主分段",
+  creatorSource: "> 来源：UP 主在 B站为视频划分的章节。",
+  section: (index: number) => `第 ${index} 段`,
+  modelWroteChapters: "> 以下章节和金句由你配置的 AI 模型根据字幕生成。",
+  modelWroteAll: "> 以下结论、章节和金句由你配置的 AI 模型根据字幕生成。",
+  incomplete: "> **概览内容不完整**：以下时间段生成失败，章节和金句里没有这几段的内容。",
+  failureReason: (reason: string) => `：${reason}`,
+  verdictHeading: "## 一句话结论",
+  verdictFromOfficial: "*这条结论由你配置的 AI 模型根据 B站官方总结写成，不是根据字幕。*",
+  verdictIncomplete: "*这条结论只基于概览里已有的部分，缺失时间段的内容没有算进去。*",
+  value: (text: string) => `- 核心价值：${text}`,
+  reason: (text: string) => `- 判断理由：${text}`,
+  keyMark: "（重点）",
+  overviewHeading: "## 视频概览",
+  chaptersHeading: "## 章节",
+  quotesHeading: "## 金句",
+  notesHeading: "## 我的时间戳笔记",
+  fileNotes: "笔记",
+  fileLearning: "学习稿",
+};
+
+type MarkdownText = typeof MARKDOWN_ZH;
+
+const MARKDOWN_EN: MarkdownText = {
+  untitled: "Untitled video",
+  tag: "jianmu",
+  officialHeading: "## Bilibili official summary",
+  officialSource: "> Source: Bilibili's official AI summary. Bilibili generated it, not the model you set up.",
+  untitledSection: "(Untitled section)",
+  creatorHeading: "## Creator chapters",
+  creatorSource: "> Source: chapters the creator marked on Bilibili.",
+  section: (index) => `Section ${index}`,
+  modelWroteChapters: "> The chapters and key quotes below were generated from the subtitles by the AI model you set up.",
+  modelWroteAll: "> The verdict, chapters and key quotes below were generated from the subtitles by the AI model you set up.",
+  incomplete: "> **Incomplete overview**: these time ranges failed to generate, so the chapters and key quotes don't cover them.",
+  failureReason: (reason) => `: ${reason}`,
+  verdictHeading: "## One-line verdict",
+  verdictFromOfficial: "*The AI model you set up wrote this verdict from the Bilibili official summary, not from the subtitles.*",
+  verdictIncomplete: "*This verdict only covers the parts of the overview that were generated. Missing time ranges aren't included.*",
+  value: (text) => `- Core value: ${text}`,
+  reason: (text) => `- Reasoning: ${text}`,
+  keyMark: " (key)",
+  overviewHeading: "## Video overview",
+  chaptersHeading: "## Chapters",
+  quotesHeading: "## Key quotes",
+  notesHeading: "## My timestamped notes",
+  fileNotes: "notes",
+  fileLearning: "study notes",
+};
+
+const textOf = (lang: OutputLang | undefined): MarkdownText => (lang === "en" ? MARKDOWN_EN : MARKDOWN_ZH);
+
+/** 导出文件在视频没有标题时用的名字：笔记导出（notes）和学习稿（learning）各一个。 */
+export function markdownFallbackName(kind: "notes" | "learning", lang: OutputLang = "zh"): string {
+  return kind === "notes" ? textOf(lang).fileNotes : textOf(lang).fileLearning;
 }
 
 export interface LearningVerdict {
@@ -125,10 +193,10 @@ function byTime(left: NoteFields, right: NoteFields): number {
   return (Number(left.atSec) || 0) - (Number(right.atSec) || 0);
 }
 
-function formatGroup(notes: readonly NoteFields[], videoBaseUrl: string): string {
+function formatGroup(notes: readonly NoteFields[], videoBaseUrl: string, t: MarkdownText): string {
   const first = notes[0] ?? {};
   const title = escapeMarkdown(
-    String(first.snapshot?.title || videoIdOf(first.video) || "未命名视频")
+    String(first.snapshot?.title || videoIdOf(first.video) || t.untitled)
       .replace(/\s+/g, " ")
       .trim(),
   );
@@ -151,11 +219,12 @@ function formatGroup(notes: readonly NoteFields[], videoBaseUrl: string): string
 export function notesAsMarkdown(
   notes: NoteList,
   videoBaseUrl: string,
-  { grouped = false }: NotesExportOptions = {},
+  { grouped = false, lang = "zh" }: NotesExportOptions = {},
 ): string {
+  const t = textOf(lang);
   const list = noteList(notes);
   if (!list.length) return "";
-  if (!grouped) return formatGroup(list, videoBaseUrl);
+  if (!grouped) return formatGroup(list, videoBaseUrl, t);
 
   const groups = new Map<string, NoteFields[]>();
   for (const note of list) {
@@ -168,7 +237,7 @@ export function notesAsMarkdown(
     Math.max(...group.map((note) => Number(note.createdAt) || 0));
   return [...groups.values()]
     .sort((left, right) => latest(right) - latest(left))
-    .map((group) => formatGroup(group, videoBaseUrl))
+    .map((group) => formatGroup(group, videoBaseUrl, t))
     .join("\n");
 }
 
@@ -219,15 +288,15 @@ function stampedLine(prefix: string, seconds: number | null, text: string, hrefO
 }
 
 /** B站官方 AI 总结：总摘要加分段提纲，标题和要点各带时间戳。没有内容时返回空数组。 */
-function officialSummaryLines(officialSummary: OfficialSummary | null | undefined, hrefOf: HrefOf): string[] {
+function officialSummaryLines(officialSummary: OfficialSummary | null | undefined, hrefOf: HrefOf, t: MarkdownText): string[] {
   const summary = String(officialSummary?.summary || "").trim();
   const rawOutline = officialSummary?.outline;
   const outline: readonly (OutlinePart | null | undefined)[] = Array.isArray(rawOutline) ? rawOutline : [];
   if (!summary && !outline.length) return [];
-  const lines = ["## B站官方总结", "", "> 来源：B站官方 AI 总结，由 B站生成，不是你配置的模型。", ""];
+  const lines = [t.officialHeading, "", t.officialSource, ""];
   if (summary) lines.push(escapeMarkdown(summary), "");
   for (const part of outline) {
-    const title = escapeMarkdown(String(part?.title || "").trim()) || "（这一段没有标题）";
+    const title = escapeMarkdown(String(part?.title || "").trim()) || t.untitledSection;
     lines.push(stampedLine("### ", secondsOrNull(part?.timestamp), title, hrefOf), "");
     const rawPoints = part?.points;
     const points: readonly (OutlinePoint | null | undefined)[] = Array.isArray(rawPoints) ? rawPoints : [];
@@ -247,7 +316,7 @@ function officialSummaryLines(officialSummary: OfficialSummary | null | undefine
 }
 
 /** UP 主给视频划的分段，按开始时间列成目录。 */
-function creatorChapterLines(chapters: LearningInput["creatorChapters"], hrefOf: HrefOf): string[] {
+function creatorChapterLines(chapters: LearningInput["creatorChapters"], hrefOf: HrefOf, t: MarkdownText): string[] {
   const points = (Array.isArray(chapters) ? chapters : [])
     .map((chapter) => ({
       start: secondsOrNull(chapter?.start),
@@ -256,11 +325,11 @@ function creatorChapterLines(chapters: LearningInput["creatorChapters"], hrefOf:
     .filter((chapter) => chapter.start !== null);
   if (!points.length) return [];
   return [
-    "## UP 主分段",
+    t.creatorHeading,
     "",
-    "> 来源：UP 主在 B站为视频划分的章节。",
+    t.creatorSource,
     "",
-    ...points.map((chapter, index) => stampedLine("- ", chapter.start, chapter.title || `第 ${index + 1} 段`, hrefOf)),
+    ...points.map((chapter, index) => stampedLine("- ", chapter.start, chapter.title || t.section(index + 1), hrefOf)),
     "",
   ];
 }
@@ -284,25 +353,27 @@ export function learningAsMarkdown(
     notes,
   }: LearningInput = {},
   videoBaseUrl: string,
+  lang: OutputLang = "zh",
 ): string {
+  const t = textOf(lang);
   const chapters: readonly ChapterPart[] = Array.isArray(analysis?.chapters) ? analysis.chapters : [];
   const quotes: readonly QuotePart[] = Array.isArray(analysis?.keyQuotes) ? analysis.keyQuotes : [];
   const noteItems = noteList(notes);
   const hrefOf: HrefOf = (seconds) => videoHref(videoKey, seconds, videoBaseUrl);
   // B站自己给的导读：官方总结和 UP 主分段，都不是用户模型生成的。
-  const guideLines = [...officialSummaryLines(officialSummary, hrefOf), ...creatorChapterLines(creatorChapters, hrefOf)];
+  const guideLines = [...officialSummaryLines(officialSummary, hrefOf, t), ...creatorChapterLines(creatorChapters, hrefOf, t)];
   if (!chapters.length && !quotes.length && !noteItems.length && !guideLines.length) return "";
 
   const { grouped, orphans } = groupQuotesIntoChapters(chapters, quotes);
   const lines = [
     "---",
-    `title: ${yamlScalar(title || videoIdOf(videoKey) || "未命名视频")}`,
+    `title: ${yamlScalar(title || videoIdOf(videoKey) || t.untitled)}`,
     `videoKey: ${yamlVideoKey(videoKey)}`,
     `author: ${yamlScalar(author)}`,
     `url: ${yamlScalar(hrefOf(0))}`,
     `created_at: ${yamlScalar(isoDate(exportedAt))}`,
     "tags:",
-    "  - 简幕",
+    `  - ${t.tag}`,
     "---",
     "",
   ];
@@ -315,22 +386,20 @@ export function learningAsMarkdown(
   const officialVerdict = Boolean(verdictSummary) && verdict?.source === "official";
   if (guideLines.length && (chapters.length || quotes.length)) {
     lines.push(
-      officialVerdict
-        ? "> 以下章节和金句由你配置的 AI 模型根据字幕生成。"
-        : "> 以下结论、章节和金句由你配置的 AI 模型根据字幕生成。",
+      officialVerdict ? t.modelWroteChapters : t.modelWroteAll,
       "",
     );
   } else if (guideLines.length && verdictSummary && !officialVerdict) {
-    lines.push("> 以下结论、章节和金句由你配置的 AI 模型根据字幕生成。", "");
+    lines.push(t.modelWroteAll, "");
   }
 
   // 缺块的概览读起来和完整的一模一样，不注明的话，学习稿会被当成全片概览。
   const failures = normalizeAnalysisFailures(analysisFailures);
   if (failures.length && (chapters.length || quotes.length)) {
-    lines.push("> **概览内容不完整**：以下时间段生成失败，章节和金句里没有这几段的内容。");
+    lines.push(t.incomplete);
     for (const failure of failures) {
       const span = `${formatStamp(failure.startSeconds)}–${formatStamp(failure.endSeconds)}`;
-      const reason = failure.reason ? `：${inlineMultiline(escapeMarkdown(failure.reason), "> ")}` : "";
+      const reason = failure.reason ? t.failureReason(inlineMultiline(escapeMarkdown(failure.reason), "> ")) : "";
       lines.push(`> - ${span}${reason}`);
     }
     lines.push("");
@@ -338,17 +407,17 @@ export function learningAsMarkdown(
 
   // 一句话结论放在最前面，和侧边栏一样先回答「讲了什么、要不要看」。
   if (verdictSummary) {
-    // 旧版改了名的档位按新名字写，「看概览就够」照旧。
-    const verdictLabel = escapeMarkdown(verdictLabelOf(verdict?.verdict));
+    // 旧版改了名的档位按新名字写，「看概览就够」照旧；英文时写档位的英文名。
+    const verdictLabel = escapeMarkdown(verdictName(verdictLabelOf(verdict?.verdict), lang));
     const verdictValue = escapeMarkdown(String(verdict?.value || "").trim());
     const verdictReason = escapeMarkdown(String(verdict?.reason || "").trim());
-    lines.push("## 一句话结论", "");
+    lines.push(t.verdictHeading, "");
     if (verdictLabel) lines.push(`**${verdictLabel}**`, "");
-    if (officialVerdict) lines.push("*这条结论由你配置的 AI 模型根据 B站官方总结写成，不是根据字幕。*", "");
-    if (verdict?.incomplete) lines.push("*这条结论只基于概览里已有的部分，缺失时间段的内容没有算进去。*", "");
+    if (officialVerdict) lines.push(t.verdictFromOfficial, "");
+    if (verdict?.incomplete) lines.push(t.verdictIncomplete, "");
     lines.push(escapeMarkdown(verdictSummary), "");
-    if (verdictValue) lines.push(`- 核心价值：${verdictValue}`);
-    if (verdictReason) lines.push(`- 判断理由：${verdictReason}`);
+    if (verdictValue) lines.push(t.value(verdictValue));
+    if (verdictReason) lines.push(t.reason(verdictReason));
     if (verdictValue || verdictReason) lines.push("");
   }
 
@@ -356,7 +425,7 @@ export function learningAsMarkdown(
     mdLink(escapeMarkdown(formatStamp(chapter.timestampSeconds, chapter.timestamp)), hrefOf(chapter.timestampSeconds));
   // 结论标出的重点章节在标题后注明，和侧边栏的标记对应。
   const keyStarts = new Set(keyChapterStarts(analysis));
-  const keyMark = (chapter: ChapterPart): string => (keyStarts.has(Math.floor(chapter.timestampSeconds)) ? "（重点）" : "");
+  const keyMark = (chapter: ChapterPart): string => (keyStarts.has(Math.floor(chapter.timestampSeconds)) ? t.keyMark : "");
   const chapterHeading = (chapter: ChapterPart): string =>
     (escapeMarkdown(String(chapter.title || "").trim()) ||
       escapeMarkdown(formatStamp(chapter.timestampSeconds, chapter.timestamp))) + keyMark(chapter);
@@ -364,10 +433,10 @@ export function learningAsMarkdown(
     mdLink(escapeMarkdown(formatStamp(quote.timestampSeconds, quote.timestamp)), hrefOf(quote.timestampSeconds));
 
   if (grouped.length) {
-    lines.push("## 视频概览", "");
+    lines.push(t.overviewHeading, "");
     for (const { chapter } of grouped) lines.push(`- ${chapterLink(chapter)} ${chapterHeading(chapter)}`);
     lines.push("");
-    lines.push("## 章节", "");
+    lines.push(t.chaptersHeading, "");
     for (const { chapter, quotes: nested } of grouped) {
       lines.push(`### ${chapterLink(chapter)} ${chapterHeading(chapter)}`, "");
       const summary = escapeMarkdown(String(chapter.summary || "").trim());
@@ -382,7 +451,7 @@ export function learningAsMarkdown(
 
   const looseQuotes = grouped.length ? orphans : quotes;
   if (looseQuotes.length) {
-    lines.push("## 金句", "");
+    lines.push(t.quotesHeading, "");
     for (const quote of looseQuotes) {
       const text = escapeMarkdown(String(quote.quote || "").trim());
       lines.push(text ? `- ${quoteLink(quote)} ${inlineMultiline(text, "  ")}` : `- ${quoteLink(quote)}`);
@@ -391,7 +460,7 @@ export function learningAsMarkdown(
   }
 
   if (noteItems.length) {
-    lines.push("## 我的时间戳笔记", "");
+    lines.push(t.notesHeading, "");
     for (const note of [...noteItems].sort(byTime)) lines.push(formatNoteItem(note, videoBaseUrl));
     lines.push("");
   }

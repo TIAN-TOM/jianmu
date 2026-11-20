@@ -1,5 +1,7 @@
 // 结论落在哪一组：四档判断，旧版留下的「看概览就够」单列一组，外加「还没判断」。
+// 档位在数据里是那几个中文词，当标识用；显示和导出时经 groupName、verdictName 按语言换成显示名。
 import { LEGACY_VERDICT, verdictLabelOf } from "../ai/verdict.ts";
+import type { OutputLang } from "../output-lang.ts";
 import type { TriageItem } from "./state.ts";
 
 export type GroupKey = "watch" | "fair" | "skip" | "unknown" | "legacy" | "pending";
@@ -28,6 +30,32 @@ export const GROUPS: readonly TriageGroup[] = Object.freeze([
   Object.freeze({ key: "legacy", label: LEGACY_VERDICT }),
   Object.freeze({ key: "pending", label: "还没判断" }),
 ]);
+
+// 各组的英文显示名；中文的显示名就是 GROUPS 里的 label。
+const GROUP_NAMES_EN: Readonly<Record<GroupKey, string>> = Object.freeze({
+  watch: "Worth watching",
+  fair: "Watch the key parts",
+  skip: "Skip",
+  unknown: "Not enough info",
+  legacy: "Overview is enough",
+  pending: "Not judged yet",
+});
+
+/** 一组的显示名。 */
+export function groupName(key: GroupKey, lang: OutputLang = "zh"): string {
+  return lang === "en" ? GROUP_NAMES_EN[key] : (GROUPS.find((group) => group.key === key)?.label ?? key);
+}
+
+/**
+ * 档位的显示名。中文照原样写；英文时认得出的档位（含旧版改了名的、「看概览就够」）换成英文名，
+ * 认不出的（模型自创的）原样写。
+ */
+export function verdictName(label: string, lang: OutputLang = "zh"): string {
+  if (lang !== "en") return label;
+  const known = verdictLabelOf(label);
+  const group = known ? GROUPS.find((entry) => entry.key !== "pending" && entry.label === known) : undefined;
+  return group ? GROUP_NAMES_EN[group.key] : label;
+}
 
 export function hasVerdict(verdict: TriageVerdict | null | undefined): verdict is TriageVerdict {
   return Boolean(String(verdict?.summary || "").trim());

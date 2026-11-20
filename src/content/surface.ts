@@ -5,12 +5,14 @@ import type { AppearanceView } from "../shared/messages/core.ts";
 import type { SitePage } from "../sites/page-types.ts";
 import type { Surface, SurfaceEnv } from "./app.ts";
 import { createCardFrame, type CardFrame } from "./card-frame.ts";
-import { createFramePress, frameIconEntries } from "./frame-icon.ts";
-import { createHoverIcons, NOTE_ICON, NOTE_TITLE, type HoverIconEntry } from "./hover-icons.ts";
+import { createFramePress, frameIconEntries, retitleFrameIcon } from "./frame-icon.ts";
+import { createHoverIcons, NOTE_ICON, noteIcon, type HoverIconEntry } from "./hover-icons.ts";
+import { createContentLang, pageUiLanguage } from "./lang.ts";
 import { createMiniPlayer, type MiniPlayerDeps } from "./mini-player.ts";
 import { pageTone } from "./page-tone.ts";
 import type { ContentRuntime } from "./runtime.ts";
 import { listenShortcut } from "./shortcut.ts";
+import { contentText } from "./text.ts";
 
 export interface SurfaceDeps extends SurfaceEnv {
   readonly document: Document;
@@ -20,21 +22,15 @@ export interface SurfaceDeps extends SurfaceEnv {
   readonly cardPath?: string;
   readonly miniPlayer: Omit<MiniPlayerDeps, "document" | "overlay">;
   readonly shadowRootOf?: (element: Element) => ShadowRoot | null;
+  /** 浏览器的界面语言，语言选项是跟随浏览器时按它定；不给时读浏览器的。 */
+  readonly uiLanguage?: () => string;
 }
 
-const RELOAD_HINT = "已更新，刷新页面后可用";
-const RELOAD_TITLE = "简幕已更新，刷新页面后可用";
 const RELOAD_HINT_MS = 4000;
 
-// 保存失败的常见原因给个短说法，完整说明放在悬停提示里。
-const SHORT_FAILURES: Partial<Record<ErrorCode, string>> = {
-  NO_CAPTIONS: "无字幕",
-  NEED_LOGIN: "需登录",
-  STORAGE_FULL: "空间不足",
-  NOT_ENABLED: "未启用",
-};
-
-export function createSurface({ document, page, runtime, player, frame, retire, cardPath, miniPlayer, shadowRootOf }: SurfaceDeps): Surface {
+export function createSurface({ document, page, runtime, player, frame, retire, cardPath, miniPlayer, shadowRootOf, uiLanguage = pageUiLanguage }: SurfaceDeps): Surface {
+  const lang = createContentLang(uiLanguage);
+  const text = () => contentText(lang.current());
   let retired = false;
   let saving = false;
   let card: CardFrame | null = null;
@@ -43,8 +39,8 @@ export function createSurface({ document, page, runtime, player, frame, retire, 
   let pressFrame: (() => Promise<void>) | null = null;
   // 解释当前画面的图标只写在裸开关的分支里：开关关着的构建连同图标一起裁掉，不留点了没反应的按钮。
   const entries: HoverIconEntry[] = [
-    { spec: NOTE_ICON, onPress: () => void saveNote() },
-    ...(FEATURE_FRAME_EXPLAIN ? frameIconEntries(frame, () => void pressFrame?.()) : []),
+    { spec: noteIcon(lang.current()), onPress: () => void saveNote() },
+    ...(FEATURE_FRAME_EXPLAIN ? frameIconEntries(frame, () => void pressFrame?.(), lang.current()) : []),
   ];
   const icons = createHoverIcons({ document, anchor: () => page.hoverIconAnchor(), icons: entries });
   const button = icons.icon(NOTE_ICON.id) ?? { flash: () => undefined, setTitle: () => undefined };
@@ -58,6 +54,7 @@ export function createSurface({ document, page, runtime, player, frame, retire, 
           confirmed: player.confirmed,
           gone: () => retired || !runtime.alive(),
           onGone: () => showReloadHint(),
+          lang: lang.current,
         })
       : null
     : null;
@@ -67,7 +64,7 @@ export function createSurface({ document, page, runtime, player, frame, retire, 
 
   function showReloadHint(): void {
     retire();
-    button.flash(RELOAD_HINT, RELOAD_HINT_MS);
+    button.flash(text().reloadHint, RELOAD_HINT_MS);
   }
 
   async function saveNote(): Promise<void> {
@@ -76,20 +73,21 @@ export function createSurface({ document, page, runtime, player, frame, retire, 
     const video = player.currentKey();
     const main = page.findMainVideo();
     if (!video || main.status === "none") return;
-    if (main.status === "ad") return button.flash("正在播广告");
-    if (!player.confirmed()) return button.flash("视频还在切换");
+    if (main.status === "ad") return button.flash(text().adPlaying);
+    if (!player.confirmed()) return button.flash(text().switching);
     // 连点几下不该存出几条一样的笔记：在途时忽略，不排队。
     saving = true;
-    button.flash("保存中…", 0);
+    button.flash(text().saving, 0);
     try {
       const reply = await runtime.send("notes.saveAtTime", { video, atSec: Math.floor(main.video.currentTime || 0) });
       if (!runtime.alive()) return showReloadHint();
       if (reply.ok) {
-        button.setTitle(NOTE_TITLE);
-        button.flash(reply.value.duplicate ? "该时刻已有笔记" : reply.value.polishLimited ? "已保存，未润色" : "已保存");
+        button.setTitle(text().noteTitle);
+        button.flash(reply.value.duplicate ? text().duplicate : reply.value.polishLimited ? text().savedUnpolished : text().saved);
       } else {
+        const short: Partial<Record<ErrorCode, string>> = text().shortFailures;
         button.setTitle(describe(reply.code, reply.detail));
-        button.flash(SHORT_FAILURES[reply.code] ?? "保存失败");
+        button.flash(short[reply.code] ?? text().saveFailed);
       }
     } finally {
       saving = false;
@@ -108,6 +106,7 @@ export function createSurface({ document, page, runtime, player, frame, retire, 
       extensionRoot: () => runtime.url(""),
       slot: () => page.cardSlot?.() ?? null,
       fillsScreen: () => page.fillsScreen?.() ?? false,
+      title: () => text().cardTitle,
       // 卡片要插的地方周围是什么底色；没有右栏时悬浮在页面上，看页面本身。
       tone() {
         const view = document.defaultView;
@@ -135,13 +134,18 @@ export function createSurface({ document, page, runtime, player, frame, retire, 
     setAppearance(view: AppearanceView) {
       icons.setAccent(view.accentTheme);
       cardEnabled = view.inPageCard;
+      // 语言变了：图标的悬停提示跟着换，卡片框架的名字在下一轮自查时换。
+      if (lang.update(view)) {
+        button.setTitle(retired ? text().reloadTitle : text().noteTitle);
+        (FEATURE_FRAME_EXPLAIN ? retitleFrameIcon : undefined)?.(icons, lang.current());
+      }
       if (!retired) syncCard();
     },
     retire() {
       retired = true;
       card?.remove();
       card = null;
-      button.setTitle(RELOAD_TITLE);
+      button.setTitle(text().reloadTitle);
     },
     remove() {
       retired = true;

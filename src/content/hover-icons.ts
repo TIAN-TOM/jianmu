@@ -5,16 +5,19 @@
 // 这些在点击时尽量拦，图标背后的操作会花用户的额度（解释当前画面还会把画面发出去）。样子核对是尽力而为：
 // 盖一层不接收点击的诱饵、改播放器祖先的样子、只在鼠标移上去时才显形，这几种拦不干净，兜底的是后台的限频。
 // 鼠标移上去和闪提示时用设置里的主题色，不跟扩展页面的明暗走。小窗时让开，见 mini-player.ts。
+import type { OutputLang } from "../core/output-lang.ts";
 import { INJECTED } from "../shared/names.ts";
 import { BUTTON_GAP, keepsLook, OVERLAY_INSET, placedAsInjected, pointedAt, type Box, type Look } from "./click-guard.ts";
 import { createReveal } from "./reveal.ts";
+import { contentText } from "./text.ts";
 
 // 主题强调色的浅色值，和设置里的主题表一致（单元测试核对）。不导入设置模块：它会把整套设置规则带进每个播放页。
 export const ACCENT_SWATCHES: Readonly<Record<string, string>> = { ink: "#2a6664", graphite: "#515d9f", ochre: "#8e5729" };
 const DEFAULT_SWATCH = "#2a6664";
 const swatchOf = (theme: unknown): string => (typeof theme === "string" && Object.hasOwn(ACCENT_SWATCHES, theme) ? ACCENT_SWATCHES[theme] : undefined) ?? DEFAULT_SWATCH;
 
-export const NOTE_TITLE = "在当前时间点记一条笔记（快捷键 n）";
+/** 笔记图标中文的悬停提示。 */
+export const NOTE_TITLE = contentText().noteTitle;
 const FLASH_MS = 1800;
 
 // 防点击劫持核对的那几项在内联样式里钉死，点击时和下面的常量比：页面不带 !important 的通用规则改不动它们，
@@ -45,6 +48,9 @@ export const NOTE_ICON: IconSpec = {
   title: NOTE_TITLE,
   paths: ["M8.6 2.4H4.1c-.6 0-1.1.5-1.1 1.1v8.9c0 .6.5 1.1 1.1 1.1h6.2c.6 0 1.1-.5 1.1-1.1V7.9", "M11.2 2.2a1.4 1.4 0 0 1 2 2L9.1 8.3l-2.5.5.5-2.5Z"],
 };
+
+/** 按界面语言写悬停提示的笔记图标。 */
+export const noteIcon = (lang: OutputLang = "zh"): IconSpec => ({ ...NOTE_ICON, title: contentText(lang).noteTitle });
 
 export interface HoverIconEntry {
   readonly spec: IconSpec;
