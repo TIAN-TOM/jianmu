@@ -3,6 +3,8 @@
 import type { ComponentChildren } from "preact";
 import { useId } from "preact/hooks";
 import { formatTimestamp } from "../../../core/transcript/segment.ts";
+import { sharedText } from "../text.ts";
+import { uiLang } from "../ui-lang.ts";
 import { chapterHeading, keyFlags } from "./chapters.ts";
 
 export interface ChapterItem {
@@ -27,15 +29,16 @@ export interface ChapterListProps {
 
 export function ChapterList({ chapters, keyStarts, expanded = [], onToggle, onSeek, focusIndex = null, onHover, renderDetail, heading = true }: ChapterListProps) {
   const id = useId();
+  const t = sharedText();
   const keys = keyFlags(chapters, keyStarts);
   const keyCount = keys.filter(Boolean).length;
   // 时间这一列按最长的时间定宽，章节名才对得齐。
   const timeChars = Math.max(4, ...chapters.map((chapter) => formatTimestamp(chapter.startSec).length));
   return (
-    <section class="chapters" aria-labelledby={heading ? `${id}-heading` : undefined} aria-label={heading ? undefined : "章节"}>
+    <section class="chapters" aria-labelledby={heading ? `${id}-heading` : undefined} aria-label={heading ? undefined : t.chapters.label}>
       {heading ? (
         <h3 class="section-title" id={`${id}-heading`}>
-          {chapterHeading(chapters.length, keyCount)}
+          {chapterHeading(chapters.length, keyCount, uiLang.value)}
         </h3>
       ) : null}
       <ol class="chapter-list" style={`--time-ch:${timeChars}`} onMouseLeave={onHover ? () => onHover(null) : undefined}>
@@ -45,7 +48,7 @@ export function ChapterList({ chapters, keyStarts, expanded = [], onToggle, onSe
           const time = formatTimestamp(chapter.startSec);
           const name = (
             <>
-              {keys[index] ? <span class="key-dot" role="img" aria-label="重点" /> : null}
+              {keys[index] ? <span class="key-dot" role="img" aria-label={t.chapters.key} /> : null}
               <span class="chapter-name">{chapter.title}</span>
             </>
           );
@@ -59,7 +62,7 @@ export function ChapterList({ chapters, keyStarts, expanded = [], onToggle, onSe
               onMouseEnter={onHover ? () => onHover(index) : undefined}
             >
               <div class="chapter-row">
-                <button type="button" class="chapter-time" aria-label={`跳到 ${time}`} onClick={onSeek ? () => onSeek(chapter.startSec) : undefined}>
+                <button type="button" class="chapter-time" aria-label={t.jumpTo(time)} onClick={onSeek ? () => onSeek(chapter.startSec) : undefined}>
                   {time}
                 </button>
                 {renderDetail ? (

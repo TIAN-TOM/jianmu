@@ -1,5 +1,7 @@
 // 章节列表和时间轨共用的规则：哪几章是重点、章节小标题怎么写。
 // 重点按整秒匹配现有章节（章节起点不足一秒的部分舍去，和结论里记的一样），对不上的直接忽略，不猜最近的一章。
+import { sharedTextOf } from "../text.ts";
+import type { UiLang } from "../ui-lang.ts";
 
 export interface ChapterStart {
   readonly startSec: number;
@@ -28,6 +30,6 @@ export function chapterAt(chapters: readonly ChapterStart[], atSec: number | nul
 }
 
 /** 「章节 6，重点 2」，没有重点时只写「章节 6」。 */
-export function chapterHeading(count: number, keyCount: number): string {
-  return keyCount > 0 ? `章节 ${count}，重点 ${keyCount}` : `章节 ${count}`;
+export function chapterHeading(count: number, keyCount: number, lang: UiLang = "zh"): string {
+  return sharedTextOf(lang).chapters.heading(count, keyCount);
 }

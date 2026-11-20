@@ -10,11 +10,10 @@ import { StateBlock } from "../shared/ui/state-block.tsx";
 import { downloadText, safeFileName, videoBaseOf } from "./files.ts";
 import type { NotesScope } from "./notes.ts";
 import type { Panel } from "./panel.ts";
+import { sharedText } from "../shared/text.ts";
+import { panelText } from "./text.ts";
 
-const SCOPES: readonly { readonly id: NotesScope; readonly label: string }[] = [
-  { id: "video", label: "本视频" },
-  { id: "all", label: "全部" },
-];
+const SCOPES: readonly NotesScope[] = ["video", "all"];
 
 function matches(note: NoteItemView, needle: string): boolean {
   if (!needle) return true;
@@ -26,6 +25,8 @@ function NoteItem({ panel, note, showVideo }: { readonly panel: Panel; readonly 
   const [saving, setSaving] = useState(false);
   const here = note.video === panel.follow.target.value.video;
   const time = formatTimestamp(note.atSec);
+  const p = panelText();
+  const t = p.notes;
   const save = async (): Promise<void> => {
     if (draft === null) return;
     setSaving(true);
@@ -38,7 +39,7 @@ function NoteItem({ panel, note, showVideo }: { readonly panel: Panel; readonly 
     <li class="note" data-id={note.id}>
       <div class="note-head">
         {here ? (
-          <button type="button" class="stamp" aria-label={`跳到 ${time}`} onClick={() => void panel.seek(note.atSec)}>
+          <button type="button" class="stamp" aria-label={sharedText().jumpTo(time)} onClick={() => void panel.seek(note.atSec)}>
             {time}
           </button>
         ) : (
@@ -47,12 +48,12 @@ function NoteItem({ panel, note, showVideo }: { readonly panel: Panel; readonly 
           </a>
         )}
         {showVideo ? <span class="note-video">{note.snapshot.title}</span> : null}
-        {note.polishing ? <span class="note-flag">正在整理</span> : null}
+        {note.polishing ? <span class="note-flag">{t.polishing}</span> : null}
         <Menu
-          label="笔记操作"
+          label={t.actions}
           items={[
-            { label: "编辑", onSelect: () => setDraft(note.text) },
-            { label: "删除", hint: "删了找不回来", danger: true, onSelect: () => void panel.notes.remove(note.id).then((problem) => panel.say(problem || "已删除这条笔记")) },
+            { label: t.edit, onSelect: () => setDraft(note.text) },
+            { label: t.delete, hint: t.deleteHint, danger: true, onSelect: () => void panel.notes.remove(note.id).then((problem) => panel.say(problem || panelText().notes.deleted)) },
           ]}
         />
       </div>
@@ -60,13 +61,13 @@ function NoteItem({ panel, note, showVideo }: { readonly panel: Panel; readonly 
         <p class="note-text">{note.text}</p>
       ) : (
         <div class="note-edit">
-          <textarea class="note-input" aria-label="笔记内容" value={draft} onInput={(event) => setDraft(event.currentTarget.value)} rows={4} />
+          <textarea class="note-input" aria-label={t.content} value={draft} onInput={(event) => setDraft(event.currentTarget.value)} rows={4} />
           <span class="state-actions">
             <Button variant="primary" disabled={saving || !draft.trim()} onClick={() => void save()}>
-              保存
+              {t.save}
             </Button>
             <Button variant="text" onClick={() => setDraft(null)}>
-              取消
+              {p.cancel}
             </Button>
           </span>
         </div>
@@ -81,31 +82,33 @@ export function NotesTab({ panel }: { readonly panel: Panel }) {
   const state = panel.notes.state.value;
   const needle = query.trim();
   const shown = state.notes.filter((note) => matches(note, needle));
+  const p = panelText();
+  const t = p.notes;
   const exportNotes = (): void => {
     const markdown = notesAsMarkdown(shown, videoBaseOf(state.video ?? shown[0]?.video ?? null), { grouped: state.scope === "all" });
-    if (!markdown) return panel.say("没有可以导出的笔记");
-    const title = state.scope === "video" ? (shown[0]?.snapshot.title ?? "") : "全部笔记";
-    downloadText(`${safeFileName(title, "笔记")}.md`, markdown, "text/markdown");
+    if (!markdown) return panel.say(t.nothingToExport);
+    const title = state.scope === "video" ? (shown[0]?.snapshot.title ?? "") : t.allNotes;
+    downloadText(`${safeFileName(title, t.file)}.md`, markdown, "text/markdown");
   };
   return (
     <div class="notes">
       <div class="toolbar">
-        <span class="segmented" role="group" aria-label="笔记范围">
-          {SCOPES.map(({ id, label }) => (
+        <span class="segmented" role="group" aria-label={t.scopeLabel}>
+          {SCOPES.map((id) => (
             <button key={id} type="button" class="segment" aria-pressed={state.scope === id} onClick={() => panel.notes.setScope(id)}>
-              {label}
+              {t.scopes[id]}
             </button>
           ))}
         </span>
         <span class="toolbar-actions">
-          <span class="toolbar-count">{state.loaded ? `${shown.length} 条` : ""}</span>
+          <span class="toolbar-count">{state.loaded ? t.count(shown.length) : ""}</span>
           <Button variant="text" onClick={exportNotes} disabled={shown.length === 0}>
-            导出 Markdown
+            {t.exportMarkdown}
           </Button>
         </span>
       </div>
       <div class="search-row">
-        <input class="search-input" type="search" placeholder="搜索笔记、标题或 UP 主" aria-label="搜索笔记" value={query} onInput={(event) => setQuery(event.currentTarget.value)} />
+        <input class="search-input" type="search" placeholder={t.searchPlaceholder} aria-label={t.searchLabel} value={query} onInput={(event) => setQuery(event.currentTarget.value)} />
       </div>
       {state.error ? (
         <p class="error-line" role="alert">
@@ -114,9 +117,9 @@ export function NotesTab({ panel }: { readonly panel: Panel }) {
       ) : null}
       {state.loaded && shown.length === 0 ? (
         needle ? (
-          <p class="empty-line">没有找到「{needle}」</p>
+          <p class="empty-line">{p.notFound(needle)}</p>
         ) : (
-          <StateBlock title="还没有笔记" impact="在概览里把金句存为笔记；鼠标移到播放器上，点右上角出现的笔记图标或按 n，也会记到这里。" />
+          <StateBlock title={t.emptyTitle} impact={t.emptyImpact} />
         )
       ) : (
         <ol class="note-list">

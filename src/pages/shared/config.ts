@@ -5,6 +5,8 @@ import type { Failure } from "../../core/errors.ts";
 import type { ConfigCheckView } from "../../shared/messages/ai.ts";
 import { API_KEY_LOCAL_KEY, API_KEY_SESSION_KEY, SETTINGS_STORAGE_KEY } from "../../shared/names.ts";
 import type { PageApi } from "./api.ts";
+import { sharedTextOf } from "./text.ts";
+import type { UiLang } from "./ui-lang.ts";
 
 /** 动了它们就要重问：设置、会话里的密钥、记住密钥的本机记录。 */
 export const CONFIG_KEYS: readonly string[] = [SETTINGS_STORAGE_KEY, API_KEY_SESSION_KEY, API_KEY_LOCAL_KEY];
@@ -40,34 +42,27 @@ export interface ConfigWatch {
   stop(): void;
 }
 
-const REMEMBER_KEY = "勾选「在这台电脑上记住密钥」就不用每次填";
-
 /** 没设置好时缺的是什么：只认得出缺密钥和缺同意两种，其余按从没配过说。 */
 const missingOf = (state: ConfigState): ConfigCheckView["missing"] => (state.state === "checked" && !state.view.ready ? state.view.missing : undefined);
 
+type MissingWords = { readonly key: string; readonly consent: string; readonly none: string };
+
+const pick = (words: MissingWords, missing: ConfigCheckView["missing"]): string => (missing === "key" ? words.key : missing === "consent" ? words.consent : words.none);
+
 /** 侧边栏头部下面那行提示。只在检查过、没设置好时显示。 */
-export function setupNotice(state: ConfigState): string {
-  const missing = missingOf(state);
-  if (missing === "key") return `API 密钥随浏览器重启或扩展更新清空了，要在设置页重新填；${REMEMBER_KEY}`;
-  if (missing === "consent") return "字幕不用设置就能看；概览和问答要先在设置页勾选数据说明";
-  return "字幕不用设置就能看；概览和问答要先设置 AI 服务";
+export function setupNotice(state: ConfigState, lang: UiLang = "zh"): string {
+  return pick(sharedTextOf(lang).setup.notice, missingOf(state));
 }
 
 /** 要用 AI 的按钮点不了的原因；设置好了是 undefined。 */
-export function setupReason(state: ConfigState): string | undefined {
+export function setupReason(state: ConfigState, lang: UiLang = "zh"): string | undefined {
   if (state.state === "checked" && state.view.ready) return undefined;
-  const missing = missingOf(state);
-  if (missing === "key") return "先在设置页重新填 API 密钥";
-  if (missing === "consent") return "先在设置页勾选数据说明";
-  return "先在设置页设置 AI 服务";
+  return pick(sharedTextOf(lang).setup.reason, missingOf(state));
 }
 
 /** 卡片上生成概览按钮旁的说明。 */
-export function cardSetupHint(state: ConfigState): string {
-  const missing = missingOf(state);
-  if (missing === "key") return `API 密钥随浏览器重启或扩展更新清空了，生成概览要先到设置页重新填；${REMEMBER_KEY}。`;
-  if (missing === "consent") return "生成概览要先到设置页勾选数据说明。";
-  return "还没设置 AI 服务，生成概览要先填服务商和密钥。";
+export function cardSetupHint(state: ConfigState, lang: UiLang = "zh"): string {
+  return pick(sharedTextOf(lang).setup.card, missingOf(state));
 }
 
 /** 这次存储变化动没动到配置：只看键名。 */

@@ -6,6 +6,8 @@ import { EXTENSIONS, MAX_FILE_BYTES } from "../../core/transcript/import-file.ts
 import { parseVideoKey, type VideoKey } from "../../core/video-ref.ts";
 import type { TranscriptFailure, TranscriptView } from "../../shared/messages/transcript.ts";
 import type { PageApi } from "../shared/api.ts";
+import type { UiLang } from "../shared/ui-lang.ts";
+import { panelTextOf } from "./text.ts";
 import { openTranscriptFirst } from "./open-transcript.ts";
 
 // 关掉代开开关的构建里这一支连同代开文字稿的代码一起裁掉。
@@ -52,7 +54,7 @@ export function fileProblem(name: string, size: number): string | null {
   return null;
 }
 
-export function createTranscriptStore({ api }: { readonly api: Pick<PageApi, "send"> }): TranscriptStore {
+export function createTranscriptStore({ api, lang = () => "zh" }: { readonly api: Pick<PageApi, "send">; readonly lang?: () => UiLang }): TranscriptStore {
   const state = signal<TranscriptState>(IDLE);
   const busy = signal(false);
   let generation = 0;
@@ -128,7 +130,7 @@ export function createTranscriptStore({ api }: { readonly api: Pick<PageApi, "se
         fileName = reply.value.fileName;
         return null;
       });
-      return failure || (fileName ? `已导入 ${fileName}，只存在这台电脑上` : "");
+      return failure || (fileName ? panelTextOf(lang()).transcript.imported(fileName) : "");
     },
     async removeImport() {
       let removed = false;
@@ -137,7 +139,7 @@ export function createTranscriptStore({ api }: { readonly api: Pick<PageApi, "se
         removed = reply.ok;
         return reply.ok ? null : describe(reply.code, reply.detail);
       });
-      return failure || (removed ? "已换回视频网站的字幕" : "");
+      return failure || (removed ? panelTextOf(lang()).transcript.removed : "");
     },
   };
 }

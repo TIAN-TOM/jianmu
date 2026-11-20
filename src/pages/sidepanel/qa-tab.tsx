@@ -9,6 +9,9 @@ import { StateBlock } from "../shared/ui/state-block.tsx";
 import { StaleTranscriptLine } from "../shared/ui/verdict-block.tsx";
 import type { Panel } from "./panel.ts";
 import { setupReason } from "../shared/config.ts";
+import { sharedText } from "../shared/text.ts";
+import { uiLang } from "../shared/ui-lang.ts";
+import { panelText } from "./text.ts";
 
 function Answer({ panel, entry }: { readonly panel: Panel; readonly entry: QaRecord }) {
   const clickable = new Set(entry.clickable);
@@ -16,7 +19,7 @@ function Answer({ panel, entry }: { readonly panel: Panel; readonly entry: QaRec
     <p class="qa-answer">
       {splitAnswerByTimestamps(entry.answer).map((part, index) =>
         part.seconds !== undefined && clickable.has(part.seconds) ? (
-          <button key={index} type="button" class="stamp" aria-label={`跳到 ${formatTimestamp(part.seconds)}`} onClick={() => void panel.seek(part.seconds ?? 0)}>
+          <button key={index} type="button" class="stamp" aria-label={sharedText().jumpTo(formatTimestamp(part.seconds))} onClick={() => void panel.seek(part.seconds ?? 0)}>
             {part.text}
           </button>
         ) : (
@@ -28,21 +31,22 @@ function Answer({ panel, entry }: { readonly panel: Panel; readonly entry: QaRec
 }
 
 function Entry({ panel, entry, unsaved, current }: { readonly panel: Panel; readonly entry: QaRecord; readonly unsaved: boolean; readonly current: string | null }) {
+  const t = panelText().qa;
   return (
     <li class="qa-entry" data-id={entry.id}>
       <div class="qa-question">
         <span>{entry.question}</span>
-        <IconButton icon="trash" label="删除这条问答" onClick={() => void panel.qa.remove(entry.id)} />
+        <IconButton icon="trash" label={t.delete} onClick={() => void panel.qa.remove(entry.id)} />
       </div>
       {onOldTranscript(transcriptFingerprintOf(entry.derived), current) ? <StaleTranscriptLine /> : null}
       <Answer panel={panel} entry={entry} />
-      {entry.truncated ? <p class="note-line">回答被截断了，可能不完整。</p> : null}
-      {unsaved ? <p class="note-line">这条回答没能存进问答历史。</p> : null}
+      {entry.truncated ? <p class="note-line">{t.truncated}</p> : null}
+      {unsaved ? <p class="note-line">{t.unsaved}</p> : null}
       {entry.citations.length > 0 ? (
-        <ul class="citations" aria-label="引用的字幕">
+        <ul class="citations" aria-label={t.citations}>
           {entry.citations.map((citation) => (
             <li key={citation.startSeconds}>
-              <button type="button" class="stamp" aria-label={`跳到 ${formatTimestamp(citation.startSeconds)}`} onClick={() => void panel.seek(citation.startSeconds)}>
+              <button type="button" class="stamp" aria-label={sharedText().jumpTo(formatTimestamp(citation.startSeconds))} onClick={() => void panel.seek(citation.startSeconds)}>
                 {formatTimestamp(citation.startSeconds)}
               </button>
               <span class="citation-text">{citation.quote}</span>
@@ -62,7 +66,9 @@ export function QaTab({ panel }: { readonly panel: Panel }) {
   const transcript = panel.transcript.state.value;
   const transcriptReady = transcript.state === "ready";
   const current = transcript.state === "ready" ? transcript.view.transcript.ref.fingerprint : null;
-  const reason = !ready ? (setupReason(config) ?? "") : !transcriptReady ? "要先读到字幕" : "";
+  const p = panelText();
+  const t = p.qa;
+  const reason = !ready ? (setupReason(config, uiLang.value) ?? "") : !transcriptReady ? p.skim.needTranscript : "";
   const submit = (event: Event): void => {
     event.preventDefault();
     if (reason || !question.trim()) return;
@@ -72,12 +78,12 @@ export function QaTab({ panel }: { readonly panel: Panel }) {
   return (
     <div class="qa">
       <form class="qa-form" onSubmit={submit}>
-        <input class="search-input" type="text" placeholder="针对这个视频提问，Enter 发送" aria-label="提问" value={question} onInput={(event) => setQuestion(event.currentTarget.value)} />
+        <input class="search-input" type="text" placeholder={t.placeholder} aria-label={t.ask} value={question} onInput={(event) => setQuestion(event.currentTarget.value)} />
         <Button type="submit" variant="primary" disabled={Boolean(reason) || !question.trim()} {...(reason ? { disabledReason: reason } : {})}>
-          提问
+          {t.ask}
         </Button>
       </form>
-      <p class="qa-hint">每个问题单独回答，不带上前面的问答。追问时把问题写完整。</p>
+      <p class="qa-hint">{t.hint}</p>
       {state.error ? (
         <p class="error-line" role="alert">
           {state.error}
@@ -90,7 +96,7 @@ export function QaTab({ panel }: { readonly panel: Panel }) {
             <div class="qa-question">
               <span>{item.question}</span>
             </div>
-            <p class="qa-answer">正在字幕里找相关内容并回答…</p>
+            <p class="qa-answer">{t.answering}</p>
           </li>
         ))}
         {state.entries.map((entry) => (
@@ -98,7 +104,7 @@ export function QaTab({ panel }: { readonly panel: Panel }) {
         ))}
       </ol>
       {state.loaded && state.entries.length === 0 && state.pending.length === 0 ? (
-        <StateBlock title="还没有问答" impact="模型先在字幕里找相关内容再回答，关键结论带时间点，点一下就跳回原处。" />
+        <StateBlock title={t.emptyTitle} impact={t.emptyImpact} />
       ) : null}
     </div>
   );

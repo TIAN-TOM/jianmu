@@ -6,9 +6,15 @@ import { createPageApi } from "../shared/api.ts";
 import { startWhenCurrent } from "../shared/build-check.ts";
 import { requestPersistence } from "../shared/persist.ts";
 import { pageAppearanceSources, watchAppearance } from "../shared/theme.ts";
+import { bindDocumentLang, initUiLang } from "../shared/ui-lang.ts";
 import { renderStaleBackground } from "../shared/ui/stale-background.tsx";
 import { App } from "./app.tsx";
 import { createPanel } from "./panel.ts";
+import { panelTextOf } from "./text.ts";
+
+// 第一帧就是对的语言；读回设置以后由外观那边纠正，<html lang> 和标题跟着换。
+initUiLang();
+bindDocumentLang(document, (lang) => panelTextOf(lang).title);
 
 const api = createPageApi();
 const root = document.getElementById("app");

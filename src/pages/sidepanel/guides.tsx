@@ -1,20 +1,18 @@
 // 视频网站自己给的导读：官方总结（摘要和提纲）和 UP 主分段。不用设置 AI 服务就能看，取不到字幕时也照样摆出来。
 import { formatTimestamp } from "../../core/transcript/segment.ts";
 import type { ChapterView, OfficialSummaryView } from "../../shared/messages/transcript.ts";
+import { sharedText } from "../shared/text.ts";
 import { ChapterList } from "../shared/ui/chapter-list.tsx";
+import { panelText, type PanelText } from "./text.ts";
 
-const OFFICIAL_STATUS_TEXT: Readonly<Partial<Record<OfficialSummaryView["status"], string>>> = {
-  queued: "视频网站现在没有这个视频的官方总结。",
-  "need-login": "登录视频网站以后才看得到官方总结。",
-  failed: "这次没问到官方总结，过一会儿会再问。",
-  pending: "正在问官方总结…",
-};
+const statusText = (status: OfficialSummaryView["status"], t: PanelText["guides"]): string | undefined =>
+  status === "queued" ? t.queued : status === "need-login" ? t.needLogin : status === "failed" ? t.failed : status === "pending" ? t.pending : undefined;
 
 function Stamp({ at, onSeek }: { readonly at: number | null; readonly onSeek: (atSec: number) => void }) {
   if (at === null) return null;
   const time = formatTimestamp(at);
   return (
-    <button type="button" class="stamp" aria-label={`跳到 ${time}`} onClick={() => onSeek(at)}>
+    <button type="button" class="stamp" aria-label={sharedText().jumpTo(time)} onClick={() => onSeek(at)}>
       {time}
     </button>
   );
@@ -22,14 +20,15 @@ function Stamp({ at, onSeek }: { readonly at: number | null; readonly onSeek: (a
 
 export function OfficialSummary({ official, onSeek }: { readonly official: OfficialSummaryView | undefined; readonly onSeek: (atSec: number) => void }) {
   if (!official) return null;
+  const t = panelText().guides;
   if (official.status !== "ok") {
-    const text = OFFICIAL_STATUS_TEXT[official.status];
+    const text = statusText(official.status, t);
     return text ? <p class="guide-status">{text}</p> : null;
   }
   return (
     <section class="guide" aria-labelledby="official-title">
       <h3 class="section-title" id="official-title">
-        视频网站的官方总结
+        {t.official}
       </h3>
       {official.summary ? <p class="guide-summary">{official.summary}</p> : null}
       {official.outline.length > 0 ? (
@@ -63,7 +62,7 @@ export function CreatorChapters({ chapters, onSeek }: { readonly chapters: reado
   return (
     <section class="guide" aria-labelledby="creator-title">
       <h3 class="section-title" id="creator-title">
-        UP 主分段
+        {panelText().guides.creator}
       </h3>
       <ChapterList chapters={chapters.map((chapter) => ({ startSec: chapter.start, title: chapter.title }))} onSeek={onSeek} heading={false} />
     </section>
