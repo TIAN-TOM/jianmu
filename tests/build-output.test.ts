@@ -24,7 +24,7 @@ import { FRAME_EXPLAIN_PROBE, KEEP_CONSENT_PROBE, YOUTUBE_OPEN_PANEL_PROBE, YOUT
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BUILD = join(ROOT, "build");
-const BUNDLES = ["background.js", "pages/sidepanel.js", "pages/theme-boot.js", "pages/card.js", "content/bilibili.js"];
+const BUNDLES = ["background.js", "pages/sidepanel.js", "pages/theme-boot.js", "pages/card.js", "content/bilibili.js", "content/youtube.js", "content/youtube-bridge.js"];
 // 权限只认这几项：多一项要改这里，不靠禁用名单列举。YouTube 和 AI 地址都走运行时申请的可选权限。
 // scripting 用来在安装、更新和确认启用后往已开的视频页补注入内容脚本，本身没有安装警告。
 // contextMenus 只用来在工具栏图标的右键菜单里加简幕自己的几项，也没有安装警告。
@@ -91,8 +91,8 @@ test("清单不变量", () => {
   assert.deepEqual(manifest.optional_host_permissions, OPTIONAL_HOST_PERMISSIONS);
   // 右键菜单第一行的扩展名链到这里。
   assert.equal(manifest.homepage_url, "https://github.com/TIAN-TOM/jianmu");
-  // 网页能加载的只有卡片页，而且只能从每次会话都变的地址加载：卡片关着时网页拼不出能用的地址。发行构建只对 B 站。
-  assert.deepEqual(manifest.web_accessible_resources, [{ resources: ["pages/card.html"], matches: ["https://www.bilibili.com/*"], use_dynamic_url: true }]);
+  // 网页能加载的只有卡片页，而且只能从每次会话都变的地址加载：卡片关着时网页拼不出能用的地址。发行构建对 B 站和 YouTube。
+  assert.deepEqual(manifest.web_accessible_resources, [{ resources: ["pages/card.html"], matches: ["https://www.bilibili.com/*", "https://www.youtube.com/*"], use_dynamic_url: true }]);
   // 补注入按清单取脚本：清单里的每个脚本都在构建里。
   for (const script of manifest.content_scripts) {
     for (const file of script.js) assert.ok(existsSync(join(BUILD, file)), `构建里没有内容脚本 ${file}`);
@@ -103,12 +103,12 @@ test("打开 YouTube 的构建里卡片页也对 YouTube 的页面开放，清�
   const template = JSON.parse(readFileSync(join(ROOT, "manifest.template.json"), "utf8"));
   const pristine = structuredClone(template);
   const both = [{ resources: ["pages/card.html"], matches: ["https://www.bilibili.com/*", "https://www.youtube.com/*"], use_dynamic_url: true }];
-  for (const features of [DAILY_FEATURES, TEST_BUILD_FEATURES, { ...RELEASE_FEATURES, youtube: true }]) {
+  for (const features of [RELEASE_FEATURES, DAILY_FEATURES, TEST_BUILD_FEATURES]) {
     const manifest = manifestFor(template, "1.2.3", features);
     assert.deepEqual(manifest.web_accessible_resources, both);
     assert.deepEqual({ ...manifest, web_accessible_resources: null }, { ...template, version: "1.2.3", web_accessible_resources: null });
   }
-  for (const features of [RELEASE_FEATURES, { ...TEST_BUILD_FEATURES, youtube: false }]) {
+  for (const features of [{ ...RELEASE_FEATURES, youtube: false }, { ...TEST_BUILD_FEATURES, youtube: false }]) {
     assert.deepEqual(manifestFor(template, "1.2.3", features), { ...template, version: "1.2.3" });
   }
   assert.deepEqual(template, pristine, "不改模板本身");
@@ -346,8 +346,8 @@ test("构建标识带上开关取值：只换开关重新构建，标识跟着�
   const release = idOf(RELEASE_FEATURES);
   assert.equal(new Set(release).size, 1, "各包同一个标识");
   assert.deepEqual(idOf(RELEASE_FEATURES), release);
-  const ids = new Set([release[0], ...FEATURE_NAMES.map((name) => idOf({ ...RELEASE_FEATURES, [name]: !RELEASE_FEATURES[name] })[0]), idOf(TEST_BUILD_FEATURES)[0]]);
-  assert.equal(ids.size, FEATURE_NAMES.length + 2, "每种构建的标识都不一样");
+  const ids = new Set([release[0], ...FEATURE_NAMES.map((name) => idOf({ ...RELEASE_FEATURES, [name]: !RELEASE_FEATURES[name] })[0])]);
+  assert.equal(ids.size, FEATURE_NAMES.length + 1, "每种构建的标识都不一样");
   assert.ok(readBuild("background.js").includes(release[0] ?? "-"), "build/ 里的发行构建用的是发行开关算出的标识");
 });
 
@@ -387,7 +387,7 @@ const YOUTUBE_MARKERS: Readonly<Record<string, readonly string[]>> = {
   "build/pages/options.js": ["www.youtube.com", "在 YouTube 上启用", "src/pages/options/youtube-section"],
 };
 
-test("YouTube：发行构建的包里没有地址规则、脚本注册和启用按钮，也不构建它的内容脚本；打开开关的构建里都有", async () => {
+test("YouTube 首发带上：发行构建的包里有地址规则、脚本注册、启用按钮和它的内容脚本；关掉开关的构建里都没有，也不构建它的内容脚本", async () => {
   const pick = async (features: FeatureSet) => {
     const options = bundleOptions(features);
     const built = await Promise.all(
@@ -398,19 +398,21 @@ test("YouTube：发行构建的包里没有地址规则、脚本注册和启用�
     return new Map(built);
   };
   const release = await pick(RELEASE_FEATURES);
-  const youtube = await pick({ ...RELEASE_FEATURES, youtube: true });
-  assert.ok(!release.has("build/content/youtube.js"), "发行构建不该构建 YouTube 的内容脚本");
-  assert.ok(youtube.has("build/content/youtube.js"), "打开开关的构建要有 YouTube 的内容脚本");
-  assert.ok(!release.has("build/content/youtube-bridge.js"), "发行构建不该构建 YouTube 主世界的小桥");
+  const off = await pick({ ...RELEASE_FEATURES, youtube: false });
+  for (const file of ["build/content/youtube.js", "build/content/youtube-bridge.js"]) {
+    assert.ok(release.has(file), `发行构建要有 ${file}`);
+    assert.ok(existsSync(join(ROOT, file)), `build/ 里没有 ${file}`);
+    assert.ok(!off.has(file), `关掉开关的构建不该构建 ${file}`);
+  }
   // 主世界的小桥只带它自己和事件名：不带扩展接口，也不带内容脚本那一套。
-  const bridge = youtube.get("build/content/youtube-bridge.js") ?? "";
-  assert.ok(bridge.includes("src/sites/youtube/page/main-bridge") && bridge.includes(INJECTED.tracksAnswer), "打开开关的构建要有 YouTube 主世界的小桥");
+  const bridge = release.get("build/content/youtube-bridge.js") ?? "";
+  assert.ok(bridge.includes("src/sites/youtube/page/main-bridge") && bridge.includes(INJECTED.tracksAnswer), "发行构建要有 YouTube 主世界的小桥");
   for (const absent of ["chrome.", "src/content/app", "src/sites/youtube/page/read-panel", "src/core/"]) assert.ok(!bridge.includes(absent), `主世界的小桥里有 ${absent}`);
   for (const [file, markers] of Object.entries(YOUTUBE_MARKERS)) {
     for (const marker of markers) {
-      assert.ok(!release.get(file)?.includes(marker), `发行构建的 ${file} 里有 ${marker}`);
-      assert.ok(!readBuild(file.replace(/^build\//, "")).includes(marker), `build/ 里的 ${file} 有 ${marker}`);
-      assert.ok(youtube.get(file)?.includes(marker), `打开开关的 ${file} 里没有 ${marker}`);
+      assert.ok(release.get(file)?.includes(marker), `发行构建的 ${file} 里没有 ${marker}`);
+      assert.ok(readBuild(file.replace(/^build\//, "")).includes(marker), `build/ 里的 ${file} 没有 ${marker}`);
+      assert.ok(!off.get(file)?.includes(marker), `关掉开关的 ${file} 里有 ${marker}`);
     }
   }
 });
@@ -421,8 +423,8 @@ test("YouTube 的内容脚本：两个开关都打开时有截帧代码和解释
     assert.ok(option, "打开 YouTube 的构建要有它的内容脚本");
     return (await build({ ...option, write: false })).outputFiles.map((output) => output.text).join("\n");
   };
-  const on = await pick({ ...RELEASE_FEATURES, youtube: true });
-  const off = await pick({ ...RELEASE_FEATURES, youtube: true, frameExplain: false });
+  const on = await pick(RELEASE_FEATURES);
+  const off = await pick({ ...RELEASE_FEATURES, frameExplain: false });
   for (const marker of FRAME_MARKERS["build/content/bilibili.js"] ?? []) {
     assert.ok(on.includes(marker), `打开两个开关的 YouTube 内容脚本里没有 ${marker}`);
     assert.ok(!off.includes(marker), `关掉解释当前画面的 YouTube 内容脚本里有 ${marker}`);
@@ -451,7 +453,7 @@ test("沿用同意：日用包里有，发行包和 build/ 里都没有，对外
   }
 });
 
-test("YouTube 代开文字稿：发行构建的后台和侧边栏里没有这条路由和它的代码，打开开关的构建里有", async () => {
+test("YouTube 代开文字稿首发带上：发行构建的后台、侧边栏和 YouTube 内容脚本里有这条路由和它的代码，关掉开关的构建里没有", async () => {
   const pick = async (features: FeatureSet) => {
     const options = bundleOptions(features).filter((option) => ["build/background.js", "build/pages/sidepanel.js", "build/content/youtube.js"].includes(String(option.outfile)));
     const built = await Promise.all(options.map(async (option) => [String(option.outfile), (await build({ ...option, write: false })).outputFiles.map((output) => output.text).join("\n")] as const));
@@ -462,14 +464,13 @@ test("YouTube 代开文字稿：发行构建的后台和侧边栏里没有这条
     "build/pages/sidepanel.js": ["youtube.openTranscript", "src/pages/sidepanel/open-transcript"],
     "build/content/youtube.js": ["youtube.openTranscript", "src/sites/youtube/page/commands"],
   };
-  const withYoutube = await pick({ ...RELEASE_FEATURES, youtube: true });
-  const withOpener = await pick({ ...RELEASE_FEATURES, youtube: true, youtubeOpenPanel: true });
+  const release = await pick(RELEASE_FEATURES);
+  const withoutOpener = await pick({ ...RELEASE_FEATURES, youtubeOpenPanel: false });
   for (const [file, list] of Object.entries(markers)) {
     for (const marker of list) {
-      // 发行构建不构建 YouTube 的内容脚本，只看后台和侧边栏。
-      if (file !== "build/content/youtube.js") assert.ok(!readBuild(file.replace(/^build\//, "")).includes(marker), `build/ 里的 ${file} 有 ${marker}`);
-      assert.ok(!withYoutube.get(file)?.includes(marker), `只开 YouTube 的 ${file} 里有 ${marker}`);
-      assert.ok(withOpener.get(file)?.includes(marker), `打开代开开关的 ${file} 里没有 ${marker}`);
+      assert.ok(release.get(file)?.includes(marker), `发行构建的 ${file} 里没有 ${marker}`);
+      assert.ok(readBuild(file.replace(/^build\//, "")).includes(marker), `build/ 里的 ${file} 没有 ${marker}`);
+      assert.ok(!withoutOpener.get(file)?.includes(marker), `关掉代开开关的 ${file} 里有 ${marker}`);
     }
   }
 });

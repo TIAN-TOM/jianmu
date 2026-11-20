@@ -18,21 +18,22 @@ export const FEATURE_NAMES: readonly FeatureName[] = Object.freeze(Object.keys(F
 
 /**
  * 发行构建。哪个开关要打开，先过它自己的验证和审阅。解释当前画面开发者本人 2026-11-19 定：首发带上。
+ * YouTube 和点「读取字幕」时替用户点开文字稿面板，开发者本人 2026-11-19 起在日用包里用，2026-11-20 定：发行构建直接打开，
+ * 最终候选包上按实机清单核对。keepConsent 只给日用包，发行包守着重新确认、重新同意。
  */
 export const RELEASE_FEATURES: FeatureSet = Object.freeze({
   frameExplain: true,
-  youtube: false,
-  youtubeOpenPanel: false,
+  youtube: true,
+  youtubeOpenPanel: true,
   keepConsent: false,
 });
 
 /**
  * 日用构建：开发者本人每天用的包，发行构建加上只给他自己用、或者还在日常使用里验证的开关。`npm run package:daily` 打它，
- * 文件名带 -daily，发布脚本不认；对外的发行包仍按上面那份。眼下多开 YouTube 和点「读取字幕」时替用户点开文字稿面板
- * （开发者本人 2026-11-19 定），等真实页面上走通了再定发行包开不开；
- * 另开 keepConsent：说明的条目变了，确认过、同意过的照旧沿用，不拦着重新确认（开发者本人 2026-11-19 定，只给他自己的日用包）。
+ * 文件名带 -daily，发布脚本不认；对外的发行包仍按上面那份。眼下只比发行多开 keepConsent：说明的条目变了，
+ * 确认过、同意过的照旧沿用，不拦着重新确认（开发者本人 2026-11-19 定，只给他自己的日用包）。
  */
-export const DAILY_FEATURES: FeatureSet = Object.freeze({ ...RELEASE_FEATURES, youtube: true, youtubeOpenPanel: true, keepConsent: true });
+export const DAILY_FEATURES: FeatureSet = Object.freeze({ ...RELEASE_FEATURES, keepConsent: true });
 
 /**
  * 测试构建：只给测试用，不打包。Node 测试里的全局常量也取这一份。功能开关全部打开；
@@ -47,7 +48,7 @@ export const TEST_BUILD_FEATURES: FeatureSet = Object.freeze({
 
 /**
  * 只在开关打开时才构建、才进包的文件，相对产物根目录。发行包的文件清单是 tests/fixtures/package-files.txt，
- * 打开了哪个开关，就在那份清单上加上这里列的文件。
+ * 发行构建打开的开关带的文件已经写在那份清单里；别的包比发行多开的开关，打包时在清单上再加这里列的文件。
  */
 export const FEATURE_FILES: Readonly<Partial<Record<FeatureName, readonly string[]>>> = Object.freeze({
   youtube: Object.freeze(["content/youtube.js", "content/youtube-bridge.js"]),

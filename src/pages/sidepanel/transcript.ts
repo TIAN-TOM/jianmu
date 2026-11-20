@@ -8,7 +8,7 @@ import type { TranscriptFailure, TranscriptView } from "../../shared/messages/tr
 import type { PageApi } from "../shared/api.ts";
 import { openTranscriptFirst } from "./open-transcript.ts";
 
-// 发行构建里这一支连同代开文字稿的代码一起裁掉。
+// 关掉代开开关的构建里这一支连同代开文字稿的代码一起裁掉。
 const opener = FEATURE_YOUTUBE_OPEN_PANEL ? openTranscriptFirst : null;
 
 export type TranscriptState =

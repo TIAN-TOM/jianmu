@@ -8,6 +8,7 @@ import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
   BUILD_FLAGS_FILE,
+  BUILD_VARIANTS,
   buildFlagProblems,
   buildFlagsRecord,
   clearBuildFlags,
@@ -21,18 +22,13 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const work = mkdtempSync(join(tmpdir(), "jianmu-build-flags-test-"));
 after(() => rmSync(work, { recursive: true, force: true }));
 
-test("不带参数是发行构建；--test-build 全开；--daily 是日用那份；--youtube-ops 在发行构建上再开 YouTube 和代开文字稿", () => {
+test("不带参数是发行构建；--test-build 全开；--daily 是日用那份；没有别的构建参数", () => {
   assert.deepEqual(featuresFromArgs([]), RELEASE_FEATURES);
   assert.deepEqual(featuresFromArgs(["--watch"]), RELEASE_FEATURES);
   assert.deepEqual(featuresFromArgs(["--test-build"]), TEST_BUILD_FEATURES);
-  assert.deepEqual(featuresFromArgs(["--daily"]), DAILY_FEATURES);
-  assert.deepEqual(featuresFromArgs(["--watch", "--youtube-ops"]), {
-    frameExplain: true,
-    youtube: true,
-    youtubeOpenPanel: true,
-    keepConsent: false,
-  });
-  assert.throws(() => featuresFromArgs(["--test-build", "--youtube-ops"]), /只能选一个/);
+  assert.deepEqual(featuresFromArgs(["--watch", "--daily"]), DAILY_FEATURES);
+  assert.deepEqual(Object.keys(BUILD_VARIANTS).sort(), ["--daily", "--test-build"]);
+  assert.throws(() => featuresFromArgs(["--test-build", "--daily"]), /只能选一个/);
 });
 
 test("开关记录放在 build/ 之外，不进包", () => {

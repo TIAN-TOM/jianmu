@@ -205,7 +205,7 @@ function DataSection({ state, enabled }: { readonly state: OptionsState; readonl
   );
 }
 
-// 发行构建里这一节连同授权代码一起裁掉。
+// 关掉 YouTube 开关的构建里这一节连同授权代码一起裁掉。
 const SiteSections = FEATURE_YOUTUBE ? YoutubeSection : null;
 
 export function App({ state, activation, api }: { readonly state: OptionsState; readonly activation: Activation; readonly api: Pick<PageApi, "send"> }) {

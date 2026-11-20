@@ -117,7 +117,7 @@ export function watchPagesOf(tabs: Pick<Tabs, "contentScripts">, granted: (() =>
   return async () => [...fixed, ...((await granted?.()) ?? []).flatMap((script) => script.matches)];
 }
 
-/** 经页面读字幕的站怎么读：只有能代开文字稿面板的构建才有，发行构建里这一支连同那个模块一起裁掉。 */
+/** 经页面读字幕的站怎么读：只有能代开文字稿面板的构建才有，关掉开关的构建里这一支连同那个模块一起裁掉。 */
 export function pageTranscriptOf(deps: PageTranscriptDeps): PageTranscript | null {
   const create = FEATURE_YOUTUBE_OPEN_PANEL ? createPageTranscript : null;
   return create?.(deps) ?? null;

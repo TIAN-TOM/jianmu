@@ -177,7 +177,7 @@ function BilibiliNoVideo(_props: { readonly panel: Panel }) {
   return <StateBlock title="打开一个 B 站视频" impact="在 B 站的视频播放页打开侧边栏，就能读字幕、生成概览、提问和记笔记。" />;
 }
 
-// 发行构建里 YouTube 那一份连同授权按钮一起裁掉。
+// 关掉 YouTube 开关的构建里 YouTube 那一份连同授权按钮一起裁掉。
 const NoVideo = FEATURE_YOUTUBE ? YoutubeNoVideo : BilibiliNoVideo;
 
 export function App({ panel }: { readonly panel: Panel }) {
