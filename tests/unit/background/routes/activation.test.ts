@@ -12,15 +12,14 @@ function appOn(options: FakeChromeOptions = {}) {
   return { fake, app: createApp(fake.deps({ warn() {}, error() {} })) };
 }
 
-test("没确认过时读到完整说明；确认过期时提示说明有更新", async () => {
+test("没确认过时读到完整说明；存着认不出的版本或指纹也按第一次处理，读到完整说明", async () => {
   const fresh = appOn();
   const everything = { state: "needed", updated: false, items: ACTIVATION_TABLE.flatMap((row) => row.items) };
   assert.deepEqual(activationStatus({}), everything);
   assert.deepEqual(await fresh.app.dispatch({ type: "activation.get", req: {} }, senders.content()), { ok: true, value: everything });
 
   const stale = appOn({ local: { [SETTINGS_STORAGE_KEY]: STALE_CONFIRMATION } });
-  const updated = (await stale.app.dispatch({ type: "activation.get", req: {} }, senders.panel())) as { value?: { updated?: boolean } };
-  assert.equal(updated.value?.updated, true);
+  assert.deepEqual(await stale.app.dispatch({ type: "activation.get", req: {} }, senders.panel()), { ok: true, value: everything });
 });
 
 test("侧边栏或设置页确认启用：写进设置、回已确认，广播给扩展页面；之后普通路由不再挡", async () => {

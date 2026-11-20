@@ -1,6 +1,6 @@
 // 两份说明的版本表和指纹。数据同意管发给模型服务的内容，首次启用说明管在本机读取和保存的内容，分开记、分开判断。
 // 表里每个版本只写相对上一版新增或扩大了什么。指纹只算条目的 kind 和 id，改 text 的措辞、并显示的写法都不用重新同意；
-// 首发前扩大范围不升版，新条目并进当前那一版，指纹变了照样要重新确认；tests/fixtures/consent-fingerprints.json 的快照拦下没留意的变化。
+// 表从第 1 版起，扩大范围就升版、加一行，存着的版本和指纹表里认不出就按第一次处理；tests/fixtures/consent-fingerprints.json 的快照拦下没留意的变化。
 // 跟着构建开关走的条目放在单独的模块里，只从开关分支引用：开关关着的构建连措辞都不进包。
 import { FRAME_ACTIVATION_ITEMS, FRAME_DATA_ITEMS } from "./consent-frame.ts";
 
@@ -56,7 +56,7 @@ export type NoticeStatus<Kind extends string> =
     }
   | {
       readonly state: "needed";
-      /** true：确认过别的版本，提示说明有更新；false：从没确认过。 */
+      /** true：确认过表里更早的某一版，提示说明有更新；false：从没确认过，或者存着的版本和指纹表里认不出，按第一次处理。 */
       readonly updated: boolean;
       /** 这次要给用户看的条目：认得出确认过哪一版就只列之后新增的，否则是完整说明。 */
       readonly items: readonly NoticeItem<Kind>[];
@@ -98,19 +98,8 @@ export const DATA_CONSENT_TABLE: NoticeTable<DataConsentKind> = [
         text: "发到你选的服务商地址，也可以是你自己电脑上的服务。开发者没有服务器，收不到这些内容；服务商怎么处理，以它的隐私政策为准",
       },
       { kind: "trigger", id: "on-click", text: "这些请求只在你点按钮时发出" },
-    ],
-  },
-  {
-    version: 2,
-    items: [{ kind: "category", id: "imported-transcript", text: "你导入的字幕文件里的文字" }],
-  },
-  {
-    version: 3,
-    items: [{ kind: "category", id: "video-duration", text: "视频时长", shownWith: { id: "video-title", combined: "视频标题和时长" } }],
-  },
-  {
-    version: 4,
-    items: [
+      { kind: "category", id: "imported-transcript", text: "你导入的字幕文件里的文字" },
+      { kind: "category", id: "video-duration", text: "视频时长", shownWith: { id: "video-title", combined: "视频标题和时长" } },
       {
         kind: "trigger",
         id: "auto-on-open-tabs",
@@ -121,11 +110,6 @@ export const DATA_CONSENT_TABLE: NoticeTable<DataConsentKind> = [
             "平时只在你点按钮时发出；打开「打开就出结论」以后，在 B 站和已启用的 YouTube 上打开超过设定时长的视频，包括在后台打开、还没切过去看的标签页和打开开关时已经开着的，会自动发送字幕、视频标题和时长、UP 主名或频道名和简介，生成概览和一句话结论",
         },
       },
-    ],
-  },
-  {
-    version: 5,
-    items: [
       {
         kind: "purpose",
         id: "tidy-transcript",
@@ -158,18 +142,8 @@ export const ACTIVATION_TABLE: NoticeTable<ActivationKind> = [
       { kind: "store", id: "cache", text: "字幕和视频信息的缓存，有期限和条数上限，可以在设置页清除" },
       { kind: "store", id: "triage", text: "粗筛读到的列表和官方总结，有期限，可以在设置页清除" },
       { kind: "store", id: "saved", text: "你保存的概览、问答、笔记和译文长期留在本机，保存到你删除为止" },
-    ],
-  },
-  {
-    version: 2,
-    items: [
       { kind: "read", id: "bili-login-state", text: "B 站登录状态：只看是否已登录，不读 Cookie 内容" },
       { kind: "read", id: "watch-later-progress", text: "粗筛读到的稍后再看列表里，每个视频看到哪里" },
-    ],
-  },
-  {
-    version: 3,
-    items: [
       { kind: "read", id: "open-tabs", text: "打开「打开就出结论」以后，已授权网站各标签页的地址，用来认出打开的 B 站视频，包括在后台打开的" },
       ...(FEATURE_FRAME_EXPLAIN ? FRAME_ACTIVATION_ITEMS : []),
     ],
@@ -231,10 +205,9 @@ export function noticeStatus<Kind extends string>(table: NoticeTable<Kind>, stor
   const stamps = versionStamps(table);
   const agreedAt = stamps.findIndex((stamp) => stampMatches(stored, stamp));
   if (agreedAt >= 0 && agreedAt === stamps.length - 1) return { state: "current" };
-  const agreedBefore = everAgreed(stored);
   return {
     state: "needed",
-    updated: agreedBefore,
+    updated: agreedAt >= 0,
     items: table.slice(agreedAt + 1).flatMap((row) => row.items),
   };
 }

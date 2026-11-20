@@ -1,5 +1,5 @@
 // 解释当前画面要加进两份说明的条目：跟着画面功能走，只从 consent.ts 的开关分支引用，构建开关 FEATURE_FRAME_EXPLAIN 关着的构建里没有。
-// 首发前不为扩大范围升版，这几条并进当前那一版；条目变了指纹跟着变，确认过的人会再被问一次。
+// 这几条在第 1 版里，条目跟着开关进出，指纹跟着变。
 import type { ActivationKind, DataConsentKind, NoticeItem } from "./consent.ts";
 
 /** 首次启用说明：多读当前的一帧画面。 */
