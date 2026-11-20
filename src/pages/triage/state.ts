@@ -95,7 +95,7 @@ export function officialRecordText(record: OfficialRecord | undefined, item: Tri
       return t.needLogin;
     default:
       if (record.reason === "RATE_LIMITED") return t.rateLimited;
-      return t.failed(errorCopy((record.reason ?? "BACKGROUND_FAILED") as ErrorCode).cause);
+      return t.failed(errorCopy((record.reason ?? "BACKGROUND_FAILED") as ErrorCode, undefined, lang).cause);
   }
 }
 
@@ -149,13 +149,13 @@ function stopText(stop: TriageStop | undefined, done: number, total: number, aga
   }
 }
 
-const failureText = (failure: BatchFailure): string => describe(failure.code);
 
 export function createTriageState(deps: TriageDeps): TriageState {
   const { api } = deps;
   const now = deps.now ?? Date.now;
   const lang = (): UiLang => deps.lang?.() ?? "zh";
   const t = () => triageTextOf(lang());
+  const failureText = (failure: BatchFailure): string => describe(failure.code, undefined, lang());
   const snapshot = signal<TriageSnapshot | null>(null);
   const loadFailure = signal<Failure | null>(null);
   const running = signal<TriageStep | null>(null);
@@ -210,7 +210,7 @@ export function createTriageState(deps: TriageDeps): TriageState {
       if (event.verdict) tally = { ...tally, written: tally.written + 1 };
       else if (event.failure && event.failure.code !== "TASK_CANCELED" && event.failure.code !== "TASK_ALREADY_RUNNING") {
         tally = { ...tally, failed: tally.failed + 1 };
-        const text = t().verdictFailed(errorCopy(event.failure.code).cause);
+        const text = t().verdictFailed(errorCopy(event.failure.code, undefined, lang()).cause);
         errors.value = { ...errors.peek(), [event.video]: event.failure.said ? { text, said: event.failure.said } : { text } };
       }
     }
@@ -274,7 +274,7 @@ export function createTriageState(deps: TriageDeps): TriageState {
         statusOf(event.step).value = { text: failureText(event.failure), tone: "error" };
         return;
       case "port.error":
-        statusOf(running.peek() ?? "list").value = { text: describe(event.code), tone: "error" };
+        statusOf(running.peek() ?? "list").value = { text: describe(event.code, undefined, lang()), tone: "error" };
         return;
       default:
         // 本窗口全部生成的消息不归这一页。
@@ -289,7 +289,7 @@ export function createTriageState(deps: TriageDeps): TriageState {
       onClose(code) {
         port = null;
         const step = running.peek();
-        if (step) statusOf(step).value = { text: t().stepStopped(describe(code)), tone: "error" };
+        if (step) statusOf(step).value = { text: t().stepStopped(describe(code, undefined, lang())), tone: "error" };
         running.value = null;
         stopping.value = false;
       },
@@ -335,7 +335,7 @@ export function createTriageState(deps: TriageDeps): TriageState {
     }
     const config = await api.send("config.check", {});
     if (!config.ok || !config.value.ready) {
-      verdictStatus.value = { text: config.ok ? t().notConfigured : describe(config.code, config.detail), tone: "error" };
+      verdictStatus.value = { text: config.ok ? t().notConfigured : describe(config.code, config.detail, lang()), tone: "error" };
       return;
     }
     const withVerdict = list.filter((item) => hasVerdict(verdicts[item.videoKey])).length;

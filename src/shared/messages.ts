@@ -2,6 +2,7 @@
 // 各领域的请求和回复在 messages/ 下各一份，这里每个领域一行。
 import type { ErrorCode, Result } from "../core/errors.ts";
 import type { SessionView } from "../core/mode/types.ts";
+import type { LanguageSetting } from "../core/output-lang.ts";
 import type { LearningAnalysis } from "../core/notes/markdown.ts";
 import type { TaskView } from "../core/tasks.ts";
 import type { Platform, VideoKey } from "../core/video-ref.ts";
@@ -62,7 +63,7 @@ export type Broadcast =
   | { readonly type: "panel.follow"; readonly tabId: number }
   /** 这个窗口的侧边栏开了或关了：同一窗口里的卡片据此让位或回来。 */
   | { readonly type: "panel.changed"; readonly windowId: number; readonly open: boolean }
-  | { readonly type: "appearance.changed"; readonly accentTheme: AccentTheme; readonly inPageCard: boolean }
+  | { readonly type: "appearance.changed"; readonly accentTheme: AccentTheme; readonly inPageCard: boolean; readonly language: LanguageSetting }
   | { readonly type: "activation.changed"; readonly confirmed: boolean }
   | { readonly type: "auto.changed"; readonly paused: AutoPauseReason | null }
   /** 要用户另外授权的站（YouTube）授权有了变化：撤权时那个站上的内容脚本整套撤下，侧边栏重新认当前页。 */

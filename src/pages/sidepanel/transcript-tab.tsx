@@ -329,7 +329,7 @@ export function TranscriptTab({ panel, guides = true, follow = true }: { readonl
   }
   if (now.state === "failed") {
     const { failure, video } = now;
-    const copy = stateCopy(failure.code, failure.detail);
+    const copy = stateCopy(failure.code, failure.detail, uiLang.value);
     const guided = guides && failure.official?.status === "ok";
     return (
       <>

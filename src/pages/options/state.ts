@@ -78,14 +78,14 @@ export interface OptionsState {
 }
 
 /** 后台回来的失败给用户看的一句话：模型服务的失败带着脱敏后的原话，其余按码。 */
-export function failureText(failure: Failure): string {
+export function failureText(failure: Failure, lang: UiLang = "zh"): string {
   if (Object.hasOwn(AI_ERROR_TEXT, failure.code) && failure.detail) return failure.detail;
-  return describe(failure.code, failure.detail);
+  return describe(failure.code, failure.detail, lang);
 }
 
-const errorText = (error: unknown): string => {
+const errorTextIn = (error: unknown, lang: UiLang): string => {
   const code = (error as { code?: unknown } | null)?.code;
-  if (isErrorCode(code)) return describe(code);
+  if (isErrorCode(code)) return describe(code, undefined, lang);
   return error instanceof Error ? error.message : String(error);
 };
 
@@ -98,6 +98,8 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
   const lang = deps.lang ?? ((): UiLang => "zh");
   const copy = () => textOf(lang());
   const status = () => copy().status;
+  const failText = (failure: Failure): string => failureText(failure, lang());
+  const errorText = (error: unknown): string => errorTextIn(error, lang());
   const saved = signal<LoadedSettings | null>(null);
   const form = signal<AiForm | null>(null);
   const loadError = signal<string | null>(null);
@@ -123,7 +125,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       form.value = formOf(settings);
       loadError.value = null;
       void refreshEfforts();
-      const check = validateForSave(settings);
+      const check = validateForSave(settings, lang());
       if (!check.ok) say("actions", check.errors.join(" "), "error");
       // 同意过数据说明、要密钥的服务却没有密钥：多半是重启或更新以后清空了，打开设置页就在密钥框下面说，不用自己找原因。
       else if (settings.dataConsentVersion > 0 && !settings.aiApiKey && !isLocalBaseUrl(settings.aiBaseUrl)) ai.sayKeyMissing();
@@ -211,7 +213,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
     // 按点击那一刻的表单保存。修订号用本页排在前面的写入落地之后的；授权弹窗期间别的页面清过密钥或全部数据，
     // 这次保存作废，不把清掉的写回去。
     const input = settingsInput(current, before);
-    const check = validateForSave(input);
+    const check = validateForSave(input, lang());
     const origin = check.ok ? originOf(check.settings.aiBaseUrl) : null;
     if (!check.ok || !origin) {
       say(at, check.errors.join(" ") || status().badAddress, "error");
@@ -282,7 +284,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
   async function testOne(feature?: FeatureSlotId): Promise<{ readonly line: string; readonly ok: boolean }> {
     const reply = await api.send("ai.testConnection", feature ? { feature } : {});
     const label = feature ? slotLabel(feature, lang()) : copy().ai.defaultModel;
-    if (!reply.ok) return { line: status().testFailed(label, failureText(reply)), ok: false };
+    if (!reply.ok) return { line: status().testFailed(label, failText(reply)), ok: false };
     const { model, reply: answer, truncated } = reply.value;
     return { line: status().connected(label, model, answer, truncated === true), ok: true };
   }
@@ -390,7 +392,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       afterSave("models", "model", async () => {
         const reply = await api.send("models.list", {});
         if (!reply.ok) {
-          say("model", status().modelsFailed(failureText(reply)), "error");
+          say("model", status().modelsFailed(failText(reply)), "error");
           return;
         }
         models.value = reply.value.ids;
@@ -408,7 +410,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
     probeImage: FEATURE_FRAME_EXPLAIN
       ? () =>
           afterSave("test", "probe", async () => {
-            const probed = await probeFrameImage(api, failureText, lang());
+            const probed = await probeFrameImage(api, failText, lang());
             say("probe", probed.text, probed.tone);
           })
       : async () => undefined,
@@ -418,7 +420,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       try {
         const reply = await receiveBackup(api);
         if (!reply.ok) {
-          dataStatus.value = { text: backupFailureText(reply, "export", failureText, lang()), tone: "error" };
+          dataStatus.value = { text: backupFailureText(reply, "export", failText, lang()), tone: "error" };
           return;
         }
         const date = (deps.now ?? (() => new Date()))();
@@ -452,11 +454,11 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
         }
         const read = readBackup(payload);
         if (!read.ok) {
-          dataStatus.value = { text: copy().backup.importFailed(failureText(read)), tone: "error" };
+          dataStatus.value = { text: copy().backup.importFailed(failText(read)), tone: "error" };
           return;
         }
         const reply = await sendBackup(api, read.value);
-        dataStatus.value = reply.ok ? { text: importSummary(reply.value, lang()), tone: "ok" } : { text: backupFailureText(reply, "import", failureText, lang()), tone: "error" };
+        dataStatus.value = reply.ok ? { text: importSummary(reply.value, lang()), tone: "ok" } : { text: backupFailureText(reply, "import", failText, lang()), tone: "error" };
       } finally {
         busy.value = null;
       }
@@ -468,7 +470,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       try {
         const reply = await api.send("data.clear", { scope });
         if (!reply.ok) {
-          dataStatus.value = { text: copy().backup.clearFailed(failureText(reply)), tone: "error" };
+          dataStatus.value = { text: copy().backup.clearFailed(failText(reply)), tone: "error" };
           return;
         }
         if (scope === "all") {

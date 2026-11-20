@@ -3,7 +3,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { exportFileName, formatDateTime, officialStatusText, progressText, toMarkdown } from "../../../../src/core/triage/export.ts";
-import { GROUPS, groupName, verdictName, type TriageVerdict } from "../../../../src/core/triage/groups.ts";
+import { verdictName } from "../../../../src/core/ai/verdict.ts";
+import { GROUPS, groupName, type TriageVerdict } from "../../../../src/core/triage/groups.ts";
 import type { OfficialRecord, TriageItem } from "../../../../src/core/triage/state.ts";
 import { videoKey, type VideoKey } from "../../../../src/core/video-ref.ts";
 

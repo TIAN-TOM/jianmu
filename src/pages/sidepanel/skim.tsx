@@ -3,7 +3,7 @@
 // 没有结论时可以只用官方总结写一句。换过字幕时，依据旧字幕写的结论和章节标「基于旧字幕」，不删不改。
 import { groupQuotesIntoChapters, type ChapterPart, type QuotePart } from "../../core/ai/chunking.ts";
 import { keyChapterStarts } from "../../core/ai/verdict.ts";
-import { learningAsMarkdown, type LearningAnalysis } from "../../core/notes/markdown.ts";
+import type { LearningAnalysis } from "../../core/notes/markdown.ts";
 import { breaksToShow, lineBreaks, splitRuns } from "../../core/transcript/lines.ts";
 import { formatTimestamp, type TranscriptSegment } from "../../core/transcript/segment.ts";
 import type { CueView } from "../../shared/messages/transcript.ts";
@@ -14,7 +14,7 @@ import { ServiceSaid } from "../shared/ui/notice.tsx";
 import { StaleTranscriptLine, VerdictBlock } from "../shared/ui/verdict-block.tsx";
 import { staleOverviewMarks, type BasisSource } from "../shared/ui/verdict.ts";
 import { BatchBar } from "./batch-bar.tsx";
-import { downloadText, safeFileName, videoBaseOf } from "./files.ts";
+import { downloadText, learningExport } from "./files.ts";
 import { CreatorChapters, OfficialSummary } from "./guides.tsx";
 import type { Panel } from "./panel.ts";
 import { segmentsBetween } from "./reading.ts";
@@ -198,7 +198,7 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
 
   const exportLearning = (): void => {
     const notes = panel.notes.state.peek();
-    const markdown = learningAsMarkdown(
+    const file = learningExport(
       {
         title: info?.title ?? "",
         author: info?.author ?? "",
@@ -210,10 +210,10 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
         creatorChapters: chapters ?? [],
         notes: notes.scope === "video" ? notes.notes : [],
       },
-      videoBaseOf(state.video),
+      uiLang.peek(),
     );
-    if (!markdown) return panel.say(t.nothingToExport);
-    downloadText(`${safeFileName(info?.title ?? "", t.studyFile)}.md`, markdown, "text/markdown");
+    if (!file) return panel.say(t.nothingToExport);
+    downloadText(file.fileName, file.markdown, "text/markdown");
   };
 
   return (

@@ -46,11 +46,11 @@ export interface TranscriptStore {
 const IDLE: TranscriptState = { state: "idle" };
 
 /** 读文件之前先拦一道：扩展名和大小。 */
-export function fileProblem(name: string, size: number): string | null {
+export function fileProblem(name: string, size: number, lang: UiLang = "zh"): string | null {
   const lower = name.toLowerCase();
-  if (!EXTENSIONS.some((ext) => lower.endsWith(ext))) return describe("UNSUPPORTED_FILE");
-  if (size > MAX_FILE_BYTES) return describe("UNSUPPORTED_FILE", "FILE_TOO_LARGE");
-  if (size === 0) return describe("UNSUPPORTED_FILE", "EMPTY_FILE");
+  if (!EXTENSIONS.some((ext) => lower.endsWith(ext))) return describe("UNSUPPORTED_FILE", undefined, lang);
+  if (size > MAX_FILE_BYTES) return describe("UNSUPPORTED_FILE", "FILE_TOO_LARGE", lang);
+  if (size === 0) return describe("UNSUPPORTED_FILE", "EMPTY_FILE", lang);
   return null;
 }
 
@@ -120,13 +120,13 @@ export function createTranscriptStore({ api, lang = () => "zh" }: { readonly api
       state.value = IDLE;
     },
     async importFile(file) {
-      const problem = fileProblem(file.name, file.size);
+      const problem = fileProblem(file.name, file.size, lang());
       if (problem) return problem;
       let fileName = "";
       const failure = await change(async (video) => {
         const text = await file.text();
         const reply = await api.send("imports.add", { video, fileName: file.name, text });
-        if (!reply.ok) return describe(reply.code, reply.detail);
+        if (!reply.ok) return describe(reply.code, reply.detail, lang());
         fileName = reply.value.fileName;
         return null;
       });
@@ -137,7 +137,7 @@ export function createTranscriptStore({ api, lang = () => "zh" }: { readonly api
       const failure = await change(async (video) => {
         const reply = await api.send("imports.remove", { video });
         removed = reply.ok;
-        return reply.ok ? null : describe(reply.code, reply.detail);
+        return reply.ok ? null : describe(reply.code, reply.detail, lang());
       });
       return failure || (removed ? panelTextOf(lang()).transcript.removed : "");
     },

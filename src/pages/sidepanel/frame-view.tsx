@@ -16,7 +16,7 @@ const NEEDS_SETTINGS: ReadonlySet<ErrorCode> = new Set<ErrorCode>(["AI_IMAGE_UNS
 
 function FrameCard({ panel, frame, entry }: { readonly panel: Panel; readonly frame: FrameStore; readonly entry: FrameEntryView }) {
   const time = entry.atSec === undefined ? null : formatTimestamp(entry.atSec);
-  const copy = entry.error ? errorCopy(entry.error.code, entry.error.detail) : null;
+  const copy = entry.error ? errorCopy(entry.error.code, entry.error.detail, uiLang.value) : null;
   const t = frameText(uiLang.value);
   return (
     <article class="frame-card" aria-busy={entry.state === "running"}>

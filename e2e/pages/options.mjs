@@ -8,12 +8,17 @@ import { join } from "node:path";
 import { videoKey } from "../../src/core/video-ref.ts";
 import { BUILD_ID_FILE } from "../../src/shared/build-id.ts";
 import { API_KEY_SESSION_KEY, ISSUES_URL, PAGE_PATHS, PRIVACY_POLICY_URL, SETTINGS_STORAGE_KEY } from "../../src/shared/names.ts";
+import { DATA_CONSENT_TABLE, dataConsentErrorText, noticeStatus } from "../../src/core/consent.ts";
+import { OPTIONS_EN } from "../../src/pages/options/text-en.ts";
 import { OPTIONS_ZH } from "../../src/pages/options/text-zh.ts";
 import { FEATURE_MODEL_SLOTS } from "../../src/shared/settings-schema.ts";
 import { ANTHROPIC, VIDEOS } from "../fixtures.mjs";
 import { scenario } from "./harness.mjs";
 
 const test = scenario(import.meta.url);
+const FULL_CONSENT = noticeStatus(DATA_CONSENT_TABLE, {});
+/** 数据说明第一条的英文措辞。 */
+const DATA_CONSENT_EN_FIRST = FULL_CONSENT.state === "needed" ? (FULL_CONSENT.items[0]?.en ?? "") : "";
 const WIDTH = 900;
 const PACKAGE_VERSION = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version;
 const [VIDEO_ID = ""] = Object.keys(VIDEOS);
@@ -664,6 +669,44 @@ test("设置页：语言选 English 以后，标题、各节标题和按钮马�
   assert.deepEqual(await page.evaluate(view), chinese);
   await reopened.waitFor("别的设置页跟着换回中文", `document.documentElement.lang === "zh-CN"`);
   assert.deepEqual(await reopened.evaluate(view), chinese);
+});
+
+test("设置页：English 下数据说明的条目、勾选框和校验提示都是英文，打开就出结论列出的说明也是英文；整页可见文字里没有汉字，语言下拉里的「中文」除外", async ({ open }) => {
+  const page = await freshOptions(open);
+  await enable(page);
+  await fill(page, "#language", "en");
+  await page.waitFor("界面换成英文", `document.documentElement.lang === "en"`);
+  const han = /[㐀-鿿！-～「」、。]/;
+
+  // 数据说明：标题、条目和勾选框。
+  const consent = await page.evaluate(`document.getElementById("dataConsentBox").innerText`);
+  assert.doesNotMatch(consent, han, consent);
+  assert.ok(consent.includes(DATA_CONSENT_EN_FIRST), consent);
+  assert.ok(consent.includes(OPTIONS_EN.consent.agree), consent);
+
+  // 校验提示：地址不对时保存不了，没同意时存好了也说还差同意。
+  await fill(page, "#preset", "custom");
+  await page.waitFor("出现地址框", `document.getElementById("aiBaseUrl") !== null`);
+  await fill(page, "#aiBaseUrl", "http://service.example/v1");
+  await clickButton(page, "Save and authorise");
+  assert.equal(await statusStarts(page, "ai-service", "The API address"), "The API address must start with https://. Only local addresses (localhost, 127.0.0.1) can use http://.");
+  await fill(page, "#preset", ANTHROPIC.presetId);
+  await fill(page, "#aiApiKey", ANTHROPIC.key);
+  await clickButton(page, "Save and authorise");
+  const notReady = await statusStarts(page, "ai-service", "Saved and authorised, but");
+  assert.ok(notReady.includes(dataConsentErrorText("en")), notReady);
+
+  // 打开就出结论：没同意时勾开关，就地列出的说明是英文。
+  await page.click("#autoOverview");
+  await page.waitFor("列出数据说明", `document.querySelector("#auto-overview .consent-lines") !== null`);
+  const listed = await page.evaluate(`document.querySelector("#auto-overview .consent-lines").innerText`);
+  assert.doesNotMatch(listed, han, listed);
+  assert.ok(listed.includes(DATA_CONSENT_EN_FIRST), listed);
+
+  // 整页：语言下拉里「中文」那一项用自己的语言写，别处不该有汉字。
+  const visible = await page.evaluate(`document.body.innerText`);
+  const leftover = visible.replaceAll("中文", "").split("\n").filter((line) => han.test(line));
+  assert.deepEqual(leftover, []);
 });
 
 test("设置页：推理强度新安装全关；每项功能单独选，改了不用点保存就存下，实际档位和选的不一样时旁边标出，重新打开照旧；概览分块也是改了就存", async ({ open }) => {

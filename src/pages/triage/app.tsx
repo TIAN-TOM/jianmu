@@ -208,12 +208,12 @@ export function App({ state, activation, optionsUrl }: { readonly state: TriageS
       <p class="lede">{t.lede}</p>
       {view.state === "loading" ? <p class="hint">{t.activationLoading}</p> : null}
       {view.state === "failed" ? (
-        <StateBlock {...stateCopy(view.failure.code, view.failure.detail)} primary={{ label: t.retry, onClick: () => void activation.load() }} />
+        <StateBlock {...stateCopy(view.failure.code, view.failure.detail, uiLang.value)} primary={{ label: t.retry, onClick: () => void activation.load() }} />
       ) : null}
       {view.state === "needed" ? <StateBlock title={t.notEnabledTitle} impact={t.notEnabledImpact} /> : null}
       {activation.enabled.value ? (
         <>
-          {loadFailure ? <StateBlock {...stateCopy(loadFailure.code, loadFailure.detail)} primary={{ label: t.retry, onClick: () => void state.load() }} /> : null}
+          {loadFailure ? <StateBlock {...stateCopy(loadFailure.code, loadFailure.detail, uiLang.value)} primary={{ label: t.retry, onClick: () => void state.load() }} /> : null}
           <section class="card" id="triage-list">
             <h2>{t.list.title}</h2>
             <p class="hint">{t.list.hint}</p>

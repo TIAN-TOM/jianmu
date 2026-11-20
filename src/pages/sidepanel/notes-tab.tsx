@@ -1,16 +1,16 @@
 // 笔记页签：本视频或全部笔记，按关键词筛；点时间跳过去（别的视频的笔记在新标签页打开），能改、能删、能导出 Markdown。
 import { useState } from "preact/hooks";
 import { hasMatch, splitMatches } from "../../core/highlight.ts";
-import { notesAsMarkdown } from "../../core/notes/markdown.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
 import type { NoteItemView } from "../../shared/messages/notes.ts";
 import { Button } from "../shared/ui/button.tsx";
 import { Menu } from "../shared/ui/menu.tsx";
 import { StateBlock } from "../shared/ui/state-block.tsx";
-import { downloadText, safeFileName, videoBaseOf } from "./files.ts";
+import { downloadText, notesExport } from "./files.ts";
 import type { NotesScope } from "./notes.ts";
 import type { Panel } from "./panel.ts";
 import { sharedText } from "../shared/text.ts";
+import { uiLang } from "../shared/ui-lang.ts";
 import { panelText } from "./text.ts";
 
 const SCOPES: readonly NotesScope[] = ["video", "all"];
@@ -85,10 +85,10 @@ export function NotesTab({ panel }: { readonly panel: Panel }) {
   const p = panelText();
   const t = p.notes;
   const exportNotes = (): void => {
-    const markdown = notesAsMarkdown(shown, videoBaseOf(state.video ?? shown[0]?.video ?? null), { grouped: state.scope === "all" });
-    if (!markdown) return panel.say(t.nothingToExport);
     const title = state.scope === "video" ? (shown[0]?.snapshot.title ?? "") : t.allNotes;
-    downloadText(`${safeFileName(title, t.file)}.md`, markdown, "text/markdown");
+    const file = notesExport(shown, state.video ?? shown[0]?.video ?? null, { grouped: state.scope === "all", title }, uiLang.peek());
+    if (!file) return panel.say(t.nothingToExport);
+    downloadText(file.fileName, file.markdown, "text/markdown");
   };
   return (
     <div class="notes">

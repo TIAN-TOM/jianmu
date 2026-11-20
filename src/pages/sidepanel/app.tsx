@@ -22,6 +22,7 @@ import { QaTab } from "./qa-tab.tsx";
 import { activeIndex } from "./reading.ts";
 import { SkimView } from "./skim.tsx";
 import { StudyView } from "./study.tsx";
+import { trackLabel } from "./files.ts";
 import { FrameButton, FrameResults } from "./frame-view.tsx";
 import { YoutubeNoVideo } from "./youtube-gate.tsx";
 import { setupNotice } from "../shared/config.ts";
@@ -32,7 +33,7 @@ import { panelText } from "./text.ts";
 /** 说明更新时可以展开看的完整说明。 */
 function fullSections() {
   const status = noticeStatus(ACTIVATION_TABLE, {});
-  return activationSections(status.state === "needed" ? noticeLines(status.items) : [], uiLang.value);
+  return activationSections(status.state === "needed" ? noticeLines(status.items, uiLang.value) : [], uiLang.value);
 }
 
 function Activation({ panel }: { readonly panel: Panel }) {
@@ -40,17 +41,17 @@ function Activation({ panel }: { readonly panel: Panel }) {
   const t = panelText();
   if (view.state === "loading") return <p class="panel-loading">{t.loading}</p>;
   if (view.state === "failed") {
-    return <StateBlock {...stateCopy(view.failure.code, view.failure.detail)} primary={{ label: t.retry, onClick: () => void panel.activation.load() }} />;
+    return <StateBlock {...stateCopy(view.failure.code, view.failure.detail, uiLang.value)} primary={{ label: t.retry, onClick: () => void panel.activation.load() }} />;
   }
   if (view.state !== "needed") return null;
   const failure = panel.activation.confirmFailure.value;
   return (
     <ActivationNotice
       updated={view.updated}
-      sections={activationSections(noticeLines(view.items), uiLang.value)}
+      sections={activationSections(noticeLines(view.items, uiLang.value), uiLang.value)}
       fullSections={fullSections()}
       phase={panel.activation.phase.value}
-      {...(failure ? { error: describe(failure.code, failure.detail) } : {})}
+      {...(failure ? { error: describe(failure.code, failure.detail, uiLang.value) } : {})}
       onConfirm={() => void panel.activation.confirm()}
     />
   );
@@ -67,7 +68,7 @@ function Header({ panel }: { readonly panel: Panel }) {
   const current = view?.transcript;
   const { tabId, video } = panel.follow.target.value;
   const items: MenuItem[] = tracks.map((track) => ({
-    label: track.label,
+    label: trackLabel(current?.ref.video ?? video, track, uiLang.value),
     ...(track.trackId === current?.trackId ? { hint: t.inUse } : {}),
     onSelect: () => {
       if (video && track.trackId !== current?.trackId) void panel.transcript.load(video, tabId, { lang: track.lang });
@@ -85,9 +86,9 @@ function Header({ panel }: { readonly panel: Panel }) {
         {info?.author ? <span>{info.author}</span> : null}
         {current ? (
           tracks.length > 1 ? (
-            <Menu label={t.head.switchTrack} icon="chevron" text={current.fileName ? t.head.imported(current.fileName) : current.label} items={items} />
+            <Menu label={t.head.switchTrack} icon="chevron" text={current.fileName ? t.head.imported(current.fileName) : trackLabel(current.ref.video, current, uiLang.value)} items={items} />
           ) : (
-            <span class="meta-chip">{current.fileName ? t.head.imported(current.fileName) : current.label}</span>
+            <span class="meta-chip">{current.fileName ? t.head.imported(current.fileName) : trackLabel(current.ref.video, current, uiLang.value)}</span>
           )
         ) : null}
       </div>
@@ -157,7 +158,7 @@ function notices(panel: Panel): (NoticeEntry | null)[] {
     panel.undoLine.shown.value
       ? { id: AUTO_SWITCHED, priority: 1.5, text: t.switchedToStudy, tone: "accent", action: { label: t.backToSkim, run: () => void panel.mode.undo() } }
       : null,
-    now.state === "ready" && now.view.subtitleMismatch ? { id: "mismatch", priority: 2, text: errorCopy("SUBTITLE_MISMATCH").cause, tone: "warn" } : null,
+    now.state === "ready" && now.view.subtitleMismatch ? { id: "mismatch", priority: 2, text: errorCopy("SUBTITLE_MISMATCH", undefined, uiLang.value).cause, tone: "warn" } : null,
     config.state === "checked" && !config.view.ready
       ? { id: "config", priority: 3, text: setupNotice(config, uiLang.value), tone: "plain", action: { label: p.openSettings, run: () => panel.openSettingsAt("ai-service") } }
       : null,

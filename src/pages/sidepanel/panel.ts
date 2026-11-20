@@ -83,7 +83,7 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
   const transcript = createTranscriptStore({ api, lang });
   const translation = createTranslation({ api, lang });
   const tidy = createTidy({ api, lang });
-  const overview = createOverviewStore({ api });
+  const overview = createOverviewStore({ api, lang });
   const notes = createNotesStore({ api, lang });
   const qa = createQaStore({ api, lang });
   const batch = createWindowBatch({ api, lang });

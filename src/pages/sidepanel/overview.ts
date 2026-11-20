@@ -8,6 +8,7 @@ import type { VideoKey } from "../../core/video-ref.ts";
 import type { OverviewResultView } from "../../shared/messages/overview.ts";
 import type { OverviewView } from "../../shared/messages/transcript.ts";
 import type { PageApi } from "../shared/api.ts";
+import type { UiLang } from "../shared/ui-lang.ts";
 
 export interface Preview {
   readonly analysis: LearningAnalysis;
@@ -49,11 +50,12 @@ const EMPTY: OverviewState = { video: null, loaded: false, saved: null, task: nu
 const isRunning = (task: TaskView | null | undefined): task is TaskView => task?.state === "running";
 
 /** 失败说明：用户点了停止不算失败。 */
-function failureFields(failure: Failure): Pick<OverviewState, "error" | "errorSaid"> {
-  return failure.code === "TASK_CANCELED" ? { error: "", errorSaid: "" } : { error: describe(failure.code, failure.detail), errorSaid: failure.said ?? "" };
+function failureFields(failure: Failure, lang: UiLang): Pick<OverviewState, "error" | "errorSaid"> {
+  return failure.code === "TASK_CANCELED" ? { error: "", errorSaid: "" } : { error: describe(failure.code, failure.detail, lang), errorSaid: failure.said ?? "" };
 }
 
-export function createOverviewStore({ api }: { readonly api: Pick<PageApi, "send" | "on"> }): OverviewStore {
+/** lang：说明用哪种语言写，缺省中文。页面传当前的界面语言。 */
+export function createOverviewStore({ api, lang = () => "zh" }: { readonly api: Pick<PageApi, "send" | "on">; readonly lang?: () => UiLang }): OverviewStore {
   const state = signal<OverviewState>(EMPTY);
   let generation = 0;
   let offs: (() => void)[] = [];
@@ -69,7 +71,7 @@ export function createOverviewStore({ api }: { readonly api: Pick<PageApi, "send
   async function reload(asked: number, video: VideoKey): Promise<void> {
     const reply = await api.send("overview.get", { video });
     if (reply.ok) patch(asked, { loaded: true, ...(keepLocal ? {} : { saved: reply.value.overview ?? null }) });
-    else patch(asked, { loaded: true, ...failureFields(reply) });
+    else patch(asked, { loaded: true, ...failureFields(reply, lang()) });
   }
 
   // 任务收尾时（不管是不是这个页面发起的）重读本机的概览。
@@ -106,7 +108,7 @@ export function createOverviewStore({ api }: { readonly api: Pick<PageApi, "send
     patch(asked, { error: "", errorSaid: "" });
     const started = await api.send("task.start", { kind, video });
     if (!started.ok) {
-      patch(asked, { ...failureFields(started) });
+      patch(asked, { ...failureFields(started, lang()) });
       return;
     }
     const { task, joined } = started.value;
@@ -120,7 +122,7 @@ export function createOverviewStore({ api }: { readonly api: Pick<PageApi, "send
       const { analysis, analysisFailures, transcriptBasis } = reply.value;
       patch(asked, { [slot]: null, preview: kind === "overview" ? null : state.peek().preview, result: reply.value, saved: { analysis, analysisFailures, ...(transcriptBasis ? { transcriptBasis } : {}) } });
     } else {
-      patch(asked, { [slot]: null, ...(kind === "overview" ? { preview: null } : {}), ...failureFields(reply) });
+      patch(asked, { [slot]: null, ...(kind === "overview" ? { preview: null } : {}), ...failureFields(reply, lang()) });
       void reload(asked, video);
     }
   }
@@ -161,7 +163,7 @@ export function createOverviewStore({ api }: { readonly api: Pick<PageApi, "send
     verdictFromOfficial: () => run("verdict", (taskId, video) => api.send("verdict.fromOfficial", { video, taskId })),
     async cancel(taskId) {
       const reply = await api.send("task.cancel", { taskId });
-      if (!reply.ok && reply.code !== "TASK_NOT_FOUND") state.value = { ...state.peek(), error: describe(reply.code, reply.detail), errorSaid: "" };
+      if (!reply.ok && reply.code !== "TASK_NOT_FOUND") state.value = { ...state.peek(), error: describe(reply.code, reply.detail, lang()), errorSaid: "" };
     },
     stop() {
       generation += 1;

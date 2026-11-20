@@ -1,6 +1,6 @@
 // 结论块的显示规则：判断档位配什么标记、依据行怎么写。
 // 形状带信息，颜色只是第二层，色弱和黑白截图下也分得清。档位名照数据写，这里只认现有的几档。
-import { verdictLabelOf } from "../../../core/ai/verdict.ts";
+import { verdictLabelOf, verdictName } from "../../../core/ai/verdict.ts";
 import { onOldTranscript, type Basis, type OverviewTranscriptBasis } from "../../../core/notes/records.ts";
 import { sharedTextOf } from "../text.ts";
 import type { UiLang } from "../ui-lang.ts";
@@ -27,8 +27,7 @@ export function markOf(label: string | null | undefined): MarkShape | null {
 /** 档位显示的名字：旧版改了名的显示新名字，「看概览就够」照旧，按语言换成显示名；认不出的档位是空串。 */
 export function labelOf(label: string | null | undefined, lang: UiLang = "zh"): string {
   const known = verdictLabelOf(label);
-  const names: Readonly<Record<string, string>> = sharedTextOf(lang).verdict.names;
-  return known ? (names[known] ?? known) : "";
+  return known ? verdictName(known, lang) : "";
 }
 
 export type BasisSource = Basis["source"];

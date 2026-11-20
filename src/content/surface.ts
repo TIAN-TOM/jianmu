@@ -86,7 +86,7 @@ export function createSurface({ document, page, runtime, player, frame, retire, 
         button.flash(reply.value.duplicate ? text().duplicate : reply.value.polishLimited ? text().savedUnpolished : text().saved);
       } else {
         const short: Partial<Record<ErrorCode, string>> = text().shortFailures;
-        button.setTitle(describe(reply.code, reply.detail));
+        button.setTitle(describe(reply.code, reply.detail, lang.current()));
         button.flash(short[reply.code] ?? text().saveFailed);
       }
     } finally {

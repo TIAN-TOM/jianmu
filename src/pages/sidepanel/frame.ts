@@ -71,7 +71,7 @@ export function createFrameStore({ api, target, enabled, lang = () => "zh" }: Fr
       const { tabId, video } = target.peek();
       if (tabId === null || video === null) return frameText(lang()).noVideo;
       const reply = await api.send("frame.explain", { tabId, video });
-      if (!reply.ok) return describe(reply.code, reply.detail);
+      if (!reply.ok) return describe(reply.code, reply.detail, lang());
       void reload();
       return "";
     },
