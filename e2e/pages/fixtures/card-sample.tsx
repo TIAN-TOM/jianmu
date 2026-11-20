@@ -5,7 +5,8 @@
 // 带 #youtube-ready 时是 YouTube 上还没有概览、字幕已经读过；不带时是刚打开的默认样子；
 // 「展开全部」和官方总结那一行点得动。卡片的界面组件原样用，样式用产品的 card.css。界面语言照卡片入口那样跟着设置。
 // 带 #official-late、#official-never 时接上真实的卡片模型，后台换成本页的替身：官方总结先回「还在读」，
-// 前者过一会儿读到、照后台的做法广播一次重读，后者一直读不到。
+// 前者过一会儿读到、照后台的做法广播一次重读，后者一直读不到。带 #load-failed 时也接上真实的卡片模型，后台说被平台限流，
+// 卡片按界面语言写原因。
 import { signal } from "@preact/signals";
 import { render } from "preact";
 import { videoKey } from "../../../src/core/video-ref.ts";
@@ -14,7 +15,7 @@ import { AUTO_FOLD_NOTE } from "../../../src/pages/card/glance.ts";
 import { createCardModel, NOT_READ_TEXT, type CardView } from "../../../src/pages/card/model.ts";
 import { createPageApi, type PageRuntime } from "../../../src/pages/shared/api.ts";
 import { cardSetupHint, type ConfigState } from "../../../src/pages/shared/config.ts";
-import { bindDocumentLang, initUiLang, setUiLanguage } from "../../../src/pages/shared/ui-lang.ts";
+import { bindDocumentLang, initUiLang, setUiLanguage, uiLang } from "../../../src/pages/shared/ui-lang.ts";
 import { cardTextOf } from "../../../src/pages/card/text.ts";
 import { SETTINGS_STORAGE_KEY } from "../../../src/shared/names.ts";
 
@@ -33,7 +34,7 @@ const unread = location.hash === "#youtube" || location.hash === "#youtube-unrea
 const noOverview = location.hash === "#youtube-unread" || location.hash === "#youtube-ready";
 // 换过字幕：结论和章节都依据旧的那份。
 const stale = location.hash === "#stale";
-const KEY_CLEARED = cardSetupHint({ state: "checked", view: { ready: false, errors: [], missing: "key" } });
+const KEY_CLEARED: ConfigState = { state: "checked", view: { ready: false, errors: [], missing: "key" } };
 const SHORT_SUMMARY = "这是一段自造的官方总结，一共一百来个字，用来看正文被截成三行以后，底下还有没有藏着的字。卡片很宽的时候三行放得下，一个字都不藏；卡片很窄、字号又调大的时候三行放不下，后面的字就被截掉了，这时候要有地方点开看全。";
 
 const view = signal<CardView>({
@@ -87,7 +88,7 @@ const actions: CardActions = {
 };
 
 function App() {
-  return <Card view={view.value} aiReady={!keyCleared} setupHint={keyCleared ? KEY_CLEARED : ""} actions={actions} />;
+  return <Card view={view.value} aiReady={!keyCleared} setupHint={keyCleared ? cardSetupHint(KEY_CLEARED, uiLang.value) : ""} actions={actions} />;
 }
 
 /** 官方总结晚到多久。 */
@@ -96,7 +97,7 @@ const SAMPLE_REF = { platform: "bilibili", videoId: "BV1Sample001", segment: 1 }
 const SAMPLE_URL = "https://www.bilibili.com/video/BV1Sample001";
 
 /** 官方总结晚到的卡片：模型原样用，后台的回复由这里现编。 */
-function lateOfficial(root: HTMLElement, arrives: boolean): void {
+function lateOfficial(root: HTMLElement, arrives: boolean, failed = false): void {
   const key = videoKey(SAMPLE_REF);
   const startedAt = performance.now();
   const arrived = (): boolean => arrives && performance.now() - startedAt >= OFFICIAL_LATE_MS;
@@ -104,7 +105,7 @@ function lateOfficial(root: HTMLElement, arrives: boolean): void {
   const replies: Readonly<Record<string, () => unknown>> = {
     "session.get": () => ({ ok: true, value: { session: { video: key, mode: "skim", modeSource: "default", autoSwitched: false, playedSec: 0 } } }),
     "task.list": () => ({ ok: true, value: { tasks: [] } }),
-    "transcript.get": () => ({
+    "transcript.get": () => failed ? { ok: false, code: "RATE_LIMITED" } : ({
       ok: true,
       value: {
         mode: "light",
@@ -133,6 +134,7 @@ function lateOfficial(root: HTMLElement, arrives: boolean): void {
     currentTab: async () => ({ id: 1, url: SAMPLE_URL, windowId: 1 }),
     parseVideo: (url) => (url === SAMPLE_URL ? SAMPLE_REF : null),
     seek: noop,
+    lang: () => uiLang.value,
   });
   const live: CardActions = { ...actions, retry: model.retry, toggleShowAll: model.toggleShowAll, toggleOfficial: model.toggleOfficial };
   render(<LiveApp model={model} actions={live} />, root);
@@ -153,5 +155,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 const root = document.getElementById("app");
-if (root && (location.hash === "#official-late" || location.hash === "#official-never")) lateOfficial(root, location.hash === "#official-late");
+if (root && (location.hash === "#official-late" || location.hash === "#official-never" || location.hash === "#load-failed")) {
+  lateOfficial(root, location.hash === "#official-late", location.hash === "#load-failed");
+}
 else if (root) render(<App />, root);

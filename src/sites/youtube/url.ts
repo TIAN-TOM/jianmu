@@ -1,5 +1,7 @@
-// YouTube 的地址规则：只认观看页，从地址认视频，生成规范链接，另给授权和注册内容脚本用的站点匹配规则。只算字符串。
+// YouTube 的地址规则：只认观看页，从地址认视频，生成规范链接，另给授权和注册内容脚本用的站点匹配规则，
+// 和简幕替字幕轨起的名字（按界面语言显示）。只算字符串。
 // 只从 rules.ts 的构建开关分支引用，顶层只放字面量和函数，开关关着时整个模块不进包。
+import type { OutputLang } from "../../core/output-lang.ts";
 import type { VideoRef } from "../../core/video-ref.ts";
 import type { SiteRules } from "../types.ts";
 
@@ -48,6 +50,25 @@ export function canonicalUrl(ref: VideoRef, atSec?: number): string {
   return url.toString();
 }
 
+// 面板读出的字幕轨，页面上没写名字时简幕起的名字。中文这份同时拼进字幕轨的标识，缓存按标识认，所以不改；
+// 显示时按标识换成界面语言的名字。
+export const TRACK_PREFIX = "panel:";
+export const UNNAMED_TRACK = "YouTube 文字稿";
+export const UNCONFIRMED_TRACK = "YouTube 文字稿（来源未确认）";
+
+const TRACK_NAMES_EN: Readonly<Record<string, string>> = {
+  "YouTube 文字稿": "YouTube transcript",
+  "YouTube 文字稿（来源未确认）": "YouTube transcript (source unconfirmed)",
+};
+
+/** 简幕起的字幕轨名字按语言换；中文就是标识里那份，别的轨（页面上写着名字的）回 null。 */
+export function trackName(trackId: string, lang: OutputLang): string | null {
+  if (!trackId.startsWith(TRACK_PREFIX)) return null;
+  const name = trackId.slice(TRACK_PREFIX.length);
+  if (!Object.hasOwn(TRACK_NAMES_EN, name)) return null;
+  return lang === "en" ? (TRACK_NAMES_EN[name] ?? name) : name;
+}
+
 export const youtubeRules: SiteRules = {
   platform: "youtube",
   optionalPermission: true,
@@ -55,4 +76,5 @@ export const youtubeRules: SiteRules = {
   canonicalUrl,
   permissionOrigins: [SITE_PATTERN],
   scriptMatches: [SITE_PATTERN],
+  trackName,
 };

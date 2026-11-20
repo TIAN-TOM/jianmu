@@ -24,7 +24,7 @@ export type FrameText = typeof FRAME_ZH;
 const FRAME_EN: FrameText = {
   title: "Frame",
   label: "Frame explanations",
-  button: "Explain frame",
+  button: "Explain this frame",
   noVideo: "Open a video first",
   jumpBack: (time) => `Jump back to this frame at ${time}`,
   dismiss: "Dismiss this explanation",

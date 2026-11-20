@@ -22,13 +22,6 @@ export const SHARED_EN: SharedText = {
     label: "One-line verdict",
     stale: "Based on old subtitles",
     incomplete: "Incomplete",
-    names: {
-      推荐看: "Worth watching",
-      可以看: "Watch the key parts",
-      可跳过: "Skip",
-      信息不足: "Not enough info",
-      看概览就够: "Overview is enough",
-    },
     basis: {
       transcript: "Based on the subtitles",
       "official-summary": "Based on Bilibili's official summary, without reading the subtitles",

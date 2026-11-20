@@ -61,7 +61,7 @@ export function createAiStatus(lang: () => UiLang = () => "zh"): AiStatus {
   }
 
   function saySaved(at: AiPlace, written: LoadedSettings): void {
-    const ready = validate(written);
+    const ready = validate(written, lang());
     if (ready.ok) say(at, written.rememberApiKey ? t().savedRemembered : t().saved, "ok");
     else say(at, t().savedNotReady(ready.errors.join(" ")), "warn");
     savedAt = at;
@@ -80,7 +80,7 @@ export function createAiStatus(lang: () => UiLang = () => "zh"): AiStatus {
     }
     const notes: string[] = [];
     if (!listed(ids, model)) notes.push(t().notListed(model));
-    const ready = validate(written);
+    const ready = validate(written, lang());
     if (!ready.ok) notes.push(t().notReady(ready.errors.join(" ")));
     say(at, t().fetchedReady(head, notes), notes.length ? "warn" : "ok");
   }

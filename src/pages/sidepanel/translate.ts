@@ -67,7 +67,7 @@ const tidyWords = (lang: UiLang): StreamWords => {
 };
 
 /** 一条结果流：连端口、收批次、记状态。翻译和整理字幕各开一条。 */
-function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | undefined, wordsOf: () => StreamWords) {
+function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | undefined, wordsOf: (lang: UiLang) => StreamWords, lang: () => UiLang) {
   const state = signal<TranslateState>(IDLE);
   const lines = signal<Readonly<Record<string, string>>>({});
   let bound: { readonly video: VideoKey; readonly fingerprint: string; readonly tabId: number | null } | null = null;
@@ -110,9 +110,9 @@ function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | unde
       case "translate.done": {
         if (quiet) return endQuiet();
         const failed = event.state === "failed";
-        const words = wordsOf();
+        const words = wordsOf(lang());
         const message = event.failure
-          ? describe(event.failure.code, event.failure.detail)
+          ? describe(event.failure.code, event.failure.detail, lang())
           : event.failedBatches > 0
             ? words.unfinished(event.failedBatches)
             : event.state === "canceled"
@@ -125,11 +125,11 @@ function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | unde
       }
       case "translate.refused":
         if (quiet) return endQuiet();
-        state.value = { ...IDLE, phase: "failed", message: describe(event.failure.code, event.failure.detail), ...(event.failure.said ? { said: event.failure.said } : {}) };
+        state.value = { ...IDLE, phase: "failed", message: describe(event.failure.code, event.failure.detail, lang()), ...(event.failure.said ? { said: event.failure.said } : {}) };
         closePort();
         return;
       case "port.error":
-        state.value = { ...state.peek(), phase: "failed", message: describe(event.code) };
+        state.value = { ...state.peek(), phase: "failed", message: describe(event.code, undefined, lang()) };
         return;
     }
   }
@@ -143,7 +143,7 @@ function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | unde
       onClose(code) {
         if (port !== opened) return;
         port = null;
-        if (state.peek().phase === "running") state.value = { ...state.peek(), phase: "failed", message: describe(code) };
+        if (state.peek().phase === "running") state.value = { ...state.peek(), phase: "failed", message: describe(code, undefined, lang()) };
       },
     });
     port = opened;
@@ -197,7 +197,7 @@ function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | unde
 
 export function createTranslation({ api, lang = () => "zh" }: { readonly api: Pick<PageApi, "connect">; readonly lang?: () => UiLang }): Translation {
   const mode = signal<TranscriptMode>("original");
-  const stream = createStream(api, undefined, () => translateWords(lang()));
+  const stream = createStream(api, undefined, translateWords, lang);
   return {
     mode,
     state: stream.state,
@@ -219,7 +219,7 @@ export function createTranslation({ api, lang = () => "zh" }: { readonly api: Pi
 
 export function createTidy({ api, lang = () => "zh" }: { readonly api: Pick<PageApi, "connect">; readonly lang?: () => UiLang }): Tidy {
   const show = signal(true);
-  const stream = createStream(api, "tidy", () => tidyWords(lang()));
+  const stream = createStream(api, "tidy", tidyWords, lang);
   return {
     state: stream.state,
     lines: stream.lines,

@@ -118,7 +118,7 @@ export function createFramePress({ icons, runtime, currentKey, findMainVideo, co
       const reply = await runtime.send("frame.explainHere", { video });
       if (gone()) return onGone();
       if (!reply.ok) {
-        icon()?.setTitle(describe(reply.code, reply.detail));
+        icon()?.setTitle(describe(reply.code, reply.detail, lang()));
         icon()?.flash(reply.code === "FRAME_RATE_LIMITED" ? text().tooMany : text().notSent);
         return;
       }

@@ -21,14 +21,6 @@ export const SHARED_ZH = {
     label: "一句话结论",
     stale: "基于旧字幕",
     incomplete: "不完整",
-    // 档位在数据里是这几个中文词，显示时按语言换成显示名。
-    names: {
-      推荐看: "推荐看",
-      可以看: "可以看",
-      可跳过: "可跳过",
-      信息不足: "信息不足",
-      看概览就够: "看概览就够",
-    },
     basis: {
       transcript: "依据字幕",
       "official-summary": "依据 B 站官方总结，没有通读字幕",

@@ -1,14 +1,17 @@
 // 启用、外观、打开页面和构建标识这几条消息的请求和回复。
 import type { ActivationKind, NoticeStatus } from "../../core/consent.ts";
+import type { LanguageSetting } from "../../core/output-lang.ts";
 import type { AccentTheme } from "../settings-schema.ts";
 
 /** 不带参数的请求。 */
 export type EmptyRequest = Readonly<Record<string, never>>;
 
-/** 内容脚本读不到存储，外观和卡片开关只能经这条消息拿。 */
+/** 内容脚本读不到存储，外观、卡片开关和语言选项只能经这条消息拿。 */
 export interface AppearanceView {
   readonly accentTheme: AccentTheme;
   readonly inPageCard: boolean;
+  /** 设置里的语言选项，播放页上简幕自己的字跟着它。 */
+  readonly language: LanguageSetting;
 }
 
 /** 打开设置页时可以直接滚到的几节，值是设置页里那一节的 id。 */

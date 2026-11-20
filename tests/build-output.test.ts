@@ -357,7 +357,7 @@ const FRAME_SHARED = ["current-frame", "解释当前画面", "FRAME_PROTECTED", 
 const FRAME_MARKERS: Readonly<Record<string, readonly string[]>> = {
   "build/content/bilibili.js": ["requestVideoFrameCallback", "convertToBlob", "player.captureFrame", "解释当前画面", "frame.explainHere", "src/content/frame", "画面受保护", "Explain this frame", "Frame is protected"],
   "build/background.js": [...FRAME_SHARED, "prompts/study/frame-explain.md", "study/frame-explain.md", "frame.explain", "src/background/image-support", "src/background/services/frame-explain"],
-  "build/pages/sidepanel.js": [...FRAME_SHARED, "frame.recent", "解释画面", "正在请模型看图", "Explain frame"],
+  "build/pages/sidepanel.js": [...FRAME_SHARED, "frame.recent", "解释画面", "正在请模型看图", "Explain this frame"],
   "build/pages/options.js": [...FRAME_SHARED, "ai.probeImage", "能不能看图", "Frame analysis", "Check image support"],
 };
 

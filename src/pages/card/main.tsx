@@ -162,7 +162,7 @@ function start(root: HTMLElement, api: PageApi): void {
   };
 
   function App() {
-    return <Card view={model.view.value} aiReady={model.aiReady.value} setupHint={cardSetupHint(config.state.value)} actions={actions} />;
+    return <Card view={model.view.value} aiReady={model.aiReady.value} setupHint={cardSetupHint(config.state.value, uiLang.value)} actions={actions} />;
   }
   render(<App />, root);
 

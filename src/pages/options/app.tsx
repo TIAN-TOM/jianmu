@@ -12,6 +12,7 @@ import { Button } from "../shared/ui/button.tsx";
 import { StateBlock } from "../shared/ui/state-block.tsx";
 import { stateCopy } from "../shared/ui/state.ts";
 import type { PageApi } from "../shared/api.ts";
+import { uiLang } from "../shared/ui-lang.ts";
 import { AboutSection } from "./about-section.tsx";
 import { AiSection } from "./ai-section.tsx";
 import { AutoSection } from "./auto-section.tsx";
@@ -23,7 +24,8 @@ import { optionsText } from "./text.ts";
 
 // ---- 首次启用 ----
 
-const sectionsOf = (items: readonly NoticeItem<ActivationKind>[]) => activationSections(noticeLines(items));
+// 在渲染里调用：读界面语言，语言变了跟着重画。
+const sectionsOf = (items: readonly NoticeItem<ActivationKind>[]) => activationSections(noticeLines(items, uiLang.value), uiLang.value);
 const FULL_ACTIVATION = noticeStatus(ACTIVATION_TABLE, {});
 const FULL_ACTIVATION_ITEMS = FULL_ACTIVATION.state === "needed" ? FULL_ACTIVATION.items : [];
 
@@ -32,7 +34,7 @@ function ActivationGate({ activation }: { readonly activation: Activation }) {
   const view = activation.view.value;
   if (view.state === "loading") return <p class="hint">{t.activationLoading}</p>;
   if (view.state === "failed") {
-    return <StateBlock {...stateCopy(view.failure.code, view.failure.detail)} primary={{ label: t.retry, onClick: () => void activation.load() }} />;
+    return <StateBlock {...stateCopy(view.failure.code, view.failure.detail, uiLang.value)} primary={{ label: t.retry, onClick: () => void activation.load() }} />;
   }
   if (view.state !== "needed") return null;
   const failure = activation.confirmFailure.value;
@@ -43,7 +45,7 @@ function ActivationGate({ activation }: { readonly activation: Activation }) {
         sections={sectionsOf(view.items)}
         fullSections={sectionsOf(FULL_ACTIVATION_ITEMS)}
         phase={activation.phase.value}
-        {...(failure ? { error: describe(failure.code, failure.detail) } : {})}
+        {...(failure ? { error: describe(failure.code, failure.detail, uiLang.value) } : {})}
         onConfirm={() => void activation.confirm()}
       />
     </section>

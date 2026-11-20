@@ -4,7 +4,7 @@
 import type { VideoRef } from "../../core/video-ref.ts";
 import type { CaptionTrack, Cue, PageChannel, SiteCtx, SiteFailure, SiteResult, SiteService, VideoInfo } from "../types.ts";
 import { panelCurrentOf, panelSnapshotOf, type PanelSnapshot, type PlayerTrack, type PlayerTracks } from "./page/panel-types.ts";
-import { youtubeRules } from "./url.ts";
+import { TRACK_PREFIX, UNCONFIRMED_TRACK, UNNAMED_TRACK, youtubeRules } from "./url.ts";
 
 // 等页面回话的上限：面板还在加载时页面那头最多等几秒。
 const ASK_TIMEOUT_MS = 10_000;
@@ -12,9 +12,6 @@ const ASK_TIMEOUT_MS = 10_000;
 const RECHECK_DELAY_MS = 300;
 // 最后一句没有下一句可比时，按这么长算。
 const LAST_CUE_SEC = 5;
-const TRACK_PREFIX = "panel:";
-const UNNAMED_TRACK = "YouTube 文字稿";
-const UNCONFIRMED_TRACK = "YouTube 文字稿（来源未确认）";
 const AUTO_KIND = "asr";
 
 // 菜单名里标着自动生成的几种写法。

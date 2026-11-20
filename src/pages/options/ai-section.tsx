@@ -32,7 +32,7 @@ const FULL_CONSENT_ITEMS = FULL_CONSENT.state === "needed" ? FULL_CONSENT.items 
 
 export function ConsentLines({ items }: { readonly items: readonly NoticeItem<DataConsentKind>[] }) {
   const t = optionsText().consent;
-  const lines = noticeLines(items);
+  const lines = noticeLines(items, uiLang.value);
   return (
     <dl class="consent-lines">
       {CONSENT_KINDS.map((kind) => {

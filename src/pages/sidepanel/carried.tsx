@@ -28,19 +28,15 @@ const CARRIED_EN: typeof CARRIED_ZH = {
 
 const carriedText = (): typeof CARRIED_ZH => (uiLang.value === "en" ? CARRIED_EN : CARRIED_ZH);
 
-interface Shown {
-  readonly read: readonly NoticeLine<string>[];
-  readonly send: readonly NoticeLine<string>[];
-}
+type Shown = CarriedItems;
 
 /**
- * 点开时把这次多出来的条目记下来：点「知道了」写入以后状态里就没有了，列表照样留着直到收起。
+ * 点开时把这次多出来的条目记下来（排成行在渲染时做）：点「知道了」写入以后状态里就没有了，列表照样留着直到收起。
  * 用到时才建：模块顶层有函数调用，开关关着的构建就裁不掉这个模块。
  */
 let shownLines: Signal<Shown | null> | undefined;
 const shown = (): Signal<Shown | null> => (shownLines ??= signal(null));
 
-const linesOf = (carried: CarriedItems): Shown => ({ read: noticeLines(carried.activation), send: noticeLines(carried.consent) });
 
 export function carriedNotice(panel: Panel): NoticeEntry | null {
   const view = panel.activation.view.value;
@@ -52,7 +48,7 @@ export function carriedNotice(panel: Panel): NoticeEntry | null {
     priority: 3.5,
     text: t.notice,
     tone: "plain",
-    action: { label: t.show, run: () => void (shown().value = linesOf(carried)) },
+    action: { label: t.show, run: () => void (shown().value = carried) },
   };
 }
 
@@ -71,13 +67,15 @@ function Group({ title, lines }: { readonly title: string; readonly lines: reado
 }
 
 function CarriedList({ panel }: { readonly panel: Panel }) {
-  const lines = shown().value;
-  if (!lines) return null;
+  const carried = shown().value;
+  if (!carried) return null;
   const t = carriedText();
+  // 条目在渲染时按界面语言排成行，语言变了跟着换。
+  const lang = uiLang.value;
   return (
     <section class="carried" aria-label={t.label}>
-      <Group title={t.read} lines={lines.read} />
-      <Group title={t.send} lines={lines.send} />
+      <Group title={t.read} lines={noticeLines(carried.activation, lang)} />
+      <Group title={t.send} lines={noticeLines(carried.consent, lang)} />
       <Button
         onClick={() => {
           shown().value = null;

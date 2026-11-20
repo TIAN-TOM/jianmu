@@ -1,4 +1,4 @@
-// 外观：内容脚本读不到存储，外观和卡片开关经这里读；设置里这两项变了，广播给确认启用之后的内容脚本。
+// 外观：内容脚本读不到存储，外观、卡片开关和语言选项经这里读；设置里这几项变了，广播给确认启用之后的内容脚本。
 import { ok } from "../../core/errors.ts";
 import type { SettingsStore } from "../../platform/settings-store.ts";
 import type { Broadcast } from "../../shared/messages.ts";
@@ -22,9 +22,9 @@ export function appearanceRoutes({ settings }: AppearanceRouteDeps): AppearanceR
       idempotent: true,
       validate: isEmptyRequest,
       async handler() {
-        // 只读不含密钥的那份，回复里只放这两项。
-        const { accentTheme, inPageCard } = await settings.loadPublic();
-        return ok({ accentTheme, inPageCard });
+        // 只读不含密钥的那份，回复里只放这三项。
+        const { accentTheme, inPageCard, language } = await settings.loadPublic();
+        return ok({ accentTheme, inPageCard, language });
       },
     },
   };
@@ -36,7 +36,7 @@ export interface StorageChange {
 }
 
 /**
- * 设置里外观或卡片开关变了时要发给内容脚本的广播。只看存储事件本身带的新旧值，不另读存储；
+ * 设置里外观、卡片开关或语言选项变了时要发给内容脚本的广播。只看存储事件本身带的新旧值，不另读存储；
  * 变化之后还没确认启用就不发，调用方也就不必去查标签页。
  */
 export function appearanceChange(changes: Readonly<Record<string, StorageChange>>, area: string): Broadcast | null {
@@ -45,7 +45,7 @@ export function appearanceChange(changes: Readonly<Record<string, StorageChange>
   if (!change) return null;
   const before = normalize(change.oldValue);
   const after = normalize(change.newValue);
-  if (before.accentTheme === after.accentTheme && before.inPageCard === after.inPageCard) return null;
+  if (before.accentTheme === after.accentTheme && before.inPageCard === after.inPageCard && before.language === after.language) return null;
   if (activationStatus(after).state !== "current") return null;
-  return { type: "appearance.changed", accentTheme: after.accentTheme, inPageCard: after.inPageCard };
+  return { type: "appearance.changed", accentTheme: after.accentTheme, inPageCard: after.inPageCard, language: after.language };
 }

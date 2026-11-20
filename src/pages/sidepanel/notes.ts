@@ -54,7 +54,7 @@ export function createNotesStore({ api, lang = () => "zh" }: { readonly api: Pic
     if (asked !== generation) return;
     state.value = reply.ok
       ? { ...state.peek(), loaded: true, notes: sortNotes(reply.value.notes, scope), error: "" }
-      : { ...state.peek(), loaded: true, error: describe(reply.code, reply.detail) };
+      : { ...state.peek(), loaded: true, error: describe(reply.code, reply.detail, lang()) };
   }
 
   return {
@@ -73,20 +73,20 @@ export function createNotesStore({ api, lang = () => "zh" }: { readonly api: Pic
       const video = state.peek().video;
       if (!video) return "";
       const reply = await api.send("notes.save", { video, atSec: Math.max(0, Math.floor(atSec)), text });
-      if (!reply.ok) return describe(reply.code, reply.detail);
+      if (!reply.ok) return describe(reply.code, reply.detail, lang());
       void reload();
       const t = panelTextOf(lang()).notes;
       return reply.value.duplicate ? t.duplicate : t.saved;
     },
     async update(id, text) {
       const reply = await api.send("notes.update", { id, text });
-      if (!reply.ok) return describe(reply.code, reply.detail);
+      if (!reply.ok) return describe(reply.code, reply.detail, lang());
       void reload();
       return "";
     },
     async remove(id) {
       const reply = await api.send("notes.delete", { id });
-      if (!reply.ok) return describe(reply.code, reply.detail);
+      if (!reply.ok) return describe(reply.code, reply.detail, lang());
       void reload();
       return "";
     },

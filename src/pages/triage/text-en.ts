@@ -19,7 +19,7 @@ export const TRIAGE_EN: TriageText = {
     title: "Read the list",
     hint: "Sign in to Bilibili in this browser first. Each click reads the list once, including how far you've watched each video. This step doesn't use the model. The list and official summaries stay on this computer for 30 days and are read again after that. Watch progress is only shown and exported here, never sent to the model service.",
     reading: "Reading",
-    read: "Read my Watch Later",
+    read: "Load my Watch Later",
   },
 
   official: {

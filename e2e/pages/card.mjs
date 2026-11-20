@@ -6,9 +6,11 @@
 // 官方总结晚到时，「生成概览」等它有了结果才摆，摆出来以后不被顶走；一直没结果时等够了照样摆。
 // 收起的一行写着判断档和播放到的章节，放不下就截断、不撑高，旁边是打开侧边栏的入口；侧边栏开着时不摆打开侧边栏的入口和按钮。
 // 展开收起有过渡：收起时内容留到过渡走完才拿掉，没有过渡时马上拿掉。
-// 语言选 English 以后卡片自己的字是英文，切回中文马上恢复。
+// 语言选 English 以后卡片自己的字、报错和没设置好时的说明是英文，切回中文马上恢复。
 import assert from "node:assert/strict";
 import { CARD_HEIGHT } from "../../src/content/card-frame.ts";
+import { describe } from "../../src/core/errors.ts";
+import { cardSetupHint } from "../../src/pages/shared/config.ts";
 import { AUTO_FOLD_NOTE } from "../../src/pages/card/glance.ts";
 import { CARD_ROWS, NOT_READ_TEXT } from "../../src/pages/card/model.ts";
 import { PAGE_PATHS, SETTINGS_STORAGE_KEY } from "../../src/shared/names.ts";
@@ -358,6 +360,16 @@ test("卡片：语言选 English 以后，打开的卡片第一帧就是英文�
     const glance = await open(`${SAMPLE}#collapsed-glance`);
     assert.equal(await glance.evaluate(`document.querySelector(".card-name").textContent`), "Jianmu · Watch the key parts");
     assert.equal(await glance.evaluate(`document.getElementById("card-head-panel").textContent`), "Side panel");
+
+    // 报错和没设置好时的说法也是英文：读不到时的原因、影响、下一步，密钥清空时的说明。
+    const failed = await open(`${SAMPLE}#load-failed`);
+    const limited = describe("RATE_LIMITED", undefined, "en");
+    await failed.waitFor("读不到时用英文说原因", `document.getElementById("card-status")?.textContent === ${JSON.stringify(limited)}`);
+    const setup = await open(`${SAMPLE}#setup-key`);
+    assert.equal(
+      await setup.evaluate(`document.getElementById("card-setup")?.textContent ?? ""`),
+      cardSetupHint({ state: "checked", view: { ready: false, errors: [], missing: "key" } }, "en"),
+    );
 
     await setLanguage(options, "zh");
     await page.waitFor("卡片换回中文", `document.documentElement.lang === "zh-CN"`);

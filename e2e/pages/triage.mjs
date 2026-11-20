@@ -1,9 +1,11 @@
 // 粗筛页：读稍后再看、第一步取官方总结、没设置模型服务时第二步不开始、按判断筛选，重新打开时直接显示读过的；
-// 语言选 English 以后页面上的字是英文，切回中文马上恢复。
+// 语言选 English 以后页面上的字是英文，读列表失败时的说明也是英文，切回中文马上恢复。
 // 排在侧边栏之后：那时已经确认启用、登录了模拟的 B 站；页面测试里没有设置模型服务的密钥。
 import assert from "node:assert/strict";
+import { describe } from "../../src/core/errors.ts";
 import { PAGE_PATHS, SETTINGS_STORAGE_KEY } from "../../src/shared/names.ts";
 import { FOURTH_VIDEO, watchLaterData } from "../fixtures.mjs";
+import { PROBE } from "../mock-server.mjs";
 import { scenario } from "./harness.mjs";
 
 const test = scenario(import.meta.url);
@@ -114,7 +116,7 @@ test("粗筛页：语言选 English 以后标题、各步、按钮、分组和�
       title: "Watch Later triage · Jianmu",
       heading: "Watch Later triage",
       sections: ["Read the list", "Step 1: Fetch Bilibili official summaries", "Step 2: Write one-line verdicts", "Results"],
-      buttons: ["Read my Watch Later", "Fetch official summaries", "Write verdicts", "Export Markdown"],
+      buttons: ["Load my Watch Later", "Fetch official summaries", "Write verdicts", "Export Markdown"],
       filters: ["All", "Worth watching", "Watch the key parts", "Skip", "Not enough info", "Not judged yet"],
       status: undefined,
     });
@@ -142,5 +144,25 @@ test("粗筛页：语言选 English 以后标题、各步、按钮、分组和�
     });
   } finally {
     await setLanguage(page, "zh");
+  }
+});
+
+test("粗筛页：English 下读列表失败时，说明的原因、影响和下一步是英文", async ({ open, openPage }) => {
+  const page = await open(PAGE_PATHS.triage, { width: WIDTH });
+  await page.waitFor("直接列出读过的", `document.querySelectorAll(".video").length === ${TITLES.length}`);
+  // 在模拟的 B 站页面上把登录的 Cookie 清掉，读列表就说要先登录；做完重新登录，后面的测试照旧。
+  const site = await openPage(PROBE.login);
+  const [cookieName] = PROBE.cookie.split("=");
+  await site.evaluate(`(document.cookie = ${JSON.stringify(`${cookieName}=; Domain=.bilibili.com; Path=/; Max-Age=0; Secure; SameSite=Lax`)}, true)`);
+  await setLanguage(page, "en");
+  try {
+    await page.waitFor("界面换成英文", `document.documentElement.lang === "en"`);
+    await clickButton(page, "Load my Watch Later");
+    const expected = describe("NEED_LOGIN", undefined, "en");
+    await statusHas(page, "triage-list", expected);
+    assert.equal(await statusOf(page, "triage-list"), expected);
+  } finally {
+    await setLanguage(page, "zh");
+    await openPage(PROBE.login);
   }
 });

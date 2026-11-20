@@ -27,6 +27,24 @@ export function verdictLabelOf(raw: unknown): string {
   return Object.hasOwn(RENAMED, label) ? (RENAMED[label] ?? "") : "";
 }
 
+// 档位的英文显示名，页面、导出和粗筛的分组都用这一份；中文的显示名就是档位本身。
+const VERDICT_NAMES_EN: Readonly<Record<string, string>> = Object.freeze({
+  推荐看: "Worth watching",
+  可以看: "Watch the key parts",
+  可跳过: "Skip",
+  信息不足: "Not enough info",
+  [LEGACY_VERDICT]: "Overview is enough",
+});
+
+/**
+ * 档位的显示名。中文照原样写；英文时认得出的档位（含旧版改了名的、「看概览就够」）换成英文名，
+ * 认不出的（模型自创的）原样写。
+ */
+export function verdictName(label: string, lang: OutputLang = "zh"): string {
+  if (lang !== "en") return label;
+  return VERDICT_NAMES_EN[verdictLabelOf(label)] ?? label;
+}
+
 /** 概览的失败区间，这里只看起止秒数。 */
 export interface CoverageGap {
   readonly index?: unknown;

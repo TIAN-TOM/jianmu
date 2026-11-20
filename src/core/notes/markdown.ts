@@ -1,10 +1,9 @@
 // 笔记和学习稿的 Markdown 导出。视频地址的前缀由调用方传入，链接只从视频键现拼。
 // 标题、小标题、来源说明这些固定文字按语言出，缺省中文；模型写的内容、平台来的内容和用户自己的笔记原样写。
 import { groupQuotesIntoChapters, type ChapterPart, type QuotePart } from "../ai/chunking.ts";
-import { keyChapterStarts, verdictLabelOf, type OfficialSummary } from "../ai/verdict.ts";
+import { keyChapterStarts, verdictLabelOf, verdictName, type OfficialSummary } from "../ai/verdict.ts";
 import type { OutputLang } from "../output-lang.ts";
 import { formatTimestamp } from "../transcript/segment.ts";
-import { verdictName } from "../triage/groups.ts";
 import { parseVideoKey, type VideoKey } from "../video-ref.ts";
 import {
   normalizeAnalysisFailures,

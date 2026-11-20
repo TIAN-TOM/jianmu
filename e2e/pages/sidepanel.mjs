@@ -5,6 +5,7 @@
 // 几个测试按顺序共用同一个浏览器：第一个确认启用，第二个还没登录，第三个起已登录。
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { ACTIVATION_TABLE, noticeLines, noticeStatus } from "../../src/core/consent.ts";
 import { errorCopy } from "../../src/core/errors.ts";
 import { channelKey, videoKey } from "../../src/core/video-ref.ts";
 import { API_KEY_SESSION_KEY, AUTO_LEDGER_KEY, DATABASE_NAME, SETTINGS_STORAGE_KEY, WATCH_SESSIONS_KEY } from "../../src/shared/names.ts";
@@ -18,6 +19,8 @@ const LAUNCHER = "pages/gallery.html";
 const [FIRST_ID = ""] = Object.keys(VIDEOS);
 const FIRST_TITLE = VIDEOS[FIRST_ID]?.title ?? "";
 const VIDEO = videoKey({ platform: "bilibili", videoId: FIRST_ID });
+const FULL_ACTIVATION = noticeStatus(ACTIVATION_TABLE, {});
+const FULL_ACTIVATION_ITEMS = FULL_ACTIVATION.state === "needed" ? FULL_ACTIVATION.items : [];
 
 const appText = `(document.getElementById("app")?.innerText ?? "")`;
 const textOf = (selector) => `[...document.querySelectorAll(${JSON.stringify(selector)})].map((node) => node.textContent).join("\\n")`;
@@ -76,6 +79,17 @@ test("侧边栏：确认启用前只有启用说明，点启用以后说明怎�
   const panel = await openSidePanel(from);
   await waitIn(panel, "启用说明", `${appText}.includes("先看看简幕会读什么")`);
   assert.equal(await panel.evaluate(`document.querySelectorAll(".mode").length`), 0, "确认前没有模式切换");
+  // English 下启用说明的条目也是英文，整块说明里没有汉字；切回中文再往下走。
+  const before = await setLanguage(panel, "en");
+  try {
+    await waitIn(panel, "界面换成英文", `document.documentElement.lang === "en"`);
+    const lines = await panel.evaluate(`[...document.querySelectorAll(".activation .activation-lines li")].map((node) => node.textContent)`);
+    assert.deepEqual([...lines].sort(), noticeLines(FULL_ACTIVATION_ITEMS, "en").map((line) => line.text).sort());
+    assert.doesNotMatch(await panel.evaluate(`document.querySelector(".activation").innerText`), /[\u3400-\u9fff]/);
+  } finally {
+    await restoreSettings(panel, before);
+  }
+  await waitIn(panel, "界面换回中文", `document.documentElement.lang === "zh-CN"`);
   await tap(panel, ".activation .button");
   await waitIn(panel, "没有视频时的说明", `${appText}.includes("打开一个 B 站或 YouTube 视频")`);
   // 测试构建里 YouTube 开关打开；没给过授权，认不出视频的页面都带启用按钮。
@@ -98,6 +112,21 @@ test("侧边栏：没登录时也读到视频信息，长视频进速览；字�
     assert.equal(state.impact, login.impact);
     assert.equal(state.next, login.next);
     assert.ok(state.title.includes(FIRST_TITLE), `没登录也用读到的视频标题：${state.title}`);
+
+    // English 下同一块的原因、影响、下一步和按钮是英文。
+    const english = errorCopy("NEED_LOGIN", undefined, "en");
+    const before = await setLanguage(panel, "en");
+    try {
+      await waitIn(panel, "要登录的说明换成英文", `document.querySelector(".state-block .state-title")?.textContent === ${JSON.stringify(english.cause)}`);
+      const shown = await panel.evaluate(`({
+        impact: document.querySelector(".state-block .state-impact")?.textContent,
+        next: document.querySelector(".state-block .state-next")?.textContent,
+        actions: [...document.querySelectorAll(".state-block .button")].map((button) => button.textContent),
+      })`);
+      assert.deepEqual(shown, { impact: english.impact, next: english.next, actions: ["Try again", "Import subtitle file"] });
+    } finally {
+      await restoreSettings(panel, before);
+    }
   });
 });
 
@@ -695,7 +724,7 @@ test("侧边栏：English 下精读的底部工具条、整理字幕和解释画
         })`);
         assert.deepEqual(view, {
           modeView: "Study",
-          dock: ["Ask about this video", "Save note", "Explain frame"],
+          dock: ["Ask about this video", "Save note", "Explain this frame"],
           tidy: "Tidy up subtitles",
           reason: "Set up an AI service in settings first",
         });

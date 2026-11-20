@@ -157,9 +157,9 @@ const keyOf = (ref: VideoRef | null): VideoKey | null => {
 };
 
 export function createCardModel(deps: CardDeps) {
-  const { api, timers = realTimers, position } = deps;
+  const { api, timers = realTimers, position, lang = (): UiLang => "zh" } = deps;
   const view = signal<CardView>(INITIAL);
-  const t = () => cardTextOf(deps.lang?.() ?? "zh");
+  const t = () => cardTextOf(lang());
   let tab: CardTab | null = null;
   let video: VideoKey | null = null;
   // 换视频、关掉卡片就加一：迟到的结果对不上就不渲染。
@@ -254,7 +254,7 @@ export function createCardModel(deps: CardDeps) {
       if (HIDDEN_CODES.has(reply.code)) return void deps.recheckConfig();
       const known = (reply as GuidesFailure).overview;
       if (known) [saved, savedBasis] = [known.analysis, known.transcriptBasis ?? null];
-      return failLoad(describe(reply.code, reply.detail), reply.said);
+      return failLoad(describe(reply.code, reply.detail, lang()), reply.said);
     }
     const value = reply.value;
     if (!("mode" in value) || value.video !== current) return failLoad(t().wrongVideo);
@@ -336,7 +336,7 @@ export function createCardModel(deps: CardDeps) {
     patch({ task: { id: "", external: false, auto: false, canceling: false, done: 0, total: 0, message: "" }, settingsError: false, ...notice("") });
     const started = await api.send("task.start", { kind: "overview", video: current });
     if (asked !== ticket) return;
-    if (!started.ok) return finishOwn(null, started.code, describe(started.code, started.detail), started.said);
+    if (!started.ok) return finishOwn(null, started.code, describe(started.code, started.detail, lang()), started.said);
     const { task, joined, token } = started.value;
     if (joined || !token) {
       patch({ task: null });
@@ -353,7 +353,7 @@ export function createCardModel(deps: CardDeps) {
     const result = await api.send("overview.start", { video: current, token });
     settled.add(task.id);
     if (asked !== ticket) return;
-    if (!result.ok) return finishOwn(null, result.code, result.code === "TASK_CANCELED" ? t().stopped : describe(result.code, result.detail), result.said);
+    if (!result.ok) return finishOwn(null, result.code, result.code === "TASK_CANCELED" ? t().stopped : describe(result.code, result.detail, lang()), result.said);
     const value = result.value;
     [saved, savedBasis] = [value.analysis, value.transcriptBasis ?? null];
     const text = value.saveFailed ? t().saveFailed : value.canceled ? t().stoppedSaved(value.savedChunks ?? 0, value.chunkCount ?? 0) : "";

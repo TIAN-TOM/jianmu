@@ -121,11 +121,11 @@ export function createWindowBatch({ api, windowId: readWindowId = realWindowId, 
         return;
       case "window.refused":
         if (event.windowId !== windowId) return;
-        error.value = describe(event.failure.code);
+        error.value = describe(event.failure.code, undefined, lang());
         if (state.peek().phase !== "active") state.value = IDLE;
         return;
       case "port.error":
-        error.value = describe(event.code);
+        error.value = describe(event.code, undefined, lang());
         return;
       default:
         // 粗筛的消息不归侧边栏。
@@ -137,7 +137,7 @@ export function createWindowBatch({ api, windowId: readWindowId = realWindowId, 
     port = null;
     if (!enabled) return;
     // 后台被回收或重新加载：这一批在后台已经没了，界面回到能重新开始的样子。
-    if (state.peek().phase !== "idle") error.value = panelTextOf(lang()).batch.stopped(describe(code));
+    if (state.peek().phase !== "idle") error.value = panelTextOf(lang()).batch.stopped(describe(code, undefined, lang()));
     state.value = IDLE;
   }
 
