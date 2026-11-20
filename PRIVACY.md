@@ -105,7 +105,7 @@
 ### 删除和备份
 
 - **清除缓存**（设置页）：删掉上面说的缓存，以及各项功能最近一次请求的用量。概览、问答、笔记、译文、导入的字幕、设置和密钥都留着。
-- **清除全部数据**（设置页）：删掉简幕在这台电脑上存的全部资料，包括笔记、概览、问答、译文、导入的字幕、设置、密钥、数据同意和启用确认。删了不能恢复，之后要重新启用、重新同意。只留下一样：B 站限流以后要等多久。留着它是为了清除以后不马上又去请求，它不含你的内容，浏览器关闭后就没了。
+- **清除全部数据**（设置页）：删掉简幕在这台电脑上存的全部资料，包括笔记、概览、问答、译文、导入的字幕、设置、密钥、数据同意和启用确认。删了不能恢复，之后要重新启用、重新同意。只留下两样：B 站限流以后要等多久，和哪些窗口开着简幕的侧边栏（只有窗口编号）。前一样是为了清除以后不马上又去请求，后一样是为了还开着的侧边栏和播放页卡片对得上。它们都不含你的内容，浏览器关闭后就没了。
 - **一条一条删**：笔记和问答可以在侧边栏里单独删。
 - **卸载扩展**：Chrome 会删掉扩展存在这台电脑上的数据。
 - 这里说的删除，是指简幕和浏览器都读不到了。浏览器的存储文件里可能还留着旧内容，简幕没法保证它从磁盘上消失。
@@ -180,6 +180,7 @@ IndexedDB 数据库 `jianmu` 里的仓库：
 | `jianmu_settings_revision` | 设置的修订号，是个随机值，防止过时的设置页写回旧设置 | 本机 | 留 | 换成新值 |
 | `jianmu_appearance` | 外观设置的副本，页面打开时先用它，免得闪一下 | 页面的本地存储 | 留 | 恢复默认 |
 | `jianmu_site_backoff` | B 站限流以后要等多久，只有站点、到期时间和次数 | 会话 | 留 | 留 |
+| `jianmu_open_panels` | 哪些窗口开着简幕的侧边栏，只有窗口编号；同一窗口里的播放页卡片据此让位收起 | 会话 | 留 | 留 |
 | `jianmu_self_reload` | 覆盖新版以后简幕自己重新加载过几次，只有新版的构建标识、次数和时间，防止文件没换全时来回重载 | 本机 | 留 | 删 |
 
 ### YouTube（还在验证，发布版里没有）
@@ -304,7 +305,7 @@ Everything is kept in the extension storage of this Chrome profile on this compu
 ### Deleting data and backups
 
 - **Clear cache** (清除缓存, in Settings) deletes the caches above and the usage of each feature's most recent request. Overviews, Q&A, notes, translations, imported subtitles, settings and the key stay.
-- **Clear all data** (清除全部数据, in Settings) deletes everything Jianmu keeps on this computer, including notes, overviews, Q&A, translations, imported subtitles, settings, the key, your data consent and your confirmation to enable Jianmu. It cannot be undone, and you will need to enable Jianmu and agree again afterwards. Only one thing is left: how long to wait after Bilibili rate-limits requests. It is kept so Jianmu does not start requesting again straight after clearing. It holds none of your content and is gone once the browser closes.
+- **Clear all data** (清除全部数据, in Settings) deletes everything Jianmu keeps on this computer, including notes, overviews, Q&A, translations, imported subtitles, settings, the key, your data consent and your confirmation to enable Jianmu. It cannot be undone, and you will need to enable Jianmu and agree again afterwards. Only two things are left: how long to wait after Bilibili rate-limits requests, and which windows have Jianmu's side panel open (window numbers only). The first is kept so Jianmu does not start requesting again straight after clearing, the second so a side panel that is still open and the card on the watch page stay in step. Neither holds any of your content, and both are gone once the browser closes.
 - **One at a time**: notes and Q&A entries can be deleted individually in the side panel.
 - **Uninstalling**: Chrome deletes the data the extension kept on this computer.
 - Deleting here means neither Jianmu nor the browser can read the data any more. Old content may still be left in the browser's storage files, and Jianmu cannot guarantee it is gone from the disk.
@@ -379,6 +380,7 @@ Keys in extension storage, none of which go into backups. "Local" is written to 
 | `jianmu_settings_revision` | A random revision number for settings, so an out-of-date Settings page cannot write old settings back | Local | Kept | Replaced with a new value |
 | `jianmu_appearance` | A copy of the appearance settings, used first when a page opens so it doesn't flicker | The page's local storage | Kept | Reset to default |
 | `jianmu_site_backoff` | How long to wait after Bilibili rate-limits requests: only the site, an expiry time and a count | Session | Kept | Kept |
+| `jianmu_open_panels` | Which windows have Jianmu's side panel open: window numbers only. The card on a watch page in the same window folds away while the panel is open | Session | Kept | Kept |
 | `jianmu_self_reload` | How many times Jianmu has reloaded itself after you copied a new version over it: only the new build's identifier, a count and a time, so it doesn't keep reloading if the files were only partly replaced | Local | Kept | Deleted |
 
 ### YouTube (still being tested, not in the published version)

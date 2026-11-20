@@ -25,6 +25,11 @@ export type OptionsOpenRequest = EmptyRequest | { readonly section: OptionsSecti
 /** 打开侧边栏被浏览器拒绝时，页面改口提示用户点工具栏图标。 */
 export type PanelOpenReply = { readonly opened: true } | { readonly opened: false; readonly needsToolbarClick: true };
 
+/** 发问的卡片所在的窗口里，侧边栏开没开。 */
+export interface PanelStateReply {
+  readonly open: boolean;
+}
+
 /** 确认启用的回复，另带补注入没补上的标签页：侧边栏在这些页面上提示刷新。 */
 export type ActivationConfirmReply = NoticeStatus<ActivationKind> & { readonly unreachableTabs: readonly number[] };
 
@@ -40,4 +45,5 @@ export interface CoreApi {
   "appearance.get": { req: EmptyRequest; res: AppearanceView };
   "options.open": { req: OptionsOpenRequest; res: EmptyRequest };
   "panel.open": { req: EmptyRequest; res: PanelOpenReply };
+  "panel.state": { req: EmptyRequest; res: PanelStateReply };
 }

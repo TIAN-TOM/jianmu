@@ -60,6 +60,8 @@ export type Broadcast =
   | { readonly type: "session.changed"; readonly tabId: number; readonly session: SessionView }
   | { readonly type: "data.cleared"; readonly scope: "cache" | "all" }
   | { readonly type: "panel.follow"; readonly tabId: number }
+  /** 这个窗口的侧边栏开了或关了：同一窗口里的卡片据此让位或回来。 */
+  | { readonly type: "panel.changed"; readonly windowId: number; readonly open: boolean }
   | { readonly type: "appearance.changed"; readonly accentTheme: AccentTheme; readonly inPageCard: boolean }
   | { readonly type: "activation.changed"; readonly confirmed: boolean }
   | { readonly type: "auto.changed"; readonly paused: AutoPauseReason | null }

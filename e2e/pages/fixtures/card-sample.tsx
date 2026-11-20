@@ -119,7 +119,7 @@ function lateOfficial(root: HTMLElement, arrives: boolean): void {
     api: createPageApi({ runtime }),
     config: signal(ready),
     recheckConfig: async () => undefined,
-    currentTab: async () => ({ id: 1, url: SAMPLE_URL }),
+    currentTab: async () => ({ id: 1, url: SAMPLE_URL, windowId: 1 }),
     parseVideo: (url) => (url === SAMPLE_URL ? SAMPLE_REF : null),
     seek: noop,
   });

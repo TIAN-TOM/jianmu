@@ -19,6 +19,7 @@ import { createAiWiring, type AiWiring, type ModelServiceFetch, type PromptTable
 import { autoSwitchToggled, createAutoWiring, pageTranscriptOf, watchPagesOf } from "./auto.ts";
 import { createContentTabs, siteTabs, type ContentTabs } from "./content-tabs.ts";
 import { createGrants, siteOriginsOf, type Grants } from "./grants.ts";
+import { createOpenPanels, type OpenPanels } from "./open-panels.ts";
 import { createCardLimits, createPlaybackLimits, createPlayerNoteLimit, type CardLimits, type PlaybackLimits } from "./limits.ts";
 import { errorLabel, type Log } from "./log.ts";
 import { createReinject, type Reinject } from "./reinject.ts";
@@ -100,6 +101,8 @@ export interface App {
   readonly onTabUpdated: (change: { readonly url?: string; readonly status?: string }, tabId?: number) => void;
   readonly onFocusChanged: (windowId: number) => void;
   readonly onMenuClicked: (info: MenuClick) => Promise<void>;
+  /** 一个窗口的侧边栏开了或关了。 */
+  readonly onPanelChanged: (windowId: number, open: boolean) => void;
 }
 
 /** 焦点离开了全部 Chrome 窗口。 */
@@ -128,6 +131,8 @@ interface Core {
   /** 观看会话。拿不到任务和模型入口。 */
   readonly sessions: Sessions;
   readonly playbackLimits: PlaybackLimits;
+  /** 哪些窗口开着侧边栏。 */
+  readonly panels: OpenPanels;
   readonly transcript: TranscriptService;
   readonly overview: OverviewService;
   readonly verdict: VerdictService;
@@ -170,16 +175,6 @@ function assembleTasks(deps: AppDeps, ai: AiWiring, messenger: Messenger, keepAl
     timers,
     broadcast: (message) => void messenger.toPages(message),
     newId: () => crypto.randomUUID(),
-  });
-}
-
-// 授权回收只碰授权接口：读不含密钥的设置，站点来源按设置推。
-function assembleGrants(deps: AppDeps, settings: SettingsStore): Grants {
-  return createGrants({
-    permissions: createPermissions(deps.permissions, () => deps.runtime.getManifest()),
-    loadSettings: settings.loadPublic,
-    siteOrigins: () => siteOriginsOf(deps.siteRules),
-    logError: (message, detail) => deps.log.error(message, errorLabel(detail)),
   });
 }
 
@@ -406,9 +401,11 @@ function assembleCore(deps: AppDeps): Core {
     // 通知是尽力而为：查不到标签页时只发给登记过的，不让确认启用这类写入跟着报错。
     contentTargets: async () => [...new Set([...contentTabs.list(), ...(await tabs.contentScriptTabs().catch(() => [])), ...(await siteTabs(tabs, siteSwitch?.grantedScripts))])],
     reinject: createReinject({ tabs, enabled, ...(siteSwitch ? { extraScripts: siteSwitch.grantedScripts } : {}), log: deps.log }),
-    grants: assembleGrants(deps, settings),
+    // 授权回收只碰授权接口：读不含密钥的设置，站点来源按设置推。
+    grants: createGrants({ permissions: createPermissions(deps.permissions, () => deps.runtime.getManifest()), loadSettings: settings.loadPublic, siteOrigins: () => siteOriginsOf(deps.siteRules), logError: (message, detail) => deps.log.error(message, errorLabel(detail)) }),
     siteSwitch,
     ...sessionParts,
+    panels: createOpenPanels({ storage: deps.storage.session, anySidePanel: tabs.anySidePanel, broadcast: (message) => void messenger.toPages(message) }),
     transcript,
     overview,
     verdict,
@@ -471,6 +468,7 @@ export function createApp(deps: AppDeps): App {
     onTabUpdated: (change, tabId) => (core.translate.tabChanged(tabId, change.url), Object.hasOwn(change, "url") || change.status === "complete" ? consider() : undefined),
     onFocusChanged: (windowId) => (windowId !== NO_WINDOW ? consider() : undefined),
     onMenuClicked: (info) => menu.clicked(info),
+    onPanelChanged: (windowId, open) => void core.panels.changed(windowId, open).catch((error: unknown) => deps.log.error("记下侧边栏的开关失败", errorLabel(error))),
     onTabRemoved(tabId) {
       core.translate.tabChanged(tabId, null);
       core.contentTabs.remove(tabId);

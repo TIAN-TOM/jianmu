@@ -31,6 +31,11 @@ chrome.tabs.onUpdated.addListener(
   wake((tabId: number, change: chrome.tabs.OnUpdatedInfo) => current().onTabUpdated(change, tabId)),
 );
 chrome.windows.onFocusChanged.addListener(wake((windowId: number) => current().onFocusChanged(windowId)));
+// 侧边栏开了、关了：记下哪些窗口开着，卡片据此让位。这两个事件老一些的浏览器没有，没有就不听。
+if (chrome.sidePanel.onOpened && chrome.sidePanel.onClosed) {
+  chrome.sidePanel.onOpened.addListener(wake((info: { readonly windowId: number }) => current().onPanelChanged(info.windowId, true)));
+  chrome.sidePanel.onClosed.addListener(wake((info: { readonly windowId: number }) => current().onPanelChanged(info.windowId, false)));
+}
 // 工具栏图标右键菜单里简幕自己的几项。
 chrome.contextMenus.onClicked.addListener(wake((info: chrome.contextMenus.OnClickData) => void current().onMenuClicked(info)));
 chrome.storage.onChanged.addListener(

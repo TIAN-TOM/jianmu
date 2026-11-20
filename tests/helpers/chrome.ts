@@ -63,6 +63,8 @@ export interface FakeChromeOptions {
   readonly urlTabs?: Readonly<Record<number, string>>;
   /** sidePanel.open 被浏览器拒绝。 */
   readonly panelOpenRefused?: boolean;
+  /** 老一些的浏览器：sidePanel 没有开了、关了这两个事件。 */
+  readonly noPanelEvents?: boolean;
   /** 标签页里的内容脚本怎么回 tabs.sendMessage；不给时回 undefined。抛错就是送不到。 */
   readonly tabReply?: (tabId: number, message: unknown) => unknown;
   /** 往这几个标签页注入脚本时浏览器报错。 */
@@ -273,6 +275,7 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     async setPanelBehavior(behavior: unknown) {
       calls.panelBehaviors.push(behavior);
     },
+    ...(options.noPanelEvents ? {} : { onOpened: event(), onClosed: event() }),
   };
   const inject = async ({ target, files, world }: { target: { tabId: number; allFrames?: boolean }; files: string[]; world?: string }) => {
     record(calls.injections, { ...target, files: [...files], ...(world ? { world } : {}) });
@@ -450,6 +453,9 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     firePermissionsAdded: (origins: readonly string[]) => fire(permissions.onAdded, { origins: [...origins] }),
     firePermissionsRemoved: (origins: readonly string[]) => fire(permissions.onRemoved, { origins: [...origins] }),
     fireTabRemoved: (tabId: number) => fire(tabs.onRemoved, tabId, {}),
+    /** 浏览器报一个窗口的侧边栏开了、关了。 */
+    firePanelOpened: (windowId: number) => (sidePanel.onOpened ? fire(sidePanel.onOpened, { windowId, path: `/${PAGE_PATHS.sidepanel}` }) : undefined),
+    firePanelClosed: (windowId: number) => (sidePanel.onClosed ? fire(sidePanel.onClosed, { windowId, path: `/${PAGE_PATHS.sidepanel}` }) : undefined),
     fireTabActivated: (tabId: number, windowId: number) => fire(tabs.onActivated, { tabId, windowId }),
     fireTabUpdated: (tabId: number, change: Record<string, unknown>, tab: Record<string, unknown>) => fire(tabs.onUpdated, tabId, change, tab),
     fireFocusChanged: (windowId: number) => fire(windows.onFocusChanged, windowId),

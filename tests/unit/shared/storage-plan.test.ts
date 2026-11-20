@@ -30,6 +30,7 @@ const ROWS: readonly (readonly [string, Plan])[] = [
   ["jianmu_settings_revision", { area: "local", clearCache: "keep", clearAll: "renew", backup: false }],
   ["jianmu_appearance", { area: "localStorage", clearCache: "keep", clearAll: "page-default", backup: false }],
   ["jianmu_site_backoff", { area: "session", clearCache: "keep", clearAll: "keep", backup: false }],
+  ["jianmu_open_panels", { area: "session", clearCache: "keep", clearAll: "keep", backup: false }],
   ["jianmu_self_reload", { area: "local", clearCache: "keep", clearAll: "clear", backup: false }],
 ];
 

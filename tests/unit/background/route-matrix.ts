@@ -36,6 +36,7 @@ export const ROUTE_MATRIX: readonly MatrixRow[] = [
   ...row(["appearance.get"], { ...PAGES, card: false, content: BOTH, beforeEnable: true }),
   ...row(["options.open"], { ...PAGES, card: true, content: [], beforeEnable: true }),
   ...row(["panel.open"], { panel: false, options: true, triage: true, card: true, content: [], beforeEnable: true }),
+  ...row(["panel.state"], { ...NO_PAGES, card: true, content: [], beforeEnable: false }),
   ...row(["config.check"], { ...PAGES, card: true, content: [], beforeEnable: false }),
   ...row(["models.list", "ai.testConnection"], { ...OPTIONS_ONLY, card: false, content: [], beforeEnable: false }),
   ...row(["ai.effortPreview"], { ...OPTIONS_ONLY, card: false, content: [], beforeEnable: false }),

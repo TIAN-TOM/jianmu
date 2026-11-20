@@ -47,6 +47,7 @@ const realRoutes = (): Readonly<Record<string, AnyRoute>> =>
     messenger: { toPages: async () => {}, toTabs: async () => {} },
     contentTargets: async () => [],
     tabs: { hasOptionsPage: () => true, openOptionsPage: async () => {}, openOptionsAt: async () => {}, ask: async () => assert.fail() },
+    panels: { isOpen: async () => assert.fail() },
     now: () => 0,
     ai: {
       configCheck: async () => assert.fail(),
