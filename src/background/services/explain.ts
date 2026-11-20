@@ -81,6 +81,7 @@ export function createExplainService(deps: ExplainServiceDeps): ExplainService {
             maxTokens: EXPLAIN_MAX_TOKENS,
             signal: run.signal,
             onRetry: ({ message }) => run.progress({ phase: "generating", message }),
+            lang,
             messages: promptMessages(localizePrompt(deps.prompt(EXPLAIN_PROMPT), lang), variables),
           });
           throwIfTaskCanceled(run.signal);

@@ -2,6 +2,7 @@
 // 之后照原样解析正文、判断截断和拒答。流中途的错误事件拼成服务方报错，交给原有的限流和忙碌重发。
 // 首发不主动请求流式，这里只认、只拼。
 import { PROTOCOLS, type Protocol } from "./endpoint.ts";
+import { providerText } from "./text.ts";
 
 export type StreamAssembly =
   // complete 为 false：流没有正常收尾（连接断了），data 只是收到的那部分；data 为 null 表示一个事件也没认出来。
@@ -20,7 +21,7 @@ type Payload = Record<string, unknown>;
 
 const SSE_FIELD = /^(?:(?:data|event|id|retry)[ \t]*:|:)/;
 const EVENT_STREAM_TYPE = /\btext\/event-stream\b/i;
-const STREAM_ERROR_MESSAGE = "服务在返回途中报了错。";
+const STREAM_ERROR_MESSAGE = providerText().streamError;
 
 /** 按响应类型或正文开头认事件流。正文是 JSON 就按 JSON，哪怕响应类型写的是事件流。 */
 export function looksLikeEventStream(contentType: string | null | undefined, head: string): boolean {

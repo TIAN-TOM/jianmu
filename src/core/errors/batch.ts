@@ -16,3 +16,17 @@ export const BATCH_ERROR_TEXT: Readonly<Record<BatchErrorCode, ErrorCopy>> = {
     next: "开了新视频的话，再点一次「本窗口全部生成」重新清点。",
   },
 };
+
+export const BATCH_ERROR_TEXT_EN: Readonly<Record<BatchErrorCode, ErrorCopy>> = {
+  TRIAGE_LIST_CLEARED: {
+    cause: "The triage list is gone. It was never loaded, has been cleared, or is more than 30 days old.",
+    impact: "This step didn't start, so it didn't use any API credit.",
+    next: "Click “Load my Watch Later” to load it again first.",
+  },
+  BATCH_RUNNING: { cause: "The previous batch is still running or finishing up.", impact: "No new batch was started.", next: "Wait for it to finish, then click again." },
+  BATCH_NOT_COUNTED: {
+    cause: "There are no videos that need generating.",
+    impact: "Nothing started, so this didn't use any API credit.",
+    next: "If you've opened new videos, click “Generate all in this window” again to check.",
+  },
+};

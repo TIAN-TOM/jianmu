@@ -184,3 +184,51 @@ test("别的扩展存储变化、会话存储变化不动菜单；菜单还没�
   await app.onStorageChanged({ [SETTINGS_STORAGE_KEY]: { oldValue: enabled(), newValue: enabled({ inPageCard: true }) } }, "session");
   assert.equal(fake.menuItems.get(ACTION_MENU.inPageCard)?.checked, false);
 });
+
+// 菜单的文字跟着语言设置：浏览器的界面语言另外给，替身默认没有，按中文。
+function setupIn(settings: Record<string, unknown>, uiLanguage: string) {
+  const fake = createFakeChrome({ local: { [SETTINGS_STORAGE_KEY]: settings }, manifest: { content_scripts: TEMPLATE_SCRIPTS }, urlTabs: { 7: watchUrl() } });
+  const app = createApp({ ...fake.deps({ warn() {}, error() {} }), uiLanguage: () => uiLanguage });
+  fake.chrome.storage.onChanged.addListener(((changes: never, area: never) => void app.onStorageChanged(changes, area)) as never);
+  const titles = () => [...fake.menuItems.values()].map(({ title }) => title);
+  return { fake, app, titles };
+}
+
+const ZH_TITLES = ["稍后再看粗筛", "在视频右侧显示总结卡片", "打开视频就生成概览和结论（每个视频都花 API 额度）"];
+
+test("菜单的文字：选英文就是英文，跟随浏览器时看浏览器的界面语言，没给界面语言按中文", async () => {
+  for (const [language, uiLanguage, english] of [["en", "zh-CN", true], ["zh", "en-AU", false], ["auto", "en-AU", true], ["auto", "zh-TW", false]] as const) {
+    const { app, titles } = setupIn(enabled({ language }), uiLanguage);
+    await app.onInstalled("install");
+    const shown = titles();
+    assert.equal(shown.length, 3);
+    if (english) {
+      assert.deepEqual(shown, ["Watch Later triage", "Show the summary card beside the video", "Write an overview and verdict when I open a video (uses API credit for every video)"]);
+      for (const title of shown) assert.doesNotMatch(title, /[\u4e00-\u9fff]/, `${language}/${uiLanguage}`);
+    } else {
+      assert.deepEqual(shown, ZH_TITLES, `${language}/${uiLanguage}`);
+    }
+  }
+  const { app, fake } = setup(enabled({ language: "auto" }));
+  await app.onInstalled("install");
+  assert.deepEqual([...fake.menuItems.values()].map(({ title }) => title), ZH_TITLES);
+});
+
+test("设置里的语言改了，菜单按新语言重建，勾选照旧；别的设置变了不重建", async () => {
+  const { fake, app, titles } = setupIn(enabled({ language: "zh", inPageCard: false, autoOverview: true }), "zh-CN");
+  await app.onInstalled("install");
+  assert.deepEqual(titles(), ZH_TITLES);
+  const current = () => fake.local.data[SETTINGS_STORAGE_KEY] as Record<string, unknown>;
+  await fake.local.set({ [SETTINGS_STORAGE_KEY]: { ...current(), language: "en" } });
+  // 重建是先清掉再逐项建，等三项都建好。
+  assert.ok(await until(() => titles().length === 3 && titles()[2]?.startsWith("Write an overview") === true));
+  assert.equal(titles()[0], "Watch Later triage");
+  assert.equal(fake.menuItems.get(ACTION_MENU.inPageCard)?.checked, false);
+  assert.equal(fake.menuItems.get(ACTION_MENU.autoOverview)?.checked, true);
+
+  await fake.local.set({ [SETTINGS_STORAGE_KEY]: { ...current(), language: "auto" } });
+  assert.ok(await until(() => titles().length === 3 && titles()[2] === ZH_TITLES[2]), "跟随浏览器，浏览器是中文");
+  await fake.local.set({ [SETTINGS_STORAGE_KEY]: { ...current(), inPageCard: true } });
+  assert.ok(await until(() => fake.menuItems.get(ACTION_MENU.inPageCard)?.checked === true));
+  assert.deepEqual(titles(), ZH_TITLES);
+});

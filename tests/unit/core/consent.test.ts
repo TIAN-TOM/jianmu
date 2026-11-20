@@ -87,7 +87,7 @@ function makeTransport(fetchImpl: AiFetch, overrides: Partial<AiTransportDeps> =
 }
 
 function item<Kind extends string>(kind: Kind, id: string, text = `${id} 的说明`): NoticeItem<Kind> {
-  return { kind, id, text };
+  return { kind, id, text, en: `${id} notice` };
 }
 
 const ids = (items: readonly NoticeItem<string>[]): string[] => items.map(({ id }) => id);
@@ -405,7 +405,7 @@ test("说明更新时只列新增的内容：同意过第 1 版的，升到第 2
 test("只列新增的内容时，并显示指向的那一条不在这组里就单列，用自己的措辞", () => {
   const table: NoticeTable<"category"> = [
     { version: 1, items: [item("category", "video-title", "视频标题")] },
-    { version: 2, items: [{ kind: "category", id: "video-duration", text: "视频时长", shownWith: { id: "video-title", combined: "视频标题和时长" } }] },
+    { version: 2, items: [{ kind: "category", id: "video-duration", text: "视频时长", en: "Video length", shownWith: { id: "video-title", combined: "视频标题和时长", combinedEn: "Video title and length" } }] },
   ];
   const [first] = versionStamps(table);
   const fromFirst = noticeStatus(table, first ?? {});
@@ -454,11 +454,11 @@ test("并显示只能指向同一张表里排在它前面、同一类的条目�
 });
 
 test("加上或去掉并显示的写法，指纹都不变", () => {
-  const plain = DATA_CONSENT_TABLE.map((row) => ({ ...row, items: row.items.map(({ kind, id, text }) => ({ kind, id, text })) }));
+  const plain = DATA_CONSENT_TABLE.map((row) => ({ ...row, items: row.items.map(({ kind, id, text, en }) => ({ kind, id, text, en })) }));
   assert.deepEqual(versionStamps(plain), versionStamps(DATA_CONSENT_TABLE));
   const extra: NoticeTable<string> = DATA_CONSENT_TABLE.map((row) => ({
     ...row,
-    items: row.items.map((entry) => (entry.id === "selection" ? { ...entry, shownWith: { id: "question", combined: "选中的文字和问题" } } : entry)),
+    items: row.items.map((entry) => (entry.id === "selection" ? { ...entry, shownWith: { id: "question", combined: "选中的文字和问题", combinedEn: "Selected text and questions" } } : entry)),
   }));
   assert.deepEqual(versionStamps(extra), versionStamps(DATA_CONSENT_TABLE));
 });

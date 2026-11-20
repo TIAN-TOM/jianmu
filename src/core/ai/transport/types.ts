@@ -1,5 +1,6 @@
 // 传输层对外的形状：注入的依赖、入参、结果和错误。
 import type { StoredDataConsent } from "../../consent.ts";
+import type { OutputLang } from "../../output-lang.ts";
 import type { Effort } from "../../notes/records.ts";
 import type {
   AiSettings,
@@ -32,6 +33,8 @@ export interface AiErrorLike {
   readonly code?: string | undefined;
   readonly status?: number | undefined;
   readonly message?: string | undefined;
+  /** 简幕自己写的说明的英文，见 provider/text.ts。 */
+  readonly messageEn?: string | undefined;
   readonly noAutoRetry?: boolean | undefined;
 }
 
@@ -86,8 +89,8 @@ export type AiFetch = (url: string, init: AiFetchInit) => Promise<TransportRespo
  * 所以 normalize、dataConsentVersion 和 dataConsentFingerprint 是必需的，建传输层时会查。
  */
 export interface TransportSettingsRules {
-  /** 配置是否足以发起一次请求，errors 是给用户看的提示。 */
-  readonly validate: (settings: AiSettings) => { readonly ok: boolean; readonly errors: readonly string[] };
+  /** 配置是否足以发起一次请求，errors 是给用户看的提示，按 lang 写，不传时是中文。 */
+  readonly validate: (settings: AiSettings, lang?: OutputLang) => { readonly ok: boolean; readonly errors: readonly string[] };
   /** 规整一份设置，这里只读其中用户确认过的数据说明版本和指纹。 */
   readonly normalize: (settings: AiSettings) => StoredDataConsent;
   /** 把 aiModel 换成这项功能实际要用的模型，没有选过就原样返回。 */
@@ -168,6 +171,8 @@ export interface CompletionRequest {
    * 硬超时按传输层建的时候给的，任务的传输层按冻结的档位给（见后台的 forTask）。
    */
   readonly effort?: Effort | undefined;
+  /** 限流后重发时给进度条的那句话用哪种语言，不传时是中文。报错的说明两种语言都带着，到显示的地方再挑。 */
+  readonly lang?: OutputLang | undefined;
 }
 
 export interface CompletionResult {
@@ -195,7 +200,7 @@ export interface AiTransport {
     onActivity: () => void,
     options?: { readonly lenient?: boolean },
   ) => Promise<unknown>;
-  readonly aiErrorResponse: (error: unknown) => AiErrorResponse;
+  readonly aiErrorResponse: (error: unknown, lang?: OutputLang) => AiErrorResponse;
   readonly throwIfTaskCanceled: (signal: AbortSignal | undefined) => void;
   readonly taskCanceledError: () => TransportError;
 }

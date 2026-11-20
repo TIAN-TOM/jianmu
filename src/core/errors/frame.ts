@@ -36,3 +36,24 @@ export const FRAME_ERROR_TEXT: Readonly<Record<FrameErrorCode, ErrorCopy>> = {
     next: "到设置页「按功能选模型」里给画面分析换一个能看图的模型。",
   },
 };
+
+const NOT_SENT_EN = "The frame wasn't sent.";
+
+export const FRAME_ERROR_TEXT_EN: Readonly<Record<FrameErrorCode, ErrorCopy>> = {
+  FRAME_NO_VIDEO: { cause: "There's no video on the page.", impact: NOT_SENT_EN, next: "Wait for the video to appear, then click again." },
+  FRAME_AD_PLAYING: { cause: "An ad is playing.", impact: NOT_SENT_EN, next: "Wait for the ad to finish, then click again." },
+  FRAME_VIDEO_CHANGED: { cause: "The video on the page has changed, or is still changing.", impact: NOT_SENT_EN, next: "Wait for the new video to start playing, then click again." },
+  FRAME_NOT_READY: { cause: "The picture hasn't loaded yet.", impact: NOT_SENT_EN, next: "Wait until the video shows a picture, then click again." },
+  FRAME_PROTECTED: { cause: "This video uses protected playback, or Jianmu can't tell whether it does.", impact: "Jianmu doesn't capture protected video, so the frame wasn't sent." },
+  FRAME_UNREADABLE: { cause: "The browser won't let Jianmu read this video's picture.", impact: NOT_SENT_EN },
+  FRAME_NOT_FOREGROUND: { cause: "The video page isn't the active tab.", impact: NOT_SENT_EN, next: "Switch back to the video page, then click again." },
+  FRAME_UNREACHABLE: { cause: "The video page isn't connected to Jianmu yet.", impact: NOT_SENT_EN, next: "Refresh the video page, then click again." },
+  FRAME_BAD_CAPTURE: { cause: "The captured frame looked wrong, so Jianmu didn't use it.", impact: NOT_SENT_EN, next: "Click again." },
+  FRAME_RATE_LIMITED: { cause: "Too many clicks in one minute.", impact: NOT_SENT_EN, next: "Wait a moment, then click again." },
+  FRAME_INTERRUPTED: { cause: "Jianmu's background process stopped partway, so the explanation wasn't finished.", impact: "If the request was already sent, it may still be billed.", next: "Click again." },
+  AI_IMAGE_UNSUPPORTED: {
+    cause: "The model used for frame analysis can't read images.",
+    impact: "No result this time.",
+    next: "Under “Models per feature” in settings, choose a model that can read images for frame analysis.",
+  },
+};

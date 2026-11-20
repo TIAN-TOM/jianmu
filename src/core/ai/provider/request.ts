@@ -3,6 +3,7 @@ import { apiVersionFor, claudeRequestTraits, isOfficialAnthropic, THINKING_BETWE
 import { chatCompletionsUrl, modelsUrl, PROTOCOLS } from "./endpoint.ts";
 import { isOpenAiReasoningModel, openAiModelTraits, vendorExtras } from "./openai.ts";
 import { isMessageParts, withProtocolContent } from "./parts.ts";
+import { bothLangs, withEnglish } from "./text.ts";
 import type { ResponseSchema } from "../schemas.ts";
 import type {
   AiSettings,
@@ -122,6 +123,12 @@ function buildResponsesBody({
  * 用部件写的消息补在最后一个文字部件之后。
  */
 const JSON_MENTION = "请只输出 JSON。";
+
+// 地址拼不出请求时给用户的说明，两种语言都带上。
+function badBaseUrl(): Error {
+  const { message, messageEn } = bothLangs((text) => text.baseUrlBad);
+  return withEnglish(new Error(message), messageEn);
+}
 const MENTIONS_JSON = /\bjson\b/i;
 
 function withJsonMention(input: readonly ChatMessage[]): readonly ChatMessage[] {
@@ -156,7 +163,7 @@ export function buildChatRequest({
   effort = null,
 }: ChatRequestInput): ChatRequest {
   const url = chatCompletionsUrl(settings);
-  if (!url) throw new Error("API 地址不合法，请到设置页检查。");
+  if (!url) throw badBaseUrl();
 
   if (settings.protocol === PROTOCOLS.ANTHROPIC) {
     const split = splitSystemMessages(messages);
@@ -279,7 +286,7 @@ export function buildModelsRequest(
   { limit, afterId }: { limit?: number; afterId?: string } = {},
 ): ModelsRequest {
   let url = modelsUrl(settings);
-  if (!url) throw new Error("API 地址不合法，请到设置页检查。");
+  if (!url) throw badBaseUrl();
   if (settings.protocol === PROTOCOLS.ANTHROPIC) {
     const query = new URLSearchParams();
     if (limit) query.set("limit", String(limit));

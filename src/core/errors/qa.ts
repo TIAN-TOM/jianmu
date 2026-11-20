@@ -18,3 +18,19 @@ export const QA_ERROR_TEXT: Readonly<Record<QaErrorCode, ErrorCopy>> = {
   },
   EMPTY_SELECTION: { cause: "没有选中任何文字。", next: "先在字幕里选中要解释的文字。" },
 };
+
+export const QA_ERROR_TEXT_EN: Readonly<Record<QaErrorCode, ErrorCopy>> = {
+  EMPTY_QUESTION: { cause: "The question is empty.", next: "Type a question first." },
+  QUESTION_TOO_LONG: { cause: "The question is longer than 2,000 characters.", impact: "It wasn't sent, so no API credit was used.", next: "Shorten it and ask again." },
+  QA_INPUT_TOO_LONG: {
+    cause: "The subtitles are too long for this model. Jianmu sent less, but the service still rejected it.",
+    impact: "No answer this time.",
+    next: "Under “Models per feature” in settings, choose a model with a longer context for Q&A, or make your question more specific.",
+  },
+  QA_PARSE_FAILED: {
+    cause: "The model didn't answer in the expected format, so the answer couldn't be read.",
+    impact: "No answer this time, but the request was sent and may still be billed.",
+    next: "Try again. If it keeps happening, choose a different model for Q&A under “Models per feature” in settings.",
+  },
+  EMPTY_SELECTION: { cause: "No text is selected.", next: "Select the text you want explained in the subtitles first." },
+};

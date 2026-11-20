@@ -1,5 +1,6 @@
 // 带密钥的请求：模型调用、模型能力、设置页的测试连接和模型列表共用这几条约定。
 import { errorBodyOf, parseErrorMessage } from "./response.ts";
+import { bothLangs, withEnglish } from "./text.ts";
 import type { AiSettings, ProviderError } from "./types.ts";
 
 /**
@@ -26,9 +27,8 @@ export function isRedirectResponse(response: RedirectProbe | null | undefined): 
 export function rejectRedirect(response: RedirectProbe | null | undefined, baseUrl: string | undefined): void {
   if (!isRedirectResponse(response)) return;
   Promise.resolve(response?.body?.cancel?.()).catch(() => {});
-  const error: ProviderError = new Error(
-    `${baseUrl} 把请求重定向到了别的地址。为了不把 API 密钥带过去，扩展不跟随重定向。请在设置页把 API 地址改成服务实际使用的地址。`,
-  );
+  const { message, messageEn } = bothLangs((text) => text.redirected(String(baseUrl)));
+  const error: ProviderError = withEnglish(new Error(message), messageEn);
   error.code = "AI_REDIRECT_BLOCKED";
   throw error;
 }
@@ -46,9 +46,6 @@ export function redactSecret(text: unknown, secret: unknown): string {
 // Anthropic 的个人密钥创建时可以不限定工作区，这种密钥的每个请求都要带 anthropic-workspace-id，
 // 不带就回 400。扩展没有这个设置项，只能请用户换一把限定了工作区的密钥。
 const WORKSPACE_REQUIRED = /not scoped to a workspace|anthropic-workspace-id/i;
-const WORKSPACE_REQUIRED_MESSAGE =
-  "这把 Anthropic 密钥没有限定工作区，每个请求都要另带工作区 ID，本扩展不支持。"
-  + "请在 Claude Console 新建一把密钥，创建时选定一个工作区（例如 Default），再填到设置页。";
 
 interface ParamBody {
   readonly error?: { readonly param?: string };
@@ -66,7 +63,8 @@ export function keyedHttpError(
   const secret = settings?.aiApiKey;
   const raw = redactSecret(parseErrorMessage(data, status), secret);
   if (status === 400 && WORKSPACE_REQUIRED.test(raw)) {
-    const error: ProviderError = new Error(WORKSPACE_REQUIRED_MESSAGE);
+    const { message, messageEn } = bothLangs((text) => text.workspaceRequired);
+    const error: ProviderError = withEnglish(new Error(message), messageEn);
     error.status = status;
     error.code = "ANTHROPIC_WORKSPACE_REQUIRED";
     return error;

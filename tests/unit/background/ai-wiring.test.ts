@@ -11,6 +11,7 @@ import * as CAPS from "../../../src/core/ai/capabilities.ts";
 import { PROTOCOLS } from "../../../src/core/ai/provider/index.ts";
 import type { CompletionRequest, TransportError } from "../../../src/core/ai/transport/index.ts";
 import { createClearGuard } from "../../../src/core/clear-guard.ts";
+import * as CONSENT from "../../../src/core/consent.ts";
 import { DATA_CONSENT_ERROR } from "../../../src/core/consent.ts";
 import type { FrozenGen } from "../../../src/core/tasks.ts";
 import { createLocks } from "../../../src/platform/locks.ts";
@@ -643,4 +644,23 @@ test("模型服务的失败带上服务的原话；鉴权失败、取消不带",
   assert.equal(AI.aiFailure(http(400, "unsupported parameter: sample")).code, "AI_REQUEST_FAILED");
   assert.equal("said" in AI.aiFailure(http(401, "Incorrect API key provided: sk-test-abcd****wxyz")), false);
   assert.equal("said" in AI.aiFailure(Object.assign(new Error("任务已取消。"), { code: "TASK_CANCELED" })), false);
+});
+
+test("设置页拉模型列表、测试连接失败时的说明跟着语言设置：选英文是英文，不选还是原来的中文", async () => {
+  const unconsented = { ...DEEPSEEK, dataConsentVersion: 0, dataConsentFingerprint: "" };
+  for (const [language, english] of [["en", true], ["zh", false], ["auto", false]] as const) {
+    const { ask } = setup({ ...keyedStorage({ ...unconsented, language }, DEEPSEEK_ORIGIN), handler: () => chatReply("不该发出") });
+    const listed = (await ask("models.list", senders.options())) as { code?: string; detail?: string };
+    assert.equal(listed.code, "NO_DATA_CONSENT");
+    const tested = (await ask("ai.testConnection", senders.options())) as { code?: string; detail?: string };
+    assert.equal(tested.code, "NO_AI_CONFIG");
+    if (english) {
+      assert.equal(listed.detail, CONSENT.DATA_CONSENT_ERROR_EN);
+      assert.match(tested.detail ?? "", /^The AI service isn't set up yet: /);
+      assert.doesNotMatch(tested.detail ?? "", /[\u4e00-\u9fff]/);
+    } else {
+      assert.equal(listed.detail, DATA_CONSENT_ERROR, language);
+      assert.equal(tested.detail, `AI 还没配置好：${DATA_CONSENT_ERROR}`, language);
+    }
+  }
 });

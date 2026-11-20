@@ -166,7 +166,7 @@ test("发行包：条目变了仍然要重新确认、重新同意，没同意�
   assert.deepEqual(release.routeStale, { calls: ["toPages", "toTabs", "reinject"], state: "current", unreachable: [7] }, "发行包照常广播、补注入");
 });
 
-const item = <Kind extends string>(kind: Kind, id: string): NoticeItem<Kind> => ({ kind, id, text: id });
+const item = <Kind extends string>(kind: Kind, id: string): NoticeItem<Kind> => ({ kind, id, text: id, en: id });
 
 const TABLE: NoticeTable<"read"> = [
   { version: 1, items: [item("read", "a")] },

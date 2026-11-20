@@ -19,6 +19,7 @@ import type { OverviewResultView } from "../../../shared/messages/overview.ts";
 import type { TranscriptView } from "../../../shared/messages/transcript.ts";
 import { aiFailure } from "../../ai.ts";
 import { errorLabel, type Log } from "../../log.ts";
+import { progressText } from "../../progress-text.ts";
 import type { OverviewStore } from "../../stores/overviews.ts";
 import type { TaskRun } from "../../tasks.ts";
 import type { TranscriptService } from "../transcript/index.ts";
@@ -220,11 +221,12 @@ export function createGenerator(deps: GenerateDeps) {
         if (!chunks.length) return fail("NO_TRANSCRIPT");
         const common = commonOf(view);
         const totalDuration = totalOf(view, chunks);
-        run.progress({ done: 0, total: chunks.length, phase: "generating", message: `正在生成第 0/${chunks.length} 块` });
+        const say = progressText(outputLangOf(run.gen));
+        run.progress({ done: 0, total: chunks.length, phase: "generating", message: say.overviewChunk(0, chunks.length) });
         const results = await analyzePlannedChunks(chunkDeps(job), chunks, chunks.length, common, {
           run,
           phase: "generating",
-          label: (done, total) => `正在生成第 ${done}/${total} 块`,
+          label: say.overviewChunk,
           retryPartialOnly: true,
           onChunkDone: previewReporter(chunks, totalDuration, run.signal, (analysis, done, total) =>
             deps.broadcast({ type: "overview.preview", video: job.video, taskId: job.taskId, analysis, done, total }),
@@ -240,7 +242,7 @@ export function createGenerator(deps: GenerateDeps) {
           return await savePartial(job, fieldsOf(job, view), mergeChunks(chunks, results, totalDuration), remaining, basisOf(view), counts);
         }
         if (!parts.length) return allFailed(results);
-        run.progress({ done: chunks.length, total: chunks.length, phase: "merging", message: "正在合并概览…" });
+        run.progress({ done: chunks.length, total: chunks.length, phase: "merging", message: say.merging });
         const analysis = mergeChunks(chunks, results, totalDuration);
         if (!analysis.chapters?.length && !analysis.keyQuotes?.length) return fail("EMPTY_ANALYSIS");
         const finishing = { fields: fieldsOf(job, view), analysis, failures: remaining, basis: basisOf(view), common, totalDuration, chunkCount: chunks.length, regenerating, conclude: true };
@@ -278,11 +280,12 @@ export function createGenerator(deps: GenerateDeps) {
         if (!selected.length) return fail("FAILED_CHUNKS_MISMATCH");
         const common = commonOf(view);
         const totalDuration = totalOf(view, chunks);
-        run.progress({ done: 0, total: selected.length, phase: "retrying", message: `正在补第 0/${selected.length} 个失败块` });
+        const say = progressText(outputLangOf(run.gen));
+        run.progress({ done: 0, total: selected.length, phase: "retrying", message: say.refillChunk(0, selected.length) });
         const results = await analyzePlannedChunks(chunkDeps(job), selected, chunks.length, common, {
           run,
           phase: "retrying",
-          label: (done, total) => `正在补第 ${done}/${total} 个失败块`,
+          label: say.refillChunk,
           retryPartialOnly: false,
         });
         const parts = partsOf(results);
@@ -303,7 +306,7 @@ export function createGenerator(deps: GenerateDeps) {
           if (!parts.length || dataCleared(job)) return fail("TASK_CANCELED");
           return await savePartial(job, fieldsOf(job, view), analysis, remaining, basisOf(view), { saved: parts.length, chunks: selected.length });
         }
-        run.progress({ done: selected.length, total: selected.length, phase: "merging", message: remaining.length ? "失败块仍未全部补上" : "正在合并概览…" });
+        run.progress({ done: selected.length, total: selected.length, phase: "merging", message: remaining.length ? say.refillIncomplete : say.merging });
         const finishing = { fields: fieldsOf(job, view), analysis, failures: remaining, basis: basisOf(view), common, totalDuration, chunkCount: selected.length, regenerating: false, conclude: parts.length > 0 };
         const done = await finish(job, finishing);
         return done.ok ? ok({ ...done.value, recoveredChunks: parts.length }) : done;

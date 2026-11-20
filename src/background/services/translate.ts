@@ -15,7 +15,7 @@ import type { ClearEpoch, ClearGuard } from "../../core/clear-guard.ts";
 import { mapWithConcurrency } from "../../core/concurrency.ts";
 import { fail, ok, type Result } from "../../core/errors.ts";
 import type { Basis, Derived, TranscriptRef } from "../../core/notes/records.ts";
-import type { OutputLang } from "../../core/output-lang.ts";
+import { outputLangOf, type OutputLang } from "../../core/output-lang.ts";
 import type { FrozenGen, TaskOrigin, TaskView } from "../../core/tasks.ts";
 import { textFingerprint } from "../../core/transcript/fingerprint.ts";
 import type { TranscriptSegment } from "../../core/transcript/segment.ts";
@@ -24,6 +24,7 @@ import type { TextPurpose, TextTarget, TranslateFailure, TranslateOut } from "..
 import { AI_CONCURRENCY } from "../../shared/settings-schema.ts";
 import { pauseReasonOf } from "./auto-generate.ts";
 import { errorLabel, type Log } from "../log.ts";
+import { progressText } from "../progress-text.ts";
 import { bare, failureOf, fromPlayback, genInfo, parseFailed, targetOf, tidiedOf, videoOfUrl, waitOrStop } from "./translate-parts.ts";
 
 export { targetOf };
@@ -273,7 +274,8 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
     };
     if (run.signal.aborted) stopRequests();
     else run.signal.addEventListener("abort", stopRequests, { once: true });
-    const label = (done: number, total: number): string => `正在处理第 ${done}/${total} 批`;
+    const say = progressText(outputLangOf(run.gen));
+    const label = (done: number, total: number): string => say.translateBatch(done, total);
     run.progress({ done: 0, total: batches.length, phase: "generating", message: label(0, batches.length) });
     // 额度用完、密钥不对：等多久都不会好，后面的批次不再发，在途的一起中止。
     let fatal: unknown;
@@ -299,7 +301,7 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
     const gaps = planTranslationBatches(results.flatMap((result) => (result.status === "fulfilled" ? result.value : [])));
     let unfinished = 0;
     if ((retry.length || gaps.length) && rejected() < batches.length && !run.signal.aborted && fatal === undefined) {
-      run.progress({ phase: "retrying", message: `正在重试 ${retry.length + gaps.length} 批` });
+      run.progress({ phase: "retrying", message: say.translateRetry(retry.length + gaps.length) });
       await waitOrStop(deps.timers, TRANSLATE_RETRY_DELAY_MS, run.signal);
       const again = await mapWithConcurrency([...retry.map((index) => batches[index] ?? []), ...gaps], concurrency, (batch) => one(batch, true));
       retry.forEach((batchIndex, i) => {

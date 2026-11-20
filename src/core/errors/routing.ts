@@ -44,3 +44,35 @@ export const ROUTING_ERROR_TEXT: Readonly<Record<RoutingErrorCode, ErrorCopy>> =
     next: "先别急着重试，过一会儿重新打开这个视频，看看结果有没有存下来。",
   },
 };
+
+const NOT_ABOUT_ACCOUNTS_EN = "This has nothing to do with your video site account, your AI service key or your network.";
+
+export const ROUTING_ERROR_TEXT_EN: Readonly<Record<RoutingErrorCode, ErrorCopy>> = {
+  FORBIDDEN: { cause: "This page can't do that.", impact: "Nothing was done." },
+  UNKNOWN_ROUTE: {
+    cause: "Jianmu's background process is an older version and doesn't recognise this request.",
+    impact: "Nothing was done. Your notes and overviews are safe.",
+    next: "Reload Jianmu and try again.",
+  },
+  NOT_ENABLED: { cause: "Jianmu isn't turned on yet.", impact: "Nothing was read or sent to the model.", next: "Click “Turn on Jianmu” in the side panel or in settings." },
+  INVALID_REQUEST: { cause: "The request wasn't valid.", impact: "It wasn't processed.", next: "Close this page, open it again and try again." },
+  CARD_DISABLED: { cause: "The video page card is turned off in settings.", next: "To use it, turn it on in the “Video page” section of settings, or use the side panel instead." },
+  STORAGE_FULL: {
+    cause: "The browser's storage for extensions is full.",
+    impact: "This wasn't saved. Anything already saved is unaffected.",
+    next: "Click “Clear cache” in settings to free up space, then try again. Notes and overviews are kept.",
+  },
+  BACKGROUND_FAILED: { cause: "Something went wrong in Jianmu's background process.", impact: "This wasn't finished.", next: "Try again later." },
+  BACKGROUND_UNREACHABLE: {
+    cause: "Jianmu's background process didn't respond, so the request wasn't sent.",
+    impact: `Nothing was sent to the model, so no API credit was used. ${NOT_ABOUT_ACCOUNTS_EN}`,
+    next:
+      "Turn Jianmu off and on again on the browser's extensions page. This won't delete your notes or overviews. Then try again. "
+      + "If that doesn't help and you need to reinstall, first click “Export backup” in settings to save a file. Uninstalling deletes all notes and overviews on this computer, and you can bring them back with “Restore backup” after reinstalling.",
+  },
+  BACKGROUND_DROPPED: {
+    cause: "Jianmu's background process disconnected partway through, so no result came back.",
+    impact: `The request may already have reached the model, so anything that uses the model may still be billed. ${NOT_ABOUT_ACCOUNTS_EN}`,
+    next: "Don't retry straight away. Wait a moment, then reopen this video to see whether the result was saved.",
+  },
+};

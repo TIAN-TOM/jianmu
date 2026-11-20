@@ -8,7 +8,7 @@
 // 设置页「拉取模型列表」和后台都会写这份缓存：后台在缓存过期或缺失时自己拉一次，
 // 免得用户没点过拉取就一直用不上能力数据。resolveCapabilities 把三种协议的能力合成同一个形状。
 import { NO_CLEAR_GUARD, type ClearEpoch, type ClearGuard } from "../clear-guard.ts";
-import { dataConsentGiven, type DataConsentRules, type StoredDataConsent } from "../consent.ts";
+import { dataConsentErrorText, dataConsentGiven, type DataConsentRules, type StoredDataConsent } from "../consent.ts";
 import { CAPABILITY_STORAGE_KEY } from "../../shared/names.ts";
 import {
   buildModelsRequest,
@@ -21,6 +21,7 @@ import {
   parseModelsResponse,
   PROTOCOLS,
   rejectRedirect,
+  withEnglish,
   type AiSettings,
   type ClaudeCapabilities,
   type ModelCapabilities,
@@ -396,7 +397,7 @@ export function createJsonGetter(fetchImpl: JsonFetch, timeoutMs = FETCH_TIMEOUT
 export function createConsentGuardedGetter({ getSettings, settingsRules, send }: ConsentGuardDeps): ConsentGuardedSend {
   const guarded: ModelsSend = async (request, settings) => {
     if (!dataConsentGiven(await getSettings(), settingsRules)) {
-      const error: ProviderError = new Error(settingsRules.dataConsentError);
+      const error: ProviderError = withEnglish(new Error(settingsRules.dataConsentError), dataConsentErrorText("en"));
       error.code = "NO_DATA_CONSENT";
       throw error;
     }

@@ -12,3 +12,13 @@ export const TASK_ERROR_TEXT: Readonly<Record<TaskErrorCode, ErrorCopy>> = {
     next: "过一分钟再点，或者点「打开侧边栏」在那里生成。",
   },
 };
+
+export const TASK_ERROR_TEXT_EN: Readonly<Record<TaskErrorCode, ErrorCopy>> = {
+  TASK_NOT_FOUND: { cause: "This task has already finished." },
+  TASK_ALREADY_RUNNING: { cause: "A task is already running for this video.", impact: "Nothing new started, so no API credit was used.", next: "Wait for it to finish, or stop it first and start again." },
+  CARD_RATE_LIMITED: {
+    cause: "Too many generations from the card.",
+    impact: "Nothing was generated, so no API credit was used.",
+    next: "Wait a minute and click again, or click “Open side panel” and generate there.",
+  },
+};

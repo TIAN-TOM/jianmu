@@ -1,20 +1,22 @@
 // 错误码汇总和统一的结果形状。各领域的码和三段文案在 errors/ 下各一份，这里拼成一张表；漏写文案编译就报错。
-import { AI_ERROR_TEXT, type AiErrorCode } from "./errors/ai.ts";
+// 文案中文、英文各一张，取文案的函数最后一个参数是语言，不传时是中文。
+import { AI_ERROR_TEXT, AI_ERROR_TEXT_EN, type AiErrorCode } from "./errors/ai.ts";
 import type { ErrorCopy } from "./errors/copy.ts";
-import { BACKUP_ERROR_TEXT, type BackupErrorCode } from "./errors/backup.ts";
-import { BATCH_ERROR_TEXT, type BatchErrorCode } from "./errors/batch.ts";
-import { DATA_ERROR_TEXT, type DataErrorCode } from "./errors/data.ts";
-import { FRAME_ERROR_TEXT, type FrameErrorCode } from "./errors/frame.ts";
-import { NOTE_ERROR_TEXT, type NoteErrorCode } from "./errors/notes.ts";
-import { OVERVIEW_ERROR_TEXT, type OverviewErrorCode } from "./errors/overview.ts";
-import { QA_ERROR_TEXT, type QaErrorCode } from "./errors/qa.ts";
-import { ROUTING_ERROR_TEXT, type RoutingErrorCode } from "./errors/routing.ts";
-import { SESSION_ERROR_TEXT, type SessionErrorCode } from "./errors/session.ts";
-import { SETTINGS_ERROR_TEXT, type SettingsErrorCode } from "./errors/settings.ts";
-import { SITE_DETAIL_TEXT, SITE_ERROR_TEXT, type SiteErrorCode } from "./errors/site.ts";
-import { TASK_ERROR_TEXT, type TaskErrorCode } from "./errors/tasks.ts";
-import { TRANSCRIPT_DETAIL_TEXT, TRANSCRIPT_ERROR_TEXT, type TranscriptErrorCode } from "./errors/transcript.ts";
-import { TRANSLATE_ERROR_TEXT, type TranslateErrorCode } from "./errors/translate.ts";
+import { BACKUP_ERROR_TEXT, BACKUP_ERROR_TEXT_EN, type BackupErrorCode } from "./errors/backup.ts";
+import { BATCH_ERROR_TEXT, BATCH_ERROR_TEXT_EN, type BatchErrorCode } from "./errors/batch.ts";
+import { DATA_ERROR_TEXT, DATA_ERROR_TEXT_EN, type DataErrorCode } from "./errors/data.ts";
+import { FRAME_ERROR_TEXT, FRAME_ERROR_TEXT_EN, type FrameErrorCode } from "./errors/frame.ts";
+import { NOTE_ERROR_TEXT, NOTE_ERROR_TEXT_EN, type NoteErrorCode } from "./errors/notes.ts";
+import { OVERVIEW_ERROR_TEXT, OVERVIEW_ERROR_TEXT_EN, type OverviewErrorCode } from "./errors/overview.ts";
+import { QA_ERROR_TEXT, QA_ERROR_TEXT_EN, type QaErrorCode } from "./errors/qa.ts";
+import { ROUTING_ERROR_TEXT, ROUTING_ERROR_TEXT_EN, type RoutingErrorCode } from "./errors/routing.ts";
+import { SESSION_ERROR_TEXT, SESSION_ERROR_TEXT_EN, type SessionErrorCode } from "./errors/session.ts";
+import { SETTINGS_ERROR_TEXT, SETTINGS_ERROR_TEXT_EN, type SettingsErrorCode } from "./errors/settings.ts";
+import { SITE_DETAIL_TEXT, SITE_DETAIL_TEXT_EN, SITE_ERROR_TEXT, SITE_ERROR_TEXT_EN, type SiteErrorCode } from "./errors/site.ts";
+import { TASK_ERROR_TEXT, TASK_ERROR_TEXT_EN, type TaskErrorCode } from "./errors/tasks.ts";
+import { TRANSCRIPT_DETAIL_TEXT, TRANSCRIPT_DETAIL_TEXT_EN, TRANSCRIPT_ERROR_TEXT, TRANSCRIPT_ERROR_TEXT_EN, type TranscriptErrorCode } from "./errors/transcript.ts";
+import { TRANSLATE_ERROR_TEXT, TRANSLATE_ERROR_TEXT_EN, type TranslateErrorCode } from "./errors/translate.ts";
+import type { OutputLang } from "./output-lang.ts";
 
 export type {
   ErrorCopy,
@@ -87,19 +89,42 @@ const TEXT = {
   ...(FEATURE_FRAME_EXPLAIN ? FRAME_ERROR_TEXT : {}),
 } as Readonly<Record<ErrorCode, ErrorCopy>>;
 
-const DETAIL_TEXT: Readonly<Partial<Record<ErrorCode, Readonly<Record<string, ErrorCopy>>>>> = { ...SITE_DETAIL_TEXT, ...TRANSCRIPT_DETAIL_TEXT };
+// 英文那张，和中文那张一样拼；画面的码同样只在开关分支里。
+const TEXT_EN = {
+  ...SITE_ERROR_TEXT_EN,
+  ...SETTINGS_ERROR_TEXT_EN,
+  ...ROUTING_ERROR_TEXT_EN,
+  ...AI_ERROR_TEXT_EN,
+  ...TASK_ERROR_TEXT_EN,
+  ...SESSION_ERROR_TEXT_EN,
+  ...TRANSCRIPT_ERROR_TEXT_EN,
+  ...DATA_ERROR_TEXT_EN,
+  ...OVERVIEW_ERROR_TEXT_EN,
+  ...QA_ERROR_TEXT_EN,
+  ...NOTE_ERROR_TEXT_EN,
+  ...TRANSLATE_ERROR_TEXT_EN,
+  ...BACKUP_ERROR_TEXT_EN,
+  ...BATCH_ERROR_TEXT_EN,
+  ...(FEATURE_FRAME_EXPLAIN ? FRAME_ERROR_TEXT_EN : {}),
+} as Readonly<Record<ErrorCode, ErrorCopy>>;
 
-/** 给用户看的三段：原因、影响、下一步。有的码按 detail 换说法，认不出的 detail 用码本身的说法。 */
-export function errorCopy(code: ErrorCode, detail?: string): ErrorCopy {
-  const byDetail = DETAIL_TEXT[code];
-  if (detail !== undefined && byDetail && Object.hasOwn(byDetail, detail)) return byDetail[detail] ?? TEXT[code];
-  return TEXT[code];
+type DetailText = Readonly<Partial<Record<ErrorCode, Readonly<Record<string, ErrorCopy>>>>>;
+
+const DETAIL_TEXT: DetailText = { ...SITE_DETAIL_TEXT, ...TRANSCRIPT_DETAIL_TEXT };
+const DETAIL_TEXT_EN: DetailText = { ...SITE_DETAIL_TEXT_EN, ...TRANSCRIPT_DETAIL_TEXT_EN };
+
+/** 给用户看的三段：原因、影响、下一步。有的码按 detail 换说法，认不出的 detail 用码本身的说法。不传语言时是中文。 */
+export function errorCopy(code: ErrorCode, detail?: string, lang: OutputLang = "zh"): ErrorCopy {
+  const text = lang === "en" ? TEXT_EN : TEXT;
+  const byDetail = (lang === "en" ? DETAIL_TEXT_EN : DETAIL_TEXT)[code];
+  if (detail !== undefined && byDetail && Object.hasOwn(byDetail, detail)) return byDetail[detail] ?? text[code];
+  return text[code];
 }
 
-/** 三段拼成的一段话，给只放得下一段文字的地方。 */
-export function describe(code: ErrorCode, detail?: string): string {
-  const { cause, impact = "", next = "" } = errorCopy(code, detail);
-  return cause + impact + next;
+/** 三段拼成的一段话，给只放得下一段文字的地方。英文的句子之间隔一个空格。不传语言时是中文。 */
+export function describe(code: ErrorCode, detail?: string, lang: OutputLang = "zh"): string {
+  const { cause, impact = "", next = "" } = errorCopy(code, detail, lang);
+  return lang === "en" ? [cause, impact, next].filter(Boolean).join(" ") : cause + impact + next;
 }
 
 /** 码在不在这张表里：从消息或存储里读出来的码要先过它。 */

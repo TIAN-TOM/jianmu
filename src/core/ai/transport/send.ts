@@ -9,9 +9,11 @@ import {
   rejectRedirect,
   type ChatRequest,
   type Protocol,
+  withEnglish,
 } from "../provider/index.ts";
 import { parseErrorEnvelope, parseResponseEnvelope, streamFailureStatus } from "./envelope.ts";
 import { taskCanceledError } from "./errors.ts";
+import { transportBoth } from "./text.ts";
 import { BUSY_RETRY_MAX_WAIT_MS, BUSY_RETRY_STATUSES, MODEL_UNAVAILABLE, QUOTA_EXHAUSTED, retryAfterMsOf } from "./policy.ts";
 import type { AiFetch, SendSettings, TransportError, TransportResponse } from "./types.ts";
 
@@ -113,22 +115,21 @@ export function createAiSender({
         throw taskCanceledError();
       }
       if (timeoutKind === "idle") {
-        const timeout: TransportError = new Error("响应传到一半断了，请重试。");
+        const { message, messageEn } = transportBoth((text) => text.idleTimeout);
+        const timeout: TransportError = withEnglish(new Error(message), messageEn);
         timeout.code = "AI_IDLE_TIMEOUT";
         throw timeout;
       }
       if (timeoutKind === "hard") {
-        const timeout: TransportError = new Error(
-          `请求超过 ${Math.round(timeoutMs / 1000)} 秒上限，可能是服务繁忙或这一段太长。概览可以在设置页把「概览分块」改成「较短」再试。`,
-        );
+        const { message, messageEn } = transportBoth((text) => text.hardTimeout(Math.round(timeoutMs / 1000)));
+        const timeout: TransportError = withEnglish(new Error(message), messageEn);
         timeout.code = "AI_HARD_TIMEOUT";
         throw timeout;
       }
       // fetch 对跨域被拒和网络不通都只抛笼统的 TypeError，给一句能指导下一步的提示。
       if (error instanceof TypeError) {
-        const network: TransportError = new Error(
-          `连不上 ${settings.aiBaseUrl}。请检查地址是否正确、服务是否在运行，以及是否已在设置页授权。`,
-        );
+        const { message, messageEn } = transportBoth((text) => text.network(String(settings.aiBaseUrl)));
+        const network: TransportError = withEnglish(new Error(message), messageEn);
         network.code = "AI_NETWORK_ERROR";
         throw network;
       }
@@ -175,7 +176,8 @@ export function createAiSender({
       bytes += value?.byteLength ?? 0;
       if (bytes > maxResponseBytes) {
         await reader.cancel?.().catch(() => {});
-        const error: TransportError = new Error("响应超过 2 MiB 上限。");
+        const { message, messageEn } = transportBoth((text) => text.tooLarge);
+        const error: TransportError = withEnglish(new Error(message), messageEn);
         error.code = "AI_RESPONSE_TOO_LARGE";
         throw error;
       }
