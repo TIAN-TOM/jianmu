@@ -2,6 +2,8 @@
 // 形状带信息，颜色只是第二层，色弱和黑白截图下也分得清。档位名照数据写，这里只认现有的几档。
 import { verdictLabelOf } from "../../../core/ai/verdict.ts";
 import { onOldTranscript, type Basis, type OverviewTranscriptBasis } from "../../../core/notes/records.ts";
+import { sharedTextOf } from "../text.ts";
+import type { UiLang } from "../ui-lang.ts";
 
 export type MarkShape = "go" | "fair" | "skip" | "unknown" | "square";
 
@@ -22,23 +24,18 @@ export function markOf(label: string | null | undefined): MarkShape | null {
   return MARKS[verdictLabelOf(label)] ?? null;
 }
 
-/** 档位显示的名字：旧版改了名的显示新名字，「看概览就够」照旧。 */
-export function labelOf(label: string | null | undefined): string {
-  return verdictLabelOf(label);
+/** 档位显示的名字：旧版改了名的显示新名字，「看概览就够」照旧，按语言换成显示名；认不出的档位是空串。 */
+export function labelOf(label: string | null | undefined, lang: UiLang = "zh"): string {
+  const known = verdictLabelOf(label);
+  const names: Readonly<Record<string, string>> = sharedTextOf(lang).verdict.names;
+  return known ? (names[known] ?? known) : "";
 }
 
 export type BasisSource = Basis["source"];
 
-const BASIS_TEXT: Readonly<Record<BasisSource, string>> = Object.freeze({
-  transcript: "依据字幕",
-  "official-summary": "依据 B 站官方总结，没有通读字幕",
-  "title-description": "依据标题和简介",
-  "legacy-unknown": "依据未知（旧版）",
-});
-
 /** 依据行：结论按实际依据标注。 */
-export function basisText(source: BasisSource): string {
-  return BASIS_TEXT[source];
+export function basisText(source: BasisSource, lang: UiLang = "zh"): string {
+  return sharedTextOf(lang).verdict.basis[source];
 }
 
 /**

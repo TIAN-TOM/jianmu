@@ -357,7 +357,7 @@ const FRAME_SHARED = ["current-frame", "解释当前画面", "FRAME_PROTECTED", 
 const FRAME_MARKERS: Readonly<Record<string, readonly string[]>> = {
   "build/content/bilibili.js": ["requestVideoFrameCallback", "convertToBlob", "player.captureFrame", "解释当前画面", "frame.explainHere", "src/content/frame", "画面受保护"],
   "build/background.js": [...FRAME_SHARED, "prompts/study/frame-explain.md", "study/frame-explain.md", "frame.explain", "src/background/image-support", "src/background/services/frame-explain"],
-  "build/pages/sidepanel.js": [...FRAME_SHARED, "frame.recent", "解释画面", "正在请模型看图"],
+  "build/pages/sidepanel.js": [...FRAME_SHARED, "frame.recent", "解释画面", "正在请模型看图", "Explain frame"],
   "build/pages/options.js": [...FRAME_SHARED, "ai.probeImage", "能不能看图", "Frame analysis", "Check image support"],
 };
 
@@ -383,7 +383,7 @@ test("解释当前画面首发带上：发行构建的包里有截帧代码、�
 // YouTube 挂在开关下的内容：地址规则、内容脚本的注册、侧边栏和设置页的启用按钮、内容脚本本身。
 const YOUTUBE_MARKERS: Readonly<Record<string, readonly string[]>> = {
   "build/background.js": ["www.youtube.com", "jianmu-youtube", "content/youtube.js", "content/youtube-bridge.js", "src/background/site-switch", "youtube.panel", "panel-shape", "src/sites/youtube/service", "src/sites/youtube/page/panel-types"],
-  "build/pages/sidepanel.js": ["www.youtube.com", "在 YouTube 上启用", "src/pages/shared/youtube-access"],
+  "build/pages/sidepanel.js": ["www.youtube.com", "在 YouTube 上启用", "Turn on for YouTube", "src/pages/shared/youtube-access"],
   "build/pages/options.js": ["www.youtube.com", "在 YouTube 上启用", "Turn on for YouTube", "src/pages/options/youtube-section"],
 };
 
@@ -434,7 +434,7 @@ test("YouTube 的内容脚本：两个开关都打开时有截帧代码和解释
 // 沿用同意只在开发者本人的日用包里：两份说明的条目变了照旧算数，侧边栏顶上说一句说明更新了。
 const CARRY_MARKERS: Readonly<Record<string, readonly string[]>> = {
   "build/background.js": ["src/core/consent-carry", "src/shared/settings-carry"],
-  "build/pages/sidepanel.js": ["src/pages/sidepanel/carried", "CarriedList", "说明更新了，多了几项", "看看多了什么"],
+  "build/pages/sidepanel.js": ["src/pages/sidepanel/carried", "CarriedList", "说明更新了，多了几项", "看看多了什么", "See what's new"],
   "build/pages/options.js": ["src/core/consent-carry"],
 };
 

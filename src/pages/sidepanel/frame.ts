@@ -6,6 +6,8 @@ import { describe } from "../../core/errors.ts";
 import type { VideoKey } from "../../core/video-ref.ts";
 import type { FrameEntryView } from "../../shared/messages/frame.ts";
 import type { PageApi } from "../shared/api.ts";
+import type { UiLang } from "../shared/ui-lang.ts";
+import { frameText } from "./frame-text.ts";
 
 export interface FrameTarget {
   readonly tabId: number | null;
@@ -25,9 +27,11 @@ export interface FrameStoreDeps {
   readonly api: Pick<PageApi, "send" | "on">;
   readonly target: ReadonlySignal<FrameTarget>;
   readonly enabled: ReadonlySignal<boolean>;
+  /** 回给用户的话用哪种语言写，缺省中文。 */
+  readonly lang?: () => UiLang;
 }
 
-export function createFrameStore({ api, target, enabled }: FrameStoreDeps): FrameStore {
+export function createFrameStore({ api, target, enabled, lang = () => "zh" }: FrameStoreDeps): FrameStore {
   const all = signal<readonly FrameEntryView[]>([]);
   const dismissed = signal<ReadonlySet<string>>(new Set());
   let generation = 0;
@@ -65,7 +69,7 @@ export function createFrameStore({ api, target, enabled }: FrameStoreDeps): Fram
     }),
     async explain() {
       const { tabId, video } = target.peek();
-      if (tabId === null || video === null) return "先打开一个视频";
+      if (tabId === null || video === null) return frameText(lang()).noVideo;
       const reply = await api.send("frame.explain", { tabId, video });
       if (!reply.ok) return describe(reply.code, reply.detail);
       void reload();

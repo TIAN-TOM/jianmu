@@ -3,6 +3,8 @@
 import type { ComponentChildren } from "preact";
 import { Badge } from "./button.tsx";
 import { VerdictMark } from "./icon.tsx";
+import { sharedText } from "../text.ts";
+import { uiLang } from "../ui-lang.ts";
 import { basisText, labelOf, markOf, type BasisSource } from "./verdict.ts";
 
 export interface VerdictBlockProps {
@@ -22,16 +24,18 @@ export interface VerdictBlockProps {
 export function StaleTranscriptLine() {
   return (
     <p class="verdict-basis">
-      <Badge tone="line">基于旧字幕</Badge>
+      <Badge tone="line">{sharedText().verdict.stale}</Badge>
     </p>
   );
 }
 
 export function VerdictBlock({ label, text, basis, staleTranscript = false, incomplete = false, menu }: VerdictBlockProps) {
+  const t = sharedText().verdict;
+  const lang = uiLang.value;
   const shape = markOf(label);
-  const name = shape ? labelOf(label) : "";
+  const name = shape ? labelOf(label, lang) : "";
   return (
-    <section class="verdict" aria-label="一句话结论" data-shape={shape ?? undefined}>
+    <section class="verdict" aria-label={t.label} data-shape={shape ?? undefined}>
       <div class="verdict-head">
         {shape ? (
           <span class="verdict-label">
@@ -46,9 +50,9 @@ export function VerdictBlock({ label, text, basis, staleTranscript = false, inco
       <p class="verdict-text">{text}</p>
       {basis || staleTranscript || incomplete ? (
         <p class="verdict-basis">
-          {basis ? <span>{basisText(basis)}</span> : null}
-          {incomplete ? <Badge tone="warn">不完整</Badge> : null}
-          {staleTranscript ? <Badge tone="line">基于旧字幕</Badge> : null}
+          {basis ? <span>{basisText(basis, lang)}</span> : null}
+          {incomplete ? <Badge tone="warn">{t.incomplete}</Badge> : null}
+          {staleTranscript ? <Badge tone="line">{t.stale}</Badge> : null}
         </p>
       ) : null}
     </section>

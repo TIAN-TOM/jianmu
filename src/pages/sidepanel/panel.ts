@@ -7,6 +7,8 @@ import type { Mode } from "../../core/mode/types.ts";
 import type { PageApi } from "../shared/api.ts";
 import { createActivation, type Activation } from "../shared/activation.ts";
 import { createConfigWatch, type ConfigWatch } from "../shared/config.ts";
+import { uiLang } from "../shared/ui-lang.ts";
+import { panelTextOf } from "./text.ts";
 import { createWindowBatch, type WindowBatchStore } from "./batch.ts";
 import { createFollow, type Follow } from "./follow.ts";
 import { createFrameStore, type FrameStore } from "./frame.ts";
@@ -76,14 +78,16 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
   const pageVisible = signal(typeof document === "undefined" || document.visibilityState === "visible");
   const onVisibility = (): void => void (pageVisible.value = document.visibilityState === "visible");
   if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibility);
-  const transcript = createTranscriptStore({ api });
-  const translation = createTranslation({ api });
-  const tidy = createTidy({ api });
+  // 各块回给用户的话按写出来那一刻的界面语言写。
+  const lang = () => uiLang.peek();
+  const transcript = createTranscriptStore({ api, lang });
+  const translation = createTranslation({ api, lang });
+  const tidy = createTidy({ api, lang });
   const overview = createOverviewStore({ api });
-  const notes = createNotesStore({ api });
-  const qa = createQaStore({ api });
-  const batch = createWindowBatch({ api });
-  const frame = FEATURE_FRAME_EXPLAIN ? createFrameStore({ api, target: follow.target, enabled: activation.enabled }) : null;
+  const notes = createNotesStore({ api, lang });
+  const qa = createQaStore({ api, lang });
+  const batch = createWindowBatch({ api, lang });
+  const frame = FEATURE_FRAME_EXPLAIN ? createFrameStore({ api, target: follow.target, enabled: activation.enabled, lang }) : null;
   const qaOpen = signal(false);
   const notesOpen = signal(false);
   const toast = signal<Toast | null>(null);
@@ -181,22 +185,22 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
       const now = transcript.state.peek();
       const info = now.state === "ready" ? now.view.info : now.state === "failed" ? now.failure.info : undefined;
       const remembered = await mode.choose(next, info?.channel?.channelId);
-      if (remembered) say(`已记住：${info?.author ? `${info.author}的视频` : "这个频道的视频"}以后先进${next === "study" ? "精读" : "速览"}`);
+      if (remembered) say(panelTextOf(lang()).remembered(info?.author ?? "", next === "study"));
     },
     async seek(atSec) {
       const { tabId, video } = follow.target.peek();
       if (tabId === null || video === null) return;
       const reply = await player.send(tabId, "player.seek", { video, atSec: Math.max(0, atSec) });
-      if (!reply.ok) say(playerFailureText(reply.code));
+      if (!reply.ok) say(playerFailureText(reply.code, lang()));
     },
     openOptions() {
       void api.send("options.open", {}).then((reply) => {
-        if (!reply.ok) say("打不开设置页，可以在扩展管理里打开简幕的选项。");
+        if (!reply.ok) say(panelTextOf(lang()).optionsFailed);
       });
     },
     openSettingsAt(section) {
       void api.send("options.open", { section }).then((reply) => {
-        if (!reply.ok) say("打不开设置页，可以在扩展管理里打开简幕的选项。");
+        if (!reply.ok) say(panelTextOf(lang()).optionsFailed);
       });
     },
     stop() {

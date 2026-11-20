@@ -20,6 +20,9 @@ import type { Panel } from "./panel.ts";
 import { segmentsBetween } from "./reading.ts";
 import { TranscriptTab } from "./transcript-tab.tsx";
 import { setupReason } from "../shared/config.ts";
+import { sharedText } from "../shared/text.ts";
+import { uiLang } from "../shared/ui-lang.ts";
+import { noteStored, panelText } from "./text.ts";
 
 const BASIS: readonly BasisSource[] = ["transcript", "official-summary", "title-description", "legacy-unknown"];
 
@@ -29,24 +32,25 @@ const NO_CUES: readonly CueView[] = [];
 const text = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
 
 function Quote({ panel, quote }: { readonly panel: Panel; readonly quote: QuotePart }) {
-  const [saved, setSaved] = useState("");
+  const [saved, setSaved] = useState(false);
+  const t = panelText().skim;
   return (
     <li class="quote">
-      <button type="button" class="stamp" aria-label={`跳到 ${formatTimestamp(quote.timestampSeconds)}`} onClick={() => void panel.seek(quote.timestampSeconds)}>
+      <button type="button" class="stamp" aria-label={sharedText().jumpTo(formatTimestamp(quote.timestampSeconds))} onClick={() => void panel.seek(quote.timestampSeconds)}>
         {formatTimestamp(quote.timestampSeconds)}
       </button>
       <span class="quote-text">{quote.quote}</span>
       <Button
         variant="text"
-        disabled={saved !== ""}
+        disabled={saved}
         onClick={() =>
           void panel.notes.save(quote.timestampSeconds, quote.quote).then((result) => {
-            setSaved(result === "已存为笔记" || result.startsWith("这个时间点") ? "已保存" : "");
+            setSaved(noteStored(result));
             panel.say(result);
           })
         }
       >
-        {saved || "存为笔记"}
+        {saved ? t.savedNote : t.saveAsNote}
       </Button>
     </li>
   );
@@ -55,10 +59,10 @@ function Quote({ panel, quote }: { readonly panel: Panel; readonly quote: QuoteP
 function ChapterTranscript({ panel, segments, breaks }: { readonly panel: Panel; readonly segments: readonly TranscriptSegment[]; readonly breaks: ReadonlyMap<string, readonly number[]> }) {
   if (segments.length === 0) return null;
   return (
-    <ol class="chapter-cues" aria-label="这一段的字幕">
+    <ol class="chapter-cues" aria-label={panelText().skim.chapterCues}>
       {segments.map((segment) => (
         <li key={segment.id} class="chapter-cue">
-          <button type="button" class="stamp" aria-label={`跳到 ${formatTimestamp(segment.start)}`} onClick={() => void panel.seek(segment.start)}>
+          <button type="button" class="stamp" aria-label={sharedText().jumpTo(formatTimestamp(segment.start))} onClick={() => void panel.seek(segment.start)}>
             {formatTimestamp(segment.start)}
           </button>
           <span class="chapter-cue-text">
@@ -104,8 +108,8 @@ function Chapters({ panel, analysis, segments, cues }: { readonly panel: Panel; 
         />
       ) : null}
       {loose.length > 0 ? (
-        <section class="guide" aria-label="金句">
-          <h3 class="section-title">金句</h3>
+        <section class="guide" aria-label={panelText().skim.quotes}>
+          <h3 class="section-title">{panelText().skim.quotes}</h3>
           <ul class="quotes">
             {loose.map((quote) => (
               <Quote key={quote.quote} panel={panel} quote={quote} />
@@ -131,15 +135,16 @@ function Verdict({
   readonly stale: boolean;
 }) {
   const { verdictTask } = panel.overview.state.value;
+  const p = panelText();
   const verdict = analysis?.verdict;
   const summary = text(verdict?.summary);
   const source = text(verdict?.source);
   if (verdictTask) {
     return (
       <div class="progress-row" role="status">
-        <span>正在写一句话结论…</span>
+        <span>{p.skim.writingVerdict}</span>
         <Button variant="text" onClick={() => void panel.overview.cancel(verdictTask.id)}>
-          停止
+          {p.stop}
         </Button>
       </div>
     );
@@ -158,8 +163,8 @@ function Verdict({
   if (!canOffer) return null;
   return (
     <div class="verdict-offer">
-      <Button onClick={() => void panel.overview.verdictFromOfficial()} note="只发一次小请求，不通读字幕">
-        用官方总结写结论
+      <Button onClick={() => void panel.overview.verdictFromOfficial()} note={p.skim.verdictFromOfficialNote}>
+        {p.skim.verdictFromOfficial}
       </Button>
     </div>
   );
@@ -179,7 +184,8 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
   const failures = state.saved?.analysisFailures.length ?? 0;
   const hasChapters = Boolean(analysis?.chapters?.length);
   const hasOverview = Boolean(analysis && (hasChapters || analysis.keyQuotes?.length));
-  const notReady = ready ? undefined : setupReason(config);
+  const notReady = ready ? undefined : setupReason(config, uiLang.value);
+  const t = panelText().skim;
   const verdictShown = !state.verdictTask && text(state.saved?.analysis.verdict?.summary) !== "";
   const stale = staleOverviewMarks(state.saved?.transcriptBasis, view?.transcript.ref.fingerprint, verdictShown);
   const seek = (at: number): void => void panel.seek(at);
@@ -206,8 +212,8 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
       },
       videoBaseOf(state.video),
     );
-    if (!markdown) return panel.say("还没有可以导出的内容");
-    downloadText(`${safeFileName(info?.title ?? "", "学习稿")}.md`, markdown, "text/markdown");
+    if (!markdown) return panel.say(t.nothingToExport);
+    downloadText(`${safeFileName(info?.title ?? "", t.studyFile)}.md`, markdown, "text/markdown");
   };
 
   return (
@@ -216,9 +222,9 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
       <Verdict panel={panel} analysis={state.saved?.analysis ?? null} canOffer={ready && official?.status === "ok" && !running} failures={failures} stale={stale.verdict} />
       {running ? (
         <div class="progress-row" role="status">
-          <span>{running.total > 0 ? `正在生成概览 ${running.done}/${running.total} 块` : running.message || "正在生成概览…"}</span>
+          <span>{running.total > 0 ? t.generating(running.done, running.total) : running.message || t.generatingPlain}</span>
           <Button variant="text" onClick={() => void panel.overview.cancel(running.id)}>
-            停止生成
+            {t.stopGenerating}
           </Button>
         </div>
       ) : null}
@@ -228,11 +234,11 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
         </p>
       ) : null}
       {state.error ? <ServiceSaid said={state.errorSaid} /> : null}
-      {state.result?.failedChunks ? <p class="note-line">有 {state.result.failedChunks} 块没生成成功，可以只补这几块。</p> : null}
-      {state.result?.saveFailed ? <p class="note-line">概览已经生成，但没能存进本机。</p> : null}
-      {state.result?.canceled ? <p class="note-line">停在中途，已完成的 {state.result.savedChunks ?? 0} 块存下了。</p> : null}
+      {state.result?.failedChunks ? <p class="note-line">{t.failedChunks(state.result.failedChunks)}</p> : null}
+      {state.result?.saveFailed ? <p class="note-line">{t.saveFailed}</p> : null}
+      {state.result?.canceled ? <p class="note-line">{t.canceled(state.result.savedChunks ?? 0)}</p> : null}
       {hasOverview ? null : guides}
-      <section class="ai-overview" aria-label="模型生成的概览">
+      <section class="ai-overview" aria-label={t.overviewLabel}>
         {stale.chapters && hasOverview && !running ? <StaleTranscriptLine /> : null}
         {analysis && hasOverview ? <Chapters panel={panel} analysis={analysis} segments={view?.transcript.segments ?? NO_SEGMENTS} cues={view?.transcript.cues ?? NO_CUES} /> : null}
         {!running && state.loaded ? (
@@ -240,28 +246,28 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
             {hasChapters ? (
               <>
                 {failures > 0 ? (
-                  <Button onClick={() => void panel.overview.retryFailed()} disabled={!ready} {...(notReady ? { disabledReason: notReady } : {})} note="只补失败的时间段">
-                    补失败块
+                  <Button onClick={() => void panel.overview.retryFailed()} disabled={!ready} {...(notReady ? { disabledReason: notReady } : {})} note={t.retryFailedNote}>
+                    {t.retryFailed}
                   </Button>
                 ) : null}
                 <Button variant="text" onClick={() => void panel.overview.generate(true)} disabled={!ready} {...(notReady ? { disabledReason: notReady } : {})}>
-                  重新生成
+                  {t.regenerate}
                 </Button>
               </>
             ) : (
-              <Button variant="primary" onClick={() => void panel.overview.generate(false)} disabled={!ready || transcript.state !== "ready"} {...(notReady ? { disabledReason: notReady } : transcript.state !== "ready" ? { disabledReason: "要先读到字幕" } : {})} note="把整段字幕交给模型，产出章节和金句">
-                生成概览
+              <Button variant="primary" onClick={() => void panel.overview.generate(false)} disabled={!ready || transcript.state !== "ready"} {...(notReady ? { disabledReason: notReady } : transcript.state !== "ready" ? { disabledReason: t.needTranscript } : {})} note={t.generateNote}>
+                {t.generate}
               </Button>
             )}
             <Button variant="text" onClick={exportLearning}>
-              导出学习稿
+              {t.exportStudy}
             </Button>
           </div>
         ) : null}
       </section>
       {hasOverview ? guides : null}
       {!hasOverview && !running ? (
-        <section class="skim-transcript" aria-label="字幕">
+        <section class="skim-transcript" aria-label={t.transcriptLabel}>
           {/* 速览里的字幕不跟着播放滚动：不然整个侧边栏会被拉过结论和导读。 */}
           <TranscriptTab panel={panel} guides={false} follow={false} />
         </section>

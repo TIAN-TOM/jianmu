@@ -3,6 +3,7 @@
 // 开关由页面的状态决定：Esc 和点遮罩只是请页面关，页面把 open 改成 false 才真的关。
 import type { ComponentChildren } from "preact";
 import { useEffect, useId, useRef } from "preact/hooks";
+import { sharedText } from "../text.ts";
 import { IconButton } from "./button.tsx";
 
 function useModal(open: boolean, onClose: () => void) {
@@ -83,7 +84,7 @@ export function Sheet({ open, title, onClose, children }: SheetProps) {
           <h2 class="overlay-title" id={`${id}-title`}>
             {title}
           </h2>
-          <IconButton icon="close" label="关闭" onClick={onClose} />
+          <IconButton icon="close" label={sharedText().close} onClick={onClose} />
         </header>
         <div class="overlay-content">{children}</div>
       </div>
@@ -105,7 +106,7 @@ export function Layer({ open, title, onClose, actions, children }: LayerProps) {
   return (
     <dialog ref={modal.ref} class="layer" aria-labelledby={`${id}-title`} onCancel={modal.onCancel} onClose={modal.onClose}>
       <header class="overlay-head">
-        <IconButton icon="back" label="返回" onClick={onClose} />
+        <IconButton icon="back" label={sharedText().back} onClick={onClose} />
         <h2 class="overlay-title" id={`${id}-title`}>
           {title}
         </h2>

@@ -2,8 +2,10 @@
 // 章节用模型生成的概览（结论标了重点的这一章前面一个圆点），没有时用 UP 主分段，都没有时不显示这一条。
 import { keyChapterStarts } from "../../core/ai/verdict.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
+import { sharedText } from "../shared/text.ts";
 import type { Panel } from "./panel.ts";
 import { chapterAt } from "./reading.ts";
+import { panelText } from "./text.ts";
 import { TranscriptTab } from "./transcript-tab.tsx";
 
 interface BarChapter {
@@ -39,14 +41,15 @@ function ChapterBar({ panel }: { readonly panel: Panel }) {
   const chapter = chapters[index];
   if (!chapter) return null;
   const time = formatTimestamp(chapter.startSec);
+  const t = panelText().study;
   return (
-    <div class="chapter-bar" aria-label="当前章节">
+    <div class="chapter-bar" aria-label={t.currentChapter}>
       <span class="chapter-bar-count">
         {index + 1}/{chapters.length}
       </span>
-      {chapter.key ? <span class="key-dot" role="img" aria-label="重点" /> : null}
+      {chapter.key ? <span class="key-dot" role="img" aria-label={sharedText().chapters.key} /> : null}
       <span class="chapter-bar-title">{chapter.title || time}</span>
-      <button type="button" class="stamp" aria-label={`跳到这一章开头 ${time}`} onClick={() => void panel.seek(chapter.startSec)}>
+      <button type="button" class="stamp" aria-label={t.jumpToChapter(time)} onClick={() => void panel.seek(chapter.startSec)}>
         {time}
       </button>
     </div>

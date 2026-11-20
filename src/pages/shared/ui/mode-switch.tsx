@@ -1,12 +1,10 @@
 // 模式切换：「速览　精读」两个词组成的单选组，方向键切换，只有选中的那个在 Tab 顺序里。
 import { useRef } from "preact/hooks";
 import type { Mode } from "../../../core/mode/types.ts";
+import { sharedText } from "../text.ts";
 import { rovingTarget } from "./keys.ts";
 
-export const MODE_OPTIONS: readonly { readonly value: Mode; readonly label: string }[] = [
-  { value: "skim", label: "速览" },
-  { value: "study", label: "精读" },
-];
+export const MODE_OPTIONS: readonly Mode[] = ["skim", "study"];
 
 export interface ModeSwitchProps {
   readonly value: Mode;
@@ -15,22 +13,23 @@ export interface ModeSwitchProps {
 
 export function ModeSwitch({ value, onChange }: ModeSwitchProps) {
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
-  const current = MODE_OPTIONS.findIndex((option) => option.value === value);
+  const t = sharedText().modes;
+  const current = MODE_OPTIONS.indexOf(value);
   const onKeyDown = (event: KeyboardEvent): void => {
     const next = rovingTarget(event.key, current, MODE_OPTIONS.length, "both");
     const option = next === null ? undefined : MODE_OPTIONS[next];
     if (next === null || !option) return;
     event.preventDefault();
     buttons.current[next]?.focus();
-    if (option.value !== value) onChange(option.value);
+    if (option !== value) onChange(option);
   };
   return (
-    <div class="modes" role="radiogroup" aria-label="模式" onKeyDown={onKeyDown}>
+    <div class="modes" role="radiogroup" aria-label={t.label} onKeyDown={onKeyDown}>
       {MODE_OPTIONS.map((option, index) => {
-        const checked = option.value === value;
+        const checked = option === value;
         return (
           <button
-            key={option.value}
+            key={option}
             ref={(node) => {
               buttons.current[index] = node;
             }}
@@ -40,10 +39,10 @@ export function ModeSwitch({ value, onChange }: ModeSwitchProps) {
             aria-checked={checked}
             tabIndex={checked ? 0 : -1}
             onClick={() => {
-              if (!checked) onChange(option.value);
+              if (!checked) onChange(option);
             }}
           >
-            {option.label}
+            {t[option]}
           </button>
         );
       })}

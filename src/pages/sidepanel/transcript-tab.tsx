@@ -6,11 +6,11 @@ import { lineBreaks, splitRuns } from "../../core/transcript/lines.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
 import type { TranscriptView } from "../../shared/messages/transcript.ts";
 import { readsOnClick } from "./transcript.ts";
-import { OPEN_READ_HINT } from "./open-transcript.ts";
+import { openReadHint } from "./open-transcript.ts";
 
-const MANUAL_READ_HINT = "先在视频页上打开文字稿，等文字出来，再点读取。简幕只读文字稿里已经显示的内容。";
+const manualReadHint = (lang: UiLang): string => panelTextOf(lang).transcript.manualReadHint;
 // 关掉代开开关的构建里没有代开文字稿，说明让用户自己打开。
-const READ_HINT = FEATURE_YOUTUBE_OPEN_PANEL ? OPEN_READ_HINT : MANUAL_READ_HINT;
+const readHint = FEATURE_YOUTUBE_OPEN_PANEL ? openReadHint : manualReadHint;
 import { Button, IconButton } from "../shared/ui/button.tsx";
 import { Icon } from "../shared/ui/icon.tsx";
 import { Menu, type MenuItem } from "../shared/ui/menu.tsx";
@@ -22,10 +22,10 @@ import { downloadText, safeFileName } from "./files.ts";
 import { CreatorChapters, OfficialSummary } from "./guides.tsx";
 import type { Panel } from "./panel.ts";
 import { activeIndex, explainable, linesOf, mainBreaks, refreshLang, srtOf } from "./reading.ts";
-import type { TranscriptMode } from "./translate.ts";
 import { setupReason } from "../shared/config.ts";
-
-const MODE_LABEL: Readonly<Record<TranscriptMode, string>> = { original: "原文", translated: "译文", bilingual: "双语" };
+import { uiLang, type UiLang } from "../shared/ui-lang.ts";
+import { sharedText } from "../shared/text.ts";
+import { panelText, panelTextOf } from "./text.ts";
 
 function Highlighted({ text, query, breaks = [] }: { readonly text: string; readonly query: string; readonly breaks?: readonly number[] }) {
   const parts = splitMatches(text, query);
@@ -67,10 +67,11 @@ function ImportInput({ panel, inputRef }: { readonly panel: Panel; readonly inpu
 function ExplainSheet({ panel }: { readonly panel: Panel }) {
   const explain = panel.qa.explain.value;
   const open = explain.phase !== "idle";
+  const t = panelText().transcript;
   return (
-    <Sheet open={open} title={explain.selection ? `解释：${explain.selection}` : "解释"} onClose={() => panel.qa.closeExplain()}>
+    <Sheet open={open} title={explain.selection ? t.explainTitle(explain.selection) : t.explain} onClose={() => panel.qa.closeExplain()}>
       <p class="explain-body" data-phase={explain.phase} aria-live="polite">
-        {explain.phase === "running" ? "正在请模型解释…" : explain.text}
+        {explain.phase === "running" ? t.explaining : explain.text}
       </p>
       {explain.phase === "failed" ? <ServiceSaid said={explain.said} /> : null}
     </Sheet>
@@ -81,43 +82,46 @@ function Toolbar({ panel, view, onSearch, searching, onImport }: { readonly pane
   const { translation, transcript, follow } = panel;
   const mode = translation.mode.value;
   const position = panel.player.position.value;
+  const p = panelText();
+  const t = p.transcript;
+  const modeLabel = t.modes;
   const modeItems: MenuItem[] = (["original", "translated", "bilingual"] as const).map((item) => ({
-    label: MODE_LABEL[item],
-    ...(item === mode ? { hint: "正在用" } : item !== "original" ? { hint: "会请模型翻译没译过的段落，要用 API 额度；关掉侧边栏也会译完" } : {}),
+    label: modeLabel[item],
+    ...(item === mode ? { hint: p.inUse } : item !== "original" ? { hint: t.translateHint } : {}),
     onSelect: () => translation.setMode(item, position?.atSec),
   }));
   const exportSrt = (): void => {
     const text = srtOf(view.transcript.segments, view.transcript.cues, view.info.durationSec, mode, translation.lines.peek(), tidiedOf(panel));
-    downloadText(`${safeFileName(view.info.title, "字幕")}.srt`, text, "application/x-subrip");
+    downloadText(`${safeFileName(view.info.title, t.file)}.srt`, text, "application/x-subrip");
   };
   const copyAll = (): void => {
     const text = view.transcript.segments.map((segment) => `[${formatTimestamp(segment.start)}] ${linesOf(segment, mode, translation.lines.peek(), tidiedOf(panel)).main}`).join("\n");
     void navigator.clipboard.writeText(text).then(
-      () => panel.say("已复制全部字幕"),
-      () => panel.say("没能复制，浏览器拒绝了剪贴板"),
+      () => panel.say(t.copied),
+      () => panel.say(t.copyFailed),
     );
   };
   const moreItems: MenuItem[] = [
     {
-      label: "重新读取字幕",
-      hint: "不看本机缓存",
+      label: t.reload,
+      hint: t.reloadHint,
       // 导入的字幕不点名语言：点名语言会改读平台的字幕轨，绕过导入的文件。官方总结附带的字幕不是平台列出的哪一条轨，也不点名。
       // YouTube 读的是面板当前显示的那一轨，用户可能在面板里换过语言：不点名上次的语言。
       onSelect: () =>
         void transcript.load(view.video, follow.target.peek().tabId, { ...(refreshLang(view.transcript) && !readsOnClick(view.video) ? { lang: view.transcript.ref.lang } : {}), fresh: true }),
     },
-    { label: "复制全部字幕", onSelect: copyAll },
-    { label: "导出 SRT", hint: `内容跟着${MODE_LABEL[mode]}视图`, onSelect: exportSrt },
-    { label: "导入字幕文件", hint: "SRT 或 VTT，只存在这台电脑上", onSelect: onImport },
-    ...(view.transcript.fileName ? [{ label: "移除导入的字幕", hint: "换回视频网站的字幕", onSelect: () => void transcript.removeImport().then(panel.say) }] : []),
+    { label: t.copyAll, onSelect: copyAll },
+    { label: t.exportSrt, hint: t.exportSrtHint(modeLabel[mode]), onSelect: exportSrt },
+    { label: t.importFile, hint: t.importHint, onSelect: onImport },
+    ...(view.transcript.fileName ? [{ label: t.removeImport, hint: t.removeImportHint, onSelect: () => void transcript.removeImport().then(panel.say) }] : []),
   ];
   return (
     <div class="toolbar">
-      <span class="toolbar-count">共 {view.transcript.segments.length} 段</span>
+      <span class="toolbar-count">{t.segments(view.transcript.segments.length)}</span>
       <span class="toolbar-actions">
-        <Menu label="字幕视图" icon="chevron" text={MODE_LABEL[mode]} items={modeItems} />
-        <IconButton icon="search" label="搜索字幕" pressed={searching} onClick={onSearch} />
-        <Menu label="更多字幕操作" items={moreItems} />
+        <Menu label={t.view} icon="chevron" text={modeLabel[mode]} items={modeItems} />
+        <IconButton icon="search" label={t.search} pressed={searching} onClick={onSearch} />
+        <Menu label={t.more} items={moreItems} />
       </span>
     </div>
   );
@@ -136,6 +140,8 @@ function TidyRow({ panel, segments }: { readonly panel: Panel; readonly segments
   const { phase, done, total, message, said } = panel.tidy.state.value;
   const count = Object.keys(panel.tidy.lines.value).length;
   const show = panel.tidy.show.value;
+  const p = panelText();
+  const t = p.transcript;
   const start = (): void => {
     const position = panel.player.position.peek();
     panel.tidy.start(position?.atSec);
@@ -143,29 +149,29 @@ function TidyRow({ panel, segments }: { readonly panel: Panel; readonly segments
   if (phase === "running") {
     return (
       <div class="progress-row" role="status">
-        <span>{total > 0 ? `正在整理字幕 ${done}/${total} 段，关掉侧边栏也会继续` : "正在整理字幕…"}</span>
+        <span>{total > 0 ? t.tidying(done, total) : t.tidyingPlain}</span>
         <Button variant="text" onClick={() => panel.tidy.stopRunning()}>
-          停止
+          {p.stop}
         </Button>
       </div>
     );
   }
   const ready = panel.config.state.value.state === "checked" && panel.config.state.value.view.ready;
-  const reason = ready ? undefined : setupReason(panel.config.state.value);
+  const reason = ready ? undefined : setupReason(panel.config.state.value, uiLang.value);
   return (
     <div class="tidy-row">
       {count === 0 ? (
-        <Button onClick={start} disabled={!ready} {...(reason ? { disabledReason: reason } : {})} note="补标点、改同音错字，要用 API 额度；长视频大约和翻译一遍差不多。点了会整理完，关掉侧边栏也继续">
-          整理字幕
+        <Button onClick={start} disabled={!ready} {...(reason ? { disabledReason: reason } : {})} note={t.tidyNote}>
+          {t.tidy}
         </Button>
       ) : (
         <>
           <Button variant="text" onClick={() => panel.tidy.setShow(!show)}>
-            {show ? "看原始字幕" : "看整理后的字幕"}
+            {show ? t.showOriginal : t.showTidied}
           </Button>
           {count < segments ? (
             <Button variant="text" onClick={start} disabled={!ready} {...(reason ? { disabledReason: reason } : {})}>
-              接着整理
+              {t.continueTidy}
             </Button>
           ) : null}
         </>
@@ -180,11 +186,12 @@ function TranslateRow({ panel }: { readonly panel: Panel }) {
   const { phase, done, total, message, said } = panel.translation.state.value;
   if (panel.translation.mode.value === "original" && phase !== "running") return null;
   if (phase === "running") {
+    const p = panelText();
     return (
       <div class="progress-row" role="status">
-        <span>{total > 0 ? `正在翻译 ${done}/${total} 段，关掉侧边栏也会继续` : "正在翻译…"}</span>
+        <span>{total > 0 ? p.transcript.translating(done, total) : p.transcript.translatingPlain}</span>
         <Button variant="text" onClick={() => panel.translation.stopRunning()}>
-          停止
+          {p.stop}
         </Button>
       </div>
     );
@@ -214,6 +221,9 @@ function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: 
   const at = position?.video === view.video ? position.atSec : null;
   const active = activeIndex(segments, at);
   const needle = query.trim();
+  const p = panelText();
+  const t = p.transcript;
+  const jumpTo = sharedText().jumpTo;
   const shown = needle ? segments.filter((segment) => { const { main, sub } = linesOf(segment, mode, translated, tidied); return hasMatch(splitMatches(`${main}\n${sub}`, needle)); }) : segments;
 
   useEffect(() => {
@@ -240,8 +250,8 @@ function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: 
       <ImportInput panel={panel} inputRef={fileInput} />
       {searching ? (
         <div class="search-row">
-          <input class="search-input" type="search" placeholder="搜索字幕（原文和译文都会搜）" aria-label="搜索字幕" value={query} autoFocus onInput={(event) => setQuery(event.currentTarget.value)} />
-          <span class="search-count">{needle ? `${shown.length} 处` : ""}</span>
+          <input class="search-input" type="search" placeholder={t.searchPlaceholder} aria-label={t.search} value={query} autoFocus onInput={(event) => setQuery(event.currentTarget.value)} />
+          <span class="search-count">{needle ? t.matches(shown.length) : ""}</span>
         </div>
       ) : null}
       <TranslateRow panel={panel} />
@@ -252,7 +262,7 @@ function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: 
           const { main, sub } = linesOf(segment, mode, translated, tidied);
           return (
             <li key={segment.id} class="cue" data-index={index} data-active={index === active ? "true" : undefined}>
-              <button type="button" class="cue-time" aria-label={`跳到 ${formatTimestamp(segment.start)}`} onClick={() => void panel.seek(segment.start)}>
+              <button type="button" class="cue-time" aria-label={jumpTo(formatTimestamp(segment.start))} onClick={() => void panel.seek(segment.start)}>
                 {formatTimestamp(segment.start)}
               </button>
               <p class="cue-text">
@@ -269,16 +279,16 @@ function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: 
         {pick ? (
           <li class="explain-pick" style={{ top: `${pick.top}px` }}>
             <Button variant="primary" onClick={() => { setPick(null); void panel.qa.explainSelection(pick.text, pick.context); }}>
-              解释
+              {t.explain}
             </Button>
           </li>
         ) : null}
       </ol>
-      {needle && shown.length === 0 ? <p class="empty-line">没有找到「{needle}」</p> : null}
+      {needle && shown.length === 0 ? <p class="empty-line">{p.notFound(needle)}</p> : null}
       {!following && at !== null ? (
         <button type="button" class="follow-pill" onClick={() => setFollowing(true)}>
           <Icon name="target" />
-          <span>回到当前句</span>
+          <span>{t.backToCurrent}</span>
         </button>
       ) : null}
       <ExplainSheet panel={panel} />
@@ -290,10 +300,12 @@ function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: 
 export function TranscriptTab({ panel, guides = true, follow = true }: { readonly panel: Panel; readonly guides?: boolean; readonly follow?: boolean }) {
   const now = panel.transcript.state.value;
   const fileInput = useRef<HTMLInputElement>(null);
+  const p = panelText();
+  const t = p.transcript;
   if (now.state === "idle" || now.state === "loading") {
     return (
       <div class="loading" role="status">
-        <p class="loading-title">正在读取字幕…</p>
+        <p class="loading-title">{t.loading}</p>
         <span class="ske-line" />
         <span class="ske-line" />
         <span class="ske-line" />
@@ -306,10 +318,10 @@ export function TranscriptTab({ panel, guides = true, follow = true }: { readonl
     return (
       <>
         <StateBlock
-          title="读取这个视频的字幕"
-          impact={READ_HINT}
-          primary={{ label: "读取字幕", onClick: () => void panel.transcript.load(video, panel.follow.target.peek().tabId) }}
-          secondary={[{ label: "导入字幕文件", onClick: () => fileInput.current?.click() }]}
+          title={t.readTitle}
+          impact={readHint(uiLang.value)}
+          primary={{ label: t.read, onClick: () => void panel.transcript.load(video, panel.follow.target.peek().tabId) }}
+          secondary={[{ label: t.importFile, onClick: () => fileInput.current?.click() }]}
         />
         <ImportInput panel={panel} inputRef={fileInput} />
       </>
@@ -323,9 +335,9 @@ export function TranscriptTab({ panel, guides = true, follow = true }: { readonl
       <>
         <StateBlock
           {...copy}
-          {...(guided ? { impact: `${copy.impact ?? ""}下面是视频网站给的导读。` } : {})}
-          primary={{ label: "重试", onClick: () => void panel.transcript.load(video, panel.follow.target.peek().tabId, { fresh: true }) }}
-          secondary={[{ label: "导入字幕文件", onClick: () => fileInput.current?.click() }]}
+          {...(guided ? { impact: t.guided(copy.impact ?? "") } : {})}
+          primary={{ label: p.retry, onClick: () => void panel.transcript.load(video, panel.follow.target.peek().tabId, { fresh: true }) }}
+          secondary={[{ label: t.importFile, onClick: () => fileInput.current?.click() }]}
         />
         <ImportInput panel={panel} inputRef={fileInput} />
         {guides ? <OfficialSummary official={failure.official} onSeek={(at) => void panel.seek(at)} /> : null}

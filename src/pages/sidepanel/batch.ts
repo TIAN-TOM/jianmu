@@ -6,6 +6,8 @@ import type { VideoKey } from "../../core/video-ref.ts";
 import type { PortEvent } from "../../shared/messages.ts";
 import type { WindowCountItem, WindowEntryView, WindowRunView } from "../../shared/messages/batch.ts";
 import type { PagePort, PageApi } from "../shared/api.ts";
+import type { UiLang } from "../shared/ui-lang.ts";
+import { panelTextOf } from "./text.ts";
 
 export type BatchPhase =
   | { readonly phase: "idle" }
@@ -32,6 +34,8 @@ export interface WindowBatchDeps {
   readonly api: Pick<PageApi, "connect">;
   /** 侧边栏所在的窗口。 */
   readonly windowId?: () => Promise<number | null>;
+  /** 说明用哪种语言写，缺省中文。 */
+  readonly lang?: () => UiLang;
 }
 
 const IDLE: BatchPhase = { phase: "idle" };
@@ -40,27 +44,21 @@ const IDLE: BatchPhase = { phase: "idle" };
 export const RETRYABLE: ReadonlySet<WindowEntryView["status"]> = new Set(["failed", "canceled"]);
 
 /** 确认前的说明：本窗口有几个视频、跳过几个、要新生成几个。 */
-export function confirmText(items: readonly WindowCountItem[]): string {
-  if (!items.length) return "本窗口没有打开的视频。";
-  const head = confirmHead(items);
+export function confirmText(items: readonly WindowCountItem[], lang: UiLang = "zh"): string {
+  const t = panelTextOf(lang).batch;
+  if (!items.length) return t.empty;
+  const head = confirmHead(items, lang);
   const openEach = items.filter((item) => item.state === "open-each").length;
   if (!openEach) return head;
-  return head ? `${head}另有 ${openEach} 个 YouTube 视频需逐个打开，在视频页上点读取字幕。` : `本窗口的 ${openEach} 个 YouTube 视频需逐个打开，在视频页上点读取字幕。`;
+  return t.openEach(openEach, head);
 }
 
-function confirmHead(all: readonly WindowCountItem[]): string {
+function confirmHead(all: readonly WindowCountItem[], lang: UiLang): string {
   const items = all.filter((item) => item.state !== "open-each");
   if (!items.length) return "";
   const existing = items.filter((item) => item.state === "existing").length;
   const running = items.filter((item) => item.state === "running").length;
-  const todo = items.length - existing - running;
-  const head = `本窗口有 ${items.length} 个视频`;
-  const skipped = [existing ? `${existing} 个已有概览` : "", running ? `${running} 个正在生成` : ""].filter(Boolean);
-  if (!todo) return `${head}，${skipped.join("、")}，没有要新生成的。`;
-  const fresh = `要新生成 ${todo} 个。`;
-  if (!skipped.length) return `${head}，${fresh}`;
-  if (skipped.length === 1) return `${head}，跳过 ${skipped[0]}的，${fresh}`;
-  return `${head}，跳过 ${existing + running} 个（${skipped.join("、")}），${fresh}`;
+  return panelTextOf(lang).batch.head(items.length, existing, running, items.length - existing - running);
 }
 
 export interface Counts {
@@ -92,28 +90,17 @@ export function countsOf(run: WindowRunView): Counts {
 /** 这一批还有没开始或者正在生成的。 */
 export const busyOf = (run: WindowRunView): boolean => run.entries.some((entry) => entry.status === "pending" || entry.status === "running");
 
-const STOP_TEXT: Readonly<Record<NonNullable<WindowRunView["stop"]>, string>> = {
-  "rate-limited": "被 B 站限流，后面的没再读，过几分钟再单独重试。",
-  "need-login": "B 站说要先登录，后面的没再读，登录后再单独重试。",
-  source: "B 站回的内容读不懂，后面的没再读，过一阵再单独重试。",
-};
-
 /** 进度那一行。 */
-export function progressText(run: WindowRunView): string {
+export function progressText(run: WindowRunView, lang: UiLang = "zh"): string {
+  const t = panelTextOf(lang).batch;
   const counts = countsOf(run);
-  const total = counts.total - counts.skipped;
-  const parts = [`本窗口：已完成 ${counts.completed} / ${total}`];
-  if (counts.partial) parts.push(`其中 ${counts.partial} 个不完整`);
-  if (counts.failed) parts.push(`失败 ${counts.failed}`);
-  if (counts.canceled) parts.push(`已停止 ${counts.canceled}`);
-  if (counts.skipped) parts.push(`跳过 ${counts.skipped}`);
-  const text = parts.join("，");
-  return run.stop ? `${text}。${STOP_TEXT[run.stop]}` : text;
+  const text = t.progress({ ...counts, total: counts.total - counts.skipped });
+  return run.stop ? t.withStop(text, t.stop[run.stop]) : text;
 }
 
 const realWindowId = (): Promise<number | null> => chrome.windows.getCurrent().then((win) => win.id ?? null, () => null);
 
-export function createWindowBatch({ api, windowId: readWindowId = realWindowId }: WindowBatchDeps): WindowBatchStore {
+export function createWindowBatch({ api, windowId: readWindowId = realWindowId, lang = () => "zh" }: WindowBatchDeps): WindowBatchStore {
   const state = signal<BatchPhase>(IDLE);
   const error = signal("");
   let port: PagePort<"batch"> | null = null;
@@ -150,7 +137,7 @@ export function createWindowBatch({ api, windowId: readWindowId = realWindowId }
     port = null;
     if (!enabled) return;
     // 后台被回收或重新加载：这一批在后台已经没了，界面回到能重新开始的样子。
-    if (state.peek().phase !== "idle") error.value = `这一批停下了。${describe(code)}`;
+    if (state.peek().phase !== "idle") error.value = panelTextOf(lang()).batch.stopped(describe(code));
     state.value = IDLE;
   }
 

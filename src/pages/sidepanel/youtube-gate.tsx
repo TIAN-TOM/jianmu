@@ -4,14 +4,14 @@
 import { useEffect, useMemo, useState } from "preact/hooks";
 import { createYoutubeAccess } from "../shared/youtube-access.ts";
 import { StateBlock } from "../shared/ui/state-block.tsx";
+import { uiLang } from "../shared/ui-lang.ts";
 import type { Panel } from "./panel.ts";
-
-const TITLE = "打开一个 B 站或 YouTube 视频";
-const READY = "在视频播放页打开侧边栏，就能读字幕、生成概览、提问和记笔记。";
+import { youtubeText } from "./youtube-text.ts";
 
 export function YoutubeNoVideo({ panel }: { readonly panel: Panel }) {
   const access = useMemo(() => createYoutubeAccess(), []);
-  const [failed, setFailed] = useState<string | null>(null);
+  const [failed, setFailed] = useState<"declined" | "noPrompt" | null>(null);
+  const t = youtubeText(uiLang.value);
   const granted = access.granted.value;
   useEffect(() => () => access.stop(), [access]);
   // 在别处启用了（设置页、扩展管理页），也重新认一次当前标签页。
@@ -19,7 +19,7 @@ export function YoutubeNoVideo({ panel }: { readonly panel: Panel }) {
     if (granted) void panel.follow.refresh();
   }, [granted]);
 
-  if (granted !== false) return <StateBlock title={TITLE} impact={READY} />;
+  if (granted !== false) return <StateBlock title={t.title} impact={t.ready} />;
   const enable = (): void => {
     // 授权框要在点击里直接弹，前面不能有等待。
     void access.enable().then((outcome) => {
@@ -27,20 +27,20 @@ export function YoutubeNoVideo({ panel }: { readonly panel: Panel }) {
         setFailed(null);
         void panel.follow.refresh();
       } else if (outcome === "declined") {
-        setFailed("没有授权，YouTube 上暂时用不了。授权框没弹出来的话，到设置页启用。");
+        setFailed("declined");
       } else {
-        setFailed("这里弹不出授权框，请到设置页启用。");
+        setFailed("noPrompt");
         panel.openSettingsAt("youtube");
       }
     });
   };
   return (
     <StateBlock
-      title={TITLE}
-      impact="B 站视频页直接能用。YouTube 要先启用，简幕才读得到它的页面。"
-      {...(failed ? { next: failed } : {})}
-      primary={{ label: "在 YouTube 上启用", onClick: enable }}
-      {...(failed ? { secondary: [{ label: "到设置页启用", onClick: () => panel.openSettingsAt("youtube") }] } : {})}
+      title={t.title}
+      impact={t.impact}
+      {...(failed ? { next: t[failed] } : {})}
+      primary={{ label: t.enable, onClick: enable }}
+      {...(failed ? { secondary: [{ label: t.toSettings, onClick: () => panel.openSettingsAt("youtube") }] } : {})}
     />
   );
 }
