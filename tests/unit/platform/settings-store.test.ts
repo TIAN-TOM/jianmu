@@ -1561,16 +1561,18 @@ test("同意了数据说明不算启用", async () => {
   assert.equal((await storeOn(world).activation()).state, "needed");
 });
 
-test("说明的版本或指纹和当前不一致时确认失效，提示说明有更新", async () => {
+test("说明的版本或指纹和当前不一致时确认失效；表里认不出确认的是哪一版，按第一次处理", async () => {
   const stale = [
     { activationVersion: ACTIVATION_VERSION, activationFingerprint: "0000000000000000" },
     { activationVersion: ACTIVATION_VERSION + 1, activationFingerprint: ACTIVATION_FINGERPRINT },
+    // 首发前开发期间存下的第 3 版：条目和现在的第 1 版一样，版本号表里没有。
+    { activationVersion: 3, activationFingerprint: ACTIVATION_FINGERPRINT },
   ];
   for (const stamp of stale) {
     const world = areas({ [SETTINGS_STORAGE_KEY]: stamp });
     const status = await storeOn(world).activation();
     assert.equal(status.state, "needed", JSON.stringify(stamp));
-    assert.equal(status.state === "needed" && status.updated, true, "确认过别的版本");
+    assert.equal(status.state === "needed" && status.updated, false, "不提示说明有更新");
   }
 });
 

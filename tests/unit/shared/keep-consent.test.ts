@@ -11,7 +11,9 @@ import { everAgreed, versionStamps, type CarriedItems, type NoticeItem, type Not
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
-// 启用说明第 3 版、数据说明第 5 版在加上截图那几条之前的旧指纹：确认过、同意过，后来条目变了。
+// 首发前开发期间存下的确认和同意。LEGACY 是开发者本人现在存着的：启用说明第 3 版、数据说明第 5 版，条目和首发的第 1 版一样，只是版本号不同。
+// STALE 是更早的：同样的版本号，加上截图那几条之前的旧指纹。
+const LEGACY = { activationVersion: 3, activationFingerprint: "372b4707b69fb4f1", dataConsentVersion: 5, dataConsentFingerprint: "7c550f58c5fddf7f" };
 const STALE = { activationVersion: 3, activationFingerprint: "c7c74de73be1ef90", dataConsentVersion: 5, dataConsentFingerprint: "b459474109f65107" };
 const NEVER = { activationVersion: 0, activationFingerprint: "", dataConsentVersion: 0, dataConsentFingerprint: "" };
 
@@ -21,6 +23,7 @@ const { dataConsentStatus } = await import("./src/shared/consent-status.ts");
 const consent = await import("./src/core/consent.ts");
 const { createSettingsStore } = await import("./src/platform/settings-store.ts");
 const STALE = ${JSON.stringify(STALE)};
+const LEGACY = ${JSON.stringify(LEGACY)};
 const NEVER = ${JSON.stringify(NEVER)};
 const AUTO = { kind: "trigger", id: "auto-on-open-tabs" };
 const rules = { dataConsentVersion: consent.DATA_CONSENT_VERSION, dataConsentFingerprint: consent.DATA_CONSENT_FINGERPRINT };
@@ -35,6 +38,13 @@ const store = createSettingsStore({ storage: { local: area(local), session: area
 const before = ids(await store.activation());
 await store.confirmActivation();
 const saved = local.jianmu_settings;
+
+// 开发者本人现在存着的记录：经设置仓库读出来的启用状态，和清除全部数据以后的。
+const legacyLocal = { jianmu_settings: { ...LEGACY } };
+const legacyStore = createSettingsStore({ storage: { local: area(legacyLocal), session: area({}) }, locks: { exclusive: (_name, work) => Promise.resolve().then(work), shared: (_name, work) => Promise.resolve().then(work) } });
+const legacyStored = ids(await legacyStore.activation());
+await legacyStore.clearAll();
+const legacyCleared = { activation: ids(await legacyStore.activation()), consent: ids(dataConsentStatus(schema.normalize(legacyLocal.jianmu_settings ?? {}))) };
 
 // 写入一侧：启用说明确认过、数据说明从没同意过（或者同意后又取消了），点确认不能替他同意。
 const consentAfter = async (settings, untick) => {
@@ -61,6 +71,14 @@ const routeCalls = async (settings) => {
   return { calls, state: reply.value.state, unreachable: reply.value.unreachableTabs };
 };
 console.log(JSON.stringify({
+  legacy: ids(schema.activationStatus(LEGACY)),
+  consentLegacy: ids(dataConsentStatus(LEGACY)),
+  givenLegacy: consent.dataConsentGiven(LEGACY, rules),
+  autoLegacy: consent.consentCovers(consent.DATA_CONSENT_TABLE, { version: LEGACY.dataConsentVersion, fingerprint: LEGACY.dataConsentFingerprint }, AUTO),
+  validLegacy: schema.validate({ ...LEGACY, presetId: "custom", aiBaseUrl: "https://api.example.com/v1", aiApiKey: "k", aiModel: "m" }).errors.includes(consent.DATA_CONSENT_ERROR),
+  legacyStored,
+  legacyCleared,
+  routeLegacy: await routeCalls(LEGACY),
   stale: ids(schema.activationStatus(STALE)),
   staleGroups: Object.fromEntries(Object.entries(schema.activationStatus(STALE).carried ?? {}).map(([key, items]) => [key, items.map(({ id }) => id)])),
   never: ids(schema.activationStatus(NEVER)),
@@ -85,13 +103,39 @@ function run(flags: string): Record<string, unknown> {
   return JSON.parse(output.trim().split("\n").at(-1) ?? "{}");
 }
 
+test("日用包：首发前存下的确认和同意照旧沿用，条目一样就什么都不列、不打断；清除全部数据以后照旧要走一遍", () => {
+  const daily = run("./tests/helpers/daily-build-flags.ts");
+  assert.deepEqual(daily.legacy, { state: "current", carried: [] }, "启用照旧算数，侧边栏顶上不出那一行");
+  assert.deepEqual(daily.consentLegacy, { state: "current", carried: [] });
+  assert.equal(daily.givenLegacy, true, "模型请求照常发");
+  assert.equal(daily.autoLegacy, true, "打开就出结论照常跑");
+  assert.equal(daily.validLegacy, false, "设置校验不报没同意");
+  assert.deepEqual(daily.legacyStored, daily.legacy, "经设置仓库读出来一样");
+  assert.deepEqual(daily.routeLegacy, { calls: [], state: "current", unreachable: [] }, "本来就算启用：不广播、不补注入");
+  assert.deepEqual(daily.legacyCleared, { activation: { state: "needed", updated: false }, consent: { state: "needed", updated: false } });
+});
+
+test("发行包：首发前存下的确认和同意不算数，按第一次处理：要重新启用、重新同意，不提示说明有更新", () => {
+  const release = run("./scripts/lib/release-globals.mjs");
+  assert.deepEqual(release.legacy, { state: "needed", updated: false });
+  assert.deepEqual(release.consentLegacy, { state: "needed", updated: false });
+  assert.equal(release.givenLegacy, false, "不发给模型");
+  assert.equal(release.autoLegacy, false, "打开就出结论停着");
+  assert.equal(release.validLegacy, true, "设置校验报没同意");
+  assert.deepEqual(release.legacyStored, release.legacy);
+  assert.deepEqual(release.routeLegacy, { calls: ["toPages", "toTabs", "reinject"], state: "current", unreachable: [7] }, "确认以后照第一次启用广播、补注入");
+  assert.deepEqual(release.legacyCleared, { activation: { state: "needed", updated: false }, consent: { state: "needed", updated: false } });
+});
+
 test("日用包：确认过、同意过的照旧算数，多出来的条目交给侧边栏；从没确认、没同意的照旧要走一遍；看过以后两份都记成当前这一版", () => {
   const daily = run("./tests/helpers/daily-build-flags.ts");
-  // 认不出确认的是哪一版（同一个版本号，后来条目又并进了这一版）：从那一版起的条目都列出来。
-  assert.deepEqual(daily.stale, { state: "current", carried: ["open-tabs", "current-frame", "tidy-transcript", "keep-running", "current-frame", "frame-explain"] });
-  assert.deepEqual(daily.staleGroups, { activation: ["open-tabs", "current-frame"], consent: ["tidy-transcript", "keep-running", "current-frame", "frame-explain"] }, "在本机读的和发给模型的分开放");
+  // 指纹认不出确认的是哪一版、版本号又比表里的都大：条目全列出来，宁可多列。
+  const activationAll = ["video-info", "transcript", "official-summary", "watch-state", "window-tabs", "watch-later", "display", "pick-mode", "material", "cache", "triage", "saved", "bili-login-state", "watch-later-progress", "open-tabs", "current-frame"];
+  const consentAll = ["transcript", "selection", "question", "video-title", "uploader-and-description", "official-summary", "api-key", "ai-features", "chosen-provider", "on-click", "imported-transcript", "video-duration", "auto-on-open-tabs", "tidy-transcript", "keep-running", "current-frame", "frame-explain"];
+  assert.deepEqual(daily.stale, { state: "current", carried: [...activationAll, ...consentAll] });
+  assert.deepEqual(daily.staleGroups, { activation: activationAll, consent: consentAll }, "在本机读的和发给模型的分开放");
   assert.deepEqual(daily.never, { state: "needed", updated: false });
-  assert.deepEqual(daily.consentStale, { state: "current", carried: ["tidy-transcript", "keep-running", "current-frame", "frame-explain"] });
+  assert.deepEqual(daily.consentStale, { state: "current", carried: consentAll });
   assert.deepEqual(daily.consentNever, { state: "needed", updated: false });
   assert.equal(daily.givenStale, true);
   assert.equal(daily.givenNever, false);
@@ -108,9 +152,9 @@ test("日用包：确认过、同意过的照旧算数，多出来的条目交�
 
 test("发行包：条目变了仍然要重新确认、重新同意，没同意的内容不发，打开就出结论停着；点确认只记启用说明", () => {
   const release = run("./scripts/lib/release-globals.mjs");
-  assert.deepEqual(release.stale, { state: "needed", updated: true });
+  assert.deepEqual(release.stale, { state: "needed", updated: false }, "认不出确认的是哪一版，按第一次处理");
   assert.deepEqual(release.never, { state: "needed", updated: false });
-  assert.deepEqual(release.consentStale, { state: "needed", updated: true });
+  assert.deepEqual(release.consentStale, { state: "needed", updated: false });
   assert.equal(release.givenStale, false);
   assert.equal(release.givenNever, false);
   assert.equal(release.autoStale, false);
@@ -146,10 +190,14 @@ test("沿用的规则：存着正整数版本才算确认过；从没确认过�
   assert.deepEqual(carryNotices(TABLE, V3 ?? {}, none), { state: "current" });
   assert.deepEqual(ids(carryNotices(TABLE, V1 ?? {}, none)), ["b", "c"], "认得出确认的是第 1 版");
   assert.deepEqual(ids(carryNotices(TABLE, { version: 2, fingerprint: "0000000000000000" }, none)), ["b", "c"], "第 2 版后来又并进了条目");
+  assert.deepEqual(ids(carryNotices(TABLE, { version: 7, fingerprint: V1?.fingerprint }, none)), ["b", "c"], "版本号表里没有、指纹认得出是第 1 版");
+  assert.deepEqual(carryNotices(TABLE, { version: 7, fingerprint: V3?.fingerprint }, none), { state: "current" }, "版本号表里没有、条目和当前一样：什么都不列");
+  assert.deepEqual(ids(carryNotices(TABLE, { version: 7, fingerprint: "0000000000000000" }, none)), ["a", "b", "c"], "版本号和指纹都认不出：全列");
   assert.deepEqual(ids(carryNotices(TABLE, V2 ?? {}, { table: CONSENT, stored: C1 ?? {} })), ["c", "y"], "两份说明多出来的合在一起");
   assert.deepEqual(ids(carryNotices(TABLE, V3 ?? {}, { table: CONSENT, stored: C1 ?? {} })), ["y"], "启用说明没变、数据说明变了");
   assert.deepEqual(carryNotices(TABLE, V3 ?? {}, { table: CONSENT, stored: { version: 0 } }), { state: "current" }, "数据说明从没同意过：等用户自己去设置页同意");
   assert.deepEqual(ids(carryConsent(CONSENT, C1 ?? {})), ["y"]);
   assert.deepEqual(carryConsent(CONSENT, C2 ?? {}), { state: "current" });
+  assert.deepEqual(carryConsent(CONSENT, { version: 5, fingerprint: C2?.fingerprint }), { state: "current" }, "版本号表里没有、条目和当前一样");
   assert.equal(carryConsent(CONSENT, {}).state, "needed");
 });

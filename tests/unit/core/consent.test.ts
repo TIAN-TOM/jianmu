@@ -256,26 +256,66 @@ test("「版本 → 指纹」快照：改了条目没升版就失败", () => {
   assert.deepEqual(versionMap(ACTIVATION_TABLE), snapshot.activation);
 });
 
-test("解释当前画面首发带上：两份说明的当前一版各多几条，版本号不变；指纹和带这个功能的日用包一样，用过日用包的不用再确认", () => {
-  const frameItems = (table: NoticeTable<string>): string[] =>
-    table.flatMap((row) => row.items.filter(({ id }) => ["current-frame", "frame-explain"].includes(id)).map(({ kind, id }) => `${row.version} ${kind}:${id}`));
-  assert.deepEqual(frameItems(ACTIVATION_TABLE), ["3 read:current-frame"]);
-  assert.deepEqual(frameItems(DATA_CONSENT_TABLE), ["5 category:current-frame", "5 purpose:frame-explain"]);
-  // 日用包确认时存下的指纹。
-  assert.deepEqual(currentStamp(ACTIVATION_TABLE), { version: 3, fingerprint: "372b4707b69fb4f1" });
-  assert.deepEqual(currentStamp(DATA_CONSENT_TABLE), { version: 5, fingerprint: "7c550f58c5fddf7f" });
-  // 只在原来的发行包里确认过、不含这几条的旧指纹：版本号一样、指纹对不上，认不出确认过哪一版，要重新确认，给完整说明。
-  const stale = noticeStatus(ACTIVATION_TABLE, { version: 3, fingerprint: "c7c74de73be1ef90" });
-  assert.equal(stale.state === "needed" && stale.updated, true);
-  const staleConsent = { dataConsentVersion: 5, dataConsentFingerprint: "b459474109f65107" };
-  assert.equal(dataConsentGiven(staleConsent, { dataConsentVersion: DATA_CONSENT_VERSION, dataConsentFingerprint: DATA_CONSENT_FINGERPRINT }), false);
-  assert.equal(noticeStatus(DATA_CONSENT_TABLE, { version: 5, fingerprint: "b459474109f65107" }).state, "needed");
-  // 数据说明里截图这一条和划词解释那些功能并成一行显示。
-  const lines = noticeLines(DATA_CONSENT_TABLE.flatMap((row) => row.items));
-  assert.ok(lines.some((line) => line.ids.includes("ai-features") && line.ids.includes("frame-explain") && line.text.endsWith("解释当前画面")));
+const entryKeys = (items: readonly NoticeItem<string>[]): string[] => items.map(({ kind, id }) => `${kind}:${id}`);
+const lines = (items: readonly NoticeItem<string>[]) => noticeLines(items).map(({ ids: lineIds, text }) => ({ ids: lineIds, text }));
+
+// 首发前的版本号是开发期间留下的，首发的包从第 1 版算起，开发期间加过的条目都算第 1 版的内容（PRD 第 7.2、7.3 节）。
+test("首发的两份说明都是第 1 版，表里只有这一版，开发期间加过的条目都在里面", () => {
+  assert.deepEqual(currentStamp(DATA_CONSENT_TABLE), { version: 1, fingerprint: "7c550f58c5fddf7f" });
+  assert.deepEqual(currentStamp(ACTIVATION_TABLE), { version: 1, fingerprint: "372b4707b69fb4f1" });
+  assert.equal(DATA_CONSENT_VERSION, 1);
+  assert.equal(ACTIVATION_VERSION, 1);
+  assert.deepEqual(DATA_CONSENT_TABLE.map(({ version }) => version), [1]);
+  assert.deepEqual(ACTIVATION_TABLE.map(({ version }) => version), [1]);
+  assert.deepEqual(entryKeys(DATA_CONSENT_TABLE.flatMap((row) => row.items)), [
+    "category:transcript",
+    "category:selection",
+    "category:question",
+    "category:video-title",
+    "category:uploader-and-description",
+    "category:official-summary",
+    "category:api-key",
+    "purpose:ai-features",
+    "recipient:chosen-provider",
+    "trigger:on-click",
+    "category:imported-transcript",
+    "category:video-duration",
+    "trigger:auto-on-open-tabs",
+    "purpose:tidy-transcript",
+    "trigger:keep-running",
+    "category:current-frame",
+    "purpose:frame-explain",
+  ]);
+  assert.deepEqual(entryKeys(ACTIVATION_TABLE.flatMap((row) => row.items)), [
+    "read:video-info",
+    "read:transcript",
+    "read:official-summary",
+    "read:watch-state",
+    "read:window-tabs",
+    "read:watch-later",
+    "purpose:display",
+    "purpose:pick-mode",
+    "purpose:material",
+    "store:cache",
+    "store:triage",
+    "store:saved",
+    "read:bili-login-state",
+    "read:watch-later-progress",
+    "read:open-tabs",
+    "read:current-frame",
+  ]);
 });
 
-test("当前版本和指纹取自表里最新的一版，启用说明从第 1 版起", () => {
+test("解释当前画面首发带上：两份说明的第 1 版各多几条；截图这一条和划词解释那些功能并成一行显示", () => {
+  const frameItems = (table: NoticeTable<string>): string[] =>
+    table.flatMap((row) => row.items.filter(({ id }) => ["current-frame", "frame-explain"].includes(id)).map(({ kind, id }) => `${row.version} ${kind}:${id}`));
+  assert.deepEqual(frameItems(ACTIVATION_TABLE), ["1 read:current-frame"]);
+  assert.deepEqual(frameItems(DATA_CONSENT_TABLE), ["1 category:current-frame", "1 purpose:frame-explain"]);
+  const shown = noticeLines(DATA_CONSENT_TABLE.flatMap((row) => row.items));
+  assert.ok(shown.some((line) => line.ids.includes("ai-features") && line.ids.includes("frame-explain") && line.text.endsWith("解释当前画面")));
+});
+
+test("当前版本和指纹取自表里最新的一版，两份说明都从第 1 版起", () => {
   assert.deepEqual(currentStamp(DATA_CONSENT_TABLE), {
     version: DATA_CONSENT_VERSION,
     fingerprint: DATA_CONSENT_FINGERPRINT,
@@ -284,6 +324,7 @@ test("当前版本和指纹取自表里最新的一版，启用说明从第 1 �
     version: ACTIVATION_VERSION,
     fingerprint: ACTIVATION_FINGERPRINT,
   });
+  assert.equal(DATA_CONSENT_TABLE[0]?.version, 1);
   assert.equal(ACTIVATION_TABLE[0]?.version, 1);
   assert.notEqual(DATA_CONSENT_FINGERPRINT, ACTIVATION_FINGERPRINT);
 });
@@ -326,9 +367,14 @@ test("指纹只看条目：改措辞、调顺序不变，增删或改 id、kind 
   assert.notEqual(fingerprint([{ version: 1, items: [...base[0]?.items ?? [], item("trigger", "c")] }]), fingerprint(base));
 });
 
+// 以后扩大范围升到第 2 版时的样子：在当前的表后面加一版。
+const NEXT_ITEM = item("category", "next-thing");
+const NEXT: NoticeTable<string> = [...DATA_CONSENT_TABLE, { version: 2, items: [NEXT_ITEM] }];
+
 test("每一版的指纹覆盖到这一版为止的全部条目，加新版不改旧版的指纹", () => {
-  const [first, second] = versionStamps(DATA_CONSENT_TABLE);
-  assert.deepEqual(versionStamps(DATA_CONSENT_TABLE.slice(0, 1)), [first]);
+  const [first, second] = versionStamps(NEXT);
+  assert.deepEqual(first, currentStamp(DATA_CONSENT_TABLE));
+  assert.deepEqual(versionStamps(NEXT.slice(0, 1)), [first]);
   assert.notEqual(first?.fingerprint, second?.fingerprint);
 });
 
@@ -346,109 +392,28 @@ test("存过当前版本和指纹的放行，这才算确认过", () => {
   assert.deepEqual(noticeStatus(ACTIVATION_TABLE, enabled), { state: "current" });
 });
 
-test("存过旧版本的只列之后新增的内容", () => {
-  const [first] = versionStamps(DATA_CONSENT_TABLE);
-  assert.ok(first);
-  const status = noticeStatus(DATA_CONSENT_TABLE, first);
-  assert.equal(status.state, "needed");
-  assert.ok(status.state === "needed" && status.updated);
-  assert.deepEqual(status.state === "needed" ? ids(status.items) : [], ["imported-transcript", "video-duration", "auto-on-open-tabs", "tidy-transcript", "keep-running", "current-frame", "frame-explain"]);
+test("说明更新时只列新增的内容：同意过第 1 版的，升到第 2 版只看到第 2 版加的条目，模型请求不放行", () => {
+  const status = noticeStatus(NEXT, currentStamp(DATA_CONSENT_TABLE));
+  assert.ok(status.state === "needed" && status.updated, "提示说明有更新");
+  assert.deepEqual(status.state === "needed" ? status.items : [], [NEXT_ITEM]);
+  const next = currentStamp(NEXT);
+  const stored = { dataConsentVersion: DATA_CONSENT_VERSION, dataConsentFingerprint: DATA_CONSENT_FINGERPRINT };
+  assert.equal(dataConsentGiven(stored, { dataConsentVersion: next.version, dataConsentFingerprint: next.fingerprint }), false);
+  assert.deepEqual(noticeStatus(NEXT, next), { state: "current" });
 });
 
-// 数据同意第 3 版：发给模型的视频信息多了时长。完整说明里和「视频标题」并成一行显示，指纹按新增的语义条目算。
-const [CONSENT_V1, CONSENT_V2, CONSENT_V3] = versionStamps(DATA_CONSENT_TABLE);
-const lines = (items: readonly NoticeItem<string>[]) => noticeLines(items).map(({ ids: lineIds, text }) => ({ ids: lineIds, text }));
-
-test("数据同意第 3 版加了视频时长：第 1、2 版的指纹不变，第 3 版的指纹是快照里那一份", () => {
-  assert.deepEqual(versionStamps(DATA_CONSENT_TABLE).slice(0, 3), [
-    { version: 1, fingerprint: "b77f44c06d527713" },
-    { version: 2, fingerprint: "3bba6112484a07d2" },
-    { version: 3, fingerprint: "7388613d751dad34" },
-  ]);
-  assert.deepEqual(DATA_CONSENT_TABLE[2]?.items.map(({ kind, id }) => `${kind}:${id}`), ["category:video-duration"]);
-});
-
-// 数据同意第 4 版：从「点了才发」变成打开就出结论时自动发，超出原来的范围，升版重新同意。
-test("数据同意第 4 版加了打开视频就自动发送：前三版的指纹不变，两种构建一样", () => {
-  assert.deepEqual(versionStamps(DATA_CONSENT_TABLE)[3], { version: 4, fingerprint: "6ac3269feba5a9cf" });
-  assert.deepEqual(versionStamps(DATA_CONSENT_TABLE)[3], { version: 4, fingerprint: "6ac3269feba5a9cf" });
-  assert.deepEqual(DATA_CONSENT_TABLE[3]?.items.map(({ kind, id }) => `${kind}:${id}`), ["trigger:auto-on-open-tabs"]);
-  assert.ok(CONSENT_V3);
-  const stored = { dataConsentVersion: CONSENT_V3.version, dataConsentFingerprint: CONSENT_V3.fingerprint };
-  assert.equal(dataConsentGiven(stored, { dataConsentVersion: DATA_CONSENT_VERSION, dataConsentFingerprint: DATA_CONSENT_FINGERPRINT }), false, "同意过第 3 版的要重新同意");
-});
-
-test("数据同意第 5 版加了整理字幕这个用途，翻译、整理字幕关掉侧边栏也接着发，和解释当前画面：前四版的指纹不变，第 5 版是当前一版；同意过第 4 版的要重新同意，只看到新增的几行", () => {
-  const stamps = versionStamps(DATA_CONSENT_TABLE);
-  assert.deepEqual(stamps.at(-1), { version: 5, fingerprint: "7c550f58c5fddf7f" });
-  assert.equal(currentStamp(DATA_CONSENT_TABLE).version, 5, "解释当前画面的几条并进第 5 版，不另开一版");
-  assert.equal(DATA_CONSENT_VERSION, 5);
-  assert.deepEqual(
-    DATA_CONSENT_TABLE.at(-1)?.items.map(({ kind, id }) => `${kind}:${id}`),
-    ["purpose:tidy-transcript", "trigger:keep-running", "category:current-frame", "purpose:frame-explain"],
-  );
-  const fourth = stamps[3];
-  assert.ok(fourth);
-  assert.equal(dataConsentGiven({ dataConsentVersion: fourth.version, dataConsentFingerprint: fourth.fingerprint }, { dataConsentVersion: DATA_CONSENT_VERSION, dataConsentFingerprint: DATA_CONSENT_FINGERPRINT }), false);
-  const fromFourth = noticeStatus(DATA_CONSENT_TABLE, fourth);
-  assert.ok(fromFourth.state === "needed" && fromFourth.updated);
-  const [only, keep, frame, explain, ...rest] = lines(fromFourth.items);
-  assert.equal(rest.length, 0);
-  assert.deepEqual(frame?.ids, ["current-frame"]);
-  assert.deepEqual(explain?.ids, ["frame-explain"]);
-  assert.deepEqual(only?.ids, ["tidy-transcript"]);
-  for (const word of ["整理字幕", "补标点", "同音错字", "点「整理字幕」时"]) assert.ok(only?.text.includes(word), word);
-  assert.deepEqual(keep?.ids, ["keep-running"]);
-  for (const word of ["关掉侧边栏也继续", "API 额度", "点停止", "标签页换了视频或关掉"]) assert.ok(keep?.text.includes(word), word);
-  // 完整说明里和用途那一行并成一行。
-  const full = lines(DATA_CONSENT_TABLE.flatMap((row) => row.items));
-  const purpose = full.find((line) => line.ids.includes("ai-features"));
-  assert.deepEqual(purpose?.ids, ["ai-features", "tidy-transcript", "frame-explain"]);
-  assert.match(purpose?.text ?? "", /整理字幕（补标点、改同音错字）/);
-});
-
-test("第 4 版的说明：同意过第 3 版的只看到自动发送这一行；完整说明里它和「只在你点按钮时发出」并成一行", () => {
-  const fromThird = noticeStatus(DATA_CONSENT_TABLE, CONSENT_V3 ?? {});
-  assert.ok(fromThird.state === "needed" && fromThird.updated);
-  const [only] = lines(fromThird.items);
-  assert.deepEqual(only?.ids, ["auto-on-open-tabs"]);
-  assert.match(only?.text ?? "", /^打开「打开就出结论」以后/);
-  for (const word of ["字幕", "视频标题和时长", "UP 主名或频道名和简介", "超过设定时长", "B 站和已启用的 YouTube"]) assert.ok(only?.text.includes(word), word);
-
-  const full = noticeStatus(DATA_CONSENT_TABLE, {});
-  assert.ok(full.state === "needed");
-  const trigger = noticeLines(full.items).filter((line) => line.kind === "trigger");
-  assert.deepEqual(trigger.map((line) => line.ids), [["on-click", "auto-on-open-tabs"], ["keep-running"]], "第 5 版另起一行说翻译和整理字幕关掉侧边栏也接着发");
-  assert.match(trigger[0]?.text ?? "", /^平时只在你点按钮时发出；打开「打开就出结论」以后/);
-});
-
-test("只把「视频标题」的措辞改成「视频标题和时长」、不加条目：第 2 版的同意照样算数，所以光改文字不够", () => {
-  const reworded: NoticeTable<string> = DATA_CONSENT_TABLE.slice(0, 2).map((row) => ({
-    ...row,
-    items: row.items.map((entry) => (entry.id === "video-title" ? { ...entry, text: "视频标题和时长" } : entry)),
-  }));
-  assert.deepEqual(noticeStatus(reworded, CONSENT_V2 ?? {}), { state: "current" });
-});
-
-test("存着第 2 版的同意：当前规则下不算同意，提示说明有更新，模型请求不放行", () => {
-  assert.ok(CONSENT_V2);
-  const status = noticeStatus(DATA_CONSENT_TABLE, CONSENT_V2);
-  assert.equal(status.state, "needed");
-  assert.ok(status.state === "needed" && status.updated);
-  const stored = { dataConsentVersion: CONSENT_V2.version, dataConsentFingerprint: CONSENT_V2.fingerprint };
-  assert.equal(dataConsentGiven(stored, { dataConsentVersion: DATA_CONSENT_VERSION, dataConsentFingerprint: DATA_CONSENT_FINGERPRINT }), false);
-});
-
-test("更新提示：第 2 版的同意者看到新增的「视频时长」、自动发送和整理字幕，第 1 版的同意者再多看到导入字幕", () => {
-  const fromSecond = noticeStatus(DATA_CONSENT_TABLE, CONSENT_V2 ?? {});
-  assert.ok(fromSecond.state === "needed");
-  assert.deepEqual(ids(fromSecond.items), ["video-duration", "auto-on-open-tabs", "tidy-transcript", "keep-running", "current-frame", "frame-explain"]);
-  assert.deepEqual(lines(fromSecond.items)[0], { ids: ["video-duration"], text: "视频时长" });
-
-  const fromFirst = noticeStatus(DATA_CONSENT_TABLE, CONSENT_V1 ?? {});
-  assert.ok(fromFirst.state === "needed");
-  assert.deepEqual(ids(fromFirst.items), ["imported-transcript", "video-duration", "auto-on-open-tabs", "tidy-transcript", "keep-running", "current-frame", "frame-explain"]);
-  assert.deepEqual(lines(fromFirst.items).slice(0, 2).map(({ text }) => text), ["你导入的字幕文件里的文字", "视频时长"]);
+test("只列新增的内容时，并显示指向的那一条不在这组里就单列，用自己的措辞", () => {
+  const table: NoticeTable<"category"> = [
+    { version: 1, items: [item("category", "video-title", "视频标题")] },
+    { version: 2, items: [{ kind: "category", id: "video-duration", text: "视频时长", shownWith: { id: "video-title", combined: "视频标题和时长" } }] },
+  ];
+  const [first] = versionStamps(table);
+  const fromFirst = noticeStatus(table, first ?? {});
+  assert.ok(fromFirst.state === "needed" && fromFirst.updated);
+  assert.deepEqual(lines(fromFirst.items), [{ ids: ["video-duration"], text: "视频时长" }]);
+  const full = noticeStatus(table, {});
+  assert.ok(full.state === "needed" && !full.updated);
+  assert.deepEqual(lines(full.items), [{ ids: ["video-title", "video-duration"], text: "视频标题和时长" }]);
 });
 
 test("完整说明：从没同意过的人看到「视频标题和时长」一行，带两个条目，没有单独的「视频时长」", () => {
@@ -462,17 +427,28 @@ test("完整说明：从没同意过的人看到「视频标题和时长」一�
   assert.deepEqual(shown.flatMap(({ ids: lineIds }) => lineIds).sort(), ids(status.items).sort(), "每个条目都在某一行里");
 });
 
-test("并显示只能指向同一张表更早版本里同一类的条目，被指向的条目自己不再并到别处", () => {
+test("完整说明里的并显示：自动发送和「只在你点按钮时发出」并成一行，整理字幕和用途并成一行，关掉侧边栏也接着发另起一行", () => {
+  const full = noticeStatus(DATA_CONSENT_TABLE, {});
+  assert.ok(full.state === "needed");
+  const trigger = noticeLines(full.items).filter((line) => line.kind === "trigger");
+  assert.deepEqual(trigger.map((line) => line.ids), [["on-click", "auto-on-open-tabs"], ["keep-running"]]);
+  assert.match(trigger[0]?.text ?? "", /^平时只在你点按钮时发出；打开「打开就出结论」以后/);
+  for (const word of ["字幕", "视频标题和时长", "UP 主名或频道名和简介", "超过设定时长", "B 站和已启用的 YouTube"]) assert.ok(trigger[0]?.text.includes(word), word);
+  for (const word of ["关掉侧边栏也继续", "API 额度", "点停止", "标签页换了视频或关掉"]) assert.ok(trigger[1]?.text.includes(word), word);
+  const purpose = noticeLines(full.items).find((line) => line.ids.includes("ai-features"));
+  assert.deepEqual(purpose?.ids, ["ai-features", "tidy-transcript", "frame-explain"]);
+  assert.match(purpose?.text ?? "", /整理字幕（补标点、改同音错字）/);
+});
+
+test("并显示只能指向同一张表里排在它前面、同一类的条目，被指向的条目自己不再并到别处", () => {
   for (const table of [DATA_CONSENT_TABLE, ACTIVATION_TABLE] as readonly NoticeTable<string>[]) {
-    table.forEach((row, index) => {
-      for (const entry of row.items) {
-        if (!entry.shownWith) continue;
-        const earlier = table.slice(0, index).flatMap((previous) => previous.items);
-        const target = earlier.find((candidate) => candidate.kind === entry.kind && candidate.id === entry.shownWith?.id);
-        assert.ok(target, `${entry.kind}:${entry.id} 指向的条目不在更早的版本里`);
-        assert.equal(target.shownWith, undefined, `${entry.kind}:${entry.id} 指向的条目自己也要并到别处`);
-        assert.ok(entry.shownWith.combined.trim(), `${entry.kind}:${entry.id} 没写合成的措辞`);
-      }
+    const all = table.flatMap((row) => row.items);
+    all.forEach((entry, index) => {
+      if (!entry.shownWith) return;
+      const target = all.slice(0, index).find((candidate) => candidate.kind === entry.kind && candidate.id === entry.shownWith?.id);
+      assert.ok(target, `${entry.kind}:${entry.id} 指向的条目不在它前面`);
+      assert.equal(target.shownWith, undefined, `${entry.kind}:${entry.id} 指向的条目自己也要并到别处`);
+      assert.ok(entry.shownWith.combined.trim(), `${entry.kind}:${entry.id} 没写合成的措辞`);
     });
   }
 });
@@ -487,43 +463,49 @@ test("加上或去掉并显示的写法，指纹都不变", () => {
   assert.deepEqual(versionStamps(extra), versionStamps(DATA_CONSENT_TABLE));
 });
 
-test("启用说明第 2 版加了 B 站登录状态和稍后再看的观看进度：确认过第 1 版的只看到新增的几条，第 1 版的指纹不变", () => {
-  const [first, second] = versionStamps(ACTIVATION_TABLE);
-  assert.deepEqual(first, { version: 1, fingerprint: "ea809e9a65f8b633" });
-  assert.deepEqual(second, { version: 2, fingerprint: "b43642643fe4e6e5" });
-  assert.ok(first);
-  const status = noticeStatus(ACTIVATION_TABLE, first);
-  assert.ok(status.state === "needed" && status.updated);
-  assert.deepEqual(status.state === "needed" ? ids(status.items) : [], ["bili-login-state", "watch-later-progress", "open-tabs", "current-frame"]);
-  assert.ok(status.state === "needed" && status.items.every((entry) => entry.kind === "read"));
+// 首发前开发期间存下的确认和同意：数据说明第 1 到 5 版、启用说明第 1 到 3 版，有的条目和现在一样只是版本号不同，有的是更早的指纹。
+const EARLY_CONSENT = [
+  { version: 5, fingerprint: DATA_CONSENT_FINGERPRINT },
+  { version: 5, fingerprint: "b459474109f65107" },
+  { version: 4, fingerprint: "6ac3269feba5a9cf" },
+  { version: 3, fingerprint: "7388613d751dad34" },
+  { version: 2, fingerprint: "3bba6112484a07d2" },
+  { version: 1, fingerprint: "b77f44c06d527713" },
+];
+const EARLY_ACTIVATION = [
+  { version: 3, fingerprint: ACTIVATION_FINGERPRINT },
+  { version: 3, fingerprint: "c7c74de73be1ef90" },
+  { version: 2, fingerprint: "b43642643fe4e6e5" },
+  { version: 1, fingerprint: "ea809e9a65f8b633" },
+];
+
+test("首发前开发期间存下的版本号和旧指纹一律不认：要重新确认、重新同意，按第一次给完整说明，不提示说明有更新", () => {
+  const cases: readonly [NoticeTable<string>, readonly { version: number; fingerprint: string }[]][] = [
+    [DATA_CONSENT_TABLE, EARLY_CONSENT],
+    [ACTIVATION_TABLE, EARLY_ACTIVATION],
+  ];
+  for (const [table, stamps] of cases) {
+    const everything = table.flatMap((row) => row.items);
+    for (const stored of stamps) assert.deepEqual(noticeStatus(table, stored), { state: "needed", updated: false, items: everything }, JSON.stringify(stored));
+  }
+  const rules = { dataConsentVersion: DATA_CONSENT_VERSION, dataConsentFingerprint: DATA_CONSENT_FINGERPRINT };
+  for (const { version, fingerprint } of EARLY_CONSENT) {
+    assert.equal(dataConsentGiven({ dataConsentVersion: version, dataConsentFingerprint: fingerprint }, rules), false, `${version} ${fingerprint}`);
+  }
 });
 
-// 启用说明第 3 版：打开就出结论要后台看已授权网站各标签页的地址，读取范围扩大了，升版重新确认。
-test("启用说明第 3 版加了已授权网站各标签页的地址和当前一帧画面：确认过第 2 版的只看到这两条，前两版的指纹不变", () => {
-  const stamps = versionStamps(ACTIVATION_TABLE);
-  assert.deepEqual(stamps.at(-1), { version: 3, fingerprint: "372b4707b69fb4f1" });
-  assert.equal(currentStamp(ACTIVATION_TABLE).version, 3);
-  const second = stamps[1];
-  assert.ok(second);
-  const status = noticeStatus(ACTIVATION_TABLE, second);
-  assert.ok(status.state === "needed" && status.updated);
-  assert.deepEqual(status.state === "needed" ? status.items.map(({ kind, id }) => `${kind}:${id}`) : [], ["read:open-tabs", "read:current-frame"]);
-  assert.match(status.state === "needed" ? (status.items[0]?.text ?? "") : "", /打开就出结论.*各标签页的地址.*后台打开/);
-});
-
-test("版本相同指纹不同、认不出的版本：确认失效，认不出同意过什么就显示完整说明", () => {
+test("版本相同指纹不同、认不出的版本：确认失效，认不出同意过什么就按第一次给完整说明", () => {
   const cases: readonly [NoticeTable<string>, number, string][] = [
     [DATA_CONSENT_TABLE, DATA_CONSENT_VERSION, DATA_CONSENT_FINGERPRINT],
     [ACTIVATION_TABLE, ACTIVATION_VERSION, ACTIVATION_FINGERPRINT],
   ];
   for (const [table, version, fingerprint] of cases) {
     const everything = table.flatMap((row) => row.items);
-    const expected = { state: "needed", updated: true, items: everything };
+    const expected = { state: "needed", updated: false, items: everything };
     assert.deepEqual(noticeStatus(table, { version, fingerprint: OLD_FINGERPRINT }), expected);
     assert.deepEqual(noticeStatus(table, { version, fingerprint: "" }), expected);
     assert.deepEqual(noticeStatus(table, { version }), expected);
     assert.deepEqual(noticeStatus(table, { version: version + 1, fingerprint }), expected);
   }
-  assert.equal(noticeStatus(DATA_CONSENT_TABLE, { version: "2", fingerprint: DATA_CONSENT_FINGERPRINT }).state, "needed");
+  assert.equal(noticeStatus(DATA_CONSENT_TABLE, { version: "1", fingerprint: DATA_CONSENT_FINGERPRINT }).state, "needed");
 });
-

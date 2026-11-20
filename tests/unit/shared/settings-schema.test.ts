@@ -903,7 +903,7 @@ test("启用确认：新安装没确认，要看完整说明；确认过当前�
   assert.equal(SETTINGS.ACTIVATION_CONFIRMED.activationFingerprint, ACTIVATION_FINGERPRINT);
 });
 
-test("启用确认：说明版本或指纹和当前不一致就失效，提示说明有更新", () => {
+test("启用确认：说明版本或指纹和当前不一致就失效；表里认不出确认的是哪一版，按第一次处理", () => {
   const stale = [
     { ...SETTINGS.ACTIVATION_CONFIRMED, activationFingerprint: STALE_FINGERPRINT },
     { ...SETTINGS.ACTIVATION_CONFIRMED, activationFingerprint: "" },
@@ -912,7 +912,7 @@ test("启用确认：说明版本或指纹和当前不一致就失效，提示�
   for (const stored of stale) {
     const status = SETTINGS.activationStatus(stored);
     assert.equal(status.state, "needed", JSON.stringify(stored));
-    assert.equal(activationUpdated(status), true, JSON.stringify(stored));
+    assert.equal(activationUpdated(status), false, JSON.stringify(stored));
   }
   // 只存了指纹、没有版本，认不出确认过什么，按从没确认过处理。
   assert.equal(activationUpdated(SETTINGS.activationStatus({ activationFingerprint: ACTIVATION_FINGERPRINT })), false);
@@ -924,7 +924,7 @@ test("启用确认的字段只核对形状：坏值落回没确认，好值留�
   }
   assert.equal(SETTINGS.normalize({ activationFingerprint: 7 }).activationFingerprint, "");
 
-  // 认不出确认的是旧版时也留着存下的值，下次才能判断说明有没有更新。
+  // 认不出确认的是哪一版时也留着存下的值：日用包靠它沿用，发行包照样按没确认处理。
   const stale = { activationVersion: ACTIVATION_VERSION, activationFingerprint: STALE_FINGERPRINT };
   const normalized = SETTINGS.normalize(stale);
   assert.equal(normalized.activationVersion, ACTIVATION_VERSION);

@@ -15,14 +15,15 @@ import {
 } from "./consent.ts";
 
 /**
- * 确认过的那一版之后多出来的条目。认得出确认的是哪一版，就是之后几版的；认不出（同一个版本号，后来条目又并进了这一版），
- * 从那一版起的都算，宁可多列几条。
+ * 确认过的那一版之后多出来的条目。按指纹认确认的是哪一版，就是之后几版的：存着的版本号表里没有时，
+ * 条目一样指纹就一样，照样认得出。指纹也认不出（后来条目又并进了那一版），从那个版本号起的都算，版本号比表里的都大就全列，宁可多列几条。
  */
 function newer<Kind extends string>(table: NoticeTable<Kind>, stored: StoredStamp): NoticeItem<Kind>[] {
-  const status = noticeStatus(table, stored);
-  if (status.state === "current") return [];
-  const known = versionStamps(table).some((stamp) => stamp.version === stored.version && stamp.fingerprint === stored.fingerprint);
-  return known ? [...status.items] : table.filter((row) => row.version >= Number(stored.version)).flatMap((row) => row.items);
+  if (noticeStatus(table, stored).state === "current") return [];
+  const at = versionStamps(table).findIndex((stamp) => stamp.fingerprint === stored.fingerprint);
+  if (at >= 0) return table.slice(at + 1).flatMap((row) => row.items);
+  const rows = table.filter((row) => row.version >= Number(stored.version));
+  return (rows.length ? rows : table).flatMap((row) => row.items);
 }
 
 /**
@@ -31,7 +32,7 @@ function newer<Kind extends string>(table: NoticeTable<Kind>, stored: StoredStam
  */
 export function carryNotices<Kind extends string>(table: NoticeTable<Kind>, stored: StoredStamp, consent: { readonly table: NoticeTable<string>; readonly stored: StoredStamp }): NoticeStatus<Kind> {
   const status = noticeStatus(table, stored);
-  if (status.state === "needed" && !status.updated) return status;
+  if (status.state === "needed" && !everAgreed(stored)) return status;
   const carried = { activation: newer(table, stored), consent: everAgreed(consent.stored) ? newer(consent.table, consent.stored) : [] };
   return carried.activation.length || carried.consent.length ? { state: "current", carried } : { state: "current" };
 }
@@ -55,5 +56,7 @@ export function wasEnabled(status: NoticeStatus<string> | null): boolean {
 /** 数据说明的状态，换成沿用的：同意过的照旧算同意，从没同意过的原样返回。 */
 export function carryConsent<Kind extends string>(table: NoticeTable<Kind>, stored: StoredStamp): NoticeStatus<Kind> {
   const status = noticeStatus(table, stored);
-  return status.state === "needed" && status.updated ? { state: "current", carried: { activation: [], consent: newer(table, stored) } } : status;
+  if (status.state === "current" || !everAgreed(stored)) return status;
+  const consent = newer(table, stored);
+  return consent.length ? { state: "current", carried: { activation: [], consent } } : { state: "current" };
 }

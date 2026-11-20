@@ -24,7 +24,7 @@ import {
   type AutoRead,
 } from "../../../../src/background/services/auto-generate.ts";
 import { createClearGuard } from "../../../../src/core/clear-guard.ts";
-import { currentStamp, DATA_CONSENT_TABLE, versionStamps } from "../../../../src/core/consent.ts";
+import { currentStamp, DATA_CONSENT_FINGERPRINT, DATA_CONSENT_TABLE, DATA_CONSENT_VERSION } from "../../../../src/core/consent.ts";
 import { videoKey, type VideoKey, type VideoRef } from "../../../../src/core/video-ref.ts";
 import { AUTO_LEDGER_KEY } from "../../../../src/shared/names.ts";
 import { siteRules } from "../../../../src/sites/rules.ts";
@@ -408,21 +408,18 @@ test("页面一直没准备好：等够次数才按读不成记下，在前台�
   assert.deepEqual(ledger().tried, []);
 });
 
-test("数据同意要是当前这一版：同意的是没有自动发送那一条的旧版就不发", async () => {
-  // 自动发送那一条是哪一版加的：同意的是它之前那一版就不发。
-  const autoRow = DATA_CONSENT_TABLE.findIndex((row) => row.items.some((item) => item.kind === AUTO_SEND_TRIGGER.kind && item.id === AUTO_SEND_TRIGGER.id));
-  assert.ok(autoRow > 0, "自动发送那一条在同意表里");
-  const older = versionStamps(DATA_CONSENT_TABLE)[autoRow - 1];
-  assert.ok(older);
-  const stale = setup({ consent: older });
-  assert.deepEqual(await stale.auto.consider(), { skipped: "no-consent" });
-  assert.deepEqual(stale.calls.reads, []);
+test("数据同意要是当前这一版：同意的是没有自动发送那一条的旧说明、或者首发前开发期间的版本号，就不发", async () => {
   assert.ok(DATA_CONSENT_TABLE.some((version) => version.items.some((item) => item.kind === AUTO_SEND_TRIGGER.kind && item.id === AUTO_SEND_TRIGGER.id)), "自动发送那一条在表里");
 
-  // 同意过改动前的当前版（自动发送只认前台标签页）：版本号一样、指纹不同，照样不发。
-  const narrower = setup({ consent: { version: 5, fingerprint: "5ccabe99b2185669" } });
+  // 同意过改动前的说明（自动发送只认前台标签页）：版本号一样、指纹不同，照样不发。
+  const narrower = setup({ consent: { version: DATA_CONSENT_VERSION, fingerprint: "5ccabe99b2185669" } });
   assert.deepEqual(await narrower.auto.consider(), { skipped: "no-consent" });
   assert.deepEqual(narrower.calls.reads, []);
+
+  // 首发前开发期间存下的第 5 版：条目一样，版本号表里没有，对外的包不认。
+  const early = setup({ consent: { version: 5, fingerprint: DATA_CONSENT_FINGERPRINT } });
+  assert.deepEqual(await early.auto.consider(), { skipped: "no-consent" });
+  assert.deepEqual(early.calls.reads, []);
 
   const covered = setup();
   assert.deepEqual(await covered.auto.consider(), { started: VIDEO });
