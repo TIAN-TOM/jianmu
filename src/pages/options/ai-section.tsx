@@ -17,10 +17,9 @@ import { dataConsentStatus } from "../../shared/consent-status.ts";
 import { Button } from "../shared/ui/button.tsx";
 import { AiStatusLine, Confirmable } from "./controls.tsx";
 import { ImageProbeButton } from "./image-probe-button.tsx";
+import { ModelField } from "./model-field.tsx";
 import { EFFORT_LABELS, effortNoteText, serviceChanged, showsRegionChooser, usageText } from "./form.ts";
 import type { OptionsState } from "./state.ts";
-
-const MODEL_LIST_ID = "model-options";
 
 
 const PROTOCOL_LABELS: readonly [string, string][] = [
@@ -147,47 +146,6 @@ function EffortBlock({ state }: { readonly state: OptionsState }) {
   );
 }
 
-interface ModelFieldProps {
-  readonly models: readonly string[];
-  readonly value: string;
-  readonly placeholder: string;
-  /** 下拉箭头的无障碍名称。 */
-  readonly pickLabel: string;
-  readonly id?: string;
-  readonly feature?: string;
-  readonly onValue: (value: string) => void;
-}
-
-/** 模型框：能手填，边打字边出候选。拉到列表以后右边多一个箭头，点开是拉到的全部模型，框里已经有字也一样。 */
-function ModelField({ models, value, placeholder, pickLabel, id, feature, onValue }: ModelFieldProps) {
-  return (
-    <span class="model-field">
-      <input
-        class="input"
-        id={id}
-        data-feature={feature}
-        type="text"
-        list={MODEL_LIST_ID}
-        autocomplete="off"
-        spellcheck={false}
-        placeholder={placeholder}
-        value={value}
-        onInput={(event) => onValue(event.currentTarget.value)}
-      />
-      {models.length ? (
-        <select class="input model-pick" aria-label={pickLabel} data-model-pick={id ?? feature} value={models.includes(value) ? value : ""} onChange={(event) => onValue(event.currentTarget.value)}>
-          <option value="" hidden />
-          {models.map((model) => (
-            <option key={model} value={model}>
-              {model}
-            </option>
-          ))}
-        </select>
-      ) : null}
-    </span>
-  );
-}
-
 export function AiSection({ state }: { readonly state: OptionsState }) {
   const form = state.form.value;
   const saved = state.saved.value;
@@ -204,12 +162,6 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
       <p class="hint">
         翻译、概览、划词解释、笔记润色和问答要调用大模型服务。选好服务商，填 API 密钥和模型名称就行，地址已经内置；列表里没有的服务选「自定义」，自己填地址和协议。密钥只发到所选服务商的地址。
       </p>
-      <datalist id={MODEL_LIST_ID}>
-        {state.models.value.map((model) => (
-          <option key={model} value={model} />
-        ))}
-      </datalist>
-
       {showsRegionChooser(saved) ? (
         <div class="field">
           <span class="field-label">先选一类服务</span>
@@ -343,9 +295,12 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
           同一个服务商、同一把密钥下，可以给单项功能另选模型，留空就用上面的默认模型。一句话结论、翻译、划词解释这类短任务可以选更快更便宜的；概览和问答建议用能力更强的。换服务商时这里会清空。
         </span>
         {FEATURE_MODEL_SLOTS.map((slot) => (
-          <label key={slot.id} class="feature-row">
-            <span class="feature-label">{slot.label}</span>
+          <div key={slot.id} class="feature-row">
+            <label class="feature-label" for={`featureModel-${slot.id}`}>
+              {slot.label}
+            </label>
             <ModelField
+              id={`featureModel-${slot.id}`}
               feature={slot.id}
               models={state.models.value}
               value={form.featureModels[slot.id] ?? ""}
@@ -353,7 +308,7 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
               pickLabel={`${slot.label}：从拉到的模型里选`}
               onValue={(model) => state.editFeatureModel(slot.id, model)}
             />
-          </label>
+          </div>
         ))}
         {FEATURE_FRAME_EXPLAIN ? <ImageProbeButton state={state} /> : null}
       </details>
