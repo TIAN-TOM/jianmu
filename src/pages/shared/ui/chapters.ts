@@ -16,6 +16,17 @@ export function keyFlags(chapters: readonly ChapterStart[], keyStarts: readonly 
   return chapters.map((chapter) => keys.has(Math.floor(chapter.startSec)));
 }
 
+/** 播放到的那一章：开始时间不晚于播放位置的最后一章，章节要按开始时间排好。还没到第一章、没有章节或不知道播放位置时是 -1。 */
+export function chapterAt(chapters: readonly ChapterStart[], atSec: number | null): number {
+  if (atSec === null || !Number.isFinite(atSec)) return -1;
+  let found = -1;
+  for (const [index, chapter] of chapters.entries()) {
+    if (chapter.startSec > atSec) break;
+    found = index;
+  }
+  return found;
+}
+
 /** 「章节 6，重点 2」，没有重点时只写「章节 6」。 */
 export function chapterHeading(count: number, keyCount: number): string {
   return keyCount > 0 ? `章节 ${count}，重点 ${keyCount}` : `章节 ${count}`;

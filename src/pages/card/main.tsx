@@ -3,6 +3,7 @@
 import { effect, signal } from "@preact/signals";
 import { render } from "preact";
 import type { VideoRef } from "../../core/video-ref.ts";
+import type { ContentReply } from "../../shared/messages/content.ts";
 import { CARD_TONE, INJECTED } from "../../shared/names.ts";
 import { siteRules } from "../../sites/rules.ts";
 import { createPageApi, type PageApi } from "../shared/api.ts";
@@ -72,6 +73,12 @@ function start(root: HTMLElement, api: PageApi): void {
     seek(tabId, video, atSec) {
       void chrome.tabs.sendMessage(tabId, { type: "player.seek", req: { video, atSec } }, { frameId: 0 }).catch(() => undefined);
     },
+    // 收着时写播放到哪一章：问本页的内容脚本，没连上、在播广告、视频换了都当不知道。
+    position: (tabId, video) =>
+      chrome.tabs.sendMessage(tabId, { type: "player.getState", req: { video } }, { frameId: 0 }).then(
+        (reply: ContentReply<"player.getState"> | undefined) => (reply?.ok && reply.value.status !== "ad" ? reply.value.atSec : null),
+        () => null,
+      ),
     // 卡片框架跟着所在的标签页显隐：后台打开的标签页第一次切到前台才读。
     page: {
       visible: () => document.visibilityState === "visible",
@@ -136,7 +143,7 @@ function start(root: HTMLElement, api: PageApi): void {
     openPanel(event: { readonly isTrusted: boolean }) {
       if (!trusted(event)) return;
       void api.send("panel.open", {}).then((reply) => {
-        if (!reply.ok || !reply.value.opened) model.view.value = { ...model.view.peek(), notice: { text: "浏览器没让卡片直接打开侧边栏，请点浏览器工具栏里的简幕图标。", tone: "error" } };
+        if (!reply.ok || !reply.value.opened) model.panelRefused();
       });
     },
     openSettings(event: { readonly isTrusted: boolean }) {

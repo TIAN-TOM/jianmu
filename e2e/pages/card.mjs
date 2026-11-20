@@ -4,8 +4,10 @@
 // YouTube 上没有官方总结那一块，本机还没有字幕时不摆「生成概览」，请用户先在侧边栏读。
 // 换过字幕时，依据旧字幕的结论标出来。
 // 官方总结晚到时，「生成概览」等它有了结果才摆，摆出来以后不被顶走；一直没结果时等够了照样摆。
+// 收起的一行写着判断档和播放到的章节，放不下就截断、不撑高，旁边是打开侧边栏的入口；侧边栏开着时不摆打开侧边栏的入口和按钮。
 import assert from "node:assert/strict";
 import { CARD_HEIGHT } from "../../src/content/card-frame.ts";
+import { AUTO_FOLD_NOTE } from "../../src/pages/card/glance.ts";
 import { CARD_ROWS, NOT_READ_TEXT } from "../../src/pages/card/model.ts";
 import { UI_FONT_SCALES } from "../../src/shared/settings-schema.ts";
 import { scenario } from "./harness.mjs";
@@ -122,6 +124,54 @@ test("卡片：收起时整张卡片和载入前占位的高度一样，载入�
   await page.setWidth(FRAME_WIDTH, CARD_HEIGHT.max);
   const height = await page.evaluate(`Math.ceil(document.getElementById("card").getBoundingClientRect().height)`);
   assert.equal(height, CARD_HEIGHT.initial);
+});
+
+test("卡片：收起的一行写判断档和播放到的章节，放不下就截断、不撑高；旁边是打开侧边栏的入口，侧边栏开着时没有", async ({ open }) => {
+  const read = async (hash) => {
+    const page = await open(`${SAMPLE}${hash}`);
+    await page.setWidth(FRAME_WIDTH, CARD_HEIGHT.max);
+    return page.evaluate(`(() => {
+      const box = (selector) => { const node = document.querySelector(selector); if (!node) return null; const rect = node.getBoundingClientRect(); return { left: rect.left, right: rect.right }; };
+      const glance = document.getElementById("card-glance");
+      return {
+        height: Math.ceil(document.getElementById("card").getBoundingClientRect().height),
+        name: document.querySelector(".card-name")?.textContent ?? "",
+        glance: glance?.textContent ?? null,
+        cut: glance ? glance.scrollWidth > glance.clientWidth : false,
+        card: box("#card"),
+        chevron: box("#card-toggle .card-chevron"),
+        panel: box("#card-head-panel"),
+        panelText: document.getElementById("card-head-panel")?.textContent ?? null,
+        actions: Boolean(document.querySelector(".card-actions")),
+        openPanel: Boolean(document.getElementById("card-panel")),
+      };
+    })()`);
+  };
+
+  // 还没读过：只有名字，入口照样在。
+  const plain = await read("#collapsed");
+  assert.deepEqual([plain.name, plain.glance, plain.panelText, plain.height], ["简幕 · 总结", null, "侧边栏", CARD_HEIGHT.initial]);
+
+  // 读过、知道播到哪：判断档加「第几章 章节名」，章节名很长，截断成一行，卡片不变高；箭头和入口都在卡片里、不叠在一起。
+  const glance = await read("#collapsed-glance");
+  assert.equal(glance.name, "简幕 · 可以看");
+  assert.match(glance.glance, /^11\/16 样例章节 11：/);
+  assert.equal(glance.cut, true, "放不下的章节名截断");
+  assert.equal(glance.height, CARD_HEIGHT.initial);
+  assert.ok(glance.chevron.right <= glance.panel.left && glance.panel.right <= glance.card.right, JSON.stringify(glance));
+
+  // 播满时长自动收起的那一下：先说一句为什么。
+  const note = await read("#collapsed-note");
+  assert.deepEqual([note.glance, note.height], [AUTO_FOLD_NOTE, CARD_HEIGHT.initial]);
+
+  // 侧边栏开着、让位收起：不摆打开侧边栏的入口，箭头靠到最右边。
+  const yielded = await read("#collapsed-yield");
+  assert.equal(yielded.panel, null);
+  assert.ok(yielded.card.right - yielded.chevron.right < 24, JSON.stringify(yielded));
+
+  // 侧边栏开着时手动点开的：已有概览，按钮行只剩「打开侧边栏」一个按钮，它不摆，这一行就整个不摆。
+  const opened = await read("#open-yield");
+  assert.deepEqual([opened.actions, opened.openPanel], [false, false]);
 });
 
 test("卡片：时间一列定宽，章节名从同一条线起，重点的圆点不把章节名顶歪；官方提纲的标题也对齐", async ({ open }) => {

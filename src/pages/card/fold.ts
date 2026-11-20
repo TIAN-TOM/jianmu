@@ -18,11 +18,13 @@ export interface FoldDeps {
   readonly windowId: () => number | null;
   /** 卡片这会儿是不是收着。 */
   readonly collapsed: () => boolean;
-  /** 定下来了：按这个摆，展开的话接着读。 */
-  readonly place: (collapsed: boolean) => void;
+  /** 定下来了：按这个摆，展开的话接着读。auto 是展开着的卡片因为播满时长自动切到精读才收起的。 */
+  readonly place: (collapsed: boolean, auto: boolean) => void;
+  /** 本窗口的侧边栏开了或关了。 */
+  readonly panel: (open: boolean) => void;
 }
 
-export function createFold({ api, after, video, windowId, collapsed, place }: FoldDeps) {
+export function createFold({ api, after, video, windowId, collapsed, place, panel }: FoldDeps) {
   // 这个视频的手动展开收起和模式，从会话里读。
   let override: CardOverride | null = null;
   let mode: Mode | null = null;
@@ -36,16 +38,17 @@ export function createFold({ api, after, video, windowId, collapsed, place }: Fo
   const wanted = (): boolean => (override ? override === "collapsed" : panelOpen || mode === "study");
 
   /** 按现在知道的模式、侧边栏和手动展开收起定下来。 */
-  function decide(): void {
+  function decide(auto = false): void {
     stopWaiting?.();
-    place(wanted());
+    const next = wanted();
+    place(next, auto && next && !collapsed());
   }
 
   function applySession(session: SessionView | null): void {
     if (!session || session.video !== video()) return;
     override = session.cardOverride ?? null;
     mode = session.mode;
-    if (stopWaiting || wanted() !== collapsed()) decide();
+    if (stopWaiting || wanted() !== collapsed()) decide(session.modeSource === "auto" && !override && !panelOpen);
   }
 
   /** 读本标签页的会话：卡片只读得到自己所在的标签页。 */
@@ -61,6 +64,7 @@ export function createFold({ api, after, video, windowId, collapsed, place }: Fo
   function setPanelOpen(open: boolean): void {
     if (open === panelOpen) return;
     panelOpen = open;
+    panel(open);
     // 还在等新视频的会话：等它定下来时一起算。
     if (video() && !stopWaiting && wanted() !== collapsed()) decide();
   }
@@ -87,8 +91,8 @@ export function createFold({ api, after, video, windowId, collapsed, place }: Fo
     },
     /** 新视频：先收着问会话，有了就按它的模式定；一直没有就等够了按现在知道的定。 */
     wait(): void {
-      place(true);
-      const cancel = after(SESSION_WAIT_MS, decide);
+      place(true, false);
+      const cancel = after(SESSION_WAIT_MS, () => decide());
       stopWaiting = () => {
         cancel();
         stopWaiting = null;
@@ -102,7 +106,7 @@ export function createFold({ api, after, video, windowId, collapsed, place }: Fo
       sessionAsk += 1;
       const next = !collapsed();
       override = next ? "collapsed" : "expanded";
-      place(next);
+      place(next, false);
       const current = video();
       if (current) await api.send("card.setOverride", { video: current, value: override });
     },

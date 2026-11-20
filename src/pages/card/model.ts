@@ -1,7 +1,7 @@
 // 卡片的状态和操作。认哪个视频只看所在标签页的地址；读数据只用轻量读取（官方总结和本机已有的概览，YouTube 只有后者）；
 // 生成概览只认真实点击，登记时换到一次性令牌才开始；侧边栏为同一视频起的、打开就出结论自动起的任务就跟着看进度。
 // 没启用、卡片关着时什么都不显示。展开收起的规则在 fold.ts（跟会话的模式、本窗口的侧边栏和手动展开收起）；
-// 收起时不读，后台打开的标签页第一次到前台才读。
+// 收起时不读，后台打开的标签页第一次到前台才读。收起的那一行写什么在 glance.ts（播放到的章节、临时的一句话）。
 import { computed, signal, type ReadonlySignal } from "@preact/signals";
 import { describe, type ErrorCode } from "../../core/errors.ts";
 import type { LearningAnalysis } from "../../core/notes/markdown.ts";
@@ -12,6 +12,7 @@ import type { GuidesFailure, OfficialSummaryView } from "../../shared/messages/t
 import type { PageApi } from "../shared/api.ts";
 import type { ConfigState } from "../shared/config.ts";
 import { createFold } from "./fold.ts";
+import { AUTO_FOLD_NOTE, createGlance, PANEL_REFUSED_NOTE } from "./glance.ts";
 import { createActionHold, realTimers, type CardTimers } from "./timers.ts";
 
 export { SESSION_WAIT_MS } from "./fold.ts";
@@ -35,6 +36,8 @@ export interface CardDeps {
   readonly timers?: CardTimers;
   /** 卡片所在的标签页在不在前台；不给时当一直在前台。 */
   readonly page?: { visible(): boolean; onVisible(run: () => void): () => void };
+  /** 本标签页的播放器播到第几秒；问不到（没连上、在播广告、视频换了）时是 null。不给就不写当前章节。 */
+  readonly position?: (tabId: number, video: VideoKey) => Promise<number | null>;
 }
 
 export type Tone = "" | "warn" | "error";
@@ -78,6 +81,12 @@ export interface CardView {
   readonly officialOpen: boolean;
   /** 这个视频的内容还在来：按钮行先不摆。 */
   readonly holdActions: boolean;
+  /** 本窗口的侧边栏开着：卡片上不摆打开侧边栏的入口。 */
+  readonly panelOpen: boolean;
+  /** 收着时播放到的那一章，在 chaptersInOrder 里的序号；不知道时是 null。 */
+  readonly chapterNow: number | null;
+  /** 收起的那一行上临时说的一句话，没有时是空串。 */
+  readonly headNote: string;
 }
 
 /** 章节和官方提纲默认露几条：卡片嵌在右栏里，太高会把下面的选集和推荐顶下去。 */
@@ -107,6 +116,9 @@ const INITIAL: CardView = {
   showAll: false,
   officialOpen: false,
   holdActions: false,
+  panelOpen: false,
+  chapterNow: null,
+  headNote: "",
 };
 
 const LOAD_TIMEOUT_MS = 30_000;
@@ -122,6 +134,14 @@ export function hasOverview(analysis: LearningAnalysis | null): boolean {
   return Boolean(analysis?.chapters?.length || analysis?.keyQuotes?.length);
 }
 
+/** 章节按开始时间排好：收起那一行写「第几章」用，和侧边栏精读顶上那一条同一个顺序。 */
+export function chaptersInOrder(analysis: LearningAnalysis | null): readonly { readonly startSec: number; readonly title: string }[] {
+  return (analysis?.chapters ?? [])
+    .filter((chapter) => Number.isFinite(chapter.timestampSeconds))
+    .map((chapter) => ({ startSec: chapter.timestampSeconds, title: typeof chapter.title === "string" ? chapter.title.trim() : "" }))
+    .sort((a, b) => a.startSec - b.startSec);
+}
+
 const keyOf = (ref: VideoRef | null): VideoKey | null => {
   try {
     return ref ? videoKey(ref) : null;
@@ -131,7 +151,7 @@ const keyOf = (ref: VideoRef | null): VideoKey | null => {
 };
 
 export function createCardModel(deps: CardDeps) {
-  const { api, timers = realTimers } = deps;
+  const { api, timers = realTimers, position } = deps;
   const view = signal<CardView>(INITIAL);
   let tab: CardTab | null = null;
   let video: VideoKey | null = null;
@@ -149,7 +169,17 @@ export function createCardModel(deps: CardDeps) {
 
   const patch = (next: Partial<CardView>): void => {
     view.value = { ...view.peek(), ...next };
+    glance.sync();
   };
+  const glance = createGlance({
+    timers,
+    visible: () => deps.page?.visible() ?? true,
+    position: position ? () => (tab && video ? position(tab.id, video) : Promise.resolve(null)) : null,
+    wanted: () => view.peek().visible && view.peek().collapsed && !view.peek().panelOpen,
+    chapters: () => chaptersInOrder(view.peek().analysis),
+    state: () => view.peek(),
+    set: (next) => patch(next),
+  });
   const notice = (text: string, tone: Tone = "", said?: string): Pick<CardView, "notice"> => ({ notice: text ? { text, tone, ...(said ? { said } : {}) } : null });
   const actionRow = createActionHold(timers.after, (held) => patch({ holdActions: held }));
   const fold = createFold({
@@ -158,10 +188,13 @@ export function createCardModel(deps: CardDeps) {
     video: () => video,
     windowId: () => tab?.windowId ?? null,
     collapsed: () => view.peek().collapsed,
-    place(collapsed) {
+    place(collapsed, auto) {
       patch({ collapsed });
+      // 展开着的卡片因为播满时长自己收起：在收起的那一行上说一句为什么。
+      glance.say(collapsed && auto ? AUTO_FOLD_NOTE : "");
       if (!collapsed) void load();
     },
+    panel: (open) => patch({ panelOpen: open }),
   });
 
   const aiReady = computed<boolean | null>(() => {
@@ -180,6 +213,7 @@ export function createCardModel(deps: CardDeps) {
     saved = null;
     savedBasis = null;
     actionRow.reset();
+    glance.say("");
     patch({ phase, title: "", official: null, analysis: null, transcriptBasis: null, transcriptFingerprint: null, verdictPending: false, noCaptions: false, notRead: false, task: null, settingsError: false, notice: null, showAll: false, officialOpen: false, holdActions: false });
   }
 
@@ -393,6 +427,7 @@ export function createCardModel(deps: CardDeps) {
   const stopWatching = deps.page?.onVisible(() => {
     // 回到前台顺手再问一次侧边栏：开关的广播万一漏了，这里补上。
     if (ready) void fold.readPanel();
+    glance.seen();
     if (seen) return;
     seen = true;
     void load();
@@ -437,6 +472,11 @@ export function createCardModel(deps: CardDeps) {
     generate,
     cancel,
     toggle: () => fold.toggle(),
+    /** 浏览器没让卡片直接打开侧边栏：展开着时在正文里说，收着时在那一行上说。 */
+    panelRefused(): void {
+      patch({ notice: { text: "浏览器没让卡片直接打开侧边栏，请点浏览器工具栏里的简幕图标。", tone: "error" } });
+      if (view.peek().collapsed) glance.say(PANEL_REFUSED_NOTE);
+    },
     toggleShowAll: (): void => patch({ showAll: !view.peek().showAll }),
     toggleOfficial: (): void => patch({ officialOpen: !view.peek().officialOpen }),
     seek(atSec: number): void {
@@ -446,6 +486,7 @@ export function createCardModel(deps: CardDeps) {
     stop(): void {
       stopTimer?.();
       fold.stop();
+      glance.stop();
       actionRow.stop();
       stopWatching?.();
       for (const off of subscriptions) off();
