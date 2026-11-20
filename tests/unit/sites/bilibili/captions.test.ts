@@ -421,3 +421,72 @@ test("只有英文人工字幕和中文自动字幕：不标原语言，默认�
   const withZh = await listed(owned(ZH_TRACK, 4004), owned(EN_TRACK), owned(ZH_AI));
   assert.equal(pickTrack(withZh, INFO.audioLang)?.trackId, "zh-CN");
 });
+
+// 机器翻译的轨：样例按语言码各指一个文件，extra 里给机器生成和机器翻译的标记。
+const machine = (lan: string, extra: Record<string, unknown> = {}): object => ({
+  lan,
+  lan_doc: `${lan}（样例）`,
+  subtitle_url: `//aisubtitle.hdslb.com/bfs/subtitle/${lan}.json`,
+  ...extra,
+});
+const ORIGINAL = { ai_status: 2, ai_type: 0 };
+const TRANSLATED = { ai_status: 2, ai_type: 1 };
+
+test("机器翻译的轨：有原声识别的自动轨时只列原声轨", async () => {
+  const tracks = await listed(
+    machine("ai-zh", ORIGINAL),
+    machine("ai-en", TRANSLATED),
+    machine("ai-ja", TRANSLATED),
+    machine("ai-es", TRANSLATED),
+  );
+  assert.deepEqual(
+    tracks.map((track) => [track.lang, track.kind]),
+    [["ai-zh", "auto"]],
+  );
+});
+
+test("机器翻译的轨：能用的全是机器翻译时一条都不去", async () => {
+  assert.deepEqual(langsOf(await listed(machine("ai-zh", TRANSLATED), machine("ai-en", { ai_type: "1" }))), ["ai-zh", "ai-en"]);
+});
+
+test("机器翻译的轨：人工轨、原声自动轨和机器翻译轨并存时只去机器翻译轨", async () => {
+  assert.deepEqual(
+    langsOf(await listed(ZH_TRACK, machine("ai-en", TRANSLATED), machine("ai-ja", ORIGINAL), machine("ai-ko", TRANSLATED))),
+    ["zh-CN", "ai-ja"],
+  );
+  assert.deepEqual(langsOf(await listed(EN_TRACK, machine("ai-zh", TRANSLATED))), ["en-US"], "人工轨在就去掉机器翻译轨");
+});
+
+test("机器翻译的轨：原声轨地址不能用、机器翻译轨能用时机器翻译轨留着", async () => {
+  for (const original of [
+    machine("ai-zh", { ...ORIGINAL, subtitle_url: "" }),
+    machine("ai-zh", { ...ORIGINAL, subtitle_url: "//files.example.test/zh.json" }),
+    { ...ZH_TRACK, subtitle_url: "" },
+  ]) {
+    assert.deepEqual(langsOf(await listed(original, machine("ai-en", TRANSLATED))), ["ai-en"]);
+  }
+});
+
+test("机器翻译的轨：语言码和标记两样都对上才去", async () => {
+  const keep = [
+    machine("ai-en", { ai_status: 2, ai_type: 0 }),
+    machine("ai-ja", { ai_status: 2 }),
+    machine("ai-ko", { ai_type: 2 }),
+    machine("ai-fr", { ai_type: "坏数据" }),
+    machine("es", TRANSLATED),
+  ];
+  assert.deepEqual(langsOf(await listed(ZH_TRACK, ...keep)), ["zh-CN", "ai-en", "ai-ja", "ai-ko", "ai-fr", "es"]);
+});
+
+test("机器翻译的轨：读一条被去掉的轨按这条轨不在了处理", async () => {
+  const { captions, ctx, fake } = rig({ [PLAYER_URL]: listing(ZH_TRACK, machine("ai-en", TRANSLATED)), [ZH_FILE]: oneLine() });
+
+  assert.deepEqual(langsOf(value(await captions.listCaptionTracks(INFO, ctx))), ["zh-CN"]);
+  const dropped: CaptionTrack = { trackId: "ai-en", lang: "ai-en", label: "ai-en（样例）", kind: "auto" };
+  const gone = failure(await captions.readCaptions(INFO, dropped, ctx));
+
+  assert.equal(gone.code, "NO_CAPTIONS");
+  assert.equal(gone.detail, "track-gone");
+  assert.equal(fake.calls(PLAYER_URL).length, 2, "重列一次，还是没有这条轨");
+  assert.equal(fake.requests.filter((request) => request.url.includes("ai-en")).length, 0, "不去下载它的文件");
+});

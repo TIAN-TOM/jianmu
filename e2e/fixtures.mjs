@@ -120,7 +120,7 @@ export function viewData(video, overrides = {}) {
 function trackList(video) {
   return [
     { lan: "zh-CN", lan_doc: "中文（中国）", subtitle_url: `${CAPTION_FILE_BASE}/sample-zh.json`, ai_status: 0, ai_type: 0, author_mid: video.mid },
-    { lan: "ai-en", lan_doc: "英语（自动生成）", subtitle_url: `${CAPTION_FILE_BASE}/sample-en.json`, ai_status: 2, ai_type: 1, author_mid: 0 },
+    { lan: "ai-en", lan_doc: "英语（自动生成）", subtitle_url: `${CAPTION_FILE_BASE}/sample-en.json`, ai_status: 2, ai_type: 0, author_mid: 0 },
   ];
 }
 
