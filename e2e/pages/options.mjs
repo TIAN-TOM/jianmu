@@ -605,6 +605,19 @@ test(
   { timeoutMs: 300_000 },
 );
 
+test("设置页：外观一节的语言即改即存，三项是跟随浏览器、中文、English，默认跟随浏览器", async ({ open }) => {
+  const page = await freshOptions(open);
+  await enable(page);
+  const options = await page.evaluate(`[...document.querySelectorAll("#language option")].map((node) => [node.value, node.textContent])`);
+  assert.deepEqual(options, [["auto", "跟随浏览器"], ["zh", "中文"], ["en", "English"]]);
+  assert.equal(await page.evaluate(`document.getElementById("language").value`), "auto");
+  await fill(page, "#language", "en");
+  const stored = `chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)}).then((items) => items[${JSON.stringify(SETTINGS_STORAGE_KEY)}].language)`;
+  await page.waitFor("语言不用点保存就存下", `${stored}.then((language) => language === "en")`);
+  const reopened = await open(PAGE_PATHS.options, { width: WIDTH });
+  await reopened.waitFor("重新打开后填回来", `document.querySelector("#language")?.value === "en"`);
+});
+
 test("设置页：推理强度新安装全关；每项功能单独选，改了不用点保存就存下，实际档位和选的不一样时旁边标出，重新打开照旧；概览分块也是改了就存", async ({ open }) => {
   const page = await freshOptions(open);
   await enable(page);

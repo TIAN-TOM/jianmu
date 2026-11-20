@@ -3,8 +3,8 @@ import type { TranslationItem } from "../../core/ai/chunking.ts";
 import type { TransportError } from "../../core/ai/transport/index.ts";
 import { alignTidiedSegments } from "../../core/ai/validate.ts";
 import type { Failure } from "../../core/errors.ts";
-import type { FrozenGen } from "../../core/tasks.ts";
-import { isChineseSubtitle } from "../../core/transcript/language.ts";
+import type { OutputLang } from "../../core/output-lang.ts";
+import { isChineseSubtitle, isEnglishSubtitle } from "../../core/transcript/language.ts";
 import type { TranscriptSegment } from "../../core/transcript/segment.ts";
 import type { TranslateFailure, TranslateTarget } from "../../shared/messages/translate.ts";
 import { videoKey, type VideoKey } from "../../core/video-ref.ts";
@@ -23,10 +23,15 @@ export function tidiedOf(parsed: unknown, batch: readonly TranslationItem[], job
   return kept;
 }
 
-/** 中文字幕译成英文，其他语言的字幕译成简体中文。 */
-export const targetOf = (lang: string): TranslateTarget => (isChineseSubtitle(lang) ? "en" : "zh");
+/**
+ * 译成设置的语言；字幕本身已经是这种语言时译成另一种。选中文时就是：中文字幕译成英文，其他语言的字幕译成简体中文。
+ */
+export function targetOf(lang: string, outputLang: OutputLang = "zh"): TranslateTarget {
+  if (outputLang === "en") return isEnglishSubtitle(lang) ? "zh" : "en";
+  return isChineseSubtitle(lang) ? "en" : "zh";
+}
 
-export const genInfo = ({ feature, promptVersion, model, effort }: FrozenGen) => ({ feature, promptVersion, model, effort });
+export { genInfo } from "../../core/tasks.ts";
 
 export function parseFailed(sends: number): TransportError {
   const error: TransportError = Object.assign(new Error("模型没有按要求返回结果。"), { code: "TRANSLATE_PARSE_FAILED" });

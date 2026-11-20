@@ -1,6 +1,7 @@
 // AI 任务生命周期：去重、进度、取消与状态广播。保活在 platform/keepalive.ts。
 import { EFFORTS } from "./ai/provider/effort.ts";
-import type { Effort, FeatureId } from "./notes/records.ts";
+import type { Effort, FeatureId, GenInfo } from "./notes/records.ts";
+import type { OutputLang } from "./output-lang.ts";
 import type { VideoKey } from "./video-ref.ts";
 
 export type TaskState = "running" | "completed" | "failed" | "canceled";
@@ -36,7 +37,18 @@ export interface FrozenGen {
   /** 用户选的档位，和实际生效的不一样时才有（关不掉、退了一档）；请求按它发。 */
   readonly requestedEffort?: Effort;
   readonly promptVersion: string;
+  /** 模型写的内容用的语言，建任务时按设置和浏览器界面语言解析一次。进等价键：两种语言的同类任务不合并。没有时按中文。 */
+  readonly outputLang?: OutputLang;
 }
+
+/** 随结果存下的那部分生成配置：地址不存；语言只在任务记着时写。 */
+export const genInfo = ({ feature, promptVersion, model, effort, outputLang }: FrozenGen): GenInfo => ({
+  feature,
+  promptVersion,
+  model,
+  effort,
+  ...(outputLang ? { outputLang } : {}),
+});
 
 /**
  * 硬超时和保活按哪一档放宽：选的和实际的取高的那档。实际档位是建任务时只看本机缓存算的，

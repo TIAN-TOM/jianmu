@@ -52,6 +52,8 @@ export function launchChrome({ executable, profileDir, hostRules, extensionDir }
       "--disable-sync",
       "--use-mock-keychain",
       "--password-store=basic",
+      // 界面语言固定成中文（Linux 上管用，macOS 不认这个参数）；存进去的设置另外写明中文，见 settings.mjs。
+      "--lang=zh-CN",
       ...(byFlag ? [`--disable-extensions-except=${extensionDir}`, `--load-extension=${extensionDir}`] : []),
       "about:blank",
     ],

@@ -15,6 +15,7 @@ import type { ClearEpoch, ClearGuard } from "../../core/clear-guard.ts";
 import { mapWithConcurrency } from "../../core/concurrency.ts";
 import { fail, ok, type Result } from "../../core/errors.ts";
 import type { Basis, Derived, TranscriptRef } from "../../core/notes/records.ts";
+import type { OutputLang } from "../../core/output-lang.ts";
 import type { FrozenGen, TaskOrigin, TaskView } from "../../core/tasks.ts";
 import { textFingerprint } from "../../core/transcript/fingerprint.ts";
 import type { TranscriptSegment } from "../../core/transcript/segment.ts";
@@ -82,6 +83,8 @@ export interface TranslateServiceDeps {
   /** 登记任务时取定「翻译」或「整理字幕」这一项的生成配置。 */
   readonly freeze: (feature: typeof TRANSLATE_FEATURE | typeof TIDY_FEATURE) => Promise<FrozenGen>;
   readonly prompt: (file: string) => string;
+  /** 现在设置的语言，定翻译方向用。不给时按中文。 */
+  readonly outputLang?: () => Promise<OutputLang>;
   readonly guard: ClearGuard;
   readonly timers: Pick<Timers, "setTimeout" | "clearTimeout">;
   readonly concurrency?: number;
@@ -374,7 +377,7 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
     const job: Job = {
       ref,
       transcript,
-      target: purpose === "tidy" ? "tidy" : targetOf(transcript.lang),
+      target: purpose === "tidy" ? "tidy" : targetOf(transcript.lang, deps.outputLang ? await deps.outputLang() : "zh"),
       title: view.info.title,
       sources: new Map(segments.map((segment) => [segment.id, segment.text])),
       hashes,

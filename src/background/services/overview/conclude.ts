@@ -1,12 +1,13 @@
 // 一句话结论的请求：概览合并好以后再归纳一次，讲清内容和价值，判断要不要看完整视频。只喂章节和金句，请求很小。
 // 完整概览之后的这一步和用官方总结写结论共用同一份提示词、同一道并发闸门和同一套校验。
 import { parseLooseJson } from "../../../core/ai/parse.ts";
-import type { PromptVariables } from "../../../core/ai/prompt.ts";
+import { localizePrompt, type PromptVariables } from "../../../core/ai/prompt.ts";
 import { VERDICT } from "../../../core/ai/schemas.ts";
 import { taskCanceledError, throwIfTaskCanceled } from "../../../core/ai/transport/index.ts";
 import { validateVerdict, verdictInputs, type CoverageGap, type Verdict, type VerdictAnalysis } from "../../../core/ai/verdict.ts";
 import type { Limiter } from "../../../core/concurrency.ts";
 import type { LearningAnalysis } from "../../../core/notes/markdown.ts";
+import type { OutputLang } from "../../../core/output-lang.ts";
 import { formatTimestamp } from "../../../core/transcript/segment.ts";
 import { errorLabel, type Log } from "../../log.ts";
 import type { TaskAi } from "../../ai.ts";
@@ -20,7 +21,10 @@ export type VerdictResult = Verdict & { readonly truncated?: true };
 
 export interface VerdictRequestDeps {
   readonly ai: TaskAi;
+  /** 模板原文，按 outputLang 填好语言那几处再发。 */
   readonly prompt: string;
+  /** 结论用的语言，跟着任务取定的配置；不给时按中文。 */
+  readonly outputLang?: OutputLang;
   readonly gate: Limiter;
   readonly concurrency: number;
   readonly log: Log;
@@ -43,7 +47,8 @@ export interface VerdictRequest {
 /** 结论请求本身：请求出错照常抛，吞掉还是报给用户由调用方决定；模型回的不是有效结论时交回 null。 */
 export async function requestVerdict(deps: VerdictRequestDeps, request: VerdictRequest): Promise<VerdictResult | null> {
   const { signal, queueSignal = signal, stillWanted } = request;
-  const messages = promptMessages(deps.prompt, request.variables);
+  const lang = deps.outputLang ?? "zh";
+  const messages = promptMessages(localizePrompt(deps.prompt, lang), request.variables);
   const { text, truncated } = await deps.gate(
     deps.concurrency,
     () => {
@@ -68,7 +73,7 @@ export async function requestVerdict(deps: VerdictRequestDeps, request: VerdictR
   } catch (error) {
     deps.log.error("一句话结论读不出来", errorLabel(error));
   }
-  const verdict = validateVerdict(parsed, { incomplete: request.incomplete ?? false, chapterStarts: request.chapterStarts });
+  const verdict = validateVerdict(parsed, { incomplete: request.incomplete ?? false, chapterStarts: request.chapterStarts, lang });
   return verdict && truncated ? { ...verdict, truncated: true } : verdict;
 }
 

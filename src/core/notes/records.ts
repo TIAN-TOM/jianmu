@@ -1,6 +1,7 @@
 // 笔记和概览的记录类型，以及派生结果记下的依据和生成配置。
 import type { TextTarget } from "../../shared/messages/translate.ts";
 import type { FailureRange, StoredRange } from "../ai/chunking.ts";
+import type { OutputLang } from "../output-lang.ts";
 import type { CaptionKind } from "../transcript/sources.ts";
 import { parseVideoKey, type VideoKey } from "../video-ref.ts";
 import type { LearningAnalysis } from "./markdown.ts";
@@ -31,6 +32,8 @@ export interface GenInfo {
   readonly promptVersion: string;
   readonly model: string;
   readonly effort: Effort;
+  /** 模型写这份结果用的语言。旧记录没有这一项，按中文（core/output-lang.ts 的 outputLangOf）。 */
+  readonly outputLang?: OutputLang;
 }
 
 type LegacyBasis = Extract<Basis, { readonly source: "legacy-unknown" }>;

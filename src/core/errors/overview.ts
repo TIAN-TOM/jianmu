@@ -24,7 +24,7 @@ export const OVERVIEW_ERROR_TEXT: Readonly<Record<OverviewErrorCode, ErrorCopy>>
   ANALYSIS_PARSE_FAILED: { cause: "模型没有按要求的格式返回概览，结果读不出来。", impact: MAYBE_BILLED, next: SWITCH_MODEL },
   NO_ANALYSIS: { cause: "还没有可以补的概览。", next: "先点「生成概览」。" },
   FAILED_CHUNKS_MISMATCH: {
-    cause: "当前的字幕和这份概览的分块对不上。",
+    cause: "当前的字幕或语言和这份概览对不上。",
     impact: "没法只补失败的部分，这次没花额度。",
     next: "点「重新生成」生成整份概览。",
   },

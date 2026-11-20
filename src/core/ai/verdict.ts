@@ -1,4 +1,5 @@
 // 一句话结论：判断档位、给模型的输入和结果校验。
+import type { OutputLang } from "../output-lang.ts";
 import { formatTimestamp, startSecondsOf } from "../transcript/segment.ts";
 
 // 一句话结论的判断档位，模型只能在这四档里选，界面按它们配标记，导出也原样写出。
@@ -230,7 +231,18 @@ export interface VerdictCheck {
   readonly stored?: boolean;
   /** 写结论时看到的章节的起始秒。不给时不收重点章节。 */
   readonly chapterStarts?: readonly unknown[] | undefined;
+  /** 结论的语言，截断上限按它取；不给时按中文。 */
+  readonly lang?: OutputLang | undefined;
 }
+
+/**
+ * 各字段按字符截断的上限，比提示词要求的长度留出余量。中文按提示词的 80 字、50 字算；
+ * 英文按 50 词、30 词算，一个词连空格六七个字符，同样留一倍多的余量，免得截成半句。
+ */
+export const VERDICT_CLIP: Readonly<Record<OutputLang, { readonly summary: number; readonly value: number; readonly reason: number }>> = Object.freeze({
+  zh: Object.freeze({ summary: 200, value: 120, reason: 120 }),
+  en: Object.freeze({ summary: 800, value: 480, reason: 480 }),
+});
 
 /**
  * 结论同样当不可信数据处理：没有 summary 就当没生成；判断不在几档里就不显示，
@@ -239,7 +251,7 @@ export interface VerdictCheck {
  */
 export function validateVerdict(
   parsed: unknown,
-  { incomplete = false, stored = false, chapterStarts }: VerdictCheck = {},
+  { incomplete = false, stored = false, chapterStarts, lang = "zh" }: VerdictCheck = {},
 ): Verdict | null {
   if (!parsed || typeof parsed !== "object") return null;
   const source = parsed as {
@@ -250,16 +262,17 @@ export function validateVerdict(
     readonly keyChapters?: unknown;
   };
   const clip = (value: unknown, max: number): string => String(value || "").trim().slice(0, max);
-  const summary = clip(source.summary, 200);
+  const limits = VERDICT_CLIP[lang];
+  const summary = clip(source.summary, limits.summary);
   if (!summary) return null;
   // 模型只能给新四档；改了名的旧档位也认，只有「看概览就够」不再是模型能给的判断。
   const label = verdictLabelOf(source.verdict);
   const verdict = stored || label !== LEGACY_VERDICT ? label : "";
   return {
     summary,
-    value: clip(source.value, 120),
+    value: clip(source.value, limits.value),
     verdict,
-    reason: verdict ? clip(source.reason, 120) : "",
+    reason: verdict ? clip(source.reason, limits.reason) : "",
     ...withKeys(chapterStarts ? validKeyStarts(source.keyChapters, chapterStarts) : []),
     ...(incomplete ? { incomplete: true as const } : {}),
   };

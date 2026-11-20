@@ -21,7 +21,8 @@ export async function storedSettings(service, auto) {
   const session = {};
   const locks = { exclusive: (_name, work) => Promise.resolve().then(work), shared: (_name, work) => Promise.resolve().then(work) };
   const store = createSettingsStore({ storage: { local: area(local), session: area(session) }, locks });
-  await store.save({ presetId: service.presetId, aiApiKey: service.key, aiModel: service.model, ...service.fields }, "");
+  // 语言写明中文：默认跟随浏览器，无头 Chrome 的界面语言多半是英文，测试照中文的内容核对。
+  await store.save({ presetId: service.presetId, aiApiKey: service.key, aiModel: service.model, language: "zh", ...service.fields }, "");
   await store.setDataConsent(true);
   await store.confirmActivation();
   if (auto) await store.update({ autoOverview: true, autoOverviewMinutes: auto.minutes });

@@ -93,6 +93,7 @@ export function createFakeAi(options: FakeAiOptions = {}): FakeAi {
         return fail("AI_REQUEST_FAILED");
       }
     },
+    outputLang: async () => "zh",
     capabilities: async () => ({ canDisableThinking: true, efforts: [], imageInput: options.imageInput ?? true, jsonSchema: false }),
     prompt(file) {
       const text = options.prompts?.[file];

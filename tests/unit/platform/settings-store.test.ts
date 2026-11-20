@@ -290,6 +290,17 @@ test("推理强度和概览分块即改即存：只改带来的那项功能，�
   assert.deepEqual(world.session.data[API_KEY_SESSION_KEY], { key: "sk-ds", origin: DEEPSEEK_ORIGIN });
 });
 
+test("语言即改即存：存下选的那项，修订号和密钥都不动；认不出的值按跟随浏览器", async () => {
+  const world = areas({ [SETTINGS_STORAGE_KEY]: DEEPSEEK }, { [API_KEY_SESSION_KEY]: { key: "sk-ds", origin: DEEPSEEK_ORIGIN } });
+  const before = revisionOf(world);
+  assert.equal((await storeOn(world).load()).language, "auto", "旧设置没有这一项");
+  const updated = await storeOn(world).update({ language: "en" });
+  assert.equal(updated.language, "en");
+  assert.equal(savedSettings(world)["language"], "en");
+  assert.equal(revisionOf(world), before);
+  assert.equal((await storeOn(world).update({ language: "de" })).language, "auto");
+});
+
 test("本机设置里多出来的密钥不认也不迁移：读到的是空的，下次写入时消失", async () => {
   const world = areas({ [SETTINGS_STORAGE_KEY]: WITH_STRAY_KEY });
   const store = storeOn(world);

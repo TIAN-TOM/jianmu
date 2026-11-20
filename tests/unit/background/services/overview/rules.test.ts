@@ -99,6 +99,23 @@ test("旧备份导入的概览补失败块要求重新生成整份：依据未�
   assert.equal(h.asks.length, 0);
 });
 
+test("已有章节是用另一种语言写的：补失败块按对不上处理，要求重新生成整份，不拼出两种语言的概览", async () => {
+  const first = overviewHarness();
+  first.setFailMode("marker");
+  await first.generate().result;
+  const record = await first.record();
+  const chapters = record?.parts?.chapters;
+  assert.ok(record?.analysisFailures?.length && chapters && "gen" in chapters.derived && chapters.derived.gen, "先有一份带失败块的概览");
+  const english = { ...chapters, derived: { ...chapters.derived, gen: { ...chapters.derived.gen, outputLang: "en" as const } } } as OverviewPart;
+  const h = overviewHarness({ records: [{ ...record, parts: { ...record.parts, chapters: english } }] });
+  assert.equal(codeOf(await h.retry().result), "FAILED_CHUNKS_MISMATCH");
+  assert.equal(h.chunkAsks().length, 0, "一块都不发");
+
+  const same = overviewHarness({ records: [record] });
+  value(await same.retry().result);
+  assert.ok(same.chunkAsks().length > 0, "语言一样（旧记录和任务都没写语言，都按中文）照常补");
+});
+
 test("失败原因里带着密钥：错误日志只记类别，搜不到密钥", async () => {
   const h = overviewHarness({
     respond: ({ isVerdict }) => {

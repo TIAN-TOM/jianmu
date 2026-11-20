@@ -7,7 +7,8 @@
 // （只在内存，不写磁盘），后台被回收后醒来还在；醒来时还标着在跑的，按中途停了收尾。清除本机数据时一起删。
 // 模块顶层只放字面量和函数，理由见 content/frame.ts 开头。
 import { throwIfTaskCanceled } from "../../core/ai/transport/index.ts";
-import { extractPromptSection } from "../../core/ai/prompt.ts";
+import { extractPromptSection, localizePrompt } from "../../core/ai/prompt.ts";
+import { outputLangOf, type OutputLang } from "../../core/output-lang.ts";
 import { fail, ok, type ErrorCode, type Failure, type Result } from "../../core/errors.ts";
 import { sha256Hex } from "../../core/task-keys.ts";
 import type { ClearGuard } from "../../core/clear-guard.ts";
@@ -51,7 +52,11 @@ const FRAME_MAX_TOKENS = 2048;
 /** 每个标签页留最近几次，留多久。 */
 const KEEP_PER_TAB = 10;
 export const KEEP_MS = 1_800_000; // 半小时
-const TRUNCATED_NOTE = "…（模型输出被截断，解释可能不完整。）";
+// 截断提示和解释一起交回，跟着解释的语言。
+const TRUNCATED_NOTE: Readonly<Record<OutputLang, string>> = {
+  zh: "…（模型输出被截断，解释可能不完整。）",
+  en: "… (The model's output was cut off, so this explanation may be incomplete.)",
+};
 
 // 读字幕时这几种失败只说明没有可用的字幕，照样解释；别的（限流、平台拒绝、没登录、读出错）都停下。
 const CONTEXT_OPTIONAL: ReadonlySet<ErrorCode> = new Set<ErrorCode>(["NO_CAPTIONS", "EMPTY_CAPTION_FILE", "SUBTITLE_TRACK_MISSING", "SUBTITLE_MISMATCH"]);
@@ -271,7 +276,8 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
             frameTime: formatTimestamp(capture.atSec),
           };
           throwIfTaskCanceled(run.signal);
-          const markdown = deps.prompt(FRAME_PROMPT_FILE);
+          const lang = outputLangOf(gen);
+          const markdown = localizePrompt(deps.prompt(FRAME_PROMPT_FILE), lang);
           update(id, { phase: "thinking" });
           const { text, truncated } = await run.ai.requestAiCompletion({
             maxTokens: FRAME_MAX_TOKENS,
@@ -290,7 +296,7 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
           });
           throwIfTaskCanceled(run.signal);
           const explanation = text.trim();
-          return ok(truncated ? { explanation: `${explanation}${TRUNCATED_NOTE}`, truncated: true as const } : { explanation });
+          return ok(truncated ? { explanation: `${explanation}${TRUNCATED_NOTE[lang]}`, truncated: true as const } : { explanation });
         } catch (error) {
           if (run.signal.aborted || (error as { readonly code?: unknown } | null)?.code === "TASK_CANCELED") return fail("TASK_CANCELED");
           // 像是看不了图被拒：拿探测图复核一次，复核也说不能看才这么报（并记下）；能看就是别的原因，照常报失败。

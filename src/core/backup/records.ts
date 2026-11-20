@@ -23,6 +23,7 @@ import {
   TEXT_TARGETS,
   translationId,
 } from "../notes/records.ts";
+import { isOutputLang, outputLangOf, type OutputLang } from "../output-lang.ts";
 import type { CaptionKind } from "../transcript/sources.ts";
 import { parseVideoKey, type VideoKey } from "../video-ref.ts";
 
@@ -121,9 +122,11 @@ export const UNKNOWN_BASIS: Derived = Object.freeze({ basis: Object.freeze({ sou
 
 function checkGen(value: unknown): GenInfo | null {
   if (!isFields(value)) return null;
-  const { feature, promptVersion, model, effort } = value;
+  const { feature, promptVersion, model, effort, outputLang } = value;
   if (typeof feature !== "string" || typeof promptVersion !== "string" || typeof model !== "string") return null;
-  return oneOf(EFFORTS, effort) ? { feature, promptVersion, model, effort } : null;
+  if (!oneOf(EFFORTS, effort)) return null;
+  // 写内容的语言只认中文和英文；旧备份没有这一项，认不出的也当没有，读的时候按中文。
+  return { feature, promptVersion, model, effort, ...(isOutputLang(outputLang) ? { outputLang } : {}) };
 }
 
 function checkBasis(value: unknown): Basis | null {
@@ -162,9 +165,9 @@ export function checkDerived(value: unknown): Derived {
  * 旧档位按 verdictLabelOf 读：改了名的换成新名字，「看概览就够」连同理由原样留成旧判断。
  * 重点章节和这条记录的章节对一遍，坏的、对不上的只丢重点；没有这个字段的旧记录按没有重点。
  */
-function checkVerdict(value: unknown, chapterStarts: readonly number[]): LearningVerdict | null {
+function checkVerdict(value: unknown, chapterStarts: readonly number[], lang: OutputLang): LearningVerdict | null {
   if (!isFields(value)) return null;
-  const verdict = validateVerdict(value, { incomplete: value.incomplete === true, stored: true });
+  const verdict = validateVerdict(value, { incomplete: value.incomplete === true, stored: true, lang });
   if (!verdict) return null;
   const keyStarts = validKeyStarts(value.keyStarts, chapterStarts);
   return {
@@ -190,9 +193,10 @@ function truncatedRangesOf(value: unknown): TimeRange[] {
 
 export type CheckedAnalysis = LearningAnalysis & { readonly truncatedRanges?: readonly TimeRange[] };
 
-function checkAnalysis(value: Fields): CheckedAnalysis {
+/** lang 是结论的语言，按结论那部分记下的生成配置；不知道时按中文截。 */
+function checkAnalysis(value: Fields, lang: OutputLang = "zh"): CheckedAnalysis {
   const { chapters, keyQuotes } = validateAnalysis(value, undefined);
-  const verdict = checkVerdict(value.verdict, chapters.map((chapter) => chapter.timestampSeconds));
+  const verdict = checkVerdict(value.verdict, chapters.map((chapter) => chapter.timestampSeconds), lang);
   const truncatedRanges = truncatedRangesOf(value.truncatedRanges);
   return {
     chapters,
@@ -250,9 +254,10 @@ export function overviewRecord(
   failures: unknown,
   updatedAt: number,
   parts: (checked: CheckedAnalysis) => OverviewParts | undefined,
+  verdictLang: OutputLang = "zh",
 ): OverviewRecord {
   const analysisFailures = normalizeAnalysisFailures(failures);
-  const checked = checkAnalysis(analysis);
+  const checked = checkAnalysis(analysis, verdictLang);
   const recorded = parts(checked);
   return {
     schemaVersion: OVERVIEW_RECORD_VERSION,
@@ -265,14 +270,27 @@ export function overviewRecord(
   };
 }
 
+// 结论那部分记下的语言：先过一遍和导入时相同的来历校验，认不出就按中文。
+function verdictLangOf(parts: unknown): OutputLang {
+  if (!isFields(parts) || !isFields(parts.verdict)) return "zh";
+  const derived = checkDerived(parts.verdict.derived);
+  return outputLangOf(derived.gen);
+}
+
 export function checkOverview(value: unknown): OverviewRecord | null {
   if (!isFields(value)) return null;
   const videoKey = videoOf(value.videoKey);
   const updatedAt = finite(value.updatedAt);
   const { snapshot, analysis } = value;
   if (!videoKey || updatedAt === null || !isFields(analysis)) return null;
-  return overviewRecord(videoKey, storedSnapshot(snapshot), analysis, value.analysisFailures, updatedAt, (checked) =>
-    checkParts(value.parts, checked),
+  return overviewRecord(
+    videoKey,
+    storedSnapshot(snapshot),
+    analysis,
+    value.analysisFailures,
+    updatedAt,
+    (checked) => checkParts(value.parts, checked),
+    verdictLangOf(value.parts),
   );
 }
 

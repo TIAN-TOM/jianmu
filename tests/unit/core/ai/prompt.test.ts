@@ -2,10 +2,13 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import { QA_PROMPT, QA_USER_SECTIONS } from "../../../../src/background/services/qa.ts";
-import { extractPromptSection, fillPromptVariables, type PromptVariables } from "../../../../src/core/ai/prompt.ts";
+import { extractPromptSection, fillPromptVariables, localizePrompt, type PromptVariables } from "../../../../src/core/ai/prompt.ts";
 
 const PROMPTS_DIR = new URL("../../../../prompts/", import.meta.url);
 const read = (file: string): string => readFileSync(new URL(file, PROMPTS_DIR), "utf8");
+// 这几份模板按输出语言填好再发；翻译另按方向取规则，整理字幕和笔记润色不分语言。
+const LOCALIZED = new Set(["skim/chapters.md", "skim/verdict.md", "common/qa.md", "study/explain.md", "study/frame-explain.md"]);
+const readZh = (file: string): string => (LOCALIZED.has(file) ? localizePrompt(read(file), "zh") : read(file));
 
 const SAMPLE_MARKDOWN = [
   "# 标题",
@@ -147,7 +150,7 @@ const PLACEHOLDER = /\{[A-Za-z][A-Za-z0-9_]*\}/;
 
 for (const [file, variables] of Object.entries(PROMPTS)) {
   test(`${file} 含有系统提示词和用户消息的小节`, () => {
-    const markdown = read(file);
+    const markdown = readZh(file);
     for (const heading of sectionsOf(file)) {
       const section = extractPromptSection(markdown, heading, variables);
       assert.ok(section.trim().length > 0, `${file}#${heading} 是空的`);
@@ -155,7 +158,7 @@ for (const [file, variables] of Object.entries(PROMPTS)) {
   });
 
   test(`${file} 的占位符能被完全替换`, () => {
-    const markdown = read(file);
+    const markdown = readZh(file);
     for (const heading of sectionsOf(file)) {
       const section = extractPromptSection(markdown, heading, variables);
       const leftover = section.match(PLACEHOLDER);
@@ -164,7 +167,7 @@ for (const [file, variables] of Object.entries(PROMPTS)) {
   });
 
   test(`${file} 里的每个变量都真的被用到了`, () => {
-    const markdown = read(file);
+    const markdown = readZh(file);
     const both = sectionsOf(file)
       .map((heading) => extractPromptSection(markdown, heading, {}))
       .join("\n");
@@ -191,7 +194,7 @@ test("分批/分块任务的系统提示词保持稳定前缀，服务商缓存�
   const tidySystem = extractPromptSection(read("study/tidy.md"), "系统提示词", {});
   assert.ok(!/\{\w+\}/.test(tidySystem), "study/tidy.md 的系统提示词不带变量");
   // 概览分块时时长、门槛逐块不同，系统提示词必须全静态。
-  const analysisSystem = extractPromptSection(read("skim/chapters.md"), "系统提示词", {});
+  const analysisSystem = extractPromptSection(readZh("skim/chapters.md"), "系统提示词", {});
   assert.equal(
     analysisSystem.match(PLACEHOLDER),
     null,
