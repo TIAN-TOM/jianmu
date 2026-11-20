@@ -7,6 +7,8 @@ import { describe } from "../../core/errors.ts";
 import type { VideoKey } from "../../core/video-ref.ts";
 import type { TextPurpose, TranslateOut } from "../../shared/messages/translate.ts";
 import type { PagePort, PageApi } from "../shared/api.ts";
+import type { UiLang } from "../shared/ui-lang.ts";
+import { panelTextOf } from "./text.ts";
 
 export type TranscriptMode = "original" | "translated" | "bilingual";
 
@@ -55,11 +57,17 @@ interface StreamWords {
   readonly stopped: string;
 }
 
-const TRANSLATE_WORDS: StreamWords = { unfinished: (batches) => `有 ${batches} 批没译成，可以再切一次译文补上`, stopped: "翻译已停止" };
-const TIDY_WORDS: StreamWords = { unfinished: (batches) => `有 ${batches} 批没整理完，可以再点一次补上`, stopped: "整理已停止" };
+const translateWords = (lang: UiLang): StreamWords => {
+  const t = panelTextOf(lang).transcript;
+  return { unfinished: t.translateUnfinished, stopped: t.translateStopped };
+};
+const tidyWords = (lang: UiLang): StreamWords => {
+  const t = panelTextOf(lang).transcript;
+  return { unfinished: t.tidyUnfinished, stopped: t.tidyStopped };
+};
 
 /** 一条结果流：连端口、收批次、记状态。翻译和整理字幕各开一条。 */
-function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | undefined, words: StreamWords) {
+function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | undefined, wordsOf: () => StreamWords) {
   const state = signal<TranslateState>(IDLE);
   const lines = signal<Readonly<Record<string, string>>>({});
   let bound: { readonly video: VideoKey; readonly fingerprint: string; readonly tabId: number | null } | null = null;
@@ -102,6 +110,7 @@ function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | unde
       case "translate.done": {
         if (quiet) return endQuiet();
         const failed = event.state === "failed";
+        const words = wordsOf();
         const message = event.failure
           ? describe(event.failure.code, event.failure.detail)
           : event.failedBatches > 0
@@ -186,9 +195,9 @@ function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | unde
   };
 }
 
-export function createTranslation({ api }: { readonly api: Pick<PageApi, "connect"> }): Translation {
+export function createTranslation({ api, lang = () => "zh" }: { readonly api: Pick<PageApi, "connect">; readonly lang?: () => UiLang }): Translation {
   const mode = signal<TranscriptMode>("original");
-  const stream = createStream(api, undefined, TRANSLATE_WORDS);
+  const stream = createStream(api, undefined, () => translateWords(lang()));
   return {
     mode,
     state: stream.state,
@@ -208,9 +217,9 @@ export function createTranslation({ api }: { readonly api: Pick<PageApi, "connec
   };
 }
 
-export function createTidy({ api }: { readonly api: Pick<PageApi, "connect"> }): Tidy {
+export function createTidy({ api, lang = () => "zh" }: { readonly api: Pick<PageApi, "connect">; readonly lang?: () => UiLang }): Tidy {
   const show = signal(true);
-  const stream = createStream(api, "tidy", TIDY_WORDS);
+  const stream = createStream(api, "tidy", () => tidyWords(lang()));
   return {
     state: stream.state,
     lines: stream.lines,

@@ -570,3 +570,141 @@ test("侧边栏：长视频在速览里连续播满 1 分钟切到精读，问�
     playingWatchPage(PLAYING_SAMPLE.id),
   );
 }, { timeoutMs: 150_000 });
+
+/** 把设置里的语言改成这一项，回改之前存着的设置（没有时是 null）。 */
+async function setLanguage(panel, language) {
+  const key = JSON.stringify(SETTINGS_STORAGE_KEY);
+  return panel.evaluate(
+    `chrome.storage.local.get(${key}).then((items) => { const before = items[${key}] ?? null; return chrome.storage.local.set({ [${key}]: { ...(before ?? {}), language: ${JSON.stringify(language)} } }).then(() => before); })`,
+  );
+}
+
+/** 把设置还原成改语言之前的样子。 */
+const restoreSettings = (panel, before) =>
+  panel.evaluate(
+    before === null
+      ? `chrome.storage.local.remove(${JSON.stringify(SETTINGS_STORAGE_KEY)}).then(() => true)`
+      : `chrome.storage.local.set(${JSON.stringify({ [SETTINGS_STORAGE_KEY]: before })}).then(() => true)`,
+  );
+
+test("侧边栏：语言选 English 以后，模式切换、底部工具条、各个状态的标题和按钮、问答抽屉、笔记层都是英文，<html lang> 是 en；切回中文恢复", async (ctx) => {
+  await withVideo(ctx, async (panel) => {
+    await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
+    await waitIn(panel, "生成概览停用", `[...document.querySelectorAll(".button")].some((node) => node.textContent === "生成概览" && node.disabled)`);
+    await waitIn(panel, "没设置的提示", `Boolean(document.querySelector(${JSON.stringify(CONFIG_ACTION)}))`);
+    assert.equal(await panel.evaluate(`document.documentElement.lang`), "zh-CN");
+    const before = await setLanguage(panel, "en");
+    try {
+      await waitIn(panel, "界面换成英文", `document.documentElement.lang === "en"`);
+      assert.equal(await panel.evaluate("document.title"), "Jianmu");
+      assert.deepEqual(await panel.evaluate(modes), [
+        ["Skim", "true"],
+        ["Study", "false"],
+      ]);
+      const view = await panel.evaluate(`({
+        modeView: document.querySelector(".mode-view")?.getAttribute("aria-label"),
+        modeGroup: document.querySelector(".modes")?.getAttribute("aria-label"),
+        settings: document.querySelector(".panel-head .icon-button")?.getAttribute("aria-label"),
+        notes: document.querySelector(".mode-row .icon-button")?.getAttribute("aria-label"),
+        ask: document.querySelector(".ask-entry")?.textContent,
+        config: document.querySelector('.notice[data-id="config"] .notice-text')?.textContent,
+        configAction: document.querySelector(${JSON.stringify(CONFIG_ACTION)})?.textContent,
+        batch: document.querySelector(".batch-bar .button")?.textContent,
+        buttons: [...document.querySelectorAll(".ai-overview .button")].map((node) => node.textContent),
+        reasons: [...new Set([...document.querySelectorAll(".ai-overview .control-reason")].map((node) => node.textContent))],
+        count: document.querySelector(".toolbar-count")?.textContent ?? "",
+      })`);
+      const { count, ...rest } = view;
+      assert.deepEqual(rest, {
+        modeView: "Skim",
+        modeGroup: "Mode",
+        settings: "Open settings",
+        notes: "Notes",
+        ask: "Ask about this video",
+        config: "Subtitles work without setup. Overviews and Q&A need an AI service set up first",
+        configAction: "Open settings",
+        batch: "Generate all in this window",
+        buttons: ["Generate overview", "Export study notes"],
+        reasons: ["Set up an AI service in settings first"],
+      });
+      assert.match(count, /^\d+ segments?$/);
+
+      // 问答抽屉：标题、输入框、按钮、说明和空状态。
+      const sheet = `[...document.querySelectorAll(".sheet")].find((node) => node.querySelector(".overlay-title")?.textContent === "Q&A")`;
+      await tap(panel, ".ask-entry");
+      await waitIn(panel, "问答抽屉打开", `${sheet}?.open === true`);
+      await waitIn(panel, "问答的空状态", `${appText}.includes("No Q&A yet")`);
+      const qa = await panel.evaluate(`({
+        placeholder: document.querySelector(".qa-form input")?.placeholder,
+        button: document.querySelector(".qa-form .button")?.textContent,
+        hint: document.querySelector(".qa-hint")?.textContent,
+        close: (${sheet}).querySelector(".overlay-head .icon-button")?.getAttribute("aria-label"),
+      })`);
+      assert.deepEqual(qa, {
+        placeholder: "Ask about this video, then press Enter",
+        button: "Ask",
+        hint: "Each question is answered on its own, without the earlier Q&A. Write follow-up questions out in full.",
+        close: "Close",
+      });
+      await panel.evaluate(`(${sheet}).querySelector(".overlay-head [aria-label='Close']").click(), true`);
+      await waitIn(panel, "抽屉关上", `${sheet}?.open === false`);
+
+      // 笔记层：标题、范围切换、导出、搜索框和空状态。
+      await tap(panel, ".mode-row [aria-label='Notes']");
+      await waitIn(panel, "笔记层打开", `document.querySelector(".layer")?.open === true`);
+      await waitIn(panel, "笔记的空状态", `${appText}.includes("No notes yet")`);
+      const notes = await panel.evaluate(`({
+        title: document.querySelector(".layer .overlay-title")?.textContent,
+        scopes: [...document.querySelectorAll(".layer .segment")].map((node) => node.textContent),
+        exportButton: document.querySelector(".layer .toolbar-actions .button")?.textContent,
+        search: document.querySelector(".layer .search-input")?.placeholder,
+        back: document.querySelector(".layer .overlay-head .icon-button")?.getAttribute("aria-label"),
+      })`);
+      assert.deepEqual(notes, { title: "Notes", scopes: ["This video", "All"], exportButton: "Export Markdown", search: "Search notes, titles or creators", back: "Back" });
+      await tap(panel, ".layer [aria-label='Back']");
+      await waitIn(panel, "笔记层关上", `document.querySelector(".layer")?.open === false`);
+
+      // 切回中文：同几处又是中文。
+      await setLanguage(panel, "zh");
+      await waitIn(panel, "界面换回中文", `document.documentElement.lang === "zh-CN"`);
+      assert.deepEqual(await panel.evaluate(modes), SKIM);
+      assert.equal(await panel.evaluate(`document.querySelector(".ask-entry")?.textContent`), "针对这个视频提问");
+      assert.equal(await panel.evaluate("document.title"), "简幕");
+      assert.ok(await panel.evaluate(`[...document.querySelectorAll(".button")].some((node) => node.textContent === "生成概览")`));
+    } finally {
+      await restoreSettings(panel, before);
+    }
+  });
+});
+
+test("侧边栏：English 下精读的底部工具条、整理字幕和解释画面是英文", async (ctx) => {
+  await withVideo(
+    ctx,
+    async (panel) => {
+      await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
+      await waitIn(panel, "进了精读", `JSON.stringify(${modes}) === ${JSON.stringify(JSON.stringify(STUDY))}`);
+      const before = await setLanguage(panel, "en");
+      try {
+        await waitIn(panel, "界面换成英文", `document.documentElement.lang === "en"`);
+        await waitIn(panel, "整理字幕停用", `document.querySelector(".study .tidy-row .button")?.disabled === true`);
+        const view = await panel.evaluate(`({
+          modeView: document.querySelector(".mode-view")?.getAttribute("aria-label"),
+          dock: [...document.querySelectorAll(".dock button")].map((node) => node.textContent),
+          tidy: document.querySelector(".study .tidy-row .button")?.textContent,
+          reason: document.querySelector(".study .tidy-row .control-reason")?.textContent,
+        })`);
+        assert.deepEqual(view, {
+          modeView: "Study",
+          dock: ["Ask about this video", "Save note", "Explain frame"],
+          tidy: "Tidy up subtitles",
+          reason: "Set up an AI service in settings first",
+        });
+      } finally {
+        await restoreSettings(panel, before);
+      }
+      await waitIn(panel, "界面换回中文", `document.documentElement.lang === "zh-CN"`);
+      assert.ok(await panel.evaluate(`[...document.querySelectorAll(".dock .button")].some((node) => node.textContent === "存笔记")`));
+    },
+    BRIEF_SAMPLE.id,
+  );
+});

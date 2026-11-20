@@ -5,6 +5,8 @@ import { describe } from "../../core/errors.ts";
 import type { VideoKey } from "../../core/video-ref.ts";
 import type { NoteItemView } from "../../shared/messages/notes.ts";
 import type { PageApi } from "../shared/api.ts";
+import type { UiLang } from "../shared/ui-lang.ts";
+import { panelTextOf } from "./text.ts";
 
 export type NotesScope = "video" | "all";
 
@@ -32,7 +34,7 @@ export function sortNotes(notes: readonly NoteItemView[], scope: NotesScope): No
   return [...notes].sort(scope === "video" ? (a, b) => a.atSec - b.atSec : (a, b) => b.updatedAt - a.updatedAt);
 }
 
-export function createNotesStore({ api }: { readonly api: Pick<PageApi, "send" | "on"> }): NotesStore {
+export function createNotesStore({ api, lang = () => "zh" }: { readonly api: Pick<PageApi, "send" | "on">; readonly lang?: () => UiLang }): NotesStore {
   const state = signal<NotesState>({ video: null, scope: "video", loaded: false, notes: [], error: "" });
   let generation = 0;
   const off = api.on("notes.changed", ({ video }) => {
@@ -73,7 +75,8 @@ export function createNotesStore({ api }: { readonly api: Pick<PageApi, "send" |
       const reply = await api.send("notes.save", { video, atSec: Math.max(0, Math.floor(atSec)), text });
       if (!reply.ok) return describe(reply.code, reply.detail);
       void reload();
-      return reply.value.duplicate ? "这个时间点已经有一条笔记" : "已存为笔记";
+      const t = panelTextOf(lang()).notes;
+      return reply.value.duplicate ? t.duplicate : t.saved;
     },
     async update(id, text) {
       const reply = await api.send("notes.update", { id, text });
