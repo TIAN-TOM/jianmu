@@ -3,6 +3,7 @@ import { chromePing } from "../platform/keepalive.ts";
 import { createLocks } from "../platform/locks.ts";
 import { createTabPageChannel } from "../platform/page-channel.ts";
 import { extensionStorage } from "../platform/storage.ts";
+import { browserUiLanguage } from "../platform/ui-language.ts";
 import { siteRules } from "../sites/rules.ts";
 import { createSiteCtx, siteService } from "../sites/services.ts";
 import type { PromptTable } from "./ai.ts";
@@ -38,5 +39,6 @@ export function chromeDeps(prompts: PromptTable): AppDeps {
       clearTimeout: (timer) => clearTimeout(timer as number),
     },
     log: console,
+    uiLanguage: browserUiLanguage,
   };
 }

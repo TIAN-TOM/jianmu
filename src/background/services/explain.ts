@@ -1,7 +1,9 @@
 // 划词解释：侧边栏字幕里选中一段，请模型用一两句话解释。上下文由页面给（选中处附近的字幕），
 // 视频标题只看本机已有的字幕缓存，为解释一个词不向平台读。输出被截断时正文末尾注明可能不完整。
+import { localizePrompt } from "../../core/ai/prompt.ts";
 import { throwIfTaskCanceled } from "../../core/ai/transport/index.ts";
 import { fail, ok, type Result } from "../../core/errors.ts";
+import { outputLangOf, type OutputLang } from "../../core/output-lang.ts";
 import { parseVideoKey, type VideoKey } from "../../core/video-ref.ts";
 import type { ExplainView } from "../../shared/messages/qa.ts";
 import { aiFailure } from "../ai.ts";
@@ -15,7 +17,11 @@ export const EXPLAIN_PROMPT = "study/explain.md";
 const SELECTION_MAX = 1000;
 const CONTEXT_MAX = 4000;
 const EXPLAIN_MAX_TOKENS = 1024;
-const TRUNCATED_NOTE = "…（模型输出被截断，回答可能不完整。）";
+// 截断提示和解释一起存，跟着解释的语言。
+const TRUNCATED_NOTE: Readonly<Record<OutputLang, string>> = {
+  zh: "…（模型输出被截断，回答可能不完整。）",
+  en: "… (The model's output was cut off, so this answer may be incomplete.)",
+};
 
 /** 登记解释任务时交的功能输入：选中的文字和附近的字幕，都按上限截好。 */
 export interface ExplainInput {
@@ -67,6 +73,7 @@ export function createExplainService(deps: ExplainServiceDeps): ExplainService {
       return claim(taskId, "explain", video, async (run) => {
         if (!isExplainInput(run.input)) return fail("INVALID_REQUEST");
         const { selection, context } = run.input;
+        const lang = outputLangOf(run.gen);
         try {
           const variables = { videoTitle: await titleOf(video), selectedText: selection, transcriptContext: context || "无" };
           throwIfTaskCanceled(run.signal);
@@ -74,12 +81,12 @@ export function createExplainService(deps: ExplainServiceDeps): ExplainService {
             maxTokens: EXPLAIN_MAX_TOKENS,
             signal: run.signal,
             onRetry: ({ message }) => run.progress({ phase: "generating", message }),
-            messages: promptMessages(deps.prompt(EXPLAIN_PROMPT), variables),
+            messages: promptMessages(localizePrompt(deps.prompt(EXPLAIN_PROMPT), lang), variables),
           });
           throwIfTaskCanceled(run.signal);
           const explanation = text.trim();
           // 截断后没法再加预算，交回的是半截：页面原样显示正文，提示直接写在末尾。
-          return ok(truncated ? { explanation: `${explanation}${TRUNCATED_NOTE}`, truncated: true } : { explanation });
+          return ok(truncated ? { explanation: `${explanation}${TRUNCATED_NOTE[lang]}`, truncated: true } : { explanation });
         } catch (error) {
           if (run.signal.aborted || (error as { readonly code?: unknown } | null)?.code === "TASK_CANCELED") return fail("TASK_CANCELED");
           deps.log.error("划词解释失败", errorLabel(error));

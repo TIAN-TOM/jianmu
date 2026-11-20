@@ -13,6 +13,14 @@ export function isChineseSubtitle(language: string | null | undefined): boolean 
   return code.replace(/^ai[-_]/, "").startsWith("zh");
 }
 
+/** 英文字幕：语言码脱掉自动字幕的前缀后以 en 开头。拿不到语言码时不算英文（按中文处理，见上）。 */
+export function isEnglishSubtitle(language: string | null | undefined): boolean {
+  const code = String(language || "")
+    .trim()
+    .toLowerCase();
+  return code.replace(/^ai[-_]/, "").startsWith("en");
+}
+
 /**
  * 用户导入的字幕文件不带语言码，按正文猜一个，只用来定翻译方向（见 isChineseSubtitle）。
  * 汉字按字数、拼音文字按词数比：中文字幕里夹几个英文术语、英文字幕里夹一个中文地名都不改判。

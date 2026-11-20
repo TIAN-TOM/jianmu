@@ -51,6 +51,7 @@ const INSTANT_FIELDS = [
   "autoOverviewMinutes",
   "featureEfforts",
   "analysisChunkMode",
+  "language",
 ] as const;
 
 /**

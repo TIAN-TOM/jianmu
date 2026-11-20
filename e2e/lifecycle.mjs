@@ -88,7 +88,8 @@ async function storedSettings(service, efforts) {
   const session = {};
   const locks = { exclusive: (_name, work) => Promise.resolve().then(work), shared: (_name, work) => Promise.resolve().then(work) };
   const store = createSettingsStore({ storage: { local: area(local), session: area(session) }, locks });
-  await store.save({ presetId: service.presetId, aiApiKey: service.key, aiModel: service.model, featureEfforts: efforts }, "");
+  // 语言写明中文，不跟随无头 Chrome 的界面语言。
+  await store.save({ presetId: service.presetId, aiApiKey: service.key, aiModel: service.model, featureEfforts: efforts, language: "zh" }, "");
   await store.setDataConsent(true);
   await store.confirmActivation();
   return { local, session };

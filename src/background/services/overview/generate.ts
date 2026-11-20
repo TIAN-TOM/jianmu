@@ -9,8 +9,10 @@ import type { ClearEpoch, ClearGuard } from "../../../core/clear-guard.ts";
 import type { Limiter } from "../../../core/concurrency.ts";
 import { fail, isErrorCode, ok, type Failure, type Result } from "../../../core/errors.ts";
 import type { LearningAnalysis } from "../../../core/notes/markdown.ts";
-import { normalizeAnalysisFailures, overviewTranscriptBasis, type Basis, type GenInfo, type OverviewPart, type OverviewRecord } from "../../../core/notes/records.ts";
-import type { FrozenGen } from "../../../core/tasks.ts";
+import { normalizeAnalysisFailures, overviewTranscriptBasis, type Basis, type OverviewPart, type OverviewRecord } from "../../../core/notes/records.ts";
+import { genInfo } from "../../../core/tasks.ts";
+import { localizePrompt } from "../../../core/ai/prompt.ts";
+import { outputLangOf } from "../../../core/output-lang.ts";
 import { parseVideoKey, type VideoKey } from "../../../core/video-ref.ts";
 import type { Broadcast } from "../../../shared/messages.ts";
 import type { OverviewResultView } from "../../../shared/messages/overview.ts";
@@ -50,7 +52,6 @@ interface Job {
   readonly since: ClearEpoch | undefined;
 }
 
-const genInfo = ({ feature, promptVersion, model, effort }: FrozenGen): GenInfo => ({ feature, promptVersion, model, effort });
 
 /** 生成时依据的：这次读到的那份字幕。 */
 type TranscriptBasis = Extract<Basis, { readonly source: "transcript" }>;
@@ -104,7 +105,7 @@ export function createGenerator(deps: GenerateDeps) {
   const dataCleared = (job: Job): boolean => reasonCode(job.run.signal) === "LOCAL_DATA_CLEARED" || deps.guard.clearedSince(job.since, "all");
 
   function chunkDeps(job: Job): ChunkDeps {
-    return { ai: job.run.ai, prompt: deps.prompt(ANALYSIS_PROMPT), gate: deps.gate, concurrency: deps.concurrency, log: deps.log };
+    return { ai: job.run.ai, prompt: localizePrompt(deps.prompt(ANALYSIS_PROMPT), outputLangOf(job.run.gen)), gate: deps.gate, concurrency: deps.concurrency, log: deps.log };
   }
 
   async function snapshotOf(job: Job): Promise<Result<TranscriptView>> {
@@ -160,7 +161,7 @@ export function createGenerator(deps: GenerateDeps) {
 
     const verdictStage = run.stage(VERDICT_FEATURE);
     const outcome = await concludeOverview(
-      { ai: verdictStage.ai, prompt: deps.prompt(VERDICT_PROMPT), gate: deps.gate, concurrency: deps.concurrency, log: deps.log },
+      { ai: verdictStage.ai, prompt: deps.prompt(VERDICT_PROMPT), outputLang: outputLangOf(verdictStage.gen), gate: deps.gate, concurrency: deps.concurrency, log: deps.log },
       work.analysis,
       work.failures,
       { common: work.common, totalDuration: work.totalDuration, signal: run.signal, progress: (message) => run.progress({ done: 1, total: 1, phase: "verdict", message }) },
@@ -263,6 +264,9 @@ export function createGenerator(deps: GenerateDeps) {
       const basis = existing.parts?.chapters?.derived.basis;
       if (basis?.source === "legacy-unknown") return fail("FAILED_CHUNKS_MISMATCH");
       if (basis?.source === "transcript" && basis.transcript.fingerprint !== view.transcript.ref.fingerprint) return fail("FAILED_CHUNKS_MISMATCH");
+      // 已有的章节是用另一种语言写的：补上的块会和它们混成两种语言，同样要重新生成。
+      const chaptersGen = existing.parts?.chapters?.derived.gen;
+      if (outputLangOf(chaptersGen) !== outputLangOf(job.run.gen)) return fail("FAILED_CHUNKS_MISMATCH");
       const { run } = job;
       let whole = false;
       try {

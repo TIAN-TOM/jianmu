@@ -29,6 +29,7 @@ import {
   type NoticeStatus,
 } from "../core/consent.ts";
 import { carryActivation } from "../core/consent-carry.ts";
+import { isLanguageSetting, type LanguageSetting } from "../core/output-lang.ts";
 import { FRAME_SLOT } from "./frame-slot.ts";
 
 export { CUSTOM_PRESET_ID };
@@ -56,11 +57,7 @@ const PRESET_DETAILS: Readonly<Record<PresetId, PresetDetail>> = {
   moonshot: { label: "月之暗面 Kimi", model: "", docsUrl: "https://platform.kimi.com/console/api-keys" },
   zhipu: { label: "智谱 GLM", model: "", docsUrl: "https://bigmodel.cn/usercenter/proj-mgmt/apikeys" },
   // 密钥页指向北京地域，和预设的地址一致。
-  dashscope: {
-    label: "阿里云百炼（通义千问）",
-    model: "",
-    docsUrl: "https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key",
-  },
+  dashscope: { label: "阿里云百炼（通义千问）", model: "", docsUrl: "https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key" },
   siliconflow: { label: "硅基流动 SiliconFlow", model: "", docsUrl: "https://cloud.siliconflow.cn/account/ak" },
   openrouter: { label: "OpenRouter", model: "", docsUrl: "https://openrouter.ai/keys" },
   [CUSTOM_PRESET_ID]: { label: "自定义", model: "", docsUrl: "" },
@@ -197,6 +194,7 @@ export interface SettingsInput {
   readonly uiFontScale?: unknown;
   readonly accentTheme?: unknown;
   readonly themeMode?: unknown;
+  readonly language?: unknown;
   readonly inPageCard?: unknown;
   readonly autoOverview?: unknown;
   readonly autoOverviewMinutes?: unknown;
@@ -220,6 +218,8 @@ export interface NormalizedSettings extends AiSettings {
   readonly uiFontScale: UiFontScale;
   readonly accentTheme: AccentTheme;
   readonly themeMode: ThemeMode;
+  /** 模型写的内容用的语言，auto 跟随浏览器的界面语言（core/output-lang.ts）；旧设置没有这一项、认不出的值都按 auto。 */
+  readonly language: LanguageSetting;
   /** 播放页右栏的总结卡片。 */
   readonly inPageCard: boolean;
   /** 打开就出结论：新安装默认关。 */
@@ -250,6 +250,7 @@ export const DEFAULTS: NormalizedSettings = Object.freeze({
   uiFontScale: UI_FONT_SCALES[0],
   accentTheme: "ink",
   themeMode: THEME_MODES.SYSTEM,
+  language: "auto",
   inPageCard: true,
   autoOverview: false,
   autoOverviewMinutes: AUTO_OVERVIEW_MINUTES.default,
@@ -388,12 +389,11 @@ export function normalize(input: unknown = {}): NormalizedSettings {
     featureModels: featureModels.models,
     featureModelsOwner: featureModels.owner,
     featureEfforts: normalizeFeatureEfforts(source.featureEfforts),
-    analysisChunkMode: isKeyOf(ANALYSIS_CHUNK_MODES, source.analysisChunkMode)
-      ? source.analysisChunkMode
-      : DEFAULTS.analysisChunkMode,
+    analysisChunkMode: isKeyOf(ANALYSIS_CHUNK_MODES, source.analysisChunkMode) ? source.analysisChunkMode : DEFAULTS.analysisChunkMode,
     uiFontScale: normalizeUiFontScale(source.uiFontScale),
     accentTheme: normalizeAccentTheme(source.accentTheme),
     themeMode: isThemeMode(source.themeMode) ? source.themeMode : DEFAULTS.themeMode,
+    language: isLanguageSetting(source.language) ? source.language : DEFAULTS.language,
     // 只认真正的布尔值：没有这一项、或被写成了别的类型时按默认开启。
     inPageCard: typeof source.inPageCard === "boolean" ? source.inPageCard : DEFAULTS.inPageCard,
     // 花额度的开关只认 true：没有这一项、或写成别的值，都按关着。

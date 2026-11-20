@@ -3,6 +3,7 @@
 import { useId, useRef } from "preact/hooks";
 import { ACTIVATION_TABLE, noticeLines, noticeStatus, type ActivationKind, type NoticeItem } from "../../core/consent.ts";
 import { describe } from "../../core/errors.ts";
+import { LANGUAGE_SETTINGS, type LanguageSetting } from "../../core/output-lang.ts";
 import { ACCENT_THEMES, THEME_MODES, UI_FONT_SCALES, type AccentTheme, type ThemeMode } from "../../shared/settings-schema.ts";
 import type { Activation } from "../shared/activation.ts";
 import { ActivationNotice } from "../shared/ui/activation-notice.tsx";
@@ -51,6 +52,8 @@ function ActivationGate({ activation }: { readonly activation: Activation }) {
 
 const FONT_LABELS: Readonly<Record<number, string>> = { 100: "标准", 112: "较大", 125: "特大" };
 const MODE_LABELS: Readonly<Record<ThemeMode, string>> = { system: "跟随系统", light: "浅色", dark: "深色" };
+// 每一项用它自己的语言写，看不懂当前界面的人也认得出。
+const LANGUAGE_LABELS: Readonly<Record<LanguageSetting, string>> = { auto: "跟随浏览器", zh: "中文", en: "English" };
 
 function AppearanceSection({ state }: { readonly state: OptionsState }) {
   const saved = state.saved.value;
@@ -102,6 +105,17 @@ function AppearanceSection({ state }: { readonly state: OptionsState }) {
           ))}
         </select>
         <span class="field-hint">字幕、概览和笔记一起缩放。</span>
+      </label>
+      <label class="field">
+        <span class="field-label">语言</span>
+        <select class="input" id="language" value={saved.language} onChange={(event) => void state.saveInstant({ language: event.currentTarget.value })}>
+          {LANGUAGE_SETTINGS.map((language) => (
+            <option key={language} value={language}>
+              {LANGUAGE_LABELS[language]}
+            </option>
+          ))}
+        </select>
+        <span class="field-hint">之后生成的概览、问答和解释用这种语言写，已经生成的不变。</span>
       </label>
     </section>
   );

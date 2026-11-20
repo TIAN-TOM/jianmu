@@ -40,6 +40,7 @@ import type { ClearGuard } from "../core/clear-guard.ts";
 import { fail, ok, type Failure, type Result } from "../core/errors.ts";
 import { AI_ERROR_TEXT, type AiErrorCode } from "../core/errors/ai.ts";
 import type { Effort } from "../core/notes/records.ts";
+import { resolveOutputLang, type OutputLang } from "../core/output-lang.ts";
 import { sha256Hex } from "../core/task-keys.ts";
 import { budgetEffort, type FrozenGen } from "../core/tasks.ts";
 import type { Permissions } from "../platform/permissions.ts";
@@ -81,6 +82,8 @@ export interface AiWiringDeps {
   /** 默认是设置模块的那一份；超时、同意版本都按它来。 */
   readonly settingsRules?: TransportSettingsRules;
   readonly now?: () => number;
+  /** 浏览器的界面语言，语言设置是跟随浏览器时用。没给时按中文。 */
+  readonly uiLanguage?: () => string;
 }
 
 /** 服务发模型请求的入口：一个任务一份，按任务创建时取定的配置发。 */
@@ -93,7 +96,7 @@ export interface AiWiring {
   readonly configCheck: () => Promise<ConfigCheckView>;
   /** 按当前设置发一次模型请求，功能另选了模型就用那个；推理强度按请求里给的，不给就是关。 */
   readonly requestAiCompletion: (request: CompletionRequest) => Promise<CompletionResult>;
-  /** 建任务时取定这项功能的生成配置：服务地址、实际要用的模型、实际生效的推理档位、提示词版本。档位按发请求时同一份模型能力算。 */
+  /** 建任务时取定这项功能的生成配置：服务地址、实际要用的模型、实际生效的推理档位、提示词版本、写内容用的语言。档位按发请求时同一份模型能力算。 */
   readonly freeze: (feature: FeatureSlotId) => Promise<FrozenGen>;
   /** 给一个任务的入口：地址、模型、推理档位按冻结的那份，跑到一半改设置不跟着变。 */
   readonly forTask: (frozen: FrozenGen) => TaskAi;
@@ -106,6 +109,8 @@ export interface AiWiring {
   readonly listModels: () => Promise<Result<ModelListView>>;
   /** 发一个很小的请求看模型能不能回话。只发一次，不加码重试，参数被拒时照样放宽。 */
   readonly testConnection: (feature?: FeatureSlotId) => Promise<Result<TestConnectionView>>;
+  /** 现在设置的语言加上浏览器界面语言，解析出模型写内容用的语言。 */
+  readonly outputLang: () => Promise<OutputLang>;
   /** 服务要用的提示词。读不到就报错，不发空提示词。 */
   readonly prompt: (file: string) => string;
   /** 冻结的这份配置下模型的能力，只用本机缓存、型号表和放宽记忆，不发请求。看图那一项另有探测结果时以探测为准，见 image-support.ts。 */
@@ -165,6 +170,7 @@ function frozenSettings(current: LoadedSettings, frozen: FrozenGen): LoadedSetti
 
 export function createAiWiring(deps: AiWiringDeps): AiWiring {
   const { settings, storage, permissions, clearGuard, prompts, now } = deps;
+  const uiLanguage = deps.uiLanguage ?? ((): string => "zh");
   const rules = deps.settingsRules ?? SETTINGS_RULES;
   const load = settings.load;
 
@@ -299,6 +305,7 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
         effort: effective,
         ...(effective === requested ? {} : { requestedEffort: requested }),
         promptVersion: await promptVersion(FEATURE_PROMPTS[feature]),
+        outputLang: resolveOutputLang(current.language, uiLanguage()),
       };
     },
     forTask(frozen) {
@@ -330,6 +337,7 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
     },
     listModels,
     testConnection,
+    outputLang: async () => resolveOutputLang((await load()).language, uiLanguage()),
     prompt,
     async capabilities(frozen) {
       const current = await load();

@@ -437,7 +437,7 @@ test("建任务时取定生成配置：服务地址、这项功能实际要用�
   const { ai, service } = setup({ ...keyedStorage({ ...GATEWAY, featureModels: { verdict: "m-verdict" } }, GATEWAY_ORIGIN), wiring: { prompts } });
   const analysis = await ai.freeze("analysis");
   const verdict = await ai.freeze("verdict");
-  assert.deepEqual({ ...analysis, promptVersion: "" }, { feature: "analysis", baseUrl: GATEWAY.aiBaseUrl, model: "m-default", effort: "off", promptVersion: "" });
+  assert.deepEqual({ ...analysis, promptVersion: "" }, { feature: "analysis", baseUrl: GATEWAY.aiBaseUrl, model: "m-default", effort: "off", promptVersion: "", outputLang: "zh" });
   assert.equal(verdict.model, "m-verdict");
   assert.match(analysis.promptVersion, /^[0-9a-f]{16}$/);
   assert.notEqual(analysis.promptVersion, verdict.promptVersion);

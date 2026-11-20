@@ -4,7 +4,7 @@
 import type { ChunkPlanOptions } from "../../core/ai/chunking.ts";
 import { planAnalysisChunks } from "../../core/ai/chunking.ts";
 import { parseLooseJson } from "../../core/ai/parse.ts";
-import { extractPromptSection, type PromptVariables } from "../../core/ai/prompt.ts";
+import { extractPromptSection, localizePrompt, type PromptVariables } from "../../core/ai/prompt.ts";
 import type { ChatMessage, MessagePart } from "../../core/ai/provider/index.ts";
 import { QA_ANSWER } from "../../core/ai/schemas.ts";
 import { isInputTooLong } from "../../core/ai/too-long.ts";
@@ -15,7 +15,8 @@ import type { QaRecord } from "../../core/notes/records.ts";
 import { groundQaAnswer } from "../../core/qa/citations.ts";
 import { QA_BUDGET_CHARS, QA_FALLBACK_BUDGET_CHARS } from "../../core/qa/budget.ts";
 import { selectContext, type QaChapter, type QaContext } from "../../core/qa/retrieval.ts";
-import type { FrozenGen } from "../../core/tasks.ts";
+import { genInfo } from "../../core/tasks.ts";
+import { outputLangOf, type OutputLang } from "../../core/output-lang.ts";
 import { parseVideoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
 import type { EmptyRequest } from "../../shared/messages/core.ts";
 import type { QaAnswerView, QaHistoryView } from "../../shared/messages/qa.ts";
@@ -35,6 +36,12 @@ export const ANSWER_MAX_TOKENS = 4096;
 
 /** 零有效引用时整条替换：宁可少答，不可编造。 */
 export const FALLBACK_ANSWER = "未能从字幕中找到足够的依据来回答这个问题。可以换个说法再问一次，或先确认这个视频里是否有你想问的内容。";
+
+/** 兜底文案跟着回答的语言存。 */
+export const FALLBACK_ANSWERS: Readonly<Record<OutputLang, string>> = Object.freeze({
+  zh: FALLBACK_ANSWER,
+  en: "Couldn't find enough support in the subtitles to answer this. Try rephrasing the question, or check whether this video covers what you're asking about.",
+});
 
 /** 用户消息的三块，按发出的先后。 */
 export const QA_USER_SECTIONS = ["用户消息：视频信息", "用户消息：字幕", "用户消息：问题"] as const;
@@ -104,8 +111,6 @@ const bare = ({ code, detail, retryAfterSec }: Failure): Failure => ({
   ...(retryAfterSec === undefined ? {} : { retryAfterSec }),
 });
 
-const genInfo = ({ feature, promptVersion, model, effort }: FrozenGen) => ({ feature, promptVersion, model, effort });
-
 /**
  * 不认结构化输出的中转站、不守约定的模型会直接用散文回答。回答已经付过费：一个花括号都没有时整段当回答，
  * 后面的引用校验照旧把关。像 JSON 却读不出来的说不清哪段是回答，按读不出来报，不透出解析器的报错。
@@ -173,7 +178,7 @@ export function createQaService(deps: QaServiceDeps): QaService {
         selfRetry,
         // 服务限流或过载时传输层会等几秒重发一次，进度说清在等什么。
         onRetry: ({ message }) => run.progress({ phase: "generating", message }),
-        messages: qaMessages(deps.prompt(QA_PROMPT), {
+        messages: qaMessages(localizePrompt(deps.prompt(QA_PROMPT), outputLangOf(run.gen)), {
           videoTitle: view.info.title || "未知",
           ownerName: view.info.author || "未知",
           question,
@@ -215,7 +220,7 @@ export function createQaService(deps: QaServiceDeps): QaService {
     const grounded = groundQaAnswer(raw, evidence);
     const { citations } = grounded;
     const fromModel = citations.length > 0;
-    const shown = fromModel ? grounded.answer : FALLBACK_ANSWER;
+    const shown = fromModel ? grounded.answer : FALLBACK_ANSWERS[outputLangOf(run.gen)];
     const entry: QaRecord = {
       id: `${QA_ID_PREFIX}${deps.newId()}`,
       video,

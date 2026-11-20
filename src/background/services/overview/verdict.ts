@@ -9,7 +9,8 @@ import type { Limiter } from "../../../core/concurrency.ts";
 import { fail, ok, type Failure, type Result } from "../../../core/errors.ts";
 import { normalizeAnalysisFailures, overviewTranscriptBasis, type Basis, type OverviewPart, type OverviewRecord } from "../../../core/notes/records.ts";
 import { equivalenceKey } from "../../../core/task-keys.ts";
-import type { FrozenGen } from "../../../core/tasks.ts";
+import { genInfo } from "../../../core/tasks.ts";
+import { outputLangOf } from "../../../core/output-lang.ts";
 import { formatTimestamp } from "../../../core/transcript/segment.ts";
 import { parseVideoKey, type VideoKey, type VideoRef } from "../../../core/video-ref.ts";
 import type { Broadcast } from "../../../shared/messages.ts";
@@ -75,7 +76,6 @@ type OfficialBasis = Extract<Basis, { readonly source: "official-summary" }>;
 // 平台明确说这个视频没有、不做官方总结：读不成字幕也照样这样说。
 const NO_SUMMARY: ReadonlySet<string> = new Set(["none", "unsupported"]);
 
-const genInfo = ({ feature, promptVersion, model, effort }: FrozenGen) => ({ feature, promptVersion, model, effort });
 
 const hasVerdict = (record: OverviewRecord | null): record is OverviewRecord =>
   typeof record?.analysis.verdict?.summary === "string" && record.analysis.verdict.summary.trim() !== "";
@@ -159,7 +159,7 @@ export function createVerdictService(deps: VerdictServiceDeps): VerdictService {
     try {
       // 官方总结覆盖全片，不受概览失败块影响，不标不完整。
       verdict = await requestVerdict(
-        { ai: run.ai, prompt: deps.prompt(VERDICT_PROMPT), gate: deps.gate, concurrency, log },
+        { ai: run.ai, prompt: deps.prompt(VERDICT_PROMPT), outputLang: outputLangOf(run.gen), gate: deps.gate, concurrency, log },
         { variables, queueSignal: queue, stillWanted: () => !cleared(since) },
       );
     } catch (error) {

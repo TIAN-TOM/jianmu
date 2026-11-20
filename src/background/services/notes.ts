@@ -7,7 +7,7 @@ import { NOTE_QUOTE } from "../../core/ai/schemas.ts";
 import type { ClearEpoch, ClearGuard } from "../../core/clear-guard.ts";
 import { fail, ok, type Failure, type Result } from "../../core/errors.ts";
 import type { Derived, NoteRecord } from "../../core/notes/records.ts";
-import { budgetEffort, type FrozenGen } from "../../core/tasks.ts";
+import { budgetEffort, genInfo, type FrozenGen } from "../../core/tasks.ts";
 import { noteContextAt, type NoteContext } from "../../core/transcript/note-context.ts";
 import { parseVideoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
 import { keepAliveBudget, type KeepAlive } from "../../platform/keepalive.ts";
@@ -81,7 +81,6 @@ const bare = ({ code, detail, retryAfterSec }: Failure): Failure => ({
   ...(retryAfterSec === undefined ? {} : { retryAfterSec }),
 });
 
-const genInfo = ({ feature, promptVersion, model, effort }: FrozenGen) => ({ feature, promptVersion, model, effort });
 
 const budgetOf = (gen: FrozenGen): number => keepAliveBudget(EFFORT_TIMEOUT_SECONDS[budgetEffort(gen)] * 1000);
 
