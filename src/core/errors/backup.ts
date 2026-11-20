@@ -10,3 +10,11 @@ export const BACKUP_ERROR_TEXT: Readonly<Record<BackupErrorCode, ErrorCopy>> = {
   BACKUP_TOO_NEW: { cause: "这份备份来自更新版本的简幕。", impact: UNTOUCHED, next: "先把简幕升级到最新版，再导入。" },
   BACKUP_DAMAGED: { cause: "备份文件里有一部分格式不对。", impact: "整份都没有导入，这台电脑上原有的资料没动。", next: "换一份完整的备份再试。" },
 };
+
+const UNTOUCHED_EN = "Nothing was restored, and the data already on this computer hasn't changed.";
+
+export const BACKUP_ERROR_TEXT_EN: Readonly<Record<BackupErrorCode, ErrorCopy>> = {
+  BACKUP_UNRECOGNIZED: { cause: "This isn't a Jianmu backup file.", impact: UNTOUCHED_EN, next: "Choose a file saved with “Export backup” in settings and try again." },
+  BACKUP_TOO_NEW: { cause: "This backup comes from a newer version of Jianmu.", impact: UNTOUCHED_EN, next: "Update Jianmu to the latest version first, then restore it." },
+  BACKUP_DAMAGED: { cause: "Part of the backup file isn't in the right format.", impact: "None of it was restored, and the data already on this computer hasn't changed.", next: "Try again with a complete backup." },
+};

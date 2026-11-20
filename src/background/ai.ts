@@ -23,6 +23,7 @@ import {
   type EffortPlan,
   type ProviderError,
   type TokenUsage,
+  withEnglish,
 } from "../core/ai/provider/index.ts";
 import {
   aiErrorResponse,
@@ -137,16 +138,34 @@ const FEATURE_PROMPTS = {
   ...(FEATURE_FRAME_EXPLAIN ? { frame: FRAME_PROMPT_FILE } : {}),
 } as Readonly<Record<FeatureSlotId, string>>;
 
-function codedError(code: AiErrorCode, message: string): ProviderError {
-  return Object.assign(new Error(message), { code });
+// 后台自己写的说明，中文、英文各一份。英文挂在错误的 messageEn 上，到 aiFailure 按语言挑。
+const WIRING_TEXT = {
+  zh: {
+    addressChanged: "AI 还没配置好：任务开始以后换了服务地址，请重新生成。",
+    badAddress: "API 地址不合法，请到设置页检查。",
+    noPermission: (origin: string) => `扩展还没有访问 ${origin} 的权限。请打开设置页，点「保存并授权」。`,
+    noKey: "请先在设置页填写 API 密钥。",
+  },
+  en: {
+    addressChanged: "The AI service isn't set up yet: the service address changed after the task started. Generate it again.",
+    badAddress: "The API address isn't valid. Check it in settings.",
+    noPermission: (origin: string) => `Jianmu doesn't have permission to access ${origin} yet. Open settings and click “Save and authorise”.`,
+    noKey: "Enter your API key in settings first.",
+  },
+} satisfies Readonly<Record<OutputLang, unknown>>;
+
+type WiringText = (typeof WIRING_TEXT)["zh"];
+
+function codedError(code: AiErrorCode, pick: (text: WiringText) => string): ProviderError {
+  return withEnglish(Object.assign(new Error(pick(WIRING_TEXT.zh)), { code }), pick(WIRING_TEXT.en));
 }
 
 /**
  * 传输层的错误换成结果。说明来自传输层，带密钥的地方已经脱敏；认不出的错误只回码，不带说明。
- * 模型服务的限流单独一个码，和视频网站的限流分开。
+ * 模型服务的限流单独一个码，和视频网站的限流分开。说明按 lang 写，不传时是中文。
  */
-export function aiFailure(error: unknown): Failure {
-  const { error: raw, message } = aiErrorResponse(error);
+export function aiFailure(error: unknown, lang: OutputLang = "zh"): Failure {
+  const { error: raw, message } = aiErrorResponse(error, lang);
   const code = raw === "RATE_LIMITED" ? "AI_RATE_LIMITED" : raw;
   const failure = AI_CODES.has(code) && code !== "AI_REQUEST_FAILED" ? fail(code as AiErrorCode, message) : fail("AI_REQUEST_FAILED");
   // 服务的原话另放一项，界面在三段式下面显示；认不出的错误也带，它往往正是说明。
@@ -163,7 +182,7 @@ function taskTimeoutMs(effort: Effort): number | undefined {
 // 直接报错，不靠清空密钥让校验去拦：本机地址可以不填密钥，清空了照样能发，会把任务发到新地址。
 function frozenSettings(current: LoadedSettings, frozen: FrozenGen): LoadedSettings {
   if (current.aiBaseUrl !== frozen.baseUrl) {
-    throw codedError("NO_AI_CONFIG", "AI 还没配置好：任务开始以后换了服务地址，请重新生成。");
+    throw codedError("NO_AI_CONFIG", (text) => text.addressChanged);
   }
   return { ...current, aiModel: frozen.model, featureModels: {} };
 }
@@ -177,9 +196,9 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
   // 只查不申请：申请权限要用户手势，只能在设置页里点。
   async function ensureHostPermission(baseUrl: string): Promise<void> {
     const origin = originOf(baseUrl);
-    if (!origin) throw codedError("INVALID_BASE_URL", "API 地址不合法，请到设置页检查。");
+    if (!origin) throw codedError("INVALID_BASE_URL", (text) => text.badAddress);
     if (!(await permissions.contains(origin))) {
-      throw codedError("NEED_HOST_PERMISSION", `扩展还没有访问 ${origin} 的权限。请打开设置页，点「保存并授权」。`);
+      throw codedError("NEED_HOST_PERMISSION", (text) => text.noPermission(origin));
     }
   }
 
@@ -236,12 +255,18 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
     return planEffort({ protocol: current.protocol, host, model, requested, caps });
   }
 
+  // 设置页上显示的说明用哪种语言：和模型写的内容同一个设置。读不出设置时按中文。
+  const shownLang = (): Promise<OutputLang> => load().then((current) => resolveOutputLang(current.language, uiLanguage()), () => "zh" as const);
+
   async function listModels(): Promise<Result<ModelListView>> {
     try {
       const current = await load();
       const base = validateForSave(current);
-      if (!base.ok) throw codedError("INVALID_BASE_URL", base.errors.join(" "));
-      if (!current.aiApiKey && !isLocalBaseUrl(current.aiBaseUrl)) throw codedError("NO_AI_CONFIG", "请先在设置页填写 API 密钥。");
+      if (!base.ok) {
+        const english = validateForSave(current, "en").errors.join(" ");
+        throw withEnglish(Object.assign(new Error(base.errors.join(" ")), { code: "INVALID_BASE_URL" }), english);
+      }
+      if (!current.aiApiKey && !isLocalBaseUrl(current.aiBaseUrl)) throw codedError("NO_AI_CONFIG", (text) => text.noKey);
       await ensureHostPermission(current.aiBaseUrl);
       // 拉列表要等网络，这期间清除了缓存就不把能力写回去。
       const since = clearGuard.epoch();
@@ -249,7 +274,7 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
       if (current.protocol === PROTOCOLS.ANTHROPIC) await capabilityCache.save(current, capabilities, { since });
       return ok({ ids });
     } catch (error) {
-      return aiFailure(error);
+      return aiFailure(error, await shownLang());
     }
   }
 
@@ -264,7 +289,7 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
       const reply = result.text.trim().slice(0, TEST_REPLY_CHARS);
       return ok({ model: result.settings.aiModel, reply, ...(result.truncated ? { truncated: true as const } : {}) });
     } catch (error) {
-      return aiFailure(error);
+      return aiFailure(error, await shownLang());
     }
   }
 

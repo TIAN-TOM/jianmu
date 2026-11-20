@@ -1,6 +1,7 @@
 // 任务运行：登记、认领、登记后没人认领就收尾、互斥键和等价键、跟着页面走的任务在页面都断开时停下，
 // 整个任务和每次模型请求两层保活。任务表只在内存里：service worker 被终止后不恢复、不重发。
 import { fail, type Result } from "../core/errors.ts";
+import { outputLangOf } from "../core/output-lang.ts";
 import type { Basis } from "../core/notes/records.ts";
 import { equivalenceKey, mutexKey } from "../core/task-keys.ts";
 import {
@@ -18,6 +19,7 @@ import type { VideoKey } from "../core/video-ref.ts";
 import { keepAliveBudget, type KeepAlive } from "../platform/keepalive.ts";
 import type { Broadcast } from "../shared/messages.ts";
 import { EFFORT_TIMEOUT_SECONDS } from "../shared/settings-schema.ts";
+import { progressText } from "./progress-text.ts";
 import { aiFailure, type AiWiring, type TaskAi } from "./ai.ts";
 
 /**
@@ -179,7 +181,7 @@ export function createTaskRunner(deps: TaskRunnerDeps): TaskRunner {
   function watchClaim(id: string, meta: Meta): void {
     const timer = timers.setTimeout(() => {
       meta.claimTimer = null;
-      if (manager.expireIfUnclaimed(id, { message: "没有收到生成请求，已停止" })) settle(id);
+      if (manager.expireIfUnclaimed(id, { message: progressText(outputLangOf(meta.spec.gen)).unclaimed })) settle(id);
     }, CLAIM_MS);
     // Node 测试里别让计时器拖住进程。
     (timer as { unref?: () => void } | null)?.unref?.();
@@ -251,7 +253,7 @@ export function createTaskRunner(deps: TaskRunnerDeps): TaskRunner {
       // 开始之前任务已经被取消（别处点了停止、清除本机数据）：不再取字幕、不发请求，直接按取消收尾。
       if (!meta || signal.aborted) {
         if (meta && autoFinish) {
-          manager.finish(taskId, { state: "canceled", message: "已取消" });
+          manager.finish(taskId, { state: "canceled", message: progressText(outputLangOf(meta.spec.gen)).canceled });
           settle(taskId);
         }
         return fail("TASK_CANCELED");
@@ -308,9 +310,10 @@ export function createTaskRunner(deps: TaskRunnerDeps): TaskRunner {
       }
       if (autoFinish) {
         const canceled = signal.aborted;
+        const say = progressText(outputLangOf(gen));
         manager.finish(taskId, {
           state: canceled ? "canceled" : result.ok ? "completed" : "failed",
-          message: canceled ? "已取消" : result.ok ? "已完成" : "生成失败",
+          message: canceled ? say.canceled : result.ok ? say.done : say.failed,
         });
         settle(taskId);
       }

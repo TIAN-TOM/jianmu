@@ -5,6 +5,7 @@
 // 模块顶层只放字面量和函数，理由见 content/frame.ts 开头。
 import { fail, ok, type Result } from "../core/errors.ts";
 import type { ClearGuard } from "../core/clear-guard.ts";
+import { outputLangOf } from "../core/output-lang.ts";
 import type { FrozenGen } from "../core/tasks.ts";
 import type { StorageArea } from "../platform/storage.ts";
 import { IMAGE_PROBE_STORAGE_KEY } from "../shared/names.ts";
@@ -113,7 +114,8 @@ export function createImageSupport({ storage, clearGuard, ai, now }: ImageSuppor
         await remember(gen, true, since);
         return ok({ imageInput: true });
       }
-      if (!isImageRejection(error)) return aiFailure(error);
+      // 设置页显示这句说明，按冻结时的语言写。
+      if (!isImageRejection(error)) return aiFailure(error, outputLangOf(gen));
       await remember(gen, false, since);
       return ok({ imageInput: false });
     }

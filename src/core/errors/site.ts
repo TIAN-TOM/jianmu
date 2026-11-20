@@ -1,5 +1,5 @@
 // 站点读取的错误码、失败的影响范围和给用户看的三段话。站点适配层和后台都用这一份，页面也要认得。
-import type { ErrorCopy } from "./copy.ts";
+import type { DetailTable, ErrorCopy, SameDetails } from "./copy.ts";
 
 export type SiteErrorCode =
   | "NEED_LOGIN"
@@ -50,7 +50,7 @@ export const SITE_ERROR_TEXT: Readonly<Record<SiteErrorCode, ErrorCopy>> = {
 };
 
 /** 同一个码按读取实现给的 detail 换说法：付费内容单独提示。 */
-export const SITE_DETAIL_TEXT: Readonly<Partial<Record<SiteErrorCode, Readonly<Record<string, ErrorCopy>>>>> = {
+const SITE_DETAILS = {
   PAGE_ACTION_NEEDED: {
     reopen: {
       cause: "视频页上的文字稿是简幕接上之前打开的，认不出是不是这个视频的。",
@@ -68,5 +68,56 @@ export const SITE_DETAIL_TEXT: Readonly<Partial<Record<SiteErrorCode, Readonly<R
   },
   UNPLAYABLE: {
     paid: { cause: "这是付费内容。", impact: "简幕不读付费内容，什么都没读，也没发给模型。" },
+  },
+} satisfies DetailTable<SiteErrorCode>;
+
+export const SITE_DETAIL_TEXT: DetailTable<SiteErrorCode> = SITE_DETAILS;
+
+const NOT_READ_EN = "Nothing was read or sent to the model, so no API credit was used.";
+const IMPORT_FILE_EN = "If you have a subtitle file for this video, click “Import subtitle file” in the side panel. On the video page card, click “Open side panel” first.";
+
+export const SITE_ERROR_TEXT_EN: Readonly<Record<SiteErrorCode, ErrorCopy>> = {
+  NEED_LOGIN: { cause: "This browser isn't signed in to the video site.", impact: "Subtitles, official summaries and Watch Later are only available to signed-in users, so none of them were read.", next: "Sign in and try again, or import your own subtitle file." },
+  NO_CAPTIONS: { cause: "This video has no subtitles Jianmu can use.", impact: NOT_READ_EN, next: IMPORT_FILE_EN },
+  EMPTY_CAPTION_FILE: { cause: "The subtitle file from the video site is empty.", impact: NOT_READ_EN, next: `Try again later. ${IMPORT_FILE_EN}` },
+  RATE_LIMITED: { cause: "The video site is limiting reads for now.", impact: "Jianmu has paused and won't keep retrying. No API credit was used.", next: "Try again in a few minutes." },
+  UNPLAYABLE: { cause: "This video can't be watched right now.", impact: "Jianmu didn't read its content." },
+  NOT_FOUND: { cause: "This video can't be found. It may have been deleted or made private.", impact: "Jianmu didn't read its content." },
+  SEGMENT_OUT_OF_RANGE: { cause: "This video doesn't have that part.", impact: "Jianmu didn't read its content.", next: "Refresh the video page and choose again from the list of parts." },
+  VIDEO_CHANGED: {
+    cause: "The video on the page has changed.",
+    impact: "What was read this time has been discarded so it doesn't end up on the wrong video.",
+    next: "Go back to the original video and try again, or start again on the new one.",
+  },
+  TAB_NOT_READY: { cause: "The video page hasn't finished loading.", impact: NOT_READ_EN, next: "Wait for the page to load and try again. If that doesn't work, refresh the video page." },
+  MALFORMED: { cause: "Jianmu couldn't understand what the video site returned.", impact: NOT_READ_EN, next: "Try again later. If it keeps happening, the site may have changed, and Jianmu will need an update." },
+  NETWORK: { cause: "Jianmu couldn't reach the video site.", impact: NOT_READ_EN, next: "Check your internet connection and try again." },
+  TIMEOUT: { cause: "Reading from the video site timed out.", impact: NOT_READ_EN, next: "Try again later." },
+  PAGE_ACTION_NEEDED: {
+    cause: "The transcript on the video page isn't open yet.",
+    impact: NOT_READ_EN,
+    next: "Open the transcript below the video description (on YouTube it's labelled “Show transcript”), wait for the text to appear, then click “Read subtitles” again.",
+  },
+  UNAVAILABLE: { cause: "Jianmu can't read this video's subtitles right now.", impact: NOT_READ_EN, next: `Try again later. ${IMPORT_FILE_EN}` },
+};
+
+export const SITE_DETAIL_TEXT_EN: SameDetails<typeof SITE_DETAILS> = {
+  PAGE_ACTION_NEEDED: {
+    reopen: {
+      cause: "The transcript on the video page was opened before Jianmu connected, so Jianmu can't tell whether it belongs to this video.",
+      impact: NOT_READ_EN,
+      next: "Refresh the video page, open the transcript again, wait for the text to appear, then click “Read subtitles”.",
+    },
+    filtered: { cause: "The transcript on the video page has a search term in it, so only part of it is showing.", impact: NOT_READ_EN, next: "Clear the search box above the transcript, then click “Read subtitles”." },
+    ad: { cause: "An ad is playing.", impact: "Jianmu didn't read anything while it plays.", next: "Wait for the ad to finish, then click “Read subtitles”." },
+    chapters: { cause: "The panel on the video page is showing chapters, not the transcript.", impact: NOT_READ_EN, next: "Switch to the Transcript tab at the top of the panel, wait for the text to appear, then click “Read subtitles”." },
+  },
+  UNAVAILABLE: {
+    stale: { cause: "The transcript on the video page hasn't switched to this video yet.", impact: "What was read has been discarded so it doesn't end up on the wrong video.", next: "Refresh the video page, open the transcript again, then click “Read subtitles”." },
+    "no-entry": { cause: "There's no transcript on this video page.", impact: NOT_READ_EN, next: `This video may have no subtitles, or the page layout may have changed. ${IMPORT_FILE_EN}` },
+    "no-page": { cause: "Reading needs the video page, but Jianmu can't reach it right now.", impact: NOT_READ_EN, next: "Go back to the video page and click “Read subtitles” in the side panel. If that doesn't work, refresh the video page." },
+  },
+  UNPLAYABLE: {
+    paid: { cause: "This is paid content.", impact: "Jianmu doesn't read paid content, so nothing was read or sent to the model." },
   },
 };

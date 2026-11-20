@@ -1,6 +1,7 @@
 // 响应信封的解析：正常响应走截断补齐，强制流式的拼回普通响应，错误响应只求别丢状态码。
 import { repairTruncatedJson } from "../parse.ts";
-import { assembleEventStream, looksLikeEventStream, redactSecret, type Protocol } from "../provider/index.ts";
+import { assembleEventStream, looksLikeEventStream, redactSecret, withEnglish, type Protocol } from "../provider/index.ts";
+import { transportBoth } from "./text.ts";
 import type { TransportError } from "./types.ts";
 
 /**
@@ -30,7 +31,8 @@ export interface EnvelopeHints {
 const STREAM_HEAD_CHARS = 64;
 
 function truncatedError(): TransportError {
-  const truncated: TransportError = new Error("AI 响应不完整，请重试。");
+  const { message, messageEn } = transportBoth((text) => text.incomplete);
+  const truncated: TransportError = withEnglish(new Error(message), messageEn);
   truncated.code = "AI_RESPONSE_TRUNCATED";
   return truncated;
 }

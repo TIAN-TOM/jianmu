@@ -175,12 +175,16 @@ export interface ProviderResponse {
 export interface EmptyDiagnosis {
   readonly reason: string;
   readonly message: string;
+  /** 英文说明，不可枚举（见 text.ts）。 */
+  readonly messageEn?: string;
   readonly retryWithoutJsonMode: boolean;
   readonly retryWithMoreTokens?: boolean;
 }
 
 /** 协议层抛出或构造的错误，status 和 param 来自 HTTP 报错。 */
 export interface ProviderError extends Error {
+  /** 简幕自己写的说明的英文，不可枚举（见 text.ts）；服务的原话没有这一项。 */
+  messageEn?: string;
   status?: number;
   code?: string;
   param?: string;

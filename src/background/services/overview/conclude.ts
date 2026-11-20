@@ -10,6 +10,7 @@ import type { LearningAnalysis } from "../../../core/notes/markdown.ts";
 import type { OutputLang } from "../../../core/output-lang.ts";
 import { formatTimestamp } from "../../../core/transcript/segment.ts";
 import { errorLabel, type Log } from "../../log.ts";
+import { progressText } from "../../progress-text.ts";
 import type { TaskAi } from "../../ai.ts";
 import { promptMessages, type PromptCommon } from "./chunks.ts";
 
@@ -103,7 +104,7 @@ export async function concludeOverview(
   failures: readonly CoverageGap[],
   stage: VerdictStage,
 ): Promise<VerdictOutcome> {
-  stage.progress("正在写一句话结论…");
+  stage.progress(progressText(deps.outputLang).verdict);
   try {
     throwIfTaskCanceled(stage.signal);
     const variables = { ...stage.common, durationFormatted: formatTimestamp(stage.totalDuration), ...verdictInputs(verdictMaterial(analysis), { failures }) };

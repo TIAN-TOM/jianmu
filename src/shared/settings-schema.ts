@@ -23,14 +23,16 @@ import {
   DATA_CONSENT_ERROR,
   DATA_CONSENT_FINGERPRINT,
   DATA_CONSENT_VERSION,
+  dataConsentErrorText,
   dataConsentGiven,
   noticeStatus,
   type ActivationKind,
   type NoticeStatus,
 } from "../core/consent.ts";
 import { carryActivation } from "../core/consent-carry.ts";
-import { isLanguageSetting, type LanguageSetting } from "../core/output-lang.ts";
+import { isLanguageSetting, type LanguageSetting, type OutputLang } from "../core/output-lang.ts";
 import { FRAME_SLOT } from "./frame-slot.ts";
+import { settingsCheckText } from "./settings-text.ts";
 
 export { CUSTOM_PRESET_ID };
 
@@ -452,24 +454,26 @@ export interface SettingsCheck {
   readonly settings: NormalizedSettings;
 }
 
-/** 配置能不能保存。保存要按地址申请主机权限，所以地址必须合法；密钥和模型可以先空着，清空密钥再保存就是删除密钥。 */
-export function validateForSave(settings: unknown): SettingsCheck {
+/** 配置能不能保存。保存要按地址申请主机权限，所以地址必须合法；密钥和模型可以先空着，清空密钥再保存就是删除密钥。errors 按 lang 写，不传时是中文。 */
+export function validateForSave(settings: unknown, lang: OutputLang = "zh"): SettingsCheck {
   const normalized = normalize(settings);
-  const base = validateBaseUrl(normalized.aiBaseUrl, normalized.protocol);
+  const base = validateBaseUrl(normalized.aiBaseUrl, normalized.protocol, lang);
   return { ok: base.ok, errors: base.ok ? [] : [base.error], settings: normalized };
 }
 
-/** 配置是否足以发起一次 AI 请求。设置页和后台共用同一套判断。本机地址的服务通常不要密钥，可以不填。 */
-export function validate(settings: unknown): SettingsCheck {
+/**
+ * 配置是否足以发起一次 AI 请求。设置页和后台共用同一套判断。本机地址的服务通常不要密钥，可以不填。
+ * errors 按 lang 写，不传时是中文；后台按中文的 DATA_CONSENT_ERROR 认出是同意的问题，要认的地方别传语言。
+ */
+export function validate(settings: unknown, lang: OutputLang = "zh"): SettingsCheck {
   const normalized = normalize(settings);
+  const say = settingsCheckText(lang);
   const errors: string[] = [];
-  if (!normalized.aiApiKey && !isLocalBaseUrl(normalized.aiBaseUrl)) {
-    errors.push("请填写 API 密钥（没选记住密钥时，浏览器重启、扩展更新后要重新填）。");
-  }
-  if (!dataConsentGiven(normalized, DATA_CONSENT_CONFIRMED)) errors.push(DATA_CONSENT_ERROR);
-  const base = validateBaseUrl(normalized.aiBaseUrl, normalized.protocol);
+  if (!normalized.aiApiKey && !isLocalBaseUrl(normalized.aiBaseUrl)) errors.push(say.missingKey);
+  if (!dataConsentGiven(normalized, DATA_CONSENT_CONFIRMED)) errors.push(dataConsentErrorText(lang));
+  const base = validateBaseUrl(normalized.aiBaseUrl, normalized.protocol, lang);
   if (!base.ok) errors.push(base.error);
-  if (!normalized.aiModel) errors.push("请填写模型名称，或点击「拉取模型列表」进行选择。");
+  if (!normalized.aiModel) errors.push(say.missingModel);
   return { ok: errors.length === 0, errors, settings: normalized };
 }
 

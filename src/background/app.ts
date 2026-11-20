@@ -447,7 +447,7 @@ export function createApp(deps: AppDeps): App {
   const router = assembleRouter(deps, core);
   // 安装、更新和浏览器启动都设一次：这是持久的设置，不必每次醒来都设。安装时不打开设置页，清单里还没有设置页。
   const setPanelBehavior = () => core.tabs.setPanelBehavior().catch((error: unknown) => deps.log.error("设置侧边栏的打开方式失败", errorLabel(error)));
-  const menu = createActionMenu({ menus: deps.contextMenus, runtime: deps.runtime, settings: core.settings, tabs: core.tabs, log: deps.log });
+  const menu = createActionMenu({ menus: deps.contextMenus, runtime: deps.runtime, settings: core.settings, tabs: core.tabs, log: deps.log, uiLanguage: deps.uiLanguage });
   const consider = () => void core.auto.consider().catch((error: unknown) => deps.log.error("打开就出结论的判断失败", errorLabel(error)));
   const selfUpdate = wireSelfUpdate({ ...deps, busy: () => core.keepAlive.busy() || core.batch.busy() || core.data.busy() || core.tasks.list().some((task) => task.state === "running") });
   return {

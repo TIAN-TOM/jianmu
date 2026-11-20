@@ -23,6 +23,7 @@ import type { QaAnswerView, QaHistoryView } from "../../shared/messages/qa.ts";
 import type { TranscriptView } from "../../shared/messages/transcript.ts";
 import { aiFailure } from "../ai.ts";
 import { errorLabel, type Log } from "../log.ts";
+import { progressText } from "../progress-text.ts";
 import type { OverviewStore } from "../stores/overviews.ts";
 import { QA_ID_PREFIX, type QaStore } from "../stores/qa.ts";
 import type { TaskRun, TaskRunner } from "../tasks.ts";
@@ -157,7 +158,9 @@ export function createQaService(deps: QaServiceDeps): QaService {
   async function answer(run: TaskRun, video: VideoKey, ref: VideoRef, since: ClearEpoch | undefined): Promise<Result<QaAnswerView>> {
     if (!isQaInput(run.input)) return fail("INVALID_REQUEST");
     const { question } = run.input;
-    run.progress({ phase: "generating", message: "正在检索相关内容…" });
+    const lang = outputLangOf(run.gen);
+    const say = progressText(lang);
+    run.progress({ phase: "generating", message: say.qaSearching });
     // 缓存优先：重复提问不向平台发新请求。
     const snapshot = await deps.transcript.ensure(ref);
     if (!snapshot.ok) return bare(snapshot);
@@ -169,7 +172,7 @@ export function createQaService(deps: QaServiceDeps): QaService {
     let context = selectContext({ ...input, budgetChars: budget.chars });
     if (!context.chunks.length) return fail("NO_TRANSCRIPT");
 
-    run.progress({ phase: "generating", message: "正在组织回答…" });
+    run.progress({ phase: "generating", message: say.qaAnswering });
     const request = (sent: QaContext, selfRetry: boolean) =>
       run.ai.requestAiCompletion({
         maxTokens: ANSWER_MAX_TOKENS,
@@ -178,7 +181,8 @@ export function createQaService(deps: QaServiceDeps): QaService {
         selfRetry,
         // 服务限流或过载时传输层会等几秒重发一次，进度说清在等什么。
         onRetry: ({ message }) => run.progress({ phase: "generating", message }),
-        messages: qaMessages(localizePrompt(deps.prompt(QA_PROMPT), outputLangOf(run.gen)), {
+        lang,
+        messages: qaMessages(localizePrompt(deps.prompt(QA_PROMPT), lang), {
           videoTitle: view.info.title || "未知",
           ownerName: view.info.author || "未知",
           question,
@@ -195,7 +199,7 @@ export function createQaService(deps: QaServiceDeps): QaService {
       const shrinks = smaller.chunks.reduce((sum, chunk) => sum + chunk.text.length, 0) < context.chunks.reduce((sum, chunk) => sum + chunk.text.length, 0);
       if ((error as { readonly noAutoRetry?: unknown }).noAutoRetry || !shrinks) return fail("QA_INPUT_TOO_LONG");
       throwIfTaskCanceled(run.signal);
-      run.progress({ phase: "generating", message: "字幕太长，这个模型装不下，缩小范围再问一次…" });
+      run.progress({ phase: "generating", message: say.qaShrinking });
       context = smaller;
       try {
         reply = await request(context, false);

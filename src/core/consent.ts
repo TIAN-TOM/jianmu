@@ -2,7 +2,9 @@
 // 表里每个版本只写相对上一版新增或扩大了什么。指纹只算条目的 kind 和 id，改 text 的措辞、并显示的写法都不用重新同意；
 // 表从第 1 版起，扩大范围就升版、加一行，存着的版本和指纹表里认不出就按第一次处理；tests/fixtures/consent-fingerprints.json 的快照拦下没留意的变化。
 // 跟着构建开关走的条目放在单独的模块里，只从开关分支引用：开关关着的构建连措辞都不进包。
+// 每个条目的措辞中文（text）、英文（en）并排写，并显示的合成措辞也一样（combined、combinedEn）；英文不进指纹，加英文不用升版。
 import { FRAME_ACTIVATION_ITEMS, FRAME_DATA_ITEMS } from "./consent-frame.ts";
+import type { OutputLang } from "./output-lang.ts";
 
 /** 数据类别、使用目的、接收方、发送的触发方式或范围。 */
 export type DataConsentKind = "category" | "purpose" | "recipient" | "trigger";
@@ -13,13 +15,15 @@ export interface NoticeItem<Kind extends string> {
   readonly kind: Kind;
   /** 这一条的实质内容。范围变了就换新 id，写进新版本。 */
   readonly id: string;
-  /** 给用户看的措辞，不进指纹。 */
+  /** 给用户看的措辞，中文，不进指纹。 */
   readonly text: string;
+  /** 同一条的英文措辞，和 text 逐项对应、不多说也不少说，不进指纹。 */
+  readonly en: string;
   /**
-   * 只管显示，不进指纹：完整说明里这一条不单列，并进同一 kind、id 为 shownWith.id 的那一条，那一条改显示 combined。
+   * 只管显示，不进指纹：完整说明里这一条不单列，并进同一 kind、id 为 shownWith.id 的那一条，那一条改显示 combined（英文是 combinedEn）。
    * 那一条不在要显示的这组里（老用户只看新增的）时照常单列。
    */
-  readonly shownWith?: { readonly id: string; readonly combined: string };
+  readonly shownWith?: { readonly id: string; readonly combined: string; readonly combinedEn: string };
 }
 
 /** 给用户看的一行：通常是一个条目，并显示的是几个条目合成一行。 */
@@ -84,42 +88,63 @@ export const DATA_CONSENT_TABLE: NoticeTable<DataConsentKind> = [
   {
     version: 1,
     items: [
-      { kind: "category", id: "transcript", text: "字幕文本" },
-      { kind: "category", id: "selection", text: "你选中的文字" },
-      { kind: "category", id: "question", text: "你的问题" },
-      { kind: "category", id: "video-title", text: "视频标题" },
-      { kind: "category", id: "uploader-and-description", text: "UP 主名或频道名，和简介" },
-      { kind: "category", id: "official-summary", text: "「用官方总结写结论」和粗筛用到的 B 站官方总结" },
-      { kind: "category", id: "api-key", text: "你的 API 密钥" },
-      { kind: "purpose", id: "ai-features", text: "翻译、概览、一句话结论、划词解释、笔记润色、问答和粗筛写结论" },
+      { kind: "category", id: "transcript", text: "字幕文本", en: "Subtitle text" },
+      { kind: "category", id: "selection", text: "你选中的文字", en: "Text you select" },
+      { kind: "category", id: "question", text: "你的问题", en: "Your questions" },
+      { kind: "category", id: "video-title", text: "视频标题", en: "Video title" },
+      { kind: "category", id: "uploader-and-description", text: "UP 主名或频道名，和简介", en: "Creator or channel name, and the video description" },
+      { kind: "category", id: "official-summary", text: "「用官方总结写结论」和粗筛用到的 B 站官方总结", en: "Bilibili official summaries used by “Write a verdict from the official summary” and Watch Later triage" },
+      { kind: "category", id: "api-key", text: "你的 API 密钥", en: "Your API key" },
+      {
+        kind: "purpose",
+        id: "ai-features",
+        text: "翻译、概览、一句话结论、划词解释、笔记润色、问答和粗筛写结论",
+        en: "Translation, overviews, one-line verdicts, selection explanation, note polishing, Q&A, and verdicts in Watch Later triage",
+      },
       {
         kind: "recipient",
         id: "chosen-provider",
         text: "发到你选的服务商地址，也可以是你自己电脑上的服务。开发者没有服务器，收不到这些内容；服务商怎么处理，以它的隐私政策为准",
+        en: "The provider address you choose, which can also be a service on your own computer. The developer has no server and never receives any of this. How the provider handles it is governed by its privacy policy",
       },
-      { kind: "trigger", id: "on-click", text: "这些请求只在你点按钮时发出" },
-      { kind: "category", id: "imported-transcript", text: "你导入的字幕文件里的文字" },
-      { kind: "category", id: "video-duration", text: "视频时长", shownWith: { id: "video-title", combined: "视频标题和时长" } },
+      { kind: "trigger", id: "on-click", text: "这些请求只在你点按钮时发出", en: "These requests are only sent when you click a button" },
+      { kind: "category", id: "imported-transcript", text: "你导入的字幕文件里的文字", en: "Text from subtitle files you import" },
+      {
+        kind: "category",
+        id: "video-duration",
+        text: "视频时长",
+        en: "Video length",
+        shownWith: { id: "video-title", combined: "视频标题和时长", combinedEn: "Video title and length" },
+      },
       {
         kind: "trigger",
         id: "auto-on-open-tabs",
         text: "打开「打开就出结论」以后，在 B 站和已启用的 YouTube 上打开超过设定时长的视频，包括在后台打开、还没切过去看的标签页和打开开关时已经开着的，会自动发送字幕、视频标题和时长、UP 主名或频道名和简介，生成概览和一句话结论",
+        en: "With “Verdict on open” turned on, opening a video longer than the set length on Bilibili, or on YouTube once it's turned on, automatically sends its subtitles, title and length, creator or channel name, and description to generate an overview and a one-line verdict. This includes tabs opened in the background that you haven't switched to yet, and tabs already open when you turn it on",
         shownWith: {
           id: "on-click",
           combined:
             "平时只在你点按钮时发出；打开「打开就出结论」以后，在 B 站和已启用的 YouTube 上打开超过设定时长的视频，包括在后台打开、还没切过去看的标签页和打开开关时已经开着的，会自动发送字幕、视频标题和时长、UP 主名或频道名和简介，生成概览和一句话结论",
+          combinedEn:
+            "Normally only when you click a button. With “Verdict on open” turned on, opening a video longer than the set length on Bilibili, or on YouTube once it's turned on, automatically sends its subtitles, title and length, creator or channel name, and description to generate an overview and a one-line verdict. This includes tabs opened in the background that you haven't switched to yet, and tabs already open when you turn it on",
         },
       },
       {
         kind: "purpose",
         id: "tidy-transcript",
         text: "整理字幕：点「整理字幕」时发送字幕和视频标题，给字幕补标点、改明显的同音错字",
-        shownWith: { id: "ai-features", combined: "翻译、整理字幕（补标点、改同音错字）、概览、一句话结论、划词解释、笔记润色、问答和粗筛写结论" },
+        en: "Subtitle tidy-up: clicking “Tidy up subtitles” sends the subtitles and video title to add punctuation and fix obviously misheard words",
+        shownWith: {
+          id: "ai-features",
+          combined: "翻译、整理字幕（补标点、改同音错字）、概览、一句话结论、划词解释、笔记润色、问答和粗筛写结论",
+          combinedEn: "Translation, subtitle tidy-up (adding punctuation and fixing misheard words), overviews, one-line verdicts, selection explanation, note polishing, Q&A, and verdicts in Watch Later triage",
+        },
       },
       {
         kind: "trigger",
         id: "keep-running",
         text: "翻译和整理字幕点了以后在后台把整个视频分批发完，关掉侧边栏也继续，会接着用 API 额度；做完、你点停止，或者视频所在的标签页换了视频或关掉时才停",
+        en: "Once started, translation and subtitle tidy-up send the whole video in batches in the background and keep going after you close the side panel, using more API credit as they go. They only stop when they finish, when you click Stop, or when the video's tab switches to another video or is closed",
       },
       ...(FEATURE_FRAME_EXPLAIN ? FRAME_DATA_ITEMS : []),
     ],
@@ -130,21 +155,31 @@ export const ACTIVATION_TABLE: NoticeTable<ActivationKind> = [
   {
     version: 1,
     items: [
-      { kind: "read", id: "video-info", text: "视频信息：标题、作者和频道、时长、简介" },
-      { kind: "read", id: "transcript", text: "字幕。YouTube 上读观看页文字稿面板里显示的内容，面板没开时替你点开，打开就出结论、本窗口全部生成和卡片上的「生成概览」点开的读完替你关上；另读播放器上已有的字幕轨列表，标出语言和是不是自动生成" },
-      { kind: "read", id: "official-summary", text: "B 站官方总结和 UP 主分段" },
-      { kind: "read", id: "watch-state", text: "观看状态：播放、暂停、累计播放时长" },
-      { kind: "read", id: "window-tabs", text: "本窗口全部生成时，已授权网站标签页的地址和标题" },
-      { kind: "read", id: "watch-later", text: "打开粗筛并点读取时，B 站稍后再看列表" },
-      { kind: "purpose", id: "display", text: "在侧边栏和卡片里显示" },
-      { kind: "purpose", id: "pick-mode", text: "按时长、频道和播放情况选模式" },
-      { kind: "purpose", id: "material", text: "作为之后生成和问答的材料" },
-      { kind: "store", id: "cache", text: "字幕和视频信息的缓存，有期限和条数上限，可以在设置页清除" },
-      { kind: "store", id: "triage", text: "粗筛读到的列表和官方总结，有期限，可以在设置页清除" },
-      { kind: "store", id: "saved", text: "你保存的概览、问答、笔记和译文长期留在本机，保存到你删除为止" },
-      { kind: "read", id: "bili-login-state", text: "B 站登录状态：只看是否已登录，不读 Cookie 内容" },
-      { kind: "read", id: "watch-later-progress", text: "粗筛读到的稍后再看列表里，每个视频看到哪里" },
-      { kind: "read", id: "open-tabs", text: "打开「打开就出结论」以后，已授权网站各标签页的地址，用来认出打开的 B 站视频，包括在后台打开的" },
+      { kind: "read", id: "video-info", text: "视频信息：标题、作者和频道、时长、简介", en: "Video details: title, creator and channel, length, and description" },
+      {
+        kind: "read",
+        id: "transcript",
+        text: "字幕。YouTube 上读观看页文字稿面板里显示的内容，面板没开时替你点开，打开就出结论、本窗口全部生成和卡片上的「生成概览」点开的读完替你关上；另读播放器上已有的字幕轨列表，标出语言和是不是自动生成",
+        en: "Subtitles. On YouTube, Jianmu reads what's shown in the transcript panel on the watch page and opens the panel for you if it's closed. If Verdict on open, Generate all in this window or “Generate overview” on the card opened it, Jianmu closes it again after reading. It also reads the list of subtitle tracks the player already has, noting each track's language and whether it's auto-generated",
+      },
+      { kind: "read", id: "official-summary", text: "B 站官方总结和 UP 主分段", en: "Bilibili official summaries and the creator's own chapters" },
+      { kind: "read", id: "watch-state", text: "观看状态：播放、暂停、累计播放时长", en: "Viewing status: playing, paused, and total time played" },
+      { kind: "read", id: "window-tabs", text: "本窗口全部生成时，已授权网站标签页的地址和标题", en: "When you use Generate all in this window, the addresses and titles of tabs on sites you've authorised" },
+      { kind: "read", id: "watch-later", text: "打开粗筛并点读取时，B 站稍后再看列表", en: "Your Bilibili Watch Later list, when you open triage and click to load it" },
+      { kind: "purpose", id: "display", text: "在侧边栏和卡片里显示", en: "Showing it in the side panel and on the card" },
+      { kind: "purpose", id: "pick-mode", text: "按时长、频道和播放情况选模式", en: "Choosing a mode based on length, channel and playback" },
+      { kind: "purpose", id: "material", text: "作为之后生成和问答的材料", en: "Material for later generation and Q&A" },
+      { kind: "store", id: "cache", text: "字幕和视频信息的缓存，有期限和条数上限，可以在设置页清除", en: "A cache of subtitles and video details, with a time limit and a cap on the number of entries. You can clear it in settings" },
+      { kind: "store", id: "triage", text: "粗筛读到的列表和官方总结，有期限，可以在设置页清除", en: "The list and official summaries loaded by triage, with a time limit. You can clear them in settings" },
+      { kind: "store", id: "saved", text: "你保存的概览、问答、笔记和译文长期留在本机，保存到你删除为止", en: "Overviews, Q&A, notes and translations you save stay on this computer until you delete them" },
+      { kind: "read", id: "bili-login-state", text: "B 站登录状态：只看是否已登录，不读 Cookie 内容", en: "Your Bilibili sign-in status: only whether you're signed in. Cookie contents aren't read" },
+      { kind: "read", id: "watch-later-progress", text: "粗筛读到的稍后再看列表里，每个视频看到哪里", en: "How far you've watched each video in the Watch Later list loaded by triage" },
+      {
+        kind: "read",
+        id: "open-tabs",
+        text: "打开「打开就出结论」以后，已授权网站各标签页的地址，用来认出打开的 B 站视频，包括在后台打开的",
+        en: "With “Verdict on open” turned on, the address of each tab on sites you've authorised, used to recognise Bilibili videos you open, including ones opened in the background",
+      },
       ...(FEATURE_FRAME_EXPLAIN ? FRAME_ACTIVATION_ITEMS : []),
     ],
   },
@@ -212,18 +247,21 @@ export function noticeStatus<Kind extends string>(table: NoticeTable<Kind>, stor
   };
 }
 
-/** noticeStatus 给出的一组条目排成给用户看的行：带 shownWith 的并进它指向的那一行，指向的不在这组里就单列。 */
-export function noticeLines<Kind extends string>(items: readonly NoticeItem<Kind>[]): NoticeLine<Kind>[] {
+/** 一个条目给用户看的措辞。不传语言时是中文。 */
+export const noticeText = (item: Pick<NoticeItem<string>, "text" | "en">, lang: OutputLang = "zh"): string => (lang === "en" ? item.en : item.text);
+
+/** noticeStatus 给出的一组条目排成给用户看的行：带 shownWith 的并进它指向的那一行，指向的不在这组里就单列。不传语言时是中文。 */
+export function noticeLines<Kind extends string>(items: readonly NoticeItem<Kind>[], lang: OutputLang = "zh"): NoticeLine<Kind>[] {
   const keyOf = (kind: string, id: string): string => `${kind}:${id}`;
   const present = new Set(items.map((item) => keyOf(item.kind, item.id)));
   const merges = (item: NoticeItem<Kind>): boolean => item.shownWith !== undefined && present.has(keyOf(item.kind, item.shownWith.id));
   const lines = new Map<string, { kind: Kind; ids: string[]; text: string }>();
-  for (const item of items) if (!merges(item)) lines.set(keyOf(item.kind, item.id), { kind: item.kind, ids: [item.id], text: item.text });
+  for (const item of items) if (!merges(item)) lines.set(keyOf(item.kind, item.id), { kind: item.kind, ids: [item.id], text: noticeText(item, lang) });
   for (const item of items) {
     const line = item.shownWith && merges(item) ? lines.get(keyOf(item.kind, item.shownWith.id)) : undefined;
     if (!line || !item.shownWith) continue;
     line.ids.push(item.id);
-    line.text = item.shownWith.combined;
+    line.text = lang === "en" ? item.shownWith.combinedEn : item.shownWith.combined;
   }
   return [...lines.values()];
 }
@@ -252,6 +290,11 @@ const activation = currentStamp(ACTIVATION_TABLE);
 
 export const DATA_CONSENT_VERSION = dataConsent.version;
 export const DATA_CONSENT_FINGERPRINT = dataConsent.fingerprint;
+/** 没同意数据说明时的提示，中文。校验结果里按它认出是同意的问题，所以它同时是标识，措辞不随语言变；给用户看的用 dataConsentErrorText。 */
 export const DATA_CONSENT_ERROR = "请先在设置页「AI 服务」一节读一下数据说明，勾选「我已了解」。";
+export const DATA_CONSENT_ERROR_EN = "Read the data notice in the “AI service” section of settings and tick the box to agree first.";
+
+/** 没同意数据说明时给用户看的提示。不传语言时是中文，和 DATA_CONSENT_ERROR 一样。 */
+export const dataConsentErrorText = (lang: OutputLang = "zh"): string => (lang === "en" ? DATA_CONSENT_ERROR_EN : DATA_CONSENT_ERROR);
 export const ACTIVATION_VERSION = activation.version;
 export const ACTIVATION_FINGERPRINT = activation.fingerprint;

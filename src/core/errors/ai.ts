@@ -85,3 +85,62 @@ export const AI_ERROR_TEXT: Readonly<Record<AiErrorCode, ErrorCopy>> = {
   TASK_CANCELED: { cause: "已经停下了。", impact: "已经发出去的请求可能照样计费。" },
   AI_REQUEST_FAILED: { cause: "AI 请求没有成功。", impact: NO_RESULT, next: "稍后再试。" },
 };
+
+const NOT_SENT_EN = "Nothing was sent, so this didn't use any API credit.";
+const NO_RESULT_EN = "No result this time. Everything already saved is still there.";
+const MAYBE_BILLED_EN = "No result this time, but the request was sent and may still be billed. Everything already saved is still there.";
+const THINKING_EXHAUSTED_EN = "The model spent its whole output allowance on thinking before writing a reply.";
+const SWITCH_MODEL_EN = "Try again. If it keeps happening, choose a different model in settings.";
+
+export const AI_ERROR_TEXT_EN: Readonly<Record<AiErrorCode, ErrorCopy>> = {
+  NO_AI_CONFIG: { cause: "The AI service isn't set up yet.", impact: NOT_SENT_EN, next: "In settings, fill in the provider, key and model, then click “Save and authorise”." },
+  NO_DATA_CONSENT: { cause: "You haven't agreed to the data notice yet.", impact: "Nothing has been sent to the AI service.", next: "Read the data notice in settings and tick the box to agree." },
+  NEED_HOST_PERMISSION: {
+    cause: "Jianmu doesn't have permission to reach this API address yet.",
+    impact: NOT_SENT_EN,
+    next: "Click “Save and authorise” in settings and allow access when the browser asks.",
+  },
+  INVALID_BASE_URL: { cause: "The API address isn't right.", impact: NOT_SENT_EN, next: "Check the API address in settings." },
+  INVALID_AI_KEY: { cause: "The AI service didn't accept this key.", impact: NO_RESULT_EN, next: "Check the key in settings and make sure it's from the same provider as the API address." },
+  MODEL_OR_ENDPOINT_NOT_FOUND: {
+    cause: "The AI service couldn't find this model or endpoint.",
+    impact: NO_RESULT_EN,
+    next: "Check the model name and API address in settings. You can click “Fetch model list” and choose from there.",
+  },
+  AI_RATE_LIMITED: { cause: "The AI service is limiting requests, or your account has run out of credit.", impact: NO_RESULT_EN, next: "Wait a few minutes and try again. If it keeps happening, check your credit in the provider's console." },
+  AI_SERVICE_BUSY: { cause: "The AI service is busy or having problems right now.", impact: NO_RESULT_EN, next: "Try again later." },
+  AI_SERVICE_ERROR: { cause: "The AI service ran into an error.", impact: NO_RESULT_EN, next: "Try again later. If it keeps happening, click “Test connection” in settings to see why." },
+  AI_NETWORK_ERROR: {
+    cause: "Jianmu couldn't reach the AI service.",
+    impact: NO_RESULT_EN,
+    next: "Check your internet connection, then check the API address in settings. School and work networks sometimes block these services, so try another network if you can.",
+  },
+  AI_REDIRECT_BLOCKED: {
+    cause: "The API address sent the request somewhere else.",
+    impact: "Jianmu didn't follow it, so your key wasn't passed on. No result this time.",
+    next: "In settings, change the API address to the final address your provider gives you.",
+  },
+  ANTHROPIC_WORKSPACE_REQUIRED: {
+    cause: "This key isn't limited to a workspace, so the service won't accept it.",
+    impact: NO_RESULT_EN,
+    next: "Create a key limited to a workspace in your provider's console and enter it in settings.",
+  },
+  AI_HARD_TIMEOUT: { cause: "The model took too long to respond, so Jianmu stopped the request.", impact: MAYBE_BILLED_EN, next: "Try again later. If it keeps happening, choose a faster model in settings." },
+  AI_IDLE_TIMEOUT: { cause: "The model's reply cut off partway through.", impact: MAYBE_BILLED_EN, next: "Try again." },
+  AI_REFUSED: { cause: "The model refused this request.", impact: MAYBE_BILLED_EN, next: "Choose a different model in settings and try again. The same model will most likely refuse again." },
+  EMPTY_AI_RESPONSE: { cause: "The model didn't write anything.", impact: MAYBE_BILLED_EN, next: SWITCH_MODEL_EN },
+  AI_RESPONSE_TOO_LARGE: { cause: "The model's reply was too large, so Jianmu didn't accept it.", impact: MAYBE_BILLED_EN, next: SWITCH_MODEL_EN },
+  AI_RESPONSE_TRUNCATED: { cause: "The model stopped before finishing its reply.", impact: MAYBE_BILLED_EN, next: SWITCH_MODEL_EN },
+  AI_THINKING_EXHAUSTED: {
+    cause: THINKING_EXHAUSTED_EN,
+    impact: MAYBE_BILLED_EN,
+    next: "Lower this feature's level under “Reasoning effort” in settings and try again, or choose a different model for it under “Models per feature”.",
+  },
+  AI_THINKING_EXHAUSTED_LOCKED: {
+    cause: THINKING_EXHAUSTED_EN,
+    impact: MAYBE_BILLED_EN,
+    next: "Jianmu can't control how long this model thinks. Choose a different model for this feature under “Models per feature” in settings and try again.",
+  },
+  TASK_CANCELED: { cause: "Stopped.", impact: "Requests already sent may still be billed." },
+  AI_REQUEST_FAILED: { cause: "The AI request didn't go through.", impact: NO_RESULT_EN, next: "Try again later." },
+};

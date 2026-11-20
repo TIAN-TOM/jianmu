@@ -10,7 +10,9 @@ import { chunkFromModel, validateAnalysis, type Analysis } from "../../../core/a
 import { mapWithConcurrency, type Limiter } from "../../../core/concurrency.ts";
 import type { LearningAnalysis } from "../../../core/notes/markdown.ts";
 import { formatTimestamp, type TranscriptSegment } from "../../../core/transcript/segment.ts";
+import { outputLangOf, type OutputLang } from "../../../core/output-lang.ts";
 import { errorLabel, type Log } from "../../log.ts";
+import { progressText } from "../../progress-text.ts";
 import type { TaskAi } from "../../ai.ts";
 import type { TaskRun } from "../../tasks.ts";
 
@@ -88,6 +90,8 @@ export interface ChunkDeps {
 interface ChunkRequest {
   readonly signal: AbortSignal;
   readonly onRetry: (notice: RetryNotice) => void;
+  /** 限流后重发时进度那句话的语言。 */
+  readonly lang: OutputLang;
   /** 自动补轮里的那一次：这一块的重试额度已经用在上一轮，传输层不再自己重发。 */
   readonly retryRound: boolean;
 }
@@ -116,6 +120,7 @@ async function analyzeChunk(deps: ChunkDeps, chunk: Chunk, chunkCount: number, c
     responseFormat: ANALYSIS_CHUNK,
     signal: request.signal,
     onRetry: request.onRetry,
+    lang: request.lang,
     messages: promptMessages(deps.prompt, variables),
   });
   let parsed: unknown;
@@ -131,7 +136,8 @@ async function analyzeChunk(deps: ChunkDeps, chunk: Chunk, chunkCount: number, c
 }
 
 export interface PlannedRun {
-  readonly run: Pick<TaskRun, "signal" | "progress">;
+  /** gen 定进度那句话的语言，不给时是中文。 */
+  readonly run: Pick<TaskRun, "signal" | "progress"> & Partial<Pick<TaskRun, "gen">>;
   /** 进度条上的说法。 */
   readonly label: (done: number, total: number) => string;
   readonly phase: string;
@@ -151,13 +157,14 @@ export async function analyzePlannedChunks(
   const { signal } = run;
   // 限流或过载时传输层会等几秒重发一次：进度条说清在等什么，块数照旧。
   const onRetry = (notice: RetryNotice): void => run.progress({ message: notice.message });
+  const lang = outputLangOf(run.gen);
   const analyzeOne = async (chunk: Chunk, retryRound: boolean): Promise<ChunkPart> => {
     // 排队中的块也认取消：用户点停止后立刻出队，不必等别的请求让出名额。
     const part = await deps.gate(
       deps.concurrency,
       () => {
         throwIfTaskCanceled(signal);
-        return analyzeChunk(deps, chunk, chunkCount, common, { signal, onRetry, retryRound });
+        return analyzeChunk(deps, chunk, chunkCount, common, { signal, onRetry, lang, retryRound });
       },
       { signal },
     );
@@ -177,7 +184,7 @@ export async function analyzePlannedChunks(
   const rejected = results.filter((result) => result.status === "rejected").length;
   const failedIndexes = results.flatMap((result, index) => (result.status === "rejected" && isTransientChunkFailure(result.reason) ? [index] : []));
   if (!failedIndexes.length || (retryPartialOnly && rejected >= chunks.length)) return results;
-  run.progress({ done: chunks.length - rejected, total: chunks.length, phase: "retrying", message: `正在重试 ${failedIndexes.length} 个失败分块` });
+  run.progress({ done: chunks.length - rejected, total: chunks.length, phase: "retrying", message: progressText(lang).chunkRetry(failedIndexes.length) });
   const retried = await mapWithConcurrency(
     failedIndexes.map((index) => chunks[index] as Chunk),
     deps.concurrency,

@@ -283,6 +283,7 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
             maxTokens: FRAME_MAX_TOKENS,
             signal: run.signal,
             onRetry: ({ message }) => run.progress({ phase: "generating", message }),
+            lang,
             messages: [
               { role: "system", content: extractPromptSection(markdown, "系统提示词", variables) },
               {

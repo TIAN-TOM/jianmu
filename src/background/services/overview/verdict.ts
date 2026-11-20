@@ -19,6 +19,7 @@ import type { OfficialSummaryView, TranscriptReply, VideoInfoView } from "../../
 import { AI_CONCURRENCY } from "../../../shared/settings-schema.ts";
 import { aiFailure } from "../../ai.ts";
 import { errorLabel, type Log } from "../../log.ts";
+import { progressText } from "../../progress-text.ts";
 import type { OverviewStore } from "../../stores/overviews.ts";
 import type { TaskRun, TaskRunner } from "../../tasks.ts";
 import type { TranscriptService } from "../transcript/index.ts";
@@ -228,7 +229,7 @@ export function createVerdictService(deps: VerdictServiceDeps): VerdictService {
       // 算键的工夫被停了：闸门有空位时请求会立刻发出去、撤不回来，这里就收手。
       if (stopped()) return fail("TASK_CANCELED");
       const busy = inflight.get(video);
-      const writing = (): void => run.progress({ done: 0, total: 1, phase: "verdict", message: "正在写一句话结论…" });
+      const writing = (): void => run.progress({ done: 0, total: 1, phase: "verdict", message: progressText(outputLangOf(run.gen)).verdict });
       if (busy && busy.key === key && !cleared(busy.since)) {
         writing();
         return attend(busy, run.signal);

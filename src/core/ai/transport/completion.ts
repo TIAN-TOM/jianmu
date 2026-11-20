@@ -1,5 +1,5 @@
 // 一次模型调用的完整过程：校验配置、查能力、发送，以及空响应、截断、限流各自的自愈。
-import { dataConsentGiven } from "../../consent.ts";
+import { dataConsentErrorText, dataConsentGiven } from "../../consent.ts";
 import { resolveCapabilities } from "../capabilities.ts";
 import {
   canRaiseBudget,
@@ -19,6 +19,7 @@ import {
   type EffortPlan,
   type EmptyDiagnosis,
   type RelaxState,
+  withEnglish,
 } from "../provider/index.ts";
 import { isRepairedEnvelope } from "./envelope.ts";
 import { aiErrorResponse, refusedError, taskCanceledError, throwIfTaskCanceled } from "./errors.ts";
@@ -35,6 +36,7 @@ import {
   waitSignal,
 } from "./policy.ts";
 import { createAiSender } from "./send.ts";
+import { transportText } from "./text.ts";
 import type {
   AiTransport,
   AiTransportDeps,
@@ -103,12 +105,16 @@ export function createAiTransport({
     stillWanted = null,
     beforeSend = null,
     effort: requested = "off",
+    lang = "zh",
   }: CompletionRequest): Promise<CompletionResult> {
     throwIfTaskCanceled(signal);
     const configured = await getSettings();
     const check = settingsRules.validate(configured);
     if (!check.ok) {
-      const error: TransportError = new Error(`AI 还没配置好：${check.errors.join(" ")}`);
+      const error: TransportError = withEnglish(
+        new Error(transportText().notConfigured(check.errors.join(" "))),
+        transportText("en").notConfigured(settingsRules.validate(configured, "en").errors.join(" ")),
+      );
       error.code = "NO_AI_CONFIG";
       throw error;
     }
@@ -216,7 +222,7 @@ export function createAiTransport({
         const notice = {
           status: failure.status,
           delayMs,
-          message: `${failure.status === 429 ? "服务限流" : "服务繁忙"}，${seconds} 秒后重试…`,
+          message: transportText(lang).retrying(failure.status === 429, seconds),
         };
         log("[jianmu] 服务限流或过载，稍后重发一次：", notice);
         try {
@@ -303,7 +309,10 @@ export function createAiTransport({
     if (partial) return partialResult();
     // Responses 生成失败时，诊断直接用服务给的报错，同样可能回显密钥。
     // 走到这里一定诊断过：没有截断正文，循环只会从空响应那条路出来。
-    const error: TransportError = new Error(redactSecret(diagnosis!.message, settings.aiApiKey));
+    const error: TransportError = withEnglish(
+      new Error(redactSecret(diagnosis!.message, settings.aiApiKey)),
+      redactSecret(diagnosis!.messageEn ?? diagnosis!.message, settings.aiApiKey),
+    );
     // 能调低档位的才让用户去调：服务自己决定想多少的、已经在最低档的，只能换型号。
     // 按最后一次请求实际的样子算：参数被拒、放宽以后不再发档位的，同样算调不了。
     const sentCaps = resolveCapabilities({ protocol: settings.protocol, host, model: settings.aiModel, claude: capabilities, relax });
@@ -337,7 +346,10 @@ export function createAiTransport({
   // （Anthropic 要联网），所以每次发之前都查一遍，第一次也不例外。
   async function assertConsentStillGiven(): Promise<void> {
     if (dataConsentGiven(settingsRules.normalize(await getSettings()), settingsRules)) return;
-    const error: TransportError = new Error(`AI 还没配置好：${settingsRules.dataConsentError}`);
+    const error: TransportError = withEnglish(
+      new Error(transportText().notConfigured(settingsRules.dataConsentError)),
+      transportText("en").notConfigured(dataConsentErrorText("en")),
+    );
     error.code = "NO_AI_CONFIG";
     throw error;
   }

@@ -1,6 +1,9 @@
 // 三种协议的名字、预设的协议和地址，以及对话、模型列表请求的地址。选了具体厂商时协议和地址由预设决定。
 // 预设的默认模型和密钥页链接在 shared/settings-schema.ts、显示名在设置页的文案表里，都按 id 从这张表补上，协议和地址只写这里。
 
+import type { OutputLang } from "../../output-lang.ts";
+import { providerText } from "./text.ts";
+
 // 三种协议：「OpenAI 兼容」即 Chat Completions，是各家兼容服务的事实标准；
 // OpenAI 官方另用它自家较新的 Responses 接口，结构化输出和推理档位都在那边；
 // Anthropic 是唯一值得单独适配的例外。
@@ -65,27 +68,25 @@ export function isLocalBaseUrl(input: unknown): boolean {
   }
 }
 
-// 密钥会随请求发到这个地址，所以只认 https；本机地址（localhost、127.0.0.1）也可以用 http。
-export function validateBaseUrl(input: unknown, protocol: Protocol = PROTOCOLS.OPENAI): BaseUrlCheck {
+// 密钥会随请求发到这个地址，所以只认 https；本机地址（localhost、127.0.0.1）也可以用 http。error 按 lang 写，不传时是中文。
+export function validateBaseUrl(input: unknown, protocol: Protocol = PROTOCOLS.OPENAI, lang: OutputLang = "zh"): BaseUrlCheck {
+  const say = providerText(lang);
   const text = String(input || "").trim();
-  if (!text) return { ok: false, error: "请填写 API 地址。" };
+  if (!text) return { ok: false, error: say.baseUrlMissing };
 
   let parsed: URL;
   try {
     parsed = new URL(text);
   } catch {
-    return { ok: false, error: "API 地址不是合法的 URL。" };
+    return { ok: false, error: say.baseUrlNotUrl };
   }
 
   if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && isLoopback(parsed))) {
-    return {
-      ok: false,
-      error: "API 地址要以 https:// 开头。只有本机地址（localhost、127.0.0.1）可以用 http://。",
-    };
+    return { ok: false, error: say.baseUrlNotHttps };
   }
   // Chrome 的 match pattern 不支持 IPv6 字面量，这类地址申请不到访问权限。
   if (parsed.hostname.includes(":")) {
-    return { ok: false, error: "Chrome 的权限系统不支持 IPv6 字面量地址，请改用域名。" };
+    return { ok: false, error: say.baseUrlIpv6 };
   }
 
   // 用户常常直接把文档里的完整端点粘进来。与其报错，不如把它还原成 base。

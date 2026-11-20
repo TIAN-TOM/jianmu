@@ -1,5 +1,6 @@
 // 解析三种协议的响应：取正文、认拒绝和截断，取报错信息和模型列表。
 import { PROTOCOLS, type Protocol } from "./endpoint.ts";
+import { providerText } from "./text.ts";
 import type { ProviderResponse, ResponseBlock, ResponseItem } from "./types.ts";
 
 type Payload = ProviderResponse | null | undefined;
@@ -69,7 +70,7 @@ export function parseErrorMessage(data: unknown, status: number): string {
     detail?.type ||
     payload.message ||
     (typeof payload.error === "string" ? payload.error : "");
-  return message || `服务返回 ${status}`;
+  return message || providerText().statusOnly(status);
 }
 
 interface ModelEntry {

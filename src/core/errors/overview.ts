@@ -40,3 +40,33 @@ export const OVERVIEW_ERROR_TEXT: Readonly<Record<OverviewErrorCode, ErrorCopy>>
     next: "到设置页「概览分块」换回「自动」或「较长」，再点「生成概览」。",
   },
 };
+
+const MAYBE_BILLED_EN = "No result this time, but the request was sent and may still be billed. Everything already saved is still there.";
+const SWITCH_MODEL_EN = "Try again. If it keeps happening, choose a different model for Overview under “Models per feature” in settings.";
+
+export const OVERVIEW_ERROR_TEXT_EN: Readonly<Record<OverviewErrorCode, ErrorCopy>> = {
+  NO_TRANSCRIPT: {
+    cause: "This video has no subtitles Jianmu can use.",
+    impact: "No overview could be generated, and no API credit was used.",
+    next: "If you have a subtitle file for this video, click “Import subtitle file” in the side panel. On the video page card, click “Open side panel” first.",
+  },
+  EMPTY_ANALYSIS: { cause: "The model didn't write any usable chapters or key quotes.", impact: MAYBE_BILLED_EN, next: SWITCH_MODEL_EN },
+  ANALYSIS_PARSE_FAILED: { cause: "The model didn't return the overview in the expected format, so it couldn't be read.", impact: MAYBE_BILLED_EN, next: SWITCH_MODEL_EN },
+  NO_ANALYSIS: { cause: "There's no overview to fill in yet.", next: "Click “Generate overview” first." },
+  FAILED_CHUNKS_MISMATCH: {
+    cause: "The current subtitles or language don't match this overview.",
+    impact: "Jianmu can't fill in just the failed parts, and no API credit was used.",
+    next: "Click “Regenerate” to generate the whole overview.",
+  },
+  NO_OFFICIAL_SUMMARY: {
+    cause: "This video has no official summary.",
+    impact: "Jianmu can't write a verdict from it, and no API credit was used.",
+    next: "Click “Generate overview” in the side panel to write a verdict from the subtitles.",
+  },
+  EMPTY_VERDICT: { cause: "The model didn't write a usable verdict.", impact: MAYBE_BILLED_EN, next: "Try again." },
+  WHOLE_CHUNK_TOO_BIG: {
+    cause: "“Whole video where possible” sends all the subtitles to the model at once. This time it timed out, or the model couldn't fit them all.",
+    impact: MAYBE_BILLED_EN,
+    next: "Change “Overview chunk size” in settings back to “Automatic” or “Longer”, then click “Generate overview”.",
+  },
+};
