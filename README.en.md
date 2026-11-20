@@ -6,7 +6,7 @@ Helps you work out within a few minutes whether a long Bilibili or YouTube video
 
 > **Status: being rewritten, not released yet, and there is no package to download.** On Bilibili, the main flow (reading subtitles, generating overviews, Q&A with citations, taking notes, the card on the video page and the settings page), Watch Later triage, generating for every video in the window, 打开就出结论 (verdict on open) and the features listed below are on the main branch, and automated tests run them against locally simulated pages. The developer now uses it day to day on Bilibili. On YouTube, turning it on per site, reading subtitles and opening the transcript for you are on the main branch too. The developer uses them day to day on YouTube as well, and they will be in the first version. The first version goes out on GitHub once both sites work end to end ([PRD](notes/product-prd.md), section 1, in Chinese).
 
-Screenshots and a demo GIF aren't ready yet. They will be added before the first release. <!-- 待定：演示截图和动图 -->
+![Skim view: a one-line verdict with a recommendation, timestamped chapters with the key ones marked, and an expanded chapter showing its summary and subtitles](.github/assets/skim.png)
 
 Jianmu is a Chrome extension (Manifest V3). There is no developer backend and no account. You need your own API key. Notes and overviews are kept on your computer, and subtitles and similar content only go to the model service you choose. The interface is in Simplified Chinese.
 
@@ -26,6 +26,16 @@ This describes where the project is heading. Only part of it is built so far, an
 - **Two sites, one tool**: Bilibili and YouTube share one side panel for verdicts, chapters and subtitles. Before release, the final package is checked on real pages. On YouTube you first click 在 YouTube 上启用 (enable on YouTube) in the side panel or in Settings, and Jianmu runs on YouTube pages only after you grant access. On a video, click 读取字幕 (read subtitles) in the side panel, and Jianmu opens the transcript on the page for you and reads it. 打开就出结论 (verdict on open) and generating for every video in the window work on YouTube too: Jianmu opens the transcript to read it and closes it again afterwards.
 
 On Bilibili, Jianmu reads subtitles and official summaries only for signed-in users (while signed out it reads just the video details such as title and length), never downloads audio or video, and leaves content confirmed as paid alone. The rules are in section 8.1 of the [PRD](notes/product-prd.md) (in Chinese). On YouTube, Jianmu sends no requests to the platform. It reads only what the transcript already shows, plus the list of subtitle tracks the player already has (to mark the language and whether it was auto-generated), and leaves the player alone. The rules are in section 8.2.
+
+## Screenshots
+
+The video, channel and subtitles in these screenshots were made up for the demo. The interface is in Simplified Chinese.
+
+![Close reading: subtitles highlighted as the video plays, and an answer with timestamps and the subtitle lines it cites](.github/assets/study-qa.png)
+
+![The card beside the player: verdict, chapters and a button that opens the side panel](.github/assets/card.png)
+
+![Settings: choose the AI service and model, and set the reasoning effort for each feature](.github/assets/settings-ai.png)
 
 ## Install and update
 
