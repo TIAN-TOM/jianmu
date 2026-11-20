@@ -3,6 +3,7 @@
 // 卡片的明暗跟着周围的页面：插入时写在地址的 # 后面，卡片第一帧就对；之后页面换了明暗，发一句消息告诉它。
 import { CARD_TONE, INJECTED } from "../shared/names.ts";
 import type { PageTone } from "./page-tone.ts";
+import { contentText } from "./text.ts";
 
 export interface CardSlot {
   readonly parent: Element;
@@ -20,6 +21,8 @@ export interface CardFrameDeps {
   readonly fillsScreen: () => boolean;
   /** 卡片周围的页面是浅色还是深色，认不出时是 null。不给就不管明暗，卡片按设置来。 */
   readonly tone?: () => PageTone | null;
+  /** 框架的名字（读屏读的那个），跟着界面语言；不给时用中文。 */
+  readonly title?: () => string;
 }
 
 export interface CardFrame {
@@ -45,7 +48,7 @@ export function extensionOrigin(url: string): string {
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null;
 
-export function createCardFrame({ document, cardUrl, extensionRoot, slot, fillsScreen, tone }: CardFrameDeps): CardFrame {
+export function createCardFrame({ document, cardUrl, extensionRoot, slot, fillsScreen, tone, title = () => contentText().cardTitle }: CardFrameDeps): CardFrame {
   const view = document.defaultView;
   let frame: HTMLIFrameElement | null = null;
   let origin = "";
@@ -122,7 +125,7 @@ export function createCardFrame({ document, cardUrl, extensionRoot, slot, fillsS
     if (!url || !root) return;
     const node = document.createElement("iframe");
     node.id = INJECTED.cardFrame;
-    node.title = "简幕总结卡片";
+    node.title = title();
     urlTone = readTone();
     node.src = urlTone ? `${url}#${CARD_TONE.param}=${urlTone}` : url;
     if (!place(node, slot())) return;
@@ -139,6 +142,9 @@ export function createCardFrame({ document, cardUrl, extensionRoot, slot, fillsS
         insert();
         return;
       }
+      // 界面语言变了：名字跟着换，不动地址，框架不重载。
+      const name = title();
+      if (frame.title !== name) frame.title = name;
       if (!floating && skipped < FULL_CHECK_TICKS - 1) {
         skipped += 1;
         return;

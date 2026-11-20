@@ -3,13 +3,15 @@
 import { computed, signal, type ReadonlySignal } from "@preact/signals";
 import { describe, errorCopy, type ErrorCode, type Failure } from "../../core/errors.ts";
 import { hasOfficialContent, isOfficialDone, OFFICIAL_INTERVAL_MS, officialTodo, verdictTodo } from "../../core/triage/batch.ts";
-import { formatDateTime, toMarkdown } from "../../core/triage/export.ts";
+import { exportFileName, formatDateTime, toMarkdown } from "../../core/triage/export.ts";
 import { hasVerdict, type GroupKey } from "../../core/triage/groups.ts";
 import type { OfficialRecord, TriageItem } from "../../core/triage/state.ts";
 import type { PortEvent } from "../../shared/messages.ts";
 import type { BatchFailure, TriageOut, TriageSnapshot, TriageStep, TriageStop } from "../../shared/messages/batch.ts";
 import { AI_CONCURRENCY } from "../../shared/settings-schema.ts";
 import type { PageApi, PagePort } from "../shared/api.ts";
+import type { UiLang } from "../shared/ui-lang.ts";
+import { triageTextOf } from "./text.ts";
 
 export type Tone = "ok" | "warn" | "error";
 
@@ -34,6 +36,8 @@ export interface TriageDeps {
   readonly videoBase: (videoKey: string) => string;
   readonly download: (filename: string, text: string) => void;
   readonly now?: () => number;
+  /** 界面语言：状态行和确认的几行按写出来那一刻的语言写，导出的清单和文件名也按它。不给时是中文。 */
+  readonly lang?: () => UiLang;
 }
 
 export interface TriageState {
@@ -75,27 +79,29 @@ export interface ItemError {
 }
 
 /** 官方总结没取成的原因：被限流单说一句，别的照错误码的说明。 */
-export function officialRecordText(record: OfficialRecord | undefined, item: TriageItem): string {
-  if (item.available === false) return "视频已失效或暂时看不了，没有去取官方总结";
-  if (!record) return "还没取官方总结";
-  if (record.status === "ok" && !hasOfficialContent(record)) return "没有官方总结";
+export function officialRecordText(record: OfficialRecord | undefined, item: TriageItem, lang: UiLang = "zh"): string {
+  const t = triageTextOf(lang).record;
+  if (item.available === false) return t.unavailable;
+  if (!record) return t.notFetched;
+  if (record.status === "ok" && !hasOfficialContent(record)) return t.none;
   switch (record.status) {
     case "none":
-      return "没有官方总结";
+      return t.none;
     case "queued":
-      return "B 站现在没有这个视频的官方总结，可以先处理别的";
+      return t.queued;
     case "unsupported":
-      return "B 站不给这个视频做总结";
+      return t.unsupported;
     case "need-login":
-      return "要先在这个浏览器里登录 B 站";
+      return t.needLogin;
     default:
-      if (record.reason === "RATE_LIMITED") return "被 B 站限流了，过几分钟再点开始会重试";
-      return `没取到：${errorCopy((record.reason ?? "BACKGROUND_FAILED") as ErrorCode).cause}再点开始会重试`;
+      if (record.reason === "RATE_LIMITED") return t.rateLimited;
+      return t.failed(errorCopy((record.reason ?? "BACKGROUND_FAILED") as ErrorCode).cause);
   }
 }
 
 /** 第一步取完以后的分类计数。 */
-export function officialCounts(items: readonly TriageItem[], official: Readonly<Record<string, OfficialRecord | undefined>>): string {
+export function officialCounts(items: readonly TriageItem[], official: Readonly<Record<string, OfficialRecord | undefined>>, lang: UiLang = "zh"): string {
+  const t = triageTextOf(lang).counts;
   let ok = 0;
   let none = 0;
   let later = 0;
@@ -108,34 +114,36 @@ export function officialCounts(items: readonly TriageItem[], official: Readonly<
     else if (isOfficialDone(record)) none += 1;
     else later += 1;
   }
-  const parts = [`有官方总结 ${ok} 个`];
-  if (none) parts.push(`没有 ${none} 个`);
-  if (later) parts.push(`这次没取到 ${later} 个`);
-  if (pending) parts.push(`还没取 ${pending} 个`);
-  return `${parts.join("，")}。`;
+  const parts = [t.ok(ok)];
+  if (none) parts.push(t.none(none));
+  if (later) parts.push(t.later(later));
+  if (pending) parts.push(t.pending(pending));
+  return t.join(parts);
 }
 
-export function listSummary(snapshot: TriageSnapshot): string {
+export function listSummary(snapshot: TriageSnapshot, lang: UiLang = "zh"): string {
+  const t = triageTextOf(lang).summary;
   const list = snapshot.list;
   if (!list) return "";
-  const parts = [`共 ${list.items.length} 个视频，读取于 ${formatDateTime(list.fetchedAt)}。`];
-  if (list.count > list.items.length) parts.push(`B 站报的总数是 ${list.count} 个，读到的只有 ${list.items.length} 个。`);
+  const parts = [t.total(list.items.length, formatDateTime(list.fetchedAt))];
+  if (list.count > list.items.length) parts.push(t.short(list.count, list.items.length));
   const unavailable = list.items.filter((item) => item.available === false).length;
-  if (unavailable) parts.push(`其中 ${unavailable} 个已失效或暂时看不了，不会去取官方总结。`);
+  if (unavailable) parts.push(t.unavailable(unavailable));
   return parts.join("");
 }
 
-function stopText(stop: TriageStop | undefined, done: number, total: number, again: string): string | null {
-  const tally = `（处理了 ${done} / ${total} 个）`;
+function stopText(stop: TriageStop | undefined, done: number, total: number, again: string, lang: UiLang): string | null {
+  const t = triageTextOf(lang).stopped;
+  const tally = t.tally(done, total);
   switch (stop) {
     case "rate-limited":
-      return `被 B 站限流，已经停下${tally}。过几分钟再点开始，${again}`;
+      return t.rateLimited(tally, again);
     case "need-login":
-      return `B 站说要先登录，已经停下${tally}。在这个浏览器里登录 B 站后再点开始，${again}`;
+      return t.needLogin(tally, again);
     case "source":
-      return `B 站回的内容读不懂，已经停下${tally}。过一阵再试，${again}`;
+      return t.source(tally, again);
     case "stopped":
-      return `已停止${tally}，再点开始${again}`;
+      return t.stopped(tally, again);
     default:
       return null;
   }
@@ -146,6 +154,8 @@ const failureText = (failure: BatchFailure): string => describe(failure.code);
 export function createTriageState(deps: TriageDeps): TriageState {
   const { api } = deps;
   const now = deps.now ?? Date.now;
+  const lang = (): UiLang => deps.lang?.() ?? "zh";
+  const t = () => triageTextOf(lang());
   const snapshot = signal<TriageSnapshot | null>(null);
   const loadFailure = signal<Failure | null>(null);
   const running = signal<TriageStep | null>(null);
@@ -180,8 +190,8 @@ export function createTriageState(deps: TriageDeps): TriageState {
     loadFailure.value = null;
     apply(reply.value);
     if (reply.value.list) {
-      listStatus.value = { text: `${listSummary(reply.value)}要看最新的列表就再读取一次。` };
-      officialStatus.value = { text: officialCounts(reply.value.list.items, reply.value.official) };
+      listStatus.value = { text: `${listSummary(reply.value, lang())}${t().readAgain}` };
+      officialStatus.value = { text: officialCounts(reply.value.list.items, reply.value.official, lang()) };
     }
     // 别的页面正在跑的一步：发一次同一步的开始，后台把这一页接上，之后的进度、停止和关页面都算这一页一份。
     if (reply.value.running) ensurePort().post({ type: "triage.start", step: reply.value.running });
@@ -200,11 +210,11 @@ export function createTriageState(deps: TriageDeps): TriageState {
       if (event.verdict) tally = { ...tally, written: tally.written + 1 };
       else if (event.failure && event.failure.code !== "TASK_CANCELED" && event.failure.code !== "TASK_ALREADY_RUNNING") {
         tally = { ...tally, failed: tally.failed + 1 };
-        const text = `结论没写成：${errorCopy(event.failure.code).cause}`;
+        const text = t().verdictFailed(errorCopy(event.failure.code).cause);
         errors.value = { ...errors.peek(), [event.video]: event.failure.said ? { text, said: event.failure.said } : { text } };
       }
     }
-    if (!stopping.peek()) statusOf(event.step).value = { text: `${event.step === "official" ? "正在取" : "正在写"} ${event.done} / ${runningTotal}…` };
+    if (!stopping.peek()) statusOf(event.step).value = { text: t().progress(event.step === "official" ? t().fetching : t().writing, event.done, runningTotal) };
   }
 
   function onDone(event: Extract<TriageOut, { type: "triage.done" }>): void {
@@ -219,9 +229,9 @@ export function createTriageState(deps: TriageDeps): TriageState {
       if (event.state) apply({ ...event.state, running: null });
       errors.value = {};
       filter.value = "all";
-      const dropped = event.dropped ? `另有 ${event.dropped} 项不是第 1 P 或读不出视频号，没有列出。` : "";
-      status.value = { text: `${listSummary(current())}${dropped}` };
-      officialStatus.value = { text: officialCounts(items.peek(), current().official) };
+      const dropped = event.dropped ? t().dropped(event.dropped) : "";
+      status.value = { text: `${listSummary(current(), lang())}${dropped}`.trimEnd() };
+      officialStatus.value = { text: officialCounts(items.peek(), current().official, lang()) };
       return;
     }
     if (event.failure && event.failure.code === "TRIAGE_LIST_CLEARED") {
@@ -230,16 +240,16 @@ export function createTriageState(deps: TriageDeps): TriageState {
       return;
     }
     if (event.step === "official") {
-      const counts = officialCounts(items.peek(), current().official);
-      const stopped = stopText(event.stop, event.done, event.total, "会接着取剩下的。");
-      status.value = stopped ? { text: `${stopped}${counts}`, tone: event.stop === "stopped" ? undefined : "warn" } : { text: `这一轮取完了。${counts}` };
+      const counts = officialCounts(items.peek(), current().official, lang());
+      const stopped = stopText(event.stop, event.done, event.total, t().stopped.officialAgain, lang());
+      status.value = stopped ? { text: `${stopped}${counts}`, tone: event.stop === "stopped" ? undefined : "warn" } : { text: t().officialDone(counts) };
       return;
     }
-    const written = `写好 ${tally.written} 个${tally.failed ? `，失败 ${tally.failed} 个` : ""}。`;
+    const written = t().written(tally.written, tally.failed);
     status.value =
       event.stop === "stopped"
-        ? { text: `已停止，${written}再点开始会接着写剩下的。` }
-        : { text: `这一轮写完了，${written}`, ...(tally.failed ? { tone: "warn" as const } : {}) };
+        ? { text: t().verdictStopped(written) }
+        : { text: t().verdictDone(written), ...(tally.failed ? { tone: "warn" as const } : {}) };
     // 别处同时写好的、停止时还在路上后来写好的，都从本机重新读一次。
     void load();
   }
@@ -250,8 +260,8 @@ export function createTriageState(deps: TriageDeps): TriageState {
         running.value = event.step;
         runningTotal = event.total;
         if (event.step !== "list") {
-          const verb = event.step === "official" ? "正在取" : "正在写";
-          statusOf(event.step).value = { text: event.joined ? `接上了另一页正在做的这一步：${verb}…` : `${verb} 0 / ${event.total}…` };
+          const verb = event.step === "official" ? t().fetching : t().writing;
+          statusOf(event.step).value = { text: event.joined ? t().joined(verb) : t().progress(verb, 0, event.total) };
         }
         return;
       }
@@ -279,7 +289,7 @@ export function createTriageState(deps: TriageDeps): TriageState {
       onClose(code) {
         port = null;
         const step = running.peek();
-        if (step) statusOf(step).value = { text: `这一步停下了。${describe(code)}`, tone: "error" };
+        if (step) statusOf(step).value = { text: t().stepStopped(describe(code)), tone: "error" };
         running.value = null;
         stopping.value = false;
       },
@@ -291,11 +301,11 @@ export function createTriageState(deps: TriageDeps): TriageState {
     if (running.peek()) return;
     running.value = step;
     if (step === "verdict") tally = { written: 0, failed: 0 };
-    if (step === "list") listStatus.value = { text: "正在读取…" };
+    if (step === "list") listStatus.value = { text: t().listReading };
     const sent = ensurePort().post({ type: "triage.start", step });
     if (!sent) {
       running.value = null;
-      statusOf(step).value = { text: "没能连上后台，刷新这一页再试。", tone: "error" };
+      statusOf(step).value = { text: t().noBackground, tone: "error" };
     }
   }
 
@@ -304,19 +314,13 @@ export function createTriageState(deps: TriageDeps): TriageState {
     const list = items.peek();
     const todo = officialTodo(list, current().official);
     if (!todo.length) {
-      officialStatus.value = { text: `没有要取的了。${officialCounts(list, current().official)}` };
+      officialStatus.value = { text: t().nothingToFetch(officialCounts(list, current().official, lang())) };
       return;
     }
     const skipped = list.length - todo.length;
     const minutes = Math.max(1, Math.ceil((todo.length * OFFICIAL_INTERVAL_MS) / 60_000));
-    pending.value = {
-      step: "official",
-      lines: [
-        `要逐个请求 ${todo.length} 个视频的 B 站官方总结${skipped ? `，跳过已经有结果或已失效的 ${skipped} 个` : ""}。`,
-        `不调模型，不花 API 额度。一次一个，每两次请求之间至少隔 1 秒，大约要 ${minutes} 分钟以上。`,
-        "可以随时停止；关掉这个页面也会停止。",
-      ],
-    };
+    const ask = t().askOfficial;
+    pending.value = { step: "official", lines: [ask.request(todo.length, skipped), ask.cost(minutes), ask.stop] };
   }
 
   async function askVerdicts(): Promise<void> {
@@ -326,23 +330,24 @@ export function createTriageState(deps: TriageDeps): TriageState {
     const todo = verdictTodo(list, official, verdicts);
     if (!todo.length) {
       const anyOfficial = list.some((item) => hasOfficialContent(official[item.videoKey]));
-      verdictStatus.value = { text: anyOfficial ? "有官方总结的视频都已经有结论了。" : "还没有可以写结论的视频：先做第一步取官方总结。" };
+      verdictStatus.value = { text: anyOfficial ? t().allWritten : t().noneToWrite };
       return;
     }
     const config = await api.send("config.check", {});
     if (!config.ok || !config.value.ready) {
-      verdictStatus.value = { text: config.ok ? "还没配置好 AI 服务：先到设置页填好服务商、密钥和模型。" : describe(config.code, config.detail), tone: "error" };
+      verdictStatus.value = { text: config.ok ? t().notConfigured : describe(config.code, config.detail), tone: "error" };
       return;
     }
     const withVerdict = list.filter((item) => hasVerdict(verdicts[item.videoKey])).length;
     const withoutOfficial = list.filter((item) => !hasVerdict(verdicts[item.videoKey]) && !hasOfficialContent(official[item.videoKey])).length;
+    const ask = t().askVerdict;
     pending.value = {
       step: "verdict",
       lines: [
-        `要给 ${todo.length} 个有官方总结的视频写一句话结论。`,
-        `会用到你的 API 额度：每个视频发一次小请求，把标题、简介、UP 主名、时长和官方总结发给你设置的模型服务，不含字幕，同时最多 ${AI_CONCURRENCY} 个。`,
-        ...(withVerdict ? [`已经有结论的 ${withVerdict} 个会跳过。`] : []),
-        ...(withoutOfficial ? [`没有官方总结的 ${withoutOfficial} 个不在这里写。`] : []),
+        ask.count(todo.length),
+        ask.cost(AI_CONCURRENCY),
+        ...(withVerdict ? [ask.skipWritten(withVerdict)] : []),
+        ...(withoutOfficial ? [ask.skipNoOfficial(withoutOfficial)] : []),
       ],
     };
   }
@@ -377,8 +382,8 @@ export function createTriageState(deps: TriageDeps): TriageState {
       stopping.value = true;
       port.post({ type: "triage.stop" });
       const step = running.peek();
-      if (step === "verdict") verdictStatus.value = { text: "正在停止：不再开始新的，等已经发出去的请求回来…" };
-      if (step === "official") officialStatus.value = { text: "正在停止：等进行中的那一个请求回来…" };
+      if (step === "verdict") verdictStatus.value = { text: t().verdictStopping };
+      if (step === "official") officialStatus.value = { text: t().officialStopping };
     },
     setFilter(next) {
       filter.value = next;
@@ -388,8 +393,8 @@ export function createTriageState(deps: TriageDeps): TriageState {
       if (!list?.items.length) return;
       const at = now();
       const first = list.items[0];
-      const text = toMarkdown({ items: list.items, official, verdicts, exportedAt: at }, first ? deps.videoBase(first.videoKey) : "");
-      deps.download(`简幕-稍后再看-${formatDateTime(at).replace(/[-: ]/g, "")}.md`, text);
+      const text = toMarkdown({ items: list.items, official, verdicts, exportedAt: at }, first ? deps.videoBase(first.videoKey) : "", lang());
+      deps.download(exportFileName(at, lang()), text);
     },
     cleared() {
       port?.close();
@@ -401,7 +406,7 @@ export function createTriageState(deps: TriageDeps): TriageState {
       apply(EMPTY);
       officialStatus.value = null;
       verdictStatus.value = null;
-      listStatus.value = { text: "设置页清除了本机数据，要用的话重新读取稍后再看。" };
+      listStatus.value = { text: t().cleared };
     },
     dispose() {
       port?.close();

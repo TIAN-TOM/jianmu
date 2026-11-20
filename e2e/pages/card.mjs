@@ -6,10 +6,12 @@
 // 官方总结晚到时，「生成概览」等它有了结果才摆，摆出来以后不被顶走；一直没结果时等够了照样摆。
 // 收起的一行写着判断档和播放到的章节，放不下就截断、不撑高，旁边是打开侧边栏的入口；侧边栏开着时不摆打开侧边栏的入口和按钮。
 // 展开收起有过渡：收起时内容留到过渡走完才拿掉，没有过渡时马上拿掉。
+// 语言选 English 以后卡片自己的字是英文，切回中文马上恢复。
 import assert from "node:assert/strict";
 import { CARD_HEIGHT } from "../../src/content/card-frame.ts";
 import { AUTO_FOLD_NOTE } from "../../src/pages/card/glance.ts";
 import { CARD_ROWS, NOT_READ_TEXT } from "../../src/pages/card/model.ts";
+import { PAGE_PATHS, SETTINGS_STORAGE_KEY } from "../../src/shared/names.ts";
 import { UI_FONT_SCALES } from "../../src/shared/settings-schema.ts";
 import { scenario } from "./harness.mjs";
 
@@ -318,4 +320,58 @@ test("卡片：官方总结一直读不到时，先说正在读、不摆按钮�
   assert.equal(await page.evaluate(`Boolean(document.querySelector(".card-actions"))`), false, "官方总结还在读：按钮行先不摆");
   await page.waitFor("等够了摆出「生成概览」", `Boolean(document.getElementById("card-generate"))`);
   assert.ok(await page.evaluate(`document.getElementById("card").innerText.includes("正在读 B 站的官方总结")`));
+});
+
+/** 在一个扩展页面里改设置里的语言选项：读出整份设置，只换这一项再写回。 */
+const setLanguage = (page, language) =>
+  page.evaluate(
+    `chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)}).then((items) => chrome.storage.local.set({ ${JSON.stringify(SETTINGS_STORAGE_KEY)}: { ...(items[${JSON.stringify(SETTINGS_STORAGE_KEY)}] ?? {}), language: ${JSON.stringify(language)} } })).then(() => true)`,
+  );
+
+test("卡片：语言选 English 以后，打开的卡片第一帧就是英文、<html lang> 是 en，判断档写英文名；切回中文马上恢复", async ({ open }) => {
+  // 设置页开着：它落外观时把语言记进首帧缓存，卡片打开时读得到。
+  const options = await open(PAGE_PATHS.options);
+  await setLanguage(options, "en");
+  await options.waitFor("设置页换成英文", `document.documentElement.lang === "en"`);
+  try {
+    const read = (page) =>
+      page.evaluate(`(() => ({
+        lang: document.documentElement.lang,
+        title: document.title,
+        name: document.querySelector(".card-name")?.textContent ?? "",
+        more: document.querySelector("#card-overview .card-more")?.textContent ?? null,
+        official: document.querySelector("#card-official .card-fold-head span")?.textContent ?? null,
+        buttons: [...document.querySelectorAll(".card-actions button")].map((button) => button.textContent.trim()),
+        toggle: document.getElementById("card-toggle")?.title ?? "",
+      }))()`);
+    const page = await open(SAMPLE);
+    await page.setWidth(FRAME_WIDTH, CARD_HEIGHT.max);
+    assert.deepEqual(await read(page), {
+      lang: "en",
+      title: "Jianmu summary card",
+      name: "Jianmu · Summary",
+      more: "Show all 16 chapters",
+      official: "Bilibili official summary",
+      buttons: ["Open side panel"],
+      toggle: "Collapse summary card",
+    });
+    const glance = await open(`${SAMPLE}#collapsed-glance`);
+    assert.equal(await glance.evaluate(`document.querySelector(".card-name").textContent`), "Jianmu · Watch the key parts");
+    assert.equal(await glance.evaluate(`document.getElementById("card-head-panel").textContent`), "Side panel");
+
+    await setLanguage(options, "zh");
+    await page.waitFor("卡片换回中文", `document.documentElement.lang === "zh-CN"`);
+    assert.deepEqual(await read(page), {
+      lang: "zh-CN",
+      title: "简幕总结卡片",
+      name: "简幕 · 总结",
+      more: "展开全部 16 章",
+      official: "B 站官方总结",
+      buttons: ["打开侧边栏"],
+      toggle: "收起总结卡片",
+    });
+    await glance.waitFor("收起的一行换回中文", `document.querySelector(".card-name").textContent === "简幕 · 可以看"`);
+  } finally {
+    await setLanguage(options, "zh");
+  }
 });

@@ -11,8 +11,10 @@ import { startWhenCurrent } from "../shared/build-check.ts";
 import { cardSetupHint, createConfigWatch } from "../shared/config.ts";
 import { hostModeOf, pageAppearanceSources, watchAppearance, type ResolvedThemeMode } from "../shared/theme.ts";
 import { renderStaleBackground } from "../shared/ui/stale-background.tsx";
+import { bindDocumentLang, initUiLang, uiLang } from "../shared/ui-lang.ts";
 import { Card } from "./card.tsx";
 import { createCardModel, type CardTab } from "./model.ts";
+import { cardText, cardTextOf } from "./text.ts";
 
 // 读取中不报高度：「正在读取」那一下报上去，右栏就要多重排一次，推荐列表跟着跳。读得太慢也不一直压着。
 const HEIGHT_HOLD_MS = 500;
@@ -79,6 +81,7 @@ function start(root: HTMLElement, api: PageApi): void {
         (reply: ContentReply<"player.getState"> | undefined) => (reply?.ok && reply.value.status !== "ad" ? reply.value.atSec : null),
         () => null,
       ),
+    lang: () => uiLang.value,
     // 卡片框架跟着所在的标签页显隐：后台打开的标签页第一次切到前台才读。
     page: {
       visible: () => document.visibilityState === "visible",
@@ -150,7 +153,7 @@ function start(root: HTMLElement, api: PageApi): void {
       if (!trusted(event)) return;
       // 这个按钮只在 AI 服务没设置好或设置出错时出现，直接滚到那一节。
       void api.send("options.open", { section: "ai-service" }).then((reply) => {
-        if (!reply.ok) model.view.value = { ...model.view.peek(), notice: { text: "没能打开设置页。可以打开侧边栏，点右上角的设置按钮。", tone: "error" } };
+        if (!reply.ok) model.view.value = { ...model.view.peek(), notice: { text: cardText().openSettingsFailed, tone: "error" } };
       });
     },
     seek: (atSec: number) => model.seek(atSec),
@@ -180,6 +183,9 @@ function start(root: HTMLElement, api: PageApi): void {
 // 扩展重新加载的那一刻，还没撤下的旧卡片会重新载入，这时拿不到扩展接口，什么都不做。
 const root = document.getElementById("app");
 if (root && globalThis.chrome?.runtime?.id) {
+  // 第一帧就是对的语言；读回设置以后由外观那边纠正，<html lang> 和标题跟着换。
+  initUiLang();
+  bindDocumentLang(document, (lang) => cardTextOf(lang).title);
   const api = createPageApi();
   void startWhenCurrent(api, () => start(root, api), () => stale(root));
 }

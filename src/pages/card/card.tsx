@@ -7,20 +7,16 @@ import type { ComponentChildren, RefObject } from "preact";
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { LearningAnalysis } from "../../core/notes/markdown.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
+import { verdictName } from "../../core/triage/groups.ts";
 import type { OfficialSummaryView, OutlineSectionView } from "../../shared/messages/transcript.ts";
 import { keyChapterStarts } from "../../core/ai/verdict.ts";
 import { ChapterList, type ChapterItem } from "../shared/ui/chapter-list.tsx";
 import { ServiceSaid } from "../shared/ui/notice.tsx";
 import { StaleTranscriptLine, VerdictBlock } from "../shared/ui/verdict-block.tsx";
 import { staleOverviewMarks, type BasisSource } from "../shared/ui/verdict.ts";
+import { uiLang } from "../shared/ui-lang.ts";
 import { cardRows, chaptersInOrder, hasOverview, type CardView, type TaskProgress } from "./model.ts";
-
-// 没有官方总结是常态，不占一行；要登录、没读到、还在读才说。
-const OFFICIAL_NOTES: Readonly<Partial<Record<OfficialSummaryView["status"], string>>> = {
-  "need-login": "登录 B 站后才看得到官方总结。",
-  failed: "这次没读到 B 站的官方总结。",
-  pending: "正在读 B 站的官方总结…",
-};
+import { cardText } from "./text.ts";
 
 type ClickEvent = { readonly isTrusted: boolean };
 
@@ -34,7 +30,7 @@ function TimeCell({ atSec, onSeek }: { readonly atSec: number | null; readonly o
   return (
     <span class="outline-time">
       {validTime(atSec) ? (
-        <button type="button" class="chapter-time" aria-label={`跳到 ${formatTimestamp(atSec)}`} onClick={() => onSeek(atSec)}>
+        <button type="button" class="chapter-time" aria-label={cardText().jumpTo(formatTimestamp(atSec))} onClick={() => onSeek(atSec)}>
           {formatTimestamp(atSec)}
         </button>
       ) : null}
@@ -43,7 +39,7 @@ function TimeCell({ atSec, onSeek }: { readonly atSec: number | null; readonly o
 }
 
 function OutlineItem({ part, index, onSeek }: { readonly part: OutlineSectionView; readonly index: number; readonly onSeek: (atSec: number) => void }) {
-  const title = part.title.trim() || `第 ${index + 1} 段`;
+  const title = part.title.trim() || cardText().section(index + 1);
   const points = part.points.filter((point) => point.content.trim());
   return (
     <li class="outline-item">
@@ -70,7 +66,7 @@ function OutlineItem({ part, index, onSeek }: { readonly part: OutlineSectionVie
 function More({ open, label, onToggle }: { readonly open: boolean; readonly label: string; readonly onToggle: () => void }) {
   return (
     <button type="button" class="card-more" aria-expanded={open} onClick={onToggle}>
-      {open ? "收起" : label}
+      {open ? cardText().less : label}
     </button>
   );
 }
@@ -116,7 +112,7 @@ function OfficialBody({ official, limited, onSeek, onToggleAll }: { readonly off
           ))}
         </ol>
       ) : null}
-      {onToggleAll && (!limited || outlineCut || clipped) ? <More open={!limited} label={outlineCut ? `展开全部 ${official.outline.length} 段` : "展开全部"} onToggle={onToggleAll} /> : null}
+      {onToggleAll && (!limited || outlineCut || clipped) ? <More open={!limited} label={outlineCut ? cardText().showAllSections(official.outline.length) : cardText().showAll} onToggle={onToggleAll} /> : null}
     </>
   );
 }
@@ -148,27 +144,29 @@ function Overview({
   const chapters: ChapterItem[] = (analysis.chapters ?? []).map((chapter) => ({ startSec: chapter.timestampSeconds, title: text(chapter.title) }));
   const shown = cardRows(chapters, showAll);
   const cut = cardRows(chapters, false).length < chapters.length;
+  const t = cardText();
   return (
-    <section class="card-block" id="card-overview" aria-label="AI 概览">
+    <section class="card-block" id="card-overview" aria-label={t.overview}>
       {pending ? (
         <p class="card-pending" role="status">
-          {typeof pending === "string" ? pending : "正在写一句话结论…"}
+          {typeof pending === "string" ? pending : t.writingVerdict}
         </p>
       ) : summary ? (
         <VerdictBlock label={text(verdict?.verdict)} text={summary} basis={basisOf(analysis)} staleTranscript={stale.verdict} incomplete={verdict?.incomplete === true} />
       ) : null}
       {stale.chapters && shown.length ? <StaleTranscriptLine /> : null}
       {shown.length ? <ChapterList chapters={shown} keyStarts={keyChapterStarts(analysis)} heading={false} onSeek={onSeek} /> : null}
-      {cut ? <More open={showAll} label={`展开全部 ${chapters.length} 章`} onToggle={onToggleAll} /> : null}
+      {cut ? <More open={showAll} label={t.showAllChapters(chapters.length)} onToggle={onToggleAll} /> : null}
     </section>
   );
 }
 
 function progressText(task: TaskProgress): string {
-  if (task.canceling) return "正在停止…";
-  const text = task.message || (task.total > 0 ? `${task.done}/${task.total} 块完成` : "");
-  if (task.auto) return text ? `自动生成：${text}` : "正在自动生成概览…";
-  return text || "正在准备…";
+  const t = cardText();
+  if (task.canceling) return t.stopping;
+  const text = task.message || (task.total > 0 ? t.chunksDone(task.done, task.total) : "");
+  if (task.auto) return text ? t.auto(text) : t.autoStarting;
+  return text || t.preparing;
 }
 
 /** 收起的那一行：有结论时写判断档；后面是临时的一句话，没有的话写播放到的章节，和侧边栏精读顶上那一条同一个写法。 */
@@ -241,8 +239,10 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
   const needsSetup = canGenerate && aiReady === false;
   const analysis = view.analysis && (view.analysis.verdict || hasOverview(view.analysis) || view.verdictPending) ? view.analysis : null;
   const official = view.official?.status === "ok" ? view.official : null;
+  const t = cardText();
+  const officialNotes: Readonly<Partial<Record<OfficialSummaryView["status"], string>>> = t.officialNotes;
   // 没登录时上面已经说了要登录，官方总结那块不再重复。
-  const officialNote = view.official && view.phase === "loaded" && !(view.needLogin && view.official.status === "need-login") ? (OFFICIAL_NOTES[view.official.status] ?? "") : "";
+  const officialNote = view.official && view.phase === "loaded" && !(view.needLogin && view.official.status === "need-login") ? (officialNotes[view.official.status] ?? "") : "";
   const task = view.task;
   const percent = task && task.total > 0 ? Math.round((task.done / task.total) * 100) : 0;
   const glance = glanceOf(view);
@@ -254,9 +254,9 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
   return (
     <div class="card" id="card" data-collapsed={view.collapsed ? "true" : "false"}>
       <div class="card-head-row">
-        <button type="button" class="card-head" id="card-toggle" aria-expanded={!view.collapsed} aria-controls="card-body" title={view.collapsed ? "展开总结卡片" : "收起总结卡片"} onClick={actions.toggle}>
+        <button type="button" class="card-head" id="card-toggle" aria-expanded={!view.collapsed} aria-controls="card-body" title={view.collapsed ? t.expand : t.collapse} onClick={actions.toggle}>
           <span class="card-dot" aria-hidden="true" />
-          <span class="card-name">简幕 · {glance.label || "总结"}</span>
+          <span class="card-name">{t.name(verdictName(glance.label, uiLang.value))}</span>
           {glance.text ? (
             <span class="card-glance" id="card-glance" role={view.headNote ? "status" : undefined}>
               {glance.text}
@@ -265,8 +265,8 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
           <span class="card-chevron" aria-hidden="true" />
         </button>
         {view.collapsed && !view.panelOpen ? (
-          <button type="button" class="card-head-panel" id="card-head-panel" title="打开侧边栏" onClick={actions.openPanel}>
-            侧边栏
+          <button type="button" class="card-head-panel" id="card-head-panel" title={t.openPanel} onClick={actions.openPanel}>
+            {t.headPanel}
           </button>
         ) : null}
       </div>
@@ -289,9 +289,9 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
           ) : null}
           {official && analysis ? (
             // 已经有结论和章节：官方总结收成一行，点开才露。
-            <section class="card-block" id="card-official" aria-label="B 站官方总结">
+            <section class="card-block" id="card-official" aria-label={t.official}>
               <button type="button" class="card-fold-head" aria-expanded={view.officialOpen} aria-controls={view.officialOpen ? "card-official-body" : undefined} onClick={actions.toggleOfficial}>
-                <span>B 站官方总结</span>
+                <span>{t.official}</span>
                 <span class="card-chevron" aria-hidden="true" />
               </button>
               {view.officialOpen ? (
@@ -301,8 +301,8 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
               ) : null}
             </section>
           ) : official ? (
-            <section class="card-block" id="card-official" aria-label="B 站官方总结">
-              <h2 class="section-title">B 站官方总结</h2>
+            <section class="card-block" id="card-official" aria-label={t.official}>
+              <h2 class="section-title">{t.official}</h2>
               <OfficialBody official={official} limited={!view.showAll} onSeek={actions.seek} onToggleAll={actions.toggleShowAll} />
             </section>
           ) : officialNote ? (
@@ -317,7 +317,7 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
             </div>
             <span class="card-progress-text">{progressText(task)}</span>
             <button type="button" class="button" data-variant="text" disabled={task.canceling} onClick={actions.cancel}>
-              停止
+              {t.stop}
             </button>
           </div>
         ) : null}
@@ -325,22 +325,22 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
           <div class="card-actions">
             {showGenerate ? (
               <button type="button" class="button" data-variant="primary" id="card-generate" onClick={actions.generate}>
-                生成概览
+                {t.generate}
               </button>
             ) : null}
             {showSettings ? (
               <button type="button" class="button" data-variant={needsSetup ? "primary" : "secondary"} id="card-settings" onClick={actions.openSettings}>
-                打开设置
+                {t.openSettings}
               </button>
             ) : null}
             {showRetry ? (
               <button type="button" class="button" id="card-retry" onClick={actions.retry}>
-                重试
+                {t.retry}
               </button>
             ) : null}
             {view.panelOpen ? null : (
               <button type="button" class="button" id="card-panel" onClick={actions.openPanel}>
-                打开侧边栏
+                {t.openPanel}
               </button>
             )}
           </div>
