@@ -166,31 +166,66 @@ test("设置页：选服务商、填密钥、勾同意后保存，拉模型列�
   const fetched = await placedStatus(page, "#aiModel");
   assert.deepEqual({ at: fetched.at, inView: fetched.inView, shown: fetched.shown }, { at: "model", inView: true, shown: 1 });
   assert.ok(fetched.gap >= 0 && fetched.gap <= 16, `离模型框 ${fetched.gap} 像素`);
-  const listed = await page.evaluate(`[...document.querySelectorAll("#model-options option")].map((node) => node.value)`);
-  assert.deepEqual(listed, [ANTHROPIC.model]);
-  // 框里预填的型号不在拉到的列表里：右边的下拉照样列出拉到的全部，紧贴着模型框；选一个就填进框里。
-  const pick = `select[data-model-pick="aiModel"]`;
-  const picker = await page.evaluate(`(() => {
-    const field = document.getElementById("aiModel");
-    const select = document.querySelector(${JSON.stringify(pick)});
-    const a = field.getBoundingClientRect();
-    const b = select.getBoundingClientRect();
-    return {
-      prefilled: field.value,
-      options: [...select.options].map((node) => node.value).filter(Boolean),
-      chosen: select.value,
-      joined: Math.abs(b.left - a.right) <= 1 && Math.abs(b.top - a.top) <= 1 && Math.abs(b.height - a.height) <= 1,
-      width: b.width,
-      featurePicks: document.querySelectorAll("#featureModels select.model-pick").length,
-      featureInputs: document.querySelectorAll("#featureModels input[data-feature]").length,
-    };
-  })()`);
-  assert.notEqual(picker.prefilled, ANTHROPIC.model);
-  assert.deepEqual({ options: picker.options, chosen: picker.chosen, joined: picker.joined }, { options: [ANTHROPIC.model], chosen: "", joined: true });
-  assert.ok(picker.width > 0 && picker.width <= 40, `下拉箭头宽 ${picker.width} 像素`);
-  assert.ok(picker.featurePicks > 0 && picker.featurePicks === picker.featureInputs, `按功能选模型的 ${picker.featureInputs} 个框里有 ${picker.featurePicks} 个带下拉`);
-  await fill(page, pick, ANTHROPIC.model);
+  // 框里预填的型号不在拉到的列表里：框右边多一个箭头，在框的边框里面；点开照样列出拉到的全部，贴在框下面、和框一样宽。
+  const toggle = `button[data-model-pick="aiModel"]`;
+  const modelBox = () =>
+    page.evaluate(`(() => {
+      const field = document.getElementById("aiModel");
+      const a = field.getBoundingClientRect();
+      const b = document.querySelector(${JSON.stringify(toggle)}).getBoundingClientRect();
+      const list = field.parentElement.querySelector("[role=listbox]");
+      const c = list?.getBoundingClientRect();
+      const options = [...(list?.querySelectorAll("[role=option]") ?? [])];
+      return {
+        value: field.value,
+        role: field.getAttribute("role"),
+        expanded: field.getAttribute("aria-expanded"),
+        focused: document.activeElement === field,
+        toggleInside: b.left >= a.left && b.right <= a.right && b.top >= a.top && b.bottom <= a.bottom,
+        toggleWidth: b.width,
+        options: options.map((node) => node.textContent),
+        selected: options.filter((node) => node.getAttribute("aria-selected") === "true").map((node) => node.textContent),
+        active: options.find((node) => node.id === field.getAttribute("aria-activedescendant"))?.textContent ?? null,
+        placed: c ? { below: c.top >= a.bottom && c.top - a.bottom <= 8, sameWidth: Math.abs(c.left - a.left) <= 1 && Math.abs(c.right - a.right) <= 1 } : null,
+        oldControls: document.querySelectorAll("datalist, select.model-pick").length,
+        featureToggles: document.querySelectorAll("#featureModels button[data-model-pick]").length,
+        featureInputs: document.querySelectorAll("#featureModels input[data-feature]").length,
+      };
+    })()`);
+  const closed = await modelBox();
+  assert.notEqual(closed.value, ANTHROPIC.model);
+  assert.deepEqual(
+    { role: closed.role, expanded: closed.expanded, options: closed.options, toggleInside: closed.toggleInside, oldControls: closed.oldControls },
+    { role: "combobox", expanded: "false", options: [], toggleInside: true, oldControls: 0 },
+  );
+  assert.ok(closed.toggleWidth > 0 && closed.toggleWidth <= 40, `下拉箭头宽 ${closed.toggleWidth} 像素`);
+  assert.ok(closed.featureToggles > 0 && closed.featureToggles === closed.featureInputs, `按功能选模型的 ${closed.featureInputs} 个框里有 ${closed.featureToggles} 个带箭头`);
+  await page.click(toggle);
+  await page.waitFor("点箭头列出拉到的模型", `document.getElementById("aiModel").getAttribute("aria-expanded") === "true"`);
+  const opened = await modelBox();
+  assert.deepEqual(
+    { options: opened.options, selected: opened.selected, active: opened.active, focused: opened.focused, placed: opened.placed },
+    { options: [ANTHROPIC.model], selected: [], active: null, focused: true, placed: { below: true, sameWidth: true } },
+  );
+  assert.equal(await page.overflowsX(), false);
+  // 焦点留在框里，方向键移到候选上，回车填进框里并收起。
+  await page.press("ArrowDown");
+  await page.waitFor("方向键停在第一个候选上", `document.getElementById("aiModel").hasAttribute("aria-activedescendant")`);
+  assert.equal((await modelBox()).active, ANTHROPIC.model);
+  await page.press("Enter");
   await page.waitFor("选的型号填进模型框", `document.getElementById("aiModel").value === ${JSON.stringify(ANTHROPIC.model)}`);
+  assert.deepEqual((({ expanded, options }) => ({ expanded, options }))(await modelBox()), { expanded: "false", options: [] });
+  // 点框也能打开，框里的型号在列表里标成已选。
+  await page.click("#aiModel");
+  await page.waitFor("点框打开候选", `document.getElementById("aiModel").getAttribute("aria-expanded") === "true"`);
+  assert.deepEqual((await modelBox()).selected, [ANTHROPIC.model]);
+  // 打的字列表里没有：候选收起，照填的名称用。
+  await fill(page, "#aiModel", "sample-unlisted-model");
+  await page.waitFor("没有匹配的候选时收起", `document.getElementById("aiModel").getAttribute("aria-expanded") === "false"`);
+  await fill(page, "#aiModel", ANTHROPIC.model.slice(0, 4).toUpperCase());
+  await page.waitFor("打字按框里的字筛，不分大小写", `document.querySelectorAll("#ai-service [role=option] mark").length === 1`);
+  await page.click("#ai-service [role=option]");
+  await page.waitFor("点候选填进模型框", `document.getElementById("aiModel").value === ${JSON.stringify(ANTHROPIC.model)}`);
   assert.equal(await page.overflowsX(), false);
 
   // 勾记住密钥：要点保存才算数的那句话写在勾选框下面；取消以后也写在那里。没保存过，密钥还是只在会话里。
@@ -238,15 +273,15 @@ test("设置页：选服务商、填密钥、勾同意后保存，拉模型列�
   await restarted.waitFor("开始填密钥，那句话收起", `${statusText("ai-service")} === ""`);
 });
 
-/** 本机的 OpenAI 兼容服务，只开 http、不要密钥。记下每个请求的地址和认证头。 */
-async function startLocalService() {
+/** 本机的 OpenAI 兼容服务，只开 http、不要密钥。记下每个请求的地址和认证头。models 是它列出的模型。 */
+async function startLocalService(models = ["local-model"]) {
   const seen = [];
   const server = createServer((req, res) => {
     seen.push({ path: req.url ?? "", authorization: req.headers.authorization ?? null, apiKey: req.headers["x-api-key"] ?? null });
     req.resume();
     req.on("end", () => {
       res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
-      if (req.url?.endsWith("/models")) res.end(JSON.stringify({ object: "list", data: [{ id: "local-model", object: "model" }] }));
+      if (req.url?.endsWith("/models")) res.end(JSON.stringify({ object: "list", data: models.map((id) => ({ id, object: "model" })) }));
       else res.end(JSON.stringify({ id: "local", object: "chat.completion", choices: [{ index: 0, message: { role: "assistant", content: "可用" }, finish_reason: "stop" }] }));
     });
   });
@@ -261,6 +296,116 @@ async function startLocalService() {
     }),
   };
 }
+
+// 自造的模型名：够多，列表要滚；有一个很长，一行放不下。按名字排好，设置页也是这个顺序。
+const LONG_MODEL = "sample-vendor-with-a-long-name/sample-model-with-a-very-long-identifier-preview-extended-context";
+const MANY_MODELS = [
+  ...["large", "medium", "small", "tiny"].flatMap((size) => [`sample-${size}-2`, `sample-${size}-2-fast`, `sample-${size}-1`]),
+  "sample-vision-2",
+  "sample-reason-1",
+  "other-chat-3",
+  LONG_MODEL,
+].sort();
+
+test("设置页：拉到很多模型时，候选列表自己滚、长名字折行不撑出框，打字按字筛并标出命中，框靠近窗口底边时列表开在上面", async ({ open }) => {
+  const local = await startLocalService(MANY_MODELS);
+  try {
+    const page = await freshOptions(open);
+    await enable(page);
+    await fill(page, "#preset", "custom");
+    await page.waitFor("出现地址框", `document.getElementById("aiBaseUrl") !== null`);
+    await fill(page, "#protocol", "openai");
+    await fill(page, "#aiBaseUrl", local.base);
+    await page.click("#dataConsent");
+    await page.waitFor("同意记下了", `document.getElementById("dataConsent").checked`);
+    await clickButton(page, "拉取模型列表");
+    await statusStarts(page, "ai-service", `已保存并授权，拉到 ${MANY_MODELS.length} 个模型`);
+
+    const list = () =>
+      page.evaluate(`(() => {
+        const field = document.getElementById("aiModel");
+        const menu = field.parentElement.querySelector("[role=listbox]");
+        if (!menu) return null;
+        const a = field.getBoundingClientRect();
+        const b = menu.getBoundingClientRect();
+        const options = [...menu.querySelectorAll("[role=option]")];
+        const active = document.getElementById(field.getAttribute("aria-activedescendant") ?? "");
+        const c = active?.getBoundingClientRect();
+        return {
+          options: options.map((node) => node.textContent),
+          marks: options.map((node) => [...node.querySelectorAll("mark")].map((mark) => mark.textContent).join("|")),
+          scrolls: menu.scrollHeight > menu.clientHeight,
+          insideList: options.every((node) => { const r = node.getBoundingClientRect(); return r.left >= b.left && r.right <= b.right && node.scrollWidth <= node.clientWidth; }),
+          sameWidth: Math.abs(b.left - a.left) <= 1 && Math.abs(b.right - a.right) <= 1,
+          side: b.top >= a.bottom ? "bottom" : b.bottom <= a.top ? "top" : "over",
+          inView: b.top >= 0 && b.bottom <= innerHeight,
+          active: active?.textContent ?? null,
+          activeInView: c ? c.top >= b.top - 1 && c.bottom <= b.bottom + 1 : null,
+        };
+      })()`);
+    const expanded = (wanted) => `document.getElementById("aiModel").getAttribute("aria-expanded") === "${wanted}"`;
+
+    // 点箭头：全部列出来，列表比框高不了多少、自己滚；最长的那个名字折行，不撑出列表，页面也不出横向滚动条。
+    await page.click(`button[data-model-pick="aiModel"]`);
+    await page.waitFor("列出全部模型", expanded(true));
+    const all = await list();
+    assert.deepEqual(all.options, MANY_MODELS);
+    assert.deepEqual({ scrolls: all.scrolls, insideList: all.insideList, sameWidth: all.sameWidth, side: all.side }, { scrolls: true, insideList: true, sameWidth: true, side: "bottom" });
+    assert.equal(await page.overflowsX(), false);
+    // 向上方向键从最后一个起，列表跟着滚到它。
+    await page.press("ArrowUp");
+    await page.waitFor("停在最后一个候选", `document.getElementById("aiModel").hasAttribute("aria-activedescendant")`);
+    assert.deepEqual((({ active, activeInView }) => ({ active, activeInView }))(await list()), { active: MANY_MODELS.at(-1), activeInView: true });
+    // 再点一次箭头收起，焦点还在框里。
+    await page.click(`button[data-model-pick="aiModel"]`);
+    await page.waitFor("再点箭头收起", expanded(false));
+    assert.equal((await page.focused()).id, "aiModel");
+
+    // 打字：按空白隔开的每一段筛，不分大小写，命中的字标出来；不替人选第一个，回车只收起，框里还是打的字。
+    await fill(page, "#aiModel", "FAST small");
+    await page.waitFor("按字筛出候选", expanded(true));
+    const filtered = await list();
+    assert.deepEqual({ options: filtered.options, marks: filtered.marks, active: filtered.active }, { options: ["sample-small-2-fast"], marks: ["small|fast"], active: null });
+    await page.press("Enter");
+    await page.waitFor("回车收起", expanded(false));
+    assert.equal(await page.evaluate(`document.getElementById("aiModel").value`), "FAST small");
+    // 向下方向键打开全部，停在第一个；再按一下到第二个，回车填进框里。
+    await page.press("ArrowDown");
+    await page.waitFor("方向键打开候选", expanded(true));
+    assert.deepEqual((({ options, active }) => ({ count: options.length, active }))(await list()), { count: MANY_MODELS.length, active: MANY_MODELS[0] });
+    await page.press("ArrowDown");
+    await page.press("Enter");
+    await page.waitFor("回车填进模型框", `document.getElementById("aiModel").value === ${JSON.stringify(MANY_MODELS[1])}`);
+
+    // 框贴近窗口底边：列表开在上面，整个露在窗口里。
+    // 这里按坐标点：page.click 会先把元素滚到窗口中间。
+    const low = await page.evaluate(`(() => {
+      scrollBy(0, document.getElementById("aiModel").getBoundingClientRect().bottom - innerHeight + 24);
+      const r = document.querySelector('button[data-model-pick="aiModel"]').getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    })()`);
+    await page.clickAt(low.x, low.y);
+    await page.waitFor("列表开在上面", `document.getElementById("aiModel").parentElement.dataset.side === "top" && ${expanded(true)}`);
+    const above = await list();
+    assert.deepEqual({ side: above.side, inView: above.inView, active: above.active, activeInView: above.activeInView }, { side: "top", inView: true, active: MANY_MODELS[1], activeInView: true });
+    // 点到别的控件上，列表收起。
+    await page.click("#aiBaseUrl");
+    await page.waitFor("焦点离开后收起", expanded(false));
+
+    // 按功能选模型的每个框也一样带候选；标签点得到框。
+    await page.evaluate(`document.querySelector("#featureModels").open = true`);
+    const slot = FEATURE_MODEL_SLOTS[0].id;
+    await page.click(`#featureModels button[data-model-pick="${slot}"]`);
+    await page.waitFor("功能模型的候选", `document.querySelectorAll("#featureModels [role=option]").length === ${MANY_MODELS.length}`);
+    assert.equal(await page.overflowsX(), false);
+    await page.click(`#featureModels [role=option]:nth-child(3)`);
+    await page.waitFor("选的型号填进功能模型框", `document.querySelector('[data-feature="${slot}"]').value === ${JSON.stringify(MANY_MODELS[2])}`);
+    assert.equal(await page.evaluate(`document.querySelectorAll("[role=listbox]").length`), 0);
+    assert.equal(await page.evaluate(`document.querySelector('label[for="featureModel-${slot}"]').textContent`), FEATURE_MODEL_SLOTS[0].label);
+  } finally {
+    await local.close();
+  }
+});
 
 test("设置页：自定义填本机 http 地址、密钥留空，保存、拉模型列表和测试连接都发到本机，请求不带密钥", async ({ open }) => {
   const local = await startLocalService();

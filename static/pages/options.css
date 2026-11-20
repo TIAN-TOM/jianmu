@@ -105,8 +105,9 @@ input.input {
   width: 100%;
 }
 
-/* 模型框和右边的下拉箭头拼成一个控件。 */
+/* 模型框：输入框和右边的箭头在同一个边框里；候选列表贴着框、和框一样宽，下面放不下就开在上面。 */
 .model-field {
+  position: relative;
   display: flex;
   flex: 1 1 14rem;
   min-width: 0;
@@ -117,22 +118,95 @@ input.input {
   min-width: 0;
 }
 
-.model-field .model-pick {
-  flex: 0 0 2rem;
+.model-field[data-pick] input.input {
+  padding-inline-end: 2rem;
+}
+
+.model-toggle {
+  position: absolute;
+  inset-block: 1px;
+  inset-inline-end: 1px;
+  display: grid;
+  place-items: center;
   width: 2rem;
-  min-width: 0;
-  padding-inline: 0;
-  border-left: 0;
-  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  padding: 0;
+  border: 0;
+  border-radius: calc(var(--radius-md) - 1px);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
 }
 
-.model-field:has(.model-pick) input.input {
-  border-radius: var(--radius-md) 0 0 var(--radius-md);
+.model-toggle:hover,
+.model-field[data-open] .model-toggle {
+  color: var(--text);
 }
 
-/* 候选列表自带的箭头收起来，只留右边那一个。 */
-.model-field input::-webkit-calendar-picker-indicator {
-  display: none !important;
+.model-toggle .icon {
+  transition: transform var(--dur-fast) var(--ease);
+}
+
+.model-field[data-open] .model-toggle .icon {
+  transform: rotate(180deg);
+}
+
+.model-list {
+  position: absolute;
+  z-index: 10;
+  inset-inline: 0;
+  top: calc(100% + var(--space-1));
+  box-sizing: border-box;
+  max-height: 17rem;
+  margin: 0;
+  padding: var(--space-1);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-lg);
+}
+
+.model-field[data-side="top"] .model-list {
+  top: auto;
+  bottom: calc(100% + var(--space-1));
+}
+
+.model-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 1rem;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2rem;
+  box-sizing: border-box;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  scroll-margin-block: var(--space-1);
+  cursor: pointer;
+}
+
+.model-option[data-active] {
+  background: var(--bg-hover);
+}
+
+.model-option[aria-selected="true"] {
+  color: var(--text-strong);
+  font-weight: var(--fw-medium);
+}
+
+.model-name {
+  overflow-wrap: anywhere;
+}
+
+.model-name mark {
+  background: none;
+  color: var(--accent-text);
+  font-weight: var(--fw-semibold);
+}
+
+.model-option .icon {
+  color: var(--accent-text);
 }
 
 .check {
