@@ -111,6 +111,32 @@ body {
   transform: rotate(-45deg);
 }
 
+/* 标题栏下面那一整块。展开收起时这一行的高度在零和内容那么高之间过渡，里面那层不留最小高度，
+ * 过渡到一半时多出来的裁掉，同时淡入淡出。卡片顶到高度上限时这一块跟着缩，里面只有正文区滚动。 */
+.card-sheet {
+  display: grid;
+  grid-template-rows: 1fr;
+  flex: 0 1 auto;
+  min-height: 0;
+  transition: grid-template-rows var(--dur-mode) var(--ease);
+}
+
+.card-sheet[data-open="false"] {
+  grid-template-rows: 0fr;
+}
+
+.card-sheet-in {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  transition: opacity var(--dur-mode) var(--ease);
+}
+
+.card-sheet[data-open="false"] > .card-sheet-in {
+  opacity: 0;
+}
+
 .card-body {
   display: flex;
   flex-direction: column;

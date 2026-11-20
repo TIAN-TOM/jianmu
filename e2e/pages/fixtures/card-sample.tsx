@@ -72,7 +72,7 @@ const view = signal<CardView>({
 
 const noop = (): void => undefined;
 const actions: CardActions = {
-  toggle: noop,
+  toggle: () => void (view.value = { ...view.value, collapsed: !view.value.collapsed }),
   generate: noop,
   cancel: noop,
   retry: noop,

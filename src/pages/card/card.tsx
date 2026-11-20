@@ -2,7 +2,8 @@
 // 收起时标题栏那一行写着判断档和播放到的章节（或者临时的一句话），旁边是打开侧边栏的入口；侧边栏开着时不摆这个入口。
 // 按钮行在内容还在来时先不摆（规则在 model.ts），摆出来以后不被晚到的内容顶走。
 // 规则在 model.ts。视频标题不在卡片里再写一遍：页面顶上就是。
-import type { RefObject } from "preact";
+// 展开收起有过渡：标题栏下面那一整块的高度从零长到内容那么高，卡片把每一帧的高度报给页面，外面的框架跟着走。
+import type { ComponentChildren, RefObject } from "preact";
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { LearningAnalysis } from "../../core/notes/markdown.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
@@ -193,6 +194,44 @@ export interface CardActions {
   readonly toggleOfficial: () => void;
 }
 
+/** 点了展开而内容还在读：最多等这么久再打开，读到了就直接从标题栏长到内容那么高，不先露一行「正在读取」。 */
+export const OPEN_HOLD_MS = 500;
+
+/**
+ * 标题栏下面那一整块，展开收起时高度有过渡。收起时内容留到过渡走完才拿掉，这期间点不到、读屏也读不到；
+ * 没有过渡（系统设了减少动效）就马上拿掉。已经开着时换内容不关，高度照旧直接变。
+ */
+function Fold({ collapsed, waiting, children }: { readonly collapsed: boolean; readonly waiting: boolean; readonly children: ComponentChildren }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(!collapsed && !waiting);
+  const [gone, setGone] = useState(!open);
+  useLayoutEffect(() => {
+    if (collapsed) return setOpen(false);
+    if (!waiting) return setOpen(true);
+    const timer = setTimeout(() => setOpen(true), OPEN_HOLD_MS);
+    return () => clearTimeout(timer);
+  }, [collapsed, waiting]);
+  useLayoutEffect(() => {
+    if (open) return setGone(false);
+    const node = ref.current;
+    if (!node || !(parseFloat(getComputedStyle(node).transitionDuration) > 0)) setGone(true);
+  }, [open]);
+  return (
+    <div
+      ref={ref}
+      class="card-sheet"
+      data-open={open ? "true" : "false"}
+      onTransitionEnd={(event) => {
+        if (event.target === event.currentTarget && !open) setGone(true);
+      }}
+    >
+      <div class="card-sheet-in" inert={!open}>
+        {open || !gone ? children : null}
+      </div>
+    </div>
+  );
+}
+
 /** setupHint 是 AI 服务没设置好时生成概览按钮旁的说明，按缺什么说。 */
 export function Card({ view, aiReady, setupHint, actions }: { readonly view: CardView; readonly aiReady: boolean | null; readonly setupHint: string; readonly actions: CardActions }) {
   if (!view.visible) return null;
@@ -211,7 +250,7 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
   const showSettings = needsSetup || (canGenerate && view.settingsError);
   const showRetry = (view.phase === "failed" || view.needLogin || retryRead) && !task;
   // 侧边栏已经开着：不摆打开它的按钮。别的按钮也都没有时，这一行整个不摆。
-  const showActions = !view.collapsed && !view.holdActions && (showGenerate || showSettings || showRetry || !view.panelOpen);
+  const showActions = !view.holdActions && (showGenerate || showSettings || showRetry || !view.panelOpen);
   return (
     <div class="card" id="card" data-collapsed={view.collapsed ? "true" : "false"}>
       <div class="card-head-row">
@@ -231,7 +270,7 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
           </button>
         ) : null}
       </div>
-      {view.collapsed ? null : (
+      <Fold collapsed={view.collapsed} waiting={view.phase === "loading"}>
         <div class="card-body" id="card-body">
           {view.notice ? (
             <p class="card-status" id="card-status" role="status" data-tone={view.notice.tone || undefined}>
@@ -271,42 +310,42 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
           ) : null}
           {needsSetup ? <p class="card-note" id="card-setup">{setupHint}</p> : null}
         </div>
-      )}
-      {task && !view.collapsed ? (
-        <div class="card-progress" id="card-progress" role="status">
-          <div class="card-track">
-            <div class="card-bar" style={{ width: `${percent}%` }} />
+        {task ? (
+          <div class="card-progress" id="card-progress" role="status">
+            <div class="card-track">
+              <div class="card-bar" style={{ width: `${percent}%` }} />
+            </div>
+            <span class="card-progress-text">{progressText(task)}</span>
+            <button type="button" class="button" data-variant="text" disabled={task.canceling} onClick={actions.cancel}>
+              停止
+            </button>
           </div>
-          <span class="card-progress-text">{progressText(task)}</span>
-          <button type="button" class="button" data-variant="text" disabled={task.canceling} onClick={actions.cancel}>
-            停止
-          </button>
-        </div>
-      ) : null}
-      {showActions ? (
-        <div class="card-actions">
-          {showGenerate ? (
-            <button type="button" class="button" data-variant="primary" id="card-generate" onClick={actions.generate}>
-              生成概览
-            </button>
-          ) : null}
-          {showSettings ? (
-            <button type="button" class="button" data-variant={needsSetup ? "primary" : "secondary"} id="card-settings" onClick={actions.openSettings}>
-              打开设置
-            </button>
-          ) : null}
-          {showRetry ? (
-            <button type="button" class="button" id="card-retry" onClick={actions.retry}>
-              重试
-            </button>
-          ) : null}
-          {view.panelOpen ? null : (
-            <button type="button" class="button" id="card-panel" onClick={actions.openPanel}>
-              打开侧边栏
-            </button>
-          )}
-        </div>
-      ) : null}
+        ) : null}
+        {showActions ? (
+          <div class="card-actions">
+            {showGenerate ? (
+              <button type="button" class="button" data-variant="primary" id="card-generate" onClick={actions.generate}>
+                生成概览
+              </button>
+            ) : null}
+            {showSettings ? (
+              <button type="button" class="button" data-variant={needsSetup ? "primary" : "secondary"} id="card-settings" onClick={actions.openSettings}>
+                打开设置
+              </button>
+            ) : null}
+            {showRetry ? (
+              <button type="button" class="button" id="card-retry" onClick={actions.retry}>
+                重试
+              </button>
+            ) : null}
+            {view.panelOpen ? null : (
+              <button type="button" class="button" id="card-panel" onClick={actions.openPanel}>
+                打开侧边栏
+              </button>
+            )}
+          </div>
+        ) : null}
+      </Fold>
     </div>
   );
 }
