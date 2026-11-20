@@ -34,8 +34,8 @@ import { FRAME_SLOT } from "./frame-slot.ts";
 
 export { CUSTOM_PRESET_ID };
 
+// 显示名在设置页的文案表里（pages/options/text-zh.ts、text-en.ts），按 id 取。
 interface PresetDetail {
-  readonly label: string;
   /** 只给默认的 Anthropic 和 DeepSeek 预置，其余留空，用户在模型列表里自己选。 */
   readonly model: string;
   /** 密钥页。 */
@@ -46,21 +46,17 @@ export type ServicePreset = KnownEndpointPreset & PresetDetail;
 
 const PRESET_DETAILS: Readonly<Record<PresetId, PresetDetail>> = {
   // 默认用 Sonnet：概览按块调用、批量生成会累积，Opus 留给用户自己选。
-  anthropic: {
-    label: "Anthropic Claude",
-    model: "claude-sonnet-5-5",
-    docsUrl: "https://platform.claude.com/settings/keys",
-  },
-  openai: { label: "OpenAI", model: "", docsUrl: "https://platform.openai.com/api-keys" },
-  deepseek: { label: "DeepSeek", model: "deepseek-flash", docsUrl: "https://platform.deepseek.com/api_keys" },
-  gemini: { label: "Google Gemini（OpenAI 兼容端点）", model: "", docsUrl: "https://aistudio.google.com/apikey" },
-  moonshot: { label: "月之暗面 Kimi", model: "", docsUrl: "https://platform.kimi.com/console/api-keys" },
-  zhipu: { label: "智谱 GLM", model: "", docsUrl: "https://bigmodel.cn/usercenter/proj-mgmt/apikeys" },
+  anthropic: { model: "claude-sonnet-5-5", docsUrl: "https://platform.claude.com/settings/keys" },
+  openai: { model: "", docsUrl: "https://platform.openai.com/api-keys" },
+  deepseek: { model: "deepseek-flash", docsUrl: "https://platform.deepseek.com/api_keys" },
+  gemini: { model: "", docsUrl: "https://aistudio.google.com/apikey" },
+  moonshot: { model: "", docsUrl: "https://platform.kimi.com/console/api-keys" },
+  zhipu: { model: "", docsUrl: "https://bigmodel.cn/usercenter/proj-mgmt/apikeys" },
   // 密钥页指向北京地域，和预设的地址一致。
-  dashscope: { label: "阿里云百炼（通义千问）", model: "", docsUrl: "https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key" },
-  siliconflow: { label: "硅基流动 SiliconFlow", model: "", docsUrl: "https://cloud.siliconflow.cn/account/ak" },
-  openrouter: { label: "OpenRouter", model: "", docsUrl: "https://openrouter.ai/keys" },
-  [CUSTOM_PRESET_ID]: { label: "自定义", model: "", docsUrl: "" },
+  dashscope: { model: "", docsUrl: "https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key" },
+  siliconflow: { model: "", docsUrl: "https://cloud.siliconflow.cn/account/ak" },
+  openrouter: { model: "", docsUrl: "https://openrouter.ai/keys" },
+  [CUSTOM_PRESET_ID]: { model: "", docsUrl: "" },
 };
 
 const withDetail = (preset: KnownEndpointPreset): ServicePreset => ({ ...preset, ...PRESET_DETAILS[preset.id] });
@@ -73,11 +69,10 @@ export const presetById = (id: unknown): ServicePreset | null => PRESETS.find((p
 
 // 设置页还没填密钥时给的快捷选择，国内在前。只帮着选预设，不判断用户所在地，
 // 也不保证账户能开通：Anthropic 不对中国大陆、香港、澳门开放。
-export const REGION_PRESETS: readonly { readonly id: string; readonly label: string; readonly presetId: PresetId }[] =
-  Object.freeze([
-    { id: "domestic", label: "国内服务", presetId: "deepseek" },
-    { id: "overseas", label: "海外服务", presetId: "anthropic" },
-  ]);
+export const REGION_PRESETS: readonly { readonly id: "domestic" | "overseas"; readonly presetId: PresetId }[] = Object.freeze([
+  { id: "domestic", presetId: "deepseek" },
+  { id: "overseas", presetId: "anthropic" },
+]);
 
 // 固定值，界面上不开放调整。同时最多 6 个模型请求：长视频的分块、几个视频同时生成都更快；
 // 个别服务商会因此限流，限流和过载时传输层照旧等一会儿再发。
@@ -116,9 +111,8 @@ interface ThemeColors {
   readonly accent: string;
 }
 
+// 主题的名字和一句话说明在设置页的文案表里，按 id 取。
 interface AccentThemeInfo {
-  readonly label: string;
-  readonly note: string;
   /** 浅色的强调色填充，播放页上的按钮落在平台的浅色页面上，从这取值。 */
   readonly swatch: string;
   /** 设置页主题卡片上的小预览，明暗各一组。 */
@@ -128,8 +122,6 @@ interface AccentThemeInfo {
 // 三套完整配色共用同一套排版。完整色值在主题样式表里，按 html 的 data 属性切换，这里只留脚本要用的颜色，两边要一致。
 export const ACCENT_THEMES = Object.freeze({
   ink: {
-    label: "宣纸墨青",
-    note: "暖白纸面，青黛点缀",
     swatch: "#2a6664",
     preview: {
       light: { bg: "#f6f3ed", card: "#fdfbf8", text: "#1d2428", accent: "#2a6664" },
@@ -137,8 +129,6 @@ export const ACCENT_THEMES = Object.freeze({
     },
   },
   graphite: {
-    label: "石墨靛蓝",
-    note: "冷调石墨灰，靛蓝点缀",
     swatch: "#515d9f",
     preview: {
       light: { bg: "#f2f4f8", card: "#ffffff", text: "#1f232b", accent: "#515d9f" },
@@ -146,8 +136,6 @@ export const ACCENT_THEMES = Object.freeze({
     },
   },
   ochre: {
-    label: "暖岩赭石",
-    note: "暖灰岩色，赭石点缀",
     swatch: "#8e5729",
     preview: {
       light: { bg: "#f8f3ee", card: "#fdfbf9", text: "#29211d", accent: "#8e5729" },
@@ -161,15 +149,15 @@ export const THEME_MODES = Object.freeze({ SYSTEM: "system", LIGHT: "light", DAR
 export type ThemeMode = (typeof THEME_MODES)[keyof typeof THEME_MODES];
 
 // 按功能选模型：同一个服务商、同一把密钥下，单项功能可以换一个模型，留空就用默认模型。请求时按 id 取，见 modelForFeature。
-// 画面分析那一项只在构建开关打开时有，见 frame-slot.ts。
+// 画面分析那一项只在构建开关打开时有，见 frame-slot.ts。各项的显示名在设置页的文案表里，按 id 取。
 export const FEATURE_MODEL_SLOTS = Object.freeze([
-  { id: "analysis", label: "概览" },
-  { id: "verdict", label: "一句话结论" },
-  { id: "rewrite", label: "翻译" },
-  { id: "tidy", label: "整理字幕" },
-  { id: "qa", label: "问答" },
-  { id: "notes", label: "笔记润色" },
-  { id: "explain", label: "划词解释" },
+  { id: "analysis" },
+  { id: "verdict" },
+  { id: "rewrite" },
+  { id: "tidy" },
+  { id: "qa" },
+  { id: "notes" },
+  { id: "explain" },
   ...(FEATURE_FRAME_EXPLAIN ? [FRAME_SLOT] : []),
 ] as const);
 export type FeatureSlotId = (typeof FEATURE_MODEL_SLOTS)[number]["id"];
@@ -389,7 +377,9 @@ export function normalize(input: unknown = {}): NormalizedSettings {
     featureModels: featureModels.models,
     featureModelsOwner: featureModels.owner,
     featureEfforts: normalizeFeatureEfforts(source.featureEfforts),
-    analysisChunkMode: isKeyOf(ANALYSIS_CHUNK_MODES, source.analysisChunkMode) ? source.analysisChunkMode : DEFAULTS.analysisChunkMode,
+    analysisChunkMode: isKeyOf(ANALYSIS_CHUNK_MODES, source.analysisChunkMode)
+      ? source.analysisChunkMode
+      : DEFAULTS.analysisChunkMode,
     uiFontScale: normalizeUiFontScale(source.uiFontScale),
     accentTheme: normalizeAccentTheme(source.accentTheme),
     themeMode: isThemeMode(source.themeMode) ? source.themeMode : DEFAULTS.themeMode,

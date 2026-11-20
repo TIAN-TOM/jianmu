@@ -3,6 +3,8 @@
 import { signal, type ReadonlySignal } from "@preact/signals";
 import type { LoadedSettings } from "../../platform/settings-store.ts";
 import { validate } from "../../shared/settings-schema.ts";
+import type { UiLang } from "../shared/ui-lang.ts";
+import { textOf } from "./text.ts";
 
 export type Tone = "ok" | "warn" | "error";
 
@@ -37,7 +39,9 @@ export interface AiStatus {
   clear(): void;
 }
 
-export function createAiStatus(): AiStatus {
+/** lang：状态写出来时用哪种语言，缺省中文。 */
+export function createAiStatus(lang: () => UiLang = () => "zh"): AiStatus {
+  const t = () => textOf(lang()).status;
   const current = signal<PlacedStatus | null>(null);
   // 眼前这条是保存以后那句时，记着它的落点。
   let savedAt: AiPlace | null = null;
@@ -58,27 +62,27 @@ export function createAiStatus(): AiStatus {
 
   function saySaved(at: AiPlace, written: LoadedSettings): void {
     const ready = validate(written);
-    if (ready.ok) say(at, written.rememberApiKey ? "已保存并授权，密钥已记在这台电脑上。" : "已保存并授权。", "ok");
-    else say(at, `已保存并授权，但 AI 功能暂时用不了：${ready.errors.join(" ")}`, "warn");
+    if (ready.ok) say(at, written.rememberApiKey ? t().savedRemembered : t().saved, "ok");
+    else say(at, t().savedNotReady(ready.errors.join(" ")), "warn");
     savedAt = at;
   }
 
   function sayFetched(at: AiPlace, written: LoadedSettings, ids: readonly string[]): void {
     if (!ids.length) {
-      say(at, "已保存并授权，但服务没有返回模型，请手动填写模型名称。", "warn");
+      say(at, t().fetchedNone, "warn");
       return;
     }
-    const head = `已保存并授权，拉到 ${ids.length} 个模型`;
+    const head = t().fetchedHead(ids.length);
     const model = written.aiModel;
     if (!model) {
-      say(at, `${head}，在模型框里选一个，再点「保存并授权」。`, "warn");
+      say(at, t().fetchedPick(head), "warn");
       return;
     }
     const notes: string[] = [];
-    if (!listed(ids, model)) notes.push(`模型框里的「${model}」不在列表里，可能是旧名字或打错了，核对一下；有的服务也认列表外的别名。`);
+    if (!listed(ids, model)) notes.push(t().notListed(model));
     const ready = validate(written);
-    if (!ready.ok) notes.push(`AI 功能暂时用不了：${ready.errors.join(" ")}`);
-    say(at, `${head}，可以在模型框里直接选。${notes.join("")}`, notes.length ? "warn" : "ok");
+    if (!ready.ok) notes.push(t().notReady(ready.errors.join(" ")));
+    say(at, t().fetchedReady(head, notes), notes.length ? "warn" : "ok");
   }
 
   return {
@@ -90,7 +94,7 @@ export function createAiStatus(): AiStatus {
       if (savedAt) saySaved(savedAt, written);
     },
     sayKeyMissing() {
-      say("key", "这里还没有密钥：没勾「在这台电脑上记住密钥」时，重启浏览器或更新扩展以后要重新填。", "warn");
+      say("key", t().keyMissing, "warn");
       keyNotice = true;
     },
     keyTyped() {

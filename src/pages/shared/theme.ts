@@ -1,14 +1,18 @@
 /// <reference types="chrome" />
 // 扩展页面的外观：主题、明暗和界面字号落到根节点上，跟着设置变，每次落地都刷新首帧缓存（theme-boot.ts 同步读它）。
-// 设置里不含密钥，这里只取外观三项。
+// 语言选项跟着外观一起写进首帧缓存（ui-lang.ts 启动时同步读它），每次落地也定下界面语言。设置里不含密钥，这里只取外观三项和语言。
+import type { LanguageSetting } from "../../core/output-lang.ts";
 import { APPEARANCE_CACHE_KEY, CARD_TONE, SETTINGS_STORAGE_KEY } from "../../shared/names.ts";
 import { DEFAULTS, normalize, normalizeUiFontScale, THEME_MODES, type AccentTheme, type ThemeMode, type UiFontScale } from "../../shared/settings-schema.ts";
 import type { PageApi } from "./api.ts";
+import { setUiLanguage } from "./ui-lang.ts";
 
 export interface Appearance {
   readonly accentTheme: AccentTheme;
   readonly themeMode: ThemeMode;
   readonly uiFontScale: UiFontScale;
+  /** 界面文字和模型写的内容用的语言选项。 */
+  readonly language: LanguageSetting;
 }
 
 export type ResolvedThemeMode = "light" | "dark";
@@ -35,10 +39,10 @@ export interface AppearanceRoot {
 
 const DARK_QUERY = "(prefers-color-scheme: dark)";
 
-/** 设置里的外观三项，不合法的按设置模块的规则规整。 */
+/** 设置里的外观三项和语言，不合法的按设置模块的规则规整。 */
 export function appearanceOf(input: unknown): Appearance {
-  const { accentTheme, themeMode, uiFontScale } = normalize(input);
-  return { accentTheme, themeMode, uiFontScale };
+  const { accentTheme, themeMode, uiFontScale, language } = normalize(input);
+  return { accentTheme, themeMode, uiFontScale, language };
 }
 
 // 根节点没有所在页面（单元测试的替身）时退回全局环境；Node 里没有 matchMedia。
@@ -130,7 +134,9 @@ export async function watchAppearance(deps: WatchAppearanceDeps, root: Appearanc
   let generation = 0;
   let stopped = false;
   const land = (raw: unknown): void => {
-    if (!stopped) last = applyAppearance(raw, root, deps.hostMode?.() ?? null);
+    if (stopped) return;
+    last = applyAppearance(raw, root, deps.hostMode?.() ?? null);
+    setUiLanguage(last.language);
   };
   const reload = async (fallback: unknown): Promise<void> => {
     const started = generation;

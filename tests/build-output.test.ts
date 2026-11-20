@@ -358,7 +358,7 @@ const FRAME_MARKERS: Readonly<Record<string, readonly string[]>> = {
   "build/content/bilibili.js": ["requestVideoFrameCallback", "convertToBlob", "player.captureFrame", "解释当前画面", "frame.explainHere", "src/content/frame", "画面受保护"],
   "build/background.js": [...FRAME_SHARED, "prompts/study/frame-explain.md", "study/frame-explain.md", "frame.explain", "src/background/image-support", "src/background/services/frame-explain"],
   "build/pages/sidepanel.js": [...FRAME_SHARED, "frame.recent", "解释画面", "正在请模型看图"],
-  "build/pages/options.js": [...FRAME_SHARED, "ai.probeImage", "能不能看图"],
+  "build/pages/options.js": [...FRAME_SHARED, "ai.probeImage", "能不能看图", "Frame analysis", "Check image support"],
 };
 
 async function bundlesWith(features: FeatureSet): Promise<Map<string, string>> {
@@ -384,7 +384,7 @@ test("解释当前画面首发带上：发行构建的包里有截帧代码、�
 const YOUTUBE_MARKERS: Readonly<Record<string, readonly string[]>> = {
   "build/background.js": ["www.youtube.com", "jianmu-youtube", "content/youtube.js", "content/youtube-bridge.js", "src/background/site-switch", "youtube.panel", "panel-shape", "src/sites/youtube/service", "src/sites/youtube/page/panel-types"],
   "build/pages/sidepanel.js": ["www.youtube.com", "在 YouTube 上启用", "src/pages/shared/youtube-access"],
-  "build/pages/options.js": ["www.youtube.com", "在 YouTube 上启用", "src/pages/options/youtube-section"],
+  "build/pages/options.js": ["www.youtube.com", "在 YouTube 上启用", "Turn on for YouTube", "src/pages/options/youtube-section"],
 };
 
 test("YouTube 首发带上：发行构建的包里有地址规则、脚本注册、启用按钮和它的内容脚本；关掉开关的构建里都没有，也不构建它的内容脚本", async () => {

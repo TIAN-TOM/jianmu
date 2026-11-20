@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { videoKey } from "../../src/core/video-ref.ts";
 import { BUILD_ID_FILE } from "../../src/shared/build-id.ts";
 import { API_KEY_SESSION_KEY, ISSUES_URL, PAGE_PATHS, PRIVACY_POLICY_URL, SETTINGS_STORAGE_KEY } from "../../src/shared/names.ts";
+import { OPTIONS_ZH } from "../../src/pages/options/text-zh.ts";
 import { FEATURE_MODEL_SLOTS } from "../../src/shared/settings-schema.ts";
 import { ANTHROPIC, VIDEOS } from "../fixtures.mjs";
 import { scenario } from "./harness.mjs";
@@ -401,7 +402,7 @@ test("设置页：拉到很多模型时，候选列表自己滚、长名字折�
     await page.click(`#featureModels [role=option]:nth-child(3)`);
     await page.waitFor("选的型号填进功能模型框", `document.querySelector('[data-feature="${slot}"]').value === ${JSON.stringify(MANY_MODELS[2])}`);
     assert.equal(await page.evaluate(`document.querySelectorAll("[role=listbox]").length`), 0);
-    assert.equal(await page.evaluate(`document.querySelector('label[for="featureModel-${slot}"]').textContent`), FEATURE_MODEL_SLOTS[0].label);
+    assert.equal(await page.evaluate(`document.querySelector('label[for="featureModel-${slot}"]').textContent`), OPTIONS_ZH.ai.slots.analysis);
   } finally {
     await local.close();
   }
@@ -616,6 +617,55 @@ test("设置页：外观一节的语言即改即存，三项是跟随浏览器�
   await page.waitFor("语言不用点保存就存下", `${stored}.then((language) => language === "en")`);
   const reopened = await open(PAGE_PATHS.options, { width: WIDTH });
   await reopened.waitFor("重新打开后填回来", `document.querySelector("#language")?.value === "en"`);
+});
+
+test("设置页：语言选 English 以后，标题、各节标题和按钮马上换成英文，<html lang> 是 en，重新打开第一屏就是英文；切回中文又全是中文", async ({ open }) => {
+  const page = await freshOptions(open);
+  await enable(page);
+  const view = `({
+    lang: document.documentElement.lang,
+    title: document.title,
+    heading: document.querySelector("h1")?.textContent,
+    sections: [...document.querySelectorAll(".card > h2")].map((node) => node.textContent),
+    buttons: [...document.querySelectorAll("#ai-service .actions button, #learning-data .actions button")].map((node) => node.textContent.trim()),
+    languages: [...document.querySelectorAll("#language option")].map((node) => node.textContent),
+  })`;
+  const english = {
+    lang: "en",
+    title: "Jianmu settings",
+    heading: "Jianmu settings",
+    sections: ["Appearance", "Video page", "YouTube", "AI service", "Verdict on open", "Skim and Study", "Watch Later triage", "Saved data", "About"],
+    buttons: ["Save and authorise", "Test connection", "Export backup", "Restore backup", "Clear cache", "Clear all data"],
+    languages: ["Match browser", "中文", "English"],
+  };
+  const chinese = {
+    lang: "zh-CN",
+    title: "简幕设置",
+    heading: "简幕设置",
+    sections: ["外观", "播放页", "YouTube", "AI 服务", "打开就出结论", "速览和精读", "稍后再看粗筛", "学习资料", "关于"],
+    buttons: ["保存并授权", "测试连接", "导出备份", "恢复备份", "清除缓存", "清除全部数据"],
+    languages: ["跟随浏览器", "中文", "English"],
+  };
+  // 语言默认跟随浏览器：测试用的浏览器界面语言固定成中文（browser.mjs），别的测试才能照中文断言。
+  assert.match(await page.evaluate(`chrome.i18n.getUILanguage()`), /^zh/);
+  assert.deepEqual(await page.evaluate(view), chinese);
+
+  await fill(page, "#language", "en");
+  await page.waitFor("界面换成英文", `document.documentElement.lang === "en"`);
+  assert.deepEqual(await page.evaluate(view), english);
+
+  // 首帧缓存记下了英文：重新打开时一出内容就是英文，不先画一遍中文。
+  const reopened = await open(PAGE_PATHS.options, { width: WIDTH });
+  await reopened.waitFor("重新打开后出现标题", `document.querySelector("h1") !== null`);
+  assert.equal(await reopened.evaluate(`document.querySelector("h1").textContent`), "Jianmu settings");
+  await reopened.waitFor("重新打开后各节都在", `document.getElementById("preset") !== null`);
+  assert.deepEqual(await reopened.evaluate(view), english);
+
+  await fill(page, "#language", "zh");
+  await page.waitFor("界面换回中文", `document.documentElement.lang === "zh-CN"`);
+  assert.deepEqual(await page.evaluate(view), chinese);
+  await reopened.waitFor("别的设置页跟着换回中文", `document.documentElement.lang === "zh-CN"`);
+  assert.deepEqual(await reopened.evaluate(view), chinese);
 });
 
 test("设置页：推理强度新安装全关；每项功能单独选，改了不用点保存就存下，实际档位和选的不一样时旁边标出，重新打开照旧；概览分块也是改了就存", async ({ open }) => {

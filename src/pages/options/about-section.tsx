@@ -2,14 +2,16 @@
 import { useId } from "preact/hooks";
 import { BUILD_ID } from "../../shared/build-id.ts";
 import { ISSUES_URL, PRIVACY_POLICY_URL } from "../../shared/names.ts";
+import { optionsText } from "./text.ts";
 
 export function AboutSection({ version }: { readonly version: string }) {
+  const t = optionsText().about;
   const id = useId();
   return (
     <section class="card" id="about" aria-labelledby={`${id}-title`}>
-      <h2 id={`${id}-title`}>关于</h2>
+      <h2 id={`${id}-title`}>{t.title}</h2>
       <dl class="about-facts">
-        <dt>版本</dt>
+        <dt>{t.version}</dt>
         <dd>
           <span id="aboutVersion">{version}</span>
           <span class="about-build" id="aboutBuild">
@@ -19,10 +21,10 @@ export function AboutSection({ version }: { readonly version: string }) {
       </dl>
       <p class="about-links">
         <a id="aboutPrivacy" href={PRIVACY_POLICY_URL} target="_blank" rel="noopener noreferrer">
-          隐私政策
+          {t.privacy}
         </a>
         <a id="aboutIssues" href={ISSUES_URL} target="_blank" rel="noopener noreferrer">
-          反馈问题
+          {t.issues}
         </a>
       </p>
     </section>

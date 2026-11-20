@@ -1,0 +1,272 @@
+// 设置页的界面文案，中文这份。它定下文案表的形状（OptionsText），英文那份（text-en.ts）必须满足同一个类型。
+// 构建开关保护的功能的文案不放这里：画面分析在 frame-text.ts，YouTube 在 youtube-text.ts，只从开关分支引用。
+// 模块顶层只放字面量和函数。带变量的文案写成函数。
+import type { PresetId } from "../../core/ai/provider/endpoint.ts";
+import type { DataConsentKind } from "../../core/consent.ts";
+import type { Effort } from "../../core/notes/records.ts";
+import type { BackupImportReply } from "../../shared/messages/data.ts";
+import type { AccentTheme, AnalysisChunkMode, FeatureSlotId, ThemeMode } from "../../shared/settings-schema.ts";
+
+/** 导出备份时各类记录的条数。 */
+export interface ExportedCounts {
+  readonly notes: number;
+  readonly overviews: number;
+  readonly qa: number;
+  readonly translations: number;
+}
+
+export const OPTIONS_ZH = {
+  title: "简幕设置",
+  retry: "重试",
+  cancel: "取消",
+  activationLoading: "正在读取启用状态……",
+  loadFailed: "读不出设置",
+  loadFailedDetail: (reason: string) => `读不出设置：${reason}`,
+
+  appearance: {
+    title: "外观",
+    intro: "只作用于这台电脑上的侧边栏、播放页卡片和本页，改了马上生效，不用点「保存并授权」。语言同时管界面文字和模型写的内容。",
+    theme: "主题",
+    themes: {
+      ink: { name: "宣纸墨青", note: "暖白纸面，青黛点缀" },
+      graphite: { name: "石墨靛蓝", note: "冷调石墨灰，靛蓝点缀" },
+      ochre: { name: "暖岩赭石", note: "暖灰岩色，赭石点缀" },
+    } satisfies Readonly<Record<AccentTheme, { name: string; note: string }>>,
+    mode: "明暗",
+    modes: { system: "跟随系统", light: "浅色", dark: "深色" } satisfies Readonly<Record<ThemeMode, string>>,
+    modeHint: "播放页卡片的明暗跟着视频页，不跟这一项。",
+    fontSize: "界面字号",
+    fontSizes: { 100: "标准", 112: "较大", 125: "特大" },
+    fontHint: "字幕、概览和笔记一起缩放。",
+    language: "语言",
+    // 中文、English 两项各用自己的语言写，看不懂当前界面的人也认得出；只有这一项跟着界面语言。
+    followBrowser: "跟随浏览器",
+    languageHint: "界面文字马上换；之后生成的概览、问答和解释也用这种语言写，已经生成的不变。",
+  },
+
+  card: {
+    title: "播放页",
+    hint: "卡片放在弹幕列表上方，显示 B 站官方总结和已经生成的概览，可以收起，也可以从它打开侧边栏。关掉以后播放页只留笔记图标（鼠标移到播放器上才出现），打开侧边栏要点浏览器工具栏里的扩展图标。改了马上生效。",
+    toggle: "在视频右侧显示总结卡片",
+  },
+
+  triage: {
+    title: "稍后再看粗筛",
+    hint: "在新标签页里读取你的 B 站稍后再看列表，先用官方总结快速看每个视频讲了什么，需要时再花 API 额度写一句话结论，按判断分组、导出清单。读取列表和取官方总结不调模型。",
+    open: "打开稍后再看粗筛",
+  },
+
+  data: {
+    title: "学习资料",
+    hint: "笔记、概览和问答历史只存在这台电脑上，卸载扩展时由浏览器一起清掉。导出的备份含笔记、概览、问答历史，以及译文和整理过的字幕，不含 API 密钥、设置和导入的字幕文件。恢复时和本机已有的合并，同一条以更新时间较新的为准，译文只补本机缺的段，本机独有的不会删。",
+    exporting: "正在导出",
+    export: "导出备份",
+    importing: "正在恢复",
+    import: "恢复备份",
+    clearTitle: "清除本机数据",
+    clearHint: "「清除缓存」删掉字幕和视频信息的缓存，以及粗筛读到的列表；笔记、导入的字幕文件、保存的概览和问答、设置都留着。「清除全部数据」删掉简幕在这台电脑上存的一切，包括笔记、概览、问答、导入的字幕文件、设置和密钥，删了不能恢复，要留着的先导出备份。正在生成的概览和问答会先停下。",
+    clearCache: "清除缓存",
+    clearCacheQuestion: "清除字幕和视频信息的缓存，以及粗筛读到的列表？笔记、概览、问答和设置都留着。",
+    clearCacheConfirm: "清除缓存",
+    clearAll: "清除全部数据",
+    clearAllQuestion: "清除简幕在这台电脑上存的全部数据？笔记、概览、问答、导入的字幕文件、缓存、设置和密钥都会删掉，删了不能恢复。",
+    clearAllConfirm: "全部清除",
+  },
+
+  about: {
+    title: "关于",
+    version: "版本",
+    privacy: "隐私政策",
+    issues: "反馈问题",
+  },
+
+  modes: {
+    title: "速览和精读",
+    hint: "打开视频时，先看这次手动选过的模式，再看你给这个 UP 主选过的，都没有就按时长：不到 5 分钟进精读，其余进速览。在侧边栏顶上主动切换一次，就记住这个 UP 主。长视频在速览里连续播满 1 分钟会切到精读，可以撤销。",
+    clear: "清除记住的 UP 主",
+    clearQuestion: "清除以后，这些 UP 主的视频回到按时长选模式。",
+    clearConfirm: "清除",
+    cleared: "已清除，之后打开视频按时长进速览或精读。",
+    clearFailed: "没能清除，请稍后再试。",
+  },
+
+  ai: {
+    title: "AI 服务",
+    hint: "翻译、概览、划词解释、笔记润色和问答要调用大模型服务。选好服务商，填 API 密钥和模型名称就行，地址已经内置；列表里没有的服务选「自定义」，自己填地址和协议。密钥只发到所选服务商的地址。",
+    regionTitle: "先选一类服务",
+    regions: { domestic: "国内服务", overseas: "海外服务" },
+    regionHint: "只是帮你预填服务商，也可以直接在下面的列表里选。能不能开通账户、数据存在哪里，以各服务商为准。",
+    provider: "服务商",
+    presets: {
+      anthropic: "Anthropic Claude",
+      openai: "OpenAI",
+      deepseek: "DeepSeek",
+      gemini: "Google Gemini（OpenAI 兼容端点）",
+      moonshot: "月之暗面 Kimi",
+      zhipu: "智谱 GLM",
+      dashscope: "阿里云百炼（通义千问）",
+      siliconflow: "硅基流动 SiliconFlow",
+      openrouter: "OpenRouter",
+      custom: "自定义",
+    } satisfies Readonly<Record<PresetId, string>>,
+    // 密钥页链接前后的文字，空格写在这里，链接放中间。
+    docsBefore: "到 ",
+    docsLink: (provider: string) => `${provider} 的控制台`,
+    docsAfter: " 创建 API 密钥。",
+    protocol: "API 协议",
+    protocols: {
+      openai: "OpenAI 兼容（多数服务）",
+      "openai-responses": "OpenAI Responses（OpenAI 官方）",
+      anthropic: "Anthropic（Claude）",
+    },
+    protocolHint: "除 Anthropic 外，主流服务多用 OpenAI 兼容协议，拿不准就选它。",
+    baseUrl: "API 地址",
+    baseUrlHint: "填到版本号就行，只认 https。本机跑的服务（localhost、127.0.0.1）可以用 http。",
+    apiKey: "API 密钥",
+    clearKey: "清除密钥",
+    clearKeyQuestion: "删除保存的 API 密钥？会话里和这台电脑上记住的都会删掉，删除后要重新填写才能用 AI 功能。",
+    clearKeyConfirm: "删除密钥",
+    keyHint: "默认只存在本次浏览器会话的内存里，不写入磁盘：重启浏览器，或者扩展停用、重新加载、更新以后，要重新填写。地址是本机的服务不要密钥时，可以留空。",
+    remember: "在这台电脑上记住密钥",
+    rememberHint: "勾上并点「保存并授权」以后，密钥以未加密的形式存在本机的扩展存储里，重启浏览器后还能用。能读这台电脑浏览器数据的程序或人可能拿到密钥，共用电脑上不要开；担心泄露可以到服务商后台撤销这把密钥。取消勾选马上删掉本机那份，密钥只留在本次会话里。密钥不进备份，也不随浏览器账号同步。",
+    model: "模型",
+    modelPlaceholder: "填写模型名称，或点右边的按钮拉取",
+    modelPick: "从拉到的模型里选",
+    fetching: "正在拉取",
+    fetch: "拉取模型列表",
+    modelHint: "拉取会先按表单保存一次，再向服务商要当前可用的模型。",
+    featureModels: "按功能选模型（可选）",
+    featureHint: "同一个服务商、同一把密钥下，可以给单项功能另选模型，留空就用上面的默认模型。一句话结论、翻译、划词解释这类短任务可以选更快更便宜的；概览和问答建议用能力更强的。换服务商时这里会清空。",
+    featurePick: (feature: string) => `${feature}：从拉到的模型里选`,
+    slots: {
+      analysis: "概览",
+      verdict: "一句话结论",
+      rewrite: "翻译",
+      tidy: "整理字幕",
+      qa: "问答",
+      notes: "笔记润色",
+      explain: "划词解释",
+    } satisfies Readonly<Record<Exclude<FeatureSlotId, "frame">, string>>,
+    defaultModel: "默认模型",
+    saving: "正在保存",
+    save: "保存并授权",
+    testing: "正在测试",
+    test: "测试连接",
+    testAll: "测试全部模型",
+    hostHint: "点「保存并授权」时，浏览器会问是否允许简幕访问所选服务商的域名。扩展安装时不知道你会用哪家服务，所以选定以后单独申请，而且只申请这一个域名。",
+    chunk: "概览分块",
+    chunks: {
+      auto: "自动（推荐）",
+      short: "较短：请求数更多，更稳",
+      long: "较长：请求数更少，更快",
+      whole: "尽量整份：请求最少、章节最连贯，要上下文长的模型，容易超时",
+    } satisfies Readonly<Record<AnalysisChunkMode, string>>,
+    chunkHint: "多数模型用自动就好。上下文窗口小、内容有遗漏，或者长视频的请求超时（单次上限 120 秒，推理强度选中、高时放宽到 180、300 秒）时选「较短」。模型的上下文够长（能装下几万字）时可以选「尽量整份」：一个视频多半一次请求就写完，但更容易超时，超时就换回别的档。改了马上生效，不用点「保存并授权」。",
+  },
+
+  consent: {
+    title: "使用 AI 功能时会发送什么",
+    headings: { category: "会发送", purpose: "用在", recipient: "发给谁", trigger: "什么时候发" } satisfies Readonly<Record<DataConsentKind, string>>,
+    joiner: "；",
+    updated: "说明有更新，新增的内容：",
+    full: "查看完整说明",
+    agree: "我已了解，同意在我使用 AI 功能时发送上述内容",
+    agreeHint: "没勾选时不发任何 AI 请求。取消勾选马上生效。",
+  },
+
+  efforts: {
+    title: "推理强度",
+    hint: "档位越高，模型想得越久，越贵也越慢。服务或模型做不到的档位，按最接近的一档发，并在旁边标出。改了马上生效，不用点「保存并授权」。",
+    pending: "改了服务商或模型，保存以后再标实际档位。",
+    labels: { off: "关", low: "低", medium: "中", high: "高" } satisfies Readonly<Record<Effort, string>>,
+    cannotDisable: (lowest: string) => `这个模型关不掉思考，实际按最低的「${lowest}」档`,
+    serviceDecides: "这个服务调不了推理强度，由服务自己决定",
+    alwaysOff: "这个模型调不了推理强度，实际按「关」",
+    missingLevel: (requested: string, effective: string) => `这个模型没有「${requested}」档，实际按「${effective}」档`,
+    usageLevelByService: "由服务决定",
+    usageHead: (level: string, otherModel: string | null) => `最近一次（${level}${otherModel === null ? "" : `，${otherModel}`}）`,
+    usageLine: (head: string, body: string) => `${head}：${body}`,
+    usageNone: "服务没回报用量",
+    usageInput: (count: string) => `输入 ${count}`,
+    usageOutput: (count: string) => `输出 ${count}`,
+    usageReasoning: (count: string) => `思考 ${count}`,
+    usageReasoningMissing: "思考没单独报",
+    usageTotal: (count: string) => `合计 ${count}`,
+    numberLocale: "zh-CN",
+  },
+
+  auto: {
+    title: "打开就出结论",
+    // 原来分两行写，渲染出来两句之间隔一个空格。
+    hint: "开着时，打开超过设定时长的 B 站视频和已启用的 YouTube 视频，会自动调用 AI 服务生成概览和一句话结论，显示在播放页卡片上。在后台打开、还没切过去看的标签页也会排队生成，打开开关时已经开着的也算，正在看的先生成。 每个视频都花你的 API 额度，一次开的标签页越多，花得越多；同时最多生成两个，10 分钟最多 40 个。外文视频不自动翻译。",
+    instant: "改了马上生效，不用点「保存并授权」。",
+    toggle: "打开视频就生成概览和结论",
+    askLabel: "打开前先同意数据说明",
+    askUpdated: "数据说明有更新，打开前要先同意新增的内容：",
+    ask: "打开前要先同意数据说明：",
+    agreeAndOn: "同意并打开",
+    minutes: "超过多少分钟的视频才生成",
+    minutesHint: (min: number, max: number) => `${min} 到 ${max} 的整数，填 0 时每个视频都生成。`,
+    aboveMax: (max: number, minutes: number) => `最多 ${max} 分钟，已改成 ${minutes}。`,
+    belowMin: (min: number, minutes: number) => `最少 ${min} 分钟，已改成 ${minutes}。`,
+    notWhole: (minutes: number) => `只能填整数，已改成 ${minutes}。`,
+    notOn: (reason: string) => `没有打开：${reason}`,
+  },
+
+  status: {
+    stale: "设置刚在别的页面改过，已按最新的设置重新载入，请再操作一次。",
+    badAddress: "API 地址不合法。",
+    permissionFailed: (reason: string) => `申请权限失败：${reason}`,
+    noPermission: (origin: string) => `没有拿到 ${origin} 的访问权限，AI 功能用不了。`,
+    notSaved: (reason: string) => `没有保存：${reason}`,
+    saved: "已保存并授权。",
+    savedRemembered: "已保存并授权，密钥已记在这台电脑上。",
+    savedNotReady: (errors: string) => `已保存并授权，但 AI 功能暂时用不了：${errors}`,
+    modelsFailed: (reason: string) => `已保存并授权，但没拉到模型列表：${reason}`,
+    fetchedNone: "已保存并授权，但服务没有返回模型，请手动填写模型名称。",
+    fetchedHead: (count: number) => `已保存并授权，拉到 ${count} 个模型`,
+    fetchedPick: (head: string) => `${head}，在模型框里选一个，再点「保存并授权」。`,
+    fetchedReady: (head: string, notes: readonly string[]) => `${head}，可以在模型框里直接选。${notes.join("")}`,
+    notListed: (model: string) => `模型框里的「${model}」不在列表里，可能是旧名字或打错了，核对一下；有的服务也认列表外的别名。`,
+    notReady: (errors: string) => `AI 功能暂时用不了：${errors}`,
+    keyMissing: "这里还没有密钥：没勾「在这台电脑上记住密钥」时，重启浏览器或更新扩展以后要重新填。",
+    connected: (feature: string, model: string, reply: string, truncated: boolean) => `${feature}（${model}）连接正常，回复「${reply}」${truncated ? "（回复被截断）" : ""}`,
+    testFailed: (feature: string, reason: string) => `${feature}：${reason}`,
+    rememberAfterSave: "点「保存并授权」以后，密钥才会记在这台电脑上。",
+    rememberOff: "已不再记住密钥：这台电脑上存的那份已删除，密钥只留在本次浏览器会话里。",
+    rememberOffFailed: (reason: string) => `没有关掉：${reason}`,
+    keyCleared: "已删除保存的 API 密钥。",
+    keyClearFailed: (reason: string) => `删除失败：${reason}`,
+  },
+
+  backup: {
+    fileName: (stamp: string) => `简幕备份-${stamp}.json`,
+    exported: ({ notes, overviews, qa, translations }: ExportedCounts) => `已导出 ${notes} 条笔记、${overviews} 份概览、${qa} 条问答、${translations} 份译文和整理过的字幕。`,
+    exportDropped: "导出失败：简幕的后台中途断开了，没导出来，再点一次「导出备份」。",
+    importDropped: "恢复失败：简幕的后台中途断开了。可能已经导入了一部分，再选同一个文件导一次就行，已经导入的不会重复。",
+    exportFailed: (reason: string) => `导出失败：${reason}`,
+    importFailed: (reason: string) => `恢复失败：${reason}`,
+    unreadable: "读不出这个文件：文件可能太大，或者已经被移走了。",
+    notBackup: "读不懂这个文件，请选简幕导出的 JSON 备份。",
+    clearFailed: (reason: string) => `清除失败：${reason}`,
+    clearedAll: "已清除这台电脑上的全部数据，设置已恢复默认。",
+    clearedCache: "已清除缓存。",
+    importSummary: ({ counts, promptsDropped }: BackupImportReply) => {
+      const { notes, overviews, qa, translations } = counts;
+      let text = `合并完成：笔记新增 ${notes.added} 条、更新 ${notes.updated} 条，概览新增 ${overviews.added} 份、更新 ${overviews.updated} 份，问答新增 ${qa.added} 条`;
+      // 第 1 版的备份没有译文，没有就不提。
+      text += translations.added || translations.updated ? `，译文和整理过的字幕新增 ${translations.added} 份、补上 ${translations.updated} 份。` : "。";
+      const skipped = [
+        notes.skipped ? `${notes.skipped} 条笔记` : "",
+        overviews.skipped ? `${overviews.skipped} 份概览` : "",
+        qa.skipped ? `${qa.skipped} 条问答` : "",
+        translations.skipped ? `${translations.skipped} 份译文` : "",
+      ].filter(Boolean);
+      if (skipped.length) text += `备份里有 ${skipped.join("、")}格式不对，已跳过。`;
+      if (promptsDropped) text += "备份里的自定义提示词没有导入：现在只用内置的提示词。";
+      return text;
+    },
+  },
+};
+
+export type OptionsText = typeof OPTIONS_ZH;

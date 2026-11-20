@@ -1,5 +1,5 @@
 /// <reference types="chrome" />
-// 设置页入口：先核对后台是不是同一次构建，再接上启用状态、外观和设置仓库，渲染页面。
+// 设置页入口：先按首帧缓存同步定下界面语言，再核对后台是不是同一次构建，接上启用状态、外观和设置仓库，渲染页面。
 import { render } from "preact";
 import { createLocks } from "../../platform/locks.ts";
 import { createSettingsStore } from "../../platform/settings-store.ts";
@@ -10,9 +10,11 @@ import { createPageApi } from "../shared/api.ts";
 import { startWhenCurrent } from "../shared/build-check.ts";
 import { requestPersistence } from "../shared/persist.ts";
 import { pageAppearanceSources, watchAppearance } from "../shared/theme.ts";
+import { bindDocumentLang, initUiLang, uiLang } from "../shared/ui-lang.ts";
 import { renderStaleBackground } from "../shared/ui/stale-background.tsx";
 import { App } from "./app.tsx";
 import { createOptionsState } from "./state.ts";
+import { textOf } from "./text.ts";
 
 function download(filename: string, chunks: readonly string[]): void {
   const url = URL.createObjectURL(new Blob([...chunks], { type: "application/json" }));
@@ -51,6 +53,10 @@ function followSection(loaded: Promise<unknown>): void {
   window.addEventListener("hashchange", () => void go());
 }
 
+// 第一帧就是对的语言；读回设置以后由外观那边纠正，<html lang> 和标题跟着换。
+initUiLang();
+bindDocumentLang(document, (lang) => textOf(lang).title);
+
 const api = createPageApi();
 const root = document.getElementById("app");
 
@@ -62,6 +68,7 @@ function start(): void {
     requestHost: (pattern) => chrome.permissions.request({ origins: [pattern] }),
     download,
     storageChanged: chrome.storage.onChanged,
+    lang: () => uiLang.value,
   });
 
   followSection(Promise.allSettled([activation.load(), state.load()]));

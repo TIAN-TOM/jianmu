@@ -52,10 +52,11 @@ export function launchChrome({ executable, profileDir, hostRules, extensionDir }
       "--disable-sync",
       "--use-mock-keychain",
       "--password-store=basic",
-      // 界面语言固定成中文（Linux 上管用，macOS 不认这个参数）；存进去的设置另外写明中文，见 settings.mjs。
+      // 界面语言固定成中文：Linux 上认 --lang，macOS 不认它，要靠系统的 -AppleLanguages 参数。还没写设置的页面跟着它走；
+      // 存进去的设置另外写明中文，见 settings.mjs。Chrome 把 (zh-CN) 也当成一个要打开的地址，无头模式只许一个，所以 macOS 上不再给 about:blank。
       "--lang=zh-CN",
       ...(byFlag ? [`--disable-extensions-except=${extensionDir}`, `--load-extension=${extensionDir}`] : []),
-      "about:blank",
+      ...(process.platform === "darwin" ? ["-AppleLanguages", "(zh-CN)"] : ["about:blank"]),
     ],
     { stdio: ["ignore", "ignore", "pipe", "pipe", "pipe"] },
   );

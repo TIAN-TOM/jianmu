@@ -3,7 +3,7 @@
 // 实际档位和选的不一样时才说。
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { effortNoteText, formOf, serviceChanged, settingsInput, showsRegionChooser, withAddress, withPreset } from "../../../../src/pages/options/form.ts";
+import { effortNoteText, formOf, serviceChanged, settingsInput, showsRegionChooser, usageText, withAddress, withPreset } from "../../../../src/pages/options/form.ts";
 import type { LoadedSettings } from "../../../../src/platform/settings-store.ts";
 import { DATA_CONSENT_CONFIRMED, DEFAULTS, featureModelsOwnerOf, normalize } from "../../../../src/shared/settings-schema.ts";
 
@@ -86,4 +86,11 @@ test("推理强度旁边那一句：一样时不说；退了一档、关不掉�
   assert.equal(effortNoteText({ requested: "off", effective: "low", note: "cannot-disable" }), "这个模型关不掉思考，实际按最低的「低」档");
   assert.equal(effortNoteText({ requested: "high", effective: "off", note: "unknown" }), "这个服务调不了推理强度，由服务自己决定");
   assert.equal(effortNoteText({ requested: "off", effective: "off", note: "unknown" }), null);
+});
+
+test("推理强度旁边那一句和用量那一行选英文时是英文，数字按英文的写法分组", () => {
+  assert.equal(effortNoteText({ requested: "medium", effective: "low", note: "fallback" }, "en"), "This model has no “Medium” level, so “Low” is used");
+  assert.equal(effortNoteText({ requested: "off", effective: "off", note: "unknown" }, "en"), null);
+  const item = { model: "m", lastUsage: { model: "old", effort: "high" as const, usage: { input: 12345, output: 2345 } } };
+  assert.equal(usageText(item, "en"), "Last request (High, old): input 12,345 · output 2,345 · thinking not reported separately");
 });

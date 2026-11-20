@@ -4,10 +4,12 @@
 import { BACKUP_KIND, BACKUP_VERSION, type Backup } from "../../core/backup/format.ts";
 import { joinParts, splitBackup, type BackupPart } from "../../core/backup/parts.ts";
 import { RECORD_KINDS, type ImportedBackup, type RecordKind } from "../../core/backup/records.ts";
-import { fail, ok, type ErrorCode, type Result } from "../../core/errors.ts";
+import { fail, ok, type ErrorCode, type Failure, type Result } from "../../core/errors.ts";
 import type { PortEvent, PortName } from "../../shared/messages.ts";
 import type { BackupImportReply, ImportCount } from "../../shared/messages/data.ts";
 import type { PageApi, PagePort } from "../shared/api.ts";
+import type { UiLang } from "../shared/ui-lang.ts";
+import { textOf } from "./text.ts";
 
 type Closed = { readonly type: "closed"; readonly code: ErrorCode };
 
@@ -103,19 +105,17 @@ export async function sendBackup(api: Pick<PageApi, "connect">, imported: Import
   return ok({ counts, promptsDropped: imported.promptsDropped });
 }
 
-/** 导入完给用户看的一句话。 */
-export function importSummary({ counts, promptsDropped }: BackupImportReply): string {
-  const { notes, overviews, qa, translations } = counts;
-  let text = `合并完成：笔记新增 ${notes.added} 条、更新 ${notes.updated} 条，概览新增 ${overviews.added} 份、更新 ${overviews.updated} 份，问答新增 ${qa.added} 条`;
-  // 第 1 版的备份没有译文，没有就不提。
-  text += translations.added || translations.updated ? `，译文和整理过的字幕新增 ${translations.added} 份、补上 ${translations.updated} 份。` : "。";
-  const skipped = [
-    notes.skipped ? `${notes.skipped} 条笔记` : "",
-    overviews.skipped ? `${overviews.skipped} 份概览` : "",
-    qa.skipped ? `${qa.skipped} 条问答` : "",
-    translations.skipped ? `${translations.skipped} 份译文` : "",
-  ].filter(Boolean);
-  if (skipped.length) text += `备份里有 ${skipped.join("、")}格式不对，已跳过。`;
-  if (promptsDropped) text += "备份里的自定义提示词没有导入：现在只用内置的提示词。";
-  return text;
+/** 导入完给用户看的一句话，语言缺省中文。 */
+export function importSummary(reply: BackupImportReply, lang: UiLang = "zh"): string {
+  return textOf(lang).backup.importSummary(reply);
+}
+
+/**
+ * 备份收发失败时给用户看的一句话，语言缺省中文。中途断开对备份来说不是「可能计费、先别重试」：导出再点一次就行；
+ * 导入可能已经写进去一部分，再导一次同一个文件不会重复。其余的失败按 failureText 说。
+ */
+export function backupFailureText(failure: Failure, kind: "export" | "import", failureText: (failure: Failure) => string, lang: UiLang = "zh"): string {
+  const t = textOf(lang).backup;
+  if (failure.code === "BACKGROUND_DROPPED" || failure.code === "BACKGROUND_UNREACHABLE") return kind === "export" ? t.exportDropped : t.importDropped;
+  return (kind === "export" ? t.exportFailed : t.importFailed)(failureText(failure));
 }

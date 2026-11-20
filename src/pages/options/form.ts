@@ -1,6 +1,5 @@
-// 设置页「AI 服务」表单的纯逻辑：从存着的设置填表、换服务商、拼出保存用的设置、推理强度旁边的说明。不碰存储和浏览器接口。
+// 设置页「AI 服务」表单的纯逻辑：从存着的设置填表、换服务商、拼出保存用的设置、推理强度旁边的说明（语言缺省中文）。不碰存储和浏览器接口。
 // 表单只装要点「保存并授权」才生效的几项：服务商、地址、密钥、模型、记住密钥。推理强度和概览分块即改即存，不在表单里。
-import type { Effort } from "../../core/notes/records.ts";
 import type { LoadedSettings } from "../../platform/settings-store.ts";
 import type { EffortPreviewItem } from "../../shared/messages/ai.ts";
 import {
@@ -13,6 +12,8 @@ import {
   type FeatureSlotId,
   type SettingsInput,
 } from "../../shared/settings-schema.ts";
+import type { UiLang } from "../shared/ui-lang.ts";
+import { textOf } from "./text.ts";
 
 export interface AiForm {
   readonly presetId: string;
@@ -102,8 +103,6 @@ export function showsRegionChooser(saved: LoadedSettings): boolean {
   return REGION_PRESETS.some((region) => region.presetId === saved.presetId);
 }
 
-export const EFFORT_LABELS: Readonly<Record<Effort, string>> = Object.freeze({ off: "关", low: "低", medium: "中", high: "高" });
-
 const trimmedModels = (models: AiForm["featureModels"]): string =>
   JSON.stringify(FEATURE_MODEL_SLOTS.map(({ id }) => (models[id] ?? "").trim()));
 
@@ -122,35 +121,33 @@ export function serviceChanged(form: AiForm, saved: LoadedSettings): boolean {
 }
 
 /** 实际生效的档位和选的不一样时，旁边那一句；一样、或者选关而服务说不准时不说。 */
-export function effortNoteText(item: Pick<EffortPreviewItem, "requested" | "effective" | "note">): string | null {
+export function effortNoteText(item: Pick<EffortPreviewItem, "requested" | "effective" | "note">, lang: UiLang = "zh"): string | null {
   const { requested, effective, note } = item;
-  if (note === "cannot-disable") return `这个模型关不掉思考，实际按最低的「${EFFORT_LABELS[effective]}」档`;
-  if (note === "unknown") return requested === "off" ? null : "这个服务调不了推理强度，由服务自己决定";
-  if (requested !== effective && effective === "off") return "这个模型调不了推理强度，实际按「关」";
-  if (requested !== effective) return `这个模型没有「${EFFORT_LABELS[requested]}」档，实际按「${EFFORT_LABELS[effective]}」档`;
+  const t = textOf(lang).efforts;
+  if (note === "cannot-disable") return t.cannotDisable(t.labels[effective]);
+  if (note === "unknown") return requested === "off" ? null : t.serviceDecides;
+  if (requested !== effective && effective === "off") return t.alwaysOff;
+  if (requested !== effective) return t.missingLevel(t.labels[requested], t.labels[effective]);
   return null;
 }
-
-const tokens = (count: number): string => count.toLocaleString("zh-CN");
 
 /**
  * 这项功能最近一次请求的用量那一行。数字都是服务回报的；思考没单独报时照实说，不估算；档位写那次实际按的，
  * 扩展设不了时写由服务决定；那次用的模型和现在的不一样时带上模型名。没请求过时不说。
  * 服务报的合计比输入加输出多时在最后写上：多出来的那部分服务没说是什么，照原样摆出来，不替它算成思考；一样多时不重复写。
  */
-export function usageText(item: Pick<EffortPreviewItem, "model" | "lastUsage">): string | null {
+export function usageText(item: Pick<EffortPreviewItem, "model" | "lastUsage">, lang: UiLang = "zh"): string | null {
   const last = item.lastUsage;
   if (!last) return null;
+  const t = textOf(lang).efforts;
+  const tokens = (count: number): string => count.toLocaleString(t.numberLocale);
   const { input, output, reasoning, total } = last.usage;
   const showTotal = total !== undefined && (input === undefined || output === undefined || total > input + output);
-  const level = last.note === "unknown" ? "由服务决定" : EFFORT_LABELS[last.effort];
-  const head = `最近一次（${level}${last.model === item.model ? "" : `，${last.model}`}）`;
-  const parts = [
-    ...(input === undefined ? [] : [`输入 ${tokens(input)}`]),
-    ...(output === undefined ? [] : [`输出 ${tokens(output)}`]),
-  ];
-  if (!parts.length && reasoning === undefined && !showTotal) return `${head}：服务没回报用量`;
-  parts.push(reasoning === undefined ? "思考没单独报" : `思考 ${tokens(reasoning)}`);
-  if (showTotal) parts.push(`合计 ${tokens(total)}`);
-  return `${head}：${parts.join(" · ")}`;
+  const level = last.note === "unknown" ? t.usageLevelByService : t.labels[last.effort];
+  const head = t.usageHead(level, last.model === item.model ? null : last.model);
+  const parts = [...(input === undefined ? [] : [t.usageInput(tokens(input))]), ...(output === undefined ? [] : [t.usageOutput(tokens(output))])];
+  if (!parts.length && reasoning === undefined && !showTotal) return t.usageLine(head, t.usageNone);
+  parts.push(reasoning === undefined ? t.usageReasoningMissing : t.usageReasoning(tokens(reasoning)));
+  if (showTotal) parts.push(t.usageTotal(tokens(total)));
+  return t.usageLine(head, parts.join(" · "));
 }
