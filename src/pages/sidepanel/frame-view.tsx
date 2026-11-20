@@ -6,15 +6,10 @@ import { formatTimestamp } from "../../core/transcript/segment.ts";
 import type { FrameEntryView } from "../../shared/messages/frame.ts";
 import { Button } from "../shared/ui/button.tsx";
 import { StateBlock } from "../shared/ui/state-block.tsx";
+import { uiLang } from "../shared/ui-lang.ts";
+import { frameText } from "./frame-text.ts";
 import type { FrameStore } from "./frame.ts";
 import type { Panel } from "./panel.ts";
-
-const PHASE_TEXT: Readonly<Record<FrameEntryView["phase"], string>> = {
-  checking: "正在查模型能不能看图…",
-  capturing: "正在截取画面…",
-  thinking: "正在请模型看图…",
-  finished: "",
-};
 
 // 这几种要到设置页去改。
 const NEEDS_SETTINGS: ReadonlySet<ErrorCode> = new Set<ErrorCode>(["AI_IMAGE_UNSUPPORTED", "NO_AI_CONFIG", "NO_DATA_CONSENT", "NEED_HOST_PERMISSION", "INVALID_AI_KEY"]);
@@ -22,22 +17,23 @@ const NEEDS_SETTINGS: ReadonlySet<ErrorCode> = new Set<ErrorCode>(["AI_IMAGE_UNS
 function FrameCard({ panel, frame, entry }: { readonly panel: Panel; readonly frame: FrameStore; readonly entry: FrameEntryView }) {
   const time = entry.atSec === undefined ? null : formatTimestamp(entry.atSec);
   const copy = entry.error ? errorCopy(entry.error.code, entry.error.detail) : null;
+  const t = frameText(uiLang.value);
   return (
     <article class="frame-card" aria-busy={entry.state === "running"}>
       <header class="frame-card-head">
-        <span class="frame-card-title">画面</span>
+        <span class="frame-card-title">{t.title}</span>
         {time !== null && entry.atSec !== undefined ? (
-          <button type="button" class="stamp" aria-label={`跳回这一帧 ${time}`} onClick={() => void panel.seek(entry.atSec ?? 0)}>
+          <button type="button" class="stamp" aria-label={t.jumpBack(time)} onClick={() => void panel.seek(entry.atSec ?? 0)}>
             {time}
           </button>
         ) : null}
-        <button type="button" class="frame-card-close" aria-label="关掉这条解释" onClick={() => frame.dismiss(entry.id)}>
+        <button type="button" class="frame-card-close" aria-label={t.dismiss} onClick={() => frame.dismiss(entry.id)}>
           ×
         </button>
       </header>
       {entry.state === "running" ? (
         <p class="frame-card-status" role="status">
-          {PHASE_TEXT[entry.phase]}
+          {t.phases[entry.phase]}
         </p>
       ) : null}
       {entry.state === "done" ? <p class="frame-card-text">{entry.explanation}</p> : null}
@@ -46,7 +42,7 @@ function FrameCard({ panel, frame, entry }: { readonly panel: Panel; readonly fr
           title={copy.cause}
           impact={copy.impact}
           next={copy.next}
-          {...(NEEDS_SETTINGS.has(entry.error.code) ? { primary: { label: "打开设置", onClick: () => panel.openSettingsAt("ai-service") } } : {})}
+          {...(NEEDS_SETTINGS.has(entry.error.code) ? { primary: { label: t.openSettings, onClick: () => panel.openSettingsAt("ai-service") } } : {})}
         />
       ) : null}
     </article>
@@ -57,7 +53,7 @@ export function FrameResults({ panel, frame }: { readonly panel: Panel; readonly
   const entries = frame.entries.value;
   if (entries.length === 0) return null;
   return (
-    <section class="frame-results" aria-label="画面解释">
+    <section class="frame-results" aria-label={frameText(uiLang.value).label}>
       {entries.map((entry) => (
         <FrameCard key={entry.id} panel={panel} frame={frame} entry={entry} />
       ))}
@@ -68,7 +64,7 @@ export function FrameResults({ panel, frame }: { readonly panel: Panel; readonly
 export function FrameButton({ panel, frame }: { readonly panel: Panel; readonly frame: FrameStore }) {
   return (
     <Button variant="text" onClick={() => void frame.explain().then(panel.say)}>
-      解释画面
+      {frameText(uiLang.value).button}
     </Button>
   );
 }

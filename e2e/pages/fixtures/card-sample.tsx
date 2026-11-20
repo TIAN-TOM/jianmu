@@ -3,7 +3,7 @@
 // 带 #official 时是还没有概览、只有一段不长的官方总结，带 #setup-key 时是还没有概览、以前配好过 AI 服务但密钥清空了（说明用产品里的 cardSetupHint），
 // 带 #youtube 时是 YouTube 上已有概览、本机没有字幕（没有官方总结），带 #youtube-unread 时是没有代开文字稿的构建里，YouTube 上本机既没有概览也没有字幕，
 // 带 #youtube-ready 时是 YouTube 上还没有概览、字幕已经读过；不带时是刚打开的默认样子；
-// 「展开全部」和官方总结那一行点得动。卡片的界面组件原样用，样式用产品的 card.css。
+// 「展开全部」和官方总结那一行点得动。卡片的界面组件原样用，样式用产品的 card.css。界面语言照卡片入口那样跟着设置。
 // 带 #official-late、#official-never 时接上真实的卡片模型，后台换成本页的替身：官方总结先回「还在读」，
 // 前者过一会儿读到、照后台的做法广播一次重读，后者一直读不到。
 import { signal } from "@preact/signals";
@@ -14,6 +14,9 @@ import { AUTO_FOLD_NOTE } from "../../../src/pages/card/glance.ts";
 import { createCardModel, NOT_READ_TEXT, type CardView } from "../../../src/pages/card/model.ts";
 import { createPageApi, type PageRuntime } from "../../../src/pages/shared/api.ts";
 import { cardSetupHint, type ConfigState } from "../../../src/pages/shared/config.ts";
+import { bindDocumentLang, initUiLang, setUiLanguage } from "../../../src/pages/shared/ui-lang.ts";
+import { cardTextOf } from "../../../src/pages/card/text.ts";
+import { SETTINGS_STORAGE_KEY } from "../../../src/shared/names.ts";
 
 const LONG = "这是一段自造的样例文字，用来把卡片撑得很高，看底部的按钮会不会被裁掉。";
 const full = location.hash === "#full";
@@ -140,6 +143,14 @@ function lateOfficial(root: HTMLElement, arrives: boolean): void {
 function LiveApp({ model, actions: live }: { readonly model: ReturnType<typeof createCardModel>; readonly actions: CardActions }) {
   return <Card view={model.view.value} aiReady={model.aiReady.value} setupHint="" actions={live} />;
 }
+
+// 界面语言照卡片入口那样定：先按首帧缓存，之后设置里的语言选项变了跟着换。别的外观由测试自己写，这里不接。
+initUiLang();
+bindDocumentLang(document, (lang) => cardTextOf(lang).title);
+chrome.storage.onChanged.addListener((changes, area) => {
+  const next: unknown = changes[SETTINGS_STORAGE_KEY]?.newValue;
+  if (area === "local" && typeof next === "object" && next !== null) setUiLanguage((next as { readonly language?: unknown }).language);
+});
 
 const root = document.getElementById("app");
 if (root && (location.hash === "#official-late" || location.hash === "#official-never")) lateOfficial(root, location.hash === "#official-late");

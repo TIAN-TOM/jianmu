@@ -2,7 +2,7 @@
 // 没确认启用时只说去侧边栏或设置页启用，这一页不能确认。状态和动作都在 state.ts，这里只渲染。
 import { hasOfficialContent, isOfficialDone } from "../../core/triage/batch.ts";
 import { formatDuration, progressText } from "../../core/triage/export.ts";
-import { GROUPS, groupItems, groupKeyOf, hasVerdict, type TriageVerdict } from "../../core/triage/groups.ts";
+import { GROUPS, groupItems, groupKeyOf, groupName, hasVerdict, type TriageVerdict } from "../../core/triage/groups.ts";
 import type { TriageItem } from "../../core/triage/state.ts";
 import type { Activation } from "../shared/activation.ts";
 import { Button } from "../shared/ui/button.tsx";
@@ -10,7 +10,9 @@ import { ServiceSaid } from "../shared/ui/notice.tsx";
 import { StateBlock } from "../shared/ui/state-block.tsx";
 import { stateCopy } from "../shared/ui/state.ts";
 import { VerdictBlock } from "../shared/ui/verdict-block.tsx";
+import { uiLang } from "../shared/ui-lang.ts";
 import { officialRecordText, type Filter, type Status, type TriageState } from "./state.ts";
+import { triageText } from "./text.ts";
 
 function StatusLine({ status }: { readonly status: Status | null }) {
   return (
@@ -23,8 +25,9 @@ function StatusLine({ status }: { readonly status: Status | null }) {
 function Confirm({ state }: { readonly state: TriageState }) {
   const ask = state.pending.value;
   if (!ask) return null;
+  const t = triageText();
   return (
-    <div class="confirm" role="group" aria-label="开始前确认" data-step={ask.step}>
+    <div class="confirm" role="group" aria-label={t.confirmLabel} data-step={ask.step}>
       {ask.lines.map((line) => (
         <p class="confirm-question" key={line}>
           {line}
@@ -32,10 +35,10 @@ function Confirm({ state }: { readonly state: TriageState }) {
       ))}
       <div class="actions">
         <Button variant="primary" onClick={() => state.confirm()}>
-          现在开始
+          {t.confirm}
         </Button>
         <Button variant="text" onClick={() => state.cancel()}>
-          取消
+          {t.cancel}
         </Button>
       </div>
     </div>
@@ -45,15 +48,16 @@ function Confirm({ state }: { readonly state: TriageState }) {
 function StepActions({ state, step }: { readonly state: TriageState; readonly step: "official" | "verdict" }) {
   const running = state.running.value;
   const busy = running !== null || state.pending.value !== null;
+  const t = triageText();
   return (
     <div class="actions">
       {running === step ? (
         <Button disabled={state.stopping.value} onClick={() => state.stop()}>
-          {state.stopping.value ? "正在停止…" : "停止"}
+          {state.stopping.value ? t.stopping : t.stop}
         </Button>
       ) : (
         <Button variant="primary" disabled={busy} onClick={() => (step === "official" ? state.askOfficial() : void state.askVerdicts())}>
-          {step === "official" ? "开始取官方总结" : "开始写结论"}
+          {step === "official" ? t.official.start : t.verdict.start}
         </Button>
       )}
     </div>
@@ -62,27 +66,24 @@ function StepActions({ state, step }: { readonly state: TriageState; readonly st
 
 function Steps({ state }: { readonly state: TriageState }) {
   const pending = state.pending.value;
+  const t = triageText();
   return (
     <section class="card" id="triage-steps">
       <div class="step" id="step-official">
-        <h2>第一步：取 B 站官方总结</h2>
-        <p class="hint">不调模型，不花 API 额度。一次一个，每两次请求之间至少隔 1 秒；已经取到结果的视频会跳过，被 B 站限流或接连要登录时停下。</p>
+        <h2>{t.official.title}</h2>
+        <p class="hint">{t.official.hint}</p>
         <StepActions state={state} step="official" />
         {pending?.step === "official" ? <Confirm state={state} /> : null}
         <StatusLine status={state.officialStatus.value} />
       </div>
       <div class="step" id="step-verdict">
-        <h2>第二步：写一句话结论</h2>
-        <p class="hint">
-          会花 API 额度。只给有官方总结、还没有结论的视频写，每个视频发一次小请求，会把标题、简介、UP 主名、时长和官方总结发给你设置的模型服务，不发字幕和观看进度。没有官方总结的视频不在这里写，它旁边有去视频页的链接，要不要生成完整概览由你决定。
-        </p>
+        <h2>{t.verdict.title}</h2>
+        <p class="hint">{t.verdict.hint}</p>
         <StepActions state={state} step="verdict" />
         {pending?.step === "verdict" ? <Confirm state={state} /> : null}
         <StatusLine status={state.verdictStatus.value} />
       </div>
-      <p class="hint note">
-        关掉这个页面就不再开始新的视频；已经发出去的请求会照常收尾，可能照样计费。已经取到的官方总结和写好的结论都会保存，重新打开能直接看到，再点开始会跳过它们。
-      </p>
+      <p class="hint note">{t.closeNote}</p>
     </section>
   );
 }
@@ -96,16 +97,18 @@ function Row({ state, item }: { readonly state: TriageState; readonly item: Tria
   const url = state.videoUrl(item);
   const error = state.errors.value[item.videoKey];
   const hasContent = hasOfficialContent(record);
+  const lang = uiLang.value;
+  const t = triageText();
   const outline = (record?.outline ?? [])
     .map((section) => String((section as { readonly title?: unknown } | null)?.title ?? "").trim())
     .filter(Boolean)
-    .join("；");
+    .join(t.outlineJoin);
   const meta = [
     item.ownerName,
     item.duration ? formatDuration(item.duration) : "",
-    progressText(item),
-    (item.pageCount ?? 1) > 1 ? `共 ${item.pageCount} P，只看第 1 P` : "",
-    item.available === false ? "已失效" : "",
+    progressText(item, lang),
+    (item.pageCount ?? 1) > 1 ? t.pages(item.pageCount ?? 1) : "",
+    item.available === false ? t.unavailable : "",
   ].filter(Boolean);
   return (
     <li class="video" data-video={item.videoKey} data-group={groupKeyOf(verdict)}>
@@ -122,24 +125,24 @@ function Row({ state, item }: { readonly state: TriageState; readonly item: Tria
           <VerdictBlock label={verdict.verdict ?? ""} text={verdict.summary ?? ""} basis={sourceOf(verdict)} />
         ) : null}
         {hasVerdict(verdict) && (verdict.value || verdict.reason) ? (
-          <p class="video-line">{[verdict.value ? `核心价值：${verdict.value}` : "", verdict.reason ? `理由：${verdict.reason}` : ""].filter(Boolean).join(" ")}</p>
+          <p class="video-line">{[verdict.value ? t.value(verdict.value) : "", verdict.reason ? t.reason(verdict.reason) : ""].filter(Boolean).join(" ")}</p>
         ) : null}
         <p class="video-official" data-status={hasContent ? "ok" : "none"}>
           {hasContent ? (
             <>
-              <span class="label">B 站官方总结：</span>
+              <span class="label">{t.officialLabel}</span>
               {String(record?.summary ?? "").trim() || outline}
             </>
           ) : (
-            officialRecordText(record, item)
+            officialRecordText(record, item, lang)
           )}
         </p>
         {isOfficialDone(record) && !hasContent && !hasVerdict(verdict) ? (
           <p class="video-note">
             <a href={url} target="_blank" rel="noopener noreferrer">
-              去视频页生成概览 ↗
+              {t.goGenerate}
             </a>
-            （在侧边栏里生成，会花 API 额度）
+            {t.goGenerateNote}
           </p>
         ) : null}
         {error ? <p class="video-error">{error.text}</p> : null}
@@ -154,21 +157,22 @@ function Results({ state }: { readonly state: TriageState }) {
   const verdicts = state.snapshot.value?.verdicts ?? {};
   const groups = groupItems(items, verdicts);
   const filter = state.filter.value;
+  const t = triageText();
   const entries: { readonly key: Filter; readonly label: string; readonly count: number }[] = [
-    { key: "all", label: "全部", count: items.length },
+    { key: "all", label: t.all, count: items.length },
     // 旧判断只在真有的时候列出来，新装的用户看不到这一组。
-    ...GROUPS.filter((group) => group.key !== "legacy" || groups.legacy.length > 0).map((group) => ({ key: group.key, label: group.label, count: groups[group.key].length })),
+    ...GROUPS.filter((group) => group.key !== "legacy" || groups.legacy.length > 0).map((group) => ({ key: group.key, label: groupName(group.key, uiLang.value), count: groups[group.key].length })),
   ];
   const shown = filter === "all" ? items : groups[filter];
   return (
     <section class="card" id="triage-results">
       <div class="results-head">
-        <h2>结果</h2>
+        <h2>{t.results}</h2>
         <Button disabled={items.length === 0} onClick={() => state.exportMarkdown()}>
-          导出 Markdown
+          {t.exportMarkdown}
         </Button>
       </div>
-      <div class="filters" role="group" aria-label="按判断筛选">
+      <div class="filters" role="group" aria-label={t.filterLabel}>
         {entries.map((entry) => (
           <button key={entry.key} type="button" class="filter" data-group={entry.key} aria-pressed={filter === entry.key} onClick={() => state.setFilter(entry.key)}>
             {entry.label} {entry.count}
@@ -182,7 +186,7 @@ function Results({ state }: { readonly state: TriageState }) {
           ))}
         </ul>
       ) : (
-        <p class="hint">{items.length ? "这一组还没有视频。" : "稍后再看是空的。"}</p>
+        <p class="hint">{items.length ? t.emptyGroup : t.emptyList}</p>
       )}
     </section>
   );
@@ -192,33 +196,30 @@ export function App({ state, activation, optionsUrl }: { readonly state: TriageS
   const view = activation.view.value;
   const hasList = state.snapshot.value?.list != null;
   const loadFailure = state.loadFailure.value;
+  const t = triageText();
   return (
     <main class="page triage-page">
       <header class="page-head">
-        <h1>稍后再看粗筛</h1>
+        <h1>{t.heading}</h1>
         <a class="back-link" href={optionsUrl}>
-          ← 返回设置
+          {t.back}
         </a>
       </header>
-      <p class="lede">先用 B 站官方总结快速看每个视频讲了什么，再决定要不要花 API 额度写一句话结论。只读取你自己的稍后再看列表，不改动 B 站上的任何数据。</p>
-      {view.state === "loading" ? <p class="hint">正在读取启用状态……</p> : null}
+      <p class="lede">{t.lede}</p>
+      {view.state === "loading" ? <p class="hint">{t.activationLoading}</p> : null}
       {view.state === "failed" ? (
-        <StateBlock {...stateCopy(view.failure.code, view.failure.detail)} primary={{ label: "重试", onClick: () => void activation.load() }} />
+        <StateBlock {...stateCopy(view.failure.code, view.failure.detail)} primary={{ label: t.retry, onClick: () => void activation.load() }} />
       ) : null}
-      {view.state === "needed" ? (
-        <StateBlock title="还没启用简幕" impact="先在侧边栏或设置页读一下启用说明，点「启用简幕」，再回到这一页。" />
-      ) : null}
+      {view.state === "needed" ? <StateBlock title={t.notEnabledTitle} impact={t.notEnabledImpact} /> : null}
       {activation.enabled.value ? (
         <>
-          {loadFailure ? <StateBlock {...stateCopy(loadFailure.code, loadFailure.detail)} primary={{ label: "重试", onClick: () => void state.load() }} /> : null}
+          {loadFailure ? <StateBlock {...stateCopy(loadFailure.code, loadFailure.detail)} primary={{ label: t.retry, onClick: () => void state.load() }} /> : null}
           <section class="card" id="triage-list">
-            <h2>读取列表</h2>
-            <p class="hint">
-              要先在这个浏览器里登录 B 站。点一次只读一次列表，包括每个视频的观看进度，这一步不调模型。读到的列表和官方总结只存在这台电脑上，存 30 天，过期后重新读取；观看进度只在本机显示和导出，不发给模型服务。
-            </p>
+            <h2>{t.list.title}</h2>
+            <p class="hint">{t.list.hint}</p>
             <div class="actions">
               <Button variant="primary" disabled={state.running.value !== null} onClick={() => state.readList()}>
-                {state.running.value === "list" ? "正在读取" : "读取我的稍后再看"}
+                {state.running.value === "list" ? t.list.reading : t.list.read}
               </Button>
             </div>
             <StatusLine status={state.listStatus.value} />

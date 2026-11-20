@@ -93,6 +93,11 @@ const repeat = (ms: number, run: () => void): (() => void) => {
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null;
 
+/** 外观广播里的语言选项，没带时不给。 */
+function languageOf(message: object): { readonly language?: unknown } {
+  return "language" in message ? { language: (message as { readonly language?: unknown }).language } : {};
+}
+
 /** 只认后台的这几种广播；内容脚本收到的其余消息是播放器指令。 */
 function broadcastOf(message: unknown): Broadcast | null {
   if (!isRecord(message)) return null;
@@ -211,7 +216,8 @@ export function createContentApp(deps: ContentAppDeps): ContentApp {
       if (broadcast.platform === deps.site && !broadcast.enabled) stop();
     } else if (broadcast?.type === "appearance.changed") {
       appearanceVersion += 1;
-      surface?.setAppearance({ accentTheme: broadcast.accentTheme, inPageCard: broadcast.inPageCard });
+      // 语言选项原样带过去：后台的广播里有它时，播放页上的字跟着换。
+      surface?.setAppearance({ accentTheme: broadcast.accentTheme, inPageCard: broadcast.inPageCard, ...languageOf(broadcast) });
     } else if (!broadcast && player && gate.isOpen() && !retired) {
       const answer = player.handle(message);
       if (answer) reply(answer);

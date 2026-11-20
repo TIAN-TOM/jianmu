@@ -7,18 +7,24 @@ import { Button } from "../shared/ui/button.tsx";
 import { busyOf, confirmText, countsOf, progressText, RETRYABLE } from "./batch.ts";
 import type { Panel } from "./panel.ts";
 import { setupReason } from "../shared/config.ts";
+import { sharedText } from "../shared/text.ts";
+import { uiLang } from "../shared/ui-lang.ts";
+import { panelText } from "./text.ts";
 
 export function BatchBar({ panel, ready }: { readonly panel: Panel; readonly ready: boolean }) {
   const { batch } = panel;
   const state = batch.state.value;
   const error = batch.error.value;
-  const notReady = ready ? {} : { disabledReason: setupReason(panel.config.state.value) ?? "先在设置页设置 AI 服务" };
+  const lang = uiLang.value;
+  const p = panelText();
+  const t = p.batch;
+  const notReady = ready ? {} : { disabledReason: setupReason(panel.config.state.value, lang) ?? sharedText().setup.reason.none };
 
   if (state.phase === "idle") {
     return (
-      <section class="batch-bar" data-phase="idle" aria-label="本窗口全部生成">
+      <section class="batch-bar" data-phase="idle" aria-label={t.label}>
         <Button disabled={!ready} {...notReady} onClick={() => batch.count()}>
-          本窗口全部生成
+          {t.label}
         </Button>
         {error ? <p class="batch-error" role="alert">{error}</p> : null}
       </section>
@@ -27,9 +33,9 @@ export function BatchBar({ panel, ready }: { readonly panel: Panel; readonly rea
 
   if (state.phase === "counting") {
     return (
-      <section class="batch-bar" data-phase="counting" aria-label="本窗口全部生成">
+      <section class="batch-bar" data-phase="counting" aria-label={t.label}>
         <p class="batch-status" role="status">
-          正在清点本窗口的视频…
+          {t.counting}
         </p>
       </section>
     );
@@ -38,23 +44,21 @@ export function BatchBar({ panel, ready }: { readonly panel: Panel; readonly rea
   if (state.phase === "confirm") {
     const todo = state.items.filter((item) => item.state === "to-generate").length;
     return (
-      <section class="batch-bar" data-phase="confirm" aria-label="本窗口全部生成">
+      <section class="batch-bar" data-phase="confirm" aria-label={t.label}>
         <p class="batch-status" role="status">
-          {confirmText(state.items)}
+          {confirmText(state.items, lang)}
         </p>
         {todo ? (
-          <p class="batch-notice">
-            确认以后逐个读字幕、交给你设置的模型服务生成概览，会用掉 API 额度；同时进行的请求最多 {AI_CONCURRENCY} 个。关掉侧边栏也会接着做完。
-          </p>
+          <p class="batch-notice">{t.notice(AI_CONCURRENCY)}</p>
         ) : null}
         <div class="batch-actions">
           {todo ? (
             <Button variant="primary" disabled={!ready} {...notReady} onClick={() => batch.confirm()}>
-              开始生成 {todo} 个
+              {t.start(todo)}
             </Button>
           ) : null}
           <Button variant="text" onClick={() => batch.dismiss()}>
-            {todo ? "取消" : "知道了"}
+            {todo ? p.cancel : t.gotIt}
           </Button>
         </div>
         {error ? <p class="batch-error" role="alert">{error}</p> : null}
@@ -70,19 +74,19 @@ export function BatchBar({ panel, ready }: { readonly panel: Panel; readonly rea
   const retryable = run.entries.filter((entry) => RETRYABLE.has(entry.status));
   const partial = run.entries.filter((entry) => entry.status === "completed" && entry.partial);
   return (
-    <section class="batch-bar" data-phase="active" aria-label="本窗口全部生成">
+    <section class="batch-bar" data-phase="active" aria-label={t.label}>
       <p class="batch-status" role="status">
-        {progressText(run)}
+        {progressText(run, lang)}
       </p>
-      <progress class="batch-progress" max={Math.max(1, total)} value={settled} aria-label="本窗口的进度" />
+      <progress class="batch-progress" max={Math.max(1, total)} value={settled} aria-label={t.progressLabel} />
       <div class="batch-actions">
         {busy ? (
           <Button disabled={run.stopping} onClick={() => batch.stopAll()}>
-            {run.stopping ? "正在停止…" : "全部停止"}
+            {run.stopping ? t.stopping : t.stopAll}
           </Button>
         ) : (
           <Button variant="text" onClick={() => batch.dismiss()}>
-            收起
+            {t.collapse}
           </Button>
         )}
       </div>
@@ -94,24 +98,24 @@ export function BatchBar({ panel, ready }: { readonly panel: Panel; readonly rea
                 <span class="batch-failure-title" title={entry.title}>
                   {entry.title}
                 </span>
-                <span class="batch-failure-reason">{entry.status === "canceled" ? "已停止" : entry.failure ? describeFailure(entry.failure.code) : "生成失败"}</span>
+                <span class="batch-failure-reason">{entry.status === "canceled" ? t.canceled : entry.failure ? describeFailure(entry.failure.code) : t.failed}</span>
               </span>
               <Button variant="text" disabled={!ready} {...notReady} onClick={() => batch.retry(entry.video)}>
-                重试
+                {p.retry}
               </Button>
             </li>
           ))}
         </ul>
       ) : null}
       {partial.length ? (
-        <ul class="batch-failures" aria-label="不完整的概览">
+        <ul class="batch-failures" aria-label={t.partialLabel}>
           {partial.map((entry) => (
             <li key={entry.video} class="batch-failure" data-status="partial" data-video={entry.video}>
               <span class="batch-failure-text">
                 <span class="batch-failure-title" title={entry.title}>
                   {entry.title}
                 </span>
-                <span class="batch-failure-reason">有分块没生成成功，切到这个视频点「补失败块」</span>
+                <span class="batch-failure-reason">{t.partialReason}</span>
               </span>
             </li>
           ))}

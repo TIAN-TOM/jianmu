@@ -4,6 +4,8 @@
 import { signal, type ReadonlySignal } from "@preact/signals";
 import type { VideoKey } from "../../core/video-ref.ts";
 import type { ContentCommandName, ContentCommands, ContentReply } from "../../shared/messages/content.ts";
+import type { UiLang } from "../shared/ui-lang.ts";
+import { panelTextOf } from "./text.ts";
 
 /** 侧边栏自己发的指令：读状态、跳转。截帧由后台向内容脚本要，见 background/services/frame-explain.ts。 */
 export type PanelCommandName = Exclude<ContentCommandName, "player.captureFrame">;
@@ -12,14 +14,7 @@ export type PlayerReply<K extends ContentCommandName> = ContentReply<K> | { read
 
 export type PlayerFailure = ContentCommands[PanelCommandName]["refusal"] | "UNREACHABLE";
 
-const FAILURE_TEXT: Readonly<Record<PlayerFailure, string>> = {
-  VIDEO_CHANGED: "页面上的视频已经换了，刷新侧边栏或回到原视频再试。",
-  AD_PLAYING: "正在播广告，等广告放完再跳。",
-  NO_VIDEO: "页面上没找到视频。",
-  UNREACHABLE: "视频页还没连上简幕，刷新视频页后才能跳转。",
-};
-
-export const playerFailureText = (code: PlayerFailure): string => FAILURE_TEXT[code];
+export const playerFailureText = (code: PlayerFailure, lang: UiLang = "zh"): string => panelTextOf(lang).player[code];
 
 export interface PlayerTabs {
   sendMessage(tabId: number, message: unknown): Promise<unknown>;

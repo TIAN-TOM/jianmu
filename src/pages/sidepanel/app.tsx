@@ -3,7 +3,6 @@
 // 视频页没连上扩展、还没设置 AI 服务、字幕和视频对不上、打开就出结论停着，都放在头部下面的一行提示里。
 import { describe, errorCopy } from "../../core/errors.ts";
 import { noticeLines, noticeStatus, ACTIVATION_TABLE } from "../../core/consent.ts";
-import type { AutoPauseReason } from "../../shared/messages/ai.ts";
 import { ActivationNotice } from "../shared/ui/activation-notice.tsx";
 import { carriedList, carriedNotice } from "./carried.tsx";
 import { activationSections } from "../shared/ui/activation.ts";
@@ -26,30 +25,30 @@ import { StudyView } from "./study.tsx";
 import { FrameButton, FrameResults } from "./frame-view.tsx";
 import { YoutubeNoVideo } from "./youtube-gate.tsx";
 import { setupNotice } from "../shared/config.ts";
+import { sharedText } from "../shared/text.ts";
+import { uiLang } from "../shared/ui-lang.ts";
+import { panelText } from "./text.ts";
 
-const AUTO_PAUSED: Readonly<Record<AutoPauseReason, string>> = {
-  quota: "额度用完，打开就出结论已暂停。手动生成成功一次，或在设置页关掉再打开就恢复",
-  key: "密钥被拒，打开就出结论已暂停。手动生成成功一次，或在设置页关掉再打开就恢复",
-};
-
-const FULL_SECTIONS = (() => {
+/** 说明更新时可以展开看的完整说明。 */
+function fullSections() {
   const status = noticeStatus(ACTIVATION_TABLE, {});
-  return activationSections(status.state === "needed" ? noticeLines(status.items) : []);
-})();
+  return activationSections(status.state === "needed" ? noticeLines(status.items) : [], uiLang.value);
+}
 
 function Activation({ panel }: { readonly panel: Panel }) {
   const view = panel.activation.view.value;
-  if (view.state === "loading") return <p class="panel-loading">正在读取…</p>;
+  const t = panelText();
+  if (view.state === "loading") return <p class="panel-loading">{t.loading}</p>;
   if (view.state === "failed") {
-    return <StateBlock {...stateCopy(view.failure.code, view.failure.detail)} primary={{ label: "重试", onClick: () => void panel.activation.load() }} />;
+    return <StateBlock {...stateCopy(view.failure.code, view.failure.detail)} primary={{ label: t.retry, onClick: () => void panel.activation.load() }} />;
   }
   if (view.state !== "needed") return null;
   const failure = panel.activation.confirmFailure.value;
   return (
     <ActivationNotice
       updated={view.updated}
-      sections={activationSections(noticeLines(view.items))}
-      fullSections={FULL_SECTIONS}
+      sections={activationSections(noticeLines(view.items), uiLang.value)}
+      fullSections={fullSections()}
       phase={panel.activation.phase.value}
       {...(failure ? { error: describe(failure.code, failure.detail) } : {})}
       onConfirm={() => void panel.activation.confirm()}
@@ -62,13 +61,14 @@ function Header({ panel }: { readonly panel: Panel }) {
   const view = now.state === "ready" ? now.view : null;
   const failure = now.state === "failed" ? now.failure : null;
   const info = view?.info ?? failure?.info;
-  const title = info?.title || failure?.tabTitle || panel.follow.target.value.title || "正在读取视频";
+  const t = panelText();
+  const title = info?.title || failure?.tabTitle || panel.follow.target.value.title || t.head.loadingVideo;
   const tracks = view?.tracks ?? [];
   const current = view?.transcript;
   const { tabId, video } = panel.follow.target.value;
   const items: MenuItem[] = tracks.map((track) => ({
     label: track.label,
-    ...(track.trackId === current?.trackId ? { hint: "正在用" } : {}),
+    ...(track.trackId === current?.trackId ? { hint: t.inUse } : {}),
     onSelect: () => {
       if (video && track.trackId !== current?.trackId) void panel.transcript.load(video, tabId, { lang: track.lang });
     },
@@ -79,15 +79,15 @@ function Header({ panel }: { readonly panel: Panel }) {
         <h1 class="video-title" title={title}>
           {title}
         </h1>
-        <IconButton icon="settings" label="打开设置" onClick={panel.openOptions} />
+        <IconButton icon="settings" label={t.openSettings} onClick={panel.openOptions} />
       </div>
       <div class="video-meta">
         {info?.author ? <span>{info.author}</span> : null}
         {current ? (
           tracks.length > 1 ? (
-            <Menu label="换字幕语言" icon="chevron" text={current.fileName ? `导入：${current.fileName}` : current.label} items={items} />
+            <Menu label={t.head.switchTrack} icon="chevron" text={current.fileName ? t.head.imported(current.fileName) : current.label} items={items} />
           ) : (
-            <span class="meta-chip">{current.fileName ? `导入：${current.fileName}` : current.label}</span>
+            <span class="meta-chip">{current.fileName ? t.head.imported(current.fileName) : current.label}</span>
           )
         ) : null}
       </div>
@@ -100,7 +100,7 @@ function ModeRow({ panel }: { readonly panel: Panel }) {
   return (
     <div class="mode-row">
       <ModeSwitch value={panel.mode.view.value.mode} onChange={(mode) => void panel.chooseMode(mode)} />
-      <IconButton icon="note" label="笔记" onClick={() => (panel.notesOpen.value = true)} />
+      <IconButton icon="note" label={panelText().head.notes} onClick={() => (panel.notesOpen.value = true)} />
     </div>
   );
 }
@@ -108,10 +108,11 @@ function ModeRow({ panel }: { readonly panel: Panel }) {
 /** 底部工具条：提问入口两种模式都在同一个位置，只打开抽屉；精读多一个「存笔记」，记下播放到的这一句。 */
 function Toolbar({ panel }: { readonly panel: Panel }) {
   const study = panel.mode.view.value.mode === "study";
+  const t = panelText().dock;
   const saveNote = async (): Promise<void> => {
     const { video } = panel.follow.target.peek();
     const position = panel.player.position.peek();
-    if (!video || !position || position.video !== video) return panel.say("还不知道播放到哪，等视频页连上简幕再记");
+    if (!video || !position || position.video !== video) return panel.say(panelText().dock.noPosition);
     const now = panel.transcript.state.peek();
     const segments = now.state === "ready" ? now.view.transcript.segments : [];
     const line = segments[activeIndex(segments, position.atSec)]?.text ?? "";
@@ -120,11 +121,11 @@ function Toolbar({ panel }: { readonly panel: Panel }) {
   return (
     <Dock>
       <button type="button" class="ask-entry" aria-haspopup="dialog" onClick={() => (panel.qaOpen.value = true)}>
-        针对这个视频提问
+        {t.ask}
       </button>
       {study ? (
         <Button variant="text" onClick={() => void saveNote()}>
-          存笔记
+          {t.saveNote}
         </Button>
       ) : null}
       {FEATURE_FRAME_EXPLAIN && study && panel.frame ? <FrameButton panel={panel} frame={panel.frame} /> : null}
@@ -140,27 +141,29 @@ function notices(panel: Panel): (NoticeEntry | null)[] {
   const unreachable = panel.player.connected.value === false || (tabId !== null && panel.activation.unreachableTabs.value.includes(tabId));
   const config = panel.config.state.value;
   const now = panel.transcript.state.value;
+  const p = panelText();
+  const t = p.notices;
   return [
     toast ? { id: `toast-${toast.id}`, priority: 0, text: toast.text, tone: "accent" } : null,
     unreachable && tabId !== null
       ? {
           id: "connect",
           priority: 1,
-          text: "视频页还没连上简幕，刷新后才能跳转和跟着播放滚动",
+          text: t.connect,
           tone: "warn",
-          action: { label: "刷新视频页", run: () => void chrome.tabs.reload(tabId).catch(() => undefined) },
+          action: { label: t.reloadPage, run: () => void chrome.tabs.reload(tabId).catch(() => undefined) },
         }
       : null,
     panel.undoLine.shown.value
-      ? { id: AUTO_SWITCHED, priority: 1.5, text: "已切到精读", tone: "accent", action: { label: "回到速览", run: () => void panel.mode.undo() } }
+      ? { id: AUTO_SWITCHED, priority: 1.5, text: t.switchedToStudy, tone: "accent", action: { label: t.backToSkim, run: () => void panel.mode.undo() } }
       : null,
     now.state === "ready" && now.view.subtitleMismatch ? { id: "mismatch", priority: 2, text: errorCopy("SUBTITLE_MISMATCH").cause, tone: "warn" } : null,
     config.state === "checked" && !config.view.ready
-      ? { id: "config", priority: 3, text: setupNotice(config), tone: "plain", action: { label: "打开设置", run: () => panel.openSettingsAt("ai-service") } }
+      ? { id: "config", priority: 3, text: setupNotice(config, uiLang.value), tone: "plain", action: { label: p.openSettings, run: () => panel.openSettingsAt("ai-service") } }
       : null,
     FEATURE_KEEP_CONSENT ? carriedNotice(panel) : null,
     config.state === "checked" && config.view.autoPaused
-      ? { id: "auto-paused", priority: 4, text: AUTO_PAUSED[config.view.autoPaused], tone: "warn", action: { label: "打开设置", run: panel.openOptions } }
+      ? { id: "auto-paused", priority: 4, text: t.autoPaused[config.view.autoPaused], tone: "warn", action: { label: p.openSettings, run: panel.openOptions } }
       : null,
   ];
 }
@@ -174,7 +177,8 @@ function UndoClock({ panel, shown }: { readonly panel: Panel; readonly shown: bo
 }
 
 function BilibiliNoVideo(_props: { readonly panel: Panel }) {
-  return <StateBlock title="打开一个 B 站视频" impact="在 B 站的视频播放页打开侧边栏，就能读字幕、生成概览、提问和记笔记。" />;
+  const t = panelText().noVideo;
+  return <StateBlock title={t.title} impact={t.impact} />;
 }
 
 // 关掉 YouTube 开关的构建里 YouTube 那一份连同授权按钮一起裁掉。
@@ -208,14 +212,14 @@ export function App({ panel }: { readonly panel: Panel }) {
       <Notice notices={lines} />
       {FEATURE_KEEP_CONSENT ? carriedList(panel) : null}
       {FEATURE_FRAME_EXPLAIN && panel.frame ? <FrameResults panel={panel} frame={panel.frame} /> : null}
-      <section class="mode-view" aria-label={mode === "study" ? "精读" : "速览"}>
+      <section class="mode-view" aria-label={sharedText().modes[mode]}>
         {mode === "study" ? <StudyView panel={panel} /> : <SkimView panel={panel} />}
       </section>
       <Toolbar panel={panel} />
-      <Sheet open={panel.qaOpen.value} title="问答" onClose={() => (panel.qaOpen.value = false)}>
+      <Sheet open={panel.qaOpen.value} title={panelText().qa.title} onClose={() => (panel.qaOpen.value = false)}>
         <QaTab panel={panel} />
       </Sheet>
-      <Layer open={panel.notesOpen.value} title="笔记" onClose={() => (panel.notesOpen.value = false)}>
+      <Layer open={panel.notesOpen.value} title={panelText().head.notes} onClose={() => (panel.notesOpen.value = false)}>
         {/* 层盖住了顶上那一行提示：改笔记、删笔记的结果在层里说。 */}
         {panel.notesOpen.value && panel.toast.value ? (
           <p class="layer-toast" role="status">

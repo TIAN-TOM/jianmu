@@ -10,8 +10,10 @@ import { createPageApi } from "../shared/api.ts";
 import { startWhenCurrent } from "../shared/build-check.ts";
 import { pageAppearanceSources, watchAppearance } from "../shared/theme.ts";
 import { renderStaleBackground } from "../shared/ui/stale-background.tsx";
+import { bindDocumentLang, initUiLang, uiLang } from "../shared/ui-lang.ts";
 import { App } from "./app.tsx";
 import { createTriageState } from "./state.ts";
+import { triageTextOf } from "./text.ts";
 
 const rules = siteRules.bilibili;
 
@@ -37,12 +39,16 @@ function download(filename: string, text: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+// 第一帧就是对的语言；读回设置以后由外观那边纠正，<html lang> 和标题跟着换。
+initUiLang();
+bindDocumentLang(document, (lang) => triageTextOf(lang).title);
+
 const api = createPageApi();
 const root = document.getElementById("app");
 
 function start(): void {
   const activation = createActivation({ api });
-  const state = createTriageState({ api, videoBase, videoUrl: (item) => videoUrl(item.videoKey), download });
+  const state = createTriageState({ api, videoBase, videoUrl: (item) => videoUrl(item.videoKey), download, lang: () => uiLang.value });
 
   void activation.load();
   void watchAppearance(pageAppearanceSources(api), document.documentElement);

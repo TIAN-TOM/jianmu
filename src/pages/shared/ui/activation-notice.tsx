@@ -3,6 +3,7 @@
 import { useId } from "preact/hooks";
 import { ACTIVATION_ICON, activationCopy, type ActivationSection } from "./activation.ts";
 import { Button } from "./button.tsx";
+import { uiLang } from "../ui-lang.ts";
 
 export type ActivationPhase = "idle" | "saving" | "failed";
 
@@ -38,7 +39,7 @@ function Sections({ sections, level }: { readonly sections: readonly ActivationS
 
 export function ActivationNotice({ updated, sections, fullSections, phase, error, onConfirm }: ActivationNoticeProps) {
   const id = useId();
-  const copy = activationCopy(updated);
+  const copy = activationCopy(updated, uiLang.value);
   const saving = phase === "saving";
   return (
     <section class="activation" aria-labelledby={`${id}-title`} data-updated={updated ? "true" : undefined}>

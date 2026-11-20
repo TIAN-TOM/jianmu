@@ -6,6 +6,8 @@ import type { QaRecord } from "../../core/notes/records.ts";
 import type { TaskView } from "../../core/tasks.ts";
 import type { VideoKey } from "../../core/video-ref.ts";
 import type { PageApi } from "../shared/api.ts";
+import type { UiLang } from "../shared/ui-lang.ts";
+import { panelTextOf } from "./text.ts";
 
 export interface QaState {
   readonly video: VideoKey | null;
@@ -44,7 +46,7 @@ export interface QaStore {
 
 const EXPLAIN_IDLE: ExplainState = { phase: "idle", selection: "", text: "" };
 
-export function createQaStore({ api }: { readonly api: Pick<PageApi, "send" | "on"> }): QaStore {
+export function createQaStore({ api, lang = () => "zh" }: { readonly api: Pick<PageApi, "send" | "on">; readonly lang?: () => UiLang }): QaStore {
   const state = signal<QaState>({ video: null, loaded: false, entries: [], pending: [], error: "", errorSaid: "", unsavedId: null });
   const explain = signal<ExplainState>(EXPLAIN_IDLE);
   let generation = 0;
@@ -72,7 +74,7 @@ export function createQaStore({ api }: { readonly api: Pick<PageApi, "send" | "o
     if (task.kind !== "qa" || task.state === "running" || awaiting.has(task.id)) return;
     if (!state.peek().pending.some((item) => item.taskId === task.id)) return;
     dropPending(asked, task.id);
-    if (task.state === "failed") patch(asked, { error: task.message || "没能回答这个问题。" });
+    if (task.state === "failed") patch(asked, { error: task.message || panelTextOf(lang()).qa.failed });
     void reload(asked, video);
   }
 
@@ -81,7 +83,7 @@ export function createQaStore({ api }: { readonly api: Pick<PageApi, "send" | "o
     if (!reply.ok) return;
     const running = reply.value.tasks.filter((task) => task.kind === "qa" && task.video === video && task.state === "running");
     const known = new Set(state.peek().pending.map((item) => item.taskId));
-    const extra = running.filter((task) => !known.has(task.id)).map((task) => ({ taskId: task.id, question: task.message || "正在回答一个问题" }));
+    const extra = running.filter((task) => !known.has(task.id)).map((task) => ({ taskId: task.id, question: task.message || panelTextOf(lang()).qa.pending }));
     if (extra.length) patch(asked, { pending: [...state.peek().pending, ...extra] });
   }
 

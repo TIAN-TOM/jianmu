@@ -11,8 +11,11 @@ import { videoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts"
 import type { GuidesFailure, OfficialSummaryView } from "../../shared/messages/transcript.ts";
 import type { PageApi } from "../shared/api.ts";
 import type { ConfigState } from "../shared/config.ts";
+import type { UiLang } from "../shared/ui-lang.ts";
 import { createFold } from "./fold.ts";
-import { AUTO_FOLD_NOTE, createGlance, PANEL_REFUSED_NOTE } from "./glance.ts";
+import { createGlance } from "./glance.ts";
+import { cardTextOf } from "./text.ts";
+import { CARD_ZH } from "./text-zh.ts";
 import { createActionHold, realTimers, type CardTimers } from "./timers.ts";
 
 export { SESSION_WAIT_MS } from "./fold.ts";
@@ -38,6 +41,8 @@ export interface CardDeps {
   readonly page?: { visible(): boolean; onVisible(run: () => void): () => void };
   /** 本标签页的播放器播到第几秒；问不到（没连上、在播广告、视频换了）时是 null。不给就不写当前章节。 */
   readonly position?: (tabId: number, video: VideoKey) => Promise<number | null>;
+  /** 界面语言：状态按写出来那一刻的语言写。不给时是中文。 */
+  readonly lang?: () => UiLang;
 }
 
 export type Tone = "" | "warn" | "error";
@@ -125,9 +130,10 @@ const LOAD_TIMEOUT_MS = 30_000;
 const EXTERNAL_CHECK_MS = 15_000;
 const HIDDEN_CODES: ReadonlySet<ErrorCode> = new Set(["NOT_ENABLED", "CARD_DISABLED"]);
 const SETTINGS_CODES: ReadonlySet<ErrorCode> = new Set(["NO_AI_CONFIG", "NO_DATA_CONSENT", "INVALID_AI_KEY", "INVALID_BASE_URL", "NEED_HOST_PERMISSION", "MODEL_OR_ENDPOINT_NOT_FOUND", "ANTHROPIC_WORKSPACE_REQUIRED"]);
-export const NO_CAPTIONS_TEXT = "这个视频没有 CC 字幕，生成不了概览。";
-export const NEED_LOGIN_TEXT = "登录 B 站后才读得到字幕、生成概览；也可以在侧边栏导入字幕文件。";
-export const NOT_READ_TEXT = "在侧边栏点「读取字幕」以后，这里才能生成概览。";
+// 中文的这几句，测试拿来对照。
+export const NO_CAPTIONS_TEXT = CARD_ZH.noCaptions;
+export const NEED_LOGIN_TEXT = CARD_ZH.needLogin;
+export const NOT_READ_TEXT = CARD_ZH.notRead;
 
 /** 有章节或金句才算已经有概览；只有一句话结论的，「生成概览」照样留着。 */
 export function hasOverview(analysis: LearningAnalysis | null): boolean {
@@ -153,6 +159,7 @@ const keyOf = (ref: VideoRef | null): VideoKey | null => {
 export function createCardModel(deps: CardDeps) {
   const { api, timers = realTimers, position } = deps;
   const view = signal<CardView>(INITIAL);
+  const t = () => cardTextOf(deps.lang?.() ?? "zh");
   let tab: CardTab | null = null;
   let video: VideoKey | null = null;
   // 换视频、关掉卡片就加一：迟到的结果对不上就不渲染。
@@ -191,7 +198,7 @@ export function createCardModel(deps: CardDeps) {
     place(collapsed, auto) {
       patch({ collapsed });
       // 展开着的卡片因为播满时长自己收起：在收起的那一行上说一句为什么。
-      glance.say(collapsed && auto ? AUTO_FOLD_NOTE : "");
+      glance.say(collapsed && auto ? t().autoFoldNote : "");
       if (!collapsed) void load();
     },
     panel: (open) => patch({ panelOpen: open }),
@@ -225,7 +232,7 @@ export function createCardModel(deps: CardDeps) {
     reset(next ? "loading" : "not-video");
     // 手动展开收起只管这一个视频：换了视频回到默认，先看新视频的会话定展开收起，再决定读不读。
     if (changed) fold.reset();
-    if (!next) patch({ collapsed: false, ...notice("这里不是视频播放页。") });
+    if (!next) patch({ collapsed: false, ...notice(t().notVideo) });
     if (changed && next) fold.wait();
     else void load();
   }
@@ -238,11 +245,11 @@ export function createCardModel(deps: CardDeps) {
     loadedTicket = asked;
     if (!quiet) {
       actionRow.hold();
-      patch({ phase: "loading", ...notice("正在读取这个视频的总结…") });
+      patch({ phase: "loading", ...notice(t().loading) });
     }
     const reply = await timers.timeout(api.send("transcript.get", { video: current, mode: "light" }), LOAD_TIMEOUT_MS);
     if (asked !== ticket) return;
-    if (reply === "timeout") return failLoad("读取超时，没读到这个视频的总结。");
+    if (reply === "timeout") return failLoad(t().loadTimeout);
     if (!reply.ok) {
       if (HIDDEN_CODES.has(reply.code)) return void deps.recheckConfig();
       const known = (reply as GuidesFailure).overview;
@@ -250,14 +257,14 @@ export function createCardModel(deps: CardDeps) {
       return failLoad(describe(reply.code, reply.detail), reply.said);
     }
     const value = reply.value;
-    if (!("mode" in value) || value.video !== current) return failLoad("读到的不是当前视频的数据。");
+    if (!("mode" in value) || value.video !== current) return failLoad(t().wrongVideo);
     [saved, savedBasis] = [value.overview?.analysis ?? null, value.overview?.transcriptBasis ?? null];
     const noCaptions = value.hasTranscript ? false : value.transcriptError === "NO_CAPTIONS" || view.peek().noCaptions;
     const needLogin = !value.hasTranscript && value.transcriptError === "NEED_LOGIN";
     // 能代开文字稿面板的构建里，本机没有字幕也能点生成：后台先经这个视频页读到字幕。
     const notRead = !value.hasTranscript && value.transcriptError === "NOT_CACHED" && !FEATURE_YOUTUBE_OPEN_PANEL;
     const following = view.peek().task;
-    const blocked = hasOverview(saved) ? "" : needLogin ? NEED_LOGIN_TEXT : notRead ? NOT_READ_TEXT : noCaptions ? NO_CAPTIONS_TEXT : "";
+    const blocked = hasOverview(saved) ? "" : needLogin ? t().needLogin : notRead ? t().notRead : noCaptions ? t().noCaptions : "";
     patch({
       phase: "loaded",
       title: value.info.title,
@@ -341,19 +348,15 @@ export function createCardModel(deps: CardDeps) {
     if (canceling) {
       await api.send("task.cancel", { taskId: task.id });
       settled.add(task.id);
-      return finishOwn(null, "TASK_CANCELED", "已停止生成。");
+      return finishOwn(null, "TASK_CANCELED", t().stopped);
     }
     const result = await api.send("overview.start", { video: current, token });
     settled.add(task.id);
     if (asked !== ticket) return;
-    if (!result.ok) return finishOwn(null, result.code, result.code === "TASK_CANCELED" ? "已停止生成。" : describe(result.code, result.detail), result.said);
+    if (!result.ok) return finishOwn(null, result.code, result.code === "TASK_CANCELED" ? t().stopped : describe(result.code, result.detail), result.said);
     const value = result.value;
     [saved, savedBasis] = [value.analysis, value.transcriptBasis ?? null];
-    const text = value.saveFailed
-      ? "概览已生成，但没能保存到本机，以后打开可能要重新生成。"
-      : value.canceled
-        ? `已停止生成，已保存 ${value.savedChunks ?? 0}/${value.chunkCount ?? 0} 块，可以在侧边栏里补失败块。`
-        : "";
+    const text = value.saveFailed ? t().saveFailed : value.canceled ? t().stoppedSaved(value.savedChunks ?? 0, value.chunkCount ?? 0) : "";
     patch({ task: null, ...shownSaved(), verdictPending: false, ...notice(text, value.saveFailed ? "warn" : "") });
   }
 
@@ -399,7 +402,7 @@ export function createCardModel(deps: CardDeps) {
   function onPreview(message: { readonly taskId: string; readonly video: VideoKey; readonly analysis: LearningAnalysis; readonly done: number; readonly total: number }): void {
     if (message.video !== video || view.peek().task?.id !== message.taskId) return;
     // 进度行已经写着完成了几块，这里只说结论什么时候有。
-    patch({ analysis: message.analysis, transcriptBasis: null, verdictPending: "章节还在生成，结论最后写。" });
+    patch({ analysis: message.analysis, transcriptBasis: null, verdictPending: t().chaptersFirst });
   }
 
   const subscriptions = [
@@ -440,7 +443,7 @@ export function createCardModel(deps: CardDeps) {
     async start(): Promise<void> {
       stopTimer = timers.every(EXTERNAL_CHECK_MS, () => void checkExternal());
       tab = await deps.currentTab();
-      if (!tab) return patch({ phase: "failed", ...notice("没能确认卡片所在的标签页，可以打开侧边栏看总结。", "error") });
+      if (!tab) return patch({ phase: "failed", ...notice(t().noTab, "error") });
       // 先问到侧边栏开没开再定展开收起：开着时卡片一出来就是收起的，不先展开、读一次、再收起。
       await fold.readPanel();
       ready = true;
@@ -474,8 +477,8 @@ export function createCardModel(deps: CardDeps) {
     toggle: () => fold.toggle(),
     /** 浏览器没让卡片直接打开侧边栏：展开着时在正文里说，收着时在那一行上说。 */
     panelRefused(): void {
-      patch({ notice: { text: "浏览器没让卡片直接打开侧边栏，请点浏览器工具栏里的简幕图标。", tone: "error" } });
-      if (view.peek().collapsed) glance.say(PANEL_REFUSED_NOTE);
+      patch({ notice: { text: t().panelRefused, tone: "error" } });
+      if (view.peek().collapsed) glance.say(t().panelRefusedNote);
     },
     toggleShowAll: (): void => patch({ showAll: !view.peek().showAll }),
     toggleOfficial: (): void => patch({ officialOpen: !view.peek().officialOpen }),
