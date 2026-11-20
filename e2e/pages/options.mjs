@@ -646,8 +646,6 @@ test("设置页：语言选 English 以后，标题、各节标题和按钮马�
     buttons: ["保存并授权", "测试连接", "导出备份", "恢复备份", "清除缓存", "清除全部数据"],
     languages: ["跟随浏览器", "中文", "English"],
   };
-  // 语言默认跟随浏览器：测试用的浏览器界面语言固定成中文（browser.mjs），别的测试才能照中文断言。
-  assert.match(await page.evaluate(`chrome.i18n.getUILanguage()`), /^zh/);
   assert.deepEqual(await page.evaluate(view), chinese);
 
   await fill(page, "#language", "en");

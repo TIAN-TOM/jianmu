@@ -23,7 +23,7 @@ import { videoKey } from "../src/core/video-ref.ts";
 import { createSettingsStore } from "../src/platform/settings-store.ts";
 import { EFFORT_TIMEOUT_SECONDS } from "../src/shared/settings-schema.ts";
 import { PAGE_PATHS } from "../src/shared/names.ts";
-import { launchChrome, prepareExtension } from "./browser.mjs";
+import { assertChineseUi, launchChrome, prepareExtension } from "./browser.mjs";
 import { ANTHROPIC, OPENAI, VIDEOS } from "./fixtures.mjs";
 import { PROBE, slowed, startMockServer } from "./mock-server.mjs";
 
@@ -402,6 +402,7 @@ try {
   const { product } = await cdp.send("Browser.getVersion", {}, undefined, STEP_TIMEOUT_MS);
   await cdp.send("Target.setDiscoverTargets", { discover: true });
   const { id } = await cdp.send("Extensions.loadUnpacked", { path: extensionDir }, undefined, STEP_TIMEOUT_MS);
+  await assertChineseUi(cdp, id, STEP_TIMEOUT_MS);
   workerUrl = `chrome-extension://${id}/background.js`;
   await until("service worker 启动", findWorker);
   console.log(`✓ ${product} 装上了扩展，只附加扩展页面、不附加 service worker`);
