@@ -19,8 +19,9 @@ export function prepareExtension({ zip, dir, origins = [] }) {
 }
 
 // 测试用的浏览器界面语言要是中文，页面测试和端到端照中文断言。Chrome 按平台认：Windows 认 --lang，macOS 认系统的
-// -AppleLanguages，Linux 看环境变量 LANGUAGE（其次是 LC_ALL、LC_MESSAGES、LANG）。只改这几个，别的环境变量照旧传下去。
-const LINUX_CHINESE_ENV = Object.freeze({ LANGUAGE: "zh_CN:zh", LC_ALL: "zh_CN.UTF-8", LC_MESSAGES: "zh_CN.UTF-8", LANG: "zh_CN.UTF-8" });
+// -AppleLanguages，Linux 看环境变量 LANGUAGE。Linux 上只设 LANGUAGE，别的环境变量照旧传下去；区域设置（LC_ALL、LC_MESSAGES、LANG）
+// 不动：指到机器上没生成的中文区域，系统库会退回 C 区域，带中文的下载文件名就转不成本机编码、落不下来。
+const LINUX_CHINESE_ENV = Object.freeze({ LANGUAGE: "zh_CN:zh" });
 const UI_LANGUAGE_HINT = "Linux 上设环境变量 LANGUAGE，macOS 上给启动参数 -AppleLanguages (zh-CN)，Windows 上给 --lang=zh-CN（e2e/browser.mjs）";
 
 /**
