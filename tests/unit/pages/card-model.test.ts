@@ -2,6 +2,7 @@
 // 侧边栏为同一视频起的任务就跟着看进度，结束后重读；换了视频，迟到的结果不渲染。
 // 展开收起跟着模式（PRD 6.5）：速览展开、精读收起，手动展开收起过的为准；收起时不读，后台标签页第一次到前台才读。
 // 新视频的会话还没有时先收着等它定模式，等不到才按速览展开。
+// 本窗口的侧边栏开着时让位收起，关上再回来；手动展开收起过的不跟，别的窗口的不算。
 // 按钮行在每个视频第一次读完、官方总结有了结果才摆，等不到也有上限；摆出来以后不再收回。
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -17,6 +18,8 @@ const FIRST: VideoRef = { platform: "bilibili", videoId: "BV1Sample001", segment
 const SECOND: VideoRef = { platform: "bilibili", videoId: "BV1Sample002", segment: 1 };
 const KEY = videoKey(FIRST);
 const READY: ConfigState = { state: "checked", view: { ready: true, errors: [] } };
+/** 卡片所在的窗口。 */
+const WINDOW = 7;
 
 const guides = (video = KEY, extra: object = {}) => ({
   ok: true,
@@ -32,14 +35,16 @@ function setup(config: ConfigState = READY, page?: { visible(): boolean; onVisib
   fake.reply("transcript.get", { value: guides() });
   fake.reply("task.list", { value: { ok: true, value: { tasks: [] } } });
   fake.reply("session.get", { value: { ok: true, value: { session: null } } });
+  fake.reply("panel.state", { value: { ok: true, value: { open: false } } });
   const api = createPageApi({ runtime: fake.runtime, sleep: async () => {} });
   const state = signal<ConfigState>(config);
   let url = "https://www.bilibili.com/video/BV1Sample001";
+  let windowId = WINDOW;
   const model = createCardModel({
     api,
     config: state,
     recheckConfig: async () => undefined,
-    currentTab: async () => ({ id: 3, url }),
+    currentTab: async () => ({ id: 3, url, windowId }),
     parseVideo: (value) => (value.includes("BV1Sample002") ? SECOND : value.includes("BV1Sample001") ? FIRST : null),
     seek: () => undefined,
     timers: {
@@ -61,6 +66,8 @@ function setup(config: ConfigState = READY, page?: { visible(): boolean; onVisib
     model,
     state,
     setUrl: (next: string) => void (url = next),
+    /** 标签页被拖到了另一个窗口。 */
+    setWindow: (next: number) => void (windowId = next),
     /** 等会话的定时到点。 */
     elapse: () => [...waits].forEach((fire) => fire()),
     /** 还挂着几个等会话的定时。 */
@@ -295,6 +302,143 @@ test("自动切到精读：卡片跟着收起；手动展开过的不动；别�
   fake.broadcast({ type: "session.changed", tabId: 3, session: mine });
   assert.ok(await until(() => fake.attempts("session.get") === 4));
   assert.ok(await stillFalse(() => model.view.value.collapsed), "手动展开过的不再跟着收");
+});
+
+test("本窗口的侧边栏开着：速览也收着、不读；关上才展开、读，再打开又让位", async () => {
+  const { fake, model } = setup();
+  fake.reply("session.get", { value: { ok: true, value: { session: session() } } });
+  fake.reply("panel.state", { value: { ok: true, value: { open: true } } });
+  model.configChanged();
+  await model.start();
+  assert.equal(model.view.value.collapsed, true, "一出来就是收起的");
+  assert.ok(await stillFalse(() => fake.attempts("transcript.get") > 0), "同一份内容在侧边栏里，卡片不读");
+
+  fake.broadcast({ type: "panel.changed", windowId: WINDOW, open: false });
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  assert.equal(model.view.value.collapsed, false);
+  assert.equal(fake.attempts("transcript.get"), 1);
+
+  fake.broadcast({ type: "panel.changed", windowId: WINDOW, open: true });
+  assert.ok(await until(() => model.view.value.collapsed), "再打开又让位");
+  fake.broadcast({ type: "panel.changed", windowId: WINDOW, open: false });
+  assert.ok(await until(() => !model.view.value.collapsed));
+  assert.equal(fake.attempts("transcript.get"), 1, "读过的不重读");
+});
+
+test("侧边栏的开关只认本窗口的；精读时关上侧边栏照样收着；手动展开收起过的不跟侧边栏", async () => {
+  const other = setup();
+  other.fake.reply("session.get", { value: { ok: true, value: { session: session() } } });
+  other.model.configChanged();
+  await other.model.start();
+  assert.ok(await until(() => other.model.view.value.phase === "loaded"));
+  other.fake.broadcast({ type: "panel.changed", windowId: WINDOW + 1, open: true });
+  assert.ok(await stillFalse(() => other.model.view.value.collapsed), "别的窗口开了侧边栏不算");
+
+  const study = setup();
+  study.fake.reply("session.get", { value: { ok: true, value: { session: session({ mode: "study", modeSource: "manual" }) } } });
+  study.fake.reply("panel.state", { value: { ok: true, value: { open: true } } });
+  study.model.configChanged();
+  await study.model.start();
+  study.fake.broadcast({ type: "panel.changed", windowId: WINDOW, open: false });
+  assert.ok(await stillFalse(() => !study.model.view.value.collapsed), "精读本来就收着");
+
+  const manual = setup();
+  manual.fake.reply("session.get", { value: { ok: true, value: { session: session() } } });
+  manual.fake.reply("panel.state", { value: { ok: true, value: { open: true } } });
+  manual.fake.reply("card.setOverride", { value: { ok: true, value: { session: {} } } });
+  manual.model.configChanged();
+  await manual.model.start();
+  assert.equal(manual.model.view.value.collapsed, true);
+  // 会话的回复还在路上就点了：以这一下为准，晚到的回复里没有这次手动展开，不拿它盖。
+  await manual.model.toggle();
+  assert.ok(await until(() => manual.model.view.value.phase === "loaded"), "侧边栏开着时手动点开，照样展开、读");
+  assert.ok(await stillFalse(() => manual.model.view.value.collapsed), "在途的会话回复不把它收回去");
+  manual.fake.broadcast({ type: "panel.changed", windowId: WINDOW, open: false });
+  manual.fake.broadcast({ type: "panel.changed", windowId: WINDOW, open: true });
+  assert.ok(await stillFalse(() => manual.model.view.value.collapsed), "手动展开过的不再跟着让位");
+});
+
+test("问侧边栏开没开的回复还没到就来了广播：以广播为准；后台答不上来时当关着", async () => {
+  const late = setup();
+  let answer: (value: unknown) => void = () => undefined;
+  late.fake.reply("session.get", { value: { ok: true, value: { session: session() } } });
+  late.fake.reply("panel.state", () => new Promise((resolve) => (answer = resolve)));
+  late.model.configChanged();
+  const started = late.model.start();
+  assert.ok(await until(() => late.fake.attempts("panel.state") === 1));
+  late.fake.broadcast({ type: "panel.changed", windowId: WINDOW, open: true });
+  // 问的时候还关着，回复比广播晚到。
+  answer({ ok: true, value: { open: false } });
+  await started;
+  assert.ok(await until(() => late.fake.attempts("session.get") === 1));
+  assert.ok(await stillFalse(() => !late.model.view.value.collapsed), "广播说开着，旧回复不盖它");
+
+  const failed = setup();
+  failed.fake.reply("session.get", { value: { ok: true, value: { session: session() } } });
+  failed.fake.reply("panel.state", { value: { ok: false, code: "FORBIDDEN" } });
+  failed.model.configChanged();
+  await failed.model.start();
+  assert.ok(await until(() => failed.model.view.value.phase === "loaded"));
+  assert.equal(failed.model.view.value.collapsed, false);
+});
+
+test("标签页拖到另一个窗口：按新窗口重新问侧边栏开没开，之后只认新窗口的开关；问不到当关着", async () => {
+  const { fake, model } = setup();
+  fake.reply("session.get", { value: { ok: true, value: { session: session() } } });
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+
+  await model.windowChanged(WINDOW);
+  assert.equal(fake.attempts("panel.state"), 1, "窗口没换不重问");
+
+  fake.reply("panel.state", { value: { ok: true, value: { open: true } } });
+  await model.windowChanged(WINDOW + 1);
+  assert.equal(model.view.value.collapsed, true, "新窗口的侧边栏开着");
+  fake.broadcast({ type: "panel.changed", windowId: WINDOW, open: false });
+  assert.ok(await stillFalse(() => !model.view.value.collapsed), "原来那个窗口的不算了");
+
+  // 又拖到一个窗口，这次问不到：不沿用上一个窗口的「开着」。
+  fake.reply("panel.state", { value: { ok: false, code: "FORBIDDEN" } });
+  await model.windowChanged(WINDOW + 2);
+  assert.equal(model.view.value.collapsed, false);
+  fake.broadcast({ type: "panel.changed", windowId: WINDOW + 2, open: true });
+  assert.ok(await until(() => model.view.value.collapsed));
+});
+
+test("配置检查的结果比侧边栏的回复先到：等问到侧边栏开没开再定，开着就不展开、不读", async () => {
+  const { fake, model, state } = setup({ state: "unknown" });
+  let answer: (value: unknown) => void = () => undefined;
+  fake.reply("session.get", { value: { ok: true, value: { session: session() } } });
+  fake.reply("panel.state", () => new Promise((resolve) => (answer = resolve)));
+  model.configChanged();
+  const started = model.start();
+  assert.ok(await until(() => fake.attempts("panel.state") === 1));
+  state.value = READY;
+  model.configChanged();
+  assert.ok(await stillFalse(() => fake.attempts("session.get") > 0 || fake.attempts("transcript.get") > 0), "还没问到侧边栏，先不定");
+
+  answer({ ok: true, value: { open: true } });
+  await started;
+  assert.ok(await until(() => fake.attempts("session.get") === 1));
+  assert.ok(await stillFalse(() => !model.view.value.collapsed || fake.attempts("transcript.get") > 0), "侧边栏开着：收着，一次都不读");
+});
+
+test("标签页回到前台时再问一次侧边栏：开关的广播漏了也补得上", async () => {
+  let shown: () => void = () => undefined;
+  const page = { visible: () => true, onVisible: (run: () => void) => ((shown = run), () => undefined) };
+  const { fake, model } = setup(READY, page);
+  fake.reply("session.get", { value: { ok: true, value: { session: session() } } });
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  assert.equal(model.view.value.collapsed, false);
+
+  // 切走的这一会儿侧边栏开了，广播没收到。
+  fake.reply("panel.state", { value: { ok: true, value: { open: true } } });
+  shown();
+  assert.ok(await until(() => model.view.value.collapsed));
+  assert.equal(fake.attempts("panel.state"), 2);
 });
 
 test("后台打开的标签页：第一次切到前台才读", async () => {

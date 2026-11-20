@@ -143,3 +143,22 @@ test("端口表里没有的端口、端口不收的发送方，连上就断开�
   }
   assert.deepEqual(fake.calls.storageReads, []);
 });
+
+test("浏览器报侧边栏开了、关了：记进会话存储并广播；没有这两个事件的老浏览器照样启动，什么都不记", async (t) => {
+  const fake = await boot(t);
+  fake.firePanelOpened(4);
+  assert.ok(await until(() => fake.calls.broadcasts.some((message) => (message as { type?: string }).type === "panel.changed")));
+  assert.deepEqual(fake.session.data.jianmu_open_panels, [4]);
+  assert.deepEqual(fake.calls.accessLevels, [{ accessLevel: "TRUSTED_CONTEXTS" }], "这个事件也先过醒来钩子");
+  fake.firePanelClosed(4);
+  assert.ok(await until(() => (fake.session.data.jianmu_open_panels as unknown[]).length === 0));
+  assert.deepEqual(fake.calls.broadcasts.filter((message) => (message as { type?: string }).type === "panel.changed"), [
+    { type: "panel.changed", windowId: 4, open: true },
+    { type: "panel.changed", windowId: 4, open: false },
+  ]);
+
+  const old = await boot(t, { noPanelEvents: true });
+  old.firePanelOpened(4);
+  await old.send({ type: "appearance.get", req: {} }, senders.panel());
+  assert.equal(old.session.data.jianmu_open_panels, undefined);
+});

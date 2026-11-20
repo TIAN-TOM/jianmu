@@ -41,6 +41,7 @@ before(() => {
 
 // 后台的全部顶层监听，都在入口一次注册。标签页激活、更新和窗口焦点给打开就出结论用，开关关着时醒来只读一次设置就返回。
 // 授权增减给要另外授权的站（YouTube）注册内容脚本用，构建开关关着时醒来什么都不做。
+// 侧边栏开了、关了这两个事件新一些的浏览器才有：有就听，记下哪些窗口开着侧边栏。
 const TOP_LEVEL_LISTENERS = [
   "contextMenus.onClicked",
   "permissions.onAdded",
@@ -49,6 +50,8 @@ const TOP_LEVEL_LISTENERS = [
   "runtime.onInstalled",
   "runtime.onMessage",
   "runtime.onStartup",
+  "sidePanel.onClosed",
+  "sidePanel.onOpened",
   "storage.onChanged",
   "tabs.onActivated",
   "tabs.onRemoved",
@@ -57,10 +60,11 @@ const TOP_LEVEL_LISTENERS = [
 ];
 
 test("后台包在替身环境里求值不抛错，监听都注册上", () => {
-  const registered: string[] = [];
+  let registered: string[] = [];
   const event = (name: string) => ({ addListener: (listener: unknown) => registered.push(`${name}:${typeof listener}`) });
   // 求值时只给事件：入口在顶层碰了存储、标签页或别的接口就会抛错。
   const chrome = {
+    sidePanel: { onOpened: event("sidePanel.onOpened"), onClosed: event("sidePanel.onClosed") },
     runtime: Object.fromEntries(["onConnect", "onInstalled", "onMessage", "onStartup"].map((name) => [name, event(`runtime.${name}`)])),
     tabs: Object.fromEntries(["onActivated", "onRemoved", "onUpdated"].map((name) => [name, event(`tabs.${name}`)])),
     windows: { onFocusChanged: event("windows.onFocusChanged") },
@@ -70,6 +74,11 @@ test("后台包在替身环境里求值不抛错，监听都注册上", () => {
   };
   vm.runInNewContext(readBuild("background.js"), { chrome, console, TextEncoder, AbortController }, { filename: "background.js" });
   assert.deepEqual(registered.sort(), TOP_LEVEL_LISTENERS.map((name) => `${name}:function`));
+
+  // 老一些的浏览器没有侧边栏的开关事件：照样求值，别的监听一个不少。
+  registered = [];
+  vm.runInNewContext(readBuild("background.js"), { chrome: { ...chrome, sidePanel: {} }, console, TextEncoder, AbortController }, { filename: "background.js" });
+  assert.deepEqual(registered.sort(), TOP_LEVEL_LISTENERS.filter((name) => !name.startsWith("sidePanel.")).map((name) => `${name}:function`));
 });
 
 test("清单不变量", () => {

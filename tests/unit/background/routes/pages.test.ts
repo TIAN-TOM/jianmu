@@ -1,9 +1,11 @@
 // 打开设置页和侧边栏：确认前也放行。打开侧边栏前面不夹任何等待，被拒时让页面提示点工具栏图标。
+// 卡片问侧边栏开没开：只答它自己所在的窗口，浏览器报过开关的才算开着。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createApp } from "../../../../src/background/app.ts";
-import { SETTINGS_STORAGE_KEY } from "../../../../src/shared/names.ts";
-import { createFakeChrome, extensionUrl, senders, type FakeChromeOptions } from "../../../helpers/chrome.ts";
+import { OPEN_PANELS_KEY, SETTINGS_STORAGE_KEY } from "../../../../src/shared/names.ts";
+import { CONFIRMED, createFakeChrome, extensionUrl, senders, type FakeChromeOptions } from "../../../helpers/chrome.ts";
+import { until } from "../../../helpers/wait-until.ts";
 
 function appOn(options: FakeChromeOptions = {}) {
   const fake = createFakeChrome(options);
@@ -85,4 +87,43 @@ test("侧边栏和内容脚本发不了打开侧边栏；卡片开关关着时�
   assert.deepEqual(fake.calls.panelOpens, []);
   assert.deepEqual(await app.dispatch({ type: "options.open", req: {} }, senders.card()), { ok: false, code: "CARD_DISABLED" });
   assert.equal(fake.calls.optionsOpened, 0);
+});
+
+const PANEL_CONTEXT = { contextType: "SIDE_PANEL", documentUrl: extensionUrl("pages/sidepanel.html"), tabId: -1, windowId: -1 };
+/** 卡片替身所在的窗口。 */
+const CARD_WINDOW = 2;
+
+test("卡片问侧边栏开没开：浏览器报它所在的窗口开了才答开着，报关了就答没开；别的窗口开着不算", async () => {
+  const { app, fake } = appOn({ local: { [SETTINGS_STORAGE_KEY]: CONFIRMED }, contexts: [PANEL_CONTEXT] });
+  const ask = () => app.dispatch({ type: "panel.state", req: {} }, senders.card());
+  assert.deepEqual(await ask(), { ok: true, value: { open: false } });
+
+  app.onPanelChanged(CARD_WINDOW + 1, true);
+  assert.ok(await until(() => fake.calls.broadcasts.length === 1));
+  assert.deepEqual(await ask(), { ok: true, value: { open: false } }, "别的窗口的不算");
+
+  app.onPanelChanged(CARD_WINDOW, true);
+  assert.ok(await until(() => fake.calls.broadcasts.length === 2));
+  assert.deepEqual(await ask(), { ok: true, value: { open: true } });
+  assert.deepEqual(fake.calls.broadcasts.at(-1), { type: "panel.changed", windowId: CARD_WINDOW, open: true });
+
+  app.onPanelChanged(CARD_WINDOW, false);
+  assert.ok(await until(() => fake.calls.broadcasts.length === 3));
+  assert.deepEqual(await ask(), { ok: true, value: { open: false } });
+  assert.deepEqual(fake.session.data[OPEN_PANELS_KEY], [CARD_WINDOW + 1]);
+});
+
+test("记着开着、其实一个侧边栏页面都不在时答没开；只收卡片的空请求，确认启用之前不答", async () => {
+  const gone = appOn({ local: { [SETTINGS_STORAGE_KEY]: CONFIRMED }, session: { [OPEN_PANELS_KEY]: [CARD_WINDOW] } });
+  assert.deepEqual(await gone.app.dispatch({ type: "panel.state", req: {} }, senders.card()), { ok: true, value: { open: false } });
+  assert.deepEqual(gone.fake.session.data[OPEN_PANELS_KEY], []);
+  assert.deepEqual(gone.fake.calls.broadcasts, [{ type: "panel.changed", windowId: CARD_WINDOW, open: false }], "已经挂着的卡片也收到更正");
+
+  const { app } = appOn({ local: { [SETTINGS_STORAGE_KEY]: CONFIRMED }, session: { [OPEN_PANELS_KEY]: [CARD_WINDOW] }, contexts: [PANEL_CONTEXT] });
+  assert.deepEqual(await app.dispatch({ type: "panel.state", req: { windowId: 9 } }, senders.card()), { ok: false, code: "INVALID_REQUEST" });
+  for (const sender of [senders.panel(), senders.options(), senders.content()]) {
+    assert.deepEqual(app.dispatch({ type: "panel.state", req: {} }, sender), { ok: false, code: "FORBIDDEN" });
+  }
+  const before = appOn({ session: { [OPEN_PANELS_KEY]: [CARD_WINDOW] }, contexts: [PANEL_CONTEXT] });
+  assert.deepEqual(await before.app.dispatch({ type: "panel.state", req: {} }, senders.card()), { ok: false, code: "NOT_ENABLED" });
 });

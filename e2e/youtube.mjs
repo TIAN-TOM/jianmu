@@ -16,6 +16,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { videoKey } from "../src/core/video-ref.ts";
 import { NOT_READ_TEXT } from "../src/pages/card/model.ts";
+import { stillFalse } from "../tests/helpers/wait-until.ts";
 import { INJECTED } from "../src/shared/names.ts";
 import { launchChrome, prepareExtension } from "./browser.mjs";
 import { ANTHROPIC } from "./fixtures.mjs";
@@ -111,6 +112,18 @@ async function cardOf(watchUrl) {
 }
 const cardText = (card) => evaluate(card, `document.getElementById("card")?.textContent ?? ""`);
 const cardCollapsed = (card) => evaluate(card, `document.getElementById("card")?.dataset.collapsed ?? ""`);
+
+/**
+ * 要看卡片上的内容。浏览器报得出侧边栏开关时（yields），侧边栏开着卡片就让位收着，像用户那样点开标题栏；
+ * 报不出的老版本里，速览时卡片自己就是展开的。点开过的卡片在这个视频里以这一下为准，不再跟模式和侧边栏。
+ */
+async function openCard(card, yields) {
+  if (yields) {
+    await until("侧边栏开着，卡片让位收着", async () => (await cardCollapsed(card)) === "true");
+    await evaluate(card, `(document.getElementById("card-toggle").click(), true)`);
+  }
+  await until("卡片展开", async () => (await cardCollapsed(card)) === "false");
+}
 /** 卡片框架在观看页上的位置：父节点、后一个节点的编号，在不在侧栏面板里。 */
 const cardPlace = (video) =>
   evaluate(
@@ -220,6 +233,8 @@ async function flow(launcher, panelUrl, worker) {
   // 卡片插在右栏推荐视频上面，装文字稿的那一层在它前面；本机还没有字幕，卡片不去读，和 B 站一样摆「生成概览」。
   await until("卡片插在右栏推荐视频上面", () => placedAt(video, "secondary-inner"));
   const card = await until("观看页的卡片", () => cardOf(firstUrl));
+  const yields = await evaluate(launcher, `Boolean(chrome.sidePanel.onOpened && chrome.sidePanel.onClosed)`);
+  await openCard(card, yields);
   await until("卡片上摆着「生成概览」", () => evaluate(card, `Boolean(document.getElementById("card-generate"))`));
   if ((await cardText(card)).includes(NOT_READ_TEXT)) throw new Error("能代开文字稿的构建里卡片还让人先去侧边栏读");
   console.log("✓ 卡片插在右栏推荐视频上面，不进侧栏面板；本机还没有字幕时不去读，和 B 站一样摆「生成概览」");
@@ -262,7 +277,7 @@ async function flow(launcher, panelUrl, worker) {
   console.log("✓ 生成概览：章节和一句话结论都显示出来");
   await until("卡片跟着摆出结论", async () => (await cardText(card)).includes("模拟服务写的一句话结论"));
   await until("卡片上也有章节", async () => (await cardText(card)).includes("模拟服务写的章节"));
-  if ((await cardCollapsed(card)) !== "false") throw new Error("速览时卡片该展开");
+  if ((await cardCollapsed(card)) !== "false") throw new Error("卡片该展开着");
   console.log("✓ 侧边栏生成的概览，卡片跟着摆出结论和章节");
 
   await until("展开章节", () => clickIn(panel, ".chapter-toggle"));
@@ -281,10 +296,18 @@ async function flow(launcher, panelUrl, worker) {
   console.log(`✓ 金句存成笔记；问答带引用，点引用跳到视频里的时间点（第一句是「${lineOne}」）`);
 
   await until("切到精读", () => clickIn(panel, ".mode", "精读"));
-  await until("精读时卡片收起", async () => (await cardCollapsed(card)) === "true");
-  await until("切回速览", () => clickIn(panel, ".mode", "速览"));
-  await until("回到速览卡片展开", async () => (await cardCollapsed(card)) === "false");
-  console.log("✓ 精读时卡片收起，回到速览展开");
+  if (yields) {
+    // 这张卡片前面手动点开过：这个视频里以那一下为准，切模式不再动它。
+    await until("侧边栏进了精读", async () => (await evaluate(panel, `document.querySelector(".mode-view")?.getAttribute("aria-label")`)) === "精读");
+    if (!(await stillFalse(async () => (await cardCollapsed(card)) !== "false", 20))) throw new Error("手动点开过的卡片不该跟着模式收起");
+    await until("切回速览", () => clickIn(panel, ".mode", "速览"));
+    console.log("✓ 手动点开过的卡片切模式不动");
+  } else {
+    await until("精读时卡片收起", async () => (await cardCollapsed(card)) === "true");
+    await until("切回速览", () => clickIn(panel, ".mode", "速览"));
+    await until("回到速览卡片展开", async () => (await cardCollapsed(card)) === "false");
+    console.log("✓ 精读时卡片收起，回到速览展开");
+  }
 
   // 窗口变窄：推荐视频挪到播放器下面，卡片跟过去；变宽再回右栏。挪过的卡片重新载入，结论照样在。
   await userClicks(video, "e2e-narrow");
@@ -299,6 +322,7 @@ async function flow(launcher, panelUrl, worker) {
   await userClicks(video, "e2e-next");
   await until("侧边栏跟到新视频，让用户点读取", async () => (await stateTitle(panel)).includes("读取这个视频的字幕"));
   const secondCard = await until("换视频以后的卡片", () => cardOf(tubeWatchPage(SECOND_ID)));
+  await openCard(secondCard, yields);
   await until("卡片跟到新视频，本机还没有字幕时摆「生成概览」", () => evaluate(secondCard, `Boolean(document.getElementById("card-generate"))`));
   await until("点读取字幕", () => clickIn(panel, ".state-block .button", "读取字幕"));
   await until("说文字稿还没换过来", async () => (await stateTitle(panel)).includes("还没换成这个视频的"));
@@ -406,6 +430,7 @@ async function cardGenerateFlow(launcher, panel, worker, windowId) {
   const url = tubeWatchPage(CARD_ID);
   const page = await openWatch(launcher, panel, worker, windowId, CARD_ID);
   const card = await until("观看页的卡片", () => cardOf(url));
+  await openCard(card, await evaluate(launcher, `Boolean(chrome.sidePanel.onOpened && chrome.sidePanel.onClosed)`));
   await until("卡片上摆着「生成概览」", () => evaluate(card, `Boolean(document.getElementById("card-generate"))`));
   await cdp.send("Page.bringToFront", {}, page);
   // 侧边栏占掉一大块，无头窗口里剩下的视口太窄、卡片被挤扁：把窗口真的拉大（模拟视口尺寸时点击进不了卡片框架），做完再还原。

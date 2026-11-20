@@ -63,7 +63,7 @@ export interface RuntimePages {
   getManifest(): ManifestPages;
   getURL(path: string): string;
   openOptionsPage(): Promise<void>;
-  getContexts(filter: { contextTypes: "TAB"[] }): Promise<readonly PageContext[]>;
+  getContexts(filter: { contextTypes: ("TAB" | "SIDE_PANEL")[] }): Promise<readonly PageContext[]>;
 }
 
 export interface TabsDeps {
@@ -86,6 +86,8 @@ export interface Tabs {
   readonly openSidePanel: (windowId: number) => Promise<boolean>;
   /** 让工具栏图标打开侧边栏。 */
   readonly setPanelBehavior: () => Promise<void>;
+  /** 这会儿有没有开着的侧边栏页面。浏览器不说它在哪个窗口，只知道有没有；问不到时当有。 */
+  readonly anySidePanel: () => Promise<boolean>;
   /** 清单里有没有设置页：没有时打开设置页必然失败。 */
   readonly hasOptionsPage: () => boolean;
   readonly openOptionsPage: () => Promise<void>;
@@ -143,6 +145,10 @@ export function createTabs(
       () => false,
     ),
     setPanelBehavior: () => sidePanel.setPanelBehavior({ openPanelOnActionClick: true }),
+    anySidePanel: () => runtime.getContexts({ contextTypes: ["SIDE_PANEL"] }).then(
+      (contexts) => contexts.length > 0,
+      () => true,
+    ),
     hasOptionsPage: () => optionsPath() !== "",
     openOptionsPage: () => runtime.openOptionsPage(),
     openPage: (path) => tabs.create({ url: runtime.getURL(path) }).then(() => undefined),

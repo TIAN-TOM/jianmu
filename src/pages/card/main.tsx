@@ -21,7 +21,7 @@ const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
 async function currentTab(): Promise<CardTab | null> {
   try {
     const tab = await chrome.tabs.getCurrent();
-    return tab && typeof tab.id === "number" && typeof tab.url === "string" ? { id: tab.id, url: tab.url } : null;
+    return tab && typeof tab.id === "number" && typeof tab.url === "string" ? { id: tab.id, url: tab.url, windowId: tab.windowId } : null;
   } catch {
     return null;
   }
@@ -87,6 +87,10 @@ function start(root: HTMLElement, api: PageApi): void {
   effect(() => {
     void config.state.value;
     model.configChanged();
+  });
+  // 标签页拖到别的窗口：侧边栏按窗口开关，换了窗口要重新问。卡片还没认出自己的标签页时不用管，认的时候读到的就是新窗口。
+  chrome.tabs.onAttached.addListener((id, info) => {
+    if (id === model.tabId()) void model.windowChanged(info.newWindowId);
   });
   // 启用失效：内容脚本会撤下卡片，这里先什么都不显示。
   api.on("activation.changed", ({ confirmed }) => {
