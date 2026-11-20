@@ -1,13 +1,13 @@
 // 设置页「打开就出结论」的分钟数：填的数被规整时就地说改成了多少、为什么，正常值不说。
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AUTO_MINUTES_HINT, settleAutoMinutes } from "../../../../src/pages/options/auto-minutes.ts";
+import { autoMinutesHint, settleAutoMinutes } from "../../../../src/pages/options/auto-minutes.ts";
 import { AUTO_OVERVIEW_MINUTES } from "../../../../src/shared/settings-schema.ts";
 
 const { min, max } = AUTO_OVERVIEW_MINUTES;
 
 test("范围说明取设置结构里的上下限，并说清 0 是什么意思", () => {
-  assert.equal(AUTO_MINUTES_HINT, `${min} 到 ${max} 的整数，填 0 时每个视频都生成。`);
+  assert.equal(autoMinutesHint(), `${min} 到 ${max} 的整数，填 0 时每个视频都生成。`);
 });
 
 test("超过上限：存上限，说最多多少", () => {
@@ -16,6 +16,11 @@ test("超过上限：存上限，说最多多少", () => {
 
 test("低于下限：存下限，说最少多少", () => {
   assert.deepEqual(settleAutoMinutes("-5"), { minutes: min, note: `最少 ${min} 分钟，已改成 ${min}。` });
+});
+
+test("选英文时说明和提示是英文", () => {
+  assert.equal(autoMinutesHint("en"), `A whole number from ${min} to ${max}. Enter 0 to do this for every video.`);
+  assert.deepEqual(settleAutoMinutes("99999", "en"), { minutes: max, note: `The maximum is ${max} minutes, so it's been set to ${max}.` });
 });
 
 test("带小数：四舍五入成整数，说只能填整数", () => {

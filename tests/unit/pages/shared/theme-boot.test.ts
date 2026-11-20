@@ -60,10 +60,11 @@ test("applyAppearance 落地外观时把主题、明暗和字号记进页面的 
   const localStorage = memoryLocalStorage();
   const { root } = fakePage({ localStorage });
   // 认不出的主题名（比如别的版本留下的色板）按设置模块规整成三套之一，缓存里记规整后的值。
+  // 语言选项跟着一起记，界面语言的启动读它（ui-lang.ts），首帧脚本不管。
   applyAppearance({ accentTheme: "amber", themeMode: "dark", uiFontScale: 118 }, root);
-  assert.deepEqual(cachedIn(localStorage), { accentTheme: "ink", themeMode: "dark", uiFontScale: 112 });
-  applyAppearance({ accentTheme: "ochre", themeMode: "light", uiFontScale: 125 }, root);
-  assert.deepEqual(cachedIn(localStorage), { accentTheme: "ochre", themeMode: "light", uiFontScale: 125 });
+  assert.deepEqual(cachedIn(localStorage), { accentTheme: "ink", themeMode: "dark", uiFontScale: 112, language: "auto" });
+  applyAppearance({ accentTheme: "ochre", themeMode: "light", uiFontScale: 125, language: "en" }, root);
+  assert.deepEqual(cachedIn(localStorage), { accentTheme: "ochre", themeMode: "light", uiFontScale: 125, language: "en" });
 
   // 「跟随系统」记原值，不记解析结果：下次打开时系统可能已经换了明暗
   applyAppearance({ themeMode: "system" }, root);

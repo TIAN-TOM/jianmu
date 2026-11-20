@@ -2,6 +2,7 @@
 import { useState } from "preact/hooks";
 import { Button } from "../shared/ui/button.tsx";
 import type { AiPlace, OptionsState, Status } from "./state.ts";
+import { optionsText } from "./text.ts";
 
 /** inline：跟在某个控件下面，没有内容时不占地方；不带时留着一行的高度，免得下面的内容跳。 */
 export function StatusLine({ status, inline = false, at }: { readonly status: Status | null; readonly inline?: boolean; readonly at?: string }) {
@@ -52,7 +53,7 @@ export function Confirmable(props: {
           {props.confirmLabel}
         </Button>
         <Button variant="text" onClick={() => setAsking(false)}>
-          取消
+          {optionsText().cancel}
         </Button>
       </div>
     </div>

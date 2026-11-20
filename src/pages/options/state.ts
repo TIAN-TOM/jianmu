@@ -9,12 +9,14 @@ import { AI_ERROR_TEXT } from "../../core/errors/ai.ts";
 import type { LoadedSettings, SettingsPatch, SettingsStore, WrittenSettings } from "../../platform/settings-store.ts";
 import type { EffortPreviewItem } from "../../shared/messages/ai.ts";
 import { SETTINGS_REVISION_KEY, SETTINGS_STORAGE_KEY, USAGE_STORAGE_KEY } from "../../shared/names.ts";
-import { FEATURE_MODEL_SLOTS, originOf, validateForSave, type FeatureSlotId } from "../../shared/settings-schema.ts";
+import { originOf, validateForSave, type FeatureSlotId } from "../../shared/settings-schema.ts";
 import type { PageApi } from "../shared/api.ts";
 import { createAiStatus, type AiPlace, type PlacedStatus, type Status } from "./ai-status.ts";
-import { importSummary, receiveBackup, sendBackup } from "./backup-transfer.ts";
+import { backupFailureText, importSummary, receiveBackup, sendBackup } from "./backup-transfer.ts";
 import { chosenFeatures, formOf, settingsInput, withAddress, withPreset, type AiForm } from "./form.ts";
 import { probeFrameImage } from "./image-probe.ts";
+import type { UiLang } from "../shared/ui-lang.ts";
+import { slotLabel, textOf } from "./text.ts";
 
 export type { AiPlace, PlacedStatus, Status, Tone } from "./ai-status.ts";
 
@@ -32,6 +34,8 @@ export interface OptionsDeps {
   readonly download: (filename: string, chunks: readonly string[]) => void;
   readonly storageChanged?: { addListener(listener: StorageListener): void; removeListener(listener: StorageListener): void };
   readonly now?: () => Date;
+  /** 状态行用哪种语言写，缺省中文。页面传当前的界面语言。 */
+  readonly lang?: () => UiLang;
 }
 
 export interface OptionsState {
@@ -73,8 +77,6 @@ export interface OptionsState {
   stop(): void;
 }
 
-const STALE_TEXT = "设置刚在别的页面改过，已按最新的设置重新载入，请再操作一次。";
-
 /** 后台回来的失败给用户看的一句话：模型服务的失败带着脱敏后的原话，其余按码。 */
 export function failureText(failure: Failure): string {
   if (Object.hasOwn(AI_ERROR_TEXT, failure.code) && failure.detail) return failure.detail;
@@ -89,27 +91,17 @@ const errorText = (error: unknown): string => {
 
 const isStale = (error: unknown): boolean => (error as { code?: unknown } | null)?.code === "SETTINGS_STALE";
 
-/**
- * 备份收发的失败。中途断开对备份来说不是「可能计费、先别重试」：导出再点一次就行；
- * 导入可能已经写进去一部分，再导一次同一个文件不会重复。
- */
-function backupFailureText(failure: Failure, kind: "export" | "import"): string {
-  if (failure.code === "BACKGROUND_DROPPED" || failure.code === "BACKGROUND_UNREACHABLE") {
-    return kind === "export"
-      ? "导出失败：简幕的后台中途断开了，没导出来，再点一次「导出备份」。"
-      : "恢复失败：简幕的后台中途断开了。可能已经导入了一部分，再选同一个文件导一次就行，已经导入的不会重复。";
-  }
-  return `${kind === "export" ? "导出失败" : "恢复失败"}：${failureText(failure)}`;
-}
-
 const pad = (value: number): string => String(value).padStart(2, "0");
 
 export function createOptionsState(deps: OptionsDeps): OptionsState {
   const { store, api } = deps;
+  const lang = deps.lang ?? ((): UiLang => "zh");
+  const copy = () => textOf(lang());
+  const status = () => copy().status;
   const saved = signal<LoadedSettings | null>(null);
   const form = signal<AiForm | null>(null);
   const loadError = signal<string | null>(null);
-  const ai = createAiStatus();
+  const ai = createAiStatus(lang);
   const { say, saySaved } = ai;
   const aiStatus = ai.current;
   const autoStatus = signal<Status | null>(null);
@@ -136,7 +128,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       // 同意过数据说明、要密钥的服务却没有密钥：多半是重启或更新以后清空了，打开设置页就在密钥框下面说，不用自己找原因。
       else if (settings.dataConsentVersion > 0 && !settings.aiApiKey && !isLocalBaseUrl(settings.aiBaseUrl)) ai.sayKeyMissing();
     } catch (error) {
-      loadError.value = `读不出设置：${errorText(error)}`;
+      loadError.value = copy().loadFailedDetail(errorText(error));
     }
   }
 
@@ -147,7 +139,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
     reloads += 1;
     models.value = [];
     await load();
-    say(at, STALE_TEXT, "warn");
+    say(at, status().stale, "warn");
   }
 
   // 本页自己的设置写入排成一条队：前一次（比如刚勾的同意）还没落地就点保存，保存要等它写完、拿它之后的修订号去核对。
@@ -222,7 +214,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
     const check = validateForSave(input);
     const origin = check.ok ? originOf(check.settings.aiBaseUrl) : null;
     if (!check.ok || !origin) {
-      say(at, check.errors.join(" ") || "API 地址不合法。", "error");
+      say(at, check.errors.join(" ") || status().badAddress, "error");
       return false;
     }
     const asked = deps.requestHost(`${origin}*`);
@@ -235,17 +227,17 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       try {
         granted = await asked;
       } catch (error) {
-        say(at, `申请权限失败：${errorText(error)}`, "error");
+        say(at, status().permissionFailed(errorText(error)), "error");
         return false;
       }
       if (!granted) {
-        say(at, `没有拿到 ${origin} 的访问权限，AI 功能用不了。`, "error");
+        say(at, status().noPermission(origin), "error");
         return false;
       }
       const written = await queued(async () => {
         // 等授权、排队的工夫别的页面改过设置（比如清了密钥），表单已经按存储重新载入：点击时的表单不能再写回去。
         if (reloads !== reloadsAtClick) {
-          say(at, STALE_TEXT, "warn");
+          say(at, status().stale, "warn");
           return null;
         }
         ownWrites += 1;
@@ -257,7 +249,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
           return result;
         } catch (error) {
           if (isStale(error)) await reloadStale(at);
-          else say(at, `没有保存：${errorText(error)}`, "error");
+          else say(at, status().notSaved(errorText(error)), "error");
           return null;
         } finally {
           ownWrites -= 1;
@@ -282,16 +274,17 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       const written = await ownWrite(() => store.update(patch), at);
       if (written && Object.hasOwn(patch, "featureEfforts")) void refreshEfforts();
     } catch (error) {
-      say(at, `没有保存：${errorText(error)}`, "error");
+      say(at, status().notSaved(errorText(error)), "error");
     }
   }
 
-  async function testOne(feature?: FeatureSlotId): Promise<string> {
+  /** 测一个模型，回状态行里的一行和连没连上。 */
+  async function testOne(feature?: FeatureSlotId): Promise<{ readonly line: string; readonly ok: boolean }> {
     const reply = await api.send("ai.testConnection", feature ? { feature } : {});
-    const label = feature ? FEATURE_MODEL_SLOTS.find(({ id }) => id === feature)?.label : "默认模型";
-    if (!reply.ok) return `${label}：${failureText(reply)}`;
-    const { model, reply: text, truncated } = reply.value;
-    return `${label}（${model}）连接正常，回复「${text}」${truncated ? "（回复被截断）" : ""}`;
+    const label = feature ? slotLabel(feature, lang()) : copy().ai.defaultModel;
+    if (!reply.ok) return { line: status().testFailed(label, failureText(reply)), ok: false };
+    const { model, reply: answer, truncated } = reply.value;
+    return { line: status().connected(label, model, answer, truncated === true), ok: true };
   }
 
   /** 拉模型和测试连接用后台存着的设置：先按点击时的表单保存，存成了再发。at 是点的那个按钮的位置。 */
@@ -353,7 +346,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
         const written = await ownWrite(() => store.setDataConsent(given));
         if (written) ai.consentChanged(written);
       } catch (error) {
-        say("actions", `没有保存：${errorText(error)}`, "error");
+        say("actions", status().notSaved(errorText(error)), "error");
       }
     },
     async enableAuto() {
@@ -361,9 +354,9 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
         const consented = await ownWrite(() => store.setDataConsent(true));
         if (!consented) return;
         const written = await ownWrite(() => store.update({ autoOverview: true }));
-        autoStatus.value = written ? null : { text: STALE_TEXT, tone: "warn" };
+        autoStatus.value = written ? null : { text: status().stale, tone: "warn" };
       } catch (error) {
-        autoStatus.value = { text: `没有打开：${errorText(error)}`, tone: "error" };
+        autoStatus.value = { text: copy().auto.notOn(errorText(error)), tone: "error" };
       }
     },
     async setRemember(remember) {
@@ -371,15 +364,15 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       if (!current) return;
       setForm({ ...current, rememberApiKey: remember });
       if (remember) {
-        say("remember", "点「保存并授权」以后，密钥才会记在这台电脑上。", "warn");
+        say("remember", status().rememberAfterSave, "warn");
         return;
       }
       try {
         const written = await ownWrite(() => store.update({ rememberApiKey: false }), "remember");
-        if (written) say("remember", "已不再记住密钥：这台电脑上存的那份已删除，密钥只留在本次浏览器会话里。", "ok");
+        if (written) say("remember", status().rememberOff, "ok");
       } catch (error) {
         setForm({ ...current, rememberApiKey: true });
-        say("remember", `没有关掉：${errorText(error)}`, "error");
+        say("remember", status().rememberOffFailed(errorText(error)), "error");
       }
     },
     async clearKey() {
@@ -388,16 +381,16 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
         if (!written) return;
         const current = form.peek();
         if (current) setForm({ ...current, aiApiKey: "", keyTyped: false, rememberApiKey: false });
-        say("key", "已删除保存的 API 密钥。", "ok");
+        say("key", status().keyCleared, "ok");
       } catch (error) {
-        say("key", `删除失败：${errorText(error)}`, "error");
+        say("key", status().keyClearFailed(errorText(error)), "error");
       }
     },
     fetchModels: () =>
       afterSave("models", "model", async () => {
         const reply = await api.send("models.list", {});
         if (!reply.ok) {
-          say("model", `已保存并授权，但没拉到模型列表：${failureText(reply)}`, "error");
+          say("model", status().modelsFailed(failureText(reply)), "error");
           return;
         }
         models.value = reply.value.ids;
@@ -408,15 +401,14 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       afterSave("test", "actions", async () => {
         const current = form.peek();
         const features = all && current ? chosenFeatures(current) : [];
-        const lines = [await testOne()];
-        for (const feature of features) lines.push(await testOne(feature));
-        const failed = lines.some((line) => !line.includes("连接正常"));
-        say("actions", lines.join("\n"), failed ? "error" : "ok");
+        const results = [await testOne()];
+        for (const feature of features) results.push(await testOne(feature));
+        say("actions", results.map(({ line }) => line).join("\n"), results.every(({ ok }) => ok) ? "ok" : "error");
       }),
     probeImage: FEATURE_FRAME_EXPLAIN
       ? () =>
           afterSave("test", "probe", async () => {
-            const probed = await probeFrameImage(api, failureText);
+            const probed = await probeFrameImage(api, failureText, lang());
             say("probe", probed.text, probed.tone);
           })
       : async () => undefined,
@@ -426,14 +418,15 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       try {
         const reply = await receiveBackup(api);
         if (!reply.ok) {
-          dataStatus.value = { text: backupFailureText(reply, "export"), tone: "error" };
+          dataStatus.value = { text: backupFailureText(reply, "export", failureText, lang()), tone: "error" };
           return;
         }
         const date = (deps.now ?? (() => new Date()))();
         const stamp = `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}`;
-        deps.download(`简幕备份-${stamp}.json`, backupText(reply.value));
+        deps.download(copy().backup.fileName(stamp), backupText(reply.value));
         const { notes, overviews, qa, translations } = reply.value;
-        dataStatus.value = { text: `已导出 ${notes.length} 条笔记、${overviews.length} 份概览、${qa.length} 条问答、${translations.length} 份译文和整理过的字幕。`, tone: "ok" };
+        const counts = { notes: notes.length, overviews: overviews.length, qa: qa.length, translations: translations.length };
+        dataStatus.value = { text: copy().backup.exported(counts), tone: "ok" };
       } finally {
         busy.value = null;
       }
@@ -447,23 +440,23 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
         try {
           text = await readFile();
         } catch {
-          dataStatus.value = { text: "读不出这个文件：文件可能太大，或者已经被移走了。", tone: "error" };
+          dataStatus.value = { text: copy().backup.unreadable, tone: "error" };
           return;
         }
         let payload: unknown;
         try {
           payload = JSON.parse(text);
         } catch {
-          dataStatus.value = { text: "读不懂这个文件，请选简幕导出的 JSON 备份。", tone: "error" };
+          dataStatus.value = { text: copy().backup.notBackup, tone: "error" };
           return;
         }
         const read = readBackup(payload);
         if (!read.ok) {
-          dataStatus.value = { text: `恢复失败：${failureText(read)}`, tone: "error" };
+          dataStatus.value = { text: copy().backup.importFailed(failureText(read)), tone: "error" };
           return;
         }
         const reply = await sendBackup(api, read.value);
-        dataStatus.value = reply.ok ? { text: importSummary(reply.value), tone: "ok" } : { text: backupFailureText(reply, "import"), tone: "error" };
+        dataStatus.value = reply.ok ? { text: importSummary(reply.value, lang()), tone: "ok" } : { text: backupFailureText(reply, "import", failureText, lang()), tone: "error" };
       } finally {
         busy.value = null;
       }
@@ -475,17 +468,17 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       try {
         const reply = await api.send("data.clear", { scope });
         if (!reply.ok) {
-          dataStatus.value = { text: `清除失败：${failureText(reply)}`, tone: "error" };
+          dataStatus.value = { text: copy().backup.clearFailed(failureText(reply)), tone: "error" };
           return;
         }
         if (scope === "all") {
           models.value = [];
           await load();
           ai.clear();
-          dataStatus.value = { text: "已清除这台电脑上的全部数据，设置已恢复默认。", tone: "ok" };
+          dataStatus.value = { text: copy().backup.clearedAll, tone: "ok" };
           return;
         }
-        dataStatus.value = { text: "已清除缓存。", tone: "ok" };
+        dataStatus.value = { text: copy().backup.clearedCache, tone: "ok" };
       } finally {
         ownWrites -= 1;
         busy.value = null;

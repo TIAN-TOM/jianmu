@@ -18,43 +18,29 @@ import { Button } from "../shared/ui/button.tsx";
 import { AiStatusLine, Confirmable } from "./controls.tsx";
 import { ImageProbeButton } from "./image-probe-button.tsx";
 import { ModelField } from "./model-field.tsx";
-import { EFFORT_LABELS, effortNoteText, serviceChanged, showsRegionChooser, usageText } from "./form.ts";
+import { effortNoteText, serviceChanged, showsRegionChooser, usageText } from "./form.ts";
 import type { OptionsState } from "./state.ts";
+import { uiLang } from "../shared/ui-lang.ts";
+import { optionsText, slotLabel } from "./text.ts";
 
+const PROTOCOLS = ["openai", "openai-responses", "anthropic"] as const;
 
-const PROTOCOL_LABELS: readonly [string, string][] = [
-  ["openai", "OpenAI 兼容（多数服务）"],
-  ["openai-responses", "OpenAI Responses（OpenAI 官方）"],
-  ["anthropic", "Anthropic（Claude）"],
-];
-
-const CHUNK_LABELS: Readonly<Record<AnalysisChunkMode, string>> = {
-  auto: "自动（推荐）",
-  short: "较短：请求数更多，更稳",
-  long: "较长：请求数更少，更快",
-  whole: "尽量整份：请求最少、章节最连贯，要上下文长的模型，容易超时",
-};
-
-const CONSENT_HEADINGS: readonly [DataConsentKind, string][] = [
-  ["category", "会发送"],
-  ["purpose", "用在"],
-  ["recipient", "发给谁"],
-  ["trigger", "什么时候发"],
-];
+const CONSENT_KINDS: readonly DataConsentKind[] = ["category", "purpose", "recipient", "trigger"];
 
 const FULL_CONSENT = noticeStatus(DATA_CONSENT_TABLE, {});
 const FULL_CONSENT_ITEMS = FULL_CONSENT.state === "needed" ? FULL_CONSENT.items : [];
 
 export function ConsentLines({ items }: { readonly items: readonly NoticeItem<DataConsentKind>[] }) {
+  const t = optionsText().consent;
   const lines = noticeLines(items);
   return (
     <dl class="consent-lines">
-      {CONSENT_HEADINGS.map(([kind, heading]) => {
+      {CONSENT_KINDS.map((kind) => {
         const texts = lines.filter((line) => line.kind === kind).map((line) => line.text);
         return texts.length ? (
           <div key={kind} class="consent-row">
-            <dt>{heading}</dt>
-            <dd>{texts.join("；")}</dd>
+            <dt>{t.headings[kind]}</dt>
+            <dd>{texts.join(t.joiner)}</dd>
           </div>
         ) : null;
       })}
@@ -63,19 +49,20 @@ export function ConsentLines({ items }: { readonly items: readonly NoticeItem<Da
 }
 
 function ConsentBox({ state }: { readonly state: OptionsState }) {
+  const t = optionsText().consent;
   const saved = state.saved.value;
   if (!saved) return null;
   const status = dataConsentStatus(saved);
   const given = status.state === "current";
   return (
     <div class="consent" id="dataConsentBox">
-      <p class="consent-title">使用 AI 功能时会发送什么</p>
+      <p class="consent-title">{t.title}</p>
       {status.state === "needed" && status.updated ? (
         <>
-          <p class="field-hint">说明有更新，新增的内容：</p>
+          <p class="field-hint">{t.updated}</p>
           <ConsentLines items={status.items} />
           <details>
-            <summary>查看完整说明</summary>
+            <summary>{t.full}</summary>
             <ConsentLines items={FULL_CONSENT_ITEMS} />
           </details>
         </>
@@ -84,14 +71,16 @@ function ConsentBox({ state }: { readonly state: OptionsState }) {
       )}
       <label class="check">
         <input id="dataConsent" type="checkbox" checked={given} onChange={(event) => void state.setConsent(event.currentTarget.checked)} />
-        <span>我已了解，同意在我使用 AI 功能时发送上述内容</span>
+        <span>{t.agree}</span>
       </label>
-      <span class="field-hint">没勾选时不发任何 AI 请求。取消勾选马上生效。</span>
+      <span class="field-hint">{t.agreeHint}</span>
     </div>
   );
 }
 
 function EffortBlock({ state }: { readonly state: OptionsState }) {
+  const t = optionsText().efforts;
+  const lang = uiLang.value;
   const form = state.form.value;
   const saved = state.saved.value;
   const items = state.efforts.value;
@@ -101,19 +90,19 @@ function EffortBlock({ state }: { readonly state: OptionsState }) {
   const pending = serviceChanged(form, saved);
   return (
     <fieldset class="field effort-block" id="featureEfforts">
-      <legend class="field-label">推理强度</legend>
+      <legend class="field-label">{t.title}</legend>
       <div>
-        <span class="field-hint">档位越高，模型想得越久，越贵也越慢。服务或模型做不到的档位，按最接近的一档发，并在旁边标出。改了马上生效，不用点「保存并授权」。</span>
+        <span class="field-hint">{t.hint}</span>
         <AiStatusLine state={state} at="efforts" />
       </div>
       {FEATURE_MODEL_SLOTS.map((slot) => {
         const item = pending ? undefined : items?.find((entry) => entry.feature === slot.id && entry.requested === saved.featureEfforts[slot.id]);
-        const note = item ? effortNoteText(item) : null;
+        const note = item ? effortNoteText(item, lang) : null;
         const latest = items?.find((entry) => entry.feature === slot.id);
-        const usage = latest ? usageText(latest) : null;
+        const usage = latest ? usageText(latest, lang) : null;
         return (
           <label key={slot.id} class="feature-row">
-            <span class="feature-label">{slot.label}</span>
+            <span class="feature-label">{slotLabel(slot.id, lang)}</span>
             <span class="effort-choice">
               <select
                 class="input"
@@ -123,7 +112,7 @@ function EffortBlock({ state }: { readonly state: OptionsState }) {
               >
                 {EFFORTS.map((effort) => (
                   <option key={effort} value={effort}>
-                    {EFFORT_LABELS[effort]}
+                    {t.labels[effort]}
                   </option>
                 ))}
               </select>
@@ -141,12 +130,14 @@ function EffortBlock({ state }: { readonly state: OptionsState }) {
           </label>
         );
       })}
-      {pending ? <span class="field-hint">改了服务商或模型，保存以后再标实际档位。</span> : null}
+      {pending ? <span class="field-hint">{t.pending}</span> : null}
     </fieldset>
   );
 }
 
 export function AiSection({ state }: { readonly state: OptionsState }) {
+  const t = optionsText().ai;
+  const lang = uiLang.value;
   const form = state.form.value;
   const saved = state.saved.value;
   const busy = state.busy.value;
@@ -158,40 +149,38 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
   const working = busy !== null;
   return (
     <section class="card" id="ai-service" aria-labelledby={`${id}-title`}>
-      <h2 id={`${id}-title`}>AI 服务</h2>
-      <p class="hint">
-        翻译、概览、划词解释、笔记润色和问答要调用大模型服务。选好服务商，填 API 密钥和模型名称就行，地址已经内置；列表里没有的服务选「自定义」，自己填地址和协议。密钥只发到所选服务商的地址。
-      </p>
+      <h2 id={`${id}-title`}>{t.title}</h2>
+      <p class="hint">{t.hint}</p>
       {showsRegionChooser(saved) ? (
         <div class="field">
-          <span class="field-label">先选一类服务</span>
+          <span class="field-label">{t.regionTitle}</span>
           <span class="field-row">
             {REGION_PRESETS.map((region) => (
               <Button key={region.id} onClick={() => state.choosePreset(region.presetId)}>
-                {region.label}
+                {t.regions[region.id]}
               </Button>
             ))}
           </span>
-          <span class="field-hint">只是帮你预填服务商，也可以直接在下面的列表里选。能不能开通账户、数据存在哪里，以各服务商为准。</span>
+          <span class="field-hint">{t.regionHint}</span>
         </div>
       ) : null}
 
       <label class="field">
-        <span class="field-label">服务商</span>
+        <span class="field-label">{t.provider}</span>
         <select class="input" id="preset" value={form.presetId} onChange={(event) => state.choosePreset(event.currentTarget.value)}>
           {PRESETS.map((item) => (
             <option key={item.id} value={item.id}>
-              {item.label}
+              {t.presets[item.id]}
             </option>
           ))}
         </select>
         {preset?.docsUrl ? (
           <span class="field-hint">
-            到{" "}
+            {t.docsBefore}
             <a href={preset.docsUrl} target="_blank" rel="noreferrer">
-              {preset.label} 的控制台
-            </a>{" "}
-            创建 API 密钥。
+              {t.docsLink(t.presets[preset.id])}
+            </a>
+            {t.docsAfter}
           </span>
         ) : null}
       </label>
@@ -199,18 +188,18 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
       {custom ? (
         <>
           <label class="field">
-            <span class="field-label">API 协议</span>
+            <span class="field-label">{t.protocol}</span>
             <select class="input" id="protocol" value={form.protocol} onChange={(event) => state.editAddress({ protocol: event.currentTarget.value })}>
-              {PROTOCOL_LABELS.map(([value, label]) => (
+              {PROTOCOLS.map((value) => (
                 <option key={value} value={value}>
-                  {label}
+                  {t.protocols[value]}
                 </option>
               ))}
             </select>
-            <span class="field-hint">除 Anthropic 外，主流服务多用 OpenAI 兼容协议，拿不准就选它。</span>
+            <span class="field-hint">{t.protocolHint}</span>
           </label>
           <label class="field">
-            <span class="field-label">API 地址</span>
+            <span class="field-label">{t.baseUrl}</span>
             <input
               class="input"
               id="aiBaseUrl"
@@ -221,14 +210,14 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
               value={form.aiBaseUrl}
               onChange={(event) => state.editAddress({ aiBaseUrl: event.currentTarget.value })}
             />
-            <span class="field-hint">填到版本号就行，只认 https。本机跑的服务（localhost、127.0.0.1）可以用 http。</span>
+            <span class="field-hint">{t.baseUrlHint}</span>
           </label>
         </>
       ) : null}
 
       <div class="field">
         <label class="field-label" for="aiApiKey">
-          API 密钥
+          {t.apiKey}
         </label>
         <div>
           <span class="field-row">
@@ -243,32 +232,30 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
               onInput={(event) => state.editKey(event.currentTarget.value)}
             />
             <Confirmable
-              label="清除密钥"
-              question="删除保存的 API 密钥？会话里和这台电脑上记住的都会删掉，删除后要重新填写才能用 AI 功能。"
-              confirmLabel="删除密钥"
+              label={t.clearKey}
+              question={t.clearKeyQuestion}
+              confirmLabel={t.clearKeyConfirm}
               disabled={working}
               onConfirm={() => void state.clearKey()}
             />
           </span>
           <AiStatusLine state={state} at="key" />
         </div>
-        <span class="field-hint">默认只存在本次浏览器会话的内存里，不写入磁盘：重启浏览器，或者扩展停用、重新加载、更新以后，要重新填写。地址是本机的服务不要密钥时，可以留空。</span>
+        <span class="field-hint">{t.keyHint}</span>
       </div>
 
       <div>
         <label class="check">
           <input id="rememberApiKey" type="checkbox" checked={form.rememberApiKey} onChange={(event) => void state.setRemember(event.currentTarget.checked)} />
-          <span>在这台电脑上记住密钥</span>
+          <span>{t.remember}</span>
         </label>
         <AiStatusLine state={state} at="remember" />
       </div>
-      <span class="field-hint">
-        勾上并点「保存并授权」以后，密钥以未加密的形式存在本机的扩展存储里，重启浏览器后还能用。能读这台电脑浏览器数据的程序或人可能拿到密钥，共用电脑上不要开；担心泄露可以到服务商后台撤销这把密钥。取消勾选马上删掉本机那份，密钥只留在本次会话里。密钥不进备份，也不随浏览器账号同步。
-      </span>
+      <span class="field-hint">{t.rememberHint}</span>
 
       <div class="field">
         <label class="field-label" for="aiModel">
-          模型
+          {t.model}
         </label>
         <div>
           <span class="field-row">
@@ -276,36 +263,34 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
               id="aiModel"
               models={state.models.value}
               value={form.aiModel}
-              placeholder="填写模型名称，或点右边的按钮拉取"
-              pickLabel="从拉到的模型里选"
+              placeholder={t.modelPlaceholder}
+              pickLabel={t.modelPick}
               onValue={(aiModel) => state.edit({ aiModel })}
             />
             <Button disabled={working} onClick={() => void state.fetchModels()}>
-              {busy === "models" ? "正在拉取" : "拉取模型列表"}
+              {busy === "models" ? t.fetching : t.fetch}
             </Button>
           </span>
           <AiStatusLine state={state} at="model" />
         </div>
-        <span class="field-hint">拉取会先按表单保存一次，再向服务商要当前可用的模型。</span>
+        <span class="field-hint">{t.modelHint}</span>
       </div>
 
       <details class="field" id="featureModels" open={hasFeatureModels}>
-        <summary>按功能选模型（可选）</summary>
-        <span class="field-hint">
-          同一个服务商、同一把密钥下，可以给单项功能另选模型，留空就用上面的默认模型。一句话结论、翻译、划词解释这类短任务可以选更快更便宜的；概览和问答建议用能力更强的。换服务商时这里会清空。
-        </span>
+        <summary>{t.featureModels}</summary>
+        <span class="field-hint">{t.featureHint}</span>
         {FEATURE_MODEL_SLOTS.map((slot) => (
           <div key={slot.id} class="feature-row">
             <label class="feature-label" for={`featureModel-${slot.id}`}>
-              {slot.label}
+              {slotLabel(slot.id, lang)}
             </label>
             <ModelField
               id={`featureModel-${slot.id}`}
               feature={slot.id}
               models={state.models.value}
               value={form.featureModels[slot.id] ?? ""}
-              placeholder={form.aiModel || "默认模型"}
-              pickLabel={`${slot.label}：从拉到的模型里选`}
+              placeholder={form.aiModel || t.defaultModel}
+              pickLabel={t.featurePick(slotLabel(slot.id, lang))}
               onValue={(model) => state.editFeatureModel(slot.id, model)}
             />
           </div>
@@ -317,36 +302,34 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
 
       <div class="actions">
         <Button variant="primary" disabled={working} onClick={() => void state.save()}>
-          {busy === "save" ? "正在保存" : "保存并授权"}
+          {busy === "save" ? t.saving : t.save}
         </Button>
         <Button disabled={working} onClick={() => void state.testConnection(false)}>
-          {busy === "test" ? "正在测试" : "测试连接"}
+          {busy === "test" ? t.testing : t.test}
         </Button>
         {hasFeatureModels ? (
           <Button disabled={working} onClick={() => void state.testConnection(true)}>
-            测试全部模型
+            {t.testAll}
           </Button>
         ) : null}
       </div>
       <AiStatusLine state={state} at="actions" />
-      <p class="hint">
-        点「保存并授权」时，浏览器会问是否允许简幕访问所选服务商的域名。扩展安装时不知道你会用哪家服务，所以选定以后单独申请，而且只申请这一个域名。
-      </p>
+      <p class="hint">{t.hostHint}</p>
 
       {/* 下面两项即改即存，不归「保存并授权」管，排在按钮后面。 */}
       <EffortBlock state={state} />
 
       <div>
         <label class="field">
-          <span class="field-label">概览分块</span>
+          <span class="field-label">{t.chunk}</span>
           <select class="input" id="analysisChunkMode" value={saved.analysisChunkMode} onChange={(event) => void state.saveInstant({ analysisChunkMode: event.currentTarget.value })}>
             {(Object.keys(ANALYSIS_CHUNK_MODES) as AnalysisChunkMode[]).map((mode) => (
               <option key={mode} value={mode}>
-                {CHUNK_LABELS[mode]}
+                {t.chunks[mode]}
               </option>
             ))}
           </select>
-          <span class="field-hint">多数模型用自动就好。上下文窗口小、内容有遗漏，或者长视频的请求超时（单次上限 120 秒，推理强度选中、高时放宽到 180、300 秒）时选「较短」。模型的上下文够长（能装下几万字）时可以选「尽量整份」：一个视频多半一次请求就写完，但更容易超时，超时就换回别的档。改了马上生效，不用点「保存并授权」。</span>
+          <span class="field-hint">{t.chunkHint}</span>
         </label>
         <AiStatusLine state={state} at="chunk" />
       </div>

@@ -5,8 +5,11 @@ import { createYoutubeAccess } from "../shared/youtube-access.ts";
 import { Button } from "../shared/ui/button.tsx";
 import { Confirmable, StatusLine } from "./controls.tsx";
 import type { Status } from "./state.ts";
+import { uiLang } from "../shared/ui-lang.ts";
+import { youtubeText } from "./youtube-text.ts";
 
 export function YoutubeSection() {
+  const t = youtubeText(uiLang.value);
   const id = useId();
   const access = useMemo(() => createYoutubeAccess(), []);
   const [status, setStatus] = useState<Status | null>(null);
@@ -18,27 +21,27 @@ export function YoutubeSection() {
     void access.enable().then((outcome) => {
       setStatus(
         outcome === "granted"
-          ? { text: "已启用。已经开着的 YouTube 页面不用刷新。", tone: "ok" }
+          ? { text: t.granted, tone: "ok" }
           : outcome === "declined"
-            ? { text: "没有授权，YouTube 上暂时用不了。", tone: "error" }
-            : { text: "没能弹出授权框，请稍后再试。", tone: "error" },
+            ? { text: t.declined, tone: "error" }
+            : { text: t.noPrompt, tone: "error" },
       );
     });
   };
   const disable = async (): Promise<void> => {
     const removed = await access.disable();
-    setStatus(removed ? { text: "已停用。", tone: "ok" } : { text: "没能停用，请稍后再试。", tone: "error" });
+    setStatus(removed ? { text: t.disabled, tone: "ok" } : { text: t.disableFailed, tone: "error" });
   };
 
   return (
     <section class="card" id="youtube" aria-labelledby={`${id}-title`}>
-      <h2 id={`${id}-title`}>YouTube</h2>
-      <p class="hint">启用后，简幕在 YouTube 的观看页上读字幕和视频信息，用法和 B 站一样。读字幕时会替你点开视频页上的文字稿。</p>
+      <h2 id={`${id}-title`}>{t.title}</h2>
+      <p class="hint">{t.hint}</p>
       {granted === null ? null : granted ? (
-        <Confirmable label="停用" question="停用以后，已开的 YouTube 页面里简幕会撤下，本机的笔记和概览不删。" confirmLabel="停用" onConfirm={() => void disable()} />
+        <Confirmable label={t.disable} question={t.disableQuestion} confirmLabel={t.disableConfirm} onConfirm={() => void disable()} />
       ) : (
         <Button variant="primary" onClick={enable}>
-          在 YouTube 上启用
+          {t.enable}
         </Button>
       )}
       <StatusLine status={status} />

@@ -60,7 +60,7 @@ test("watchAppearance：先按存储落地外观，存储变了跟着变，别�
   const { root } = fakePage({ localStorage });
 
   const watch = await watchAppearance(source.deps, root);
-  assert.deepEqual(watch.current(), { accentTheme: "ochre", themeMode: "dark", uiFontScale: 112 });
+  assert.deepEqual(watch.current(), { accentTheme: "ochre", themeMode: "dark", uiFontScale: 112, language: "auto" });
   assert.equal(root.dataset.accentTheme, "ochre");
   assert.equal(root.dataset.themeMode, "dark");
   assert.equal(root.style.values["--ui-font-zoom"], "1.12");
@@ -69,7 +69,7 @@ test("watchAppearance：先按存储落地外观，存储变了跟着变，别�
   assert.equal(root.dataset.accentTheme, "graphite", "设置页换了主题，页面立刻跟着换");
   assert.equal(root.dataset.themeMode, "light");
   assert.equal(root.style.values["--ui-font-zoom"], "1");
-  assert.deepEqual(JSON.parse(localStorage.getItem(APPEARANCE_CACHE_KEY) ?? "null"), { accentTheme: "graphite", themeMode: "light", uiFontScale: 100 });
+  assert.deepEqual(JSON.parse(localStorage.getItem(APPEARANCE_CACHE_KEY) ?? "null"), { accentTheme: "graphite", themeMode: "light", uiFontScale: 100, language: "auto" });
 
   source.emit({ [SETTINGS_STORAGE_KEY]: { newValue: { accentTheme: "ink" } } }, "sync");
   source.emit({ [SETTINGS_STORAGE_KEY]: { newValue: { accentTheme: "ink" } } }, "session");
@@ -123,7 +123,7 @@ test("收到清除全部数据：按清除后的设置（默认值）重写外�
   assert.equal(watch.current()?.accentTheme, "ink");
   assert.deepEqual({ ...root.dataset }, { accentTheme: "ink", themeMode: "light" });
   assert.equal(root.style.values["--ui-font-zoom"], "1");
-  assert.deepEqual(JSON.parse(localStorage.getItem(APPEARANCE_CACHE_KEY) ?? "null"), { accentTheme: "ink", themeMode: "system", uiFontScale: 100 });
+  assert.deepEqual(JSON.parse(localStorage.getItem(APPEARANCE_CACHE_KEY) ?? "null"), { accentTheme: "ink", themeMode: "system", uiFontScale: 100, language: "auto" });
 
   // 清除以后读设置失败：照样按默认值重写
   const other = fakeSource({ accentTheme: "ochre" });
@@ -248,7 +248,7 @@ test("applyAppearance 把主题和明暗落到根节点的 data 属性上", () =
   const root = { dataset: {} as Record<string, string | undefined> };
   const normalized = applyAppearance({ accentTheme: "ochre", themeMode: "dark" }, root);
   assert.deepEqual({ ...root.dataset }, { accentTheme: "ochre", themeMode: "dark" });
-  assert.deepEqual(normalized, { accentTheme: "ochre", themeMode: "dark", uiFontScale: 100 });
+  assert.deepEqual(normalized, { accentTheme: "ochre", themeMode: "dark", uiFontScale: 100, language: "auto" });
 
   // 跟随系统要在无浏览器环境时安全落地
   const plain = { dataset: {} as Record<string, string | undefined> };

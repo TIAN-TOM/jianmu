@@ -19,6 +19,8 @@ import {
   DATA_CONSENT_FINGERPRINT,
   DATA_CONSENT_VERSION,
 } from "../../../src/core/consent.ts";
+import { slotLabel } from "../../../src/pages/options/text.ts";
+import { OPTIONS_ZH } from "../../../src/pages/options/text-zh.ts";
 import * as SETTINGS from "../../../src/shared/settings-schema.ts";
 
 const HTTPS_ERROR = "API 地址要以 https:// 开头。只有本机地址（localhost、127.0.0.1）可以用 http://。";
@@ -504,7 +506,7 @@ test("主题只有三套，默认宣纸墨青", () => {
   assert.deepEqual(Object.keys(SETTINGS.ACCENT_THEMES), ["ink", "graphite", "ochre"]);
   assert.equal(SETTINGS.DEFAULTS.accentTheme, "ink");
   assert.deepEqual(
-    Object.values(SETTINGS.ACCENT_THEMES).map((theme) => theme.label),
+    (Object.keys(SETTINGS.ACCENT_THEMES) as SETTINGS.AccentTheme[]).map((theme) => OPTIONS_ZH.appearance.themes[theme].name),
     ["宣纸墨青", "石墨靛蓝", "暖岩赭石"],
   );
 });
@@ -547,15 +549,15 @@ test("每个预设的地址都能通过自身协议的校验", () => {
   for (const preset of SETTINGS.PRESETS) {
     if (!preset.baseUrl) continue; // 「自定义」故意留空
     const result = validateBaseUrl(preset.baseUrl, preset.protocol);
-    assert.equal(result.ok, true, `${preset.label} 的地址不合法`);
-    assert.equal(SETTINGS.normalize({ presetId: preset.id }).aiBaseUrl, preset.baseUrl, preset.label);
+    assert.equal(result.ok, true, `${preset.id} 的地址不合法`);
+    assert.equal(SETTINGS.normalize({ presetId: preset.id }).aiBaseUrl, preset.baseUrl, preset.id);
   }
 });
 
 test("预设的协议都在已支持的协议之内", () => {
   const known: readonly Protocol[] = Object.values(PROTOCOLS);
   for (const preset of SETTINGS.PRESETS) {
-    assert.ok(known.includes(preset.protocol), `${preset.label} 的协议不受支持`);
+    assert.ok(known.includes(preset.protocol), `${preset.id} 的协议不受支持`);
   }
 });
 
@@ -568,17 +570,17 @@ test("预设 id 不重复，且包含自定义选项", () => {
 test("除默认的 Anthropic 和 DeepSeek 外，预设不写死模型名", () => {
   for (const preset of SETTINGS.PRESETS) {
     if (preset.id === "anthropic" || preset.id === "deepseek") continue;
-    assert.equal(preset.model, "", `${preset.label} 预置了模型名 ${preset.model}，模型换代后会变成过期的默认值`);
+    assert.equal(preset.model, "", `${preset.id} 预置了模型名 ${preset.model}，模型换代后会变成过期的默认值`);
   }
 });
 
-test("预设表以地址模块为准：顺序、协议和地址都来自那边，这里只补标签、默认模型和密钥页链接", () => {
+test("预设表以地址模块为准：顺序、协议和地址都来自那边，这里只补默认模型和密钥页链接，显示名在设置页的文案表里", () => {
   assert.deepEqual(
     SETTINGS.PRESETS.map(({ id, protocol, baseUrl }) => ({ id, protocol, baseUrl })),
     [...ENDPOINT_PRESETS],
   );
   assert.deepEqual(
-    SETTINGS.PRESETS.map((preset) => [preset.id, preset.label]),
+    SETTINGS.PRESETS.map((preset) => [preset.id, OPTIONS_ZH.ai.presets[preset.id]]),
     [
       ["anthropic", "Anthropic Claude"],
       ["openai", "OpenAI"],
@@ -597,7 +599,7 @@ test("预设表以地址模块为准：顺序、协议和地址都来自那边�
 
 test("快捷选择指向真实的预设，国内在前", () => {
   assert.deepEqual(
-    SETTINGS.REGION_PRESETS.map((region) => [region.label, region.presetId]),
+    SETTINGS.REGION_PRESETS.map((region) => [OPTIONS_ZH.ai.regions[region.id], region.presetId]),
     [["国内服务", "deepseek"], ["海外服务", "anthropic"]],
   );
   for (const region of SETTINGS.REGION_PRESETS) assert.ok(SETTINGS.presetById(region.presetId), region.id);
@@ -716,7 +718,7 @@ test("覆盖只认已知功能下的非空字符串，去掉首尾空白", () =>
 
 test("功能列表就是设置页那七项，构建开关打开时多一项画面分析，id 不重复", () => {
   assert.deepEqual(
-    SETTINGS.FEATURE_MODEL_SLOTS.map((slot) => [slot.id, slot.label]),
+    SETTINGS.FEATURE_MODEL_SLOTS.map((slot) => [slot.id, slotLabel(slot.id)]),
     [
       ["analysis", "概览"],
       ["verdict", "一句话结论"],
