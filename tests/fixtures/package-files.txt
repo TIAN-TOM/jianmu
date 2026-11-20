@@ -2,6 +2,8 @@ LICENSE.txt
 background.js
 build-id.txt
 content/bilibili.js
+content/youtube-bridge.js
+content/youtube.js
 icons/icon-128.png
 icons/icon-16.png
 icons/icon-48.png

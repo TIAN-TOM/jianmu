@@ -9,7 +9,7 @@ import { readsOnClick } from "./transcript.ts";
 import { OPEN_READ_HINT } from "./open-transcript.ts";
 
 const MANUAL_READ_HINT = "先在视频页上打开文字稿，等文字出来，再点读取。简幕只读文字稿里已经显示的内容。";
-// 发行构建里没有代开文字稿，说明照旧让用户自己打开。
+// 关掉代开开关的构建里没有代开文字稿，说明让用户自己打开。
 const READ_HINT = FEATURE_YOUTUBE_OPEN_PANEL ? OPEN_READ_HINT : MANUAL_READ_HINT;
 import { Button, IconButton } from "../shared/ui/button.tsx";
 import { Icon } from "../shared/ui/icon.tsx";

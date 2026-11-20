@@ -6,8 +6,8 @@ import { join } from "node:path";
 import { after, test } from "node:test";
 import { buildFlagsRecord } from "../../../scripts/lib/build-flags.mjs";
 import { checksumLine, parseChecksumLine, resolveSourceDateEpoch, sortZipEntries } from "../../../scripts/lib/zip-order.mjs";
-import { findPackageProblems, normalizeEntries, writeZip } from "../../../scripts/package.mjs";
-import { DAILY_FEATURES, FEATURE_NAMES, RELEASE_FEATURES, TEST_BUILD_FEATURES, type FeatureSet } from "../../../src/shared/features.ts";
+import { extraFeatureFiles, findPackageProblems, normalizeEntries, readExpectedFiles, writeZip } from "../../../scripts/package.mjs";
+import { DAILY_FEATURES, FEATURE_GLOBALS, FEATURE_NAMES, featureFiles, RELEASE_FEATURES, TEST_BUILD_FEATURES, type FeatureSet } from "../../../src/shared/features.ts";
 
 const manifest = JSON.stringify({ version: "1.2.3", background: { service_worker: "background.js" }, side_panel: { default_path: "pages/a.html" } });
 const good: Record<string, string> = {
@@ -69,15 +69,18 @@ test("拦下各类问题", () => {
   assert.ok(problems(withoutManifest).some((problem) => /manifest\.json 不在包的顶层/.test(problem)));
 });
 
-test("开关和发行那份不一样的产物不打包：测试构建、多开一个开关的验证构建、少开发行开关的构建、记录缺失或认不出都不出包", () => {
+test("开关和发行那份不一样的产物不打包：多开一个开关的构建、少开发行开关的构建、记录缺失或认不出都不出包", () => {
   const refused: [string, unknown, RegExp][] = [
-    ["测试构建", buildFlagsRecord(TEST_BUILD_FEATURES), /开着 FEATURE_YOUTUBE、FEATURE_YOUTUBE_OPEN_PANEL，/],
     ...FEATURE_NAMES.filter((name) => !RELEASE_FEATURES[name]).map((name): [string, unknown, RegExp] => [
       `多开 ${name}`,
       buildFlagsRecord({ ...RELEASE_FEATURES, [name]: true }),
-      /测试构建和本机验证构建不能打包/,
+      /开关和这个包不一样的构建不能打包/,
     ]),
-    ["关着解释当前画面", buildFlagsRecord({ ...RELEASE_FEATURES, frameExplain: false }), /没开 FEATURE_FRAME_EXPLAIN，这个包要带它：用 npm run package 重新打/],
+    ...FEATURE_NAMES.filter((name) => RELEASE_FEATURES[name]).map((name): [string, unknown, RegExp] => [
+      `关着 ${name}`,
+      buildFlagsRecord({ ...RELEASE_FEATURES, [name]: false }),
+      new RegExp(`没开 ${FEATURE_GLOBALS[name]}，这个包要带它：用 npm run package 重新打`),
+    ]),
     ["记录里多出一个开着的开关", { ...RELEASE_FLAGS, FEATURE_SOMETHING_NEW: true }, /开着 FEATURE_SOMETHING_NEW/],
     ["取值不是布尔值", { ...RELEASE_FLAGS, FEATURE_YOUTUBE_OPEN_PANEL: "false" }, /没有 FEATURE_YOUTUBE_OPEN_PANEL 的取值/],
     ["少了一个开关", Object.fromEntries(Object.entries(RELEASE_FLAGS).slice(1)), /没有 FEATURE_FRAME_EXPLAIN 的取值/],
@@ -90,6 +93,15 @@ test("开关和发行那份不一样的产物不打包：测试构建、多开�
     assert.ok(found.some((problem) => expected.test(problem)), `${label}：${found.join("；")}`);
   }
   assert.deepEqual(problemsWith(good, { ...RELEASE_FLAGS }), [], "发行构建照常打包");
+});
+
+test("发行包的文件清单写着发行构建打开的开关带的文件，别的包只在清单上加比发行多开的开关带的文件", () => {
+  const expected = readExpectedFiles();
+  for (const file of featureFiles(RELEASE_FEATURES)) assert.ok(expected.includes(file), `${file} 要写进 tests/fixtures/package-files.txt`);
+  assert.equal(new Set(expected).size, expected.length, "清单里没有重复");
+  assert.deepEqual(extraFeatureFiles(RELEASE_FEATURES), []);
+  assert.deepEqual(extraFeatureFiles(DAILY_FEATURES), []);
+  assert.deepEqual(extraFeatureFiles({ ...RELEASE_FEATURES, youtube: false }), []);
 });
 
 test("日用包只收和日用那份一模一样的构建，重打的提示是日用包的命令", () => {

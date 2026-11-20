@@ -14,13 +14,11 @@ export const BUILD_FLAGS_FILE = join(ROOT, ".build-flags.json");
  * 构建参数对应的开关取值，不带参数就是发行构建。只有发行构建和 --daily 能打包，别的都不打包。
  *   --test-build      全部打开，给页面测试用
  *   --daily           日用构建：开关取值是 shared/features.ts 的 DAILY_FEATURES
- *   --youtube-ops     发行构建再打开 YouTube 和它的代开面板，给开发者本人在 YouTube 上验证用
  * @type {Readonly<Record<string, FeatureSet>>}
  */
 export const BUILD_VARIANTS = Object.freeze({
   "--test-build": TEST_BUILD_FEATURES,
   "--daily": DAILY_FEATURES,
-  "--youtube-ops": Object.freeze({ ...RELEASE_FEATURES, youtube: true, youtubeOpenPanel: true }),
 });
 
 /** @param {readonly string[]} args @returns {FeatureSet} */
@@ -74,7 +72,7 @@ export function buildFlagProblems(record, expected = RELEASE_FEATURES, rebuild =
   const wanted = buildFlagsRecord(expected);
   const off = Object.keys(wanted).filter((name) => wanted[name] && values[name] !== true);
   const on = Object.keys(values).filter((name) => values[name] !== false && !wanted[name]);
-  if (on.length > 0) problems.push(`这次构建多开着 ${on.join("、")}，这个包不带它：测试构建和本机验证构建不能打包，用 ${rebuild} 重新打`);
+  if (on.length > 0) problems.push(`这次构建多开着 ${on.join("、")}，这个包不带它：开关和这个包不一样的构建不能打包，用 ${rebuild} 重新打`);
   if (off.length > 0) problems.push(`这次构建没开 ${off.join("、")}，这个包要带它：用 ${rebuild} 重新打`);
   return problems;
 }

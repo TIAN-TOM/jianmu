@@ -30,7 +30,7 @@ npm run release -- candidate   # 发布候选：要在远端 main 的最新提�
 
 单项命令：`npm run typecheck`、`npm test`、`npm run build`、`npm run test:build`、`npm run check:public`。
 
-`npm run build` 是发行构建。几种构建的开关取值都在 `src/shared/features.ts`（发行 `RELEASE_FEATURES`、日用 `DAILY_FEATURES`、测试 `TEST_BUILD_FEATURES`），每个开关为什么开、为什么关也写在那里，这里不列。`node scripts/build.mjs --test-build` 是测试构建，只给测试用，`npm run test:pages` 用的就是它；`--daily` 是日用构建，发行构建加上只给开发者本人用的开关，经 `npm run package:daily` 打成文件名带 `-daily` 的包，发布脚本不认；`--youtube-ops` 在发行构建上再打开 YouTube 和它的代开面板，给开发者本人在 YouTube 上验证用。这几种可以加 `--watch`，只有发行构建和 `--daily` 能打包。
+`npm run build` 是发行构建。几种构建的开关取值都在 `src/shared/features.ts`（发行 `RELEASE_FEATURES`、日用 `DAILY_FEATURES`、测试 `TEST_BUILD_FEATURES`），每个开关为什么开、为什么关也写在那里，这里不列。`node scripts/build.mjs --test-build` 是测试构建，只给测试用，`npm run test:pages` 用的就是它；`--daily` 是日用构建，发行构建加上只给开发者本人用的开关，经 `npm run package:daily` 打成文件名带 `-daily` 的包，发布脚本不认。这几种可以加 `--watch`，只有发行构建和 `--daily` 能打包。
 
 打完发布候选，在 GitHub Actions 里手动触发「发布前核对」（`.github/workflows/release-check.yml`），填候选的提交号和校验值：它在 Chrome for Testing 116 和当前稳定版上各跑一遍端到端，在 Linux 上重新打包核对校验值。这个工作流不在必需检查里。
 

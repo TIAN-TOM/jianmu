@@ -371,7 +371,7 @@ function assembleCore(deps: AppDeps): Core {
   const messenger = createMessenger(deps.runtime, tabs.send);
   const enabled = async () => (await settings.activation()).state === "current";
   const sessionParts = assembleSessions(deps, clearGuard, messenger);
-  // 发行构建里这一支连同站点开关的代码一起裁掉。
+  // 关掉 YouTube 开关的构建里这一支连同站点开关的代码一起裁掉。
   const siteSwitch = FEATURE_YOUTUBE
     ? createSiteSwitch({ rules: deps.siteRules, permissions: createPermissions(deps.permissions, () => deps.runtime.getManifest()), scripts: createRegisteredScripts(deps.scripting), tabs, messenger, contentTabs, enabled, log: deps.log, forgetSessions: (platform) => sessionParts.sessions.forgetPlatform(platform) })
     : null;

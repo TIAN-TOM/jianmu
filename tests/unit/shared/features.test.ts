@@ -16,10 +16,10 @@ import {
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
-test("发行构建打开解释当前画面（首发带上），YouTube、代开文字稿和沿用同意关着；日用构建多开 YouTube、代开文字稿和沿用同意；测试构建打开功能开关，沿用同意和发行一样关着", () => {
+test("发行构建打开解释当前画面、YouTube 和代开文字稿（首发带上），沿用同意关着；日用构建只多开沿用同意；测试构建打开功能开关，沿用同意和发行一样关着", () => {
   assert.deepEqual(FEATURE_NAMES, ["frameExplain", "youtube", "youtubeOpenPanel", "keepConsent"]);
-  assert.deepEqual(RELEASE_FEATURES, { frameExplain: true, youtube: false, youtubeOpenPanel: false, keepConsent: false });
-  assert.deepEqual(DAILY_FEATURES, { ...RELEASE_FEATURES, youtube: true, youtubeOpenPanel: true, keepConsent: true });
+  assert.deepEqual(RELEASE_FEATURES, { frameExplain: true, youtube: true, youtubeOpenPanel: true, keepConsent: false });
+  assert.deepEqual(DAILY_FEATURES, { ...RELEASE_FEATURES, keepConsent: true });
   assert.deepEqual(TEST_BUILD_FEATURES, { frameExplain: true, youtube: true, youtubeOpenPanel: true, keepConsent: false });
   assert.ok(Object.isFrozen(RELEASE_FEATURES) && Object.isFrozen(TEST_BUILD_FEATURES) && Object.isFrozen(FEATURE_GLOBALS));
 });
@@ -33,11 +33,11 @@ test("全局常量名是开关名的大写下划线写法，带 FEATURE_ 前缀"
 test("define 把每个全局常量换成字面量，只认真正的 true", () => {
   assert.deepEqual(featureDefines(RELEASE_FEATURES), {
     FEATURE_FRAME_EXPLAIN: "true",
-    FEATURE_YOUTUBE: "false",
-    FEATURE_YOUTUBE_OPEN_PANEL: "false",
+    FEATURE_YOUTUBE: "true",
+    FEATURE_YOUTUBE_OPEN_PANEL: "true",
     FEATURE_KEEP_CONSENT: "false",
   });
-  assert.deepEqual(featureDefines({ ...RELEASE_FEATURES, frameExplain: false, youtubeOpenPanel: true }), {
+  assert.deepEqual(featureDefines({ ...RELEASE_FEATURES, frameExplain: false, youtube: false }), {
     FEATURE_FRAME_EXPLAIN: "false",
     FEATURE_YOUTUBE: "false",
     FEATURE_YOUTUBE_OPEN_PANEL: "true",

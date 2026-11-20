@@ -146,6 +146,12 @@ export function readExpectedFiles() {
   return readFileSync(join(ROOT, "tests/fixtures/package-files.txt"), "utf8").split("\n").filter(Boolean);
 }
 
+/** 这组开关的包比发行包多出的文件：发行打开的开关带的文件已在清单里。 @param {import("../src/shared/features.ts").FeatureSet} features */
+export function extraFeatureFiles(features) {
+  const release = new Set(featureFiles(RELEASE_FEATURES));
+  return featureFiles(features).filter((file) => !release.has(file));
+}
+
 /** 没给 SOURCE_DATE_EPOCH 时用 HEAD 的提交时间。 */
 export function sourceDateEpoch() {
   return resolveSourceDateEpoch(process.env.SOURCE_DATE_EPOCH, () => {
@@ -165,7 +171,7 @@ function main() {
     const { sha256 } = packageDirectory({
       dir: BUILD,
       version,
-      expectedFiles: [...readExpectedFiles(), ...featureFiles(daily ? DAILY_FEATURES : RELEASE_FEATURES)],
+      expectedFiles: [...readExpectedFiles(), ...extraFeatureFiles(daily ? DAILY_FEATURES : RELEASE_FEATURES)],
       output,
       epoch: sourceDateEpoch(),
       buildFlags: readBuildFlags(),

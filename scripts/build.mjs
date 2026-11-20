@@ -1,5 +1,5 @@
 // 构建：esbuild 打包入口、复制 static/、写入清单版本号。不压缩、不带 source map，方便用户和贡献者审阅发布包。
-// 不带参数是发行构建，开关取值见 shared/features.ts；--daily、--test-build、--youtube-ops 见 lib/build-flags.mjs，只有发行构建和 --daily 能打包。
+// 不带参数是发行构建，开关取值见 shared/features.ts；--daily、--test-build 见 lib/build-flags.mjs，只有发行构建和 --daily 能打包。
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
