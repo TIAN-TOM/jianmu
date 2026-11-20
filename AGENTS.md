@@ -44,7 +44,7 @@ npm run release -- candidate   # 发布候选：要在远端 main 的最新提�
 - 注入 B 站和 YouTube 页面的标识一律以 `jianmu-` 开头，集中定义在 `src/shared/names.ts`。
 - 新增要进包的文件，同一个 PR 改 `tests/fixtures/package-files.txt`。
 - 版本号只写在 `package.json`，构建时写进产物清单。改版本号的提交用 `release:`。
-- 清单模板里的 `key` 是扩展身份，决定扩展 ID（快照在 `tests/fixtures/extension-id.txt`），不要改：改了已装用户的资料就接不上。私钥不进仓库，公开结构检查拦 `.pem`、`.crx`、`.key`。
+- 清单模板里的 `key` 是扩展身份，决定扩展 ID（快照在 `tests/fixtures/extension-id.txt`），不要改：改了已装用户的资料就接不上。只有 GitHub 首发之前和商店那边的身份对齐这一次例外（PRD 第 3 节）。私钥不进仓库，公开结构检查拦 `.pem`、`.crx`、`.key`。
 - 文本文件一律 LF。
 - 新增或升级依赖，在 PR 里写明是什么、为什么要。`.npmrc` 开了 `ignore-scripts`，`npm run` 不跑 pre、post 脚本，别依赖它们。
 - 新的扩展页面入口也先过 `src/pages/shared/build-check.ts` 的 `startWhenCurrent`：后台和页面不是同一次构建时只显示重新加载的提示。后台不认识的请求和端口回 `UNKNOWN_ROUTE`，发送方不放行回 `FORBIDDEN`，端口被拒时先发带码的通知再断开。
