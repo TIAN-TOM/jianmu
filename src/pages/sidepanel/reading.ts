@@ -5,6 +5,8 @@ import { buildSrt } from "../../core/transcript/srt.ts";
 import type { CueView } from "../../shared/messages/transcript.ts";
 import type { TranscriptMode } from "./translate.ts";
 
+export { chapterAt } from "../shared/ui/chapters.ts";
+
 /** 播放到的那一段：开始时间不晚于播放位置的最后一段。还没到第一段时是 -1。 */
 export function activeIndex(segments: readonly Pick<TranscriptSegment, "start">[], atSec: number | null): number {
   if (atSec === null || !Number.isFinite(atSec)) return -1;
@@ -60,14 +62,6 @@ export const MAX_SELECTION = 300;
 export function explainable(text: string): boolean {
   const trimmed = text.trim();
   return trimmed.length > 0 && trimmed.length <= MAX_SELECTION;
-}
-
-/** 播放到的那一章：开始时间不晚于播放位置的最后一章，章节要按开始时间排好。还没到第一章或没有章节时是 -1。 */
-export function chapterAt(chapters: readonly { readonly startSec: number }[], atSec: number | null): number {
-  return activeIndex(
-    chapters.map((chapter) => ({ start: chapter.startSec })),
-    atSec,
-  );
 }
 
 /** 一章里的字幕：从这一章开始到下一章开始之前；最后一章到结尾。 */

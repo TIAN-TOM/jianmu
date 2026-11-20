@@ -1,4 +1,5 @@
 // 卡片的界面：标题栏（展开收起）、提示、AI 概览（结论在最前，章节默认只露前几章）、B 站官方总结（有概览时收成一行）、进度和按钮。
+// 收起时标题栏那一行写着判断档和播放到的章节（或者临时的一句话），旁边是打开侧边栏的入口；侧边栏开着时不摆这个入口。
 // 按钮行在内容还在来时先不摆（规则在 model.ts），摆出来以后不被晚到的内容顶走。
 // 规则在 model.ts。视频标题不在卡片里再写一遍：页面顶上就是。
 import type { RefObject } from "preact";
@@ -11,7 +12,7 @@ import { ChapterList, type ChapterItem } from "../shared/ui/chapter-list.tsx";
 import { ServiceSaid } from "../shared/ui/notice.tsx";
 import { StaleTranscriptLine, VerdictBlock } from "../shared/ui/verdict-block.tsx";
 import { staleOverviewMarks, type BasisSource } from "../shared/ui/verdict.ts";
-import { cardRows, hasOverview, type CardView, type TaskProgress } from "./model.ts";
+import { cardRows, chaptersInOrder, hasOverview, type CardView, type TaskProgress } from "./model.ts";
 
 // 没有官方总结是常态，不占一行；要登录、没读到、还在读才说。
 const OFFICIAL_NOTES: Readonly<Partial<Record<OfficialSummaryView["status"], string>>> = {
@@ -169,6 +170,17 @@ function progressText(task: TaskProgress): string {
   return text || "正在准备…";
 }
 
+/** 收起的那一行：有结论时写判断档；后面是临时的一句话，没有的话写播放到的章节，和侧边栏精读顶上那一条同一个写法。 */
+export function glanceOf(view: CardView): { readonly label: string; readonly text: string } {
+  if (!view.collapsed) return { label: "", text: "" };
+  const verdict = view.verdictPending ? undefined : view.analysis?.verdict;
+  const label = text(verdict?.summary) ? text(verdict?.verdict) : "";
+  if (view.headNote) return { label, text: view.headNote };
+  const chapters = chaptersInOrder(view.analysis);
+  const now = view.chapterNow === null ? undefined : chapters[view.chapterNow];
+  return { label, text: now && view.chapterNow !== null ? `${view.chapterNow + 1}/${chapters.length} ${now.title || formatTimestamp(now.startSec)}` : "" };
+}
+
 export interface CardActions {
   readonly toggle: () => void;
   readonly generate: (event: ClickEvent) => void;
@@ -194,13 +206,31 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
   const officialNote = view.official && view.phase === "loaded" && !(view.needLogin && view.official.status === "need-login") ? (OFFICIAL_NOTES[view.official.status] ?? "") : "";
   const task = view.task;
   const percent = task && task.total > 0 ? Math.round((task.done / task.total) * 100) : 0;
+  const glance = glanceOf(view);
+  const showGenerate = canGenerate && !needsSetup;
+  const showSettings = needsSetup || (canGenerate && view.settingsError);
+  const showRetry = (view.phase === "failed" || view.needLogin || retryRead) && !task;
+  // 侧边栏已经开着：不摆打开它的按钮。别的按钮也都没有时，这一行整个不摆。
+  const showActions = !view.collapsed && !view.holdActions && (showGenerate || showSettings || showRetry || !view.panelOpen);
   return (
     <div class="card" id="card" data-collapsed={view.collapsed ? "true" : "false"}>
-      <button type="button" class="card-head" id="card-toggle" aria-expanded={!view.collapsed} aria-controls="card-body" title={view.collapsed ? "展开总结卡片" : "收起总结卡片"} onClick={actions.toggle}>
-        <span class="card-dot" aria-hidden="true" />
-        <span class="card-name">简幕 · 总结</span>
-        <span class="card-chevron" aria-hidden="true" />
-      </button>
+      <div class="card-head-row">
+        <button type="button" class="card-head" id="card-toggle" aria-expanded={!view.collapsed} aria-controls="card-body" title={view.collapsed ? "展开总结卡片" : "收起总结卡片"} onClick={actions.toggle}>
+          <span class="card-dot" aria-hidden="true" />
+          <span class="card-name">简幕 · {glance.label || "总结"}</span>
+          {glance.text ? (
+            <span class="card-glance" id="card-glance" role={view.headNote ? "status" : undefined}>
+              {glance.text}
+            </span>
+          ) : null}
+          <span class="card-chevron" aria-hidden="true" />
+        </button>
+        {view.collapsed && !view.panelOpen ? (
+          <button type="button" class="card-head-panel" id="card-head-panel" title="打开侧边栏" onClick={actions.openPanel}>
+            侧边栏
+          </button>
+        ) : null}
+      </div>
       {view.collapsed ? null : (
         <div class="card-body" id="card-body">
           {view.notice ? (
@@ -253,28 +283,30 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
           </button>
         </div>
       ) : null}
-      {view.collapsed || view.holdActions ? null : (
+      {showActions ? (
         <div class="card-actions">
-          {canGenerate && !needsSetup ? (
+          {showGenerate ? (
             <button type="button" class="button" data-variant="primary" id="card-generate" onClick={actions.generate}>
               生成概览
             </button>
           ) : null}
-          {needsSetup || (canGenerate && view.settingsError) ? (
+          {showSettings ? (
             <button type="button" class="button" data-variant={needsSetup ? "primary" : "secondary"} id="card-settings" onClick={actions.openSettings}>
               打开设置
             </button>
           ) : null}
-          {(view.phase === "failed" || view.needLogin || retryRead) && !task ? (
+          {showRetry ? (
             <button type="button" class="button" id="card-retry" onClick={actions.retry}>
               重试
             </button>
           ) : null}
-          <button type="button" class="button" id="card-panel" onClick={actions.openPanel}>
-            打开侧边栏
-          </button>
+          {view.panelOpen ? null : (
+            <button type="button" class="button" id="card-panel" onClick={actions.openPanel}>
+              打开侧边栏
+            </button>
+          )}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

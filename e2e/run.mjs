@@ -2,6 +2,7 @@
 // 核对后台和侧边栏都没有报错，主机权限和登录状态都生效，后台取字幕在确认前、没登录、付费时都按规矩停下，也没有意外请求。
 // 播放页之后在真实的侧边栏里走一遍主流程：跟着视频页读字幕、点一句跳过去、生成概览、把金句存为笔记、提问并点引用跳转；
 // 侧边栏开着时卡片让位收起，关上再回来（浏览器报不出侧边栏开关的老版本里，卡片照旧只跟模式走）；
+// 收起的那一行写着判断档和播放到的章节，点上面的「侧边栏」打开侧边栏；
 // 再从设置页打开粗筛页，读稍后再看、两步批次、分组和导出；然后在侧边栏里本窗口全部生成，跳过已有的、生成中停止、重开接上；
 // 最后打开就出结论：开着时后台打开的长视频也排队生成、前台的先，卡片上出结论，关着时不发请求。
 // 第一个加载：装的是发行包，之后导入的产品模块按发行构建的开关取值算。
@@ -11,6 +12,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { videoKey } from "../src/core/video-ref.ts";
+import { INJECTED } from "../src/shared/names.ts";
 import { stillFalse } from "../tests/helpers/wait-until.ts";
 import { launchChrome, prepareExtension } from "./browser.mjs";
 import { ANTHROPIC, VIDEOS } from "./fixtures.mjs";
@@ -207,10 +209,35 @@ async function panelFlow(launcher, panelUrl, videoId) {
   void evaluate(panel, "window.close()").catch(() => {});
   await until("关上侧边栏，速览的卡片展开", async () => (await cardCollapsed()) === "false");
   await keyChapterOnCard();
-  // 后面本窗口全部生成还要用侧边栏。
+  const newPanel = (known) => {
+    for (const [sessionId, info] of sessions) if (info.url === panelUrl && sessionId !== launcher && !known.has(sessionId) && (info.type === "page" || info.type === "other")) return sessionId;
+    return null;
+  };
+  let known = new Set(sessions.keys());
   await evaluate(launcher, `chrome.sidePanel.open({ windowId: ${windowId} }).then(() => true)`, true);
   await until("再打开侧边栏，卡片又让位收起", async () => (await cardCollapsed()) === "true");
   console.log("✓ 卡片给侧边栏让位：关上侧边栏卡片展开、重点章节标着，再打开又收起");
+
+  // 再关上，手动把卡片收起：那一行写着判断档和播放到的章节（视频停在开头，是第一章），旁边是打开侧边栏的入口。
+  void evaluate(await until("重开的侧边栏", () => newPanel(known)), "window.close()").catch(() => {});
+  await until("又关上侧边栏，卡片展开", async () => (await cardCollapsed()) === "false");
+  await evaluate(card, `(document.getElementById("card-toggle").click(), true)`);
+  await until("收起的一行写着判断档和播放到的章节", async () =>
+    (await evaluate(card, `JSON.stringify([document.querySelector(".card-name")?.textContent ?? "", document.getElementById("card-glance")?.textContent ?? ""])`)) === JSON.stringify(["简幕 · 可以看", "1/1 模拟服务写的章节"]),
+  );
+  // 入口在卡片最右边，窗口窄时在视口外面：先把卡片横着滚进来再点。打开侧边栏要真实的点击。
+  const spot = await until("「侧边栏」入口露在视口里", async () => {
+    const frame = await evaluate(video, `(() => { const node = document.getElementById(${JSON.stringify(INJECTED.cardFrame)}); if (!node) return null; node.scrollIntoView({ block: "nearest", inline: "end" }); const box = node.getBoundingClientRect(); return { x: box.left, y: box.top, viewport: innerWidth }; })()`);
+    const button = await evaluate(card, `(() => { const box = document.getElementById("card-head-panel")?.getBoundingClientRect(); return box ? { x: box.left + box.width / 2, y: box.top + box.height / 2 } : null; })()`);
+    return frame && button && frame.x + button.x < frame.viewport ? { x: frame.x + button.x, y: frame.y + button.y } : null;
+  });
+  known = new Set(sessions.keys());
+  await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...spot }, video);
+  for (const type of ["mousePressed", "mouseReleased"]) await cdp.send("Input.dispatchMouseEvent", { type, ...spot, button: "left", clickCount: 1 }, video);
+  // 后面本窗口全部生成还要用侧边栏：等它真的开出来。
+  await until("点那一行上的「侧边栏」，侧边栏打开", () => newPanel(known));
+  await until("侧边栏开着，卡片上打开它的入口收掉", () => evaluate(card, `document.getElementById("card-head-panel") === null && document.getElementById("card")?.dataset.collapsed === "true"`));
+  console.log("✓ 收起的一行写着判断档和播放到的章节；点上面的「侧边栏」打开了侧边栏，入口收掉");
 }
 
 let failed = false;

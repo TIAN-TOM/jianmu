@@ -22,17 +22,24 @@ body {
   overflow: hidden;
 }
 
-.card-head,
+.card-head-row,
 .card-progress,
 .card-actions {
   flex: none;
 }
 
-.card-head {
+/* 标题栏那一行：左边整块点了展开收起，收起时右边另有一个打开侧边栏的入口。 */
+.card-head-row {
   display: flex;
   align-items: center;
+}
+
+.card-head {
+  display: flex;
+  flex: 1;
+  align-items: center;
   gap: var(--space-2);
-  width: 100%;
+  min-width: 0;
   padding: var(--space-2) var(--space-3);
   border: 0;
   background: transparent;
@@ -47,16 +54,51 @@ body {
   background: var(--accent);
 }
 
-/* 行高收紧：收起时整张卡片和内容脚本载入前占位的高度一样，载入完不跳。 */
-.card-name {
-  flex: 1;
-  color: var(--text-strong);
+/* 行高收紧：收起时整张卡片和内容脚本载入前占位的高度一样，载入完不跳。这一行上的字都不换行，放不下就截断。 */
+.card-name,
+.card-glance {
+  min-width: 0;
+  overflow: hidden;
   font-size: var(--fs-meta);
-  font-weight: 600;
   line-height: var(--lh-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
+.card-name {
+  flex: none;
+  max-width: 100%;
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+/* 收起时的判断档后面：播放到的章节，或者临时的一句话。 */
+.card-glance {
+  flex: 1;
+  color: var(--text-muted);
+}
+
+.card-head-panel {
+  flex: none;
+  margin-right: var(--space-2);
+  padding: 0 var(--space-1);
+  border: 0;
+  background: transparent;
+  color: var(--accent-text);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-tight);
+  cursor: pointer;
+}
+
+.card-head-panel:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* 后面没有章节那一段时，箭头自己靠到最右边。 */
 .card-chevron {
+  flex: none;
+  margin-left: auto;
   width: 0.45rem;
   height: 0.45rem;
   border-right: 1.5px solid var(--text-muted);
