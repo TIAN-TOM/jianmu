@@ -34,6 +34,10 @@ export const PAGE_PATHS = Object.freeze({
   card: "pages/card.html",
 } as const);
 
+// 设置页「关于」一节的两个链接：公开仓库里的隐私政策和反馈问题的页面。
+export const PRIVACY_POLICY_URL = "https://github.com/TIAN-TOM/jianmu/blob/main/PRIVACY.md";
+export const ISSUES_URL = "https://github.com/TIAN-TOM/jianmu/issues";
+
 // 注入视频网站页面的节点标识，和页面、卡片之间互发消息的标记，一律以 jianmu- 开头。
 export const INJECTED = {
   overlay: "jianmu-overlay",

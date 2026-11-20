@@ -1,16 +1,20 @@
-// 设置页：确认启用之前只有启用说明和资料一节；确认以后能保存服务商、密钥和模型，拉模型列表（状态行说已保存，框里的型号不在列表里时提醒）、测试连接对着模拟的模型服务走通，
+// 设置页：确认启用之前只有启用说明、资料和「关于」两节，「关于」里的版本号、构建标识和两个链接都对；确认以后能保存服务商、密钥和模型，拉模型列表（状态行说已保存，框里的型号不在列表里时提醒）、测试连接对着模拟的模型服务走通，
 // 密钥只进会话存储；本机 http 地址不填密钥也能保存、拉列表和测试连接；导出的备份清除全部数据后能再导回来，
 // 超过单条消息上限的备份也一样。各测试开头先清除全部数据，从没启用的状态开始。
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
+import { join } from "node:path";
 import { videoKey } from "../../src/core/video-ref.ts";
-import { API_KEY_SESSION_KEY, PAGE_PATHS, SETTINGS_STORAGE_KEY } from "../../src/shared/names.ts";
+import { BUILD_ID_FILE } from "../../src/shared/build-id.ts";
+import { API_KEY_SESSION_KEY, ISSUES_URL, PAGE_PATHS, PRIVACY_POLICY_URL, SETTINGS_STORAGE_KEY } from "../../src/shared/names.ts";
 import { FEATURE_MODEL_SLOTS } from "../../src/shared/settings-schema.ts";
 import { ANTHROPIC, VIDEOS } from "../fixtures.mjs";
 import { scenario } from "./harness.mjs";
 
 const test = scenario(import.meta.url);
 const WIDTH = 900;
+const PACKAGE_VERSION = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version;
 const [VIDEO_ID = ""] = Object.keys(VIDEOS);
 const VIDEO = videoKey({ platform: "bilibili", videoId: VIDEO_ID, segment: 1 });
 
@@ -99,13 +103,43 @@ test("设置页：确认启用之前只有启用说明和资料一节，确认�
     buttons: [...document.querySelectorAll("#learning-data button")].map((node) => node.textContent.trim()),
   })`);
   assert.equal(before.hasPreset, false);
-  assert.deepEqual(before.sections, ["学习资料"]);
+  assert.deepEqual(before.sections, ["学习资料", "关于"]);
   assert.deepEqual(before.buttons, ["导出备份", "清除缓存", "清除全部数据"], "确认前不能恢复备份");
   await enable(page);
   const after = await page.evaluate(`[...document.querySelectorAll(".card > h2")].map((node) => node.textContent)`);
-  assert.deepEqual(after, ["外观", "播放页", "YouTube", "AI 服务", "打开就出结论", "速览和精读", "稍后再看粗筛", "学习资料"]);
+  assert.deepEqual(after, ["外观", "播放页", "YouTube", "AI 服务", "打开就出结论", "速览和精读", "稍后再看粗筛", "学习资料", "关于"]);
   // 测试构建里 YouTube 开关打开；没给过授权，这一节只有启用按钮。
   await page.waitFor("YouTube 的启用按钮", `[...document.querySelectorAll("#youtube button")].map((node) => node.textContent.trim()).join() === "在 YouTube 上启用"`);
+  assert.equal(await page.overflowsX(), false);
+});
+
+test("设置页：「关于」一节显示清单里的版本号和这次构建的标识，隐私政策和反馈问题在新标签页打开", async ({ open, extensionDir }) => {
+  const page = await freshOptions(open);
+  const manifest = JSON.parse(readFileSync(join(extensionDir, "manifest.json"), "utf8"));
+  const build = readFileSync(join(extensionDir, BUILD_ID_FILE), "utf8").trim();
+  const about = await page.evaluate(`(() => {
+    const link = (id) => {
+      const node = document.getElementById(id);
+      return { text: node.textContent, href: node.getAttribute("href"), target: node.getAttribute("target"), rel: node.getAttribute("rel") };
+    };
+    return {
+      version: document.getElementById("aboutVersion").textContent,
+      build: document.getElementById("aboutBuild").textContent,
+      selectable: getComputedStyle(document.getElementById("aboutBuild")).userSelect,
+      privacy: link("aboutPrivacy"),
+      issues: link("aboutIssues"),
+    };
+  })()`);
+  assert.equal(about.version, manifest.version);
+  assert.equal(about.version, PACKAGE_VERSION);
+  assert.match(build, /^[0-9a-f]{16}$/);
+  assert.equal(about.build, build);
+  assert.notEqual(about.selectable, "none");
+  const rel = "noopener noreferrer";
+  assert.deepEqual(about.privacy, { text: "隐私政策", href: PRIVACY_POLICY_URL, target: "_blank", rel });
+  assert.deepEqual(about.issues, { text: "反馈问题", href: ISSUES_URL, target: "_blank", rel });
+  assert.equal(PRIVACY_POLICY_URL, "https://github.com/TIAN-TOM/jianmu/blob/main/PRIVACY.md");
+  assert.equal(ISSUES_URL, "https://github.com/TIAN-TOM/jianmu/issues");
   assert.equal(await page.overflowsX(), false);
 });
 

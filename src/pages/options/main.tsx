@@ -72,7 +72,7 @@ function start(): void {
     if (scope === "all") void state.load();
   });
 
-  if (root) render(<App state={state} activation={activation} api={api} />, root);
+  if (root) render(<App state={state} activation={activation} api={api} version={chrome.runtime.getManifest().version} />, root);
 }
 
 void startWhenCurrent(api, start, () => root && renderStaleBackground(root));
