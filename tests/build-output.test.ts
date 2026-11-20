@@ -20,7 +20,7 @@ import {
   type FeatureSet,
 } from "../src/shared/features.ts";
 import { INJECTED } from "../src/shared/names.ts";
-import { FRAME_EXPLAIN_PROBE, KEEP_CONSENT_PROBE, YOUTUBE_OPEN_PANEL_PROBE, YOUTUBE_PROBE, YOUTUBE_SWITCH_LANG_PROBE } from "./fixtures/build-flags/gated.ts";
+import { FRAME_EXPLAIN_PROBE, KEEP_CONSENT_PROBE, YOUTUBE_OPEN_PANEL_PROBE, YOUTUBE_PROBE } from "./fixtures/build-flags/gated.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BUILD = join(ROOT, "build");
@@ -308,7 +308,6 @@ const PROBES: Readonly<Record<FeatureName, string>> = {
   frameExplain: FRAME_EXPLAIN_PROBE,
   youtube: YOUTUBE_PROBE,
   youtubeOpenPanel: YOUTUBE_OPEN_PANEL_PROBE,
-  youtubeSwitchLang: YOUTUBE_SWITCH_LANG_PROBE,
   keepConsent: KEEP_CONSENT_PROBE,
 };
 
