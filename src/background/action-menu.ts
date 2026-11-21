@@ -22,7 +22,7 @@ const MENU_ZH = {
 const MENU_EN: typeof MENU_ZH = {
   triage: "Watch Later triage",
   inPageCard: "Show the summary card beside the video",
-  autoOverview: "Write an overview and verdict when I open a video (uses API credit for every video)",
+  autoOverview: "Verdict on open (uses API credit per video)",
 };
 
 /** 指定语言的菜单文字。不传语言时是中文。 */

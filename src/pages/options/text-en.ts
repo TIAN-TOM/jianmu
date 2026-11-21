@@ -17,9 +17,9 @@ export const OPTIONS_EN: OptionsText = {
     intro: "Applies to the side panel, the video page card and this page on this computer. Changes take effect straight away, so there's no need to click “Save and authorise”. Language sets both the interface text and what the model writes.",
     theme: "Theme",
     themes: {
-      ink: { name: "Paper and ink", note: "Warm white paper with teal accents" },
-      graphite: { name: "Graphite and indigo", note: "Cool graphite grey with indigo accents" },
-      ochre: { name: "Stone and ochre", note: "Warm stone grey with ochre accents" },
+      ink: { name: "Paper and ink", note: "Teal on warm white" },
+      graphite: { name: "Graphite and indigo", note: "Indigo on cool grey" },
+      ochre: { name: "Stone and ochre", note: "Ochre on warm grey" },
     },
     mode: "Colour mode",
     modes: { system: "Match system", light: "Light", dark: "Dark" },
