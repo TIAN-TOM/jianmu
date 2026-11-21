@@ -96,7 +96,10 @@
   outline-offset: 1px;
 }
 
+/* 网页自己画的下拉框（theme.css 的 base-select）是弹性盒，内容默认贴着顶边，比最小高度矮的那一截全落在下面：
+ * 上下居中，文字和箭头才在框的正中。旧版原生下拉框不认这条，它自己居中。 */
 select.input {
+  align-items: center;
   width: max-content;
   min-width: 12rem;
 }
