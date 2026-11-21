@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "简幕：AI 视频速览与学习助手",
+  "name": "__MSG_extensionName__",
   "version": "0.0.0-构建时写入",
-  "description": "几分钟判断一个 B 站或 YouTube 长视频值不值得看、重点看哪段；决定看了，再陪你精读。",
+  "description": "__MSG_extensionDescription__",
+  "default_locale": "en",
   "minimum_chrome_version": "116",
   "homepage_url": "https://github.com/TIAN-TOM/jianmu",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3Qdive97U0lVG/kltelPo9L7922+tvy0F/CwhRD7KZ//mPtfLwNvuIKa8fxaMnlf1TlPl5fAW+2aIC4iQuP2KFY8+QNeR1phj4Bf/3CNAz1/YwJSotKFAyPySqYb+4DvqPX4kfpF6zyQchMs193zoKCS09/VCeLeFcW7FpxY6+wH/u+WgNU5UYFu2wcC0vCtAFY6Hbe1JIri/CDGxM+Rdkce1SfIH77Kx4Xc9y8MbXaqqp4uGqlWxqaHW/tKITKArHdwBop7NGFtsmkGDbq1jIVF1kkSkCYliF0OxP6fqmuIEHLM0uBefduxz8ZDH2r6w682DJ/QwuI0naRIvgnYjQIDAQAB",
@@ -18,7 +19,7 @@
     "128": "icons/icon-128.png"
   },
   "action": {
-    "default_title": "打开简幕",
+    "default_title": "__MSG_actionTitle__",
     "default_icon": {
       "16": "icons/icon-16.png",
       "48": "icons/icon-48.png",

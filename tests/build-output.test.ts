@@ -91,6 +91,9 @@ test("清单不变量", () => {
   assert.deepEqual(manifest.optional_host_permissions, OPTIONAL_HOST_PERMISSIONS);
   // 右键菜单第一行的扩展名链到这里。
   assert.equal(manifest.homepage_url, "https://github.com/TIAN-TOM/jianmu");
+  // 名称、简介和图标提示按浏览器的界面语言从区域文件取，每个区域的文件都在构建里。
+  assert.equal(manifest.default_locale, "en");
+  for (const locale of readdirSync(join(ROOT, "static/_locales"))) assert.ok(existsSync(join(BUILD, "_locales", locale, "messages.json")), `构建里没有 _locales/${locale}`);
   // 网页能加载的只有卡片页，而且只能从每次会话都变的地址加载：卡片关着时网页拼不出能用的地址。发行构建对 B 站和 YouTube。
   assert.deepEqual(manifest.web_accessible_resources, [{ resources: ["pages/card.html"], matches: ["https://www.bilibili.com/*", "https://www.youtube.com/*"], use_dynamic_url: true }]);
   // 补注入按清单取脚本：清单里的每个脚本都在构建里。

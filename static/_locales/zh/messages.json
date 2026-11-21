@@ -1,0 +1,11 @@
+{
+  "extensionName": {
+    "message": "简幕：AI 视频速览与学习助手"
+  },
+  "extensionDescription": {
+    "message": "几分钟判断一个 B 站或 YouTube 长视频值不值得看、重点看哪段；决定看了，再陪你精读。"
+  },
+  "actionTitle": {
+    "message": "打开简幕"
+  }
+}
