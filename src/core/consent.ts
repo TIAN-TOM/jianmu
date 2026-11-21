@@ -177,8 +177,8 @@ export const ACTIVATION_TABLE: NoticeTable<ActivationKind> = [
       {
         kind: "read",
         id: "open-tabs",
-        text: "打开「打开就出结论」以后，已授权网站各标签页的地址，用来认出打开的 B 站视频，包括在后台打开的",
-        en: "With “Verdict on open” turned on, the address of each tab on sites you've authorised, used to recognise Bilibili videos you open, including ones opened in the background",
+        text: "打开「打开就出结论」以后，已授权网站各标签页的地址，用来认出打开的 B 站视频和已启用的 YouTube 上的视频，包括在后台打开的",
+        en: "With “Verdict on open” turned on, the address of each tab on sites you've authorised, used to recognise videos you open on Bilibili, or on YouTube once it's turned on, including ones opened in the background",
       },
       ...(FEATURE_FRAME_EXPLAIN ? FRAME_ACTIVATION_ITEMS : []),
     ],
