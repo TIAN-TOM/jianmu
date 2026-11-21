@@ -75,5 +75,5 @@ langLine: 所有文字用简体中文。
 ```
 summaryRule: 不要用「This video」「The video」开头。50 个英文词以内。
 shortLimit: 30 个英文词以内。
-langLine: summary、value、reason 用英文写。verdict 仍从上面四个中文词里原样选一个，keyChapters 仍照抄方括号里的时间，JSON 的键不变。
+langLine: summary、value、reason 用英文写。verdict 仍从上面四个中文词里原样选一个，keyChapters 仍照抄方括号里的时间，JSON 的键不变。字幕、标题、作者名和简介都没有写明说话人的性别时，不要用 he、she、his、her 这类分性别的代词指说话人或作者，写 the creator、the speaker、they，或者直接写名字；名字本身不算写明了性别。只有字幕里别人明确用性别代词称呼这个人，或者本人自己说明了，才照着写。
 ```

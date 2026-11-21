@@ -78,5 +78,5 @@ langLine: 所有文字用简体中文。
 titleLimit: 12 个英文词以内。
 chapterSummaryRule: 不要以「This chapter」「The speaker introduces」这类说法开头，也不要把标题再说一遍。75 个英文词以内。
 quoteLang: 原话不是英文时，译成通顺的英文。
-langLine: title、summary、quote 用英文写。start 仍照抄字幕里的时间，JSON 的键不变。
+langLine: title、summary、quote 用英文写。start 仍照抄字幕里的时间，JSON 的键不变。字幕、标题、作者名和简介都没有写明说话人的性别时，不要用 he、she、his、her 这类分性别的代词指说话人或作者，写 the creator、the speaker、they，或者直接写名字；名字本身不算写明了性别。只有字幕里别人明确用性别代词称呼这个人，或者本人自己说明了，才照着写。
 ```
