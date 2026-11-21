@@ -30,6 +30,7 @@ export const PANEL_EN: PanelText = {
 
   dock: {
     ask: "Ask about this video",
+    history: "Q&A history",
     saveNote: "Save note",
     noPosition: "Jianmu doesn't know where the video is up to yet. Try again once the video page connects.",
   },

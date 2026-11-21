@@ -11,6 +11,8 @@ function useModal(open: boolean, onClose: () => void) {
   const opener = useRef<HTMLElement | null>(null);
   const wantOpen = useRef(open);
   const close = useRef(onClose);
+  /** 页面自己关上、关闭事件还没到的次数：事件排队发，页面关上以后马上又打开时可能晚到。 */
+  const closedByPage = useRef(0);
   wantOpen.current = open;
   close.current = onClose;
 
@@ -29,6 +31,7 @@ function useModal(open: boolean, onClose: () => void) {
       opener.current = active instanceof HTMLElement ? active : null;
       node.showModal();
     } else if (!open && node.open) {
+      closedByPage.current += 1;
       node.close();
       restoreFocus();
     }
@@ -50,7 +53,13 @@ function useModal(open: boolean, onClose: () => void) {
       close.current();
     },
     // 浏览器自己关掉了对话框（连按 Esc 时可能不等页面），把状态同步回页面，焦点照样还回去。
+    // 页面自己关的那一下已经还过焦点，晚到的关闭事件不再算数，免得把刚又打开的抽屉关掉。
     onClose(): void {
+      if (closedByPage.current > 0) {
+        closedByPage.current -= 1;
+        return;
+      }
+      if (dialog.current?.open) return;
       restoreFocus();
       if (wantOpen.current) close.current();
     },

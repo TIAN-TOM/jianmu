@@ -157,11 +157,12 @@ async function panelFlow(launcher, panelUrl, videoId) {
   await until("关上笔记层", () => clickIn(panel, ".layer [aria-label='返回']"));
   console.log("✓ 金句存成笔记，笔记层列出来");
 
-  await until("打开问答抽屉", () => clickIn(panel, ".ask-entry"));
-  await until("提问框可以用", () =>
-    evaluate(panel, `(() => { const input = document.querySelector(".qa-form input"); if (!input) return false; input.value = "这个视频讲了什么"; input.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`),
+  await until("在底下的提问框输入问题", () =>
+    evaluate(panel, `(() => { const input = document.querySelector(".ask-entry input"); if (!input) return false; input.value = "这个视频讲了什么"; input.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`),
   );
-  await until("提问", () => clickIn(panel, ".qa-form button", "提问"));
+  // 和按回车一样走表单提交：发出问题，打开问答抽屉。
+  await until("回车提问", () => evaluate(panel, `(() => { const form = document.querySelector(".ask-entry"); if (!form) return false; form.requestSubmit(); return true; })()`));
+  await until("问答抽屉打开", () => evaluate(panel, `[...document.querySelectorAll(".sheet")].some((node) => node.open && node.querySelector(".qa-form"))`));
   await until("回答回来", async () => (await textOf(panel, ".qa-answer")).includes("模拟服务的回答"));
   await evaluate(video, `(document.querySelector("video").currentTime = 100, true)`);
   await until("点回答里的引用", () => clickIn(panel, ".qa-answer .stamp"));

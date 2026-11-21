@@ -58,28 +58,35 @@ function Entry({ panel, entry, unsaved, current }: { readonly panel: Panel; read
   );
 }
 
+/** 眼下不能提问的原因：AI 服务没设置好、还没读到字幕；能问时是空串。底部的提问框和问答抽屉共用这一份判断。 */
+export function askReason(panel: Panel): string {
+  const config = panel.config.state.value;
+  if (!(config.state === "checked" && config.view.ready)) return setupReason(config, uiLang.value) ?? "";
+  return panel.transcript.state.value.state === "ready" ? "" : panelText().skim.needTranscript;
+}
+
+/** 这个问题眼下发得出去：没有不能问的原因，问题也不是空的。 */
+export const canSend = (reason: string, question: string): boolean => !reason && Boolean(question.trim());
+
 export function QaTab({ panel }: { readonly panel: Panel }) {
   const [question, setQuestion] = useState("");
   const state = panel.qa.state.value;
-  const config = panel.config.state.value;
-  const ready = config.state === "checked" && config.view.ready;
   const transcript = panel.transcript.state.value;
-  const transcriptReady = transcript.state === "ready";
   const current = transcript.state === "ready" ? transcript.view.transcript.ref.fingerprint : null;
-  const p = panelText();
-  const t = p.qa;
-  const reason = !ready ? (setupReason(config, uiLang.value) ?? "") : !transcriptReady ? p.skim.needTranscript : "";
+  const t = panelText().qa;
+  const reason = askReason(panel);
   const submit = (event: Event): void => {
     event.preventDefault();
-    if (reason || !question.trim()) return;
+    if (!canSend(reason, question)) return;
     void panel.qa.ask(question);
     setQuestion("");
   };
   return (
     <div class="qa">
       <form class="qa-form" onSubmit={submit}>
-        <input class="search-input" type="text" placeholder={t.placeholder} aria-label={t.ask} value={question} onInput={(event) => setQuestion(event.currentTarget.value)} />
-        <Button type="submit" variant="primary" disabled={Boolean(reason) || !question.trim()} {...(reason ? { disabledReason: reason } : {})}>
+        {/* 抽屉打开时焦点直接进这个框，不停在关闭按钮上。 */}
+        <input class="search-input" type="text" autoFocus placeholder={t.placeholder} aria-label={t.ask} value={question} onInput={(event) => setQuestion(event.currentTarget.value)} />
+        <Button type="submit" variant="primary" disabled={!canSend(reason, question)} {...(reason ? { disabledReason: reason } : {})}>
           {t.ask}
         </Button>
       </form>

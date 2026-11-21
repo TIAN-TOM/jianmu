@@ -43,6 +43,7 @@ export const PANEL_ZH = {
 
   dock: {
     ask: "针对这个视频提问",
+    history: "问答记录",
     saveNote: "存笔记",
     noPosition: "还不知道播放到哪，等视频页连上简幕再记",
   },

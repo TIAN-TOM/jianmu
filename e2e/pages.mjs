@@ -130,7 +130,7 @@ try {
   console.log(`${chrome} 装上了扩展，开始页面测试`);
 
   for (const file of SCENARIOS) await import(pathToFileURL(join(ROOT, file)).href);
-  const harness = createHarness({ cdp, extensionId: id, extensionDir, sessions });
+  const harness = createHarness({ cdp, extensionId: id, extensionDir, sessions, requests: mock.requests });
   for (const { file, title, fn, timeoutMs = TEST_TIMEOUT_MS, expectedErrors = [] } of registered()) {
     const ctx = harness.context();
     const started = Date.now();
