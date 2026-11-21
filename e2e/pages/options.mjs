@@ -671,6 +671,27 @@ test("设置页：语言选 English 以后，标题、各节标题和按钮马�
   assert.deepEqual(await reopened.evaluate(view), chinese);
 });
 
+test("设置页：外观里的三个主题卡片一样高，单选圆点、色块和文字都对着卡片正中；English 和两列的窄宽度下也一样", async ({ open }) => {
+  const page = await freshOptions(open);
+  await enable(page);
+  const layout = `[...document.querySelectorAll(".theme-option")].map((card) => {
+    const box = card.getBoundingClientRect();
+    const offset = (node) => { const r = node.getBoundingClientRect(); return Math.abs(r.top + r.height / 2 - (box.top + box.height / 2)); };
+    return { height: Math.round(box.height), offset: Math.max(offset(card.querySelector("input")), offset(card.querySelector(".theme-swatch")), offset(card.querySelector(".theme-text"))) };
+  })`;
+  for (const language of ["zh", "en"]) {
+    await fill(page, "#language", language);
+    await page.waitFor("界面换了语言", `document.documentElement.lang.startsWith(${JSON.stringify(language)})`);
+    for (const width of [WIDTH, 600]) {
+      await page.setWidth(width);
+      const cards = await page.evaluate(layout);
+      assert.equal(cards.length, 3);
+      assert.equal(new Set(cards.map((card) => card.height)).size, 1, `${language} ${width}：${JSON.stringify(cards)}`);
+      for (const card of cards) assert.ok(card.offset <= 1, `${language} ${width}：${JSON.stringify(cards)}`);
+    }
+  }
+});
+
 test("设置页：English 下数据说明的条目、勾选框和校验提示都是英文，打开就出结论列出的说明也是英文；整页可见文字里没有汉字，语言下拉里的「中文」除外", async ({ open }) => {
   const page = await freshOptions(open);
   await enable(page);

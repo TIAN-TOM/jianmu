@@ -203,8 +203,10 @@ test("菜单的文字：选英文就是英文，跟随浏览器时看浏览器�
     const shown = titles();
     assert.equal(shown.length, 3);
     if (english) {
-      assert.deepEqual(shown, ["Watch Later triage", "Show the summary card beside the video", "Write an overview and verdict when I open a video (uses API credit for every video)"]);
+      assert.deepEqual(shown, ["Watch Later triage", "Show the summary card beside the video", "Verdict on open (uses API credit per video)"]);
       for (const title of shown) assert.doesNotMatch(title, /[\u4e00-\u9fff]/, `${language}/${uiLanguage}`);
+      // 浏览器会截断过长的菜单项，最长的一项还决定整个菜单的宽度。
+      for (const title of shown) assert.ok(title.length <= 60, `菜单项太长：${title}`);
     } else {
       assert.deepEqual(shown, ZH_TITLES, `${language}/${uiLanguage}`);
     }
@@ -221,7 +223,7 @@ test("设置里的语言改了，菜单按新语言重建，勾选照旧；别�
   const current = () => fake.local.data[SETTINGS_STORAGE_KEY] as Record<string, unknown>;
   await fake.local.set({ [SETTINGS_STORAGE_KEY]: { ...current(), language: "en" } });
   // 重建是先清掉再逐项建，等三项都建好。
-  assert.ok(await until(() => titles().length === 3 && titles()[2]?.startsWith("Write an overview") === true));
+  assert.ok(await until(() => titles().length === 3 && titles()[2]?.startsWith("Verdict on open") === true));
   assert.equal(titles()[0], "Watch Later triage");
   assert.equal(fake.menuItems.get(ACTION_MENU.inPageCard)?.checked, false);
   assert.equal(fake.menuItems.get(ACTION_MENU.autoOverview)?.checked, true);
