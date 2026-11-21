@@ -1,6 +1,6 @@
 // 启动无头 Chrome：站点主机映射到本机模拟服务器，其余域名都解析失败，扩展连不上外网。
 import { execFileSync, spawn } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createCdp } from "./cdp.mjs";
 
@@ -46,6 +46,22 @@ export async function assertChineseUi(cdp, extensionId, timeoutMs = 20_000) {
   } finally {
     await cdp.send("Target.closeTarget", { targetId }, undefined, timeoutMs).catch(() => {});
   }
+}
+
+/**
+ * 清单里的名字可能写成区域文件里的消息名，浏览器问出来的是按界面语言换好的那份：各个区域的写法都算数。
+ * @param {string} extensionDir @param {{ name: string }} manifest @returns {string[]}
+ */
+function namesOf(extensionDir, manifest) {
+  const key = /^__MSG_(\w+)__$/.exec(manifest.name)?.[1];
+  if (!key) return [manifest.name];
+  const localesDir = join(extensionDir, "_locales");
+  const names = readdirSync(localesDir).map((locale) => {
+    const messages = JSON.parse(readFileSync(join(localesDir, locale, "messages.json"), "utf8"));
+    const entry = Object.entries(messages).find(([name]) => name.toLowerCase() === key.toLowerCase());
+    return entry ? String(entry[1].message) : undefined;
+  });
+  return names.filter((name) => name !== undefined);
 }
 
 // 调试协议里加载扩展的命令从 Chrome 126 起才有；更老的版本（最低要求 116）改用启动参数加载同一个目录。
@@ -108,7 +124,7 @@ export function launchChrome({ executable, profileDir, hostRules, extensionDir }
     const manifest = JSON.parse(readFileSync(join(extensionDir, "manifest.json"), "utf8"));
     const worker = manifest.background.service_worker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const workerUrl = new RegExp(`^chrome-extension://([a-p]{32})/${worker}$`);
-    const identity = JSON.stringify([manifest.name, manifest.version]);
+    const identities = new Set(namesOf(extensionDir, manifest).map((name) => JSON.stringify([name, manifest.version])));
     const checked = new Set();
     const deadline = Date.now() + timeoutMs;
     for (;;) {
@@ -124,7 +140,7 @@ export function launchChrome({ executable, profileDir, hostRules, extensionDir }
             { expression: "JSON.stringify([chrome.runtime.getManifest().name, chrome.runtime.getManifest().version])", returnByValue: true },
             sessionId,
           );
-          if (result.value === identity) {
+          if (identities.has(result.value)) {
             await assertChineseUi(cdp, id, timeoutMs);
             return { id };
           }

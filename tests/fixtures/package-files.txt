@@ -1,4 +1,8 @@
 LICENSE.txt
+_locales/en/messages.json
+_locales/zh/messages.json
+_locales/zh_CN/messages.json
+_locales/zh_TW/messages.json
 background.js
 build-id.txt
 content/bilibili.js

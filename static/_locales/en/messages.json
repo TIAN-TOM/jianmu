@@ -1,0 +1,11 @@
+{
+  "extensionName": {
+    "message": "Jianmu: Watch or Skip, Then Study"
+  },
+  "extensionDescription": {
+    "message": "Decide in minutes whether a long YouTube or Bilibili video is worth watching, then study it closely. Uses your own API key."
+  },
+  "actionTitle": {
+    "message": "Open Jianmu"
+  }
+}
