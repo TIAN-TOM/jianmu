@@ -52,5 +52,5 @@ langLine: 用简体中文，
 ```
 foreignRule: 选中的不是英文：先给出英文意思，再照上面两条解释。
 openingBan: 「This means」「Here it refers to」
-langLine: 用英文写，
+langLine: 字幕、标题、作者名和简介都没有写明说话人的性别时，不要用 he、she、his、her 这类分性别的代词指说话人或作者，写 the creator、the speaker、they，或者直接写名字；名字本身不算写明了性别。只有字幕里别人明确用性别代词称呼这个人，或者本人自己说明了，才照着写。用英文写，
 ```

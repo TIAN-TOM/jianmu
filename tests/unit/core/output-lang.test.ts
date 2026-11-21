@@ -76,6 +76,14 @@ test("英文规则写明协议性的标识照原样输出：结论档位、JSON 
   assert.match(langVariables(read("common/qa.md"), "en").langLine ?? "", /【12:05\|原文】.*照原样/);
 });
 
+test("选英文时系统提示词要求不猜说话人的性别，选中文时没有这一条", () => {
+  const rule = /没有写明说话人的性别时，不要用 he、she/;
+  for (const file of LOCALIZED) {
+    assert.match(extractPromptSection(localizePrompt(read(file), "en"), "系统提示词", {}), rule, file);
+    assert.doesNotMatch(extractPromptSection(localizePrompt(read(file), "zh"), "系统提示词", {}), rule, file);
+  }
+});
+
 test("没有语言小节的模板原样交回；整理字幕和笔记润色不套输出语言", () => {
   assert.equal(localizePrompt("## 系统提示词\n\n```\n{x}\n```\n", "en"), "## 系统提示词\n\n```\n{x}\n```\n");
   for (const file of ["study/tidy.md", "study/note-polish.md"]) assert.equal(localizePrompt(read(file), "en"), read(file));
