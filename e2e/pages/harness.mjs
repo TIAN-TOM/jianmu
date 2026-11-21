@@ -102,9 +102,10 @@ const CONTRAST_SCRIPT = `(selector) => {
 
 /**
  * @param {{ cdp: { send: (method: string, params?: object, sessionId?: string, timeoutMs?: number) => Promise<any> },
- *           extensionId: string, extensionDir: string, sessions: Map<string, { type: string, url: string, targetId: string }> }} deps
+ *           extensionId: string, extensionDir: string, sessions: Map<string, { type: string, url: string, targetId: string }>,
+ *           requests: readonly { kind?: string, at: number }[] }} deps
  */
-export function createHarness({ cdp, extensionId, extensionDir, sessions }) {
+export function createHarness({ cdp, extensionId, extensionDir, sessions, requests }) {
   const findSession = (/** @type {(info: { type: string, url: string }) => boolean} */ match) => {
     for (const [sessionId, info] of sessions) if (match(info)) return sessionId;
     return null;
@@ -171,6 +172,16 @@ export function createHarness({ cdp, extensionId, extensionDir, sessions }) {
         await cdp.send("Input.dispatchKeyEvent", { type: "rawKeyDown", ...common }, sessionId);
         await cdp.send("Input.dispatchKeyEvent", { type: "keyUp", ...common }, sessionId);
       },
+      /** 按回车并带上字符事件，跟真的按键一样：有焦点的输入框靠它提交所在的表单。 */
+      async pressEnter() {
+        const common = { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 };
+        await cdp.send("Input.dispatchKeyEvent", { type: "keyDown", text: "\r", unmodifiedText: "\r", ...common }, sessionId);
+        await cdp.send("Input.dispatchKeyEvent", { type: "keyUp", ...common }, sessionId);
+      },
+      /** 把一段字输进有焦点的输入框，跟输入法上屏一样触发输入事件。 */
+      async insertText(text) {
+        await cdp.send("Input.insertText", { text }, sessionId);
+      },
       /** 当前有焦点的元素，用一个选择器能认出来的描述：id、类名或文字。 */
       focused: () =>
         evaluate(
@@ -230,7 +241,8 @@ export function createHarness({ cdp, extensionId, extensionDir, sessions }) {
     }
 
     // 装上的扩展在磁盘上的目录：改这里的页面文件、不重新加载扩展，就是「旧后台、新页面」。
-    return { open, openPage, openSidePanel, close, extensionId, extensionDir };
+    // requests 是模拟服务器收到的全部请求，模型请求带 kind（问答是 "qa"）。
+    return { open, openPage, openSidePanel, close, extensionId, extensionDir, requests };
   }
 
   return { context };

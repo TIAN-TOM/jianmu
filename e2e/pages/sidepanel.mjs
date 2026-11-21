@@ -12,7 +12,8 @@ import { API_KEY_SESSION_KEY, AUTO_LEDGER_KEY, DATABASE_NAME, SETTINGS_STORAGE_K
 import { ANTHROPIC, BRIEF_SAMPLE, PLAYING_SAMPLE, VIDEOS } from "../fixtures.mjs";
 import { playingWatchPage, PROBE, watchPage } from "../mock-server.mjs";
 import { storedSettings } from "../settings.mjs";
-import { scenario } from "./harness.mjs";
+import { stillFalse } from "../../tests/helpers/wait-until.ts";
+import { scenario, until } from "./harness.mjs";
 
 const test = scenario(import.meta.url);
 const LAUNCHER = "pages/gallery.html";
@@ -218,18 +219,74 @@ test("侧边栏：配好过、密钥随浏览器重启清空时，顶上那行�
   });
 });
 
-test("侧边栏：底部的提问入口只打开问答抽屉，不切模式、不发请求；没设置 AI 服务时提问停用，还没有问答时说明怎么用", async (ctx) => {
+const ASK_INPUT = ".dock .ask-entry input";
+const qaAsked = (requests, since) => requests.some((entry) => entry.kind === "qa" && entry.at >= since);
+const closeQaSheet = async (panel) => {
+  await panel.evaluate(`(${qaSheet}).querySelector(".overlay-head [aria-label='关闭']").click(), true`);
+  await waitIn(panel, "抽屉关上", `${qaSheet}?.open === false`);
+};
+/** 点进底下的提问框，输入这段字（空串就不输），按回车。 */
+async function askFromDock(panel, text) {
+  await panel.evaluate(`(document.querySelector(${JSON.stringify(ASK_INPUT)}).focus(), true)`);
+  if (text) await panel.insertText(text);
+  await panel.pressEnter();
+}
+
+test("侧边栏：底下的提问框没设置 AI 服务时按回车不发请求，字留着，打开问答抽屉写明原因；关上抽屉焦点回到提问框", async (ctx) => {
   await withVideo(ctx, async (panel) => {
     await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
     assert.equal(await panel.evaluate(`${qaSheet}?.open`), false);
-    await tap(panel, ".ask-entry");
+    assert.deepEqual(await panel.evaluate(`(() => { const input = document.querySelector(${JSON.stringify(ASK_INPUT)}); return { label: input?.getAttribute("aria-label"), placeholder: input?.placeholder }; })()`), {
+      label: "针对这个视频提问",
+      placeholder: "针对这个视频提问，Enter 发送",
+    });
+    const since = Date.now();
+    await askFromDock(panel, "页面测试想问的问题");
     await waitIn(panel, "问答抽屉打开", `${qaSheet}?.open === true`);
     await waitIn(panel, "问答的空状态", `${appText}.includes("还没有问答")`);
     assert.equal(await panel.evaluate(`document.querySelector(".qa-form .button").disabled`), true);
-    assert.ok((await panel.evaluate(textOf(".qa-form .control-reason"))).includes("先在设置页设置 AI 服务"));
+    assert.ok((await panel.evaluate(textOf(".qa-form .control-reason"))).includes("先在设置页设置 AI 服务"), "原因写在抽屉里的提问按钮旁边");
+    assert.equal(await panel.evaluate(`document.activeElement === document.querySelector(".qa-form input")`), true, `打开抽屉以后焦点在抽屉里的提问框：${JSON.stringify(await panel.focused())}`);
+    assert.ok(await stillFalse(async () => qaAsked(ctx.requests, since) || (await panel.evaluate(`document.querySelectorAll(".qa-entry").length > 0`)), 20), "不能问时不发问答请求");
     assert.deepEqual(await panel.evaluate(modes), SKIM, "开抽屉不切模式");
-    await panel.evaluate(`(${qaSheet}).querySelector(".overlay-head [aria-label='关闭']").click(), true`);
-    await waitIn(panel, "抽屉关上", `${qaSheet}?.open === false`);
+    await closeQaSheet(panel);
+    assert.equal(await panel.evaluate(`document.activeElement === document.querySelector(${JSON.stringify(ASK_INPUT)})`), true, "关上以后焦点回到底下的提问框");
+    assert.equal(await panel.evaluate(`document.querySelector(${JSON.stringify(ASK_INPUT)}).value`), "页面测试想问的问题", "没发出去的字留着");
+  });
+});
+
+test("侧边栏：设置好 AI 服务以后，底下的提问框空着回车和点「问答记录」只打开抽屉；打字回车发出问题、清空提问框，答案在抽屉里", async (ctx) => {
+  await withVideo(ctx, async (panel) => {
+    await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
+    const before = await panel.evaluate(`chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)})`);
+    const stored = await storedSettings(ANTHROPIC);
+    await panel.evaluate(`Promise.all([chrome.storage.local.set(${JSON.stringify({ [SETTINGS_STORAGE_KEY]: stored.local[SETTINGS_STORAGE_KEY] })}), chrome.storage.session.set(${JSON.stringify(stored.session)})]).then(() => true)`);
+    try {
+      await waitIn(panel, "设置好了，生成概览能点", `[...document.querySelectorAll(".button")].some((node) => node.textContent === "生成概览" && !node.disabled)`);
+      const since = Date.now();
+      await askFromDock(panel, "");
+      await waitIn(panel, "空着回车打开问答抽屉", `${qaSheet}?.open === true`);
+      await closeQaSheet(panel);
+      await tap(panel, ".dock [aria-label='问答记录']");
+      await waitIn(panel, "点「问答记录」打开问答抽屉", `${qaSheet}?.open === true`);
+      await closeQaSheet(panel);
+      assert.ok(await stillFalse(async () => qaAsked(ctx.requests, since) || (await panel.evaluate(`document.querySelectorAll(".qa-entry").length > 0`)), 20), "只打开抽屉，不发问答请求");
+
+      await askFromDock(panel, "页面测试从底下问的");
+      await until("模拟服务收到问答请求", () => qaAsked(ctx.requests, since)).catch(async (error) => {
+        throw new Error(`${error.message}\n抽屉里显示：${await panel.evaluate(`(${qaSheet})?.innerText ?? ""`)}`);
+      });
+      await waitIn(panel, "答案在抽屉里", `${textOf(".qa-entry .qa-answer")}.includes("模拟服务的回答")`, 20_000);
+      assert.ok((await panel.evaluate(textOf(".qa-entry .qa-question"))).includes("页面测试从底下问的"));
+      assert.equal(await panel.evaluate(`document.querySelector(${JSON.stringify(ASK_INPUT)}).value`), "", "发出去以后清空");
+      await closeQaSheet(panel);
+      assert.equal(await panel.evaluate(`document.activeElement === document.querySelector(${JSON.stringify(ASK_INPUT)})`), true, "关上以后焦点回到底下的提问框");
+    } finally {
+      const ids = await panel.evaluate(`[...document.querySelectorAll(".qa-entry[data-id]")].map((node) => node.dataset.id)`);
+      if (ids.length) await editDatabase(panel, {}, { qa: ids });
+      await panel.evaluate(`Promise.all([chrome.storage.local.set(${JSON.stringify(before)}), chrome.storage.session.remove(${JSON.stringify(API_KEY_SESSION_KEY)})]).then(() => true)`);
+      await waitIn(panel, "还原后回到没设置的说法", `${textOf(`.notice[data-id="config"] .notice-text`)} === "字幕不用设置就能看；概览和问答要先设置 AI 服务"`);
+    }
   });
 });
 
@@ -291,7 +348,7 @@ test("侧边栏：换了字幕以后，依据原来那份字幕的结论和问�
     return next;
   };
   const askedSheet = async () => {
-    await tap(panel, ".ask-entry");
+    await tap(panel, ".dock [aria-label='问答记录']");
     await waitIn(panel, "问答里列出那一条", `${textOf(".qa-entry .qa-question")}.includes("页面测试的问题")`);
   };
   const closeSheet = async () => {
@@ -370,7 +427,7 @@ test("侧边栏：同一个视频换到另一个标签页，重读本机的概�
     tabs.push(await openTab(panel, watchPage(FIRST_ID)));
     await waitIn(panel, "换过去以后结论摆出来", `${textOf(".verdict-text")} === "别处写的结论"`);
     assert.ok((await panel.evaluate(textOf(".chapter-list"))).includes("别处写的章节"));
-    await tap(panel, ".ask-entry");
+    await tap(panel, ".dock [aria-label='问答记录']");
     await waitIn(panel, "问答里有别处问的那一条", `${textOf(".qa-entry .qa-question")}.includes("别处问的问题")`);
     await panel.evaluate(`(${qaSheet}).querySelector(".overlay-head [aria-label='关闭']").click(), true`);
     await waitIn(panel, "抽屉关上", `${qaSheet}?.open === false`);
@@ -576,7 +633,7 @@ test("侧边栏：长视频在速览里连续播满 1 分钟切到精读，问�
     ctx,
     async (panel, _from, tabId) => {
       await waitIn(panel, "长视频进速览", `document.querySelector(".mode-view")?.getAttribute("aria-label") === "速览"`);
-      await tap(panel, ".ask-entry");
+      await tap(panel, ".dock [aria-label='问答记录']");
       await waitIn(panel, "问答抽屉打开", `${qaSheet}?.open === true`);
       await panel.evaluate(`(() => { const input = document.querySelector(".qa-form input"); input.value = "还没发出去的草稿"; input.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
       await waitIn(panel, "播满 1 分钟切到精读", `document.querySelector(".mode-view")?.getAttribute("aria-label") === "精读"`, 120_000);
@@ -635,7 +692,9 @@ test("侧边栏：语言选 English 以后，模式切换、底部工具条、�
         modeGroup: document.querySelector(".modes")?.getAttribute("aria-label"),
         settings: document.querySelector(".panel-head .icon-button")?.getAttribute("aria-label"),
         notes: document.querySelector(".mode-row .icon-button")?.getAttribute("aria-label"),
-        ask: document.querySelector(".ask-entry")?.textContent,
+        ask: document.querySelector(".ask-entry input")?.getAttribute("aria-label"),
+        askPlaceholder: document.querySelector(".ask-entry input")?.placeholder,
+        history: document.querySelector(".dock .icon-button")?.getAttribute("aria-label"),
         config: document.querySelector('.notice[data-id="config"] .notice-text')?.textContent,
         configAction: document.querySelector(${JSON.stringify(CONFIG_ACTION)})?.textContent,
         batch: document.querySelector(".batch-bar .button")?.textContent,
@@ -650,6 +709,8 @@ test("侧边栏：语言选 English 以后，模式切换、底部工具条、�
         settings: "Open settings",
         notes: "Notes",
         ask: "Ask about this video",
+        askPlaceholder: "Ask about this video, then press Enter",
+        history: "Q&A history",
         config: "Subtitles work without setup. Overviews and Q&A need an AI service set up first",
         configAction: "Open settings",
         batch: "Generate all in this window",
@@ -660,7 +721,7 @@ test("侧边栏：语言选 English 以后，模式切换、底部工具条、�
 
       // 问答抽屉：标题、输入框、按钮、说明和空状态。
       const sheet = `[...document.querySelectorAll(".sheet")].find((node) => node.querySelector(".overlay-title")?.textContent === "Q&A")`;
-      await tap(panel, ".ask-entry");
+      await tap(panel, ".dock [aria-label='Q&A history']");
       await waitIn(panel, "问答抽屉打开", `${sheet}?.open === true`);
       await waitIn(panel, "问答的空状态", `${appText}.includes("No Q&A yet")`);
       const qa = await panel.evaluate(`({
@@ -697,7 +758,7 @@ test("侧边栏：语言选 English 以后，模式切换、底部工具条、�
       await setLanguage(panel, "zh");
       await waitIn(panel, "界面换回中文", `document.documentElement.lang === "zh-CN"`);
       assert.deepEqual(await panel.evaluate(modes), SKIM);
-      assert.equal(await panel.evaluate(`document.querySelector(".ask-entry")?.textContent`), "针对这个视频提问");
+      assert.equal(await panel.evaluate(`document.querySelector(".ask-entry input")?.getAttribute("aria-label")`), "针对这个视频提问");
       assert.equal(await panel.evaluate("document.title"), "简幕");
       assert.ok(await panel.evaluate(`[...document.querySelectorAll(".button")].some((node) => node.textContent === "生成概览")`));
     } finally {
@@ -718,13 +779,13 @@ test("侧边栏：English 下精读的底部工具条、整理字幕和解释画
         await waitIn(panel, "整理字幕停用", `document.querySelector(".study .tidy-row .button")?.disabled === true`);
         const view = await panel.evaluate(`({
           modeView: document.querySelector(".mode-view")?.getAttribute("aria-label"),
-          dock: [...document.querySelectorAll(".dock button")].map((node) => node.textContent),
+          dock: [document.querySelector(".dock .ask-entry input")?.getAttribute("aria-label"), ...[...document.querySelectorAll(".dock button")].map((node) => node.textContent || node.getAttribute("aria-label"))],
           tidy: document.querySelector(".study .tidy-row .button")?.textContent,
           reason: document.querySelector(".study .tidy-row .control-reason")?.textContent,
         })`);
         assert.deepEqual(view, {
           modeView: "Study",
-          dock: ["Ask about this video", "Save note", "Explain this frame"],
+          dock: ["Ask about this video", "Q&A history", "Save note", "Explain this frame"],
           tidy: "Tidy up subtitles",
           reason: "Set up an AI service in settings first",
         });

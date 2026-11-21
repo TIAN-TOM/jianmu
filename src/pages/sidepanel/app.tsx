@@ -1,5 +1,5 @@
 // 侧边栏外壳：没确认启用时只有启用说明；没有视频时说明怎么用；有视频时是头部（含模式切换）、一行提示、
-// 当前模式的内容（速览或精读）和底部工具条。问答抽屉和笔记层挂在最外面，切模式时不卸载，草稿和在途回答都留着。
+// 当前模式的内容（速览或精读）和底部工具条（提问框在最左）。问答抽屉和笔记层挂在最外面，切模式时不卸载，草稿和在途回答都留着。
 // 视频页没连上扩展、还没设置 AI 服务、字幕和视频对不上、打开就出结论停着，都放在头部下面的一行提示里。
 import { describe, errorCopy } from "../../core/errors.ts";
 import { noticeLines, noticeStatus, ACTIVATION_TABLE } from "../../core/consent.ts";
@@ -12,13 +12,13 @@ import { Menu, type MenuItem } from "../shared/ui/menu.tsx";
 import { ModeSwitch } from "../shared/ui/mode-switch.tsx";
 import { Notice } from "../shared/ui/notice.tsx";
 import { pickNotice, type NoticeEntry } from "../shared/ui/notice.ts";
-import { useEffect } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { StateBlock } from "../shared/ui/state-block.tsx";
 import { stateCopy } from "../shared/ui/state.ts";
 import { Layer, Sheet } from "../shared/ui/overlay.tsx";
 import { NotesTab } from "./notes-tab.tsx";
 import type { Panel } from "./panel.ts";
-import { QaTab } from "./qa-tab.tsx";
+import { askReason, canSend, QaTab } from "./qa-tab.tsx";
 import { activeIndex } from "./reading.ts";
 import { SkimView } from "./skim.tsx";
 import { StudyView } from "./study.tsx";
@@ -106,7 +106,35 @@ function ModeRow({ panel }: { readonly panel: Panel }) {
   );
 }
 
-/** 底部工具条：提问入口两种模式都在同一个位置，只打开抽屉；精读多一个「存笔记」，记下播放到的这一句。 */
+/**
+ * 底部的提问框：回车发出问题、清空，打开问答抽屉看回答。不能问时不发，字留着，照样打开抽屉，原因在抽屉里的提问按钮旁边。
+ * 空着回车或点旁边的按钮只打开抽屉看历史。用表单提交，输入法选字时的回车不算。
+ */
+function AskBox({ panel }: { readonly panel: Panel }) {
+  const [question, setQuestion] = useState("");
+  const t = panelText();
+  const open = (): void => {
+    panel.qaOpen.value = true;
+  };
+  const submit = (event: Event): void => {
+    event.preventDefault();
+    if (canSend(askReason(panel), question)) {
+      void panel.qa.ask(question);
+      setQuestion("");
+    }
+    open();
+  };
+  return (
+    <>
+      <form class="ask-entry" onSubmit={submit}>
+        <input class="search-input" type="text" aria-label={t.dock.ask} placeholder={t.qa.placeholder} value={question} onInput={(event) => setQuestion(event.currentTarget.value)} />
+      </form>
+      <IconButton icon="task" label={t.dock.history} onClick={open} />
+    </>
+  );
+}
+
+/** 底部工具条：提问框两种模式都在同一个位置；精读多一个「存笔记」，记下播放到的这一句。 */
 function Toolbar({ panel }: { readonly panel: Panel }) {
   const study = panel.mode.view.value.mode === "study";
   const t = panelText().dock;
@@ -121,9 +149,7 @@ function Toolbar({ panel }: { readonly panel: Panel }) {
   };
   return (
     <Dock>
-      <button type="button" class="ask-entry" aria-haspopup="dialog" onClick={() => (panel.qaOpen.value = true)}>
-        {t.ask}
-      </button>
+      <AskBox panel={panel} />
       {study ? (
         <Button variant="text" onClick={() => void saveNote()}>
           {t.saveNote}
