@@ -9,8 +9,10 @@ import { mergeBackup, mergeNotes } from "../../../../src/core/backup/merge.ts";
 import type { ImportedBackup } from "../../../../src/core/backup/records.ts";
 import { notesAsMarkdown } from "../../../../src/core/notes/markdown.ts";
 import { videoKey } from "../../../../src/core/video-ref.ts";
+import { linkFromBase } from "../../../helpers/video-link.ts";
 
 const VIDEO_BASE = "https://video.example/";
+const LINK = linkFromBase(VIDEO_BASE);
 const ID_A = "BV1Sample000";
 const ID_B = "BV1Sample001";
 const KEY_A1 = videoKey({ platform: "bilibili", videoId: ID_A });
@@ -68,7 +70,7 @@ test("导入备份时笔记链接重新拼：备份里存的任意网址不进�
     assert.equal(Object.hasOwn(note ?? {}, field), false, field);
   }
   assert.equal(JSON.stringify(imported).includes("login.example"), false);
-  const markdown = notesAsMarkdown(imported.contents.notes, VIDEO_BASE);
+  const markdown = notesAsMarkdown(imported.contents.notes, LINK);
   assert.match(markdown, /- \[1:05\]\(https:\/\/video\.example\/BV1Sample000\?p=2&t=65\) 看这里/);
 });
 

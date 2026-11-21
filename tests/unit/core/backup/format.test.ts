@@ -6,8 +6,10 @@ import type { ImportedBackup } from "../../../../src/core/backup/records.ts";
 import { notesAsMarkdown } from "../../../../src/core/notes/markdown.ts";
 import { translationId, type Derived, type NoteRecord, type OverviewRecord, type QaRecord, type TranslationRecord } from "../../../../src/core/notes/records.ts";
 import { videoKey } from "../../../../src/core/video-ref.ts";
+import { linkFromBase } from "../../../helpers/video-link.ts";
 
 const VIDEO_BASE = "https://video.example/";
+const LINK = linkFromBase(VIDEO_BASE);
 const KEY_A = videoKey({ platform: "bilibili", videoId: "BV1Sample000", segment: 2 });
 const KEY_Y = videoKey({ platform: "youtube", videoId: "sample_id" });
 const EVIL_URL = "https://login.example/phish?t=65";
@@ -68,7 +70,7 @@ test("导出备份和 Markdown 都不沿用存着的链接字段", () => {
   assert.equal(JSON.stringify(backup).includes("login.example"), false);
   assert.deepEqual(backup.notes, [NOTE]);
 
-  const markdown = notesAsMarkdown([stored], VIDEO_BASE);
+  const markdown = notesAsMarkdown([stored], LINK);
   assert.equal(markdown.includes("login.example"), false, markdown);
   assert.match(markdown, /- \[1:05\]\(https:\/\/video\.example\/BV1Sample000\?p=2&t=65\) 看这里/);
 });

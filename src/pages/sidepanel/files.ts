@@ -2,7 +2,7 @@
 import { learningAsMarkdown, markdownFallbackName, notesAsMarkdown, type LearningInput } from "../../core/notes/markdown.ts";
 import type { NoteList } from "../../core/notes/records.ts";
 import type { OutputLang } from "../../core/output-lang.ts";
-import { parseVideoKey, type VideoKey } from "../../core/video-ref.ts";
+import { parseVideoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
 import { siteRules } from "../../sites/rules.ts";
 
 const BAD_NAME = /[\\/:*?"<>|\u0000-\u001f]+/g;
@@ -14,13 +14,15 @@ export function safeFileName(title: string, fallback: string): string {
   return cleaned || fallback;
 }
 
-/** 导出时拼链接用的视频地址前缀，按这个视频所在的站点算。 */
-export function videoBaseOf(video: VideoKey | null): string {
-  const ref = video ? parseVideoKey(video) : null;
-  const rules = ref ? siteRules[ref.platform] : undefined;
-  if (!ref || !rules) return "";
-  const url = rules.canonicalUrl({ platform: ref.platform, videoId: ref.videoId });
-  return url.endsWith(ref.videoId) ? url.slice(0, url.length - ref.videoId.length) : "";
+/** 导出里的视频链接：按视频所在站点的地址规则生成，认不出的站或身份不合规则时回空串。 */
+export function videoLink(ref: VideoRef, atSec: number): string {
+  const rules = siteRules[ref.platform];
+  if (!rules) return "";
+  try {
+    return rules.canonicalUrl(ref, atSec);
+  } catch {
+    return "";
+  }
 }
 
 export interface MarkdownExport {
@@ -30,14 +32,14 @@ export interface MarkdownExport {
 
 /** 学习稿：固定文字和没标题时的文件名按语言出。没有可导出的内容时回 null。 */
 export function learningExport(input: LearningInput, lang: OutputLang): MarkdownExport | null {
-  const markdown = learningAsMarkdown(input, videoBaseOf(input.videoKey ?? null), lang);
+  const markdown = learningAsMarkdown(input, videoLink, lang);
   if (!markdown) return null;
   return { fileName: `${safeFileName(input.title ?? "", markdownFallbackName("learning", lang))}.md`, markdown };
 }
 
 /** 笔记：grouped 时按视频分组。title 是文件名用的标题，空了按语言用后备名字。没有笔记时回 null。 */
-export function notesExport(notes: NoteList, video: VideoKey | null, options: { readonly grouped: boolean; readonly title: string }, lang: OutputLang): MarkdownExport | null {
-  const markdown = notesAsMarkdown(notes, videoBaseOf(video), { grouped: options.grouped, lang });
+export function notesExport(notes: NoteList, options: { readonly grouped: boolean; readonly title: string }, lang: OutputLang): MarkdownExport | null {
+  const markdown = notesAsMarkdown(notes, videoLink, { grouped: options.grouped, lang });
   if (!markdown) return null;
   return { fileName: `${safeFileName(options.title, markdownFallbackName("notes", lang))}.md`, markdown };
 }
