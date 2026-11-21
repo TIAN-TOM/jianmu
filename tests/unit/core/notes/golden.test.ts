@@ -10,6 +10,7 @@ import {
 } from "../../../../src/core/notes/markdown.ts";
 import type { NoteFields, NoteList } from "../../../../src/core/notes/records.ts";
 import { formatTimestamp } from "../../../../src/core/transcript/segment.ts";
+import { videoLink } from "../../../../src/pages/sidepanel/files.ts";
 
 interface GoldenCase {
   readonly id: string;
@@ -59,30 +60,28 @@ function toNote(sample: SampleNote | null): NoteFields | null {
 
 const toNotes = (samples: unknown): NoteList => (samples as readonly (SampleNote | null)[]).map(toNote);
 
+// 样本里的导出时刻是世界标准时间，文件头的日期按本机时区写；换成本机同一钟点，在哪个时区跑都是样本上的那一天。
+function sameWallClock(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const at = new Date(value);
+  return new Date(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate(), at.getUTCHours(), at.getUTCMinutes());
+}
+
 function toLearningInput(sample: unknown): LearningInput {
-  const { notes, viewPoints, ...rest } = sample as SampleLearning;
+  const { notes, viewPoints, exportedAt, ...rest } = sample as SampleLearning;
   return {
     ...rest,
+    ...(exportedAt === undefined ? {} : { exportedAt: sameWallClock(exportedAt) }),
     ...(notes ? { notes: toNotes(notes) } : {}),
     ...(viewPoints ? { creatorChapters: viewPoints } : {}),
   } as LearningInput;
 }
 
-// 视频地址的前缀不写在测试里，从样本第一条的页面链接反推。
-function videoBaseFrom(entries: readonly GoldenCase[]): string {
-  const result = entries[0]?.result;
-  assert.ok(typeof result === "string");
-  const base = /^(\S+)BV1GoLDen001$/m.exec(result)?.[1];
-  assert.ok(base);
-  return base;
-}
-
-const VIDEO_BASE = videoBaseFrom(cases);
-
+// 链接用侧边栏导出时的那个函数生成，样本里 B 站的链接要逐字对上。
 const FUNCTIONS: Readonly<Record<string, (args: unknown[]) => unknown>> = {
   filterNotes: ([notes, query]) => filterNotes(toNotes(notes), query as string),
-  learningAsMarkdown: ([input]) => learningAsMarkdown(toLearningInput(input), VIDEO_BASE),
-  notesAsMarkdown: ([notes, options]) => notesAsMarkdown(toNotes(notes), VIDEO_BASE, options as NotesExportOptions),
+  learningAsMarkdown: ([input]) => learningAsMarkdown(toLearningInput(input), videoLink),
+  notesAsMarkdown: ([notes, options]) => notesAsMarkdown(toNotes(notes), videoLink, options as NotesExportOptions),
 };
 
 // 过滤原样返回笔记，结果也要换成记录的字段才比得上。

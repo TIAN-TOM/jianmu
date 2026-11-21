@@ -1,11 +1,11 @@
 // 侧边栏的两种导出把界面语言传给导出：中文时内容和文件名和原来逐字一样，英文时固定文字和没标题时的文件名是英文。
-// 字幕轨的显示名：简幕替 YouTube 起的名字按语言换，别的照原样。数据都是自造的。
+// 导出里的链接按视频所在站点的地址规则生成。字幕轨的显示名：简幕替 YouTube 起的名字按语言换，别的照原样。数据都是自造的。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { learningAsMarkdown, notesAsMarkdown, type LearningInput } from "../../../../src/core/notes/markdown.ts";
 import type { NoteRecord } from "../../../../src/core/notes/records.ts";
 import { videoKey } from "../../../../src/core/video-ref.ts";
-import { learningExport, notesExport, trackLabel, videoBaseOf } from "../../../../src/pages/sidepanel/files.ts";
+import { learningExport, notesExport, trackLabel, videoLink } from "../../../../src/pages/sidepanel/files.ts";
 
 const KEY = videoKey({ platform: "bilibili", videoId: "BV1Sample000" });
 const TUBE = videoKey({ platform: "youtube", videoId: "Sample00001" });
@@ -22,12 +22,12 @@ const INPUT: LearningInput = {
 
 test("学习稿：中文时内容和原来逐字一样，没标题时文件名是「学习稿」；英文时固定文字和文件名是英文", () => {
   const zh = learningExport(INPUT, "zh");
-  assert.deepEqual(zh, { fileName: "学习稿.md", markdown: learningAsMarkdown(INPUT, videoBaseOf(KEY)) });
+  assert.deepEqual(zh, { fileName: "学习稿.md", markdown: learningAsMarkdown(INPUT, videoLink) });
   assert.equal(learningExport({ ...INPUT, title: "样例/标题" }, "zh")?.fileName, "样例 标题.md");
 
   const en = learningExport(INPUT, "en");
   assert.equal(en?.fileName, "study notes.md");
-  assert.equal(en?.markdown, learningAsMarkdown(INPUT, videoBaseOf(KEY), "en"));
+  assert.equal(en?.markdown, learningAsMarkdown(INPUT, videoLink, "en"));
   assert.notEqual(en?.markdown, zh?.markdown);
   assert.equal(learningExport({ ...INPUT, title: "样例标题" }, "en")?.fileName, "样例标题.md", "有标题时照标题起名");
 
@@ -35,13 +35,63 @@ test("学习稿：中文时内容和原来逐字一样，没标题时文件名�
 });
 
 test("笔记：中文时内容和原来逐字一样，英文时固定文字是英文；没标题时的文件名按语言给", () => {
-  const zh = notesExport([NOTE], KEY, { grouped: false, title: "" }, "zh");
-  assert.deepEqual(zh, { fileName: "笔记.md", markdown: notesAsMarkdown([NOTE], videoBaseOf(KEY), { grouped: false }) });
-  const en = notesExport([NOTE], KEY, { grouped: true, title: "" }, "en");
+  const zh = notesExport([NOTE], { grouped: false, title: "" }, "zh");
+  assert.deepEqual(zh, { fileName: "笔记.md", markdown: notesAsMarkdown([NOTE], videoLink, { grouped: false }) });
+  const en = notesExport([NOTE], { grouped: true, title: "" }, "en");
   assert.equal(en?.fileName, "notes.md");
-  assert.equal(en?.markdown, notesAsMarkdown([NOTE], videoBaseOf(KEY), { grouped: true, lang: "en" }));
-  assert.equal(notesExport([NOTE], KEY, { grouped: false, title: "All notes" }, "en")?.fileName, "All notes.md");
-  assert.equal(notesExport([], KEY, { grouped: false, title: "" }, "zh"), null);
+  assert.equal(en?.markdown, notesAsMarkdown([NOTE], videoLink, { grouped: true, lang: "en" }));
+  assert.equal(notesExport([NOTE], { grouped: false, title: "All notes" }, "en")?.fileName, "All notes.md");
+  assert.equal(notesExport([], { grouped: false, title: "" }, "zh"), null);
+});
+
+test("B 站的导出链接：分 P 和起播时间照旧写在地址参数里", () => {
+  const p2 = videoKey({ platform: "bilibili", videoId: "BV1Sample000", segment: 2 });
+  const markdown = learningExport({ ...INPUT, videoKey: p2, notes: [{ ...NOTE, video: p2, atSec: 65 }] }, "zh")?.markdown ?? "";
+  assert.match(markdown, /^url: "https:\/\/www\.bilibili\.com\/video\/BV1Sample000\?p=2"$/m);
+  assert.ok(markdown.includes("- [1:05](https://www.bilibili.com/video/BV1Sample000?p=2&t=65) 样例笔记"), markdown);
+});
+
+test("YouTube 的学习稿：文件头带视频链接，章节、金句的时间是带起播时间的链接，0:00 链到开头", () => {
+  const markdown =
+    learningExport(
+      {
+        title: "样例视频",
+        videoKey: TUBE,
+        exportedAt: new Date(2026, 10, 22, 2, 9),
+        analysis: {
+          chapters: [
+            { timestamp: "0:00", timestampSeconds: 0, title: "开场", summary: "" },
+            { timestamp: "1:05", timestampSeconds: 65, title: "正题", summary: "" },
+          ],
+          keyQuotes: [{ timestamp: "1:10", timestampSeconds: 70, quote: "样例金句" }],
+        },
+      },
+      "zh",
+    )?.markdown ?? "";
+  const watch = "https://www.youtube.com/watch?v=Sample00001";
+  assert.match(markdown, /^url: "https:\/\/www\.youtube\.com\/watch\?v=Sample00001"$/m);
+  assert.match(markdown, /^created_at: 2026-11-22$/m);
+  assert.ok(markdown.includes(`- [0:00](${watch}) 开场`), markdown);
+  assert.ok(markdown.includes(`- [1:05](${watch}&t=65s) 正题`), markdown);
+  assert.ok(markdown.includes(`### [1:05](${watch}&t=65s) 正题`), markdown);
+  assert.ok(markdown.includes(`> [1:10](${watch}&t=70s) 样例金句`), markdown);
+});
+
+test("YouTube 的笔记导出：分组标题下带视频链接，每条笔记的时间是链接；B 站和 YouTube 混在一起时各用各的地址", () => {
+  const tubeNote = { ...NOTE, id: "n2", video: TUBE, snapshot: { title: "样例视频", author: "" }, atSec: 125, createdAt: 2 } as NoteRecord;
+  const single = notesExport([tubeNote], { grouped: false, title: "" }, "zh")?.markdown;
+  assert.equal(
+    single,
+    ["# 样例视频", "", "https://www.youtube.com/watch?v=Sample00001", "", "- [2:05](https://www.youtube.com/watch?v=Sample00001&t=125s) 样例笔记", ""].join("\n"),
+  );
+  const mixed = notesExport([NOTE, tubeNote], { grouped: true, title: "" }, "zh")?.markdown ?? "";
+  assert.ok(mixed.includes("- [2:05](https://www.youtube.com/watch?v=Sample00001&t=125s) 样例笔记"), mixed);
+  assert.ok(mixed.includes("- [0:05](https://www.bilibili.com/video/BV1Sample000?t=5) 样例笔记"), mixed);
+});
+
+test("导出链接：认不出的身份回空串，不抛错", () => {
+  assert.equal(videoLink({ platform: "youtube", videoId: "坏 编号" }, 0), "");
+  assert.equal(videoLink({ platform: "bilibili", videoId: "不是BV号" }, 5), "");
 });
 
 test("字幕轨的显示名：简幕替 YouTube 起的名字按语言换，标识不变；页面上写着名字的轨和 B 站的轨照原样", () => {

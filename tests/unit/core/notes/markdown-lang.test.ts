@@ -5,8 +5,10 @@ import { test } from "node:test";
 import { learningAsMarkdown, markdownFallbackName, notesAsMarkdown, type LearningInput } from "../../../../src/core/notes/markdown.ts";
 import type { NoteRecord } from "../../../../src/core/notes/records.ts";
 import { videoKey } from "../../../../src/core/video-ref.ts";
+import { linkFromBase } from "../../../helpers/video-link.ts";
 
 const VIDEO_BASE = "https://video.example/";
+const LINK = linkFromBase(VIDEO_BASE);
 const KEY = videoKey({ platform: "bilibili", videoId: "BV1Sample000" });
 
 const INPUT: LearningInput = {
@@ -29,15 +31,15 @@ const INPUT: LearningInput = {
 };
 
 test("学习稿：不传语言和传中文逐字一样", () => {
-  const zh = learningAsMarkdown(INPUT, VIDEO_BASE);
-  assert.equal(learningAsMarkdown(INPUT, VIDEO_BASE, "zh"), zh);
+  const zh = learningAsMarkdown(INPUT, LINK);
+  assert.equal(learningAsMarkdown(INPUT, LINK, "zh"), zh);
   for (const line of ["## B站官方总结", "## UP 主分段", "## 一句话结论", "**可跳过**", "## 视频概览", "## 章节", "## 我的时间戳笔记", "  - 简幕", "title: BV1Sample000"]) {
     assert.ok(zh.includes(line), line);
   }
 });
 
 test("学习稿：英文时固定文字是英文，档位写英文名，内容原样", () => {
-  const en = learningAsMarkdown(INPUT, VIDEO_BASE, "en");
+  const en = learningAsMarkdown(INPUT, LINK, "en");
   for (const line of [
     "## Bilibili official summary",
     "> Source: Bilibili's official AI summary. Bilibili generated it, not the model you set up.",
@@ -66,12 +68,12 @@ test("学习稿：英文时固定文字是英文，档位写英文名，内容�
 
 test("笔记导出：没有标题时的名字按语言写，中文照旧", () => {
   const notes = INPUT.notes ?? [];
-  const zh = notesAsMarkdown(notes, VIDEO_BASE);
-  assert.equal(notesAsMarkdown(notes, VIDEO_BASE, { lang: "zh" }), zh);
+  const zh = notesAsMarkdown(notes, LINK);
+  assert.equal(notesAsMarkdown(notes, LINK, { lang: "zh" }), zh);
   assert.ok(zh.startsWith("# BV1Sample000\n"));
   const untitled = [{ ...(notes[0] as NoteRecord), video: "" as typeof KEY }];
-  assert.ok(notesAsMarkdown(untitled, VIDEO_BASE).startsWith("# 未命名视频\n"));
-  assert.ok(notesAsMarkdown(untitled, VIDEO_BASE, { lang: "en" }).startsWith("# Untitled video\n"));
+  assert.ok(notesAsMarkdown(untitled, LINK).startsWith("# 未命名视频\n"));
+  assert.ok(notesAsMarkdown(untitled, LINK, { lang: "en" }).startsWith("# Untitled video\n"));
 });
 
 test("导出文件在没有标题时的名字：中文照旧，英文是英文", () => {

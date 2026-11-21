@@ -10,9 +10,11 @@ import { parseOfficialSummary, readOfficialSummary } from "../../../../src/sites
 import { INFO, playerEnvelope, rig, ZH_TRACK } from "../../../helpers/bilibili-captions.ts";
 import { expectedSignature, failure, hanging, reachOf, signatureOf, value, type Route, type SeenRequest } from "../../../helpers/bilibili-fetch.ts";
 import { BAN_RESPONSES, BVID, FIRST_KEYS, json, navLoggedIn, navLoggedOut, navWithoutKeys, SECOND_KEYS } from "../../../helpers/bilibili-fixtures.ts";
+import { linkFromBase } from "../../../helpers/video-link.ts";
 
 const REJECTED = { code: -352, message: "sample refusal" };
 const VIDEO_BASE = "https://video.example/";
+const LINK = linkFromBase(VIDEO_BASE);
 const PLAYER_OK = playerEnvelope([ZH_TRACK]);
 
 function summaryData(): Record<string, unknown> {
@@ -104,7 +106,7 @@ test("规整后的提纲直接交给结论输入和学习稿，时间和要点�
     "[4:01] 再说移栽。：阴天移栽成活高。",
   ]);
 
-  const lines = learningAsMarkdown({ videoKey: videoKey(INFO.ref), officialSummary: summary }, VIDEO_BASE).split("\n");
+  const lines = learningAsMarkdown({ videoKey: videoKey(INFO.ref), officialSummary: summary }, LINK).split("\n");
   const link = (stamp: string, seconds: number): string => `[${stamp}](${VIDEO_BASE}${BVID}?t=${seconds})`;
   for (const line of [
     `### ${link("0:01", 1)} 先选种子。`,

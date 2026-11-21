@@ -86,7 +86,7 @@ export function NotesTab({ panel }: { readonly panel: Panel }) {
   const t = p.notes;
   const exportNotes = (): void => {
     const title = state.scope === "video" ? (shown[0]?.snapshot.title ?? "") : t.allNotes;
-    const file = notesExport(shown, state.video ?? shown[0]?.video ?? null, { grouped: state.scope === "all", title }, uiLang.peek());
+    const file = notesExport(shown, { grouped: state.scope === "all", title }, uiLang.peek());
     if (!file) return panel.say(t.nothingToExport);
     downloadText(file.fileName, file.markdown, "text/markdown");
   };

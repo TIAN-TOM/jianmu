@@ -1,10 +1,10 @@
-// 笔记和学习稿的 Markdown 导出。视频地址的前缀由调用方传入，链接只从视频键现拼。
+// 笔记和学习稿的 Markdown 导出。视频链接由调用方给的函数按视频身份现生成。
 // 标题、小标题、来源说明这些固定文字按语言出，缺省中文；模型写的内容、平台来的内容和用户自己的笔记原样写。
 import { groupQuotesIntoChapters, type ChapterPart, type QuotePart } from "../ai/chunking.ts";
 import { keyChapterStarts, verdictLabelOf, verdictName, type OfficialSummary } from "../ai/verdict.ts";
 import type { OutputLang } from "../output-lang.ts";
 import { formatTimestamp } from "../transcript/segment.ts";
-import { parseVideoKey, type VideoKey } from "../video-ref.ts";
+import { parseVideoKey, type VideoKey, type VideoRef } from "../video-ref.ts";
 import {
   normalizeAnalysisFailures,
   noteList,
@@ -130,19 +130,17 @@ interface OutlinePart {
   readonly points?: unknown;
 }
 
+/** 给视频身份和起播秒数（不小于 0 的整数），回这个视频的页面链接；给不出时回空串。 */
+export type VideoLinkOf = (ref: VideoRef, atSec: number) => string;
+
 type HrefOf = (seconds: unknown) => string;
 
 // 存着的链接字段不信：备份是用户导进来的文件，那个字段可以是任意网址。
-// 前缀加编号的写法只对 B 站成立，别的站和认不出的键不给链接。
-function videoHref(video: VideoKey | null | undefined, seconds: unknown, videoBaseUrl: string): string {
+// 链接只从视频键生成，认不出的键不给链接。
+function videoHref(video: VideoKey | null | undefined, seconds: unknown, linkOf: VideoLinkOf): string {
   const ref = parseVideoKey(String(video || ""));
-  if (ref?.platform !== "bilibili") return "";
-  const url = new URL(`${videoBaseUrl}${ref.videoId}`);
-  const segment = ref.segment ?? 1;
-  if (segment > 1) url.searchParams.set("p", String(segment));
-  const start = Math.max(0, Math.floor(Number(seconds) || 0));
-  if (start > 0) url.searchParams.set("t", String(start));
-  return url.toString();
+  if (!ref) return "";
+  return linkOf(ref, Math.max(0, Math.floor(Number(seconds) || 0)));
 }
 
 function mdLink(label: string, href: string): string {
@@ -182,8 +180,8 @@ function noteBody(note: NoteFields): string {
     .join("\n  ");
 }
 
-function formatNoteItem(note: NoteFields, videoBaseUrl: string): string {
-  const link = mdLink(formatTimestamp(note.atSec), videoHref(note.video, note.atSec, videoBaseUrl));
+function formatNoteItem(note: NoteFields, linkOf: VideoLinkOf): string {
+  const link = mdLink(formatTimestamp(note.atSec), videoHref(note.video, note.atSec, linkOf));
   const body = noteBody(note);
   return body ? `- ${link} ${body}` : `- ${link}`;
 }
@@ -192,7 +190,7 @@ function byTime(left: NoteFields, right: NoteFields): number {
   return (Number(left.atSec) || 0) - (Number(right.atSec) || 0);
 }
 
-function formatGroup(notes: readonly NoteFields[], videoBaseUrl: string, t: MarkdownText): string {
+function formatGroup(notes: readonly NoteFields[], linkOf: VideoLinkOf, t: MarkdownText): string {
   const first = notes[0] ?? {};
   const title = escapeMarkdown(
     String(first.snapshot?.title || videoIdOf(first.video) || t.untitled)
@@ -201,13 +199,13 @@ function formatGroup(notes: readonly NoteFields[], videoBaseUrl: string, t: Mark
   );
   const owner = escapeMarkdown(String(first.snapshot?.author || "").trim());
   const segment = parseVideoKey(String(first.video || ""))?.segment ?? 1;
-  const url = videoHref(first.video, 0, videoBaseUrl);
+  const url = videoHref(first.video, 0, linkOf);
   const lines = [`# ${title}`, ""];
   const meta = [owner, segment > 1 ? `P${segment}` : ""].filter(Boolean).join(" · ");
   if (meta) lines.push(meta);
   if (url) lines.push(url);
   if (meta || url) lines.push("");
-  for (const note of [...notes].sort(byTime)) lines.push(formatNoteItem(note, videoBaseUrl));
+  for (const note of [...notes].sort(byTime)) lines.push(formatNoteItem(note, linkOf));
   return `${lines.join("\n").trimEnd()}\n`;
 }
 
@@ -217,13 +215,13 @@ function formatGroup(notes: readonly NoteFields[], videoBaseUrl: string, t: Mark
  */
 export function notesAsMarkdown(
   notes: NoteList,
-  videoBaseUrl: string,
+  linkOf: VideoLinkOf,
   { grouped = false, lang = "zh" }: NotesExportOptions = {},
 ): string {
   const t = textOf(lang);
   const list = noteList(notes);
   if (!list.length) return "";
-  if (!grouped) return formatGroup(list, videoBaseUrl, t);
+  if (!grouped) return formatGroup(list, linkOf, t);
 
   const groups = new Map<string, NoteFields[]>();
   for (const note of list) {
@@ -236,7 +234,7 @@ export function notesAsMarkdown(
     Math.max(...group.map((note) => Number(note.createdAt) || 0));
   return [...groups.values()]
     .sort((left, right) => latest(right) - latest(left))
-    .map((group) => formatGroup(group, videoBaseUrl, t))
+    .map((group) => formatGroup(group, linkOf, t))
     .join("\n");
 }
 
@@ -266,10 +264,12 @@ function yamlVideoKey(video: VideoKey | undefined): string {
   return parseVideoKey(String(video || "")) ? String(video) : '""';
 }
 
-function isoDate(value: string | number | Date | undefined): string {
+// 文件头的日期按用户本机时区写：导出那一刻用户那里是哪天就写哪天。
+function localDate(value: string | number | Date | undefined): string {
   const date = value instanceof Date ? value : new Date(value || Date.now());
   if (Number.isNaN(date.getTime())) return "";
-  return date.toISOString().slice(0, 10);
+  const pad = (part: number): string => String(part).padStart(2, "0");
+  return `${String(date.getFullYear()).padStart(4, "0")}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 function secondsOrNull(value: unknown): number | null {
@@ -351,14 +351,14 @@ export function learningAsMarkdown(
     creatorChapters,
     notes,
   }: LearningInput = {},
-  videoBaseUrl: string,
+  linkOf: VideoLinkOf,
   lang: OutputLang = "zh",
 ): string {
   const t = textOf(lang);
   const chapters: readonly ChapterPart[] = Array.isArray(analysis?.chapters) ? analysis.chapters : [];
   const quotes: readonly QuotePart[] = Array.isArray(analysis?.keyQuotes) ? analysis.keyQuotes : [];
   const noteItems = noteList(notes);
-  const hrefOf: HrefOf = (seconds) => videoHref(videoKey, seconds, videoBaseUrl);
+  const hrefOf: HrefOf = (seconds) => videoHref(videoKey, seconds, linkOf);
   // B站自己给的导读：官方总结和 UP 主分段，都不是用户模型生成的。
   const guideLines = [...officialSummaryLines(officialSummary, hrefOf, t), ...creatorChapterLines(creatorChapters, hrefOf, t)];
   if (!chapters.length && !quotes.length && !noteItems.length && !guideLines.length) return "";
@@ -370,7 +370,7 @@ export function learningAsMarkdown(
     `videoKey: ${yamlVideoKey(videoKey)}`,
     `author: ${yamlScalar(author)}`,
     `url: ${yamlScalar(hrefOf(0))}`,
-    `created_at: ${yamlScalar(isoDate(exportedAt))}`,
+    `created_at: ${yamlScalar(localDate(exportedAt))}`,
     "tags:",
     `  - ${t.tag}`,
     "---",
@@ -460,7 +460,7 @@ export function learningAsMarkdown(
 
   if (noteItems.length) {
     lines.push(t.notesHeading, "");
-    for (const note of [...noteItems].sort(byTime)) lines.push(formatNoteItem(note, videoBaseUrl));
+    for (const note of [...noteItems].sort(byTime)) lines.push(formatNoteItem(note, linkOf));
     lines.push("");
   }
 

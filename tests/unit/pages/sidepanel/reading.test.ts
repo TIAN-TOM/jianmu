@@ -1,8 +1,7 @@
-// 侧边栏的纯规则：播放到哪一段和哪一章、速览里一章的字幕、原文译文双语怎么显示和导出、划词解释的长度、导出的文件名和链接前缀、导入前的文件核对。
+// 侧边栏的纯规则：播放到哪一段和哪一章、速览里一章的字幕、原文译文双语怎么显示和导出、划词解释的长度、导出的文件名、导入前的文件核对。
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { videoKey } from "../../../../src/core/video-ref.ts";
-import { safeFileName, videoBaseOf } from "../../../../src/pages/sidepanel/files.ts";
+import { safeFileName } from "../../../../src/pages/sidepanel/files.ts";
 import { activeIndex, chapterAt, explainable, linesOf, mainBreaks, MAX_SELECTION, refreshLang, segmentsBetween, srtOf } from "../../../../src/pages/sidepanel/reading.ts";
 import { fileProblem } from "../../../../src/pages/sidepanel/transcript.ts";
 
@@ -36,14 +35,10 @@ test("划词解释：空白和太长的选区不弹「解释」", () => {
   assert.equal(explainable("字".repeat(MAX_SELECTION + 1)), false);
 });
 
-test("导出：文件名去掉系统不认的字符，空了用后备名字；链接前缀按视频所在的站点算", () => {
+test("导出：文件名去掉系统不认的字符，空了用后备名字", () => {
   assert.equal(safeFileName('a/b:c*"d"', "字幕"), "a b c d");
   assert.equal(safeFileName(" \u0000 ", "字幕"), "字幕");
   assert.equal(safeFileName("长".repeat(200), "字幕").length, 80);
-  const base = videoBaseOf(videoKey({ platform: "bilibili", videoId: "BV1Sample001", segment: 2 }));
-  assert.ok(base.startsWith("https://") && base.endsWith("/"), base);
-  assert.equal(new URL(`${base}BV1Sample001`).pathname.endsWith("/BV1Sample001"), true);
-  assert.equal(videoBaseOf(null), "");
 });
 
 test("导入字幕文件之前：只收 .srt、.vtt，太大和空文件先拦下", () => {
