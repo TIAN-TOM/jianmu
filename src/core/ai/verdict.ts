@@ -285,25 +285,6 @@ export function translatedTitleOf(raw: unknown, title?: string): string {
 
 const withTitle = (translatedTitle: string): { translatedTitle?: string } => (translatedTitle ? { translatedTitle } : {});
 
-const HAN = /\p{Script=Han}/u;
-
-/**
- * 译名只是把原标题的汉字换了写法（简体换繁体之类）：逐字比，长度一样，不同的地方两边都是汉字。
- * 选繁体时中文标题不要译名，模型把简体标题转成繁体交回来的，本机当没有。
- */
-export function onlyHanVariant(translated: string, title: string): boolean {
-  const a = [...translated.trim()];
-  const b = [...title.trim()];
-  if (a.length !== b.length) return false;
-  let changed = false;
-  for (let i = 0; i < a.length; i += 1) {
-    if (a[i] === b[i]) continue;
-    if (!HAN.test(a[i] ?? "") || !HAN.test(b[i] ?? "")) return false;
-    changed = true;
-  }
-  return changed;
-}
-
 export interface VerdictCheck {
   /** 概览有失败块，结论只基于部分内容，界面和导出都要标出来。 */
   readonly incomplete?: boolean;
@@ -327,17 +308,10 @@ export const VERDICT_CLIP: Readonly<Record<OutputLang, { readonly summary: numbe
   en: Object.freeze({ summary: 800, value: 480, reason: 480 }),
 });
 
-// 选繁体时只是换了字形的译名不算。
-function titleFor(raw: unknown, title: string | undefined, lang: OutputLang): string {
-  const translated = translatedTitleOf(raw, title);
-  return translated && title !== undefined && lang === "zh-Hant" && onlyHanVariant(translated, title) ? "" : translated;
-}
-
 /**
  * 结论同样当不可信数据处理：没有 summary 就当没生成；判断不在几档里就不显示，
  * 免得模型自创一档「还行」。字段按提示词的字数要求留些余量再截断。
- * 重点章节（模型输出里的 keyChapters）按 validKeyStarts 过滤，坏了只丢重点；标题译名按 translatedTitleOf 收，坏了只丢译名；
- * 选繁体时只换了字形的译名也丢掉。
+ * 重点章节（模型输出里的 keyChapters）按 validKeyStarts 过滤，坏了只丢重点；标题译名按 translatedTitleOf 收，坏了只丢译名。
  */
 export function validateVerdict(
   parsed: unknown,
@@ -365,7 +339,7 @@ export function validateVerdict(
     verdict,
     reason: verdict ? clip(source.reason, limits.reason) : "",
     ...withKeys(chapterStarts ? validKeyStarts(source.keyChapters, chapterStarts) : []),
-    ...withTitle(titleFor(source.translatedTitle, title, lang)),
+    ...withTitle(translatedTitleOf(source.translatedTitle, title)),
     ...(incomplete ? { incomplete: true as const } : {}),
   };
 }

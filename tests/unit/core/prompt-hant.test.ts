@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { extractPromptSection, LANG_SECTIONS, langVariables, localizePrompt } from "../../../src/core/ai/prompt.ts";
 import { alignTranslatedSegments, chunkFromModel, looksLikeTranslation, validateAnalysis } from "../../../src/core/ai/validate.ts";
-import { LEGACY_VERDICT, onlyHanVariant, validateVerdict, verdictLabelOf, verdictName } from "../../../src/core/ai/verdict.ts";
+import { LEGACY_VERDICT, validateVerdict, verdictLabelOf, verdictName } from "../../../src/core/ai/verdict.ts";
 import { groundQaAnswer } from "../../../src/core/qa/citations.ts";
 
 const PROMPTS_DIR = new URL("../../../prompts/", import.meta.url);
@@ -144,27 +144,16 @@ test("模型在繁体下写了繁体档位：结论照收，存的是原来的�
 });
 
 // ============================================================
-// 本机兜底：标题译名
+// 标题译名
 // ============================================================
 
-test("只换了字形：逐字比，长度一样、不同的地方两边都是汉字", () => {
-  assert.equal(onlyHanVariant("三個做法讓番茄長得更好", "三个做法让番茄长得更好"), true);
-  assert.equal(onlyHanVariant("用 Python 寫爬蟲", "用 Python 写爬虫"), true);
-  assert.equal(onlyHanVariant("番茄種植", "番茄种植"), true);
-  assert.equal(onlyHanVariant("番茄种植", "番茄种植"), false, "一模一样的交给原来的比较");
-  assert.equal(onlyHanVariant("東京的觀光", "東京の観光"), false, "假名换成了汉字，是真译");
-  assert.equal(onlyHanVariant("番茄怎麼種", "How to grow tomatoes"), false);
-  assert.equal(onlyHanVariant("三個做法", "三个做法！"), false, "长度不一样");
-});
-
-test("选繁体时把中文标题转成繁体当译名：本机当没有；外文标题的繁体译名照收；简体和英文的规矩不变", () => {
+test("选繁体时外文标题的繁体译名照收，全是汉字的日文标题译成等长的繁体也照收；和原标题一样的不收；简体和英文的规矩不变", () => {
   const verdict = (translatedTitle: string, title: string, lang: "zh" | "zh-Hant" | "en") =>
     validateVerdict({ summary: "摘要", verdict: "可以看", translatedTitle }, { lang, title })?.translatedTitle;
-  assert.equal(verdict("三個做法讓番茄長得更好", "三个做法让番茄长得更好", "zh-Hant"), undefined);
-  assert.equal(verdict("三个做法让番茄长得更好", "三个做法让番茄长得更好", "zh-Hant"), undefined);
   assert.equal(verdict("番茄怎麼種才能長得好", "How to grow better tomatoes", "zh-Hant"), "番茄怎麼種才能長得好");
   assert.equal(verdict("東京的觀光指南", "東京の観光ガイド", "zh-Hant"), "東京的觀光指南");
-  // 简体下这一条不管：换了字形的照旧按原来的比较收下。
+  assert.equal(verdict("東京觀光", "東京観光", "zh-Hant"), "東京觀光");
+  assert.equal(verdict("三个做法让番茄长得更好", "三个做法让番茄长得更好", "zh-Hant"), undefined);
   assert.equal(verdict("三个做法让番茄长得更好", "三個做法讓番茄長得更好", "zh"), "三个做法让番茄长得更好");
   assert.equal(verdict("Three ways to grow tomatoes", "种番茄的三个做法", "en"), "Three ways to grow tomatoes");
 });
