@@ -1,6 +1,6 @@
 // 带密钥的请求：模型调用、模型能力、设置页的测试连接和模型列表共用这几条约定。
 import { errorBodyOf, parseErrorMessage } from "./response.ts";
-import { bothLangs, withEnglish } from "./text.ts";
+import { bothLangs, HIDDEN_SECRET, withEnglish } from "./text.ts";
 import type { AiSettings, ProviderError } from "./types.ts";
 
 /**
@@ -35,12 +35,11 @@ export function rejectRedirect(response: RedirectProbe | null | undefined, baseU
 
 // 太短的密钥不替换：把报错里每一处两三个字符的片段都换掉，报错就没法读了。
 const MIN_REDACTED_SECRET_LENGTH = 8;
-const REDACTED_SECRET = "[已隐藏的密钥]";
 
 export function redactSecret(text: unknown, secret: unknown): string {
   const value = String(text ?? "");
   const key = String(secret || "").trim();
-  return key.length < MIN_REDACTED_SECRET_LENGTH ? value : value.split(key).join(REDACTED_SECRET);
+  return key.length < MIN_REDACTED_SECRET_LENGTH ? value : value.split(key).join(HIDDEN_SECRET);
 }
 
 // Anthropic 的个人密钥创建时可以不限定工作区，这种密钥的每个请求都要带 anthropic-workspace-id，

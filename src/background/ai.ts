@@ -169,7 +169,7 @@ export function aiFailure(error: unknown, lang: OutputLang = "zh"): Failure {
   const code = raw === "RATE_LIMITED" ? "AI_RATE_LIMITED" : raw;
   const failure = AI_CODES.has(code) && code !== "AI_REQUEST_FAILED" ? fail(code as AiErrorCode, message) : fail("AI_REQUEST_FAILED");
   // 服务的原话另放一项，界面在三段式下面显示；认不出的错误也带，它往往正是说明。
-  const said = serviceSaid(error);
+  const said = serviceSaid(error, lang);
   return said ? { ...failure, said } : failure;
 }
 

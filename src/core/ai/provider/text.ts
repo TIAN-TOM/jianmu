@@ -93,17 +93,28 @@ export function withEnglish<T extends object>(target: T, messageEn: string): T {
   return target;
 }
 
+// 遮掉密钥留下的占位字：密钥本身（按这次发出的密钥遮）和像密钥的片段（服务原话里按形状遮）。
+// 错误的可枚举字段里一律是中文，按英文显示时换成英文。
+export const HIDDEN_SECRET = "[已隐藏的密钥]";
+export const HIDDEN_WORDS = "[已隐藏]";
+
+/** 把文字里的占位字换成指定语言的说法。不传语言时是中文，原样返回。 */
+export function hiddenIn(text: string, lang: OutputLang = "zh"): string {
+  if (lang !== "en") return text;
+  return text.split(HIDDEN_SECRET).join("[key hidden]").split(HIDDEN_WORDS).join("[hidden]");
+}
+
 const STATUS_ONLY = /^服务返回 (\d+)$/;
 
 /**
  * 按语言挑说明：要英文、又挂着英文的用英文；没挂的（服务自己的原话）照原样。
- * 协议层只写了状态码、或者流里报错没带原话时用的那两句中文认得出，也换成英文。不传语言时是中文。
+ * 协议层只写了状态码、或者流里报错没带原话时用的那两句中文认得出，也换成英文；遮掉密钥的占位字也换成英文。不传语言时是中文。
  */
 export function messageIn(source: WithEnglish | null | undefined, lang: OutputLang = "zh"): string {
   const message = String(source?.message ?? "");
   if (lang !== "en") return message;
-  if (source?.messageEn) return source.messageEn;
+  if (source?.messageEn) return hiddenIn(source.messageEn, lang);
   const status = STATUS_ONLY.exec(message.trim());
   if (status) return PROVIDER_EN.statusOnly(Number(status[1]));
-  return message === PROVIDER_ZH.streamError ? PROVIDER_EN.streamError : message;
+  return message === PROVIDER_ZH.streamError ? PROVIDER_EN.streamError : hiddenIn(message, lang);
 }

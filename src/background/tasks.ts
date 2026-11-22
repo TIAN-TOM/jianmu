@@ -190,7 +190,11 @@ export function createTaskRunner(deps: TaskRunnerDeps): TaskRunner {
 
   function cancel(taskId: string, reason?: unknown): TaskView | null {
     const meta = metas.get(taskId);
-    const result = manager.cancel(taskId, reason === undefined ? {} : { reason });
+    const message = meta ? progressText(outputLangOf(meta.spec.gen)).canceled : undefined;
+    const result = manager.cancel(taskId, {
+      ...(reason === undefined ? {} : { reason }),
+      ...(message === undefined ? {} : { message }),
+    });
     if (!result.success || !meta) return null;
     settle(taskId);
     return viewWith(result.task, meta);
@@ -218,7 +222,13 @@ export function createTaskRunner(deps: TaskRunnerDeps): TaskRunner {
       const meta: Meta = { spec, equivalence, ports: new Set(), pinned: false, claimTimer: null, send, vouched: false };
       subscribe(meta, subscriber);
       metas.set(id, meta);
-      const started = manager.start({ id, kind: spec.kind, origin: spec.origin, key: mutex ?? `${spec.kind}#${id}` });
+      const started = manager.start({
+        id,
+        kind: spec.kind,
+        origin: spec.origin,
+        key: mutex ?? `${spec.kind}#${id}`,
+        message: progressText(outputLangOf(spec.gen)).preparing,
+      });
       if (!started.success) {
         metas.delete(id);
         return { conflict: shown(started.task) };
