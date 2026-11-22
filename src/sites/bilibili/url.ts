@@ -1,6 +1,7 @@
-// B 站的地址解析：av 号换 BV 号，从地址认视频，生成规范链接。只算字符串和数字。
+// B 站的地址解析：av 号换 BV 号，从地址认视频，生成规范链接，另给字幕轨按界面语言显示的名字。只算字符串和数字。
+import type { OutputLang } from "../../core/output-lang.ts";
 import type { VideoRef } from "../../core/video-ref.ts";
-import type { SiteRules } from "../types.ts";
+import type { CaptionKind, SiteRules } from "../types.ts";
 
 export const AV_XOR_CODE = 23442827791579n;
 export const BV_ALPHABET = "FcwAPNKTMug3GV5Lj7EJnHpWsx4tb8haYeviqBz6rkCy12mUSDQX9RdoZf";
@@ -96,6 +97,27 @@ export function canonicalUrl(ref: VideoRef, atSec?: number): string {
   return url.toString();
 }
 
+// 字幕轨编号就是语言码，自动生成的轨前面多一段标记。
+const AUTO_TRACK_PREFIX = /^ai-/i;
+// 和 YouTube 英文界面下自动字幕轨的叫法一致。
+const AUTO_SUFFIX_EN = " (auto-generated)";
+
+function englishLanguageName(code: string): string | null {
+  try {
+    return new Intl.DisplayNames(["en"], { type: "language", fallback: "none" }).of(code) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** 平台给的字幕轨名字是中文：英文界面换成英文的语言名，自动生成的轨标出来；中文界面和认不出的语言回 null，照原样显示。 */
+export function trackName(trackId: string, lang: OutputLang, kind?: CaptionKind): string | null {
+  if (lang !== "en" || (kind !== "human" && kind !== "auto")) return null;
+  const name = englishLanguageName(trackId.replace(AUTO_TRACK_PREFIX, ""));
+  if (!name) return null;
+  return kind === "auto" ? `${name}${AUTO_SUFFIX_EN}` : name;
+}
+
 export const bilibiliRules: SiteRules = {
   platform: "bilibili",
   optionalPermission: false,
@@ -103,4 +125,5 @@ export const bilibiliRules: SiteRules = {
   canonicalUrl,
   permissionOrigins: [],
   scriptMatches: [],
+  trackName,
 };
