@@ -16,13 +16,13 @@ import type { StorageChange } from "./routes/appearance.ts";
 const MENU_ZH = {
   triage: "稍后再看粗筛",
   inPageCard: "在视频右侧显示总结卡片",
-  autoOverview: "打开视频就生成概览和结论（每个视频都花 API 额度）",
+  autoOverview: "打开视频就出结论（花 API 额度）",
 };
 
 const MENU_EN: typeof MENU_ZH = {
   triage: "Watch Later triage",
-  inPageCard: "Show the summary card beside the video",
-  autoOverview: "Verdict on open (uses API credit per video)",
+  inPageCard: "Show summary card beside video",
+  autoOverview: "Verdict on open (uses API credit)",
 };
 
 /** 指定语言的菜单文字。不传语言时是中文。 */
