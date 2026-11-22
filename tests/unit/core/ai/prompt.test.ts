@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import { QA_PROMPT, QA_USER_SECTIONS } from "../../../../src/background/services/qa.ts";
 import { extractPromptSection, fillPromptVariables, localizePrompt, type PromptVariables } from "../../../../src/core/ai/prompt.ts";
+import { groundQaAnswer } from "../../../../src/core/qa/citations.ts";
 
 const PROMPTS_DIR = new URL("../../../../prompts/", import.meta.url);
 const read = (file: string): string => readFileSync(new URL(file, PROMPTS_DIR), "utf8");
@@ -176,6 +177,22 @@ for (const [file, variables] of Object.entries(PROMPTS)) {
     }
   });
 }
+
+test("问答的示例回答守出处协议：每行都有能核对的出处，行首没有列表符号，两种语言一样", () => {
+  const entries = [
+    { start: 184, text: "连续的字幕原文" },
+    { start: 492, text: "另一行的字幕原文" },
+    { start: 570, text: "又一行的字幕原文" },
+  ];
+  for (const lang of ["zh", "en"] as const) {
+    const system = extractPromptSection(localizePrompt(read("common/qa.md"), lang), "系统提示词", {});
+    const example = system.split("\n").find((line) => line.startsWith('{"answer"')) ?? "";
+    const answer = (JSON.parse(example) as { answer: string }).answer;
+    const lines = answer.split("\n");
+    for (const line of lines) assert.doesNotMatch(line, /^\s*(?:[-*•]|\d+[.、)])/, `${lang}: ${line}`);
+    assert.equal(groundQaAnswer(answer, entries).answer.split("\n").length, lines.length, `${lang} 的示例有行通不过本机核对`);
+  }
+});
 
 test("study/translation.md 的两套语言规则小节都存在且非空", () => {
   // 服务按字幕语种在这两节里二选一注入 {langRules}，
