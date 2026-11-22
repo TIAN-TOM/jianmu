@@ -646,6 +646,12 @@ test("模型服务的失败带上服务的原话；鉴权失败、取消不带",
   assert.equal("said" in AI.aiFailure(Object.assign(new Error("任务已取消。"), { code: "TASK_CANCELED" })), false);
 });
 
+test("服务的原话里遮掉密钥的占位字按语言写：英文是英文，中文照旧", () => {
+  const error = Object.assign(new Error("model sample-x refused [已隐藏的密钥], token 9f8e7d6c5b4a39281706f5e4d3c2b1a0"), { status: 404 });
+  assert.equal(AI.aiFailure(error).said, "model sample-x refused [已隐藏的密钥], token [已隐藏]");
+  assert.equal(AI.aiFailure(error, "en").said, "model sample-x refused [key hidden], token [hidden]");
+});
+
 test("设置页拉模型列表、测试连接失败时的说明跟着语言设置：选英文是英文，不选还是原来的中文", async () => {
   const unconsented = { ...DEEPSEEK, dataConsentVersion: 0, dataConsentFingerprint: "" };
   for (const [language, english] of [["en", true], ["zh", false], ["auto", false]] as const) {

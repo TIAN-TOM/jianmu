@@ -3,6 +3,7 @@
 import type { OutputLang } from "../core/output-lang.ts";
 
 const PROGRESS_ZH = {
+  preparing: "正在准备…",
   qaSearching: "正在检索相关内容…",
   qaAnswering: "正在组织回答…",
   qaShrinking: "字幕太长，这个模型装不下，缩小范围再问一次…",
@@ -23,6 +24,7 @@ const PROGRESS_ZH = {
 export type ProgressText = typeof PROGRESS_ZH;
 
 const PROGRESS_EN: ProgressText = {
+  preparing: "Getting ready…",
   qaSearching: "Finding the relevant parts…",
   qaAnswering: "Putting the answer together…",
   qaShrinking: "The subtitles are too long for this model. Asking again with less…",
