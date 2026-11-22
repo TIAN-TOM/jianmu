@@ -1,5 +1,5 @@
 // 侧边栏的两种导出把界面语言传给导出：中文时内容和文件名和原来逐字一样，英文时固定文字和没标题时的文件名是英文。
-// 导出里的链接按视频所在站点的地址规则生成。字幕轨的显示名：简幕替 YouTube 起的名字按语言换，别的照原样。数据都是自造的。
+// 导出里的链接按视频所在站点的地址规则生成。字幕轨的显示名：简幕起的名字和 B 站给的名字按语言换，YouTube 页面上写着的照原样。数据都是自造的。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { learningAsMarkdown, notesAsMarkdown, type LearningInput } from "../../../../src/core/notes/markdown.ts";
@@ -103,4 +103,26 @@ test("字幕轨的显示名：简幕替 YouTube 起的名字按语言换，标�
   assert.equal(trackLabel(TUBE, { trackId: "panel:English (auto-generated)", label: "English (auto-generated)" }, "en"), "English (auto-generated)");
   assert.equal(trackLabel(KEY, { trackId: "panel:YouTube 文字稿", label: "样例轨" }, "en"), "样例轨", "别的站不认这个名字");
   assert.equal(trackLabel(null, unnamed, "en"), "YouTube 文字稿");
+});
+
+test("字幕轨的显示名：B 站的轨英文界面出英文语言名，中文界面一字不变，认不出的语言照原样", () => {
+  const human = { trackId: "zh", label: "样例中文", kind: "human" as const };
+  const auto = { trackId: "ja", label: "样例日语（自动生成）", kind: "auto" as const };
+  assert.equal(trackLabel(KEY, human, "zh"), "样例中文");
+  assert.equal(trackLabel(KEY, auto, "zh"), "样例日语（自动生成）");
+  assert.match(trackLabel(KEY, human, "en"), /^Chinese/);
+  assert.ok(trackLabel(KEY, auto, "en").endsWith(" (auto-generated)"));
+  assert.equal(trackLabel(KEY, { trackId: "xx", label: "样例语言", kind: "human" }, "en"), "样例语言");
+  const read = { trackId: "zh", label: "样例中文（自动生成）", ref: { kind: "auto" as const } };
+  assert.ok(trackLabel(KEY, read, "en").endsWith(" (auto-generated)"), "读到的字幕从依据里取来源");
+  assert.equal(trackLabel(KEY, read, "zh"), "样例中文（自动生成）");
+});
+
+test("字幕轨的显示名：官方总结字幕和导入文件的名字英文界面换成英文，中文界面照存下来的", () => {
+  const official = { trackId: "official-ai", label: "B站官方总结里的 AI 字幕", ref: { kind: "official-ai" as const } };
+  const imported = { trackId: "imported", label: "导入的字幕文件", ref: { kind: "imported" as const } };
+  assert.equal(trackLabel(KEY, official, "zh"), "B站官方总结里的 AI 字幕");
+  assert.equal(trackLabel(KEY, official, "en"), "AI subtitles from the Bilibili official summary");
+  assert.equal(trackLabel(TUBE, imported, "zh"), "导入的字幕文件");
+  assert.equal(trackLabel(TUBE, imported, "en"), "Imported subtitle file");
 });

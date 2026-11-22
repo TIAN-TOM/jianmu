@@ -2,6 +2,7 @@
 import { learningAsMarkdown, markdownFallbackName, notesAsMarkdown, type LearningInput } from "../../core/notes/markdown.ts";
 import type { NoteList } from "../../core/notes/records.ts";
 import type { OutputLang } from "../../core/output-lang.ts";
+import { sourceLabel, type CaptionKind } from "../../core/transcript/sources.ts";
 import { parseVideoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
 import { siteRules } from "../../sites/rules.ts";
 
@@ -44,10 +45,21 @@ export function notesExport(notes: NoteList, options: { readonly grouped: boolea
   return { fileName: `${safeFileName(options.title, markdownFallbackName("notes", lang))}.md`, markdown };
 }
 
-/** 字幕轨显示的名字：简幕替站点起的名字按界面语言换，站点页面上写着的名字照原样。 */
-export function trackLabel(video: VideoKey | null, track: { readonly trackId: string; readonly label: string }, lang: OutputLang): string {
+// 字幕轨列表里的轨自己带来源，读到的字幕把来源记在依据里。
+interface ShownTrack {
+  readonly trackId: string;
+  readonly label: string;
+  readonly kind?: CaptionKind;
+  readonly ref?: { readonly kind?: CaptionKind };
+}
+
+/** 字幕轨显示的名字：简幕起的名字和站点给的名字按界面语言换，换不了的照原样。 */
+export function trackLabel(video: VideoKey | null, track: ShownTrack, lang: OutputLang): string {
+  const kind = track.kind ?? track.ref?.kind;
+  const own = sourceLabel(kind, lang);
+  if (own) return own;
   const ref = video ? parseVideoKey(video) : null;
-  return (ref && siteRules[ref.platform]?.trackName?.(track.trackId, lang)) ?? track.label;
+  return (ref && siteRules[ref.platform]?.trackName?.(track.trackId, lang, kind)) ?? track.label;
 }
 
 export function downloadText(fileName: string, text: string, type: string): void {

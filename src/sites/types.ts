@@ -85,7 +85,7 @@ export interface SiteRules {
   canonicalUrl(ref: VideoRef, atSec?: number): string;
   permissionOrigins: readonly string[]; // 启用这个站时请用户授权的来源；安装时就有授权的站是空的
   scriptMatches: readonly string[]; // 启用后动态注册内容脚本用的匹配规则；在清单里静态声明的站是空的
-  trackName?(trackId: string, lang: OutputLang): string | null; // 简幕替这个站的字幕轨起的名字按界面语言换；不是简幕起的名字回 null，照原样显示
+  trackName?(trackId: string, lang: OutputLang, kind?: CaptionKind): string | null; // 字幕轨按界面语言显示的名字；不用换的回 null，照原样显示
 }
 
 // 经内容脚本在页面里读的通道：只发给这个标签页顶层框架里的内容脚本，送不到、中止或超时时抛错。

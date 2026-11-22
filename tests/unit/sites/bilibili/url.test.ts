@@ -9,6 +9,7 @@ import {
   canonicalUrl,
   parseBvid,
   parseWatchUrl,
+  trackName,
   videoFromUrl,
 } from "../../../../src/sites/bilibili/url.ts";
 import { siteRules } from "../../../../src/sites/rules.ts";
@@ -180,4 +181,23 @@ test("规范链接解析回来是同一个视频", () => {
   }
   assert.equal(canonicalUrl({ platform: "bilibili", videoId: BV }, 1.9), `https://www.bilibili.com/video/${BV}?t=1`);
   assert.equal(canonicalUrl(ref(BV), -5), `https://www.bilibili.com/video/${BV}`);
+});
+
+// 语言名的具体措辞随运行环境的语言数据变，只核对关键词和自动轨的标注。
+test("字幕轨名字：英文界面按语言码出英文语言名，自动轨标出来；中文界面、认不出的码和别的来源回 null", () => {
+  assert.equal(bilibiliRules.trackName, trackName);
+  assert.match(trackName("zh", "en", "human") ?? "", /^Chinese/);
+  assert.doesNotMatch(trackName("zh", "en", "human") ?? "", /auto-generated/);
+  assert.match(trackName("en-US", "en", "human") ?? "", /English/);
+  assert.match(trackName("ja", "en", "human") ?? "", /^Japanese/);
+  assert.match(trackName("zh-Hans", "en", "human") ?? "", /Chinese/);
+  const auto = trackName("ai-zh", "en", "auto") ?? "";
+  assert.match(auto, /^Chinese/);
+  assert.ok(auto.endsWith(" (auto-generated)"), auto);
+  assert.ok((trackName("ja", "en", "auto") ?? "").endsWith(" (auto-generated)"));
+  assert.equal(trackName("zh", "zh", "human"), null, "中文界面照平台给的名字");
+  assert.equal(trackName("ai-zh", "zh", "auto"), null);
+  for (const unknown of ["xx", "qaa", "", "ai-", "样例", "zh-XX"]) assert.equal(trackName(unknown, "en", "human"), null, unknown);
+  assert.equal(trackName("zh", "en", "official-ai"), null);
+  assert.equal(trackName("zh", "en"), null, "不知道来源时不换");
 });
