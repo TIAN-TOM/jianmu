@@ -4,6 +4,8 @@ import { test } from "node:test";
 import type { VideoKey } from "../../../../src/core/video-ref.ts";
 import { cardSetupHint, setupNotice, setupReason, type ConfigState } from "../../../../src/pages/shared/config.ts";
 import { SHARED_EN } from "../../../../src/pages/shared/text-en.ts";
+import { SHARED_HANT } from "../../../../src/pages/shared/text-hant.ts";
+import { sharedTextOf } from "../../../../src/pages/shared/text.ts";
 import { activationCopy, activationSections } from "../../../../src/pages/shared/ui/activation.ts";
 import { chapterHeading } from "../../../../src/pages/shared/ui/chapters.ts";
 import { basisText, labelOf } from "../../../../src/pages/shared/ui/verdict.ts";
@@ -12,6 +14,7 @@ import { frameText } from "../../../../src/pages/sidepanel/frame-text.ts";
 import { openReadHint } from "../../../../src/pages/sidepanel/open-transcript.ts";
 import { playerFailureText } from "../../../../src/pages/sidepanel/player.ts";
 import { PANEL_EN } from "../../../../src/pages/sidepanel/text-en.ts";
+import { PANEL_HANT } from "../../../../src/pages/sidepanel/text-hant.ts";
 import { noteStored, panelTextOf } from "../../../../src/pages/sidepanel/text.ts";
 import { youtubeText } from "../../../../src/pages/sidepanel/youtube-text.ts";
 import type { WindowCountItem, WindowRunView } from "../../../../src/shared/messages/batch.ts";
@@ -102,4 +105,17 @@ test("跳转失败、存笔记的结果：按语言写，存上没存上两种�
   }
   assert.ok(!noteStored("没能存下"));
   assert.ok(!noteStored(""));
+});
+
+test("选繁体时侧边栏和共用组件拿到繁体那份，不回落到简体", () => {
+  assert.equal(panelTextOf("zh-Hant"), PANEL_HANT);
+  assert.equal(sharedTextOf("zh-Hant"), SHARED_HANT);
+  assert.equal(frameText("zh-Hant").button, "解釋畫面");
+  assert.equal(youtubeText("zh-Hant").toSettings, "到設定頁啟用");
+  assert.match(openReadHint("zh-Hant"), /^點選讀取，簡幕會替你打開/);
+  assert.equal(chapterHeading(6, 2, "zh-Hant"), "章節 6，重點 2");
+  assert.equal(activationCopy(false, "zh-Hant").confirm, "啟用簡幕");
+  assert.equal(playerFailureText("NO_VIDEO", "zh-Hant"), "頁面上找不到影片。");
+  assert.equal(noteStored(PANEL_HANT.notes.saved), true, "繁体界面下存上的笔记也认");
+  assert.equal(noteStored(PANEL_HANT.notes.duplicate), true);
 });

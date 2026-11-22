@@ -1,5 +1,6 @@
 // B 站的地址解析：av 号换 BV 号，从地址认视频，生成规范链接，另给字幕轨按界面语言显示的名字。只算字符串和数字。
-import type { OutputLang } from "../../core/output-lang.ts";
+import { inLang, type OutputLang } from "../../core/output-lang.ts";
+import { TRACK_NAMING_HANT } from "./url-hant.ts";
 import type { VideoRef } from "../../core/video-ref.ts";
 import type { CaptionKind, SiteRules } from "../types.ts";
 
@@ -99,23 +100,29 @@ export function canonicalUrl(ref: VideoRef, atSec?: number): string {
 
 // 字幕轨编号就是语言码，自动生成的轨前面多一段标记。
 const AUTO_TRACK_PREFIX = /^ai-/i;
-// 和 YouTube 英文界面下自动字幕轨的叫法一致。
-const AUTO_SUFFIX_EN = " (auto-generated)";
+// 换语言名用的区域写法和自动字幕轨的标注；英文的和 YouTube 英文界面下自动字幕轨的叫法一致，繁体的在 url-hant.ts。
+export interface TrackNaming {
+  readonly locale: string;
+  readonly autoSuffix: string;
+}
 
-function englishLanguageName(code: string): string | null {
+const TRACK_NAMING_EN: TrackNaming = { locale: "en", autoSuffix: " (auto-generated)" };
+
+function languageName(code: string, locale: string): string | null {
   try {
-    return new Intl.DisplayNames(["en"], { type: "language", fallback: "none" }).of(code) ?? null;
+    return new Intl.DisplayNames([locale], { type: "language", fallback: "none" }).of(code) ?? null;
   } catch {
     return null;
   }
 }
 
-/** 平台给的字幕轨名字是中文：英文界面换成英文的语言名，自动生成的轨标出来；中文界面和认不出的语言回 null，照原样显示。 */
+/** 平台给的字幕轨名字是简体：别的界面有换名规则时换成那种语言的语言名，自动生成的轨标出来；简体界面和认不出的语言回 null，照原样显示。 */
 export function trackName(trackId: string, lang: OutputLang, kind?: CaptionKind): string | null {
-  if (lang !== "en" || (kind !== "human" && kind !== "auto")) return null;
-  const name = englishLanguageName(trackId.replace(AUTO_TRACK_PREFIX, ""));
+  const naming = inLang<TrackNaming | null>(lang, null, TRACK_NAMING_EN, TRACK_NAMING_HANT);
+  if (!naming || (kind !== "human" && kind !== "auto")) return null;
+  const name = languageName(trackId.replace(AUTO_TRACK_PREFIX, ""), naming.locale);
   if (!name) return null;
-  return kind === "auto" ? `${name}${AUTO_SUFFIX_EN}` : name;
+  return kind === "auto" ? `${name}${naming.autoSuffix}` : name;
 }
 
 export const bilibiliRules: SiteRules = {

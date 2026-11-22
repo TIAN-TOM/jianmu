@@ -3,20 +3,18 @@
 // 再向这个页面要当前一帧、请模型解释，结果显示在侧边栏里。截下的画面不落盘，只用于那一次请求。
 // 模块顶层只放字面量和函数，理由见 frame.ts 开头。
 import { describe } from "../core/errors.ts";
-import type { OutputLang } from "../core/output-lang.ts";
+import { inLang, type OutputLang } from "../core/output-lang.ts";
 import type { VideoKey } from "../core/video-ref.ts";
 import type { FrameRefusal } from "../shared/messages/content.ts";
 import { INJECTED } from "../shared/names.ts";
 import type { MainVideo } from "../sites/page-types.ts";
+import { FRAME_ICON_HANT } from "./frame-icon-hant.ts";
 import type { FrameTool } from "./frame.ts";
 import type { HoverIconEntry, HoverIcons, IconSpec } from "./hover-icons.ts";
 import type { ContentRuntime } from "./runtime.ts";
 
-/** 图标中文的悬停提示。 */
-export const FRAME_TITLE = "解释当前画面";
-
 const FRAME_ZH = {
-  title: FRAME_TITLE,
+  title: "解释当前画面",
   panelHint: "结果在侧边栏：点浏览器工具栏上的简幕图标打开侧边栏查看。",
   sending: "发送中…",
   tooMany: "点得太多了",
@@ -35,7 +33,7 @@ const FRAME_ZH = {
   } satisfies Readonly<Record<FrameRefusal, { readonly short: string; readonly long: string }>>,
 };
 
-type FrameIconText = typeof FRAME_ZH;
+export type FrameIconText = typeof FRAME_ZH;
 
 const FRAME_EN: FrameIconText = {
   title: "Explain this frame",
@@ -56,7 +54,7 @@ const FRAME_EN: FrameIconText = {
   },
 };
 
-const frameIconText = (lang: OutputLang = "zh"): FrameIconText => (lang === "en" ? FRAME_EN : FRAME_ZH);
+const frameIconText = (lang: OutputLang = "zh"): FrameIconText => inLang(lang, FRAME_ZH, FRAME_EN, FRAME_ICON_HANT);
 
 export function frameIcon(lang: OutputLang = "zh"): IconSpec {
   return {

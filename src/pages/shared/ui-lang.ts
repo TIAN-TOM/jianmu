@@ -1,9 +1,9 @@
 /// <reference types="chrome" />
-// 扩展页面的界面语言：页面级的一个 signal，值是 zh 或 en。页面启动时按首帧缓存里的语言选项和浏览器的界面语言同步定下，
+// 扩展页面的界面语言：页面级的一个 signal，值是 zh（简体）、zh-Hant（繁体）或 en。页面启动时按首帧缓存里的语言选项和浏览器的界面语言同步定下，
 // 第一帧就是对的语言；之后外观落地时（theme.ts 读回设置、设置变了）跟着设置里的语言选项纠正。
-// 界面文案按界面各放一份中英两种的表，组件渲染时用 byLang 取当前语言那份，语言变了组件跟着重画。
+// 界面文案按界面各放简体、英文、繁体三份表，繁体那份放在 text-hant.ts，组件渲染时用 byLang 取当前语言那份，语言变了组件跟着重画。
 import { effect, signal, type ReadonlySignal } from "@preact/signals";
-import { isLanguageSetting, resolveOutputLang, type LanguageSetting, type OutputLang } from "../../core/output-lang.ts";
+import { inLang, isLanguageSetting, resolveOutputLang, type LanguageSetting, type OutputLang } from "../../core/output-lang.ts";
 import { browserUiLanguage } from "../../platform/ui-language.ts";
 import { APPEARANCE_CACHE_KEY } from "../../shared/names.ts";
 
@@ -15,7 +15,7 @@ const current = signal<UiLang>("zh");
 export const uiLang: ReadonlySignal<UiLang> = current;
 
 /** <html lang> 的写法。 */
-export const HTML_LANG: Readonly<Record<UiLang, string>> = Object.freeze({ zh: "zh-CN", en: "en" });
+export const HTML_LANG: Readonly<Record<UiLang, string>> = Object.freeze({ zh: "zh-CN", "zh-Hant": "zh-Hant", en: "en" });
 
 /** 首帧缓存里的语言选项：缓存由 theme.ts 落地外观时连同外观一起写。没有、损坏、读存储抛错或取值认不出时按跟随浏览器。 */
 export function cachedLanguage(storage: Pick<Storage, "getItem"> | null | undefined): LanguageSetting {
@@ -63,8 +63,8 @@ export function bindDocumentLang(doc: LangDocument, titleOf: (lang: UiLang) => s
   });
 }
 
-/** 按给定的语言取两份表里的一份。纯逻辑用这个，语言由调用方传进来。 */
-export const inLang = <T>(lang: UiLang, zh: T, en: T): T => (lang === "en" ? en : zh);
+/** 按给定的语言取一份表。纯逻辑用这个，语言由调用方传进来。 */
+export { inLang };
 
 /** 取当前界面语言那份表。在组件渲染时调用，组件就跟着语言重画。 */
-export const byLang = <T>(zh: T, en: T): T => inLang(current.value, zh, en);
+export const byLang = <T>(zh: T, en: T, hant: T): T => inLang(current.value, zh, en, hant);

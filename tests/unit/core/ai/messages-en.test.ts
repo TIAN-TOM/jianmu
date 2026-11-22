@@ -1,5 +1,5 @@
 // 协议层和传输层给用户看的说明的英文：错误照旧带中文说明，英文挂在不可枚举的 messageEn 上，回执按语言挑；
-// 不传语言时回执和原来逐字一样。服务自己的原话两种语言都照原样。
+// 不传语言时回执和原来逐字一样。服务自己的原话两种语言都照原样。繁体那份同样挂在错误上，这里另查每一句都有繁体。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as PROVIDER from "../../../../src/core/ai/provider/index.ts";
@@ -7,6 +7,8 @@ import { validateBaseUrl } from "../../../../src/core/ai/provider/endpoint.ts";
 import * as TRANSPORT from "../../../../src/core/ai/transport/index.ts";
 import type { AiFetch, RetryNotice, TransportError, TransportResponse } from "../../../../src/core/ai/transport/index.ts";
 import * as SETTINGS from "../../../../src/shared/settings-schema.ts";
+import { transportText } from "../../../../src/core/ai/transport/text.ts";
+import { charsIn, SIMPLIFIED_ONLY } from "../../../helpers/hant-chars.ts";
 
 const { PROTOCOLS } = PROVIDER;
 const CJK = /[　-〿一-鿿＀-￯]/;
@@ -161,4 +163,21 @@ test("传输层：配置没好、连不上、拒答、模型没写内容，回�
     if (lang === "en") assert.match(notices[0]?.message ?? "", /^The service is busy\. Retrying in \d+ s…$/);
     else assert.match(notices[0]?.message ?? "", /^服务繁忙，\d+ 秒后重试…$/);
   }
+});
+
+test("繁体：协议层和传输层的说明每一句都有繁体那份，不是回落的简体；遮密钥的占位字也是繁体", () => {
+  const sample = (value: unknown): string => (typeof value === "function" ? String(value("https://api.example.test/v1", 7)) : String(value));
+  for (const [zh, hant] of [
+    [PROVIDER.providerText("zh"), PROVIDER.providerText("zh-Hant")],
+    [transportText("zh"), transportText("zh-Hant")],
+  ] as const) {
+    assert.deepEqual(Object.keys(hant).sort(), Object.keys(zh).sort());
+    for (const [key, value] of Object.entries(hant)) {
+      const text = sample(value);
+      assert.deepEqual(charsIn(text, SIMPLIFIED_ONLY), [], `${key}：${text}`);
+      assert.notEqual(text, sample((zh as Record<string, unknown>)[key]), `${key} 回落成了简体`);
+    }
+  }
+  assert.equal(PROVIDER.hiddenIn("密钥 [已隐藏的密钥]，片段 [已隐藏]", "zh-Hant"), "密钥 [已隱藏的金鑰]，片段 [已隱藏]");
+  assert.equal(PROVIDER.messageIn({ message: "服务在返回途中报了错。" }, "zh-Hant"), "服務在傳回途中報了錯。");
 });

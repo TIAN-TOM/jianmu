@@ -32,7 +32,7 @@ export interface GenInfo {
   readonly promptVersion: string;
   readonly model: string;
   readonly effort: Effort;
-  /** 模型写这份结果用的语言。旧记录没有这一项，按中文（core/output-lang.ts 的 outputLangOf）。 */
+  /** 模型写这份结果用的语言。旧记录没有这一项，按简体（core/output-lang.ts 的 outputLangOf）。 */
   readonly outputLang?: OutputLang;
 }
 
@@ -202,6 +202,6 @@ export interface TranslationRecord {
   readonly updatedAt: number;
 }
 
-export const TEXT_TARGETS: readonly TextTarget[] = Object.freeze(["zh", "en", "tidy"]);
+export const TEXT_TARGETS: readonly TextTarget[] = Object.freeze(["zh", "zh-Hant", "en", "tidy"]);
 
 export const translationId = (transcript: Pick<TranscriptRef, "video" | "fingerprint">, target: TextTarget): string => `${transcript.video}|${transcript.fingerprint}|${target}`;

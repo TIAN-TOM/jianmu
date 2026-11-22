@@ -11,8 +11,8 @@ function diagnosis(
   pick: (text: ProviderText) => string,
   retry: Pick<EmptyDiagnosis, "retryWithoutJsonMode" | "retryWithMoreTokens">,
 ): EmptyDiagnosis {
-  const { message, messageEn } = bothLangs(pick);
-  return withEnglish({ reason, message, ...retry }, messageEn);
+  const { message, messageEn, messageHant } = bothLangs(pick);
+  return withEnglish({ reason, message, ...retry }, messageEn, messageHant);
 }
 
 /**

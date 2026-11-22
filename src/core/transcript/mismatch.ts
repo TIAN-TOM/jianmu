@@ -1,4 +1,4 @@
-// 字幕时间轴和视频时长对不上时的判断和提示。
+// 字幕时间轴和视频时长对不上的判断。
 import type { CaptionEntries, MaybeCaptionEntry } from "./segment.ts";
 
 export type TimelineMismatch = "" | "overrun" | "undercoverage";
@@ -40,11 +40,3 @@ export function subtitleTimelineMismatch(entries: CaptionEntries, durationSecond
   }
   return "";
 }
-
-// 侧边栏在视频信息下面摆的那行提示。点刷新会跳过缓存和内存里记着的那份，重新读取。
-export const SUBTITLE_MISMATCH_NOTICE =
-  "这份字幕的时间轴和视频时长对不上，可能不属于本视频。可以点右上角的刷新按钮重新获取。";
-
-// 强制刷新取回的字幕对不上、缓存里原来那份对得上时，继续用原来那份，界面摆这句提示。
-export const REFRESH_MISMATCH_NOTICE =
-  "刚才重新取到的字幕时间轴和视频时长对不上，可能不属于本视频，这里继续用原来的字幕。";

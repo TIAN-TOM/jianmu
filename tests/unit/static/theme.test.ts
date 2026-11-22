@@ -200,3 +200,14 @@ test("界面字号只改根字号，默认是标准一档；减少动态效果�
   assert.deepEqual(Object.keys(reduced).sort(), durations.sort());
   for (const value of Object.values(reduced)) assert.equal(value, "0ms");
 });
+
+test("字体跟着界面语言：简体和英文用简体字形的字体，繁体界面（html lang 是 zh-Hant）换成繁体字形的", () => {
+  const base = propertiesOf(RULES, ":root");
+  assert.match(base["--font-sans"] ?? "", /"PingFang SC".*"Microsoft YaHei"/);
+  assert.match(base["--font-serif"] ?? "", /"Songti SC"/);
+  const hant = propertiesOf(RULES, ":root:lang(zh-Hant)");
+  assert.deepEqual(Object.keys(hant).sort(), ["--font-sans", "--font-serif"]);
+  assert.match(hant["--font-sans"] ?? "", /"PingFang TC".*"Microsoft JhengHei"/);
+  assert.match(hant["--font-serif"] ?? "", /^"Songti TC", "Noto Serif CJK TC", "Source Han Serif TC", var\(--font-sans\)$/);
+  assert.doesNotMatch(`${hant["--font-sans"]} ${hant["--font-serif"]}`, /\bSC\b|YaHei|Hiragino Sans GB/);
+});

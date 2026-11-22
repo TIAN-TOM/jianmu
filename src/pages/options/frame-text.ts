@@ -1,5 +1,6 @@
 // 设置页里解释当前画面的文案：只在构建开关 FEATURE_FRAME_EXPLAIN 打开时进包，只从开关分支引用。模块顶层只放字面量和函数。
-import type { UiLang } from "../shared/ui-lang.ts";
+import { inLang, type UiLang } from "../shared/ui-lang.ts";
+import { FRAME_HANT } from "./frame-text-hant.ts";
 
 const FRAME_ZH = {
   slot: "画面分析",
@@ -23,6 +24,6 @@ const FRAME_EN: FrameText = {
   cannotSee: (model) => `Frame analysis (${model}) can't read images. Under “Models per feature”, choose a model that can.`,
 };
 
-export const frameText = (lang: UiLang = "zh"): FrameText => (lang === "en" ? FRAME_EN : FRAME_ZH);
+export const frameText = (lang: UiLang = "zh"): FrameText => inLang(lang, FRAME_ZH, FRAME_EN, FRAME_HANT);
 
 export const frameSlotLabel = (lang: UiLang = "zh"): string => frameText(lang).slot;

@@ -8,7 +8,9 @@ import * as AI from "../../../src/background/ai.ts";
 import { createAiWiring, type AiWiringDeps } from "../../../src/background/ai.ts";
 import { createApp } from "../../../src/background/app.ts";
 import * as CAPS from "../../../src/core/ai/capabilities.ts";
-import { PROTOCOLS } from "../../../src/core/ai/provider/index.ts";
+import { bothLangs, PROTOCOLS, providerText, withEnglish } from "../../../src/core/ai/provider/index.ts";
+import { HIDDEN_SECRET } from "../../../src/core/ai/provider/text.ts";
+import { aiErrorResponse } from "../../../src/core/ai/transport/errors.ts";
 import type { CompletionRequest, TransportError } from "../../../src/core/ai/transport/index.ts";
 import { createClearGuard } from "../../../src/core/clear-guard.ts";
 import * as CONSENT from "../../../src/core/consent.ts";
@@ -266,6 +268,10 @@ test("本机 http 地址没授权时照样只查不申请，一个请求都不�
   const local = setup({ ...keyedStorage(LOCAL, "http://127.0.0.1:1234/", ""), granted: [], handler: () => chatReply("不该发出") });
   await rejectsWith(local.ai.requestAiCompletion(EXPLAIN), "NEED_HOST_PERMISSION");
   assert.deepEqual(local.service.sent, []);
+  // 后台自己写的说明挂着繁体：按繁体取是繁体，错误本身可枚举的字段只有码。
+  const denied = await local.ai.requestAiCompletion(EXPLAIN).catch((error: unknown) => error as TransportError);
+  assert.deepEqual(Object.keys(denied), ["code"]);
+  assert.equal(AI.aiFailure(denied, "zh-Hant").detail, "擴充功能還沒有存取 http://127.0.0.1:1234/ 的權限。請打開設定頁，點選「儲存並授權」。");
 
   const LAN = { ...LOCAL, aiBaseUrl: "http://192.168.1.50:1234/v1" };
   const lan = setup({ ...keyedStorage(LAN, "http://192.168.1.50:1234/", ""), handler: () => chatReply("不该发出") });
@@ -650,6 +656,26 @@ test("服务的原话里遮掉密钥的占位字按语言写：英文是英文�
   const error = Object.assign(new Error("model sample-x refused [已隐藏的密钥], token 9f8e7d6c5b4a39281706f5e4d3c2b1a0"), { status: 404 });
   assert.equal(AI.aiFailure(error).said, "model sample-x refused [已隐藏的密钥], token [已隐藏]");
   assert.equal(AI.aiFailure(error, "en").said, "model sample-x refused [key hidden], token [hidden]");
+});
+
+test("服务的原话里遮掉密钥的占位字，繁体写成繁体", () => {
+  const error = Object.assign(new Error("model sample-x refused [已隐藏的密钥], token 9f8e7d6c5b4a39281706f5e4d3c2b1a0"), { status: 404 });
+  assert.equal(AI.aiFailure(error, "zh-Hant").said, "model sample-x refused [已隱藏的金鑰], token [已隱藏]");
+});
+
+test("错误链：挂着繁体说明的错误经回执和结果出来是繁体，占位字也是繁体，错误本身可枚举的字段不变", () => {
+  const text = bothLangs((say) => say.redirected(`https://api.example.test/v1?k=${HIDDEN_SECRET}`));
+  const error = withEnglish(Object.assign(new Error(text.message), { code: "AI_REDIRECT_BLOCKED" }), text.messageEn, text.messageHant);
+  const before = JSON.stringify({ ...error });
+  const expected = providerText("zh-Hant").redirected("https://api.example.test/v1?k=[已隱藏的金鑰]");
+  assert.equal(aiErrorResponse(error, "zh-Hant").message, expected);
+  assert.deepEqual(AI.aiFailure(error, "zh-Hant"), { ok: false, code: "AI_REDIRECT_BLOCKED", detail: expected });
+  assert.equal(AI.aiFailure(error).detail, text.message, "不传语言还是简体");
+  assert.deepEqual(Object.keys(error), ["code"]);
+  assert.equal(JSON.stringify({ ...error }), before);
+  assert.equal(error.message, text.message);
+  // 只写了状态码的那句简体也认得出，换成繁体。
+  assert.equal(AI.aiFailure(Object.assign(new Error("x"), { status: 404 }), "zh-Hant").detail, "服務傳回 404，多半是模型名稱寫錯或 API 網址不對，請到設定頁核對。");
 });
 
 test("设置页拉模型列表、测试连接失败时的说明跟着语言设置：选英文是英文，不选还是原来的中文", async () => {

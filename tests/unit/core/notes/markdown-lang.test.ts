@@ -80,3 +80,30 @@ test("导出文件在没有标题时的名字：中文照旧，英文是英文",
   assert.deepEqual([markdownFallbackName("notes"), markdownFallbackName("learning")], ["笔记", "学习稿"]);
   assert.deepEqual([markdownFallbackName("notes", "en"), markdownFallbackName("learning", "en")], ["notes", "study notes"]);
 });
+
+test("学习稿和笔记：繁体时固定文字是繁体，档位写繁体名，内容原样", () => {
+  const hant = learningAsMarkdown(INPUT, LINK, "zh-Hant");
+  for (const line of [
+    "## B 站官方總結",
+    "> 來源：B 站官方 AI 總結，由 B 站生成，不是你設定的模型。",
+    "### [0:00](https://video.example/BV1Sample000) （這一段沒有標題）",
+    "## UP 主分段",
+    "- [0:30](https://video.example/BV1Sample000?t=30) 第 1 段",
+    "> 以下章節和金句由你設定的 AI 模型根據字幕生成。",
+    "> **概覽內容不完整**：以下時間段生成失敗，章節和金句裡沒有這幾段的內容。",
+    "## 一句話結論",
+    "**可跳過**",
+    "- 核心價值：样例价值",
+    "- 判斷理由：样例理由",
+    "## 影片概覽",
+    "样例章节二（重點）",
+    "## 章節",
+    "## 我的時間戳記筆記",
+    "  - 簡幕",
+  ]) {
+    assert.ok(hant.includes(line), line);
+  }
+  const untitled = [{ ...((INPUT.notes ?? [])[0] as NoteRecord), video: "" as typeof KEY }];
+  assert.ok(notesAsMarkdown(untitled, LINK, { lang: "zh-Hant" }).startsWith("# 未命名影片\n"));
+  assert.deepEqual([markdownFallbackName("notes", "zh-Hant"), markdownFallbackName("learning", "zh-Hant")], ["筆記", "學習稿"]);
+});

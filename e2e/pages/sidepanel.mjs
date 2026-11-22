@@ -12,7 +12,9 @@ import { API_KEY_SESSION_KEY, AUTO_LEDGER_KEY, DATABASE_NAME, SETTINGS_STORAGE_K
 import { ANTHROPIC, BRIEF_SAMPLE, PLAYING_SAMPLE, VIDEOS } from "../fixtures.mjs";
 import { playingWatchPage, PROBE, watchPage } from "../mock-server.mjs";
 import { storedSettings } from "../settings.mjs";
+import { charsIn, SIMPLIFIED_ONLY } from "../../tests/helpers/hant-chars.ts";
 import { stillFalse } from "../../tests/helpers/wait-until.ts";
+import { PANEL_HANT } from "../../src/pages/sidepanel/text-hant.ts";
 import { scenario, until } from "./harness.mjs";
 
 const test = scenario(import.meta.url);
@@ -24,6 +26,8 @@ const FULL_ACTIVATION = noticeStatus(ACTIVATION_TABLE, {});
 const FULL_ACTIVATION_ITEMS = FULL_ACTIVATION.state === "needed" ? FULL_ACTIVATION.items : [];
 
 const appText = `(document.getElementById("app")?.innerText ?? "")`;
+/** 文字里的简体专用字，繁体界面上应当一个都没有。 */
+const simplifiedIn = (text) => charsIn(String(text ?? ""), SIMPLIFIED_ONLY);
 const textOf = (selector) => `[...document.querySelectorAll(${JSON.stringify(selector)})].map((node) => node.textContent).join("\\n")`;
 
 /** 在 page 所在的窗口里开一个标签页，回它的编号。 */
@@ -91,6 +95,18 @@ test("侧边栏：确认启用前只有启用说明，点启用以后说明怎�
     await restoreSettings(panel, before);
   }
   await waitIn(panel, "界面换回中文", `document.documentElement.lang === "zh-CN"`);
+  // 繁体下启用说明的条目是繁体那份，整块说明里没有简体专用字。
+  const beforeHant = await setLanguage(panel, "zh-Hant");
+  try {
+    await waitIn(panel, "界面换成繁体", `document.documentElement.lang === "zh-Hant"`);
+    const lines = await panel.evaluate(`[...document.querySelectorAll(".activation .activation-lines li")].map((node) => node.textContent)`);
+    assert.deepEqual([...lines].sort(), noticeLines(FULL_ACTIVATION_ITEMS, "zh-Hant").map((line) => line.text).sort());
+    const block = await panel.evaluate(`document.querySelector(".activation").innerText`);
+    assert.deepEqual(simplifiedIn(block), [], block);
+  } finally {
+    await restoreSettings(panel, beforeHant);
+  }
+  await waitIn(panel, "界面换回简体", `document.documentElement.lang === "zh-CN"`);
   await tap(panel, ".activation .button");
   await waitIn(panel, "没有视频时的说明", `${appText}.includes("打开一个 B 站或 YouTube 视频")`);
   // 测试构建里 YouTube 开关打开；没给过授权，认不出视频的页面都带启用按钮。
@@ -127,6 +143,22 @@ test("侧边栏：没登录时也读到视频信息，长视频进速览；字�
       assert.deepEqual(shown, { impact: english.impact, next: english.next, actions: ["Try again", "Import subtitle file"] });
     } finally {
       await restoreSettings(panel, before);
+    }
+
+    // 繁体下同一块的原因、影响、下一步和按钮是繁体。
+    const hant = errorCopy("NEED_LOGIN", undefined, "zh-Hant");
+    const beforeHant = await setLanguage(panel, "zh-Hant");
+    try {
+      await waitIn(panel, "要登录的说明换成繁体", `document.querySelector(".state-block .state-title")?.textContent === ${JSON.stringify(hant.cause)}`);
+      const shown = await panel.evaluate(`({
+        impact: document.querySelector(".state-block .state-impact")?.textContent,
+        next: document.querySelector(".state-block .state-next")?.textContent,
+        actions: [...document.querySelectorAll(".state-block .button")].map((button) => button.textContent),
+      })`);
+      assert.deepEqual(shown, { impact: hant.impact, next: hant.next, actions: [PANEL_HANT.retry, PANEL_HANT.transcript.importFile] });
+      assert.deepEqual(simplifiedIn([hant.cause, hant.impact, hant.next].join("")), []);
+    } finally {
+      await restoreSettings(panel, beforeHant);
     }
   });
 });
@@ -795,6 +827,97 @@ test("侧边栏：语言选 English 以后，模式切换、底部工具条、�
       assert.equal(await panel.evaluate(`document.querySelector(".ask-entry input")?.getAttribute("aria-label")`), "针对这个视频提问");
       assert.equal(await panel.evaluate("document.title"), "简幕");
       assert.ok(await panel.evaluate(`[...document.querySelectorAll(".button")].some((node) => node.textContent === "生成概览")`));
+    } finally {
+      await restoreSettings(panel, before);
+    }
+  });
+});
+
+test("侧边栏：语言选繁体以后，模式切换、底部工具条、各个状态的标题和按钮、问答抽屉、笔记层都是繁体，<html lang> 是 zh-Hant、字体是繁体那组；切回简体恢复", async (ctx) => {
+  await withVideo(ctx, async (panel) => {
+    await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
+    await waitIn(panel, "生成概览停用", `[...document.querySelectorAll(".button")].some((node) => node.textContent === "生成概览" && node.disabled)`);
+    await waitIn(panel, "没设置的提示", `Boolean(document.querySelector(${JSON.stringify(CONFIG_ACTION)}))`);
+    const before = await setLanguage(panel, "zh-Hant");
+    try {
+      await waitIn(panel, "界面换成繁体", `document.documentElement.lang === "zh-Hant"`);
+      assert.equal(await panel.evaluate("document.title"), "簡幕");
+      assert.match(await panel.evaluate(`getComputedStyle(document.documentElement).getPropertyValue("--font-sans")`), /PingFang TC/);
+      assert.deepEqual(await panel.evaluate(modes), [
+        ["速覽", "true"],
+        ["精讀", "false"],
+      ]);
+      const view = await panel.evaluate(`({
+        modeView: document.querySelector(".mode-view")?.getAttribute("aria-label"),
+        modeGroup: document.querySelector(".modes")?.getAttribute("aria-label"),
+        settings: document.querySelector(".panel-head .icon-button")?.getAttribute("aria-label"),
+        notes: document.querySelector(".mode-row .icon-button")?.getAttribute("aria-label"),
+        ask: document.querySelector(".ask-entry input")?.getAttribute("aria-label"),
+        askPlaceholder: document.querySelector(".ask-entry input")?.placeholder,
+        history: document.querySelector(".dock .icon-button")?.getAttribute("aria-label"),
+        config: document.querySelector('.notice[data-id="config"] .notice-text')?.textContent,
+        configAction: document.querySelector(${JSON.stringify(CONFIG_ACTION)})?.textContent,
+        batch: document.querySelector(".batch-bar .button")?.textContent,
+        buttons: [...document.querySelectorAll(".ai-overview .button")].map((node) => node.textContent).join("|"),
+        reasons: [...new Set([...document.querySelectorAll(".ai-overview .control-reason")].map((node) => node.textContent))].join("|"),
+        count: document.querySelector(".toolbar-count")?.textContent ?? "",
+      })`);
+      for (const [name, text] of Object.entries(view)) {
+        assert.ok(text, `${name} 是空的`);
+        assert.deepEqual(simplifiedIn(text), [], `${name}：${text}`);
+      }
+      assert.equal(view.modeView, "速覽");
+      assert.equal(view.ask, PANEL_HANT.dock.ask);
+      assert.equal(view.history, PANEL_HANT.dock.history);
+      assert.equal(view.notes, PANEL_HANT.head.notes);
+      assert.ok(view.buttons.split("|").includes(PANEL_HANT.skim.generate), view.buttons);
+
+      // 问答抽屉：标题、输入框、按钮、说明和空状态。
+      const sheet = `[...document.querySelectorAll(".sheet")].find((node) => node.querySelector(".overlay-title")?.textContent === ${JSON.stringify(PANEL_HANT.qa.title)})`;
+      await tap(panel, `.dock [aria-label='${PANEL_HANT.dock.history}']`);
+      await waitIn(panel, "问答抽屉打开", `${sheet}?.open === true`);
+      await waitIn(panel, "问答的空状态", `${appText}.includes(${JSON.stringify(PANEL_HANT.qa.emptyTitle)})`);
+      const qa = await panel.evaluate(`({
+        placeholder: document.querySelector(".qa-form input")?.placeholder,
+        button: document.querySelector(".qa-form .button")?.textContent,
+        hint: document.querySelector(".qa-hint")?.textContent,
+        close: (${sheet}).querySelector(".overlay-head .icon-button")?.getAttribute("aria-label"),
+        all: (${sheet}).innerText,
+      })`);
+      assert.equal(qa.placeholder, PANEL_HANT.qa.placeholder);
+      assert.equal(qa.button, PANEL_HANT.qa.ask);
+      assert.equal(qa.hint, PANEL_HANT.qa.hint);
+      for (const [name, text] of Object.entries(qa)) assert.deepEqual(simplifiedIn(text), [], `问答抽屉 ${name}：${text}`);
+      await panel.evaluate(`(${sheet}).querySelector(".overlay-head .icon-button").click(), true`);
+      await waitIn(panel, "抽屉关上", `${sheet}?.open === false`);
+
+      // 笔记层：标题、范围切换、导出、搜索框和空状态。
+      await tap(panel, `.mode-row [aria-label='${PANEL_HANT.head.notes}']`);
+      await waitIn(panel, "笔记层打开", `document.querySelector(".layer")?.open === true`);
+      await waitIn(panel, "笔记的空状态", `${appText}.includes(${JSON.stringify(PANEL_HANT.notes.emptyTitle)})`);
+      const notes = await panel.evaluate(`({
+        title: document.querySelector(".layer .overlay-title")?.textContent,
+        scopes: [...document.querySelectorAll(".layer .segment")].map((node) => node.textContent).join("|"),
+        exportButton: document.querySelector(".layer .toolbar-actions .button")?.textContent,
+        search: document.querySelector(".layer .search-input")?.placeholder,
+        back: document.querySelector(".layer .overlay-head .icon-button")?.getAttribute("aria-label"),
+        all: document.querySelector(".layer").innerText,
+      })`);
+      assert.equal(notes.search, PANEL_HANT.notes.searchPlaceholder);
+      for (const [name, text] of Object.entries(notes)) {
+        assert.ok(text, `笔记层 ${name} 是空的`);
+        assert.deepEqual(simplifiedIn(text), [], `笔记层 ${name}：${text}`);
+      }
+      await panel.evaluate(`document.querySelector(".layer .overlay-head .icon-button").click(), true`);
+      await waitIn(panel, "笔记层关上", `document.querySelector(".layer")?.open === false`);
+
+      // 切回简体：同几处又是简体。
+      await setLanguage(panel, "zh");
+      await waitIn(panel, "界面换回简体", `document.documentElement.lang === "zh-CN"`);
+      assert.deepEqual(await panel.evaluate(modes), SKIM);
+      assert.equal(await panel.evaluate(`document.querySelector(".ask-entry input")?.getAttribute("aria-label")`), "针对这个视频提问");
+      assert.equal(await panel.evaluate("document.title"), "简幕");
+      assert.match(await panel.evaluate(`getComputedStyle(document.documentElement).getPropertyValue("--font-sans")`), /PingFang SC/);
     } finally {
       await restoreSettings(panel, before);
     }

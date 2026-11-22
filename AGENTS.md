@@ -42,6 +42,7 @@ npm run release -- candidate   # 发布候选：要在远端 main 的最新提�
 - 要按构建开关裁掉的代码只写裸常量的分支（`FEATURE_X ? … : …`），开关保护的内容放进只从这些分支引用的单独模块，模块顶层只放字面量和函数（函数调用、属性读取、带插值的模板串、算式都会让模块留在包里）；死分支会原样印进包里，所以分支里只写从开关模块导入的名字，不写字符串、JSX 和函数体；不读 `features.ts` 的对象来裁，也不开 `minifySyntax`，`if (FEATURE_X) { … }` 的块会原样留在包里。Node 测试经 `--import ./tests/helpers/build-flags.ts` 把开关定义成测试构建的取值，单跑一个测试文件也要带上；在 Node 里直接读产品模块的脚本第一个导入 `scripts/lib/release-globals.mjs`（发行取值）或 `tests/helpers/build-flags.ts`（测试取值），跟它装的包一致。
 - 业务入口写成 `createX(deps)`，测试注入替身。测试不访问真实的模型服务和平台接口；等异步结果按条件等，不固定等几毫秒：等会发生的事用 `tests/helpers/wait-until.ts` 的 `until`，确认没发生用 `stillFalse`；能等到具体事件（比如模拟服务收到请求）的就直接等那件事。
 - 注入 B 站和 YouTube 页面的标识一律以 `jianmu-` 开头，集中定义在 `src/shared/names.ts`。
+- 按语言取文案一律经 `inLang(lang, 简体, 英文, 繁体)`（组件里用 `byLang`），三份都必给，简体那份定类型。繁体文字只写在文件名以 `-hant.ts` 结尾的模块里：这些模块不许有简体专用字，别的源文件不许有繁体专用字（`tests/unit/hant-text.test.ts` 查）。
 - 新增要进包的文件，同一个 PR 改 `tests/fixtures/package-files.txt`。
 - 版本号只写在 `package.json`，构建时写进产物清单。改版本号的提交用 `release:`。
 - 清单模板里的 `key` 是扩展身份，决定扩展 ID（快照在 `tests/fixtures/extension-id.txt`），不要改：改了已装用户的资料就接不上。它是商店后台给的公钥，2026-11-20 起和商店里那个项目是同一个身份（PRD 第 3 节）。私钥不进仓库，公开结构检查拦 `.pem`、`.crx`、`.key`。

@@ -31,8 +31,8 @@ export interface EnvelopeHints {
 const STREAM_HEAD_CHARS = 64;
 
 function truncatedError(): TransportError {
-  const { message, messageEn } = transportBoth((text) => text.incomplete);
-  const truncated: TransportError = withEnglish(new Error(message), messageEn);
+  const { message, messageEn, messageHant } = transportBoth((text) => text.incomplete);
+  const truncated: TransportError = withEnglish(new Error(message), messageEn, messageHant);
   truncated.code = "AI_RESPONSE_TRUNCATED";
   return truncated;
 }

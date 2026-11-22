@@ -5,28 +5,12 @@ import { signal, type Signal } from "@preact/signals";
 import { noticeLines, type CarriedItems, type NoticeLine } from "../../core/consent.ts";
 import { Button } from "../shared/ui/button.tsx";
 import type { NoticeEntry } from "../shared/ui/notice.ts";
-import { uiLang } from "../shared/ui-lang.ts";
+import { inLang, uiLang } from "../shared/ui-lang.ts";
+import { CARRIED_HANT } from "./carried-hant.ts";
+import { CARRIED_EN, CARRIED_ZH, type CarriedText } from "./carried-text.ts";
 import type { Panel } from "./panel.ts";
 
-const CARRIED_ZH = {
-  notice: "说明更新了，多了几项，照旧在用",
-  show: "看看多了什么",
-  label: "说明新增的内容",
-  read: "在本机多读的",
-  send: "多发给模型服务的",
-  done: "知道了",
-};
-
-const CARRIED_EN: typeof CARRIED_ZH = {
-  notice: "The notices were updated with a few new items. Jianmu keeps working as before",
-  show: "See what's new",
-  label: "What's new in the notices",
-  read: "Also read on this computer",
-  send: "Also sent to the model service",
-  done: "Got it",
-};
-
-const carriedText = (): typeof CARRIED_ZH => (uiLang.value === "en" ? CARRIED_EN : CARRIED_ZH);
+const carriedText = (): CarriedText => inLang(uiLang.value, CARRIED_ZH, CARRIED_EN, CARRIED_HANT);
 
 type Shown = CarriedItems;
 

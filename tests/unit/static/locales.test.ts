@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
+import { charsIn, SIMPLIFIED_ONLY, TRADITIONAL_ONLY } from "../../helpers/hant-chars.ts";
 
 const ROOT = new URL("../../../", import.meta.url);
 const TEMPLATE = readFileSync(new URL("manifest.template.json", ROOT), "utf8");
@@ -20,8 +21,14 @@ const CHINESE = {
   extensionDescription: "几分钟判断一个 B 站或 YouTube 长视频值不值得看、重点看哪段；决定看了，再陪你精读。",
   actionTitle: "打开简幕",
 };
-// 缺省是英文；中文备齐浏览器会落到的几个区域，内容都是简体中文。
-const EXPECTED: Readonly<Record<string, Record<string, string>>> = { en: ENGLISH, zh: CHINESE, zh_CN: CHINESE, zh_TW: CHINESE };
+const TRADITIONAL = {
+  extensionName: "簡幕：AI 影片速覽與學習助手",
+  extensionDescription: "幾分鐘判斷一部 B 站或 YouTube 長影片值不值得看、重點看哪段；決定看了，再陪你精讀。",
+  actionTitle: "打開簡幕",
+};
+// 缺省是英文；zh_TW 是繁体，zh、zh_CN 是简体。浏览器只认 zh_CN、zh_TW 两个带地区的中文区域，不认 zh_HK：
+// 香港、澳门的界面语言找不到同名的区域，按去掉地区的 zh 取，看到的是简体。
+const EXPECTED: Readonly<Record<string, Record<string, string>>> = { en: ENGLISH, zh: CHINESE, zh_CN: CHINESE, zh_TW: TRADITIONAL };
 
 // 浏览器的上限：名称 75 个字符，简介 132 个字符。
 const LIMITS: Readonly<Record<string, number>> = { extensionName: 75, extensionDescription: 132 };
@@ -53,4 +60,10 @@ test("名称和简介不超过浏览器的字数上限", () => {
       assert.ok(length > 0 && length <= limit, `${locale} 的 ${name} 有 ${length} 个字符，上限 ${limit}`);
     }
   }
+});
+
+test("繁体那份没有简体专用字，简体那几份没有繁体专用字", () => {
+  const all = (locale: string): string => Object.values(messagesOf(locale)).map((entry) => entry.message).join("\n");
+  assert.deepEqual(charsIn(all("zh_TW"), SIMPLIFIED_ONLY), []);
+  for (const locale of ["zh", "zh_CN"]) assert.deepEqual(charsIn(all(locale), TRADITIONAL_ONLY), [], locale);
 });

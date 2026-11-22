@@ -115,21 +115,21 @@ export function createAiSender({
         throw taskCanceledError();
       }
       if (timeoutKind === "idle") {
-        const { message, messageEn } = transportBoth((text) => text.idleTimeout);
-        const timeout: TransportError = withEnglish(new Error(message), messageEn);
+        const { message, messageEn, messageHant } = transportBoth((text) => text.idleTimeout);
+        const timeout: TransportError = withEnglish(new Error(message), messageEn, messageHant);
         timeout.code = "AI_IDLE_TIMEOUT";
         throw timeout;
       }
       if (timeoutKind === "hard") {
-        const { message, messageEn } = transportBoth((text) => text.hardTimeout(Math.round(timeoutMs / 1000)));
-        const timeout: TransportError = withEnglish(new Error(message), messageEn);
+        const { message, messageEn, messageHant } = transportBoth((text) => text.hardTimeout(Math.round(timeoutMs / 1000)));
+        const timeout: TransportError = withEnglish(new Error(message), messageEn, messageHant);
         timeout.code = "AI_HARD_TIMEOUT";
         throw timeout;
       }
       // fetch 对跨域被拒和网络不通都只抛笼统的 TypeError，给一句能指导下一步的提示。
       if (error instanceof TypeError) {
-        const { message, messageEn } = transportBoth((text) => text.network(String(settings.aiBaseUrl)));
-        const network: TransportError = withEnglish(new Error(message), messageEn);
+        const { message, messageEn, messageHant } = transportBoth((text) => text.network(String(settings.aiBaseUrl)));
+        const network: TransportError = withEnglish(new Error(message), messageEn, messageHant);
         network.code = "AI_NETWORK_ERROR";
         throw network;
       }
@@ -176,8 +176,8 @@ export function createAiSender({
       bytes += value?.byteLength ?? 0;
       if (bytes > maxResponseBytes) {
         await reader.cancel?.().catch(() => {});
-        const { message, messageEn } = transportBoth((text) => text.tooLarge);
-        const error: TransportError = withEnglish(new Error(message), messageEn);
+        const { message, messageEn, messageHant } = transportBoth((text) => text.tooLarge);
+        const error: TransportError = withEnglish(new Error(message), messageEn, messageHant);
         error.code = "AI_RESPONSE_TOO_LARGE";
         throw error;
       }

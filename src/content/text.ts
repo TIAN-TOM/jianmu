@@ -1,7 +1,8 @@
-// 播放页上简幕自己的字：笔记图标的悬停提示、点了以后闪的一句、卡片框架的名字、扩展更新后的提示。中英两份，中文那份定形状。
+// 播放页上简幕自己的字：笔记图标的悬停提示、点了以后闪的一句、卡片框架的名字、扩展更新后的提示。简体、英文、繁体（text-hant.ts）三份，简体那份定形状。
 // 解释当前画面那个图标的字只在构建开关打开时进包，放在 frame-icon.ts 里，不放这里。模块顶层只放字面量和函数。
 import type { ErrorCode } from "../core/errors.ts";
-import type { OutputLang } from "../core/output-lang.ts";
+import { inLang, type OutputLang } from "../core/output-lang.ts";
+import { CONTENT_HANT } from "./text-hant.ts";
 
 const CONTENT_ZH = {
   noteTitle: "在当前时间点记一条笔记（快捷键 n）",
@@ -46,4 +47,4 @@ const CONTENT_EN: ContentText = {
   },
 };
 
-export const contentText = (lang: OutputLang = "zh"): ContentText => (lang === "en" ? CONTENT_EN : CONTENT_ZH);
+export const contentText = (lang: OutputLang = "zh"): ContentText => inLang(lang, CONTENT_ZH, CONTENT_EN, CONTENT_HANT);

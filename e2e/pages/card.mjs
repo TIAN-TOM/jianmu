@@ -6,7 +6,7 @@
 // 官方总结晚到时，「生成概览」等它有了结果才摆，摆出来以后不被顶走；一直没结果时等够了照样摆。
 // 收起的一行写着判断档和播放到的章节，放不下就截断、不撑高，旁边是打开侧边栏的入口；侧边栏开着时不摆打开侧边栏的入口和按钮。
 // 展开收起有过渡：收起时内容留到过渡走完才拿掉，没有过渡时马上拿掉。
-// 语言选 English 以后卡片自己的字、报错和没设置好时的说明是英文，切回中文马上恢复。
+// 语言选 English 以后卡片自己的字、报错和没设置好时的说明是英文，切回中文马上恢复；选繁体时同几处是繁体，判断档写繁体名。
 import assert from "node:assert/strict";
 import { CARD_HEIGHT } from "../../src/content/card-frame.ts";
 import { describe } from "../../src/core/errors.ts";
@@ -15,6 +15,8 @@ import { AUTO_FOLD_NOTE } from "../../src/pages/card/glance.ts";
 import { CARD_ROWS, NOT_READ_TEXT } from "../../src/pages/card/model.ts";
 import { PAGE_PATHS, SETTINGS_STORAGE_KEY } from "../../src/shared/names.ts";
 import { UI_FONT_SCALES } from "../../src/shared/settings-schema.ts";
+import { VERDICT_HANT } from "../../src/core/ai/verdict-hant.ts";
+import { charsIn, SIMPLIFIED_ONLY } from "../../tests/helpers/hant-chars.ts";
 import { scenario } from "./harness.mjs";
 
 const test = scenario(import.meta.url);
@@ -383,6 +385,57 @@ test("卡片：语言选 English 以后，打开的卡片第一帧就是英文�
       toggle: "收起总结卡片",
     });
     await glance.waitFor("收起的一行换回中文", `document.querySelector(".card-name").textContent === "简幕 · 可以看"`);
+  } finally {
+    await setLanguage(options, "zh");
+  }
+});
+
+test("卡片：语言选繁体以后，打开的卡片第一帧就是繁体、<html lang> 是 zh-Hant，判断档写繁体名，报错和没设置好时的说明是繁体；切回简体马上恢复", async ({ open }) => {
+  const options = await open(PAGE_PATHS.options);
+  await setLanguage(options, "zh-Hant");
+  await options.waitFor("设置页换成繁体", `document.documentElement.lang === "zh-Hant"`);
+  const simplifiedIn = (text) => charsIn(String(text ?? ""), SIMPLIFIED_ONLY);
+  try {
+    const read = (page) =>
+      page.evaluate(`(() => ({
+        lang: document.documentElement.lang,
+        title: document.title,
+        name: document.querySelector(".card-name")?.textContent ?? "",
+        more: document.querySelector("#card-overview .card-more")?.textContent ?? null,
+        official: document.querySelector("#card-official .card-fold-head span")?.textContent ?? null,
+        buttons: [...document.querySelectorAll(".card-actions button")].map((button) => button.textContent.trim()),
+        toggle: document.getElementById("card-toggle")?.title ?? "",
+      }))()`);
+    const page = await open(SAMPLE);
+    await page.setWidth(FRAME_WIDTH, CARD_HEIGHT.max);
+    // 第一帧：一打开就读，不等纠正。
+    assert.deepEqual(await read(page), {
+      lang: "zh-Hant",
+      title: "簡幕總結卡片",
+      name: "簡幕 · 總結",
+      more: "展開全部 16 章",
+      official: "B 站官方總結",
+      buttons: ["打開側邊欄"],
+      toggle: "收合總結卡片",
+    });
+    assert.match(await page.evaluate(`getComputedStyle(document.documentElement).getPropertyValue("--font-sans")`), /PingFang TC/);
+    const glance = await open(`${SAMPLE}#collapsed-glance`);
+    assert.equal(await glance.evaluate(`document.querySelector(".card-name").textContent`), `簡幕 · ${VERDICT_HANT.fair}`);
+    assert.deepEqual(simplifiedIn(await glance.evaluate(`document.getElementById("card-head-panel").textContent`)), []);
+
+    const failed = await open(`${SAMPLE}#load-failed`);
+    const limited = describe("RATE_LIMITED", undefined, "zh-Hant");
+    assert.deepEqual(simplifiedIn(limited), []);
+    await failed.waitFor("读不到时用繁体说原因", `document.getElementById("card-status")?.textContent === ${JSON.stringify(limited)}`);
+    const setup = await open(`${SAMPLE}#setup-key`);
+    const hint = cardSetupHint({ state: "checked", view: { ready: false, errors: [], missing: "key" } }, "zh-Hant");
+    assert.deepEqual(simplifiedIn(hint), []);
+    assert.equal(await setup.evaluate(`document.getElementById("card-setup")?.textContent ?? ""`), hint);
+
+    await setLanguage(options, "zh");
+    await page.waitFor("卡片换回简体", `document.documentElement.lang === "zh-CN"`);
+    assert.equal(await page.evaluate(`document.querySelector(".card-name")?.textContent`), "简幕 · 总结");
+    await glance.waitFor("收起的一行换回简体", `document.querySelector(".card-name").textContent === "简幕 · 可以看"`);
   } finally {
     await setLanguage(options, "zh");
   }

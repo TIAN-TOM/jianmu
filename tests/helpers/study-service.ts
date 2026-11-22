@@ -10,6 +10,7 @@ import { createTaskRunner, type TaskRunner } from "../../src/background/tasks.ts
 import { createClearGuard, type ClearGuard } from "../../src/core/clear-guard.ts";
 import { fail, ok, type ErrorCode, type Result } from "../../src/core/errors.ts";
 import type { NoteRecord, OverviewRecord, QaRecord } from "../../src/core/notes/records.ts";
+import type { OutputLang } from "../../src/core/output-lang.ts";
 import type { FrozenGen, TaskKind } from "../../src/core/tasks.ts";
 import { videoKey, type VideoKey, type VideoRef } from "../../src/core/video-ref.ts";
 import type { ObjectStoreDriver } from "../../src/platform/idb.ts";
@@ -82,6 +83,8 @@ export interface StudyHarnessOptions {
   readonly aiReady?: boolean;
   /** 问答送多少字的字幕；不给时用正式的预算。 */
   readonly qaBudget?: { readonly chars: number; readonly fallbackChars: number };
+  /** 登记任务时记下的语言；不给时任务不记语言，按简体。 */
+  readonly outputLang?: OutputLang;
 }
 
 export interface Logged {
@@ -192,7 +195,7 @@ export function studyHarness(options: StudyHarnessOptions = {}): StudyHarness {
   });
 
   async function register(kind: TaskKind, input: unknown, video: VideoKey = VIDEO): Promise<string> {
-    const registered = await tasks.register({ kind, origin: "user", video, input, gen: genOf(kind), followsPage: false }, {});
+    const registered = await tasks.register({ kind, origin: "user", video, input, gen: { ...genOf(kind), ...(options.outputLang ? { outputLang: options.outputLang } : {}) }, followsPage: false }, {});
     if (!("task" in registered)) throw new Error(`没登记上：${JSON.stringify(registered)}`);
     return registered.task.id;
   }

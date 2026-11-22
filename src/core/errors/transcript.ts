@@ -40,6 +40,9 @@ const TRANSCRIPT_DETAILS = {
   },
 } satisfies DetailTable<TranscriptErrorCode>;
 
+/** 按 detail 换说法的码和 detail，英文、繁体那份照它对齐。 */
+export type TranscriptDetails = typeof TRANSCRIPT_DETAILS;
+
 export const TRANSCRIPT_DETAIL_TEXT: DetailTable<TranscriptErrorCode> = TRANSCRIPT_DETAILS;
 
 const NOT_IMPORTED_EN = "Nothing was imported, and the existing subtitles haven't changed.";

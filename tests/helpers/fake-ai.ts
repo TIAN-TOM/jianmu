@@ -4,6 +4,7 @@ import type { AiWiring, TaskAi } from "../../src/background/ai.ts";
 import type { CompletionRequest, CompletionResult } from "../../src/core/ai/transport/index.ts";
 import { taskCanceledError } from "../../src/core/ai/transport/index.ts";
 import { fail, ok } from "../../src/core/errors.ts";
+import type { OutputLang } from "../../src/core/output-lang.ts";
 import type { FrozenGen } from "../../src/core/tasks.ts";
 import type { ConfigCheckView } from "../../src/shared/messages/ai.ts";
 import { FEATURE_MODEL_SLOTS, normalize } from "../../src/shared/settings-schema.ts";
@@ -28,6 +29,8 @@ export interface FakeAiOptions {
   readonly prompts?: Readonly<Record<string, string>>;
   /** 本机认得出的看图能力，默认能看。 */
   readonly imageInput?: boolean | "unknown";
+  /** 设置解析出来的语言；给了就记进冻结的生成配置，不给时按简体、冻结里不写。 */
+  readonly outputLang?: OutputLang;
 }
 
 export interface FakeAiCall {
@@ -79,7 +82,7 @@ export function createFakeAi(options: FakeAiOptions = {}): FakeAi {
   const ai: AiWiring = {
     configCheck: async () => options.config ?? { ready: true, errors: [] },
     requestAiCompletion: (request) => complete(request),
-    freeze: async (feature) => ({ feature, baseUrl: settings.aiBaseUrl, model, effort: "off", promptVersion: "fake-prompt" }),
+    freeze: async (feature) => ({ feature, baseUrl: settings.aiBaseUrl, model, effort: "off", promptVersion: "fake-prompt", ...(options.outputLang ? { outputLang: options.outputLang } : {}) }),
     forTask: (frozen): TaskAi => ({ requestAiCompletion: (request) => complete({ ...request, feature: frozen.feature }, frozen) }),
     effortPreview: async () => ({
       items: FEATURE_MODEL_SLOTS.map(({ id }) => ({ feature: id, model, requested: "off" as const, effective: "off" as const })),
@@ -93,7 +96,7 @@ export function createFakeAi(options: FakeAiOptions = {}): FakeAi {
         return fail("AI_REQUEST_FAILED");
       }
     },
-    outputLang: async () => "zh",
+    outputLang: async () => options.outputLang ?? "zh",
     capabilities: async () => ({ canDisableThinking: true, efforts: [], imageInput: options.imageInput ?? true, jsonSchema: false }),
     prompt(file) {
       const text = options.prompts?.[file];

@@ -16,7 +16,8 @@ import { groundQaAnswer } from "../../core/qa/citations.ts";
 import { QA_BUDGET_CHARS, QA_FALLBACK_BUDGET_CHARS } from "../../core/qa/budget.ts";
 import { selectContext, type QaChapter, type QaContext } from "../../core/qa/retrieval.ts";
 import { genInfo } from "../../core/tasks.ts";
-import { outputLangOf, type OutputLang } from "../../core/output-lang.ts";
+import { inLang, outputLangOf, type OutputLang } from "../../core/output-lang.ts";
+import { FALLBACK_ANSWER_HANT } from "./qa-hant.ts";
 import { parseVideoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
 import type { EmptyRequest } from "../../shared/messages/core.ts";
 import type { QaAnswerView, QaHistoryView } from "../../shared/messages/qa.ts";
@@ -38,11 +39,15 @@ export const ANSWER_MAX_TOKENS = 4096;
 /** 零有效引用时整条替换：宁可少答，不可编造。 */
 export const FALLBACK_ANSWER = "未能从字幕中找到足够的依据来回答这个问题。可以换个说法再问一次，或先确认这个视频里是否有你想问的内容。";
 
-/** 兜底文案跟着回答的语言存。 */
-export const FALLBACK_ANSWERS: Readonly<Record<OutputLang, string>> = Object.freeze({
+/** 兜底文案跟着回答的语言存，按 fallbackAnswer 取。 */
+export const FALLBACK_ANSWERS = Object.freeze({
   zh: FALLBACK_ANSWER,
+  "zh-Hant": FALLBACK_ANSWER_HANT,
   en: "Couldn't find enough support in the subtitles to answer this. Try rephrasing the question, or check whether this video covers what you're asking about.",
 });
+
+/** 指定语言的兜底文案。 */
+export const fallbackAnswer = (lang: OutputLang): string => inLang(lang, FALLBACK_ANSWERS.zh, FALLBACK_ANSWERS.en, FALLBACK_ANSWERS["zh-Hant"]);
 
 /** 用户消息的三块，按发出的先后。 */
 export const QA_USER_SECTIONS = ["用户消息：视频信息", "用户消息：字幕", "用户消息：问题"] as const;
@@ -224,7 +229,7 @@ export function createQaService(deps: QaServiceDeps): QaService {
     const grounded = groundQaAnswer(raw, evidence);
     const { citations } = grounded;
     const fromModel = citations.length > 0;
-    const shown = fromModel ? grounded.answer : FALLBACK_ANSWERS[outputLangOf(run.gen)];
+    const shown = fromModel ? grounded.answer : fallbackAnswer(outputLangOf(run.gen));
     const entry: QaRecord = {
       id: `${QA_ID_PREFIX}${deps.newId()}`,
       video,

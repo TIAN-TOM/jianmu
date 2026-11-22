@@ -8,7 +8,8 @@
 // 模块顶层只放字面量和函数，理由见 content/frame.ts 开头。
 import { throwIfTaskCanceled } from "../../core/ai/transport/index.ts";
 import { extractPromptSection, localizePrompt } from "../../core/ai/prompt.ts";
-import { outputLangOf, type OutputLang } from "../../core/output-lang.ts";
+import { inLang, outputLangOf } from "../../core/output-lang.ts";
+import { TRUNCATED_NOTE_HANT } from "./frame-explain-hant.ts";
 import { fail, ok, type ErrorCode, type Failure, type Result } from "../../core/errors.ts";
 import { sha256Hex } from "../../core/task-keys.ts";
 import type { ClearGuard } from "../../core/clear-guard.ts";
@@ -53,7 +54,7 @@ const FRAME_MAX_TOKENS = 2048;
 const KEEP_PER_TAB = 10;
 export const KEEP_MS = 1_800_000; // 半小时
 // 截断提示和解释一起交回，跟着解释的语言。
-const TRUNCATED_NOTE: Readonly<Record<OutputLang, string>> = {
+const TRUNCATED_NOTE = {
   zh: "…（模型输出被截断，解释可能不完整。）",
   en: "… (The model's output was cut off, so this explanation may be incomplete.)",
 };
@@ -297,7 +298,7 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
           });
           throwIfTaskCanceled(run.signal);
           const explanation = text.trim();
-          return ok(truncated ? { explanation: `${explanation}${TRUNCATED_NOTE[lang]}`, truncated: true as const } : { explanation });
+          return ok(truncated ? { explanation: `${explanation}${inLang(lang, TRUNCATED_NOTE.zh, TRUNCATED_NOTE.en, TRUNCATED_NOTE_HANT)}`, truncated: true as const } : { explanation });
         } catch (error) {
           if (run.signal.aborted || (error as { readonly code?: unknown } | null)?.code === "TASK_CANCELED") return fail("TASK_CANCELED");
           // 像是看不了图被拒：拿探测图复核一次，复核也说不能看才这么报（并记下）；能看就是别的原因，照常报失败。

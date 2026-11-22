@@ -177,6 +177,8 @@ export interface EmptyDiagnosis {
   readonly message: string;
   /** 英文说明，不可枚举（见 text.ts）。 */
   readonly messageEn?: string;
+  /** 繁体说明，不可枚举（见 text.ts）。 */
+  readonly messageHant?: string;
   readonly retryWithoutJsonMode: boolean;
   readonly retryWithMoreTokens?: boolean;
 }
@@ -185,6 +187,8 @@ export interface EmptyDiagnosis {
 export interface ProviderError extends Error {
   /** 简幕自己写的说明的英文，不可枚举（见 text.ts）；服务的原话没有这一项。 */
   messageEn?: string;
+  /** 同一句的繁体，同样不可枚举。 */
+  messageHant?: string;
   status?: number;
   code?: string;
   param?: string;

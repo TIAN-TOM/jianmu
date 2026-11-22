@@ -1,4 +1,4 @@
-// 播放页卡片的界面文案，中文这份。它定下文案表的形状（CardText），英文那份（text-en.ts）必须满足同一个类型。
+// 播放页卡片的界面文案，简体这份。它定下文案表的形状（CardText），英文那份（text-en.ts）和繁体那份（text-hant.ts）必须满足同一个类型。
 // 模块顶层只放字面量和函数。带变量的文案写成函数。官方总结、章节名、结论这些内容不在这里，原样显示。
 import type { OfficialSummaryView } from "../../shared/messages/transcript.ts";
 

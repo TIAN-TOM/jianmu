@@ -8,6 +8,7 @@ import { createTaskRunner, type TaskRunner } from "../../src/background/tasks.ts
 import type { CompletionRequest } from "../../src/core/ai/transport/index.ts";
 import { createClearGuard, type ClearGuard } from "../../src/core/clear-guard.ts";
 import { ok } from "../../src/core/errors.ts";
+import type { OutputLang } from "../../src/core/output-lang.ts";
 import { transcriptFingerprint } from "../../src/core/transcript/fingerprint.ts";
 import { videoKey, type VideoKey, type VideoRef } from "../../src/core/video-ref.ts";
 import type { ObjectStoreDriver } from "../../src/platform/idb.ts";
@@ -96,6 +97,8 @@ export interface TranslateHarnessOptions {
   readonly guard?: ClearGuard;
   readonly seed?: readonly TranslationRecord[];
   readonly wrapDriver?: (inner: ObjectStoreDriver<TranslationRecord>) => ObjectStoreDriver<TranslationRecord>;
+  /** 设置里的语言，决定翻译方向；不给时按简体。 */
+  readonly outputLang?: OutputLang;
 }
 
 export interface TranslateHarness {
@@ -129,6 +132,7 @@ export function translateHarness(view: TranscriptView, options: TranslateHarness
   const fake = createFakeAi({
     prompts: { "study/translation.md": TRANSLATION_PROMPT, "study/tidy.md": TIDY_PROMPT_TEXT },
     replies: { rewrite: options.reply ?? echo(), tidy: options.tidyReply ?? echo("") },
+    ...(options.outputLang ? { outputLang: options.outputLang } : {}),
   });
   const guard = options.guard ?? createClearGuard();
   const broadcasts: Broadcast[] = [];
@@ -156,6 +160,7 @@ export function translateHarness(view: TranscriptView, options: TranslateHarness
     guard,
     timers,
     ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
+    ...(options.outputLang ? { outputLang: fake.ai.outputLang } : {}),
     log,
   };
   const service = createTranslateService(deps);

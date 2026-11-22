@@ -4,6 +4,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { effortNoteText, formOf, serviceChanged, settingsInput, showsRegionChooser, usageText, withAddress, withPreset } from "../../../../src/pages/options/form.ts";
+import { frameText } from "../../../../src/pages/options/frame-text.ts";
+import { OPTIONS_HANT } from "../../../../src/pages/options/text-hant.ts";
+import { textOf } from "../../../../src/pages/options/text.ts";
+import { youtubeText } from "../../../../src/pages/options/youtube-text.ts";
 import type { LoadedSettings } from "../../../../src/platform/settings-store.ts";
 import { DATA_CONSENT_CONFIRMED, DEFAULTS, featureModelsOwnerOf, normalize } from "../../../../src/shared/settings-schema.ts";
 
@@ -93,4 +97,13 @@ test("推理强度旁边那一句和用量那一行选英文时是英文，数�
   assert.equal(effortNoteText({ requested: "off", effective: "off", note: "unknown" }, "en"), null);
   const item = { model: "m", lastUsage: { model: "old", effort: "high" as const, usage: { input: 12345, output: 2345 } } };
   assert.equal(usageText(item, "en"), "Last request (High, old): input 12,345 · output 2,345 · thinking not reported separately");
+});
+
+test("选繁体时设置页的文案是繁体那份，数字按台湾的写法分组", () => {
+  assert.equal(textOf("zh-Hant"), OPTIONS_HANT);
+  assert.equal(frameText("zh-Hant").slot, "畫面分析");
+  assert.equal(youtubeText("zh-Hant").enable, "在 YouTube 上啟用");
+  assert.equal(effortNoteText({ requested: "medium", effective: "low", note: "fallback" }, "zh-Hant"), "這個模型沒有「中」等級，實際以「低」等級執行");
+  const item = { model: "m", lastUsage: { model: "old", effort: "high" as const, usage: { input: 12345, output: 2345 } } };
+  assert.equal(usageText(item, "zh-Hant"), "最近一次（高，old）：輸入 12,345 · 輸出 2,345 · 思考沒有單獨回報");
 });

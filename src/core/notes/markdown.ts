@@ -2,7 +2,8 @@
 // 标题、小标题、来源说明这些固定文字按语言出，缺省中文；模型写的内容、平台来的内容和用户自己的笔记原样写。
 import { groupQuotesIntoChapters, type ChapterPart, type QuotePart } from "../ai/chunking.ts";
 import { keyChapterStarts, verdictLabelOf, verdictName, type OfficialSummary } from "../ai/verdict.ts";
-import type { OutputLang } from "../output-lang.ts";
+import { inLang, type OutputLang } from "../output-lang.ts";
+import { MARKDOWN_HANT } from "./markdown-hant.ts";
 import { formatTimestamp } from "../transcript/segment.ts";
 import { parseVideoKey, type VideoKey, type VideoRef } from "../video-ref.ts";
 import {
@@ -46,7 +47,7 @@ const MARKDOWN_ZH = {
   fileLearning: "学习稿",
 };
 
-type MarkdownText = typeof MARKDOWN_ZH;
+export type MarkdownText = typeof MARKDOWN_ZH;
 
 const MARKDOWN_EN: MarkdownText = {
   untitled: "Untitled video",
@@ -75,7 +76,7 @@ const MARKDOWN_EN: MarkdownText = {
   fileLearning: "study notes",
 };
 
-const textOf = (lang: OutputLang | undefined): MarkdownText => (lang === "en" ? MARKDOWN_EN : MARKDOWN_ZH);
+const textOf = (lang: OutputLang | undefined): MarkdownText => inLang(lang ?? "zh", MARKDOWN_ZH, MARKDOWN_EN, MARKDOWN_HANT);
 
 /** 导出文件在视频没有标题时用的名字：笔记导出（notes）和学习稿（learning）各一个。 */
 export function markdownFallbackName(kind: "notes" | "learning", lang: OutputLang = "zh"): string {

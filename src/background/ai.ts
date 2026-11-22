@@ -37,11 +37,12 @@ import {
   type TransportResponse,
   type TransportSettingsRules,
 } from "../core/ai/transport/index.ts";
+import { WIRING_HANT } from "./ai-hant.ts";
 import type { ClearGuard } from "../core/clear-guard.ts";
 import { fail, ok, type Failure, type Result } from "../core/errors.ts";
 import { AI_ERROR_TEXT, type AiErrorCode } from "../core/errors/ai.ts";
 import type { Effort } from "../core/notes/records.ts";
-import { resolveOutputLang, type OutputLang } from "../core/output-lang.ts";
+import { inLang, resolveOutputLang, type OutputLang } from "../core/output-lang.ts";
 import { sha256Hex } from "../core/task-keys.ts";
 import { budgetEffort, type FrozenGen } from "../core/tasks.ts";
 import type { Permissions } from "../platform/permissions.ts";
@@ -138,7 +139,7 @@ const FEATURE_PROMPTS = {
   ...(FEATURE_FRAME_EXPLAIN ? { frame: FRAME_PROMPT_FILE } : {}),
 } as Readonly<Record<FeatureSlotId, string>>;
 
-// 后台自己写的说明，中文、英文各一份。英文挂在错误的 messageEn 上，到 aiFailure 按语言挑。
+// 后台自己写的说明，简体、英文各一份，繁体那份放 ai-hant.ts。英文、繁体挂在错误的 messageEn、messageHant 上，到 aiFailure 按语言挑。
 const WIRING_TEXT = {
   zh: {
     addressChanged: "AI 还没配置好：任务开始以后换了服务地址，请重新生成。",
@@ -152,12 +153,14 @@ const WIRING_TEXT = {
     noPermission: (origin: string) => `Jianmu doesn't have permission to access ${origin} yet. Open settings and click “Save and authorise”.`,
     noKey: "Enter your API key in settings first.",
   },
-} satisfies Readonly<Record<OutputLang, unknown>>;
+};
 
-type WiringText = (typeof WIRING_TEXT)["zh"];
+export type WiringText = (typeof WIRING_TEXT)["zh"];
+
+const wiringText = (lang: OutputLang): WiringText => inLang<WiringText>(lang, WIRING_TEXT.zh, WIRING_TEXT.en, WIRING_HANT);
 
 function codedError(code: AiErrorCode, pick: (text: WiringText) => string): ProviderError {
-  return withEnglish(Object.assign(new Error(pick(WIRING_TEXT.zh)), { code }), pick(WIRING_TEXT.en));
+  return withEnglish(Object.assign(new Error(pick(wiringText("zh"))), { code }), pick(wiringText("en")), pick(wiringText("zh-Hant")));
 }
 
 /**
@@ -255,7 +258,7 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
     return planEffort({ protocol: current.protocol, host, model, requested, caps });
   }
 
-  // 设置页上显示的说明用哪种语言：和模型写的内容同一个设置。读不出设置时按中文。
+  // 设置页上显示的说明用哪种语言：和模型写的内容同一个设置。读不出设置时按简体。
   const shownLang = (): Promise<OutputLang> => load().then((current) => resolveOutputLang(current.language, uiLanguage()), () => "zh" as const);
 
   async function listModels(): Promise<Result<ModelListView>> {
@@ -264,7 +267,8 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
       const base = validateForSave(current);
       if (!base.ok) {
         const english = validateForSave(current, "en").errors.join(" ");
-        throw withEnglish(Object.assign(new Error(base.errors.join(" ")), { code: "INVALID_BASE_URL" }), english);
+        const hant = validateForSave(current, "zh-Hant").errors.join(" ");
+        throw withEnglish(Object.assign(new Error(base.errors.join(" ")), { code: "INVALID_BASE_URL" }), english, hant);
       }
       if (!current.aiApiKey && !isLocalBaseUrl(current.aiBaseUrl)) throw codedError("NO_AI_CONFIG", (text) => text.noKey);
       await ensureHostPermission(current.aiBaseUrl);

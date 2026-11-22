@@ -1,6 +1,21 @@
 // 错误码汇总和统一的结果形状。各领域的码和三段文案在 errors/ 下各一份，这里拼成一张表；漏写文案编译就报错。
-// 文案中文、英文各一张，取文案的函数最后一个参数是语言，不传时是中文。
+// 文案简体、英文、繁体各一张，繁体的在 errors/ 下以 -hant.ts 结尾的模块里；取文案的函数最后一个参数是语言，不传时是简体。
 import { AI_ERROR_TEXT, AI_ERROR_TEXT_EN, type AiErrorCode } from "./errors/ai.ts";
+import { AI_ERROR_TEXT_HANT } from "./errors/ai-hant.ts";
+import { BACKUP_ERROR_TEXT_HANT } from "./errors/backup-hant.ts";
+import { BATCH_ERROR_TEXT_HANT } from "./errors/batch-hant.ts";
+import { DATA_ERROR_TEXT_HANT } from "./errors/data-hant.ts";
+import { FRAME_ERROR_TEXT_HANT } from "./errors/frame-hant.ts";
+import { NOTE_ERROR_TEXT_HANT } from "./errors/notes-hant.ts";
+import { OVERVIEW_ERROR_TEXT_HANT } from "./errors/overview-hant.ts";
+import { QA_ERROR_TEXT_HANT } from "./errors/qa-hant.ts";
+import { ROUTING_ERROR_TEXT_HANT } from "./errors/routing-hant.ts";
+import { SESSION_ERROR_TEXT_HANT } from "./errors/session-hant.ts";
+import { SETTINGS_ERROR_TEXT_HANT } from "./errors/settings-hant.ts";
+import { SITE_DETAIL_TEXT_HANT, SITE_ERROR_TEXT_HANT } from "./errors/site-hant.ts";
+import { TASK_ERROR_TEXT_HANT } from "./errors/tasks-hant.ts";
+import { TRANSCRIPT_DETAIL_TEXT_HANT, TRANSCRIPT_ERROR_TEXT_HANT } from "./errors/transcript-hant.ts";
+import { TRANSLATE_ERROR_TEXT_HANT } from "./errors/translate-hant.ts";
 import type { ErrorCopy } from "./errors/copy.ts";
 import { BACKUP_ERROR_TEXT, BACKUP_ERROR_TEXT_EN, type BackupErrorCode } from "./errors/backup.ts";
 import { BATCH_ERROR_TEXT, BATCH_ERROR_TEXT_EN, type BatchErrorCode } from "./errors/batch.ts";
@@ -16,7 +31,7 @@ import { SITE_DETAIL_TEXT, SITE_DETAIL_TEXT_EN, SITE_ERROR_TEXT, SITE_ERROR_TEXT
 import { TASK_ERROR_TEXT, TASK_ERROR_TEXT_EN, type TaskErrorCode } from "./errors/tasks.ts";
 import { TRANSCRIPT_DETAIL_TEXT, TRANSCRIPT_DETAIL_TEXT_EN, TRANSCRIPT_ERROR_TEXT, TRANSCRIPT_ERROR_TEXT_EN, type TranscriptErrorCode } from "./errors/transcript.ts";
 import { TRANSLATE_ERROR_TEXT, TRANSLATE_ERROR_TEXT_EN, type TranslateErrorCode } from "./errors/translate.ts";
-import type { OutputLang } from "./output-lang.ts";
+import { inLang, isChineseLang, type OutputLang } from "./output-lang.ts";
 
 export type {
   ErrorCopy,
@@ -108,23 +123,43 @@ const TEXT_EN = {
   ...(FEATURE_FRAME_EXPLAIN ? FRAME_ERROR_TEXT_EN : {}),
 } as Readonly<Record<ErrorCode, ErrorCopy>>;
 
+// 繁体那张，同样拼；画面的码同样只在开关分支里。
+const TEXT_HANT = {
+  ...SITE_ERROR_TEXT_HANT,
+  ...SETTINGS_ERROR_TEXT_HANT,
+  ...ROUTING_ERROR_TEXT_HANT,
+  ...AI_ERROR_TEXT_HANT,
+  ...TASK_ERROR_TEXT_HANT,
+  ...SESSION_ERROR_TEXT_HANT,
+  ...TRANSCRIPT_ERROR_TEXT_HANT,
+  ...DATA_ERROR_TEXT_HANT,
+  ...OVERVIEW_ERROR_TEXT_HANT,
+  ...QA_ERROR_TEXT_HANT,
+  ...NOTE_ERROR_TEXT_HANT,
+  ...TRANSLATE_ERROR_TEXT_HANT,
+  ...BACKUP_ERROR_TEXT_HANT,
+  ...BATCH_ERROR_TEXT_HANT,
+  ...(FEATURE_FRAME_EXPLAIN ? FRAME_ERROR_TEXT_HANT : {}),
+} as Readonly<Record<ErrorCode, ErrorCopy>>;
+
 type DetailText = Readonly<Partial<Record<ErrorCode, Readonly<Record<string, ErrorCopy>>>>>;
 
 const DETAIL_TEXT: DetailText = { ...SITE_DETAIL_TEXT, ...TRANSCRIPT_DETAIL_TEXT };
 const DETAIL_TEXT_EN: DetailText = { ...SITE_DETAIL_TEXT_EN, ...TRANSCRIPT_DETAIL_TEXT_EN };
+const DETAIL_TEXT_HANT: DetailText = { ...SITE_DETAIL_TEXT_HANT, ...TRANSCRIPT_DETAIL_TEXT_HANT };
 
-/** 给用户看的三段：原因、影响、下一步。有的码按 detail 换说法，认不出的 detail 用码本身的说法。不传语言时是中文。 */
+/** 给用户看的三段：原因、影响、下一步。有的码按 detail 换说法，认不出的 detail 用码本身的说法。不传语言时是简体。 */
 export function errorCopy(code: ErrorCode, detail?: string, lang: OutputLang = "zh"): ErrorCopy {
-  const text = lang === "en" ? TEXT_EN : TEXT;
-  const byDetail = (lang === "en" ? DETAIL_TEXT_EN : DETAIL_TEXT)[code];
+  const text = inLang(lang, TEXT, TEXT_EN, TEXT_HANT);
+  const byDetail = inLang(lang, DETAIL_TEXT, DETAIL_TEXT_EN, DETAIL_TEXT_HANT)[code];
   if (detail !== undefined && byDetail && Object.hasOwn(byDetail, detail)) return byDetail[detail] ?? text[code];
   return text[code];
 }
 
-/** 三段拼成的一段话，给只放得下一段文字的地方。英文的句子之间隔一个空格。不传语言时是中文。 */
+/** 三段拼成的一段话，给只放得下一段文字的地方。英文的句子之间隔一个空格，简体、繁体直接连写。不传语言时是简体。 */
 export function describe(code: ErrorCode, detail?: string, lang: OutputLang = "zh"): string {
   const { cause, impact = "", next = "" } = errorCopy(code, detail, lang);
-  return lang === "en" ? [cause, impact, next].filter(Boolean).join(" ") : cause + impact + next;
+  return isChineseLang(lang) ? cause + impact + next : [cause, impact, next].filter(Boolean).join(" ");
 }
 
 /** 码在不在这张表里：从消息或存储里读出来的码要先过它。 */

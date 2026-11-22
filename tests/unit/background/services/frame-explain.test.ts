@@ -360,3 +360,11 @@ test("登记任务之前的几步也撑着后台：整段包在一份有上限�
   assert.deepEqual(h.held, [PREFLIGHT_KEEPALIVE_MS]);
   assert.equal(h.released(), 1);
 });
+
+test("画面解释被截断：末尾接上可能不完整的提示，跟着解释的语言；繁体下是繁体那一句", async () => {
+  const cut = { text: "投影片上寫著", truncated: true as const };
+  const hant = await setup({ ai: { outputLang: "zh-Hant", replies: { frame: cut } } }).run();
+  assert.equal(hant.explanation, "投影片上寫著…（模型輸出被截斷，解釋可能不完整。）");
+  const zh = await setup({ ai: { replies: { frame: cut } } }).run();
+  assert.equal(zh.explanation, "投影片上寫著…（模型输出被截断，解释可能不完整。）");
+});

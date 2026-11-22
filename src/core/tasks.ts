@@ -37,7 +37,7 @@ export interface FrozenGen {
   /** 用户选的档位，和实际生效的不一样时才有（关不掉、退了一档）；请求按它发。 */
   readonly requestedEffort?: Effort;
   readonly promptVersion: string;
-  /** 模型写的内容用的语言，建任务时按设置和浏览器界面语言解析一次。进等价键：两种语言的同类任务不合并。没有时按中文。 */
+  /** 模型写的内容用的语言，建任务时按设置和浏览器界面语言解析一次。进等价键：不同语言的同类任务不合并。没有时按简体。 */
   readonly outputLang?: OutputLang;
 }
 
