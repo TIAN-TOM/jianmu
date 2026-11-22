@@ -473,11 +473,22 @@ async function cardGenerateFlow(launcher, panel, worker, windowId) {
   // 侧边栏占掉一大块，无头窗口里剩下的视口太窄、卡片被挤扁：把窗口真的拉大（模拟视口尺寸时点击进不了卡片框架），做完再还原。
   const { windowId: browserWindow, bounds } = await cdp.send("Browser.getWindowForTarget", {}, page);
   await cdp.send("Browser.setWindowBounds", { windowId: browserWindow, bounds: { width: 1700, height: 1000 } });
-  // 卡片重排、再把新高度报给页面：等按钮落在框架露出来的那一块里再点。
-  const { frame, button } = await until("「生成概览」露在卡片框架里", async () => {
-    const at = await evaluate(page, `(() => { const node = document.getElementById(${JSON.stringify(INJECTED.cardFrame)}); if (!node) return null; node.scrollIntoView({ block: "start" }); const box = node.getBoundingClientRect(); return { x: box.left, y: box.top, height: box.height }; })()`);
-    const spot = await evaluate(card, `(() => { const node = document.getElementById("card-generate"); if (!node) return null; const box = node.getBoundingClientRect(); return { x: box.left + box.width / 2, y: box.top + box.height / 2 }; })()`);
-    return at && spot && spot.y > 0 && spot.y < at.height - 2 ? { frame: at, button: spot } : null;
+  // 标签页到了前台卡片才开始展开，框架跟着卡片报的高度变高，卡片的视口和画出来的那一块又比页面上的框架晚一两帧：
+  // 没跟上的那一截按下去落在页面上，卡片收不到。等过渡走完、卡片的视口和框架一样大、
+  // 按钮整个露在视口里、按钮中心点到的就是它，并且连着两次量到的都一样，再点。
+  let previous = "";
+  const { frame, button } = await until("「生成概览」停在卡片框架里", async () => {
+    const at = await evaluate(page, `(() => { const node = document.getElementById(${JSON.stringify(INJECTED.cardFrame)}); if (!node) return null; node.scrollIntoView({ block: "start" }); const box = node.getBoundingClientRect(); return { x: box.left, y: box.top, width: box.width, height: box.height }; })()`);
+    const spot = await evaluate(
+      card,
+      `(() => { const node = document.getElementById("card-generate"); if (!node) return null; const box = node.getBoundingClientRect(); const x = box.left + box.width / 2; const y = box.top + box.height / 2; return { x, y, top: box.top, bottom: box.bottom, viewWidth: innerWidth, viewHeight: innerHeight, moving: document.getAnimations().some((item) => item.playState === "running"), hit: document.elementFromPoint(x, y)?.closest("#card-generate") === node }; })()`,
+    );
+    const now = JSON.stringify({ at, spot });
+    const steady = now === previous;
+    previous = now;
+    if (!at || !spot || spot.moving || !spot.hit || !steady) return null;
+    const fits = Math.abs(spot.viewWidth - at.width) < 1 && Math.abs(spot.viewHeight - at.height) < 1 && spot.top >= 0 && spot.bottom <= spot.viewHeight;
+    return fits ? { frame: at, button: spot } : null;
   });
   await mouseClick(page, frame.x + button.x, frame.y + button.y);
   const video = videoKey({ platform: "youtube", videoId: CARD_ID });
