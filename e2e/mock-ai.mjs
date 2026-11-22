@@ -84,9 +84,9 @@ function resultOf(kind, prompt) {
     return { segments: input.segments.map((/** @type {{ id: string, text: string }} */ item) => ({ id: item.id, text: `${item.text}。` })) };
   }
   if (kind === "verdict") {
-    // 重点章节标第一章：照提示词的要求抄它开头的时间点。
+    // 重点章节标第一章：照提示词的要求抄它开头的时间点。标题译名一律给空串，侧边栏顶上照旧是原标题，测试按原标题认视频；显示译名的样子在页面测试里核对。
     const first = /^\[(\d+:\d{2})\]/m.exec(prompt)?.[1];
-    return { summary: "模拟服务写的一句话结论", value: "样例价值", verdict: videoOf(prompt) === SKIPPED_VIDEO ? "可跳过" : "可以看", reason: "样例理由", keyChapters: first ? [first] : [] };
+    return { summary: "模拟服务写的一句话结论", value: "样例价值", verdict: videoOf(prompt) === SKIPPED_VIDEO ? "可跳过" : "可以看", reason: "样例理由", keyChapters: first ? [first] : [], translatedTitle: "" };
   }
   if (kind === "qa") {
     const row = /^\[(\d+:\d{2})\] (.+)$/m.exec(prompt);

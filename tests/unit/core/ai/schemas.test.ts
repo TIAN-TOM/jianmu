@@ -122,7 +122,7 @@ test("schema 拒绝提示词之外的形状：缺字段、多字段、自创档�
   assert.equal(conforms(SCHEMAS.NOTE_QUOTE.schema, {}), false);
   assert.equal(conforms(SCHEMAS.QA_ANSWER.schema, { answer: "a", citations: [] }), false);
   assert.equal(
-    conforms(SCHEMAS.VERDICT.schema, { summary: "s", value: "v", verdict: "还行", reason: "r", keyChapters: [] }),
+    conforms(SCHEMAS.VERDICT.schema, { summary: "s", value: "v", verdict: "还行", reason: "r", keyChapters: [], translatedTitle: "" }),
     false,
   );
   assert.equal(
@@ -185,8 +185,9 @@ test("五份输出结构的名字、字段和顺序逐字节固定", () => {
             reason: text,
             verdict: { type: "string", enum: ["推荐看", "可以看", "可跳过", "信息不足"] },
             keyChapters: { type: "array", items: text },
+            translatedTitle: text,
           },
-          required: ["summary", "value", "reason", "verdict", "keyChapters"],
+          required: ["summary", "value", "reason", "verdict", "keyChapters", "translatedTitle"],
           additionalProperties: false,
         },
       },

@@ -1184,6 +1184,28 @@ test("重点章节格式不对：只丢重点，结论照存，不为补标重�
   assert.equal(h.verdictAsks().length, 1, "结论只请求一次");
 });
 
+const titledVerdict = (translatedTitle: unknown, truncated = false): Reply => ({
+  text: JSON.stringify({ summary: "讲了两段", value: "有方法", verdict: "可以看", reason: "要点都在", keyChapters: [], translatedTitle }),
+  ...(truncated ? { truncated: true } : {}),
+});
+
+test("标题译名随结论落库；和原标题一样的、空的、正文被截断时的都不收，结论照存", async () => {
+  const h = overviewHarness({ respond: ({ isVerdict }) => (isVerdict ? titledVerdict(" A Test Video ") : undefined) });
+  assert.equal(value(await h.generate().result).analysis.verdict?.translatedTitle, "A Test Video");
+  const record = await h.record();
+  assert.equal(record?.analysis.verdict?.translatedTitle, "A Test Video");
+  assert.equal(record?.snapshot?.title, "测试视频", "存下的原标题不变");
+
+  for (const reply of [titledVerdict("测试视频"), titledVerdict(""), titledVerdict("A Test Video", true)]) {
+    const other = overviewHarness({ respond: ({ isVerdict }) => (isVerdict ? reply : undefined) });
+    value(await other.generate().result);
+    const stored = await other.record();
+    assert.equal(stored?.analysis.verdict?.summary, "讲了两段");
+    assert.equal(stored?.analysis.verdict && "translatedTitle" in stored.analysis.verdict, false);
+    assert.equal(other.verdictAsks().length, 1, "结论只请求一次");
+  }
+});
+
 test("重新生成后这次一个重点都没有：清掉上一版的重点", async () => {
   let keys: unknown = ["2:30"];
   const h = overviewHarness({ respond: ({ isVerdict }) => (isVerdict ? keyedVerdict(keys) : undefined) });

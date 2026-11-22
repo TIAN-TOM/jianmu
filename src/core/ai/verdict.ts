@@ -197,6 +197,8 @@ export interface Verdict {
   reason: string;
   /** 重点章节的起始秒，按时间先后；一个都没有时不写这个字段。 */
   keyStarts?: number[];
+  /** 视频标题译成结论语言的样子；标题本来就是这种语言、或者译名不合格时不写这个字段。 */
+  translatedTitle?: string;
   incomplete?: true;
 }
 
@@ -242,6 +244,27 @@ export function keyChapterStarts(analysis: KeyedAnalysis | null | undefined): nu
 
 const withKeys = (keyStarts: number[]): { keyStarts?: number[] } => (keyStarts.length ? { keyStarts } : {});
 
+/** 译名最长多少字符。B 站标题八十字、YouTube 一百字，译成英文也到不了这么长，超过的多半是模型写跑了。 */
+export const TRANSLATED_TITLE_MAX = 300;
+
+const sameTitle = (a: string, b: string): boolean => a.replace(/\s+/g, " ").toLowerCase() === b.replace(/\s+/g, " ").toLowerCase();
+
+/**
+ * 结论里带的标题译名：去掉首尾空白；空的、超过上限的不算，整个丢掉不截断。
+ * 给了原标题时，和原标题一样的（不计大小写和空白）、原标题本身是空的也不算。
+ * 读存着的结论时不给原标题，写的时候已经比过了。不合格时交回空串，不连累结论的其他部分。
+ */
+export function translatedTitleOf(raw: unknown, title?: string): string {
+  if (typeof raw !== "string") return "";
+  const translated = raw.trim();
+  if (!translated || translated.length > TRANSLATED_TITLE_MAX) return "";
+  if (title === undefined) return translated;
+  const original = title.trim();
+  return original && !sameTitle(translated, original) ? translated : "";
+}
+
+const withTitle = (translatedTitle: string): { translatedTitle?: string } => (translatedTitle ? { translatedTitle } : {});
+
 export interface VerdictCheck {
   /** 概览有失败块，结论只基于部分内容，界面和导出都要标出来。 */
   readonly incomplete?: boolean;
@@ -251,6 +274,8 @@ export interface VerdictCheck {
   readonly chapterStarts?: readonly unknown[] | undefined;
   /** 结论的语言，截断上限按它取；不给时按中文。 */
   readonly lang?: OutputLang | undefined;
+  /** 发给模型的原标题，标题译名要和它比；读存着的结论时不给。 */
+  readonly title?: string | undefined;
 }
 
 /**
@@ -265,11 +290,11 @@ export const VERDICT_CLIP: Readonly<Record<OutputLang, { readonly summary: numbe
 /**
  * 结论同样当不可信数据处理：没有 summary 就当没生成；判断不在几档里就不显示，
  * 免得模型自创一档「还行」。字段按提示词的字数要求留些余量再截断。
- * 重点章节（模型输出里的 keyChapters）按 validKeyStarts 过滤，坏了只丢重点。
+ * 重点章节（模型输出里的 keyChapters）按 validKeyStarts 过滤，坏了只丢重点；标题译名按 translatedTitleOf 收，坏了只丢译名。
  */
 export function validateVerdict(
   parsed: unknown,
-  { incomplete = false, stored = false, chapterStarts, lang = "zh" }: VerdictCheck = {},
+  { incomplete = false, stored = false, chapterStarts, lang = "zh", title }: VerdictCheck = {},
 ): Verdict | null {
   if (!parsed || typeof parsed !== "object") return null;
   const source = parsed as {
@@ -278,6 +303,7 @@ export function validateVerdict(
     readonly verdict?: unknown;
     readonly reason?: unknown;
     readonly keyChapters?: unknown;
+    readonly translatedTitle?: unknown;
   };
   const clip = (value: unknown, max: number): string => String(value || "").trim().slice(0, max);
   const limits = VERDICT_CLIP[lang];
@@ -292,6 +318,7 @@ export function validateVerdict(
     verdict,
     reason: verdict ? clip(source.reason, limits.reason) : "",
     ...withKeys(chapterStarts ? validKeyStarts(source.keyChapters, chapterStarts) : []),
+    ...withTitle(translatedTitleOf(source.translatedTitle, title)),
     ...(incomplete ? { incomplete: true as const } : {}),
   };
 }

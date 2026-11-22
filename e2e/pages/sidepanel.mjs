@@ -437,6 +437,40 @@ test("侧边栏：同一个视频换到另一个标签页，重读本机的概�
   }
 });
 
+test("侧边栏：结论带着标题译名时顶上的标题显示译名、悬停是原标题；没有译名的旧结论照旧显示原标题", async (ctx) => {
+  const from = await ctx.open(LAUNCHER);
+  const panel = await ctx.openSidePanel(from);
+  const heading = `[document.querySelector(".video-title")?.textContent ?? "", document.querySelector(".video-title")?.getAttribute("title") ?? ""]`;
+  const tabs = [];
+  /** 把这份结论写进本机，再在新标签页里打开同一个视频，侧边栏跟过去重读。 */
+  const showWith = async (verdict, label) => {
+    const overview = {
+      schemaVersion: 1,
+      videoKey: VIDEO,
+      snapshot: { title: FIRST_TITLE, author: "" },
+      analysis: { chapters: [{ title: "页面测试的章节", timestamp: "0:00", timestampSeconds: 0, summary: "" }], keyQuotes: [], verdict },
+      updatedAt: 1,
+    };
+    await editDatabase(panel, { overviews: [overview] });
+    tabs.push(await openTab(panel, watchPage(FIRST_ID)));
+    await waitIn(panel, label, `${textOf(".verdict-text")} === ${JSON.stringify(verdict.summary)}`);
+  };
+  try {
+    tabs.push(await openTab(panel, watchPage(FIRST_ID)));
+    await waitIn(panel, "字幕读到，还没有概览", `${textOf(".video-title")} === ${JSON.stringify(FIRST_TITLE)}`);
+    assert.deepEqual(await panel.evaluate(heading), [FIRST_TITLE, FIRST_TITLE], "还没有概览时是原标题");
+
+    await showWith({ verdict: "可以看", summary: "带译名的结论", translatedTitle: "A Long Sample Video" }, "带译名的结论摆出来");
+    assert.deepEqual(await panel.evaluate(heading), ["A Long Sample Video", FIRST_TITLE], "标题是译名，悬停是原标题");
+
+    await showWith({ verdict: "可以看", summary: "旧版的结论" }, "没有译名的结论摆出来");
+    assert.deepEqual(await panel.evaluate(heading), [FIRST_TITLE, FIRST_TITLE], "旧结论没有译名，照旧是原标题");
+  } finally {
+    await editDatabase(panel, {}, { overviews: [VIDEO] });
+    for (const tabId of tabs) await closeTab(from, tabId);
+  }
+});
+
 test("侧边栏：没设置 AI 服务时本窗口全部生成停用；设置好以后清点写清几个视频、要新生成几个，取消回到按钮", async (ctx) => {
   await withVideo(ctx, async (panel) => {
     await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);

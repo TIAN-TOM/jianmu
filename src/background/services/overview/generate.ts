@@ -165,7 +165,7 @@ export function createGenerator(deps: GenerateDeps) {
       { ai: verdictStage.ai, prompt: deps.prompt(VERDICT_PROMPT), outputLang: outputLangOf(verdictStage.gen), gate: deps.gate, concurrency: deps.concurrency, log: deps.log },
       work.analysis,
       work.failures,
-      { common: work.common, totalDuration: work.totalDuration, signal: run.signal, progress: (message) => run.progress({ done: 1, total: 1, phase: "verdict", message }) },
+      { common: work.common, title: work.fields.title, totalDuration: work.totalDuration, signal: run.signal, progress: (message) => run.progress({ done: 1, total: 1, phase: "verdict", message }) },
     );
     const draftKept = work.regenerating && !first.saveFailed;
     if (!("verdict" in outcome)) {

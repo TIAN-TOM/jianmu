@@ -93,6 +93,8 @@ export interface LearningVerdict {
   readonly keyStarts?: unknown;
   /** 模型的正文被截断，靠补齐读出来：摘要或理由可能只有半句。 */
   readonly truncated?: unknown;
+  /** 视频标题译成结论语言的样子，只有侧边栏顶上的标题用；导出照旧用原标题。 */
+  readonly translatedTitle?: unknown;
 }
 
 export interface LearningAnalysis {
