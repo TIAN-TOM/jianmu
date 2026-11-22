@@ -34,7 +34,9 @@ export const PAGE_PATHS = Object.freeze({
   card: "pages/card.html",
 } as const);
 
-// 设置页「关于」一节的两个链接：公开仓库里的隐私政策和反馈问题的页面。
+// 设置页「关于」一节的四个链接：公开仓库的发布页、源码，以及隐私政策和反馈问题的页面。
+export const RELEASES_URL = "https://github.com/TIAN-TOM/jianmu/releases";
+export const SOURCE_URL = "https://github.com/TIAN-TOM/jianmu";
 export const PRIVACY_POLICY_URL = "https://github.com/TIAN-TOM/jianmu/blob/main/PRIVACY.md";
 export const ISSUES_URL = "https://github.com/TIAN-TOM/jianmu/issues";
 

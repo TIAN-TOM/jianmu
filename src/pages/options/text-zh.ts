@@ -76,6 +76,8 @@ export const OPTIONS_ZH = {
   about: {
     title: "关于",
     version: "版本",
+    releases: "更新记录",
+    source: "源码",
     privacy: "隐私政策",
     issues: "反馈问题",
   },

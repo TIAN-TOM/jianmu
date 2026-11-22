@@ -64,6 +64,8 @@ export const OPTIONS_EN: OptionsText = {
   about: {
     title: "About",
     version: "Version",
+    releases: "Release notes",
+    source: "Source code",
     privacy: "Privacy policy",
     issues: "Report a problem",
   },
