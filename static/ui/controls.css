@@ -87,6 +87,15 @@
   transition: background-color var(--dur-fast) var(--ease);
 }
 
+/* 有边框的按钮：行高取离 --lh-tight 最近、又能让文字行上下各留整像素空白的值。按钮落在页面的小数位置上时，
+ * 文字跟边框一起对齐到像素，三档字号下都在正中；按钮高度不变。式子里的 2rem - 2px 是上面的最小高度减去上下边框。
+ * round() 从 Chrome 125 起才有，更早的版本照旧。 */
+@supports (line-height: round(1px, 1px)) {
+  .button:not(:where([data-variant="text"])) {
+    line-height: calc(2rem - 2px - 2 * round((2rem - 2px - var(--fs-ui) * var(--lh-tight)) / 2, 1px));
+  }
+}
+
 .button:hover:not(:disabled) {
   background: var(--bg-hover);
 }

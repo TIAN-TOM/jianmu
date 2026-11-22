@@ -1,8 +1,9 @@
 // 共用组件的样张：章节和时间轨、判断标记、状态块、一行提示、模式切换、抽屉层菜单、首次启用说明，
-// 以及两档宽度乘三套主题、两种明暗、三档字号下不出横向滚动条、关键文字对比度达标。
+// 以及两档宽度乘三套主题、两种明暗、三档字号下不出横向滚动条、关键文字对比度达标，有边框的按钮里文字行上下留整像素的空。
 import assert from "node:assert/strict";
 import { ACTIVATION_TABLE } from "../../src/core/consent.ts";
 import { errorCopy } from "../../src/core/errors.ts";
+import { UI_FONT_SCALES } from "../../src/shared/settings-schema.ts";
 import { APPEARANCES, PANEL_WIDTHS, scenario } from "./harness.mjs";
 
 const test = scenario(import.meta.url);
@@ -357,6 +358,33 @@ test("组件样张：320 和 360 宽、三套主题、两种明暗、三档字�
       if (await page.overflowsX()) problems.push(`${label}：出现横向滚动条`);
       const ratios = await page.contrastAll(CONTRAST_TARGETS);
       for (const [selector, ratio] of ratios) if (ratio < 4.5) problems.push(`${label}：${selector} 对比度 ${ratio}`);
+    }
+  }
+  assert.deepEqual(problems, []);
+});
+
+// 只看几何关系，不看字体：按钮落在页面的小数位置上时，文字行上下留的空是整像素，文字才跟边框一起对齐到像素。
+test("组件样张：三档字号下有边框的按钮都是 2rem 高，支持 round() 时文字行上下留的空是整像素", async ({ open }) => {
+  const page = await open(GALLERY);
+  const problems = [];
+  for (const uiFontScale of UI_FONT_SCALES) {
+    await page.setAppearance({ accentTheme: "ink", themeMode: "light", uiFontScale });
+    const buttons = await page.evaluate(`(() => {
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      const rounds = CSS.supports("line-height", "round(1px, 1px)");
+      return [...document.querySelectorAll('#controls .button:not([data-variant="text"])')].map((node) => {
+        const style = getComputedStyle(node);
+        const height = node.getBoundingClientRect().height;
+        const inner = height - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth);
+        return { text: node.textContent.trim(), height, rem, rounds, gap: (inner - parseFloat(style.lineHeight)) / 2 };
+      });
+    })()`);
+    assert.ok(buttons.length >= 3, `${uiFontScale}%：样张里有边框的按钮只有 ${buttons.length} 个`);
+    for (const button of buttons) {
+      const label = `${uiFontScale}% ${JSON.stringify(button)}`;
+      // 布局按 1/64 像素取整，留一点余量。
+      if (Math.abs(button.height - 2 * button.rem) > 0.02) problems.push(`${label}：高度不是 2rem`);
+      if (button.rounds && Math.abs(button.gap - Math.round(button.gap)) > 0.02) problems.push(`${label}：文字行上下留的空不是整像素`);
     }
   }
   assert.deepEqual(problems, []);

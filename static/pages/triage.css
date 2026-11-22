@@ -81,6 +81,14 @@
     background-color var(--dur) var(--ease);
 }
 
+/* 行高取偶数像素、上下留白取整像素，文字落在标签的正中（见 ui/controls.css 的按钮）。 */
+@supports (line-height: round(1px, 1px)) {
+  .filter {
+    padding-block: round(var(--space-1), 1px);
+    line-height: round(var(--lh-snug) * 1em, 2px);
+  }
+}
+
 .filter:hover {
   color: var(--text);
   border-color: var(--border-strong);
