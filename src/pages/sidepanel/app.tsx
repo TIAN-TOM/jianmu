@@ -2,6 +2,7 @@
 // 当前模式的内容（速览或精读）和底部工具条（提问框在最左）。问答抽屉和笔记层挂在最外面，切模式时不卸载，草稿和在途回答都留着。
 // 视频页没连上扩展、还没设置 AI 服务、字幕和视频对不上、打开就出结论停着，都放在头部下面的一行提示里。
 import { describe, errorCopy } from "../../core/errors.ts";
+import { translatedTitleOf } from "../../core/ai/verdict.ts";
 import { noticeLines, noticeStatus, ACTIVATION_TABLE } from "../../core/consent.ts";
 import { ActivationNotice } from "../shared/ui/activation-notice.tsx";
 import { carriedList, carriedNotice } from "./carried.tsx";
@@ -63,10 +64,14 @@ function Header({ panel }: { readonly panel: Panel }) {
   const failure = now.state === "failed" ? now.failure : null;
   const info = view?.info ?? failure?.info;
   const t = panelText();
-  const title = info?.title || failure?.tabTitle || panel.follow.target.value.title || t.head.loadingVideo;
+  const { tabId, video } = panel.follow.target.value;
+  const original = info?.title || failure?.tabTitle || panel.follow.target.value.title || "";
+  // 当前这份概览的结论带着标题译名时显示译名，悬停看原标题；没有译名就是原标题。
+  const overview = panel.overview.state.value;
+  const translated = overview.video === video ? translatedTitleOf(overview.saved?.analysis.verdict?.translatedTitle, original) : "";
+  const title = translated || original || t.head.loadingVideo;
   const tracks = view?.tracks ?? [];
   const current = view?.transcript;
-  const { tabId, video } = panel.follow.target.value;
   const items: MenuItem[] = tracks.map((track) => ({
     label: trackLabel(current?.ref.video ?? video, track, uiLang.value),
     ...(track.trackId === current?.trackId ? { hint: t.inUse } : {}),
@@ -77,7 +82,7 @@ function Header({ panel }: { readonly panel: Panel }) {
   return (
     <header class="panel-head">
       <div class="panel-head-row">
-        <h1 class="video-title" title={title}>
+        <h1 class="video-title" title={translated ? original : title}>
           {title}
         </h1>
         <IconButton icon="settings" label={t.openSettings} onClick={panel.openOptions} />

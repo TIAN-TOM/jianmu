@@ -4,6 +4,8 @@ import {
   hasAnalysisContent,
   LEGACY_VERDICT,
   keyChapterStarts,
+  TRANSLATED_TITLE_MAX,
+  translatedTitleOf,
   validKeyStarts,
   hasOfficialSummaryContent,
   officialVerdictInputs,
@@ -205,4 +207,32 @@ test("模型新写的结论不能判「看概览就够」，改了名的旧名�
   assert.deepEqual(validateVerdict(legacy, { stored: true }), { summary: "讲了 A", value: "B", verdict: "看概览就够", reason: "要点都在" });
   assert.equal(validateVerdict({ summary: "讲了 A", verdict: "值得看完整视频" })?.verdict, "推荐看");
   assert.equal(validateVerdict({ summary: "讲了 A", verdict: "可以跳过" }, { stored: true })?.verdict, "可跳过");
+});
+
+test("标题译名：去掉首尾空白；没有、不是字符串、空的、和原标题一样的、超过上限的都当没有", () => {
+  const title = "一周计划怎么做";
+  assert.equal(translatedTitleOf(" How to Plan a Week \n", title), "How to Plan a Week");
+  assert.equal(translatedTitleOf(undefined, title), "");
+  assert.equal(translatedTitleOf(42, title), "");
+  assert.equal(translatedTitleOf("   ", title), "");
+  assert.equal(translatedTitleOf(" 一周计划怎么做 ", title), "", "和原标题一样");
+  assert.equal(translatedTitleOf("react  HOOKS guide", "React Hooks Guide"), "", "只差大小写和空白也算一样");
+  assert.equal(translatedTitleOf("x".repeat(TRANSLATED_TITLE_MAX), title).length, TRANSLATED_TITLE_MAX);
+  assert.equal(translatedTitleOf("x".repeat(TRANSLATED_TITLE_MAX + 1), title), "", "太长的整个丢掉，不截断");
+  assert.equal(translatedTitleOf("How to Plan a Week", ""), "", "原标题是空的，译名无从说起");
+  assert.equal(translatedTitleOf("How to Plan a Week", "  "), "");
+  assert.equal(translatedTitleOf(" How to Plan a Week "), "How to Plan a Week", "读存着的结论时不再和原标题比");
+});
+
+test("结论带标题译名：合格的写进 translatedTitle，不合格的只丢译名，结论其余部分照存", () => {
+  const raw = { summary: "讲了 A", value: "B", verdict: "可以看", reason: "C", keyChapters: [] };
+  const title = "一周计划怎么做";
+  assert.equal(validateVerdict({ ...raw, translatedTitle: "How to Plan a Week" }, { title })?.translatedTitle, "How to Plan a Week");
+  for (const bad of [undefined, "", title, "x".repeat(TRANSLATED_TITLE_MAX + 1), ["How"]]) {
+    const verdict = validateVerdict({ ...raw, translatedTitle: bad }, { title });
+    assert.deepEqual(verdict, { summary: "讲了 A", value: "B", verdict: "可以看", reason: "C" }, String(bad));
+  }
+  assert.equal(validateVerdict({ ...raw, translatedTitle: "How to Plan a Week" }, { title: "" })?.translatedTitle, undefined, "没有原标题时不收");
+  assert.equal(validateVerdict({ ...raw, translatedTitle: "How to Plan a Week" }, { stored: true })?.translatedTitle, "How to Plan a Week", "存着的照读");
+  assert.equal(validateVerdict({ translatedTitle: "How to Plan a Week" }, { title }), null, "译名救不了没有结论的输出");
 });

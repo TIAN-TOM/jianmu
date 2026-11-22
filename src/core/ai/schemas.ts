@@ -84,6 +84,7 @@ export const ANALYSIS_CHUNK = describe(
 );
 
 // 一句话结论：先写理由再下判断，判断档位限定在界面认得的几档里；重点章节写成章节的时间点，由本机对回现有章节。
+// 标题不是结论的语言时顺带给出译名，是的话给空串。
 export const VERDICT = describe(
   "verdict",
   object({
@@ -92,6 +93,7 @@ export const VERDICT = describe(
     reason: string,
     verdict: { type: "string", enum: [...VERDICT_LABELS] },
     keyChapters: { type: "array", items: string },
+    translatedTitle: string,
   }),
 );
 
