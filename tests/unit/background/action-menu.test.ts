@@ -40,7 +40,7 @@ test("安装时建三项，只放在工具栏图标的菜单里，勾选按当�
     [
       [ACTION_MENU.triage, "稍后再看粗筛", "normal", ["action"]],
       [ACTION_MENU.inPageCard, "在视频右侧显示总结卡片", "checkbox", ["action"]],
-      [ACTION_MENU.autoOverview, "打开视频就生成概览和结论（每个视频都花 API 额度）", "checkbox", ["action"]],
+      [ACTION_MENU.autoOverview, "打开视频就出结论（花 API 额度）", "checkbox", ["action"]],
     ],
   );
   for (const id of Object.values(ACTION_MENU)) assert.match(id, /^jianmu-/);
@@ -194,7 +194,7 @@ function setupIn(settings: Record<string, unknown>, uiLanguage: string) {
   return { fake, app, titles };
 }
 
-const ZH_TITLES = ["稍后再看粗筛", "在视频右侧显示总结卡片", "打开视频就生成概览和结论（每个视频都花 API 额度）"];
+const ZH_TITLES = ["稍后再看粗筛", "在视频右侧显示总结卡片", "打开视频就出结论（花 API 额度）"];
 
 test("菜单的文字：选英文就是英文，跟随浏览器时看浏览器的界面语言，没给界面语言按中文", async () => {
   for (const [language, uiLanguage, english] of [["en", "zh-CN", true], ["zh", "en-AU", false], ["auto", "en-AU", true], ["auto", "zh-TW", false]] as const) {
@@ -203,7 +203,7 @@ test("菜单的文字：选英文就是英文，跟随浏览器时看浏览器�
     const shown = titles();
     assert.equal(shown.length, 3);
     if (english) {
-      assert.deepEqual(shown, ["Watch Later triage", "Show the summary card beside the video", "Verdict on open (uses API credit per video)"]);
+      assert.deepEqual(shown, ["Watch Later triage", "Show summary card beside video", "Verdict on open (uses API credit)"]);
       for (const title of shown) assert.doesNotMatch(title, /[\u4e00-\u9fff]/, `${language}/${uiLanguage}`);
       // 浏览器会截断过长的菜单项，最长的一项还决定整个菜单的宽度。
       for (const title of shown) assert.ok(title.length <= 60, `菜单项太长：${title}`);
