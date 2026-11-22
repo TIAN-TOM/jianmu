@@ -86,10 +86,26 @@ export function createWatchSteps({ cdp, until, evaluate, findSession, url }) {
     return sessionId;
   }
 
+  /**
+   * 卡片换了内容会变高，框架跟着卡片报的高度变，卡片的视口和画出来的那一块要晚一两帧才跟上：没跟上的那一截按下去落在页面上。
+   * 等卡片里没有在跑的过渡、视口和框架一样大、按钮整个露在视口里且中心点到的就是它，连着两次量到的一样，再点。
+   */
   async function clickInCard(card, selector) {
-    const frame = await until("卡片框架有了尺寸", () => rectOf(page, `#${INJECTED.cardFrame}`));
-    const box = await until(`卡片里的 ${selector}`, () => rectOf(card, selector));
-    await click(frame.x + box.x + box.width / 2, frame.y + box.y + box.height / 2);
+    let previous = "";
+    const { frame, spot } = await until(`卡片里的 ${selector} 停住了`, async () => {
+      const frame = await rectOf(page, `#${INJECTED.cardFrame}`);
+      const spot = await evaluate(
+        card,
+        `(() => { const node = document.querySelector(${JSON.stringify(selector)}); if (!node) return null; const box = node.getBoundingClientRect(); const x = box.left + box.width / 2; const y = box.top + box.height / 2; return { x, y, top: box.top, bottom: box.bottom, viewWidth: innerWidth, viewHeight: innerHeight, moving: document.getAnimations().some((item) => item.playState === "running"), hit: document.elementFromPoint(x, y)?.closest(${JSON.stringify(selector)}) === node }; })()`,
+      );
+      const now = JSON.stringify({ frame, spot });
+      const steady = now === previous;
+      previous = now;
+      if (!frame || !spot || spot.moving || !spot.hit || !steady) return null;
+      const fits = Math.abs(spot.viewWidth - frame.width) < 1 && Math.abs(spot.viewHeight - frame.height) < 1 && spot.top >= 0 && spot.bottom <= spot.viewHeight;
+      return fits ? { frame, spot } : null;
+    });
+    await click(frame.x + spot.x, frame.y + spot.y);
   }
 
   const cardText = (card) => evaluate(card, `document.getElementById("card")?.textContent ?? ""`);
