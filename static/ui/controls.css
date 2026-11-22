@@ -69,7 +69,9 @@
   align-items: stretch;
 }
 
+/* 盒子按边框外沿算：长成按钮的链接也和 <button> 一样高。 */
 .button {
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
