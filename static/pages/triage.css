@@ -81,9 +81,9 @@
     background-color var(--dur) var(--ease);
 }
 
-/* 行高取偶数像素、上下留白取整像素，文字落在标签的正中。和按钮一样只在 1 倍及以下、2 倍及以上的屏上生效
- * （见 ui/controls.css 的按钮）。 */
-@media (max-resolution: 1dppx), (min-resolution: 2dppx) {
+/* 行高取偶数像素、上下留白取整像素，文字落在标签的正中。只在正好 1 倍和正好 2 倍的屏上生效，
+ * 别的倍数上像素格和整像素对不上，那里照旧（见 ui/controls.css 的按钮）。 */
+@media (resolution: 1dppx), (resolution: 2dppx) {
   @supports (line-height: round(1px, 1px)) {
     .filter {
       padding-block: round(var(--space-1), 1px);
