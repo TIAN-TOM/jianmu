@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { createContentLang, languageSettingOf } from "../../../src/content/lang.ts";
 import { contentText } from "../../../src/content/text.ts";
 import { NOTE_TITLE, noteIcon } from "../../../src/content/hover-icons.ts";
-import { frameIcon, FRAME_TITLE } from "../../../src/content/frame-icon.ts";
+import { frameIcon } from "../../../src/content/frame-icon.ts";
 
 test("外观到之前按浏览器的界面语言定", () => {
   assert.equal(createContentLang(() => "zh-CN").current(), "zh");
@@ -21,6 +21,19 @@ test("外观里的语言选项：选了就按它，跟随浏览器时看界面�
   assert.equal(lang.update({ language: "en" }), false);
   assert.equal(lang.update({ language: "auto" }), true);
   assert.equal(lang.current(), "zh");
+});
+
+test("繁体：选了繁体就按它；跟随浏览器时台湾、香港、澳门和带 Hant 的界面语言算繁体", () => {
+  assert.equal(createContentLang(() => "zh-TW").current(), "zh-Hant");
+  assert.equal(createContentLang(() => "zh_HK").current(), "zh-Hant");
+  assert.equal(createContentLang(() => "zh-Hant-MO").current(), "zh-Hant");
+  const lang = createContentLang(() => "zh-CN");
+  assert.equal(lang.update({ language: "zh-Hant" }), true);
+  assert.equal(lang.current(), "zh-Hant");
+  assert.equal(lang.update({ language: "zh-Hant" }), false);
+  assert.equal(lang.update({ language: "zh" }), true);
+  assert.equal(languageSettingOf({ language: "zh-Hant" }), "zh-Hant");
+  assert.equal(languageSettingOf({ language: "zh-TW" }), "auto");
 });
 
 test("没带语言选项、选项认不出时按跟随浏览器", () => {
@@ -39,7 +52,12 @@ test("播放页上的字：中文照旧，英文是英文", () => {
   assert.equal(noteIcon().title, NOTE_TITLE);
   assert.equal(noteIcon("en").title, "Add a note at the current time (shortcut: n)");
   assert.equal(contentText("en").cardTitle, "Jianmu summary card");
-  assert.equal(FRAME_TITLE, "解释当前画面");
-  assert.equal(frameIcon().title, FRAME_TITLE);
+  assert.equal(frameIcon().title, "解释当前画面");
   assert.equal(frameIcon("en").title, "Explain this frame");
+});
+
+test("播放页上的字：繁体是繁体那份", () => {
+  assert.equal(contentText("zh-Hant").noteTitle, "在目前時間點記一則筆記（快速鍵 n）");
+  assert.equal(noteIcon("zh-Hant").title, contentText("zh-Hant").noteTitle);
+  assert.equal(frameIcon("zh-Hant").title, "解釋目前畫面");
 });

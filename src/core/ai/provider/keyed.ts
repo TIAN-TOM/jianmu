@@ -1,6 +1,6 @@
 // 带密钥的请求：模型调用、模型能力、设置页的测试连接和模型列表共用这几条约定。
 import { errorBodyOf, parseErrorMessage } from "./response.ts";
-import { bothLangs, withEnglish } from "./text.ts";
+import { bothLangs, HIDDEN_SECRET, withEnglish } from "./text.ts";
 import type { AiSettings, ProviderError } from "./types.ts";
 
 /**
@@ -27,20 +27,19 @@ export function isRedirectResponse(response: RedirectProbe | null | undefined): 
 export function rejectRedirect(response: RedirectProbe | null | undefined, baseUrl: string | undefined): void {
   if (!isRedirectResponse(response)) return;
   Promise.resolve(response?.body?.cancel?.()).catch(() => {});
-  const { message, messageEn } = bothLangs((text) => text.redirected(String(baseUrl)));
-  const error: ProviderError = withEnglish(new Error(message), messageEn);
+  const { message, messageEn, messageHant } = bothLangs((text) => text.redirected(String(baseUrl)));
+  const error: ProviderError = withEnglish(new Error(message), messageEn, messageHant);
   error.code = "AI_REDIRECT_BLOCKED";
   throw error;
 }
 
 // 太短的密钥不替换：把报错里每一处两三个字符的片段都换掉，报错就没法读了。
 const MIN_REDACTED_SECRET_LENGTH = 8;
-const REDACTED_SECRET = "[已隐藏的密钥]";
 
 export function redactSecret(text: unknown, secret: unknown): string {
   const value = String(text ?? "");
   const key = String(secret || "").trim();
-  return key.length < MIN_REDACTED_SECRET_LENGTH ? value : value.split(key).join(REDACTED_SECRET);
+  return key.length < MIN_REDACTED_SECRET_LENGTH ? value : value.split(key).join(HIDDEN_SECRET);
 }
 
 // Anthropic 的个人密钥创建时可以不限定工作区，这种密钥的每个请求都要带 anthropic-workspace-id，
@@ -63,8 +62,8 @@ export function keyedHttpError(
   const secret = settings?.aiApiKey;
   const raw = redactSecret(parseErrorMessage(data, status), secret);
   if (status === 400 && WORKSPACE_REQUIRED.test(raw)) {
-    const { message, messageEn } = bothLangs((text) => text.workspaceRequired);
-    const error: ProviderError = withEnglish(new Error(message), messageEn);
+    const { message, messageEn, messageHant } = bothLangs((text) => text.workspaceRequired);
+    const error: ProviderError = withEnglish(new Error(message), messageEn, messageHant);
     error.status = status;
     error.code = "ANTHROPIC_WORKSPACE_REQUIRED";
     return error;

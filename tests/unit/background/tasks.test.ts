@@ -266,6 +266,23 @@ test("任务状态广播给页面：带种类、来源和视频，不带互斥�
   assert.equal(views[1]?.done, 1);
 });
 
+test("登记和取消时的进度句按任务冻结的语言写：英文任务是英文，没记语言的旧任务是中文", async () => {
+  for (const [gen, preparing, canceled] of [
+    [{ ...GEN, outputLang: "en" }, "Getting ready…", "Cancelled"],
+    [GEN, "正在准备…", "已取消"],
+  ] as const) {
+    const h = harness();
+    const task = await started(h.tasks, spec({ gen }));
+    assert.equal(task.message, preparing, "登记回来的任务");
+    const first = h.broadcasts[0];
+    assert.equal(first?.type === "task.changed" && first.task.message, preparing, "登记时的广播");
+
+    assert.equal(h.tasks.cancel(task.id)?.message, canceled, "取消回来的任务");
+    const last = h.broadcasts.at(-1);
+    assert.equal(last?.type === "task.changed" && last.task.message, canceled, "取消时的广播");
+  }
+});
+
 test("跑的过程中抛错：取消了回已取消，否则按模型服务的错误换成结果；自动收尾按结果记状态", async () => {
   const h = harness();
   const failing = await started(h.tasks, spec());

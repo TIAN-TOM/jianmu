@@ -71,6 +71,9 @@ const SITE_DETAILS = {
   },
 } satisfies DetailTable<SiteErrorCode>;
 
+/** 按 detail 换说法的码和 detail，英文、繁体那份照它对齐。 */
+export type SiteDetails = typeof SITE_DETAILS;
+
 export const SITE_DETAIL_TEXT: DetailTable<SiteErrorCode> = SITE_DETAILS;
 
 const NOT_READ_EN = "Nothing was read or sent to the model, so no API credit was used.";

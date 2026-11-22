@@ -125,7 +125,7 @@ function checkGen(value: unknown): GenInfo | null {
   const { feature, promptVersion, model, effort, outputLang } = value;
   if (typeof feature !== "string" || typeof promptVersion !== "string" || typeof model !== "string") return null;
   if (!oneOf(EFFORTS, effort)) return null;
-  // 写内容的语言只认中文和英文；旧备份没有这一项，认不出的也当没有，读的时候按中文。
+  // 写内容的语言只认简体、繁体和英文；旧备份没有这一项，认不出的也当没有，读的时候按简体。
   return { feature, promptVersion, model, effort, ...(isOutputLang(outputLang) ? { outputLang } : {}) };
 }
 
@@ -193,7 +193,7 @@ function truncatedRangesOf(value: unknown): TimeRange[] {
 
 export type CheckedAnalysis = LearningAnalysis & { readonly truncatedRanges?: readonly TimeRange[] };
 
-/** lang 是结论的语言，按结论那部分记下的生成配置；不知道时按中文截。 */
+/** lang 是结论的语言，按结论那部分记下的生成配置；不知道时按简体截。 */
 function checkAnalysis(value: Fields, lang: OutputLang = "zh"): CheckedAnalysis {
   const { chapters, keyQuotes } = validateAnalysis(value, undefined);
   const verdict = checkVerdict(value.verdict, chapters.map((chapter) => chapter.timestampSeconds), lang);

@@ -52,7 +52,16 @@ export {
   type TokenUsage,
 } from "./response.ts";
 export { assembleEventStream, looksLikeEventStream, type StreamAssembly } from "./stream.ts";
-export { bothLangs, messageIn, providerText, withEnglish, type ProviderText, type WithEnglish } from "./text.ts";
+export {
+  bothLangs,
+  HIDDEN_WORDS,
+  hiddenIn,
+  messageIn,
+  providerText,
+  withEnglish,
+  type ProviderText,
+  type WithEnglish,
+} from "./text.ts";
 export type {
   AiSettings,
   ChatMessage,

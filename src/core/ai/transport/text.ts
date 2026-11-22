@@ -1,7 +1,9 @@
 // 传输层给用户看的说明：配置没好、超时、连不上、响应太大或不完整、拒答、按状态码归类的回执、限流后重发的进度。
-// 中文那份定形状，英文那份少一条、多一条或签名不一样，类型检查就报错。错误照旧带中文说明，英文挂在不可枚举的 messageEn 上，
+// 简体那份定形状，英文、繁体那份少一条、多一条或签名不一样，类型检查就报错。错误照旧带简体说明，英文、繁体挂在不可枚举的 messageEn、messageHant 上，
 // 回执按语言挑（见 provider/text.ts）。模块顶层只放字面量和函数。
-import type { OutputLang } from "../../output-lang.ts";
+import { inLang, type OutputLang } from "../../output-lang.ts";
+import type { LangMessages } from "../provider/text.ts";
+import { TRANSPORT_HANT } from "./text-hant.ts";
 
 const TRANSPORT_ZH = {
   notConfigured: (reasons: string) => `AI 还没配置好：${reasons}`,
@@ -43,10 +45,10 @@ const TRANSPORT_EN: TransportText = {
   retrying: (limited, seconds) => `${limited ? "The service is limiting requests" : "The service is busy"}. Retrying in ${seconds} s…`,
 };
 
-/** 指定语言那份说明。不传语言时是中文。 */
-export const transportText = (lang: OutputLang = "zh"): TransportText => (lang === "en" ? TRANSPORT_EN : TRANSPORT_ZH);
+/** 指定语言那份说明。不传语言时是简体。 */
+export const transportText = (lang: OutputLang = "zh"): TransportText => inLang(lang, TRANSPORT_ZH, TRANSPORT_EN, TRANSPORT_HANT);
 
-/** 一句说明的两种语言：pick 从说明表里挑出同一句。 */
-export function transportBoth(pick: (text: TransportText) => string): { readonly message: string; readonly messageEn: string } {
-  return { message: pick(TRANSPORT_ZH), messageEn: pick(TRANSPORT_EN) };
+/** 一句说明的三种语言：pick 从说明表里挑出同一句。 */
+export function transportBoth(pick: (text: TransportText) => string): LangMessages {
+  return { message: pick(TRANSPORT_ZH), messageEn: pick(TRANSPORT_EN), messageHant: pick(transportText("zh-Hant")) };
 }

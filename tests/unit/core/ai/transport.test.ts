@@ -2524,6 +2524,12 @@ test("模型服务在 HTTP 报错里回显密钥时，错误和给界面的提�
   assert.equal(error.message, "rejected credential: [已隐藏的密钥]");
   assert.equal(error.param, "key=[已隐藏的密钥]");
   assert.ok(!JSON.stringify(TRANSPORT.aiErrorResponse(error)).includes(KEY));
+  // 占位字按显示的语言写，错误本身的字段不变。
+  assert.equal(TRANSPORT.aiErrorResponse(error).message, "rejected credential: [已隐藏的密钥]");
+  assert.equal(TRANSPORT.aiErrorResponse(error, "en").message, "rejected credential: [key hidden]");
+  assert.equal(TRANSPORT.serviceSaid(error), "rejected credential: [已隐藏的密钥]");
+  assert.equal(TRANSPORT.serviceSaid(error, "en"), "rejected credential: [key hidden]");
+  assert.equal(error.message, "rejected credential: [已隐藏的密钥]");
 });
 
 test("Responses 返回 200 但生成失败、报错里回显密钥时，空响应的报错同样脱敏", async () => {
@@ -2545,6 +2551,8 @@ test("Responses 返回 200 但生成失败、报错里回显密钥时，空响�
   );
   assert.equal(error.code, "EMPTY_AI_RESPONSE");
   assert.equal(error.message, "service rejected [已隐藏的密钥]");
+  assert.equal(TRANSPORT.aiErrorResponse(error).message, "service rejected [已隐藏的密钥]");
+  assert.equal(TRANSPORT.aiErrorResponse(error, "en").message, "service rejected [key hidden]");
 });
 
 test("拒答说明里回显密钥时，报错同样脱敏", async () => {
@@ -2562,6 +2570,8 @@ test("拒答说明里回显密钥时，报错同样脱敏", async () => {
   );
   assert.equal(error.code, "AI_REFUSED");
   assert.equal(error.message, "模型拒绝了这次请求：cannot use [已隐藏的密钥]");
+  assert.match(TRANSPORT.aiErrorResponse(error, "en").message, /cannot use \[key hidden\]/);
+  assert.doesNotMatch(TRANSPORT.aiErrorResponse(error, "en").message, /已隐藏/);
 });
 
 // ============================================================
@@ -2761,6 +2771,23 @@ test("服务的原话：像密钥、令牌的片段遮掉，型号名照留", ()
   }
   const model = "The model sample-chat-2-5-20990101 has been retired; use sample-chat-3-flash instead.";
   assert.equal(TRANSPORT.serviceWords(model), model, "带连字符的型号名不当成密钥");
+});
+
+test("服务的原话：按英文显示时占位字是英文，中文照旧", () => {
+  const raw = "header Authorization: Bearer abc.def.ghi rejected, key sk-test-abcd****wxyz, credential [已隐藏的密钥]";
+  assert.equal(
+    TRANSPORT.serviceWords(raw),
+    "header Authorization: Bearer [已隐藏] rejected, key [已隐藏], credential [已隐藏的密钥]",
+  );
+  assert.equal(
+    TRANSPORT.serviceWords(raw, "en"),
+    "header Authorization: Bearer [hidden] rejected, key [hidden], credential [key hidden]",
+  );
+  // 5xx 带着具体说明时附在提示后面，说明里的占位字同样按语言写。
+  const busy = Object.assign(new Error("upstream rejected [已隐藏的密钥]"), { status: 503 });
+  assert.match(TRANSPORT.aiErrorResponse(busy).message, /upstream rejected \[已隐藏的密钥\]/);
+  assert.match(TRANSPORT.aiErrorResponse(busy, "en").message, /upstream rejected \[key hidden\]/);
+  assert.doesNotMatch(TRANSPORT.aiErrorResponse(busy, "en").message, /已隐藏/);
 });
 
 test("服务的原话：只在服务回了带说明的 HTTP 报错时才有", () => {

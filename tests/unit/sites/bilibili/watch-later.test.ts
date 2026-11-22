@@ -126,6 +126,25 @@ test("封面只认 http(s) 和协议相对地址，其余协议一律丢掉", ()
   assert.equal(cover("data:image/png;base64,AAAA"), "");
   assert.equal(cover("ftp://i0.hdslb.com/a.jpg"), "");
   assert.equal(cover(42), "");
+  assert.equal(cover("not a url"), "");
+});
+
+test("封面只从平台的静态文件主机加载，别的主机当没有封面", () => {
+  const [first] = sampleItems();
+  const cover = (pic: unknown): string => item({ ...first, pic }).cover;
+  assert.equal(cover("https://i1.hdslb.com/bfs/archive/sample.jpg"), "https://i1.hdslb.com/bfs/archive/sample.jpg");
+  assert.equal(cover("http://i1.hdslb.com/bfs/archive/sample.jpg"), "https://i1.hdslb.com/bfs/archive/sample.jpg");
+  assert.equal(cover("//i1.hdslb.com/bfs/archive/sample.jpg"), "https://i1.hdslb.com/bfs/archive/sample.jpg");
+  for (const pic of [
+    "https://images.example.test/sample.jpg",
+    "http://images.example.test/sample.jpg",
+    "//images.example.test/sample.jpg",
+    "https://i1.hdslb.com.example.test/sample.jpg",
+    "https://hdslb.com.example.test/sample.jpg",
+    "https://www.bilibili.com/sample.jpg",
+  ]) {
+    assert.equal(cover(pic), "", pic);
+  }
 });
 
 test("缺 BV 号或 BV 号不合法的项丢掉，重复的只留第一个，计入 dropped", () => {

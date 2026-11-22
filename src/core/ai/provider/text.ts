@@ -1,7 +1,8 @@
-// 协议层给用户看的说明：地址校验、重定向、工作区密钥、空响应的诊断。中文那份定形状，英文那份少一条、多一条或签名不一样，类型检查就报错。
-// 错误照旧用中文说明（message），英文挂在不可枚举的 messageEn 上，到要显示的地方按语言挑：错误和诊断会按可枚举字段编码进黄金样本和存储，
-// 加英文不该改变它们。模块顶层只放字面量和函数。
-import type { OutputLang } from "../../output-lang.ts";
+// 协议层给用户看的说明：地址校验、重定向、工作区密钥、空响应的诊断。简体那份定形状，英文、繁体那份少一条、多一条或签名不一样，类型检查就报错。
+// 错误照旧用简体说明（message），英文、繁体挂在不可枚举的 messageEn、messageHant 上，到要显示的地方按语言挑：错误和诊断会按可枚举字段编码进黄金样本和存储，
+// 加别的语言不该改变它们。模块顶层只放字面量和函数。
+import { inLang, type OutputLang } from "../../output-lang.ts";
+import { HIDDEN_HANT, PROVIDER_HANT } from "./text-hant.ts";
 
 const PROVIDER_ZH = {
   baseUrlMissing: "请填写 API 地址。",
@@ -73,37 +74,62 @@ const PROVIDER_EN: ProviderText = {
   reasoningOnlyResponses: "The model only reasoned and didn't write a reply. Try a model that reasons less.",
 };
 
-/** 指定语言那份说明。不传语言时是中文。 */
-export const providerText = (lang: OutputLang = "zh"): ProviderText => (lang === "en" ? PROVIDER_EN : PROVIDER_ZH);
+/** 指定语言那份说明。不传语言时是简体。 */
+export const providerText = (lang: OutputLang = "zh"): ProviderText => inLang(lang, PROVIDER_ZH, PROVIDER_EN, PROVIDER_HANT);
 
-/** 一句说明的两种语言：pick 从说明表里挑出同一句。 */
-export function bothLangs(pick: (text: ProviderText) => string): { readonly message: string; readonly messageEn: string } {
-  return { message: pick(PROVIDER_ZH), messageEn: pick(PROVIDER_EN) };
+/** 一句说明的简体、英文、繁体三种写法。 */
+export interface LangMessages {
+  readonly message: string;
+  readonly messageEn: string;
+  readonly messageHant: string;
 }
 
-/** 带英文说明的对象：错误和空响应的诊断。 */
+/** 一句说明的几种语言：pick 从说明表里挑出同一句。 */
+export function bothLangs(pick: (text: ProviderText) => string): LangMessages {
+  return { message: pick(PROVIDER_ZH), messageEn: pick(PROVIDER_EN), messageHant: pick(providerText("zh-Hant")) };
+}
+
+/** 带别的语言说明的对象：错误和空响应的诊断。 */
 export interface WithEnglish {
   readonly message?: string | undefined;
   readonly messageEn?: string | undefined;
+  readonly messageHant?: string | undefined;
 }
 
-/** 挂上英文说明，不可枚举，见文件开头。返回同一个对象。 */
-export function withEnglish<T extends object>(target: T, messageEn: string): T {
+/** 挂上英文和繁体说明，都不可枚举，见文件开头。返回同一个对象。 */
+export function withEnglish<T extends object>(target: T, messageEn: string, messageHant: string): T {
   Object.defineProperty(target, "messageEn", { value: messageEn, enumerable: false, writable: true, configurable: true });
+  Object.defineProperty(target, "messageHant", { value: messageHant, enumerable: false, writable: true, configurable: true });
   return target;
+}
+
+// 遮掉密钥留下的占位字：密钥本身（按这次发出的密钥遮）和像密钥的片段（服务原话里按形状遮）。
+// 错误的可枚举字段里一律是简体，按别的语言显示时换成那种语言的说法。
+export const HIDDEN_SECRET = "[已隐藏的密钥]";
+export const HIDDEN_WORDS = "[已隐藏]";
+
+const HIDDEN_EN = { secret: "[key hidden]", words: "[hidden]" };
+
+/** 把文字里的占位字换成指定语言的说法。不传语言时是简体，原样返回。 */
+export function hiddenIn(text: string, lang: OutputLang = "zh"): string {
+  const words = inLang(lang, null, HIDDEN_EN, HIDDEN_HANT);
+  if (!words) return text;
+  return text.split(HIDDEN_SECRET).join(words.secret).split(HIDDEN_WORDS).join(words.words);
 }
 
 const STATUS_ONLY = /^服务返回 (\d+)$/;
 
 /**
- * 按语言挑说明：要英文、又挂着英文的用英文；没挂的（服务自己的原话）照原样。
- * 协议层只写了状态码、或者流里报错没带原话时用的那两句中文认得出，也换成英文。不传语言时是中文。
+ * 按语言挑说明：要英文或繁体、又挂着那种语言的用它；没挂的（服务自己的原话）照原样。
+ * 协议层只写了状态码、或者流里报错没带原话时用的那两句简体认得出，也换成那种语言；遮掉密钥的占位字也换。不传语言时是简体。
  */
 export function messageIn(source: WithEnglish | null | undefined, lang: OutputLang = "zh"): string {
   const message = String(source?.message ?? "");
-  if (lang !== "en") return message;
-  if (source?.messageEn) return source.messageEn;
+  if (lang === "zh") return message;
+  const attached = inLang(lang, undefined, source?.messageEn, source?.messageHant);
+  if (attached) return hiddenIn(attached, lang);
+  const say = providerText(lang);
   const status = STATUS_ONLY.exec(message.trim());
-  if (status) return PROVIDER_EN.statusOnly(Number(status[1]));
-  return message === PROVIDER_ZH.streamError ? PROVIDER_EN.streamError : message;
+  if (status) return say.statusOnly(Number(status[1]));
+  return message === PROVIDER_ZH.streamError ? say.streamError : hiddenIn(message, lang);
 }

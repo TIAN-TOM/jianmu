@@ -114,6 +114,7 @@ export function createAiTransport({
       const error: TransportError = withEnglish(
         new Error(transportText().notConfigured(check.errors.join(" "))),
         transportText("en").notConfigured(settingsRules.validate(configured, "en").errors.join(" ")),
+        transportText("zh-Hant").notConfigured(settingsRules.validate(configured, "zh-Hant").errors.join(" ")),
       );
       error.code = "NO_AI_CONFIG";
       throw error;
@@ -312,6 +313,7 @@ export function createAiTransport({
     const error: TransportError = withEnglish(
       new Error(redactSecret(diagnosis!.message, settings.aiApiKey)),
       redactSecret(diagnosis!.messageEn ?? diagnosis!.message, settings.aiApiKey),
+      redactSecret(diagnosis!.messageHant ?? diagnosis!.message, settings.aiApiKey),
     );
     // 能调低档位的才让用户去调：服务自己决定想多少的、已经在最低档的，只能换型号。
     // 按最后一次请求实际的样子算：参数被拒、放宽以后不再发档位的，同样算调不了。
@@ -349,6 +351,7 @@ export function createAiTransport({
     const error: TransportError = withEnglish(
       new Error(transportText().notConfigured(settingsRules.dataConsentError)),
       transportText("en").notConfigured(dataConsentErrorText("en")),
+      transportText("zh-Hant").notConfigured(dataConsentErrorText("zh-Hant")),
     );
     error.code = "NO_AI_CONFIG";
     throw error;

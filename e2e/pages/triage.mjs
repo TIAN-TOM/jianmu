@@ -1,11 +1,13 @@
 // 粗筛页：读稍后再看、第一步取官方总结、没设置模型服务时第二步不开始、按判断筛选，重新打开时直接显示读过的；
-// 语言选 English 以后页面上的字是英文，读列表失败时的说明也是英文，切回中文马上恢复。
+// 语言选 English 以后页面上的字是英文，读列表失败时的说明也是英文，切回中文马上恢复；选繁体时读列表失败的说明是繁体。
 // 排在侧边栏之后：那时已经确认启用、登录了模拟的 B 站；页面测试里没有设置模型服务的密钥。
 import assert from "node:assert/strict";
 import { describe } from "../../src/core/errors.ts";
 import { PAGE_PATHS, SETTINGS_STORAGE_KEY } from "../../src/shared/names.ts";
 import { FOURTH_VIDEO, watchLaterData } from "../fixtures.mjs";
 import { PROBE } from "../mock-server.mjs";
+import { TRIAGE_HANT } from "../../src/pages/triage/text-hant.ts";
+import { charsIn, SIMPLIFIED_ONLY } from "../../tests/helpers/hant-chars.ts";
 import { scenario } from "./harness.mjs";
 
 const test = scenario(import.meta.url);
@@ -161,6 +163,34 @@ test("粗筛页：English 下读列表失败时，说明的原因、影响和下
     const expected = describe("NEED_LOGIN", undefined, "en");
     await statusHas(page, "triage-list", expected);
     assert.equal(await statusOf(page, "triage-list"), expected);
+  } finally {
+    await setLanguage(page, "zh");
+    await openPage(PROBE.login);
+  }
+});
+
+test("粗筛页：繁体下读列表失败时，说明的原因、影响和下一步是繁体，页面自己的字没有简体专用字", async ({ open, openPage }) => {
+  const page = await open(PAGE_PATHS.triage, { width: WIDTH });
+  await page.waitFor("直接列出读过的", `document.querySelectorAll(".video").length === ${TITLES.length}`);
+  const site = await openPage(PROBE.login);
+  const [cookieName] = PROBE.cookie.split("=");
+  await site.evaluate(`(document.cookie = ${JSON.stringify(`${cookieName}=; Domain=.bilibili.com; Path=/; Max-Age=0; Secure; SameSite=Lax`)}, true)`);
+  await setLanguage(page, "zh-Hant");
+  try {
+    await page.waitFor("界面换成繁体", `document.documentElement.lang === "zh-Hant"`);
+    assert.equal(await page.evaluate(`document.querySelector("h1")?.textContent`), TRIAGE_HANT.heading);
+    assert.match(await page.evaluate(`getComputedStyle(document.documentElement).getPropertyValue("--font-sans")`), /PingFang TC/);
+    await clickButton(page, TRIAGE_HANT.list.read);
+    const expected = describe("NEED_LOGIN", undefined, "zh-Hant");
+    assert.deepEqual(charsIn(expected, SIMPLIFIED_ONLY), []);
+    await statusHas(page, "triage-list", expected);
+    assert.equal(await statusOf(page, "triage-list"), expected);
+    // 重新打开：一出内容就是繁体。视频标题是平台给的内容，不算；页面自己的字（列表以外的部分）没有简体专用字。
+    // 已经显示着的状态行是切换语言之前按当时的语言写好的，换语言不重写（英文也一样），所以在新开的页面上看。
+    const reopened = await open(PAGE_PATHS.triage, { width: WIDTH });
+    await reopened.waitFor("直接列出读过的", `document.querySelectorAll(".video").length === ${TITLES.length} && document.documentElement.lang === "zh-Hant"`);
+    const own = await reopened.evaluate(`(() => { const copy = document.body.cloneNode(true); copy.querySelectorAll(".video").forEach((node) => node.remove()); return copy.innerText; })()`);
+    assert.deepEqual(charsIn(own, SIMPLIFIED_ONLY), [], own);
   } finally {
     await setLanguage(page, "zh");
     await openPage(PROBE.login);

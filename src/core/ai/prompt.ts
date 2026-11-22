@@ -48,7 +48,7 @@ export function fillPromptVariables(
 }
 
 /** 每种输出语言的那一节：代码块里每行一项「名字: 说法」，填进模板里同名的占位符。 */
-export const LANG_SECTIONS: Readonly<Record<OutputLang, string>> = Object.freeze({ zh: "中文规则", en: "英文规则" });
+export const LANG_SECTIONS: Readonly<Record<OutputLang, string>> = Object.freeze({ zh: "中文规则", "zh-Hant": "繁体中文规则", en: "英文规则" });
 
 const LANG_LINE = /^([A-Za-z][A-Za-z0-9_]*): (.*)$/;
 

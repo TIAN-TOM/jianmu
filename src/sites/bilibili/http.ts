@@ -257,14 +257,19 @@ function wantsNewKeys(reading: Reading): boolean {
   return !hasContent((reading.body as { data?: unknown } | null)?.data);
 }
 
-/** 字幕文件的地址只收 https 和字幕文件的主机。 */
-export function isCaptionFileUrl(url: string): boolean {
+/** 平台静态文件的地址只收 https 和平台的静态文件主机，字幕文件和封面图都按它。 */
+export function isPlatformFileUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
     return parsed.protocol === "https:" && parsed.hostname.endsWith(FILE_HOST_SUFFIX);
   } catch {
     return false;
   }
+}
+
+/** 字幕文件的地址只收 https 和字幕文件的主机。 */
+export function isCaptionFileUrl(url: string): boolean {
+  return isPlatformFileUrl(url);
 }
 
 export function createBiliHttp(deps: BiliHttpDeps = {}): BiliHttp {

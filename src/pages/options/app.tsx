@@ -16,6 +16,7 @@ import { uiLang } from "../shared/ui-lang.ts";
 import { AboutSection } from "./about-section.tsx";
 import { AiSection } from "./ai-section.tsx";
 import { AutoSection } from "./auto-section.tsx";
+import { HANT_LANGUAGE_NAME } from "./language-name-hant.ts";
 import { ModeSection } from "./mode-section.tsx";
 import { YoutubeSection } from "./youtube-section.tsx";
 import { Confirmable, StatusLine } from "./controls.tsx";
@@ -54,9 +55,11 @@ function ActivationGate({ activation }: { readonly activation: Activation }) {
 
 // ---- 外观和播放页 ----
 
-// 中文、English 两项各用自己的语言写，看不懂当前界面的人也认得出；「跟随浏览器」跟着界面语言。
+// 三种语言各用自己的语言写，三种界面下都一样，看不懂当前界面的人也认得出；「跟随浏览器」跟着界面语言。
+const LANGUAGE_NAMES: Readonly<Record<Exclude<LanguageSetting, "auto">, string>> = { zh: "简体中文", "zh-Hant": HANT_LANGUAGE_NAME, en: "English" };
+
 const languageLabel = (language: LanguageSetting, followBrowser: string): string =>
-  language === "zh" ? "中文" : language === "en" ? "English" : followBrowser;
+  language === "auto" ? followBrowser : LANGUAGE_NAMES[language];
 
 function AppearanceSection({ state }: { readonly state: OptionsState }) {
   const t = optionsText().appearance;

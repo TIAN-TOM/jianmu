@@ -1,5 +1,6 @@
 // 设置页「YouTube」一节的文案：只在构建开关 FEATURE_YOUTUBE 打开时进包，只从 youtube-section.tsx 引用。模块顶层只放字面量和函数。
-import type { UiLang } from "../shared/ui-lang.ts";
+import { inLang, type UiLang } from "../shared/ui-lang.ts";
+import { YOUTUBE_HANT } from "./youtube-text-hant.ts";
 
 const YOUTUBE_ZH = {
   title: "YouTube",
@@ -31,4 +32,4 @@ const YOUTUBE_EN: YoutubeText = {
   disableFailed: "Couldn't turn it off. Try again later.",
 };
 
-export const youtubeText = (lang: UiLang = "zh"): YoutubeText => (lang === "en" ? YOUTUBE_EN : YOUTUBE_ZH);
+export const youtubeText = (lang: UiLang = "zh"): YoutubeText => inLang(lang, YOUTUBE_ZH, YOUTUBE_EN, YOUTUBE_HANT);

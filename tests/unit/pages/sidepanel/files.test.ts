@@ -126,3 +126,14 @@ test("字幕轨的显示名：官方总结字幕和导入文件的名字英文�
   assert.equal(trackLabel(TUBE, imported, "zh"), "导入的字幕文件");
   assert.equal(trackLabel(TUBE, imported, "en"), "Imported subtitle file");
 });
+
+test("字幕轨的显示名：繁体界面下简幕起的名字、B 站的语言名和自动生成的后缀都是繁体，标识不变", () => {
+  assert.equal(trackLabel(TUBE, { trackId: "panel:YouTube 文字稿", label: "YouTube 文字稿" }, "zh-Hant"), "YouTube 轉錄稿");
+  assert.equal(trackLabel(TUBE, { trackId: "panel:YouTube 文字稿（来源未确认）", label: "YouTube 文字稿（来源未确认）" }, "zh-Hant"), "YouTube 轉錄稿（來源未確認）");
+  assert.equal(trackLabel(TUBE, { trackId: "panel:英文 (自動產生)", label: "英文 (自動產生)" }, "zh-Hant"), "英文 (自動產生)", "页面上写着的照原样");
+  assert.equal(trackLabel(KEY, { trackId: "zh-CN", label: "样例中文", kind: "human" }, "zh-Hant"), "中文（中國）");
+  assert.equal(trackLabel(KEY, { trackId: "ai-ja", label: "样例日语（自动生成）", kind: "auto" }, "zh-Hant"), "日文（自動產生）");
+  assert.equal(trackLabel(KEY, { trackId: "xx", label: "样例语言", kind: "human" }, "zh-Hant"), "样例语言");
+  assert.equal(trackLabel(KEY, { trackId: "official-ai", label: "B站官方总结里的 AI 字幕", ref: { kind: "official-ai" as const } }, "zh-Hant"), "B 站官方總結裡的 AI 字幕");
+  assert.equal(trackLabel(TUBE, { trackId: "imported", label: "导入的字幕文件", ref: { kind: "imported" as const } }, "zh-Hant"), "匯入的字幕檔案");
+});

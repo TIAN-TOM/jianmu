@@ -1,6 +1,6 @@
 // 传输层的错误：取消、拒答，以及把模型服务的错误翻译成用户看得懂的回执。
 import type { OutputLang } from "../../output-lang.ts";
-import { messageIn, withEnglish } from "../provider/index.ts";
+import { HIDDEN_WORDS, hiddenIn, messageIn, withEnglish } from "../provider/index.ts";
 import { transportBoth, transportText } from "./text.ts";
 import type { AiErrorLike, AiErrorResponse, TransportError } from "./types.ts";
 
@@ -24,28 +24,31 @@ const KEY_LIKE = [
   // 又长又同时有字母和数字、不带连字符的一串（密钥、令牌）；型号名带连字符，不会被当成密钥。
   /\b(?=[A-Za-z0-9_]*\d)(?=[A-Za-z0-9_]*[A-Za-z])[A-Za-z0-9_]{24,}\b/g,
 ];
-const HIDDEN = "[已隐藏]";
 
-/** 服务原话给界面显示前的清洗：纯文本、一行、限长，遮掉像密钥的片段。先遮再截，截断处不会露出半截密钥。 */
-export function serviceWords(text: unknown): string {
+/**
+ * 服务原话给界面显示前的清洗：纯文本、一行、限长，遮掉像密钥的片段。先遮再截，截断处不会露出半截密钥。
+ * 占位字按 lang 写，不传时是中文。
+ */
+export function serviceWords(text: unknown, lang: OutputLang = "zh"): string {
   let words = String(text ?? "").replace(CONTROL_CHARS, " ").replace(/\s+/g, " ").trim();
-  words = words.replace(AUTH_VALUE, `$1 ${HIDDEN}`);
-  for (const pattern of KEY_LIKE) words = words.replace(pattern, HIDDEN);
+  words = words.replace(AUTH_VALUE, `$1 ${HIDDEN_WORDS}`);
+  for (const pattern of KEY_LIKE) words = words.replace(pattern, HIDDEN_WORDS);
+  words = hiddenIn(words, lang);
   return words.length > SAID_MAX_CHARS ? `${words.slice(0, SAID_MAX_CHARS)}…` : words;
 }
 
 // 只有服务回了 HTTP 报错、又说了点具体的话时才有原话；简幕自己写的提示、笼统的状态码说明都不算。
-function saidOf(error: AiErrorLike): string {
+function saidOf(error: AiErrorLike, lang: OutputLang): string {
   const status = error.status;
   if (status === undefined || status < 400 || NO_SAID_STATUSES.has(status)) return "";
   const raw = String(error.message ?? "").trim();
   if (!raw || FALLBACK_SAID.test(raw) || GENERIC_SERVER_ERROR.test(raw)) return "";
-  return serviceWords(raw);
+  return serviceWords(raw, lang);
 }
 
 export function taskCanceledError(): TransportError {
-  const { message, messageEn } = transportBoth((text) => text.canceled);
-  const error: TransportError = withEnglish(new Error(message), messageEn);
+  const { message, messageEn, messageHant } = transportBoth((text) => text.canceled);
+  const error: TransportError = withEnglish(new Error(message), messageEn, messageHant);
   error.code = "TASK_CANCELED";
   return error;
 }
@@ -56,8 +59,8 @@ export function throwIfTaskCanceled(signal: AbortSignal | undefined): void {
 
 // 拒绝回答改配置也救不了，重试只会再付一次费，直接报给用户。
 export function refusedError(reason: string): TransportError {
-  const { message, messageEn } = transportBoth((text) => (reason ? text.refusedWith(reason) : text.refused));
-  const error: TransportError = withEnglish(new Error(message), messageEn);
+  const { message, messageEn, messageHant } = transportBoth((text) => (reason ? text.refusedWith(reason) : text.refused));
+  const error: TransportError = withEnglish(new Error(message), messageEn, messageHant);
   error.code = "AI_REFUSED";
   return error;
 }
@@ -73,12 +76,12 @@ export function aiErrorResponse(error: unknown, lang: OutputLang = "zh"): AiErro
 
 /**
  * 服务报错时自己说的话，给界面在三段式下面另起一行显示：清洗、截短、遮掉像密钥的片段以后的纯文本。
- * 取消、要用户去设置页动手的、鉴权失败的都没有；它只跟着这次的结果走，不进存储和备份。
+ * 取消、要用户去设置页动手的、鉴权失败的都没有；它只跟着这次的结果走，不进存储和备份。占位字按 lang 写，不传时是中文。
  */
-export function serviceSaid(error: unknown): string {
+export function serviceSaid(error: unknown, lang: OutputLang = "zh"): string {
   const failure = (error ?? {}) as AiErrorLike;
   if (failure.code === "TASK_CANCELED" || (failure.code !== undefined && ACTIONABLE.has(failure.code))) return "";
-  return saidOf(failure);
+  return saidOf(failure, lang);
 }
 
 // 这几类都要用户去设置页动手，原样透出简幕自己的提示即可。
@@ -97,7 +100,7 @@ function errorResponseOf(error: AiErrorLike, lang: OutputLang): AiErrorResponse 
     return { success: false, error: "TASK_CANCELED", message: say.canceled };
   }
   if (error.code !== undefined && ACTIONABLE.has(error.code)) {
-    return { success: false, error: error.code, message: lang === "en" ? messageIn(error, lang) : (error.message as string) };
+    return { success: false, error: error.code, message: lang === "zh" ? (error.message as string) : messageIn(error, lang) };
   }
   if (error.status === 401 || error.status === 403) {
     return {
@@ -126,7 +129,7 @@ function errorResponseOf(error: AiErrorLike, lang: OutputLang): AiErrorResponse 
   if (error.status !== undefined && error.status >= 500 && error.status < 600) {
     const raw = String(error.message || "").trim();
     if (error.status !== 529 && raw && !GENERIC_SERVER_ERROR.test(raw)) {
-      const detail = messageIn({ message: raw, messageEn: error.messageEn }, lang).trim();
+      const detail = messageIn({ message: raw, messageEn: error.messageEn, messageHant: error.messageHant }, lang).trim();
       const shown =
         detail.length > SERVER_ERROR_DETAIL_MAX_CHARS
           ? `${detail.slice(0, SERVER_ERROR_DETAIL_MAX_CHARS)}…`
@@ -146,6 +149,6 @@ function errorResponseOf(error: AiErrorLike, lang: OutputLang): AiErrorResponse 
   return {
     success: false,
     error: error.code || "AI_REQUEST_FAILED",
-    message: (lang === "en" ? messageIn(error, lang) : error.message) || say.failed,
+    message: (lang === "zh" ? error.message : messageIn(error, lang)) || say.failed,
   };
 }

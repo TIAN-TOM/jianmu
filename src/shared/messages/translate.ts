@@ -5,10 +5,10 @@ import type { TranscriptRef } from "../../core/notes/records.ts";
 import type { TaskView } from "../../core/tasks.ts";
 import type { VideoKey } from "../../core/video-ref.ts";
 
-/** 译成哪种语言：中文字幕译成英文，其他语言的字幕译成简体中文。 */
-export type TranslateTarget = "zh" | "en";
+/** 译成哪种语言：zh 是简体中文，zh-Hant 是繁体中文。 */
+export type TranslateTarget = "zh" | "zh-Hant" | "en";
 
-/** 按字幕版本存在本机的几种文字：两种译文，加整理后的原文（tidy）。 */
+/** 按字幕版本存在本机的几种文字：三种译文，加整理后的原文（tidy）。 */
 export type TextTarget = TranslateTarget | "tidy";
 
 /** 这一轮做什么：不写是翻译，tidy 是整理字幕。 */

@@ -195,9 +195,15 @@ function setupIn(settings: Record<string, unknown>, uiLanguage: string) {
 }
 
 const ZH_TITLES = ["稍后再看粗筛", "在视频右侧显示总结卡片", "打开视频就出结论（花 API 额度）"];
+const HANT_TITLES = ["稍後再看粗篩", "在影片右側顯示總結卡片", "打開影片就出結論（花 API 額度）"];
 
-test("菜单的文字：选英文就是英文，跟随浏览器时看浏览器的界面语言，没给界面语言按中文", async () => {
-  for (const [language, uiLanguage, english] of [["en", "zh-CN", true], ["zh", "en-AU", false], ["auto", "en-AU", true], ["auto", "zh-TW", false]] as const) {
+test("菜单的文字：选英文就是英文，选繁体或跟随繁体的浏览器是繁体，跟随浏览器时看浏览器的界面语言，没给界面语言按中文", async () => {
+  for (const [language, uiLanguage, expected] of [["zh-Hant", "en-AU", HANT_TITLES], ["auto", "zh-TW", HANT_TITLES], ["auto", "zh-HK", HANT_TITLES]] as const) {
+    const { app, titles } = setupIn(enabled({ language }), uiLanguage);
+    await app.onInstalled("install");
+    assert.deepEqual(titles(), expected, `${language}/${uiLanguage}`);
+  }
+  for (const [language, uiLanguage, english] of [["en", "zh-CN", true], ["zh", "en-AU", false], ["auto", "en-AU", true], ["auto", "zh-CN", false]] as const) {
     const { app, titles } = setupIn(enabled({ language }), uiLanguage);
     await app.onInstalled("install");
     const shown = titles();

@@ -8,10 +8,12 @@ import { join } from "node:path";
 import { videoKey } from "../../src/core/video-ref.ts";
 import { BUILD_ID_FILE } from "../../src/shared/build-id.ts";
 import { API_KEY_SESSION_KEY, ISSUES_URL, PAGE_PATHS, PRIVACY_POLICY_URL, RELEASES_URL, SETTINGS_STORAGE_KEY, SOURCE_URL, SPONSOR_URLS } from "../../src/shared/names.ts";
-import { DATA_CONSENT_TABLE, dataConsentErrorText, noticeStatus } from "../../src/core/consent.ts";
+import { DATA_CONSENT_TABLE, dataConsentErrorText, noticeStatus, noticeText } from "../../src/core/consent.ts";
 import { OPTIONS_EN } from "../../src/pages/options/text-en.ts";
+import { OPTIONS_HANT } from "../../src/pages/options/text-hant.ts";
 import { OPTIONS_ZH } from "../../src/pages/options/text-zh.ts";
 import { FEATURE_MODEL_SLOTS, UI_FONT_SCALES } from "../../src/shared/settings-schema.ts";
+import { charsIn, SIMPLIFIED_ONLY } from "../../tests/helpers/hant-chars.ts";
 import { ANTHROPIC, VIDEOS } from "../fixtures.mjs";
 import { scenario } from "./harness.mjs";
 
@@ -19,6 +21,8 @@ const test = scenario(import.meta.url);
 const FULL_CONSENT = noticeStatus(DATA_CONSENT_TABLE, {});
 /** 数据说明第一条的英文措辞。 */
 const DATA_CONSENT_EN_FIRST = FULL_CONSENT.state === "needed" ? (FULL_CONSENT.items[0]?.en ?? "") : "";
+/** 数据说明第一条的繁体措辞。 */
+const DATA_CONSENT_HANT_FIRST = FULL_CONSENT.state === "needed" && FULL_CONSENT.items[0] ? noticeText(FULL_CONSENT.items[0], "zh-Hant") : "";
 const WIDTH = 900;
 const PACKAGE_VERSION = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version;
 const [VIDEO_ID = ""] = Object.keys(VIDEOS);
@@ -623,17 +627,23 @@ test(
   { timeoutMs: 300_000 },
 );
 
-test("设置页：外观一节的语言即改即存，三项是跟随浏览器、中文、English，默认跟随浏览器", async ({ open }) => {
+test("设置页：外观一节的语言即改即存，四项是跟随浏览器、简体中文、繁體中文、English，默认跟随浏览器", async ({ open }) => {
   const page = await freshOptions(open);
   await enable(page);
   const options = await page.evaluate(`[...document.querySelectorAll("#language option")].map((node) => [node.value, node.textContent])`);
-  assert.deepEqual(options, [["auto", "跟随浏览器"], ["zh", "中文"], ["en", "English"]]);
+  assert.deepEqual(options, [["auto", "跟随浏览器"], ["zh", "简体中文"], ["zh-Hant", "繁體中文"], ["en", "English"]]);
   assert.equal(await page.evaluate(`document.getElementById("language").value`), "auto");
   await fill(page, "#language", "en");
   const stored = `chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)}).then((items) => items[${JSON.stringify(SETTINGS_STORAGE_KEY)}].language)`;
   await page.waitFor("语言不用点保存就存下", `${stored}.then((language) => language === "en")`);
   const reopened = await open(PAGE_PATHS.options, { width: WIDTH });
   await reopened.waitFor("重新打开后填回来", `document.querySelector("#language")?.value === "en"`);
+  // 繁体：存下的是 zh-Hant，<html lang> 跟着换，重新打开第一屏就按它定。
+  await fill(page, "#language", "zh-Hant");
+  await page.waitFor("存下繁体", `${stored}.then((language) => language === "zh-Hant")`);
+  await page.waitFor("<html lang> 是 zh-Hant", `document.documentElement.lang === "zh-Hant"`);
+  const again = await open(PAGE_PATHS.options, { width: WIDTH });
+  await again.waitFor("重新打开后是繁体", `document.documentElement.lang === "zh-Hant" && document.querySelector("#language")?.value === "zh-Hant"`);
 });
 
 test("设置页：语言选 English 以后，标题、各节标题和按钮马上换成英文，<html lang> 是 en，重新打开第一屏就是英文；切回中文又全是中文", async ({ open }) => {
@@ -653,7 +663,7 @@ test("设置页：语言选 English 以后，标题、各节标题和按钮马�
     heading: "Jianmu settings",
     sections: ["Appearance", "Video page", "YouTube", "AI service", "Verdict on open", "Skim and Study", "Watch Later triage", "Saved data", "About"],
     buttons: ["Save and authorise", "Test connection", "Export backup", "Restore backup", "Clear cache", "Clear all data"],
-    languages: ["Match browser", "中文", "English"],
+    languages: ["Match browser", "简体中文", "繁體中文", "English"],
   };
   const chinese = {
     lang: "zh-CN",
@@ -661,7 +671,7 @@ test("设置页：语言选 English 以后，标题、各节标题和按钮马�
     heading: "简幕设置",
     sections: ["外观", "播放页", "YouTube", "AI 服务", "打开就出结论", "速览和精读", "稍后再看粗筛", "学习资料", "关于"],
     buttons: ["保存并授权", "测试连接", "导出备份", "恢复备份", "清除缓存", "清除全部数据"],
-    languages: ["跟随浏览器", "中文", "English"],
+    languages: ["跟随浏览器", "简体中文", "繁體中文", "English"],
   };
   assert.deepEqual(await page.evaluate(view), chinese);
 
@@ -681,6 +691,94 @@ test("设置页：语言选 English 以后，标题、各节标题和按钮马�
   assert.deepEqual(await page.evaluate(view), chinese);
   await reopened.waitFor("别的设置页跟着换回中文", `document.documentElement.lang === "zh-CN"`);
   assert.deepEqual(await reopened.evaluate(view), chinese);
+});
+
+test("设置页：语言选「繁體中文」以后，标题、各节标题和按钮马上换成繁体，<html lang> 是 zh-Hant、字体换成繁体那组，重新打开第一屏就是繁体；切回简体又全是简体", async ({ open }) => {
+  const page = await freshOptions(open);
+  await enable(page);
+  const view = `({
+    lang: document.documentElement.lang,
+    title: document.title,
+    heading: document.querySelector("h1")?.textContent,
+    sections: [...document.querySelectorAll(".card > h2")].map((node) => node.textContent),
+    buttons: [...document.querySelectorAll("#ai-service .actions button, #learning-data .actions button")].map((node) => node.textContent.trim()),
+    languages: [...document.querySelectorAll("#language option")].map((node) => node.textContent),
+  })`;
+  const traditional = {
+    lang: "zh-Hant",
+    title: "簡幕設定",
+    heading: "簡幕設定",
+    sections: ["外觀", "播放頁", "YouTube", "AI 服務", "打開就出結論", "速覽和精讀", "稍後再看粗篩", "學習資料", "關於"],
+    buttons: ["儲存並授權", "測試連線", "匯出備份", "還原備份", "清除快取", "清除全部資料"],
+    languages: ["跟隨瀏覽器", "简体中文", "繁體中文", "English"],
+  };
+  const chinese = {
+    lang: "zh-CN",
+    title: "简幕设置",
+    heading: "简幕设置",
+    sections: ["外观", "播放页", "YouTube", "AI 服务", "打开就出结论", "速览和精读", "稍后再看粗筛", "学习资料", "关于"],
+    buttons: ["保存并授权", "测试连接", "导出备份", "恢复备份", "清除缓存", "清除全部数据"],
+    languages: ["跟随浏览器", "简体中文", "繁體中文", "English"],
+  };
+  const fontSans = `getComputedStyle(document.documentElement).getPropertyValue("--font-sans")`;
+  assert.deepEqual(await page.evaluate(view), chinese);
+  assert.match(await page.evaluate(fontSans), /PingFang SC/);
+
+  await fill(page, "#language", "zh-Hant");
+  await page.waitFor("界面换成繁体", `document.documentElement.lang === "zh-Hant"`);
+  assert.deepEqual(await page.evaluate(view), traditional);
+  const sans = await page.evaluate(fontSans);
+  assert.match(sans, /PingFang TC/);
+  assert.doesNotMatch(sans, /PingFang SC/);
+  assert.match(await page.evaluate(`getComputedStyle(document.documentElement).getPropertyValue("--font-serif")`), /Songti TC/);
+
+  // 首帧缓存记下了繁体：重新打开时一出内容就是繁体，不先画一遍简体。
+  const reopened = await open(PAGE_PATHS.options, { width: WIDTH });
+  await reopened.waitFor("重新打开后出现标题", `document.querySelector("h1") !== null`);
+  assert.equal(await reopened.evaluate(`document.querySelector("h1").textContent`), traditional.heading);
+  await reopened.waitFor("重新打开后各节都在", `document.getElementById("preset") !== null`);
+  assert.deepEqual(await reopened.evaluate(view), traditional);
+
+  await fill(page, "#language", "zh");
+  await page.waitFor("界面换回简体", `document.documentElement.lang === "zh-CN"`);
+  assert.deepEqual(await page.evaluate(view), chinese);
+  await reopened.waitFor("别的设置页跟着换回简体", `document.documentElement.lang === "zh-CN"`);
+  assert.deepEqual(await reopened.evaluate(view), chinese);
+});
+
+test("设置页：繁体下数据说明的条目、勾选框和校验提示都是繁体，打开就出结论列出的说明也是繁体；整页可见文字里没有简体专用字，语言下拉里的「简体中文」除外", async ({ open }) => {
+  const page = await freshOptions(open);
+  await enable(page);
+  await fill(page, "#language", "zh-Hant");
+  await page.waitFor("界面换成繁体", `document.documentElement.lang === "zh-Hant"`);
+  const simplified = (text) => charsIn(text.replaceAll("简体中文", ""), SIMPLIFIED_ONLY);
+
+  const consent = await page.evaluate(`document.getElementById("dataConsentBox").innerText`);
+  assert.deepEqual(simplified(consent), [], consent);
+  assert.ok(consent.includes(DATA_CONSENT_HANT_FIRST), consent);
+  assert.ok(consent.includes(OPTIONS_HANT.consent.agree), consent);
+
+  await fill(page, "#preset", "custom");
+  await page.waitFor("出现地址框", `document.getElementById("aiBaseUrl") !== null`);
+  await fill(page, "#aiBaseUrl", "http://service.example/v1");
+  await clickButton(page, "儲存並授權");
+  const badAddress = await statusStarts(page, "ai-service", "API 網址");
+  assert.deepEqual(simplified(badAddress), [], badAddress);
+  await fill(page, "#preset", ANTHROPIC.presetId);
+  await fill(page, "#aiApiKey", ANTHROPIC.key);
+  await clickButton(page, "儲存並授權");
+  const notReady = await statusStarts(page, "ai-service", "已儲存並授權，但");
+  assert.ok(notReady.includes(dataConsentErrorText("zh-Hant")), notReady);
+
+  await page.click("#autoOverview");
+  await page.waitFor("列出数据说明", `document.querySelector("#auto-overview .consent-lines") !== null`);
+  const listed = await page.evaluate(`document.querySelector("#auto-overview .consent-lines").innerText`);
+  assert.deepEqual(simplified(listed), [], listed);
+  assert.ok(listed.includes(DATA_CONSENT_HANT_FIRST), listed);
+
+  const visible = await page.evaluate(`document.body.innerText`);
+  const leftover = visible.split("\n").filter((line) => simplified(line).length > 0);
+  assert.deepEqual(leftover, []);
 });
 
 test("设置页：外观里的三个主题卡片一样高，单选圆点、色块和文字都对着卡片正中；English 和两列的窄宽度下也一样", async ({ open }) => {
@@ -704,7 +802,7 @@ test("设置页：外观里的三个主题卡片一样高，单选圆点、色�
   }
 });
 
-test("设置页：English 下数据说明的条目、勾选框和校验提示都是英文，打开就出结论列出的说明也是英文；整页可见文字里没有汉字，语言下拉里的「中文」除外", async ({ open }) => {
+test("设置页：English 下数据说明的条目、勾选框和校验提示都是英文，打开就出结论列出的说明也是英文；整页可见文字里没有汉字，语言下拉里的「简体中文」「繁體中文」除外", async ({ open }) => {
   const page = await freshOptions(open);
   await enable(page);
   await fill(page, "#language", "en");
@@ -736,9 +834,9 @@ test("设置页：English 下数据说明的条目、勾选框和校验提示都
   assert.doesNotMatch(listed, han, listed);
   assert.ok(listed.includes(DATA_CONSENT_EN_FIRST), listed);
 
-  // 整页：语言下拉里「中文」那一项用自己的语言写，别处不该有汉字。
+  // 整页：语言下拉里「简体中文」「繁體中文」两项用自己的语言写，别处不该有汉字。
   const visible = await page.evaluate(`document.body.innerText`);
-  const leftover = visible.replaceAll("中文", "").split("\n").filter((line) => han.test(line));
+  const leftover = visible.replaceAll("简体中文", "").replaceAll("繁體中文", "").split("\n").filter((line) => han.test(line));
   assert.deepEqual(leftover, []);
 });
 

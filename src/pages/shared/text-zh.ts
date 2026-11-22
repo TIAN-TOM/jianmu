@@ -1,5 +1,5 @@
-// 几个页面共用的界面文案（ui/ 下的共用组件、配置检查的说法），中文这份。它定下文案表的形状（SharedText），
-// 英文那份（text-en.ts）必须满足同一个类型。模块顶层只放字面量和函数。带变量的文案写成函数。
+// 几个页面共用的界面文案（ui/ 下的共用组件、配置检查的说法），简体这份。它定下文案表的形状（SharedText），
+// 英文那份（text-en.ts）和繁体那份（text-hant.ts）必须满足同一个类型。模块顶层只放字面量和函数。带变量的文案写成函数。
 import type { ActivationKind } from "../../core/consent.ts";
 import type { Basis } from "../../core/notes/records.ts";
 

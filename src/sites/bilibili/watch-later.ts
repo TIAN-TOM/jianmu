@@ -1,7 +1,7 @@
 // 读用户自己的稍后再看列表，规整成粗筛用的条目。
 import { videoKey } from "../../core/video-ref.ts";
 import type { SiteCtx, SiteResult, WatchLaterItem, WatchLaterList } from "../types.ts";
-import { WATCH_LATER_URL, type BiliHttp } from "./http.ts";
+import { isPlatformFileUrl, WATCH_LATER_URL, type BiliHttp } from "./http.ts";
 import { parseBvid } from "./url.ts";
 import { paidStatus } from "./video-info.ts";
 
@@ -40,14 +40,14 @@ function positiveInt(value: unknown): number {
   return Number.isFinite(number) && number > 0 ? Math.floor(number) : 0;
 }
 
-// 只收 http(s) 和协议相对的地址，统一成 https，别的协议不放进图片地址。
+// 只收 http(s) 和协议相对的地址，统一成 https，别的协议和平台静态文件主机以外的地址不放进图片地址。
 function httpsImageUrl(value: unknown): string {
   const raw = plainText(value);
   if (!raw) return "";
   const absolute = raw.startsWith("//") ? `https:${raw}` : raw.replace(/^http:\/\//i, "https://");
   try {
-    const url = new URL(absolute);
-    return url.protocol === "https:" ? url.toString() : "";
+    const url = new URL(absolute).toString();
+    return isPlatformFileUrl(url) ? url : "";
   } catch {
     return "";
   }

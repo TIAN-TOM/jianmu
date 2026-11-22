@@ -1,7 +1,8 @@
 // 侧边栏里解释当前画面的文案：只在构建开关 FEATURE_FRAME_EXPLAIN 打开时进包，只从 frame.ts 和 frame-view.tsx 引用。
 // 模块顶层只放字面量和函数。
 import type { FrameEntryView } from "../../shared/messages/frame.ts";
-import type { UiLang } from "../shared/ui-lang.ts";
+import { inLang, type UiLang } from "../shared/ui-lang.ts";
+import { FRAME_HANT } from "./frame-text-hant.ts";
 
 const FRAME_ZH = {
   title: "画面",
@@ -37,4 +38,4 @@ const FRAME_EN: FrameText = {
   },
 };
 
-export const frameText = (lang: UiLang = "zh"): FrameText => (lang === "en" ? FRAME_EN : FRAME_ZH);
+export const frameText = (lang: UiLang = "zh"): FrameText => inLang(lang, FRAME_ZH, FRAME_EN, FRAME_HANT);

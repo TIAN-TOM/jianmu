@@ -90,13 +90,29 @@
 }
 
 /* 有边框的按钮：行高取离 --lh-tight 最近、又能让文字行上下各留整像素空白的值。按钮落在页面的小数位置上时，
- * 文字跟边框一起对齐到像素，三档字号下都在正中；按钮高度不变。式子里的 2rem - 2px 是上面的最小高度减去上下边框。
- * 只在 1 倍及以下、2 倍及以上的屏上生效：那里整像素正好落在像素格上。1.25、1.5、1.75 倍这类屏的像素格不是整像素的约数，
- * 改了行高只是换一批位置偏，那里照旧。round() 从 Chrome 125 起才有，更早的版本照旧。 */
-@media (max-resolution: 1dppx), (min-resolution: 2dppx) {
-  @supports (line-height: round(1px, 1px)) {
+ * 文字跟边框一起对齐到像素，不随位置偏上偏下；按钮高度不变。式子里的 2rem - 2px 是上面的最小高度减去上下边框。
+ * 正好 2 倍的屏上三档字号都这样取。正好 1 倍的屏上只在 2rem 是整像素时这样取（标准和特大字号）：2rem 带小数时
+ * 按钮的上下边本来就对不齐像素，整像素的留白反而让文字偏出一个像素，--button-snap 在那时是 0，行高照旧。
+ * 别的倍数（含浏览器缩放后的倍数）上像素格和整像素对不上，改了行高只是换一批位置偏，有的还更偏，那里照旧。
+ * round() 和 rem() 从 Chrome 125 起才有，更早的版本照旧。 */
+@supports (line-height: round(1px, 1px)) {
+  @media (resolution: 2dppx) {
     .button:not(:where([data-variant="text"])) {
       line-height: calc(2rem - 2px - 2 * round((2rem - 2px - var(--fs-ui) * var(--lh-tight)) / 2, 1px));
+    }
+  }
+}
+
+@supports (line-height: rem(1px, 1px)) and (line-height: round(1px, 1px)) {
+  @media (resolution: 1dppx) {
+    .button:not(:where([data-variant="text"])) {
+      --button-lh: calc(var(--fs-ui) * var(--lh-tight));
+      --button-inner: calc(2rem - 2px);
+      --button-snap: max(0px, 1px - rem(2rem, 1px) * 1000);
+      line-height: calc(
+        var(--button-lh) +
+          clamp(-1 * var(--button-snap), var(--button-inner) - 2 * round((var(--button-inner) - var(--button-lh)) / 2, 1px) - var(--button-lh), var(--button-snap))
+      );
     }
   }
 }

@@ -12,21 +12,27 @@ type Listener = Parameters<NonNullable<WatchAppearanceDeps["onChanged"]>["addLis
 
 const cacheWith = (value: unknown) => memoryLocalStorage({ [APPEARANCE_CACHE_KEY]: JSON.stringify(value) });
 
-test("启动时按首帧缓存里的语言选项同步定下界面语言：选了中文或英文就用它，跟随浏览器时看浏览器的界面语言", () => {
+test("启动时按首帧缓存里的语言选项同步定下界面语言：选了哪种就用哪种，跟随浏览器时看浏览器的界面语言", () => {
   assert.equal(initUiLang(cacheWith({ accentTheme: "ink", language: "en" }), "zh-CN"), "en");
   assert.equal(uiLang.value, "en");
   assert.equal(initUiLang(cacheWith({ language: "zh" }), "en-US"), "zh");
   assert.equal(uiLang.value, "zh");
-  assert.equal(initUiLang(cacheWith({ language: "auto" }), "zh-TW"), "zh");
+  assert.equal(initUiLang(cacheWith({ language: "zh-Hant" }), "zh-CN"), "zh-Hant");
+  assert.equal(uiLang.value, "zh-Hant");
+  assert.equal(initUiLang(cacheWith({ language: "zh" }), "zh-TW"), "zh");
+  assert.equal(initUiLang(cacheWith({ language: "auto" }), "zh-TW"), "zh-Hant");
+  assert.equal(initUiLang(cacheWith({ language: "auto" }), "zh_HK"), "zh-Hant");
+  assert.equal(initUiLang(cacheWith({ language: "auto" }), "zh-CN"), "zh");
   assert.equal(initUiLang(cacheWith({ language: "auto" }), "en-GB"), "en");
 });
 
 test("没有缓存、缓存损坏、取值认不出、读存储抛错：都按跟随浏览器", () => {
   const throwing = { getItem: (): string | null => { throw new Error("存储被禁用"); } };
   const broken = memoryLocalStorage({ [APPEARANCE_CACHE_KEY]: "{oops" });
-  for (const storage of [memoryLocalStorage(), broken, cacheWith({ language: "fr" }), cacheWith({ language: ["en"] }), cacheWith("en"), cacheWith(null), throwing, null, undefined]) {
+  for (const storage of [memoryLocalStorage(), broken, cacheWith({ language: "fr" }), cacheWith({ language: ["en"] }), cacheWith({ language: "zh-TW" }), cacheWith("en"), cacheWith(null), throwing, null, undefined]) {
     assert.equal(cachedLanguage(storage), "auto");
     assert.equal(initUiLang(storage, "zh-CN"), "zh");
+    assert.equal(initUiLang(storage, "zh-Hant-TW"), "zh-Hant");
     assert.equal(initUiLang(storage, "en-US"), "en");
   }
 });
@@ -59,6 +65,8 @@ test("外观落地时跟着设置纠正界面语言，设置变了跟着变，�
   const watch = await watchAppearance(deps, root);
   assert.equal(uiLang.value, "en");
 
+  emit({ [SETTINGS_STORAGE_KEY]: { newValue: { language: "zh-Hant" } } });
+  assert.equal(uiLang.value, "zh-Hant");
   emit({ [SETTINGS_STORAGE_KEY]: { newValue: { language: "zh" } } });
   assert.equal(uiLang.value, "zh");
   emit({ [SETTINGS_STORAGE_KEY]: { newValue: { language: "en" } } }, "session");
@@ -77,6 +85,9 @@ test("<html lang> 和页面标题跟着界面语言换，停止以后不再跟",
   assert.deepEqual(doc, { documentElement: { lang: "zh-CN" }, title: "设置" });
   setUiLanguage("en");
   assert.deepEqual(doc, { documentElement: { lang: "en" }, title: "Settings" });
+  setUiLanguage("zh-Hant");
+  assert.deepEqual(doc, { documentElement: { lang: "zh-Hant" }, title: "设置" });
+  setUiLanguage("en");
   stop();
   setUiLanguage("zh");
   assert.deepEqual(doc, { documentElement: { lang: "en" }, title: "Settings" });
@@ -84,9 +95,13 @@ test("<html lang> 和页面标题跟着界面语言换，停止以后不再跟",
 
 test("取文案：byLang 按当前界面语言取，inLang 按给定的语言取", () => {
   setUiLanguage("en");
-  assert.equal(byLang("中", "en"), "en");
+  assert.equal(byLang("中", "en", "繁"), "en");
   setUiLanguage("zh");
-  assert.equal(byLang("中", "en"), "中");
-  assert.equal(inLang("en", "中", "en"), "en");
-  assert.equal(inLang("zh", "中", "en"), "中");
+  assert.equal(byLang("中", "en", "繁"), "中");
+  setUiLanguage("zh-Hant");
+  assert.equal(byLang("中", "en", "繁"), "繁");
+  setUiLanguage("zh");
+  assert.equal(inLang("en", "中", "en", "繁"), "en");
+  assert.equal(inLang("zh", "中", "en", "繁"), "中");
+  assert.equal(inLang("zh-Hant", "中", "en", "繁"), "繁");
 });

@@ -35,6 +35,8 @@ export interface AiErrorLike {
   readonly message?: string | undefined;
   /** 简幕自己写的说明的英文，见 provider/text.ts。 */
   readonly messageEn?: string | undefined;
+  /** 同一句的繁体，见 provider/text.ts。 */
+  readonly messageHant?: string | undefined;
   readonly noAutoRetry?: boolean | undefined;
 }
 

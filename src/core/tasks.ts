@@ -37,7 +37,7 @@ export interface FrozenGen {
   /** 用户选的档位，和实际生效的不一样时才有（关不掉、退了一档）；请求按它发。 */
   readonly requestedEffort?: Effort;
   readonly promptVersion: string;
-  /** 模型写的内容用的语言，建任务时按设置和浏览器界面语言解析一次。进等价键：两种语言的同类任务不合并。没有时按中文。 */
+  /** 模型写的内容用的语言，建任务时按设置和浏览器界面语言解析一次。进等价键：不同语言的同类任务不合并。没有时按简体。 */
   readonly outputLang?: OutputLang;
 }
 
@@ -79,6 +79,7 @@ export interface TaskStart {
   readonly kind: string;
   readonly origin: TaskOrigin;
   readonly key: string;
+  readonly message?: string; // 刚登记时的进度句，不传是中文
 }
 
 export type TaskProgress = Partial<Pick<Task, "done" | "total" | "phase" | "message">>;
@@ -90,6 +91,7 @@ export interface TaskEnd {
 
 export interface TaskCancel {
   readonly reason?: unknown;
+  readonly message?: string; // 取消后的进度句，不传是中文
 }
 
 export type TaskStartResult =
@@ -178,7 +180,7 @@ export function createTaskManager({
   const occupying = (key: string): TaskEntry | undefined =>
     [...active.values()].find((entry) => entry.key === key && occupiesKey(entry));
 
-  function start({ id, kind, origin, key }: TaskStart): TaskStartResult {
+  function start({ id, kind, origin, key, message = "正在准备…" }: TaskStart): TaskStartResult {
     const duplicate = occupying(key);
     if (duplicate) {
       return {
@@ -199,7 +201,7 @@ export function createTaskManager({
       done: 0,
       total: 0,
       phase: "preparing",
-      message: "正在准备…",
+      message,
       createdAt: timestamp,
       updatedAt: timestamp,
       controller: new AbortController(),
@@ -221,7 +223,7 @@ export function createTaskManager({
 
   // reason：交给 AbortController 的原因，操作收尾时据此区分取消的来由
   // （比如「清除本机数据」时不能把已完成的部分写回去）。
-  function cancel(id: string, { reason }: TaskCancel = {}): TaskCancelResult {
+  function cancel(id: string, { reason, message = "已取消" }: TaskCancel = {}): TaskCancelResult {
     const entry = active.get(id);
     if (!entry) {
       return { success: false, error: "TASK_NOT_FOUND", message: "任务已经结束。" };
@@ -229,7 +231,7 @@ export function createTaskManager({
     if (entry.state !== "canceled") {
       entry.state = "canceled";
       entry.phase = "canceled";
-      entry.message = "已取消";
+      entry.message = message;
       entry.updatedAt = now();
       // 操作还在跑：它收尾（比如概览存下已完成的块）时 finish 会再广播一次。
       // 跟着这个任务的页面看到 finishing 就等那一次再重读，不然读到的是还没存的缓存。

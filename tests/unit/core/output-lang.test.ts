@@ -21,25 +21,37 @@ const read = (file: string): string => readFileSync(new URL(file, PROMPTS_DIR), 
 const BEFORE = JSON.parse(readFileSync(new URL("../../fixtures/golden/prompts-zh.json", import.meta.url), "utf8")) as Record<string, Record<string, string>>;
 const PLACEHOLDER = /\{([A-Za-z][A-Za-z0-9_]*)\}/g;
 
-test("语言设置解析：选了中文或英文就用它；跟随浏览器时界面语言以 zh 开头算中文，其余算英文", () => {
+test("语言设置解析：选了哪种就用哪种；跟随浏览器时繁体的写法算繁体，其余以 zh 开头算简体，别的算英文", () => {
   assert.equal(resolveOutputLang("zh", "en-US"), "zh");
+  assert.equal(resolveOutputLang("zh", "zh-TW"), "zh");
+  assert.equal(resolveOutputLang("zh-Hant", "en-US"), "zh-Hant");
+  assert.equal(resolveOutputLang("zh-Hant", "zh-CN"), "zh-Hant");
   assert.equal(resolveOutputLang("en", "zh-CN"), "en");
-  for (const ui of ["zh", "zh-CN", "zh-TW", "zh_HK", "ZH-cn"]) assert.equal(resolveOutputLang("auto", ui), "zh", ui);
-  for (const ui of ["en-US", "en", "ja", "fr-FR", "", "zhx"]) assert.equal(resolveOutputLang("auto", ui), "en", ui);
+  assert.equal(resolveOutputLang("en", "zh-TW"), "en");
+  for (const ui of ["zh", "zh-CN", "zh_CN", "ZH-cn", "zh-SG", "zh-Hans", "zh-Hans-HK", " zh-CN "]) assert.equal(resolveOutputLang("auto", ui), "zh", ui);
+  for (const ui of ["zh-TW", "zh_TW", "zh-tw", "zh-HK", "zh_HK", "ZH-hk", "zh-MO", "zh_mo", "zh-Hant", "zh-hant", "zh_Hant", "zh-Hant-TW", "zh-Hant-HK", "zh_Hant_MO", " zh-TW "]) {
+    assert.equal(resolveOutputLang("auto", ui), "zh-Hant", ui);
+  }
+  for (const ui of ["en-US", "en", "ja", "fr-FR", "", "zhx", "zh-TWX", "zhHant", "en-TW", "zh-Hantx"]) assert.equal(resolveOutputLang("auto", ui), ui.startsWith("zh-") ? "zh" : "en", ui);
 });
 
-test("结果或任务记下的语言：没有、认不出的一律当中文", () => {
+test("结果或任务记下的语言：没有、认不出的一律当简体", () => {
   assert.equal(outputLangOf(undefined), "zh");
+  assert.equal(outputLangOf(null), "zh");
   assert.equal(outputLangOf({}), "zh");
   assert.equal(outputLangOf({ outputLang: "en" }), "en");
+  assert.equal(outputLangOf({ outputLang: "zh-Hant" }), "zh-Hant");
+  assert.equal(outputLangOf({ outputLang: "zh-hant" as never }), "zh");
+  assert.equal(outputLangOf({ outputLang: "zh-TW" as never }), "zh");
   assert.equal(outputLangOf({ outputLang: "fr" as never }), "zh");
 });
 
 test("设置规整：默认跟随浏览器；旧设置没有这一项、写成认不出的值都按跟随浏览器", () => {
   assert.equal(DEFAULTS.language, "auto");
   assert.equal(normalize({}).language, "auto");
-  for (const bad of ["fr", "", null, 1, true, { zh: true }]) assert.equal(normalize({ language: bad }).language, "auto", String(bad));
+  for (const bad of ["fr", "", null, 1, true, { zh: true }, "zh-TW", "zh-hant", "zh_Hant", "Hant"]) assert.equal(normalize({ language: bad }).language, "auto", String(bad));
   assert.equal(normalize({ language: "zh" }).language, "zh");
+  assert.equal(normalize({ language: "zh-Hant" }).language, "zh-Hant");
   assert.equal(normalize({ language: "en" }).language, "en");
 });
 

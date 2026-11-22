@@ -1,8 +1,10 @@
 // 后台写进任务进度和任务收尾的那句话：页面在进度条和失败提示里原样显示。按任务冻结时的语言写（gen.outputLang，旧任务没有就是中文）。
-// 中文那份定形状，英文那份少一条、多一条或签名不一样，类型检查就报错。模块顶层只放字面量和函数。
-import type { OutputLang } from "../core/output-lang.ts";
+// 中文那份定形状，英文、繁体那份少一条、多一条或签名不一样，类型检查就报错。繁体那份在 progress-text-hant.ts。模块顶层只放字面量和函数。
+import { inLang, type OutputLang } from "../core/output-lang.ts";
+import { PROGRESS_HANT } from "./progress-text-hant.ts";
 
 const PROGRESS_ZH = {
+  preparing: "正在准备…",
   qaSearching: "正在检索相关内容…",
   qaAnswering: "正在组织回答…",
   qaShrinking: "字幕太长，这个模型装不下，缩小范围再问一次…",
@@ -23,6 +25,7 @@ const PROGRESS_ZH = {
 export type ProgressText = typeof PROGRESS_ZH;
 
 const PROGRESS_EN: ProgressText = {
+  preparing: "Getting ready…",
   qaSearching: "Finding the relevant parts…",
   qaAnswering: "Putting the answer together…",
   qaShrinking: "The subtitles are too long for this model. Asking again with less…",
@@ -41,4 +44,4 @@ const PROGRESS_EN: ProgressText = {
 };
 
 /** 指定语言那份说法。不传语言时是中文。 */
-export const progressText = (lang: OutputLang = "zh"): ProgressText => (lang === "en" ? PROGRESS_EN : PROGRESS_ZH);
+export const progressText = (lang: OutputLang = "zh"): ProgressText => inLang(lang, PROGRESS_ZH, PROGRESS_EN, PROGRESS_HANT);

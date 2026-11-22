@@ -1177,6 +1177,16 @@ test("redactSecret 替换每一处密钥，太短的密钥不动", () => {
   assert.equal(provider.redactSecret("no secret here", ""), "no secret here");
 });
 
+test("按英文挑说明时，遮掉密钥的占位字换成英文；中文和错误本身的字段照旧", () => {
+  const error = new Error(provider.redactSecret(`rejected ${KEY}, token [已隐藏]`, KEY));
+  assert.equal(provider.messageIn(error), "rejected [已隐藏的密钥], token [已隐藏]");
+  assert.equal(provider.messageIn(error, "en"), "rejected [key hidden], token [hidden]");
+  const withEn = provider.withEnglish(new Error("拒绝了：[已隐藏的密钥]"), "Refused: [已隐藏的密钥]", "拒絕了：[已隐藏的密钥]");
+  assert.equal(provider.messageIn(withEn, "en"), "Refused: [key hidden]");
+  assert.equal(provider.messageIn(withEn), "拒绝了：[已隐藏的密钥]");
+  assert.equal(error.message, "rejected [已隐藏的密钥], token [已隐藏]");
+});
+
 test("数组形状的错误体取第一项读出原因和参数，空数组按状态码报", () => {
   const body = [{ error: { code: 400, message: "Invalid value at 'reasoning_effort'", status: "INVALID_ARGUMENT", param: "reasoning_effort" } }];
   assert.equal(provider.parseErrorMessage(body, 400), "Invalid value at 'reasoning_effort'");

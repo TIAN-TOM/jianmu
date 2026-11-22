@@ -55,3 +55,12 @@ test("基于旧字幕标在哪：结论块标结论自己的，章节基于旧�
   assert.deepEqual(staleOverviewMarks(both, null, true), { verdict: false, chapters: false }, "现在没读到字幕时不标");
   assert.deepEqual(staleOverviewMarks(undefined, "new", true), { verdict: false, chapters: false });
 });
+
+test("繁体界面：档位显示繁体名，旧版改了名的按新名字，标记照旧，认不出的档位是空串", () => {
+  assert.deepEqual(
+    [...VERDICT_LABELS, LEGACY_VERDICT, "值得看完整视频", "可以跳过"].map((label) => labelOf(label, "zh-Hant")),
+    ["推薦看", "可以看", "可跳過", "資訊不足", "看概覽就夠", "推薦看", "可跳過"],
+  );
+  assert.equal(labelOf("还行", "zh-Hant"), "");
+  assert.equal(markOf("可跳过"), "skip");
+});

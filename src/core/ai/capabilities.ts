@@ -397,7 +397,7 @@ export function createJsonGetter(fetchImpl: JsonFetch, timeoutMs = FETCH_TIMEOUT
 export function createConsentGuardedGetter({ getSettings, settingsRules, send }: ConsentGuardDeps): ConsentGuardedSend {
   const guarded: ModelsSend = async (request, settings) => {
     if (!dataConsentGiven(await getSettings(), settingsRules)) {
-      const error: ProviderError = withEnglish(new Error(settingsRules.dataConsentError), dataConsentErrorText("en"));
+      const error: ProviderError = withEnglish(new Error(settingsRules.dataConsentError), dataConsentErrorText("en"), dataConsentErrorText("zh-Hant"));
       error.code = "NO_DATA_CONSENT";
       throw error;
     }
