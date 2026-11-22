@@ -266,6 +266,22 @@ test("重点章节随结论往返，不升备份版本；坏的、对不上的�
   assert.equal(old?.analysis.verdict && "keyStarts" in old.analysis.verdict, false, "没有这个字段的旧记录照常读");
 });
 
+test("标题译名随结论往返，不升备份版本；空的、太长的只丢译名；没有这个字段的旧记录照常读", () => {
+  const withTitle = (translatedTitle: unknown): OverviewRecord => ({ ...OVERVIEW, analysis: { ...OVERVIEW.analysis, verdict: { ...OVERVIEW.analysis.verdict, translatedTitle } } });
+  const named = withTitle("How to Plan a Week");
+  const backup = buildBackup({ overviews: [named] }, EXPORTED_AT);
+  assert.equal(backup.version, BACKUP_VERSION);
+  assert.deepEqual(read(backup).contents.overviews, [named]);
+
+  const [blank, tooLong, notText] = read(buildBackup({ overviews: [withTitle("  "), withTitle("x".repeat(301)), withTitle(42)] }, EXPORTED_AT)).contents.overviews;
+  for (const overview of [blank, tooLong, notText]) {
+    assert.equal(overview?.analysis.verdict?.summary, "讲清了做计划的方法。");
+    assert.equal(overview?.analysis.verdict && "translatedTitle" in overview.analysis.verdict, false);
+  }
+  const old = read(buildBackup({ overviews: [OVERVIEW] }, EXPORTED_AT)).contents.overviews[0];
+  assert.deepEqual(old, OVERVIEW, "没有这个字段的旧记录照常读");
+});
+
 test("新格式里存着旧档位名（新版日用早期写下的）：改了名的按新名字导入，「看概览就够」连同理由原样留成旧判断", () => {
   const withLabel = (verdict: string): OverviewRecord => ({ ...OVERVIEW, analysis: { ...OVERVIEW.analysis, verdict: { ...OVERVIEW.analysis.verdict, verdict } } });
   const backup = buildBackup({ overviews: ["值得看完整视频", "可以跳过", "看概览就够"].map(withLabel) }, EXPORTED_AT);

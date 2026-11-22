@@ -161,7 +161,7 @@ export function createVerdictService(deps: VerdictServiceDeps): VerdictService {
       // 官方总结覆盖全片，不受概览失败块影响，不标不完整。
       verdict = await requestVerdict(
         { ai: run.ai, prompt: deps.prompt(VERDICT_PROMPT), outputLang: outputLangOf(run.gen), gate: deps.gate, concurrency, log },
-        { variables, queueSignal: queue, stillWanted: () => !cleared(since) },
+        { variables, title: info.title ?? "", queueSignal: queue, stillWanted: () => !cleared(since) },
       );
     } catch (error) {
       const canceled = (error as { readonly code?: unknown } | null)?.code === "TASK_CANCELED" || queue.aborted || cleared(since);

@@ -33,6 +33,8 @@ export interface VerdictRequestDeps {
 
 export interface VerdictRequest {
   readonly variables: PromptVariables;
+  /** 视频的原标题，模型给的标题译名要和它比；没有标题时给空串，译名一律不收。 */
+  readonly title: string;
   /** 取消整个请求，已经发出的也中止。 */
   readonly signal?: AbortSignal | undefined;
   /** 只管排队：中止后还在闸门外排队的出队，已经发出去的照常等它回来。不给时就是 signal。 */
@@ -74,12 +76,17 @@ export async function requestVerdict(deps: VerdictRequestDeps, request: VerdictR
   } catch (error) {
     deps.log.error("一句话结论读不出来", errorLabel(error));
   }
-  const verdict = validateVerdict(parsed, { incomplete: request.incomplete ?? false, chapterStarts: request.chapterStarts, lang });
-  return verdict && truncated ? { ...verdict, truncated: true } : verdict;
+  const verdict = validateVerdict(parsed, { incomplete: request.incomplete ?? false, chapterStarts: request.chapterStarts, lang, title: request.title });
+  if (!verdict || !truncated) return verdict;
+  // 正文被截断时译名排在最后，多半只剩半截：丢掉，标题照原样显示。
+  const { translatedTitle: _cut, ...kept } = verdict;
+  return { ...kept, truncated: true };
 }
 
 export interface VerdictStage {
   readonly common: PromptCommon;
+  /** 视频的原标题，不带「未知」这类占位。 */
+  readonly title: string;
   readonly totalDuration: number;
   readonly signal: AbortSignal;
   readonly progress: (message: string) => void;
@@ -109,7 +116,7 @@ export async function concludeOverview(
     throwIfTaskCanceled(stage.signal);
     const variables = { ...stage.common, durationFormatted: formatTimestamp(stage.totalDuration), ...verdictInputs(verdictMaterial(analysis), { failures }) };
     const chapterStarts = (analysis.chapters ?? []).map((chapter) => chapter.timestampSeconds);
-    const verdict = await requestVerdict(deps, { variables, signal: stage.signal, incomplete: failures.length > 0, chapterStarts });
+    const verdict = await requestVerdict(deps, { variables, title: stage.title, signal: stage.signal, incomplete: failures.length > 0, chapterStarts });
     return verdict ? { verdict } : { failed: true };
   } catch (error) {
     if ((error as { readonly code?: unknown } | null)?.code === "TASK_CANCELED" || stage.signal.aborted) return { canceled: true };
