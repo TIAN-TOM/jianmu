@@ -210,7 +210,6 @@ IndexedDB 数据库 `jianmu` 里的仓库：
 首发前要处理的：
 
 - 换了 AI 服务地址以后，回收旧地址的访问授权：修好并在真实浏览器里验证以后再写进来，同时写明哪些情况下授权可能还留着。<!-- 待定：回收旧授权，实机验证后再写 -->
-- 联系邮箱。
 - 拿最终的安装包把各节和预设服务商的隐私政策链接再核对一遍。<!-- 待定：按最终安装包核对 -->
 
 ## English
@@ -417,5 +416,4 @@ The sections above describe Bilibili. On YouTube, Jianmu differs in these ways:
 To be done before release:
 
 - Revoking access to the old AI service address after you switch to a new one: this will be added once it is fixed and tested in a real browser, together with the cases where access may be kept. <!-- 待定：回收旧授权，实机验证后再写 -->
-- The contact email.
 - Check every section, and the links to the preset services' privacy policies, against the final release package. <!-- 待定：按最终安装包核对 -->
