@@ -80,6 +80,7 @@ export const OPTIONS_ZH = {
     source: "源码",
     privacy: "隐私政策",
     issues: "反馈问题",
+    sponsor: "赞助",
   },
 
   modes: {

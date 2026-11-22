@@ -68,6 +68,7 @@ export const OPTIONS_EN: OptionsText = {
     source: "Source code",
     privacy: "Privacy policy",
     issues: "Report a problem",
+    sponsor: "Sponsor",
   },
 
   modes: {

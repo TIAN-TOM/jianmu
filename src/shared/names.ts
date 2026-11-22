@@ -34,11 +34,15 @@ export const PAGE_PATHS = Object.freeze({
   card: "pages/card.html",
 } as const);
 
-// 设置页「关于」一节的四个链接：公开仓库的发布页、源码，以及隐私政策和反馈问题的页面。
+// 设置页「关于」一节的五个链接：公开仓库的发布页、源码，隐私政策和反馈问题的页面，以及 README 里的赞助一节（中英两份 README 各一个地址）。
 export const RELEASES_URL = "https://github.com/TIAN-TOM/jianmu/releases";
 export const SOURCE_URL = "https://github.com/TIAN-TOM/jianmu";
 export const PRIVACY_POLICY_URL = "https://github.com/TIAN-TOM/jianmu/blob/main/PRIVACY.md";
 export const ISSUES_URL = "https://github.com/TIAN-TOM/jianmu/issues";
+export const SPONSOR_URLS = Object.freeze({
+  zh: "https://github.com/TIAN-TOM/jianmu#赞助",
+  en: "https://github.com/TIAN-TOM/jianmu/blob/main/README.en.md#sponsor",
+} as const);
 
 // 注入视频网站页面的节点标识，和页面、卡片之间互发消息的标记，一律以 jianmu- 开头。
 export const INJECTED = {
