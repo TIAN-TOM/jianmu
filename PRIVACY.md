@@ -143,9 +143,9 @@
 简幕对读到的内容的使用，遵守 [Chrome 应用商店的用户数据政策](https://developer.chrome.com/docs/webstore/program-policies/limited-use)，包括其中的「有限使用」（Limited Use）要求：
 
 - 只用来提供这份政策里写的功能。
-- 只在你同意以后发给你自己选的模型服务，不给别的任何人。
+- 简幕只在你同意以后把它发给你自己选的模型服务，不发给别的接收方。
 - 不用于广告，不出售。
-- 没有人会看你的内容：简幕没有开发者服务器，开发者收不到。
+- 开发者看不到你的内容：简幕没有开发者服务器，内容到不了开发者手里。模型服务那边怎么处理，以它的政策为准，见上面「接收方」一节。
 
 ### 这份政策的变更
 
@@ -350,9 +350,9 @@ Jianmu does not request `tabs`, `activeTab`, `cookies`, `downloads`, `debugger`,
 Jianmu's use of the content it reads complies with the [Chrome Web Store User Data Policy](https://developer.chrome.com/docs/webstore/program-policies/limited-use), including the Limited Use requirements:
 
 - It is used only to provide the features described in this policy.
-- It is sent only to the model service you chose, and only after you agree. Nobody else receives it.
+- Jianmu sends it only to the model service you chose, and only after you agree. It sends it to no other recipient.
 - It is not used for advertising and is not sold.
-- No person reads your content. Jianmu has no developer server, so the developer never receives it.
+- The developer cannot read your content. Jianmu has no developer server, so it never reaches the developer. How the model service handles it is set by that service's own policy, as described under "Who receives it" above.
 
 ### Changes to this policy
 
