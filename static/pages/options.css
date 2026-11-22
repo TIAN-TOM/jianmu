@@ -108,6 +108,25 @@ input.input {
   width: 100%;
 }
 
+/* 输入框和下拉框的高度是最小高度 2rem。2 倍及以上的屏上、2rem 是整像素时（标准和特大字号），行高取离 --lh-snug 最近、
+ * 又让文字行上下各留整像素空白的值，文字跟边框一起对齐到像素，不随框在页面上的小数位置偏上偏下。
+ * 2rem 带小数时（较大字号）行高照旧：框的上下边本来就对不齐像素，改了行高也不会更正。
+ * 1 倍和 1.5 倍屏的像素格比 1 个 CSS 像素粗或不整，整像素的留白对不齐它，那里照旧。
+ * --input-snap 在 2rem 是整像素时是 1px，否则是 0，用来夹住行高的改动量。round() 和 rem() 从 Chrome 125 起才有，更早的版本照旧。 */
+@media (min-resolution: 2dppx) {
+  @supports (line-height: rem(1px, 1px)) and (line-height: round(1px, 1px)) {
+    .input {
+      --input-lh: calc(var(--lh-snug) * 1em);
+      --input-inner: calc(2rem - 2px);
+      --input-snap: max(0px, 1px - rem(2rem, 1px) * 1000);
+      line-height: calc(
+        var(--input-lh) +
+          clamp(-1 * var(--input-snap), var(--input-inner) - 2 * round((var(--input-inner) - var(--input-lh)) / 2, 1px) - var(--input-lh), var(--input-snap))
+      );
+    }
+  }
+}
+
 /* 模型框：输入框和右边的箭头在同一个边框里；候选列表贴着框、和框一样宽，下面放不下就开在上面。 */
 .model-field {
   position: relative;

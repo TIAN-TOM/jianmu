@@ -11,7 +11,7 @@ import { API_KEY_SESSION_KEY, ISSUES_URL, PAGE_PATHS, PRIVACY_POLICY_URL, SETTIN
 import { DATA_CONSENT_TABLE, dataConsentErrorText, noticeStatus } from "../../src/core/consent.ts";
 import { OPTIONS_EN } from "../../src/pages/options/text-en.ts";
 import { OPTIONS_ZH } from "../../src/pages/options/text-zh.ts";
-import { FEATURE_MODEL_SLOTS } from "../../src/shared/settings-schema.ts";
+import { FEATURE_MODEL_SLOTS, UI_FONT_SCALES } from "../../src/shared/settings-schema.ts";
 import { ANTHROPIC, VIDEOS } from "../fixtures.mjs";
 import { scenario } from "./harness.mjs";
 
@@ -728,6 +728,38 @@ test("设置页：English 下数据说明的条目、勾选框和校验提示都
   const visible = await page.evaluate(`document.body.innerText`);
   const leftover = visible.replaceAll("中文", "").split("\n").filter((line) => han.test(line));
   assert.deepEqual(leftover, []);
+});
+
+// 只看几何关系，不看字体：2 倍及以上的屏上框高是整像素时，文字行上下留的空也是整像素，文字才跟边框一起对齐到像素；
+// 别的情况行高照旧。页面测试的浏览器是 1 倍屏，在那里核对的是行高没变。
+test("设置页：三档字号下输入框和下拉框都是 2rem 高；2 倍屏上 2rem 是整像素时文字行上下留的空是整像素，别的情况行高照旧", async ({ open }) => {
+  const page = await freshOptions(open);
+  await enable(page);
+  const problems = [];
+  for (const uiFontScale of UI_FONT_SCALES) {
+    await page.setAppearance({ accentTheme: "ink", themeMode: "light", uiFontScale });
+    const boxes = await page.evaluate(`(() => {
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      const rounds = CSS.supports("line-height", "round(1px, 1px)") && CSS.supports("line-height", "rem(1px, 1px)") && matchMedia("(min-resolution: 2dppx)").matches;
+      return [...document.querySelectorAll("select.input, input.input")].filter((node) => node.getClientRects().length > 0 && !node.closest("details:not([open])")).map((node) => {
+        const style = getComputedStyle(node);
+        const height = node.getBoundingClientRect().height;
+        const inner = height - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth);
+        const lineHeight = parseFloat(style.lineHeight);
+        return { id: node.id, height, rem, rounds, lineHeight, snug: parseFloat(style.fontSize) * 1.5, gap: (inner - lineHeight) / 2 };
+      });
+    })()`);
+    assert.ok(boxes.length >= 10, `${uiFontScale}%：只找到 ${boxes.length} 个输入框和下拉框`);
+    for (const box of boxes) {
+      const label = `${uiFontScale}% ${JSON.stringify(box)}`;
+      // 布局按 1/64 像素取整，留一点余量。
+      if (Math.abs(box.height - 2 * box.rem) > 0.02) problems.push(`${label}：高度不是 2rem`);
+      const snaps = box.rounds && Math.abs(2 * box.rem - Math.round(2 * box.rem)) < 0.001;
+      if (snaps && Math.abs(box.gap - Math.round(box.gap)) > 0.02) problems.push(`${label}：文字行上下留的空不是整像素`);
+      if (!snaps && Math.abs(box.lineHeight - box.snug) > 0.02) problems.push(`${label}：行高变了`);
+    }
+  }
+  assert.deepEqual(problems, []);
 });
 
 test("设置页：推理强度新安装全关；每项功能单独选，改了不用点保存就存下，实际档位和选的不一样时旁边标出，重新打开照旧；概览分块也是改了就存", async ({ open }) => {
