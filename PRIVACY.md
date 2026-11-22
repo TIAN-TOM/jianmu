@@ -138,6 +138,15 @@
 - 不在 B 站上替你改任何东西：不点赞、不评论、不改稍后再看列表。
 - 不出售、不分享你的资料。开发者手里本来就没有。
 
+### Chrome 应用商店的用户数据政策
+
+简幕对读到的内容的使用，遵守 [Chrome 应用商店的用户数据政策](https://developer.chrome.com/docs/webstore/program-policies/limited-use)，包括其中的「有限使用」（Limited Use）要求：
+
+- 只用来提供这份政策里写的功能。
+- 简幕只在你同意以后把它发给你自己选的模型服务，不发给别的接收方。
+- 不用于广告，不出售。
+- 开发者看不到你的内容：简幕没有开发者服务器，内容到不了开发者手里。模型服务那边怎么处理，以它的政策为准，见上面「接收方」一节。
+
 ### 这份政策的变更
 
 改动记录留在本仓库的提交历史里。发给模型服务的内容、用途、接收方或发送方式，超出你原来同意的范围时，简幕会在界面里列出新增的部分，等你重新同意以后才继续发送。读取的内容有实质变化时，也会请你重新确认启用。
@@ -335,6 +344,15 @@ Jianmu does not request `tabs`, `activeTab`, `cookies`, `downloads`, `debugger`,
 - No analytics, crash reporting or ads, and no remotely loaded code.
 - It changes nothing on Bilibili for you: no likes, no comments, no edits to your Watch Later list.
 - It does not sell or share your data. The developer doesn't have it in the first place.
+
+### Chrome Web Store User Data Policy
+
+Jianmu's use of the content it reads complies with the [Chrome Web Store User Data Policy](https://developer.chrome.com/docs/webstore/program-policies/limited-use), including the Limited Use requirements:
+
+- It is used only to provide the features described in this policy.
+- Jianmu sends it only to the model service you chose, and only after you agree. It sends it to no other recipient.
+- It is not used for advertising and is not sold.
+- The developer cannot read your content. Jianmu has no developer server, so it never reaches the developer. How the model service handles it is set by that service's own policy, as described under "Who receives it" above.
 
 ### Changes to this policy
 
