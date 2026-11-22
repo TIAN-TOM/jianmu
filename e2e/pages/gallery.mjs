@@ -364,19 +364,21 @@ test("组件样张：320 和 360 宽、三套主题、两种明暗、三档字�
 });
 
 // 只看几何关系，不看字体：按钮落在页面的小数位置上时，文字行上下留的空是整像素，文字才跟边框一起对齐到像素。
-test("组件样张：三档字号下有边框的按钮都是 2rem 高，支持 round() 时文字行上下留的空是整像素", async ({ open }) => {
+// 取整只在 1 倍及以下、2 倍及以上的屏上生效，别的屏上行高照旧；页面测试的浏览器是 1 倍屏，规则应该生效。
+test("组件样张：三档字号下有边框的按钮都是 2rem 高，整数倍像素的屏上文字行上下留的空是整像素，别的屏上行高照旧", async ({ open }) => {
   const page = await open(GALLERY);
   const problems = [];
   for (const uiFontScale of UI_FONT_SCALES) {
     await page.setAppearance({ accentTheme: "ink", themeMode: "light", uiFontScale });
     const buttons = await page.evaluate(`(() => {
       const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-      const rounds = CSS.supports("line-height", "round(1px, 1px)");
+      const rounds = CSS.supports("line-height", "round(1px, 1px)") && matchMedia("(max-resolution: 1dppx), (min-resolution: 2dppx)").matches;
       return [...document.querySelectorAll('#controls .button:not([data-variant="text"])')].map((node) => {
         const style = getComputedStyle(node);
         const height = node.getBoundingClientRect().height;
         const inner = height - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth);
-        return { text: node.textContent.trim(), height, rem, rounds, gap: (inner - parseFloat(style.lineHeight)) / 2 };
+        const lineHeight = parseFloat(style.lineHeight);
+        return { text: node.textContent.trim(), height, rem, rounds, lineHeight, tight: parseFloat(style.fontSize) * 1.35, gap: (inner - lineHeight) / 2 };
       });
     })()`);
     assert.ok(buttons.length >= 3, `${uiFontScale}%：样张里有边框的按钮只有 ${buttons.length} 个`);
@@ -385,6 +387,7 @@ test("组件样张：三档字号下有边框的按钮都是 2rem 高，支持 r
       // 布局按 1/64 像素取整，留一点余量。
       if (Math.abs(button.height - 2 * button.rem) > 0.02) problems.push(`${label}：高度不是 2rem`);
       if (button.rounds && Math.abs(button.gap - Math.round(button.gap)) > 0.02) problems.push(`${label}：文字行上下留的空不是整像素`);
+      if (!button.rounds && Math.abs(button.lineHeight - button.tight) > 0.02) problems.push(`${label}：行高变了`);
     }
   }
   assert.deepEqual(problems, []);
