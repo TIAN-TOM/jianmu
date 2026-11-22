@@ -210,10 +210,10 @@
   font: inherit;
 }
 
-/* 单行输入框：2 倍及以上的屏上，行高取偶数像素、上下留白取整像素，框高是整像素，文字落在框的正中，
- * 不随框在页面上的小数位置偏上偏下。1 倍和 1.5 倍屏照旧（见 options.css 的输入框）。
+/* 单行输入框：正好 2 倍的屏上，行高取偶数像素、上下留白取整像素，框高是整像素，文字落在框的正中，
+ * 不随框在页面上的小数位置偏上偏下。别的倍数（含浏览器缩放后的倍数）上像素格和整像素对不上，那里照旧。
  * round() 从 Chrome 125 起才有，更早的版本照旧。 */
-@media (min-resolution: 2dppx) {
+@media (resolution: 2dppx) {
   @supports (line-height: round(1px, 1px)) {
     .search-input,
     .ask-entry .search-input {

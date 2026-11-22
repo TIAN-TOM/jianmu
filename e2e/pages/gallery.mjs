@@ -364,15 +364,18 @@ test("组件样张：320 和 360 宽、三套主题、两种明暗、三档字�
 });
 
 // 只看几何关系，不看字体：按钮落在页面的小数位置上时，文字行上下留的空是整像素，文字才跟边框一起对齐到像素。
-// 取整只在 1 倍及以下、2 倍及以上的屏上生效，别的屏上行高照旧；页面测试的浏览器是 1 倍屏，规则应该生效。
-test("组件样张：三档字号下有边框的按钮都是 2rem 高，整数倍像素的屏上文字行上下留的空是整像素，别的屏上行高照旧", async ({ open }) => {
+// 取整在正好 2 倍的屏上三档字号都生效，在正好 1 倍的屏上只在 2rem 是整像素时生效，别的情况行高照旧。
+// 页面测试的浏览器是 1 倍屏：标准和特大字号核对留白是整像素，较大字号（2rem 带小数）核对行高没变。
+test("组件样张：三档字号下有边框的按钮都是 2rem 高；1 倍屏上 2rem 是整像素时文字行上下留的空是整像素，别的情况行高照旧", async ({ open }) => {
   const page = await open(GALLERY);
   const problems = [];
   for (const uiFontScale of UI_FONT_SCALES) {
     await page.setAppearance({ accentTheme: "ink", themeMode: "light", uiFontScale });
     const buttons = await page.evaluate(`(() => {
       const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-      const rounds = CSS.supports("line-height", "round(1px, 1px)") && matchMedia("(max-resolution: 1dppx), (min-resolution: 2dppx)").matches;
+      const supported = CSS.supports("line-height", "round(1px, 1px)") && CSS.supports("line-height", "rem(1px, 1px)");
+      const whole = Math.abs(2 * rem - Math.round(2 * rem)) < 0.001;
+      const rounds = supported && (matchMedia("(resolution: 2dppx)").matches || (matchMedia("(resolution: 1dppx)").matches && whole));
       return [...document.querySelectorAll('#controls .button:not([data-variant="text"])')].map((node) => {
         const style = getComputedStyle(node);
         const height = node.getBoundingClientRect().height;
