@@ -7,7 +7,7 @@
 // 写回前核对清除代数和字幕代数：等模型的工夫清除了全部数据、换过字幕文件，在途的译文照常交给页面、不存，之后的批次不再发。
 import { estimateOutputTokens, planTranslationBatches, TRANSLATION_BATCH_MAX_SEGMENTS, type TranslationItem } from "../../core/ai/chunking.ts";
 import { parseLooseJson } from "../../core/ai/parse.ts";
-import { extractPromptSection } from "../../core/ai/prompt.ts";
+import { extractPromptSection, LANG_SECTIONS } from "../../core/ai/prompt.ts";
 import { SEGMENT_BATCH } from "../../core/ai/schemas.ts";
 import { taskCanceledError, throwIfTaskCanceled } from "../../core/ai/transport/index.ts";
 import { alignTranslatedSegments } from "../../core/ai/validate.ts";
@@ -20,7 +20,7 @@ import type { FrozenGen, TaskOrigin, TaskView } from "../../core/tasks.ts";
 import { textFingerprint } from "../../core/transcript/fingerprint.ts";
 import type { TranscriptSegment } from "../../core/transcript/segment.ts";
 import { parseVideoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
-import type { TextPurpose, TextTarget, TranslateFailure, TranslateOut } from "../../shared/messages/translate.ts";
+import type { TextPurpose, TextTarget, TranslateFailure, TranslateOut, TranslateTarget } from "../../shared/messages/translate.ts";
 import { AI_CONCURRENCY } from "../../shared/settings-schema.ts";
 import { pauseReasonOf } from "./auto-generate.ts";
 import { errorLabel, type Log } from "../log.ts";
@@ -32,6 +32,9 @@ import { translationId, type TranslationStore } from "../stores/translations.ts"
 import { PAGES_LEFT, type TaskRun, type TaskRunner, type Timers } from "../tasks.ts";
 import { isTransientChunkFailure, promptMessages } from "./overview/chunks.ts";
 import type { TranscriptService } from "./transcript/index.ts";
+
+// 翻译提示词里「译成什么」的写法。
+const TARGET_LANG_NAMES: Readonly<Record<TranslateTarget, string>> = { zh: "简体中文", "zh-Hant": "繁体中文", en: "英文" };
 
 export const TRANSLATE_PROMPT = "study/translation.md";
 /** 设置里「翻译」这一项的模型槽，沿用旧名。 */
@@ -206,13 +209,12 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
     if (!job.current()) throw taskCanceledError();
     const tidy = job.target === "tidy";
     const markdown = deps.prompt(tidy ? TIDY_PROMPT : TRANSLATE_PROMPT);
-    const toEnglish = job.target === "en";
     const segmentsJson = JSON.stringify({ segments: batch.map(({ id, text }) => ({ id, text })) });
-    const variables = tidy
+    const variables = job.target === "tidy"
       ? { videoTitle: job.title || "未知", segmentsJson }
       : {
-          targetLangName: toEnglish ? "英文" : "简体中文",
-          langRules: extractPromptSection(markdown, toEnglish ? "英文规则" : "中文规则"),
+          targetLangName: TARGET_LANG_NAMES[job.target],
+          langRules: extractPromptSection(markdown, LANG_SECTIONS[job.target]),
           videoTitle: job.title || "未知",
           segmentsJson,
         };

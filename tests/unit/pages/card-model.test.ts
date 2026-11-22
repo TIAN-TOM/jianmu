@@ -10,6 +10,8 @@ import { test } from "node:test";
 import { signal } from "@preact/signals";
 import { AUTO_FOLD_NOTE, PANEL_REFUSED_NOTE } from "../../../src/pages/card/glance.ts";
 import { CARD_ROWS, cardRows, chaptersInOrder, createCardModel, NEED_LOGIN_TEXT, NOT_READ_TEXT } from "../../../src/pages/card/model.ts";
+import { CARD_HANT } from "../../../src/pages/card/text-hant.ts";
+import { cardTextOf } from "../../../src/pages/card/text.ts";
 import { createPageApi } from "../../../src/pages/shared/api.ts";
 import type { ConfigState } from "../../../src/pages/shared/config.ts";
 import { videoKey, type VideoRef } from "../../../src/core/video-ref.ts";
@@ -822,4 +824,9 @@ test("按钮行：官方总结一直没结果时，等够了照样摆；没有�
   await failed.model.start();
   assert.ok(await until(() => failed.model.view.value.phase === "failed"));
   assert.equal(failed.model.view.value.holdActions, false);
+});
+
+test("选繁体时卡片的文案是繁体那份", () => {
+  assert.equal(cardTextOf("zh-Hant"), CARD_HANT);
+  assert.equal(cardTextOf("zh-Hant").name(""), "簡幕 · 總結");
 });

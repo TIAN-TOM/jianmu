@@ -204,17 +204,24 @@ test("包里的源文件注释只来自 src/、prompts/ 和依赖包", () => {
   }
 });
 
+test("只给测试用的开发依赖（简繁字表 opencc-js）不进任何包", () => {
+  const scripts = readdirSync(BUILD, { recursive: true, encoding: "utf8" }).filter((file) => file.endsWith(".js"));
+  assert.ok(scripts.length >= BUNDLES.length);
+  for (const file of scripts) assert.doesNotMatch(readBuild(file), /opencc/i, file);
+});
+
+// 各站 url.ts 旁边的繁体文字模块（url-hant.ts）跟着地址规则一起进包。
 test("页面包里没有站点的后台读取代码", () => {
   for (const file of ["pages/sidepanel.js", "pages/card.js"]) {
     const origins = [...readBuild(file).matchAll(/^\s*\/\/ (src\/sites\/\S+)$/gm)].map((match) => match[1] ?? "");
-    assert.deepEqual(origins.filter((origin) => !/^src\/sites\/(?:rules\.ts|[^/]+\/url\.ts)$/.test(origin)), [], file);
+    assert.deepEqual(origins.filter((origin) => !/^src\/sites\/(?:rules\.ts|[^/]+\/url(?:-hant)?\.ts)$/.test(origin)), [], file);
   }
 });
 
 test("内容脚本包里只有自己站的页面模块和地址规则，没有后台、页面和设置的代码", () => {
   const origins = [...readBuild("content/bilibili.js").matchAll(/^\s*\/\/ (src\/\S+)$/gm)].map((match) => match[1] ?? "");
   assert.ok(origins.includes("src/content/bilibili.ts"));
-  assert.deepEqual(origins.filter((origin) => /^src\/(?:sites\/(?!bilibili\/(?:page|url)\.ts)|background\/|pages\/|platform\/)|settings-schema/.test(origin)), []);
+  assert.deepEqual(origins.filter((origin) => /^src\/(?:sites\/(?!bilibili\/(?:page|url|url-hant)\.ts)|background\/|pages\/|platform\/)|settings-schema/.test(origin)), []);
 });
 
 test("后台包带着 B 站的读取实现和取字幕服务", () => {
@@ -228,15 +235,15 @@ test("包里没有 source map 引用", () => {
   for (const file of BUNDLES) assert.doesNotMatch(readBuild(file), /sourceMappingURL/);
 });
 
-// 服务要读的提示词和小节：概览、解释、笔记润色、问答（用户消息分三块）、翻译、整理字幕、结论；按语言取规则的都带两套语言规则。
+// 服务要读的提示词和小节：概览、解释、笔记润色、问答（用户消息分三块）、翻译、整理字幕、结论；按语言取规则的都带三套语言规则。
 const PROMPT_SECTIONS: Readonly<Record<string, readonly string[]>> = {
-  "skim/chapters.md": ["系统提示词", "用户提示词", "中文规则", "英文规则"],
-  "study/explain.md": ["系统提示词", "用户提示词", "中文规则", "英文规则"],
+  "skim/chapters.md": ["系统提示词", "用户提示词", "中文规则", "英文规则", "繁体中文规则"],
+  "study/explain.md": ["系统提示词", "用户提示词", "中文规则", "英文规则", "繁体中文规则"],
   "study/note-polish.md": ["系统提示词", "用户提示词"],
-  "common/qa.md": ["系统提示词", "用户消息：视频信息", "用户消息：字幕", "用户消息：问题", "中文规则", "英文规则"],
-  "study/translation.md": ["系统提示词", "用户提示词", "中文规则", "英文规则"],
+  "common/qa.md": ["系统提示词", "用户消息：视频信息", "用户消息：字幕", "用户消息：问题", "中文规则", "英文规则", "繁体中文规则"],
+  "study/translation.md": ["系统提示词", "用户提示词", "中文规则", "英文规则", "繁体中文规则"],
   "study/tidy.md": ["系统提示词", "用户提示词"],
-  "skim/verdict.md": ["系统提示词", "用户提示词", "中文规则", "英文规则"],
+  "skim/verdict.md": ["系统提示词", "用户提示词", "中文规则", "英文规则", "繁体中文规则"],
 };
 
 /** 包里内联的模板全文：源文件注释下面那个字符串字面量的值。 */

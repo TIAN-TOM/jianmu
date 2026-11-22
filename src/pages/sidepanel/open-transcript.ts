@@ -3,13 +3,17 @@
 import type { VideoKey } from "../../core/video-ref.ts";
 import type { TranscriptFailure } from "../../shared/messages/transcript.ts";
 import type { PageApi } from "../shared/api.ts";
-import type { UiLang } from "../shared/ui-lang.ts";
+import { inLang, type UiLang } from "../shared/ui-lang.ts";
+import { OPEN_READ_HINT_HANT } from "./open-transcript-hant.ts";
 
 /** 还没读过字幕时的说明：点读取，简幕替你点开文字稿。 */
 export const openReadHint = (lang: UiLang = "zh"): string =>
-  lang === "en"
-    ? "Click Read subtitles and Jianmu will open the transcript on the video page for you and read what it shows."
-    : "点读取，简幕会替你点开视频页上的文字稿，读里面显示的内容。";
+  inLang(
+    lang,
+    "点读取，简幕会替你点开视频页上的文字稿，读里面显示的内容。",
+    "Click Read subtitles and Jianmu will open the transcript on the video page for you and read what it shows.",
+    OPEN_READ_HINT_HANT,
+  );
 
 /** 回 null 是接着读；回失败就停在这里，不读。 */
 export async function openTranscriptFirst(api: Pick<PageApi, "send">, video: VideoKey, tabId: number): Promise<TranscriptFailure | null> {

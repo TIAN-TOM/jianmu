@@ -69,11 +69,12 @@ const NETWORK_ALLOWED: Readonly<Record<string, RegExp>> = {
 const PAGE_ADDRESS = /^https:\/\/www\.(?:bilibili|youtube)\.com\/(?:video|watch)\b/;
 const BILIBILI_READ = /^src\/sites\/bilibili\/(?!(?:url|page|page\/[^/]+)\.ts$)/;
 // 前台模块在内容脚本和扩展页面里跑，传递带入的只能是纯逻辑、契约、地址规则和各站的 url.ts。
-const FRONT_MODULE = /^src\/sites\/(?:[^/]+\/(?:url|page|page\/[^/]+)|rules|types|page-types)\.ts$/;
+// 各站 url.ts 旁边的繁体文字模块（url-hant.ts）和 url.ts 同样算地址规则，守同样的规矩。
+const FRONT_MODULE = /^src\/sites\/(?:[^/]+\/(?:url|url-hant|page|page\/[^/]+)|rules|types|page-types)\.ts$/;
 const FRONT_SHARED: ReadonlySet<string> = new Set(["src/sites/types.ts", "src/sites/page-types.ts", "src/sites/rules.ts"]);
-const SITE_FRONT_FILE = /^src\/sites\/([^/]+)\/(?:url|page|page\/[^/]+)\.ts$/;
+const SITE_FRONT_FILE = /^src\/sites\/([^/]+)\/(?:url|url-hant|page|page\/[^/]+)\.ts$/;
 const SITE_PAGE = /^src\/sites\/([^/]+)\/(?:page|page\/[^/]+)\.ts$/;
-const SITE_URL = /^src\/sites\/([^/]+)\/url\.ts$/;
+const SITE_URL = /^src\/sites\/([^/]+)\/url(?:-hant)?\.ts$/;
 const CORE_OR_SHARED = /^src\/(?:core|shared)\//;
 // 第 6 条：url.ts 里只许写这些主机匹配规则（授权和注册内容脚本用），加一条要改这里。
 const HOST_PATTERNS: Readonly<Record<string, ReadonlySet<string>>> = {

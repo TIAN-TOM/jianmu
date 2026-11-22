@@ -3,7 +3,8 @@
 import { localizePrompt } from "../../core/ai/prompt.ts";
 import { throwIfTaskCanceled } from "../../core/ai/transport/index.ts";
 import { fail, ok, type Result } from "../../core/errors.ts";
-import { outputLangOf, type OutputLang } from "../../core/output-lang.ts";
+import { inLang, outputLangOf } from "../../core/output-lang.ts";
+import { TRUNCATED_NOTE_HANT } from "./explain-hant.ts";
 import { parseVideoKey, type VideoKey } from "../../core/video-ref.ts";
 import type { ExplainView } from "../../shared/messages/qa.ts";
 import { aiFailure } from "../ai.ts";
@@ -18,7 +19,7 @@ const SELECTION_MAX = 1000;
 const CONTEXT_MAX = 4000;
 const EXPLAIN_MAX_TOKENS = 1024;
 // 截断提示和解释一起存，跟着解释的语言。
-const TRUNCATED_NOTE: Readonly<Record<OutputLang, string>> = {
+const TRUNCATED_NOTE = {
   zh: "…（模型输出被截断，回答可能不完整。）",
   en: "… (The model's output was cut off, so this answer may be incomplete.)",
 };
@@ -87,7 +88,7 @@ export function createExplainService(deps: ExplainServiceDeps): ExplainService {
           throwIfTaskCanceled(run.signal);
           const explanation = text.trim();
           // 截断后没法再加预算，交回的是半截：页面原样显示正文，提示直接写在末尾。
-          return ok(truncated ? { explanation: `${explanation}${TRUNCATED_NOTE[lang]}`, truncated: true } : { explanation });
+          return ok(truncated ? { explanation: `${explanation}${inLang(lang, TRUNCATED_NOTE.zh, TRUNCATED_NOTE.en, TRUNCATED_NOTE_HANT)}`, truncated: true } : { explanation });
         } catch (error) {
           if (run.signal.aborted || (error as { readonly code?: unknown } | null)?.code === "TASK_CANCELED") return fail("TASK_CANCELED");
           deps.log.error("划词解释失败", errorLabel(error));

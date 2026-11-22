@@ -96,6 +96,9 @@ test("外观、卡片开关和语言选项都没变、不是本机存储区、�
   assert.equal(changed({ ...CONFIRMED, language: "en" }, { ...CONFIRMED, language: "en", aiModel: "other-model" }), null);
   // 认不出的语言规整成默认值，和默认值比不算变了。
   assert.equal(changed(CONFIRMED, { ...CONFIRMED, language: "fr" }), null);
+  assert.equal(changed(CONFIRMED, { ...CONFIRMED, language: "zh-TW" }), null);
+  // 从简体换成繁体要广播，带上繁体这个选项。
+  assert.deepEqual(changed({ ...CONFIRMED, language: "zh" }, { ...CONFIRMED, language: "zh-Hant" }), { type: "appearance.changed", accentTheme: "ink", inPageCard: true, language: "zh-Hant" });
   assert.equal(changed(CONFIRMED, { ...CONFIRMED, accentTheme: "ochre" }, "session"), null);
   assert.equal(changed(CONFIRMED, { ...CONFIRMED, accentTheme: "ochre" }, "local", "jianmu_triage"), null);
   assert.deepEqual(changed(CONFIRMED, { ...CONFIRMED, accentTheme: "unknown-theme", inPageCard: false }), {

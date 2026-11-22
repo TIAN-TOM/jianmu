@@ -4,6 +4,8 @@ import { test } from "node:test";
 import { videoKey } from "../../../../src/core/video-ref.ts";
 import type { UiLang } from "../../../../src/pages/shared/ui-lang.ts";
 import { createTriageState, officialRecordText } from "../../../../src/pages/triage/state.ts";
+import { TRIAGE_HANT } from "../../../../src/pages/triage/text-hant.ts";
+import { triageTextOf } from "../../../../src/pages/triage/text.ts";
 import type { TriageSnapshot } from "../../../../src/shared/messages/batch.ts";
 
 const KEY = videoKey({ platform: "bilibili", videoId: "BV1Sample001" });
@@ -65,4 +67,15 @@ test("视频行上官方总结的状态按语言写", () => {
   assert.equal(officialRecordText(undefined, item), "还没取官方总结");
   assert.equal(officialRecordText(undefined, item, "en"), "Official summary not fetched yet");
   assert.equal(officialRecordText({ status: "queued" } as never, item, "en"), "Bilibili has no official summary for this video yet. You can come back to it later");
+});
+
+test("选繁体时状态行和确认是繁体", async () => {
+  const { state } = setup("zh-Hant");
+  await state.load();
+  assert.match(state.listStatus.value?.text ?? "", /^共 1 部影片，讀取於 .+。要看最新的清單就再讀取一次。$/);
+  assert.equal(state.officialStatus.value?.text, "有官方總結 0 部，還沒取得 1 部。");
+  state.askOfficial();
+  assert.equal(state.pending.value?.lines[0], "要逐一請求 1 部影片的 B 站官方總結。");
+  assert.equal(officialRecordText(undefined, SNAPSHOT.list?.items[0] as never, "zh-Hant"), "還沒取得官方總結");
+  assert.equal(triageTextOf("zh-Hant"), TRIAGE_HANT);
 });

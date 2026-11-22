@@ -1,5 +1,6 @@
 // 一句话结论：判断档位、给模型的输入和结果校验。
-import type { OutputLang } from "../output-lang.ts";
+import { inLang, type OutputLang } from "../output-lang.ts";
+import { VERDICT_HANT } from "./verdict-hant.ts";
 import { formatTimestamp, startSecondsOf } from "../transcript/segment.ts";
 
 // 一句话结论的判断档位，模型只能在这四档里选，界面按它们配标记，导出也原样写出。
@@ -17,17 +18,27 @@ export const LEGACY_VERDICT = "看概览就够";
 // 旧版另外两档换了名字，意思没变，读的时候按新名字认。
 const RENAMED: Readonly<Record<string, string>> = Object.freeze({ 值得看完整视频: "推荐看", 可以跳过: "可跳过" });
 
+// 选繁体时模型可能把档位也写成繁体：照繁体显示名反查回档位本身。「信息不足」逐字转成繁体还是这四个字，已经认得。
+const FROM_HANT: Readonly<Record<string, string>> = Object.freeze({
+  [VERDICT_HANT.watch]: "推荐看",
+  [VERDICT_HANT.fair]: "可以看",
+  [VERDICT_HANT.skip]: "可跳过",
+  [VERDICT_HANT.unknown]: "信息不足",
+  [VERDICT_HANT.legacy]: LEGACY_VERDICT,
+});
+
 /**
  * 存着的档位按现在的说法读：新四档原样，旧版改了名的换成新名字，「看概览就够」原样留下，
- * 别的（模型自创的、空的）交回空串。只在读的时候认，存储里的旧值不改写。
+ * 写成繁体的换回档位本身，别的（模型自创的、空的）交回空串。只在读的时候认，存储里的旧值不改写。
  */
 export function verdictLabelOf(raw: unknown): string {
   const label = String(raw ?? "").trim();
   if (VERDICT_LABELS.includes(label) || label === LEGACY_VERDICT) return label;
-  return Object.hasOwn(RENAMED, label) ? (RENAMED[label] ?? "") : "";
+  if (Object.hasOwn(RENAMED, label)) return RENAMED[label] ?? "";
+  return Object.hasOwn(FROM_HANT, label) ? (FROM_HANT[label] ?? "") : "";
 }
 
-// 档位的英文显示名，页面、导出和粗筛的分组都用这一份；中文的显示名就是档位本身。
+// 档位的英文、繁体显示名，页面、导出和粗筛的分组都用这一份；简体的显示名就是档位本身。
 const VERDICT_NAMES_EN: Readonly<Record<string, string>> = Object.freeze({
   推荐看: "Worth watching",
   可以看: "Watch the key parts",
@@ -36,13 +47,22 @@ const VERDICT_NAMES_EN: Readonly<Record<string, string>> = Object.freeze({
   [LEGACY_VERDICT]: "Overview is enough",
 });
 
+const VERDICT_NAMES_HANT: Readonly<Record<string, string>> = Object.freeze({
+  推荐看: VERDICT_HANT.watch,
+  可以看: VERDICT_HANT.fair,
+  可跳过: VERDICT_HANT.skip,
+  信息不足: VERDICT_HANT.unknown,
+  [LEGACY_VERDICT]: VERDICT_HANT.legacy,
+});
+
 /**
- * 档位的显示名。中文照原样写；英文时认得出的档位（含旧版改了名的、「看概览就够」）换成英文名，
+ * 档位的显示名。简体照原样写；别的语言有显示名表时，认得出的档位（含旧版改了名的、「看概览就够」）换成那种语言的名字，
  * 认不出的（模型自创的）原样写。
  */
 export function verdictName(label: string, lang: OutputLang = "zh"): string {
-  if (lang !== "en") return label;
-  return VERDICT_NAMES_EN[verdictLabelOf(label)] ?? label;
+  const names = inLang<Readonly<Record<string, string>> | null>(lang, null, VERDICT_NAMES_EN, VERDICT_NAMES_HANT);
+  if (!names) return label;
+  return names[verdictLabelOf(label)] ?? label;
 }
 
 /** 概览的失败区间，这里只看起止秒数。 */
@@ -279,11 +299,12 @@ export interface VerdictCheck {
 }
 
 /**
- * 各字段按字符截断的上限，比提示词要求的长度留出余量。中文按提示词的 80 字、50 字算；
+ * 各字段按字符截断的上限，比提示词要求的长度留出余量。简体、繁体按提示词的 80 字、50 字算；
  * 英文按 50 词、30 词算，一个词连空格六七个字符，同样留一倍多的余量，免得截成半句。
  */
 export const VERDICT_CLIP: Readonly<Record<OutputLang, { readonly summary: number; readonly value: number; readonly reason: number }>> = Object.freeze({
   zh: Object.freeze({ summary: 200, value: 120, reason: 120 }),
+  "zh-Hant": Object.freeze({ summary: 200, value: 120, reason: 120 }),
   en: Object.freeze({ summary: 800, value: 480, reason: 480 }),
 });
 

@@ -1,6 +1,6 @@
 /// <reference types="chrome" />
 // 播放页上的界面语言。内容脚本读不到扩展页面的首帧缓存，也读不到存储：语言选项和卡片开关走同一条路，
-// 跟着外观从后台拿（问一次外观、外观变了的广播），再配上浏览器的界面语言，按 core/output-lang.ts 解析成中文或英文。
+// 跟着外观从后台拿（问一次外观、外观变了的广播），再配上浏览器的界面语言，按 core/output-lang.ts 解析成简体、繁体或英文。
 // 后台的回复里还没有语言选项、或者取值认不出时，按跟随浏览器算。
 import { isLanguageSetting, resolveOutputLang, type LanguageSetting, type OutputLang } from "../core/output-lang.ts";
 

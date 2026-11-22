@@ -126,8 +126,8 @@ const JSON_MENTION = "请只输出 JSON。";
 
 // 地址拼不出请求时给用户的说明，两种语言都带上。
 function badBaseUrl(): Error {
-  const { message, messageEn } = bothLangs((text) => text.baseUrlBad);
-  return withEnglish(new Error(message), messageEn);
+  const { message, messageEn, messageHant } = bothLangs((text) => text.baseUrlBad);
+  return withEnglish(new Error(message), messageEn, messageHant);
 }
 const MENTIONS_JSON = /\bjson\b/i;
 

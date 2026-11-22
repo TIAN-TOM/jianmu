@@ -331,6 +331,12 @@
   --hit: 1.75rem; /* 图标按钮的点击区 */
 }
 
+/* 繁体界面（<html lang> 是 zh-Hant）换成繁体字形的字体；简体和英文照旧用上面那组。 */
+:root:lang(zh-Hant) {
+  --font-sans: -apple-system, "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --font-serif: "Songti TC", "Noto Serif CJK TC", "Source Han Serif TC", var(--font-sans);
+}
+
 /* 四个页面的尺寸都用 rem，界面字号只改这里，卡片报给播放页的高度就是实际高度。 */
 html {
   font-size: calc(100% * var(--ui-font-zoom));

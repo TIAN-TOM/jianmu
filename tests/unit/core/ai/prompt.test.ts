@@ -178,13 +178,13 @@ for (const [file, variables] of Object.entries(PROMPTS)) {
   });
 }
 
-test("问答的示例回答守出处协议：每行都有能核对的出处，行首没有列表符号，两种语言一样", () => {
+test("问答的示例回答守出处协议：每行都有能核对的出处，行首没有列表符号，三种语言一样", () => {
   const entries = [
     { start: 184, text: "连续的字幕原文" },
     { start: 492, text: "另一行的字幕原文" },
     { start: 570, text: "又一行的字幕原文" },
   ];
-  for (const lang of ["zh", "en"] as const) {
+  for (const lang of ["zh", "zh-Hant", "en"] as const) {
     const system = extractPromptSection(localizePrompt(read("common/qa.md"), lang), "系统提示词", {});
     const example = system.split("\n").find((line) => line.startsWith('{"answer"')) ?? "";
     const answer = (JSON.parse(example) as { answer: string }).answer;
@@ -194,10 +194,10 @@ test("问答的示例回答守出处协议：每行都有能核对的出处，�
   }
 });
 
-test("study/translation.md 的两套语言规则小节都存在且非空", () => {
-  // 服务按字幕语种在这两节里二选一注入 {langRules}，
+test("study/translation.md 的三套语言规则小节都存在且非空", () => {
+  // 服务按翻译的目标语言在这几节里挑一节注入 {langRules}，
   // 调用处不是字面量，上面那条扫描测试逮不到它，这里单独守。
-  for (const heading of ["中文规则", "英文规则"]) {
+  for (const heading of ["中文规则", "英文规则", "繁体中文规则"]) {
     const rules = extractPromptSection(read("study/translation.md"), heading, {});
     assert.ok(rules.trim().length > 0, `study/translation.md#${heading} 是空的`);
   }

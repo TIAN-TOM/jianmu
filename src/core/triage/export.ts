@@ -1,6 +1,7 @@
 // 粗筛的展示文字和 Markdown 清单导出。视频地址的前缀由调用方传入。固定文字按语言出，缺省中文；
 // 标题、UP 主名、官方总结和模型写的结论原样写。
-import type { OutputLang } from "../output-lang.ts";
+import { inLang, type OutputLang } from "../output-lang.ts";
+import { EXPORT_HANT } from "./export-hant.ts";
 import { parseVideoKey } from "../video-ref.ts";
 import { hasOfficialContent } from "./batch.ts";
 import { GROUPS, groupItems, groupName, hasVerdict, type TriageVerdict, type VerdictMap } from "./groups.ts";
@@ -41,7 +42,7 @@ const EXPORT_ZH = {
   fileName: (stamp: string) => `简幕-稍后再看-${stamp}.md`,
 };
 
-type ExportText = typeof EXPORT_ZH;
+export type ExportText = typeof EXPORT_ZH;
 
 const plural = (count: number, one: string, many: string): string => `${count} ${count === 1 ? one : many}`;
 
@@ -73,7 +74,7 @@ const EXPORT_EN: ExportText = {
   fileName: (stamp) => `jianmu-watch-later-${stamp}.md`,
 };
 
-const textOf = (lang: OutputLang): ExportText => (lang === "en" ? EXPORT_EN : EXPORT_ZH);
+const textOf = (lang: OutputLang): ExportText => inLang(lang, EXPORT_ZH, EXPORT_EN, EXPORT_HANT);
 
 /** 官方总结各种结果的说法，中文这份。 */
 export const OFFICIAL_STATUS_TEXT = Object.freeze(EXPORT_ZH.status);

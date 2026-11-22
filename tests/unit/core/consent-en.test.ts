@@ -1,4 +1,4 @@
-// 两份说明的英文措辞：每个条目、每句合成的措辞都有英文；排成行时按语言取，不传语言和原来一样是中文；加英文不动版本和指纹。
+// 两份说明的英文、繁体措辞：每个条目、每句合成的措辞都有英文和繁体；排成行时按语言取，不传语言和原来一样是中文；加英文、繁体不动版本和指纹。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -12,13 +12,17 @@ import {
   DATA_CONSENT_TABLE,
   DATA_CONSENT_VERSION,
   dataConsentErrorText,
+  noticeHant,
   noticeLines,
   noticeText,
   versionStamps,
   type NoticeItem,
   type NoticeTable,
 } from "../../../src/core/consent.ts";
+import { ACTIVATION_HANT, DATA_CONSENT_ERROR_HANT, DATA_CONSENT_HANT } from "../../../src/core/consent-hant.ts";
+import { FRAME_ACTIVATION_HANT, FRAME_DATA_HANT } from "../../../src/core/consent-frame-hant.ts";
 import { validate, validateForSave, DATA_CONSENT_CONFIRMED } from "../../../src/shared/settings-schema.ts";
+import { charsIn, SIMPLIFIED_ONLY } from "../../helpers/hant-chars.ts";
 
 const CJK = /[　-〿一-鿿＀-￯]/;
 const itemsOf = (table: NoticeTable<string>): readonly NoticeItem<string>[] => table.flatMap((row) => row.items);
@@ -97,4 +101,60 @@ test("设置的校验提示：不传语言和原来一样是中文，英文每�
   assert.deepEqual(validate(onlyConsent).errors, [DATA_CONSENT_ERROR]);
   assert.deepEqual(validate(onlyConsent, "en").errors, [DATA_CONSENT_ERROR_EN]);
   assert.deepEqual(validate({ ...onlyConsent, ...DATA_CONSENT_CONFIRMED }, "en").errors, []);
+});
+
+const hasSimplified = (text: string): boolean => charsIn(text, SIMPLIFIED_ONLY).length > 0;
+
+test("繁体：两张表的每个条目（各种 kind）都取到繁体那份，不是回落的简体；并显示的合成措辞也一样", () => {
+  for (const table of [DATA_CONSENT_TABLE, ACTIVATION_TABLE] as readonly NoticeTable<string>[]) {
+    for (const item of itemsOf(table)) {
+      const label = `${item.kind}:${item.id}`;
+      const hant = noticeHant(item);
+      assert.ok(hant, `${label} 没有繁体`);
+      const text = noticeText(item, "zh-Hant");
+      assert.equal(text, hant.text);
+      assert.notEqual(text, item.text, `${label} 回落成了简体`);
+      assert.ok(!hasSimplified(text), `${label}：${text}`);
+      if (!item.shownWith) {
+        assert.equal(hant.combined, undefined, `${label} 不并显示，不该有合成措辞`);
+        continue;
+      }
+      assert.ok(hant.combined, `${label} 没有繁体的合成措辞`);
+      assert.notEqual(hant.combined, item.shownWith.combined);
+      assert.ok(!hasSimplified(hant.combined), `${label}：${hant.combined}`);
+    }
+  }
+});
+
+test("繁体：措辞表里的键正好是各条目的 kind:id，不多不少，两份说明的键不重", () => {
+  const keysOf = (table: NoticeTable<string>) => itemsOf(table).map((item) => `${item.kind}:${item.id}`).sort();
+  // 测试构建打开了解释当前画面，画面那几条的繁体也要在。
+  assert.deepEqual(Object.keys({ ...DATA_CONSENT_HANT, ...FRAME_DATA_HANT }).sort(), keysOf(DATA_CONSENT_TABLE));
+  assert.deepEqual(Object.keys({ ...ACTIVATION_HANT, ...FRAME_ACTIVATION_HANT }).sort(), keysOf(ACTIVATION_TABLE));
+  const data = new Set(keysOf(DATA_CONSENT_TABLE));
+  assert.deepEqual(keysOf(ACTIVATION_TABLE).filter((key) => data.has(key)), []);
+});
+
+test("繁体：排成行时和简体一一对应，并显示的行用繁体的合成措辞；只列新增的、指向的不在这组里时单列", () => {
+  for (const table of [DATA_CONSENT_TABLE, ACTIVATION_TABLE] as readonly NoticeTable<string>[]) {
+    const items = itemsOf(table);
+    const zh = noticeLines(items, "zh");
+    const hant = noticeLines(items, "zh-Hant");
+    assert.deepEqual(hant.map(({ kind, ids }) => ({ kind, ids })), zh.map(({ kind, ids }) => ({ kind, ids })));
+    for (const line of hant) assert.ok(!hasSimplified(line.text), `${line.ids.join(",")}：${line.text}`);
+  }
+  const all = itemsOf(DATA_CONSENT_TABLE);
+  const duration = all.find((item) => item.id === "video-duration");
+  const title = all.find((item) => item.id === "video-title");
+  assert.ok(duration && title);
+  assert.deepEqual(noticeLines([duration], "zh-Hant"), [{ kind: "category", ids: ["video-duration"], text: "影片長度" }]);
+  assert.deepEqual(noticeLines([title, duration], "zh-Hant"), [{ kind: "category", ids: ["video-title", "video-duration"], text: "影片標題和長度" }]);
+});
+
+test("繁体：加繁体不动版本和指纹，没同意数据说明的提示有繁体，简体那句仍是标识", () => {
+  assert.deepEqual(currentStamp(DATA_CONSENT_TABLE), { version: DATA_CONSENT_VERSION, fingerprint: DATA_CONSENT_FINGERPRINT });
+  assert.deepEqual(currentStamp(ACTIVATION_TABLE), { version: ACTIVATION_VERSION, fingerprint: ACTIVATION_FINGERPRINT });
+  assert.equal(dataConsentErrorText("zh-Hant"), DATA_CONSENT_ERROR_HANT);
+  assert.notEqual(DATA_CONSENT_ERROR_HANT, DATA_CONSENT_ERROR);
+  assert.ok(!hasSimplified(DATA_CONSENT_ERROR_HANT));
 });

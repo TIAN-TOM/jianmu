@@ -3,17 +3,17 @@
 import type { ActivationKind, DataConsentKind, NoticeItem } from "./consent.ts";
 
 /** 首次启用说明：多读当前的一帧画面。 */
-export const FRAME_ACTIVATION_ITEMS: readonly NoticeItem<ActivationKind>[] = [
+export const FRAME_ACTIVATION_ITEMS = [
   {
     kind: "read",
     id: "current-frame",
     text: "点「解释当前画面」时，视频当前的一帧画面，只用于这一次，不保存",
     en: "The current video frame when you click “Explain this frame”, used only that once and not saved",
   },
-];
+] as const satisfies readonly NoticeItem<ActivationKind>[];
 
 /** 数据说明：多发当前的一帧画面，前后几句字幕已经在「字幕文本」里。 */
-export const FRAME_DATA_ITEMS: readonly NoticeItem<DataConsentKind>[] = [
+export const FRAME_DATA_ITEMS = [
   {
     kind: "category",
     id: "current-frame",
@@ -31,4 +31,4 @@ export const FRAME_DATA_ITEMS: readonly NoticeItem<DataConsentKind>[] = [
       combinedEn: "Translation, subtitle tidy-up (adding punctuation and fixing misheard words), overviews, one-line verdicts, selection explanation, note polishing, Q&A, verdicts in Watch Later triage, and explaining the current frame",
     },
   },
-];
+] as const satisfies readonly NoticeItem<DataConsentKind>[];

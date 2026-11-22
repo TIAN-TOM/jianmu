@@ -1,4 +1,4 @@
-// 设置页的界面文案，中文这份。它定下文案表的形状（OptionsText），英文那份（text-en.ts）必须满足同一个类型。
+// 设置页的界面文案，简体这份。它定下文案表的形状（OptionsText），英文那份（text-en.ts）和繁体那份（text-hant.ts）必须满足同一个类型。
 // 构建开关保护的功能的文案不放这里：画面分析在 frame-text.ts，YouTube 在 youtube-text.ts，只从开关分支引用。
 // 模块顶层只放字面量和函数。带变量的文案写成函数。
 import type { PresetId } from "../../core/ai/provider/endpoint.ts";

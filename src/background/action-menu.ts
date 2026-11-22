@@ -2,7 +2,8 @@
 // 勾选状态跟着设置走，设置在别处变了也跟着变。浏览器点击时自己先翻转勾选，改不成就改回设置里的值。
 // 没确认启用时两个开关都不改设置，改为打开设置页；打开就出结论还要数据说明的同意齐全，不齐全也改为打开设置页，在那里同意。
 // 菜单项的文字跟着设置里的语言（和界面、模型写的内容同一个设置）：语言改了就按新语言重建。
-import { resolveOutputLang, type OutputLang } from "../core/output-lang.ts";
+import { inLang, resolveOutputLang, type OutputLang } from "../core/output-lang.ts";
+import { MENU_HANT } from "./action-menu-hant.ts";
 import { errorLabel, type Log } from "./log.ts";
 import { createContextMenus, type ContextMenusDeps } from "../platform/context-menus.ts";
 import type { PublicSettings, SettingsStore } from "../platform/settings-store.ts";
@@ -12,21 +13,23 @@ import { ACTION_MENU, PAGE_PATHS, SETTINGS_STORAGE_KEY } from "../shared/names.t
 import { normalize } from "../shared/settings-schema.ts";
 import type { StorageChange } from "./routes/appearance.ts";
 
-// 菜单项的文字，中文那份定形状。菜单里放不下设置页那段说明，后果写在标题里：花额度的开关旁要写明。
+// 菜单项的文字，中文那份定形状，繁体那份在 action-menu-hant.ts。菜单里放不下设置页那段说明，后果写在标题里：花额度的开关旁要写明。
 const MENU_ZH = {
   triage: "稍后再看粗筛",
   inPageCard: "在视频右侧显示总结卡片",
   autoOverview: "打开视频就出结论（花 API 额度）",
 };
 
-const MENU_EN: typeof MENU_ZH = {
+export type ActionMenuText = typeof MENU_ZH;
+
+const MENU_EN: ActionMenuText = {
   triage: "Watch Later triage",
   inPageCard: "Show summary card beside video",
   autoOverview: "Verdict on open (uses API credit)",
 };
 
 /** 指定语言的菜单文字。不传语言时是中文。 */
-export const actionMenuText = (lang: OutputLang = "zh"): typeof MENU_ZH => (lang === "en" ? MENU_EN : MENU_ZH);
+export const actionMenuText = (lang: OutputLang = "zh"): ActionMenuText => inLang(lang, MENU_ZH, MENU_EN, MENU_HANT);
 
 /** 菜单上的两个开关各自对应的设置项。 */
 const SWITCHES = [

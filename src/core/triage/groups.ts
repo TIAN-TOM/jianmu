@@ -1,7 +1,8 @@
 // 结论落在哪一组：四档判断，旧版留下的「看概览就够」单列一组，外加「还没判断」。
 // 档位在数据里是那几个中文词，当标识用；显示和导出时经 groupName 和 core/ai/verdict.ts 的 verdictName 按语言换成显示名。
 import { LEGACY_VERDICT, verdictLabelOf, verdictName } from "../ai/verdict.ts";
-import type { OutputLang } from "../output-lang.ts";
+import { inLang, type OutputLang } from "../output-lang.ts";
+import { PENDING_HANT } from "./groups-hant.ts";
 import type { TriageItem } from "./state.ts";
 
 export type GroupKey = "watch" | "fair" | "skip" | "unknown" | "legacy" | "pending";
@@ -33,9 +34,8 @@ export const GROUPS: readonly TriageGroup[] = Object.freeze([
 
 /** 一组的显示名：判断档位的组用档位的显示名（core/ai/verdict.ts 的 verdictName），「还没判断」单写。 */
 export function groupName(key: GroupKey, lang: OutputLang = "zh"): string {
-  if (key === "pending" && lang === "en") return "Not judged yet";
   const label = GROUPS.find((group) => group.key === key)?.label ?? key;
-  return key === "pending" ? label : verdictName(label, lang);
+  return key === "pending" ? inLang(lang, label, "Not judged yet", PENDING_HANT) : verdictName(label, lang);
 }
 
 export function hasVerdict(verdict: TriageVerdict | null | undefined): verdict is TriageVerdict {

@@ -47,8 +47,8 @@ function saidOf(error: AiErrorLike, lang: OutputLang): string {
 }
 
 export function taskCanceledError(): TransportError {
-  const { message, messageEn } = transportBoth((text) => text.canceled);
-  const error: TransportError = withEnglish(new Error(message), messageEn);
+  const { message, messageEn, messageHant } = transportBoth((text) => text.canceled);
+  const error: TransportError = withEnglish(new Error(message), messageEn, messageHant);
   error.code = "TASK_CANCELED";
   return error;
 }
@@ -59,8 +59,8 @@ export function throwIfTaskCanceled(signal: AbortSignal | undefined): void {
 
 // 拒绝回答改配置也救不了，重试只会再付一次费，直接报给用户。
 export function refusedError(reason: string): TransportError {
-  const { message, messageEn } = transportBoth((text) => (reason ? text.refusedWith(reason) : text.refused));
-  const error: TransportError = withEnglish(new Error(message), messageEn);
+  const { message, messageEn, messageHant } = transportBoth((text) => (reason ? text.refusedWith(reason) : text.refused));
+  const error: TransportError = withEnglish(new Error(message), messageEn, messageHant);
   error.code = "AI_REFUSED";
   return error;
 }
@@ -100,7 +100,7 @@ function errorResponseOf(error: AiErrorLike, lang: OutputLang): AiErrorResponse 
     return { success: false, error: "TASK_CANCELED", message: say.canceled };
   }
   if (error.code !== undefined && ACTIONABLE.has(error.code)) {
-    return { success: false, error: error.code, message: lang === "en" ? messageIn(error, lang) : (error.message as string) };
+    return { success: false, error: error.code, message: lang === "zh" ? (error.message as string) : messageIn(error, lang) };
   }
   if (error.status === 401 || error.status === 403) {
     return {
@@ -129,7 +129,7 @@ function errorResponseOf(error: AiErrorLike, lang: OutputLang): AiErrorResponse 
   if (error.status !== undefined && error.status >= 500 && error.status < 600) {
     const raw = String(error.message || "").trim();
     if (error.status !== 529 && raw && !GENERIC_SERVER_ERROR.test(raw)) {
-      const detail = messageIn({ message: raw, messageEn: error.messageEn }, lang).trim();
+      const detail = messageIn({ message: raw, messageEn: error.messageEn, messageHant: error.messageHant }, lang).trim();
       const shown =
         detail.length > SERVER_ERROR_DETAIL_MAX_CHARS
           ? `${detail.slice(0, SERVER_ERROR_DETAIL_MAX_CHARS)}…`
@@ -149,6 +149,6 @@ function errorResponseOf(error: AiErrorLike, lang: OutputLang): AiErrorResponse 
   return {
     success: false,
     error: error.code || "AI_REQUEST_FAILED",
-    message: (lang === "en" ? messageIn(error, lang) : error.message) || say.failed,
+    message: (lang === "zh" ? error.message : messageIn(error, lang)) || say.failed,
   };
 }

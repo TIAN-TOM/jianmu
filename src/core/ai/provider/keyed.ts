@@ -27,8 +27,8 @@ export function isRedirectResponse(response: RedirectProbe | null | undefined): 
 export function rejectRedirect(response: RedirectProbe | null | undefined, baseUrl: string | undefined): void {
   if (!isRedirectResponse(response)) return;
   Promise.resolve(response?.body?.cancel?.()).catch(() => {});
-  const { message, messageEn } = bothLangs((text) => text.redirected(String(baseUrl)));
-  const error: ProviderError = withEnglish(new Error(message), messageEn);
+  const { message, messageEn, messageHant } = bothLangs((text) => text.redirected(String(baseUrl)));
+  const error: ProviderError = withEnglish(new Error(message), messageEn, messageHant);
   error.code = "AI_REDIRECT_BLOCKED";
   throw error;
 }
@@ -62,8 +62,8 @@ export function keyedHttpError(
   const secret = settings?.aiApiKey;
   const raw = redactSecret(parseErrorMessage(data, status), secret);
   if (status === 400 && WORKSPACE_REQUIRED.test(raw)) {
-    const { message, messageEn } = bothLangs((text) => text.workspaceRequired);
-    const error: ProviderError = withEnglish(new Error(message), messageEn);
+    const { message, messageEn, messageHant } = bothLangs((text) => text.workspaceRequired);
+    const error: ProviderError = withEnglish(new Error(message), messageEn, messageHant);
     error.status = status;
     error.code = "ANTHROPIC_WORKSPACE_REQUIRED";
     return error;
