@@ -1,4 +1,4 @@
-// 设置页：确认启用之前只有启用说明、资料和「关于」两节，「关于」里的版本号、构建标识和两个链接都对；确认以后能保存服务商、密钥和模型，拉模型列表（状态行说已保存，框里的型号不在列表里时提醒）、测试连接对着模拟的模型服务走通，
+// 设置页：确认启用之前只有启用说明、资料和「关于」两节，「关于」里的版本号、构建标识和四个链接都对；确认以后能保存服务商、密钥和模型，拉模型列表（状态行说已保存，框里的型号不在列表里时提醒）、测试连接对着模拟的模型服务走通，
 // 密钥只进会话存储；本机 http 地址不填密钥也能保存、拉列表和测试连接；导出的备份清除全部数据后能再导回来，
 // 超过单条消息上限的备份也一样。各测试开头先清除全部数据，从没启用的状态开始。
 import assert from "node:assert/strict";
@@ -7,7 +7,7 @@ import { createServer } from "node:http";
 import { join } from "node:path";
 import { videoKey } from "../../src/core/video-ref.ts";
 import { BUILD_ID_FILE } from "../../src/shared/build-id.ts";
-import { API_KEY_SESSION_KEY, ISSUES_URL, PAGE_PATHS, PRIVACY_POLICY_URL, SETTINGS_STORAGE_KEY } from "../../src/shared/names.ts";
+import { API_KEY_SESSION_KEY, ISSUES_URL, PAGE_PATHS, PRIVACY_POLICY_URL, RELEASES_URL, SETTINGS_STORAGE_KEY, SOURCE_URL } from "../../src/shared/names.ts";
 import { DATA_CONSENT_TABLE, dataConsentErrorText, noticeStatus } from "../../src/core/consent.ts";
 import { OPTIONS_EN } from "../../src/pages/options/text-en.ts";
 import { OPTIONS_ZH } from "../../src/pages/options/text-zh.ts";
@@ -119,7 +119,7 @@ test("设置页：确认启用之前只有启用说明和资料一节，确认�
   assert.equal(await page.overflowsX(), false);
 });
 
-test("设置页：「关于」一节显示清单里的版本号和这次构建的标识，隐私政策和反馈问题在新标签页打开", async ({ open, extensionDir }) => {
+test("设置页：「关于」一节显示清单里的版本号和这次构建的标识，更新记录、源码、隐私政策和反馈问题在新标签页打开", async ({ open, extensionDir }) => {
   const page = await freshOptions(open);
   const manifest = JSON.parse(readFileSync(join(extensionDir, "manifest.json"), "utf8"));
   const build = readFileSync(join(extensionDir, BUILD_ID_FILE), "utf8").trim();
@@ -132,8 +132,11 @@ test("设置页：「关于」一节显示清单里的版本号和这次构建�
       version: document.getElementById("aboutVersion").textContent,
       build: document.getElementById("aboutBuild").textContent,
       selectable: getComputedStyle(document.getElementById("aboutBuild")).userSelect,
+      releases: link("aboutReleases"),
+      source: link("aboutSource"),
       privacy: link("aboutPrivacy"),
       issues: link("aboutIssues"),
+      order: [...document.querySelectorAll(".about-links a")].map((node) => node.id),
     };
   })()`);
   assert.equal(about.version, manifest.version);
@@ -142,10 +145,15 @@ test("设置页：「关于」一节显示清单里的版本号和这次构建�
   assert.equal(about.build, build);
   assert.notEqual(about.selectable, "none");
   const rel = "noopener noreferrer";
+  assert.deepEqual(about.releases, { text: "更新记录", href: RELEASES_URL, target: "_blank", rel });
+  assert.deepEqual(about.source, { text: "源码", href: SOURCE_URL, target: "_blank", rel });
+  assert.deepEqual(about.order, ["aboutReleases", "aboutSource", "aboutPrivacy", "aboutIssues"]);
   assert.deepEqual(about.privacy, { text: "隐私政策", href: PRIVACY_POLICY_URL, target: "_blank", rel });
   assert.deepEqual(about.issues, { text: "反馈问题", href: ISSUES_URL, target: "_blank", rel });
   assert.equal(PRIVACY_POLICY_URL, "https://github.com/TIAN-TOM/jianmu/blob/main/PRIVACY.md");
   assert.equal(ISSUES_URL, "https://github.com/TIAN-TOM/jianmu/issues");
+  assert.equal(RELEASES_URL, "https://github.com/TIAN-TOM/jianmu/releases");
+  assert.equal(SOURCE_URL, "https://github.com/TIAN-TOM/jianmu");
   assert.equal(await page.overflowsX(), false);
 });
 
