@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { clickableTimestamps } from "../../../../src/core/qa/citations.ts";
 import { DEFAULT_BUDGET_CHARS, questionTerms, scoreChunks, selectContext } from "../../../../src/core/qa/retrieval.ts";
 
 // 这些用例测的是筛选规则本身，预算固定在放宽前的 12000 字，样例的字数不用跟着默认值涨。
@@ -101,8 +100,11 @@ test("选中的块不相邻时，中间没送进模型的那段也不算合法�
 
   assert.equal(result.mode, "selected");
   assert.deepEqual(result.chunks.map((c) => c.index), [0, 1, 2, 5, 6, 7]);
-  const clickable = clickableTimestamps("[1:00] [7:00] [12:00] [16:00]", result.timeRange);
-  assert.deepEqual([...clickable], [60, 720, 960], "7:00 落在没选的第 4、5 块之间");
+  assert.deepEqual(
+    result.timeRange?.ranges,
+    [{ min: 0, max: 360 }, { min: 600, max: 1000 }],
+    "没选的第 4、5 块（6:00 到 10:00）不在合法区间里",
+  );
 });
 
 test("full 模式有视频总长时，末块的上界仍以总长封顶", () => {
