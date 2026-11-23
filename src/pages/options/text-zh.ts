@@ -66,6 +66,9 @@ export const OPTIONS_ZH = {
     clearCache: "清除缓存",
     clearCacheQuestion: "清除字幕和视频信息的缓存，以及粗筛读到的列表？笔记、概览、问答和设置都留着。",
     clearCacheConfirm: "清除缓存",
+    clearNotes: "删除全部笔记",
+    clearNotesQuestion: "删除这台电脑上所有视频的笔记？此操作无法撤销。",
+    clearNotesConfirm: "确认删除",
     clearAll: "清除全部数据",
     clearAllQuestion: "清除简幕在这台电脑上存的全部数据？笔记、概览、问答、导入的字幕文件、缓存、设置和密钥都会删掉，删了不能恢复。",
     clearAllConfirm: "全部清除",
@@ -250,6 +253,7 @@ export const OPTIONS_ZH = {
     unreadable: "读不出这个文件：文件可能太大，或者已经被移走了。",
     notBackup: "读不懂这个文件，请选简幕导出的 JSON 备份。",
     clearFailed: (reason: string) => `清除失败：${reason}`,
+    clearedNotes: "已删除全部笔记。",
     clearedAll: "已清除这台电脑上的全部数据，设置已恢复默认。",
     clearedCache: "已清除缓存。",
     importSummary: ({ counts, promptsDropped }: BackupImportReply) => {

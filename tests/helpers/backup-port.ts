@@ -6,7 +6,7 @@ import type { Result } from "../../src/core/errors.ts";
 import type { PortLike } from "../../src/platform/messaging.ts";
 import type { BackupImportReply } from "../../src/shared/messages/data.ts";
 import { createPageApi, type PageApi } from "../../src/pages/shared/api.ts";
-import { receiveBackup, sendBackup } from "../../src/pages/options/backup-transfer.ts";
+import { receiveBackup, withBackupImport } from "../../src/pages/options/backup-transfer.ts";
 import type { MessageSender } from "../../src/background/senders.ts";
 import { senders, type createFakeChrome } from "./chrome.ts";
 
@@ -65,7 +65,9 @@ export const exportOver = (fake: Fake, app: Pick<App, "connect">, sender?: Messa
 
 /** 和设置页一样：先认格式，认得出再分段交给后台。 */
 export async function importOver(fake: Fake, app: Pick<App, "connect">, payload: unknown, sender?: MessageSender): Promise<Result<BackupImportReply>> {
-  const read = readBackup(payload);
-  if (!read.ok) return read;
-  return sendBackup(pageApiOver(fake, app, sender), read.value);
+  return withBackupImport(pageApiOver(fake, app, sender), async (send) => {
+    const read = readBackup(payload);
+    if (!read.ok) return read;
+    return send(read.value);
+  });
 }

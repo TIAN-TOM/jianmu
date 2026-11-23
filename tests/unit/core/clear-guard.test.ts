@@ -14,14 +14,21 @@ function nextTurn() {
   return new Promise<void>((resolve) => setImmediate(resolve));
 }
 
-test("清除全部数据：两个代数都变；清除缓存：只有缓存代数变", async () => {
+test("按清除范围递增代数：清缓存或删笔记只影响各自的写入，清除全部数据影响三种", async () => {
   const guard = createClearGuard();
   const before = guard.epoch();
   await guard.clear("cache", () => {});
   assert.equal(guard.clearedSince(before, "cache"), true);
   assert.equal(guard.clearedSince(before, "all"), false, "清除缓存不碰笔记、概览、问答");
+  assert.equal(guard.clearedSince(before, "notes"), false);
+  const afterCache = guard.epoch();
+  await guard.clear("notes", () => {});
+  assert.equal(guard.clearedSince(afterCache, "notes"), true);
+  assert.equal(guard.clearedSince(afterCache, "cache"), false);
+  assert.equal(guard.clearedSince(afterCache, "all"), false);
   const middle = guard.epoch();
   await guard.clear("all", () => {});
+  assert.equal(guard.clearedSince(middle, "notes"), true);
   assert.equal(guard.clearedSince(middle, "cache"), true);
   assert.equal(guard.clearedSince(middle, "all"), true);
   assert.equal(guard.clearedSince(undefined), false, "没记代数的当作没清过");

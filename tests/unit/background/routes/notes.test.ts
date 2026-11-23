@@ -25,6 +25,15 @@ async function notesOf(bg: ReturnType<typeof studyBackground>): Promise<[VideoKe
   return listed.value.notes.map((note) => [note.video, note.atSec]);
 }
 
+test("删笔记时还在核对启用的保存请求，随后不能写入", async () => {
+  const bg = studyBackground({ withoutAi: true });
+  const manual = bg.send("notes.save", { ...atTime(), text: "留在删除之前" });
+  const atPlayer = bg.send("notes.saveAtTime", atTime(), senders.content(watchUrl(SAMPLE_ID)));
+  assert.ok((await bg.send("data.clear", { scope: "notes" }, senders.options())).ok);
+  for (const result of await Promise.all([manual, atPlayer])) assert.deepEqual(result, { ok: false, code: "LOCAL_DATA_CLEARED" });
+  assert.deepEqual(await notesOf(bg), []);
+});
+
 test("内容脚本在当前视频当前时间点记笔记照常成功", async () => {
   const bg = studyBackground({ withoutAi: true });
   const response = await bg.send<NoteSaveView>("notes.saveAtTime", atTime(), senders.content(watchUrl(SAMPLE_ID)));

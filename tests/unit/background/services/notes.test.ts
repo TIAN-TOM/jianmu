@@ -219,6 +219,29 @@ test("等润色的工夫清除了本机数据：润色不写回，笔记也不�
   assert.deepEqual(await stored(h), []);
 });
 
+test("删除全部笔记后，排队的润色不再发送，已发出的润色也不能覆盖恢复的笔记", async () => {
+  const queued = notesHarness();
+  await queued.notes.save({ video: VIDEO, atSec: 11 });
+  await queued.guard.clear("notes", () => queued.noteDriver.clear());
+  await queued.flushPolish();
+  assert.equal(queued.fake.count("notes"), 0);
+
+  const h = notesHarness();
+  const release = h.fake.hold("notes");
+  await h.notes.save({ video: VIDEO, atSec: 11 });
+  const backup = await stored(h);
+  h.timers.fire(0);
+  assert.ok(await until(() => h.fake.count("notes") === 1));
+  await h.guard.clear("notes", () => h.noteDriver.clear());
+  await h.noteDriver.write({ put: backup });
+  const listed = await h.notes.list();
+  assert.ok(listed.ok);
+  assert.equal(listed.value.notes[0]?.polishing, undefined);
+  release();
+  await h.flushPolish();
+  assert.deepEqual(await stored(h), backup);
+});
+
 test("YouTube 视频本机还没有字幕时只存时间点：不读字幕、不润色", async () => {
   const h = notesHarness({ transcripts: {} });
   const result = saved(await h.notes.save({ video: TUBE, atSec: 30 }));

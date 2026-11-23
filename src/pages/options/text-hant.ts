@@ -52,6 +52,9 @@ export const OPTIONS_HANT: OptionsText = {
     clearCache: "清除快取",
     clearCacheQuestion: "要清除字幕和影片資訊的快取，以及粗篩讀到的清單嗎？筆記、概覽、問答和設定都會保留。",
     clearCacheConfirm: "清除快取",
+    clearNotes: "刪除全部筆記",
+    clearNotesQuestion: "要刪除這台電腦上所有影片的筆記嗎？這個操作無法復原。",
+    clearNotesConfirm: "確認刪除",
     clearAll: "清除全部資料",
     clearAllQuestion: "要清除簡幕在這台電腦上存的全部資料嗎？筆記、概覽、問答、匯入的字幕檔案、快取、設定和金鑰都會刪掉，刪了無法復原。",
     clearAllConfirm: "全部清除",
@@ -235,6 +238,7 @@ export const OPTIONS_HANT: OptionsText = {
     unreadable: "讀不到這個檔案：檔案可能太大，或者已經被移走了。",
     notBackup: "看不懂這個檔案，請選擇簡幕匯出的 JSON 備份。",
     clearFailed: (reason) => `清除失敗：${reason}`,
+    clearedNotes: "已刪除全部筆記。",
     clearedAll: "已清除這台電腦上的全部資料，設定已恢復預設。",
     clearedCache: "已清除快取。",
     importSummary: ({ counts, promptsDropped }) => {

@@ -34,6 +34,7 @@ test("测试连接只收空请求或带一个认得的功能，别的形状不�
   const fake = createFakeAi({ replies: { "*": "可用" } });
   const chrome = createFakeChrome();
   const router = createRouter({
+    clearEpoch: () => undefined,
     routes: aiRoutes({ ai: fake.ai }),
     ports: {},
     senders: createSenders({ extensionId: EXTENSION_ID, extensionUrl, rules: chrome.siteRules }),
@@ -130,6 +131,7 @@ test("推理强度预览只收设置页；请求只能是空的或一张认得�
   };
   const chrome = createFakeChrome();
   const router = createRouter({
+    clearEpoch: () => undefined,
     routes: aiRoutes({ ai }),
     ports: {},
     senders: createSenders({ extensionId: EXTENSION_ID, extensionUrl, rules: chrome.siteRules }),

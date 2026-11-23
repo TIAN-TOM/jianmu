@@ -37,6 +37,7 @@ export interface NoteInput {
 }
 
 export interface NoteSaveOptions {
+  readonly since?: ClearEpoch | undefined;
   /** 真要润色一条新笔记时问一次，回 false 就只存原文。播放页来的笔记用它限频。 */
   readonly mayPolish?: () => boolean;
 }
@@ -58,8 +59,8 @@ export interface NotesServiceDeps {
 export interface NotesService {
   save(input: NoteInput, options?: NoteSaveOptions): Promise<Result<NoteSaveView>>;
   list(video?: VideoKey): Promise<Result<NoteListView>>;
-  update(id: string, text: string): Promise<Result<NoteUpdateView>>;
-  remove(id: string): Promise<Result<EmptyRequest>>;
+  update(id: string, text: string, since?: ClearEpoch): Promise<Result<NoteUpdateView>>;
+  remove(id: string, since?: ClearEpoch): Promise<Result<EmptyRequest>>;
 }
 
 /** 存笔记时读到的字幕和视频信息；还没读到字幕的 YouTube 视频没有。 */
@@ -86,9 +87,12 @@ const budgetOf = (gen: FrozenGen): number => keepAliveBudget(EFFORT_TIMEOUT_SECO
 
 export function createNotesService(deps: NotesServiceDeps): NotesService {
   // 润色还在跑的笔记，只在内存里：后台被回收后不会留下一直「润色中」的笔记。
-  const polishing = new Set<string>();
+  const polishing = new Map<string, ClearEpoch | undefined>();
 
-  const shown = (note: NoteView): NoteItemView => (polishing.has(note.id) ? { ...note, polishing: true } : note);
+  function shown(note: NoteView): NoteItemView {
+    if (polishing.has(note.id) && !deps.guard.clearedSince(polishing.get(note.id), "notes")) return { ...note, polishing: true };
+    return note;
+  }
 
   const changed = (video: VideoKey): void => deps.broadcast({ type: "notes.changed", video });
 
@@ -128,6 +132,7 @@ export function createNotesService(deps: NotesServiceDeps): NotesService {
 
   // 润色完把正文换掉。笔记可能已经删了、被用户改过，那就什么都不动。
   async function polish(job: Polish, gen: FrozenGen, since: ClearEpoch | undefined): Promise<void> {
+    if (deps.guard.clearedSince(since, "notes")) return;
     let polished: string | null = null;
     try {
       polished = await polishText(job, gen);
@@ -148,7 +153,7 @@ export function createNotesService(deps: NotesServiceDeps): NotesService {
 
   // 回复之前就撑着 worker：润色排在回复之后，中间不能被回收。润色写完（或没写成）通知页面刷新。
   function startPolish(job: Polish, gen: FrozenGen, since: ClearEpoch | undefined): void {
-    polishing.add(job.note.id);
+    polishing.set(job.note.id, since);
     const release = deps.keepAlive.hold(budgetOf(gen));
     deps.defer(() => {
       polish(job, gen, since)
@@ -171,12 +176,12 @@ export function createNotesService(deps: NotesServiceDeps): NotesService {
   }
 
   return {
-    async save({ video, atSec, text: manualText }, { mayPolish } = {}) {
+    async save({ video, atSec, text: manualText }, { mayPolish, since = deps.guard.epoch() } = {}) {
       const ref = parseVideoKey(video);
       if (!ref) return fail("INVALID_REQUEST");
       const manual = (manualText ?? "").trim();
       if (manual.length > NOTE_TEXT_MAX) return fail("NOTE_TOO_LONG");
-      const since = deps.guard.epoch();
+      if (deps.guard.clearedSince(since, "notes")) return fail("LOCAL_DATA_CLEARED");
       const seconds = Math.max(0, Math.floor(Number(atSec) || 0));
       // 带着整理好的正文（比如从概览摘的）不要字幕，视频信息只看本机有的：没登录、被限流时照样存得下。
       const source = manual ? await localSource(ref) : await sourceOf(ref);
@@ -237,11 +242,10 @@ export function createNotesService(deps: NotesServiceDeps): NotesService {
       return ok({ notes: notes.map(shown) });
     },
 
-    async update(id, input) {
+    async update(id, input, since = deps.guard.epoch()) {
       const text = input.trim();
       if (!text) return fail("EMPTY_NOTE");
       if (text.length > NOTE_TEXT_MAX) return fail("NOTE_TOO_LONG");
-      const since = deps.guard.epoch();
       let outcome: { readonly note: NoteRecord | null } | null;
       try {
         outcome = await deps.notes.update<{ readonly note: NoteRecord | null }>((current) => {
@@ -262,13 +266,13 @@ export function createNotesService(deps: NotesServiceDeps): NotesService {
       return ok({ note: shown(deps.notes.view(updated)) });
     },
 
-    async remove(id) {
+    async remove(id, since = deps.guard.epoch()) {
       let removed: { readonly video: VideoKey | null } | null;
       try {
         removed = await deps.notes.update<{ readonly video: VideoKey | null }>((current) => {
           const target = current.find((note) => note.id === id);
           return target ? { remove: [id], result: { video: target.video } } : { result: { video: null } };
-        });
+        }, { since });
       } catch (error) {
         return writeFailure(error);
       }

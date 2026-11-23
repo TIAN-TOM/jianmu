@@ -1,8 +1,9 @@
 // 「清除本机数据」和本机写入之间的闸门。
-export type ClearScope = "cache" | "all";
+export type ClearScope = "cache" | "notes" | "all";
 
 export interface ClearEpoch {
   readonly cache: number;
+  readonly notes: number;
   readonly all: number;
 }
 
@@ -25,24 +26,21 @@ export interface ClearGuard {
  *   查和写都在 track() 里，所以一次写入要么在清除之前写完（随后被清掉），要么看到新代数不写；
  * - 清除进行中才进来的写入先等清除做完，再照常写：那是清除之后的新操作，应当留下。
  *
- * 「清除缓存」只清字幕缓存和粗筛这类能重新取回的数据，笔记、概览、问答都还在，所以分两个代数：
- * 两种清除都让 cache 代数加一，只有「清除全部数据」让 all 代数加一。
+ * 单独清缓存或删笔记只改变各自的代数；清除全部数据改变三个代数。
  * track() 里不能再套 track()：清除进行中，里面那层会等清除，清除又在等外面那层。
  */
 export function createClearGuard(): ClearGuard {
-  let cacheEpoch = 0;
-  let allEpoch = 0;
+  const epochs = { cache: 0, notes: 0, all: 0 };
   const inFlight = new Set<Promise<unknown>>();
   let clearing: Promise<void> | null = null;
 
   function epoch(): ClearEpoch {
-    return { cache: cacheEpoch, all: allEpoch };
+    return { ...epochs };
   }
 
   // since 是 epoch() 的返回值；没有记的（undefined）一律当作没清过。
   function clearedSince(since: ClearEpoch | undefined, scope: ClearScope = "all"): boolean {
-    if (!since) return false;
-    return scope === "cache" ? since.cache !== cacheEpoch : since.all !== allEpoch;
+    return since !== undefined && since[scope] !== epochs[scope];
   }
 
   async function track<T>(write: () => T | PromiseLike<T>): Promise<T> {
@@ -59,8 +57,11 @@ export function createClearGuard(): ClearGuard {
 
   async function clear<T>(scope: ClearScope, run: () => T | PromiseLike<T>): Promise<T> {
     while (clearing) await clearing;
-    cacheEpoch += 1;
-    if (scope === "all") allEpoch += 1;
+    epochs[scope] += 1;
+    if (scope === "all") {
+      epochs.cache += 1;
+      epochs.notes += 1;
+    }
     // Promise 的执行函数同步运行，下面用到时一定已赋值。
     let finish!: () => void;
     clearing = new Promise<void>((resolve) => {

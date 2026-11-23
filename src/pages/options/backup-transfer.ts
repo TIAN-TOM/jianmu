@@ -73,27 +73,33 @@ interface Tally {
   skipped: number;
 }
 
-/** 把读好的备份一段段交给后台合并。计数：本次导入里先新增后又补过的仍算新增。 */
-export async function sendBackup(api: Pick<PageApi, "connect">, imported: ImportedBackup): Promise<Result<BackupImportReply>> {
+/** 选中文件就建立导入连接。读文件和合并都用这次连接，读不出文件时也要关掉。 */
+export async function withBackupImport<T>(
+  api: Pick<PageApi, "connect">,
+  run: (send: (imported: ImportedBackup) => Promise<Result<BackupImportReply>>) => Promise<T>,
+): Promise<T> {
+  const channel = open(api, "backup.import");
+  try {
+    return await run((imported) => sendBackup(channel, imported));
+  } finally {
+    channel.port.close();
+  }
+}
+
+/** 把读好的备份一段段交给后台合并，先新增后又补过的主键仍算新增。 */
+async function sendBackup({ port, next }: Channel<"backup.import">, imported: ImportedBackup): Promise<Result<BackupImportReply>> {
   const tallies = Object.fromEntries(
     RECORD_KINDS.map((kind) => [kind, { added: new Set<string>(), updated: new Set<string>(), skipped: imported.skipped[kind] }]),
   ) as Record<RecordKind, Tally>;
   const parts = splitBackup(imported.contents);
-  if (parts.length) {
-    const { port, next } = open(api, "backup.import");
-    try {
-      for (const [seq, part] of parts.entries()) {
-        if (!port.post({ type: "part", seq, kind: part.kind, records: part.records })) return fail(stopped(await next()));
-        const event = await next();
-        if (event.type !== "merged" || event.seq !== seq) return fail(stopped(event));
-        const tally = tallies[part.kind];
-        for (const key of event.added) tally.added.add(key);
-        for (const key of event.updated) tally.updated.add(key);
-        tally.skipped += event.skipped;
-      }
-    } finally {
-      port.close();
-    }
+  for (const [seq, part] of parts.entries()) {
+    if (!port.post({ type: "part", seq, kind: part.kind, records: part.records })) return fail(stopped(await next()));
+    const event = await next();
+    if (event.type !== "merged" || event.seq !== seq) return fail(stopped(event));
+    const tally = tallies[part.kind];
+    for (const key of event.added) tally.added.add(key);
+    for (const key of event.updated) tally.updated.add(key);
+    tally.skipped += event.skipped;
   }
   const counts = Object.fromEntries(
     RECORD_KINDS.map((kind) => {

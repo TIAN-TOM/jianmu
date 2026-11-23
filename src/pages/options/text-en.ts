@@ -54,6 +54,9 @@ export const OPTIONS_EN: OptionsText = {
     clearCache: "Clear cache",
     clearCacheQuestion: "Clear cached subtitles and video details, plus the Watch Later triage list? Notes, overviews, Q&A and settings are kept.",
     clearCacheConfirm: "Clear cache",
+    clearNotes: "Delete all notes",
+    clearNotesQuestion: "Delete notes for every video on this computer? This can’t be undone.",
+    clearNotesConfirm: "Delete notes",
     clearAll: "Clear all data",
     clearAllQuestion: "Clear all the data Jianmu stores on this computer? Notes, overviews, Q&A, imported subtitle files, cache, settings and your API key will all be deleted. This can't be undone.",
     clearAllConfirm: "Clear everything",
@@ -238,6 +241,7 @@ export const OPTIONS_EN: OptionsText = {
     unreadable: "Couldn't read this file. It may be too large, or it may have been moved.",
     notBackup: "This file isn't recognised. Choose a JSON backup exported from Jianmu.",
     clearFailed: (reason) => `Couldn't clear data: ${reason}`,
+    clearedNotes: "All notes deleted.",
     clearedAll: "All data on this computer has been cleared, and settings are back to their defaults.",
     clearedCache: "Cache cleared.",
     importSummary: ({ counts, promptsDropped }) => {
