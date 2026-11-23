@@ -436,6 +436,8 @@
 }
 
 .explain-pick {
+  display: flex;
+  gap: var(--space-1);
   position: absolute;
   right: 0;
   z-index: 1;
