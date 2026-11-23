@@ -1,4 +1,4 @@
-// 字幕列表：精读的主体，速览里还没有概览时也摆在下面。逐段字幕，点一段跳到那里，跟着播放位置滚动；搜索高亮、换原文译文双语、导入导出字幕文件。
+// 字幕列表：精读的主体，速读里还没有概览时也摆在下面。逐段字幕，点一段跳到那里，跟着播放位置滚动；搜索高亮、换原文译文双语、导入导出字幕文件。
 // 读不到字幕时说明原因，视频网站给的导读照样摆出来；选中一段文字可以请模型解释。
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { hasMatch, splitMatches } from "../../core/highlight.ts";

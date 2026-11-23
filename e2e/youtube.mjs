@@ -6,7 +6,7 @@
 // 新式面板按播放器上已有的字幕轨判定来源：默认人工的标人工，只有一条自动轨的标自动，判定不了的标来源未确认。
 // 点读取时简介里的入口还没出来（页面还在加载）：等它出来再点开，读得到。
 // 播放页卡片插在右栏推荐视频上面、不进侧栏面板，本机没有字幕时不去读；侧边栏生成的结论卡片跟着摆出来，
-// 精读时收起、速览时展开，窗口变窄时跟着推荐视频挪到播放器下面。
+// 精读时收起、速读时展开，窗口变窄时跟着推荐视频挪到播放器下面。
 // 页面上没有文字稿、播放器有字幕的视频：点读取时简幕替用户开一下播放器的字幕，接住播放器自己取回的那份，读完关上，生成概览。
 // 最后打开「打开就出结论」：新开的视频不用点，简幕替用户点开文字稿读完、关上，生成概览。
 // 第一个加载：装的是日用包，之后导入的产品模块按日用构建的开关取值算。
@@ -117,7 +117,7 @@ const cardCollapsed = (card) => evaluate(card, `document.getElementById("card")?
 
 /**
  * 要看卡片上的内容。浏览器报得出侧边栏开关时（yields），侧边栏开着卡片就让位收着，像用户那样点开标题栏；
- * 报不出的老版本里，速览时卡片自己就是展开的。点开过的卡片在这个视频里以这一下为准，不再跟模式和侧边栏。
+ * 报不出的老版本里，速读时卡片自己就是展开的。点开过的卡片在这个视频里以这一下为准，不再跟模式和侧边栏。
  */
 async function openCard(card, yields) {
   if (yields) {
@@ -338,13 +338,13 @@ async function flow(launcher, panelUrl, worker) {
     // 这张卡片前面手动点开过：这个视频里以那一下为准，切模式不再动它。
     await until("侧边栏进了精读", async () => (await evaluate(panel, `document.querySelector(".mode-view")?.getAttribute("aria-label")`)) === "精读");
     if (!(await stillFalse(async () => (await cardCollapsed(card)) !== "false", 20))) throw new Error("手动点开过的卡片不该跟着模式收起");
-    await until("切回速览", () => clickIn(panel, ".mode", "速览"));
+    await until("切回速读", () => clickIn(panel, ".mode", "速读"));
     console.log("✓ 手动点开过的卡片切模式不动");
   } else {
     await until("精读时卡片收起", async () => (await cardCollapsed(card)) === "true");
-    await until("切回速览", () => clickIn(panel, ".mode", "速览"));
-    await until("回到速览卡片展开", async () => (await cardCollapsed(card)) === "false");
-    console.log("✓ 精读时卡片收起，回到速览展开");
+    await until("切回速读", () => clickIn(panel, ".mode", "速读"));
+    await until("回到速读卡片展开", async () => (await cardCollapsed(card)) === "false");
+    console.log("✓ 精读时卡片收起，回到速读展开");
   }
 
   // 窗口变窄：推荐视频挪到播放器下面，卡片跟过去；变宽再回右栏。挪过的卡片重新载入，结论照样在。

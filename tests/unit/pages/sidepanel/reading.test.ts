@@ -1,4 +1,4 @@
-// 侧边栏的纯规则：播放到哪一段和哪一章、速览里一章的字幕、原文译文双语怎么显示和导出、划词解释的长度、导出的文件名、导入前的文件核对。
+// 侧边栏的纯规则：播放到哪一段和哪一章、速读里一章的字幕、原文译文双语怎么显示和导出、划词解释的长度、导出的文件名、导入前的文件核对。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { safeFileName } from "../../../../src/pages/sidepanel/files.ts";
@@ -60,7 +60,7 @@ test("精读的当前章节：开始时间不晚于播放位置的最后一章�
   assert.equal(chapterAt(chapters, 9999), 2);
 });
 
-test("速览里一章的字幕：从这一章开始到下一章开始之前，最后一章到结尾", () => {
+test("速读里一章的字幕：从这一章开始到下一章开始之前，最后一章到结尾", () => {
   assert.deepEqual(segmentsBetween(SEGMENTS, 0, 10).map((item) => item.id), ["s0"]);
   assert.deepEqual(segmentsBetween(SEGMENTS, 10, null).map((item) => item.id), ["s1", "s2"]);
   assert.deepEqual(segmentsBetween(SEGMENTS, 30, null), []);

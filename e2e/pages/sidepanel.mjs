@@ -1,4 +1,4 @@
-// 侧边栏：确认启用前只有启用说明；没有视频时说明怎么用；视频页上读不到字幕、读到字幕，速览和精读、问答抽屉、笔记层的主要状态；
+// 侧边栏：确认启用前只有启用说明；没有视频时说明怎么用；视频页上读不到字幕、读到字幕，速读和精读、问答抽屉、笔记层的主要状态；
 // 打开时按时长定模式，主动切换记住频道，设置页清掉以后回到按时长；换了字幕以后，依据旧字幕的结论和问答标出来；
 // 同一个视频换到另一个标签页时重读本机的概览和问答。
 // 页面测试里没有设置模型服务的密钥：概览和问答停在要先设置 AI 服务。
@@ -52,11 +52,11 @@ const modes = `[...document.querySelectorAll(".mode")].map((node) => [node.textC
 /** 问答抽屉：字幕列表里还有一个划词解释的抽屉，按标题认。 */
 const qaSheet = `[...document.querySelectorAll(".sheet")].find((node) => node.querySelector(".overlay-title")?.textContent === "问答")`;
 const SKIM = [
-  ["速览", "true"],
+  ["速读", "true"],
   ["精读", "false"],
 ];
 const STUDY = [
-  ["速览", "false"],
+  ["速读", "false"],
   ["精读", "true"],
 ];
 
@@ -113,7 +113,7 @@ test("侧边栏：确认启用前只有启用说明，点启用以后说明怎�
   await waitIn(panel, "YouTube 的启用按钮", `[...document.querySelectorAll(".state-block .button")].map((node) => node.textContent.trim()).join() === "在 YouTube 上启用"`);
 });
 
-test("侧边栏：没登录时也读到视频信息，长视频进速览；字幕那块说明原因，给重试和导入字幕文件，标题用读到的", async (ctx) => {
+test("侧边栏：没登录时也读到视频信息，长视频进速读；字幕那块说明原因，给重试和导入字幕文件，标题用读到的", async (ctx) => {
   await withVideo(ctx, async (panel) => {
     const login = errorCopy("NEED_LOGIN");
     await waitIn(panel, "要登录的说明", `document.querySelector(".state-block .state-title")?.textContent === ${JSON.stringify(login.cause)}`);
@@ -163,15 +163,15 @@ test("侧边栏：没登录时也读到视频信息，长视频进速览；字�
   });
 });
 
-test("侧边栏：登录以后长视频进速览，还没有概览时下面接着字幕；搜索只留命中的段落并高亮", async (ctx) => {
+test("侧边栏：登录以后长视频进速读，还没有概览时下面接着字幕；搜索只留命中的段落并高亮", async (ctx) => {
   const from = await ctx.open(LAUNCHER);
   const login = await openTab(from, PROBE.login, false);
   await closeTab(from, login);
   await withVideo(ctx, async (panel) => {
     await waitIn(panel, "字幕列出来", `${textOf(".cue-text")}.includes("样例台词二")`);
     assert.deepEqual(await panel.evaluate(modes), SKIM);
-    assert.equal(await panel.evaluate(`Boolean(document.querySelector(".skim .skim-transcript .cues"))`), true, "字幕摆在速览里");
-    // 速览里的字幕不跟着播放滚动：知道播放位置以后出「回到当前句」，侧边栏没被拉下去。
+    assert.equal(await panel.evaluate(`Boolean(document.querySelector(".skim .skim-transcript .cues"))`), true, "字幕摆在速读里");
+    // 速读里的字幕不跟着播放滚动：知道播放位置以后出「回到当前句」，侧边栏没被拉下去。
     await waitIn(panel, "知道播放位置", `Boolean(document.querySelector(".follow-pill"))`);
     assert.equal(await panel.evaluate("scrollY"), 0, "侧边栏没被字幕拉着滚");
     // 往下滚，模式切换吸在顶上。
@@ -191,13 +191,13 @@ test("侧边栏：登录以后长视频进速览，还没有概览时下面接�
   });
 });
 
-test("侧边栏：速览还没有概览时先摆官方总结；没设置 AI 服务时生成概览停用并写明原因", async (ctx) => {
+test("侧边栏：速读还没有概览时先摆官方总结；没设置 AI 服务时生成概览停用并写明原因", async (ctx) => {
   await withVideo(ctx, async (panel) => {
     await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
     await waitIn(panel, "官方总结", `${textOf(".guide-summary")}.includes("这是自造的样例总结。")`);
     await waitIn(panel, "生成概览停用", `(() => { const button = [...document.querySelectorAll(".button")].find((node) => node.textContent === "生成概览"); return button?.disabled === true; })()`);
     assert.ok((await panel.evaluate(textOf(".control-reason"))).includes("先在设置页设置 AI 服务"));
-    assert.equal(await panel.evaluate(`document.querySelector(".mode-view")?.getAttribute("aria-label")`), "速览");
+    assert.equal(await panel.evaluate(`document.querySelector(".mode-view")?.getAttribute("aria-label")`), "速读");
     assert.ok((await panel.evaluate(textOf(".outline-title"))).includes("样例小节"), "官方总结的提纲也在");
   });
 });
@@ -666,7 +666,7 @@ test("侧边栏：不到 5 分钟的短视频打开就进精读，跟着播放�
 });
 
 // 这个测试会记住第一个样例视频的频道，做完从设置页清掉，免得影响后面打开同一个视频的测试。
-test("侧边栏：主动切到精读立刻换、说一声记住了；同一频道再打开就进精读；设置页「清除记住的 UP 主」以后回到按时长进速览", async (ctx) => {
+test("侧边栏：主动切到精读立刻换、说一声记住了；同一频道再打开就进精读；设置页「清除记住的 UP 主」以后回到按时长进速读", async (ctx) => {
   try {
     await withVideo(ctx, async (panel) => {
       await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
@@ -680,9 +680,9 @@ test("侧边栏：主动切到精读立刻换、说一声记住了；同一频�
       await waitIn(panel, "按频道进精读", `JSON.stringify(${modes}) === ${JSON.stringify(JSON.stringify(STUDY))}`);
     });
   } finally {
-    // 从设置页「速览和精读」一节清掉记住的 UP 主。
+    // 从设置页「速读和精读」一节清掉记住的 UP 主。
     const options = await ctx.open("pages/options.html");
-    await options.waitFor("速览和精读一节", `Boolean(document.querySelector("#modes .button"))`);
+    await options.waitFor("速读和精读一节", `Boolean(document.querySelector("#modes .button"))`);
     await options.evaluate(`(document.querySelector("#modes .button").click(), true)`);
     await options.evaluate(`([...document.querySelectorAll("#modes .button")].find((node) => node.textContent === "清除").click(), true)`);
     await options.waitFor("清除好了", `document.querySelector("#modes .status")?.textContent.startsWith("已清除")`);
@@ -694,11 +694,11 @@ test("侧边栏：主动切到精读立刻换、说一声记住了；同一频�
 });
 
 // 要真的播满 1 分钟，这个测试要一分多钟。
-test("侧边栏：长视频在速览里连续播满 1 分钟切到精读，问答抽屉和草稿都留着；顶上一行「已切到精读」，点一下回速览、这次不再切", async (ctx) => {
+test("侧边栏：长视频在速读里连续播满 1 分钟切到精读，问答抽屉和草稿都留着；顶上一行「已切到精读」，点一下回速读、这次不再切", async (ctx) => {
   await withVideo(
     ctx,
     async (panel, _from, tabId) => {
-      await waitIn(panel, "长视频进速览", `document.querySelector(".mode-view")?.getAttribute("aria-label") === "速览"`);
+      await waitIn(panel, "长视频进速读", `document.querySelector(".mode-view")?.getAttribute("aria-label") === "速读"`);
       await tap(panel, ".dock [aria-label='问答记录']");
       await waitIn(panel, "问答抽屉打开", `${qaSheet}?.open === true`);
       await panel.evaluate(`(() => { const input = document.querySelector(".qa-form input"); input.value = "还没发出去的草稿"; input.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
@@ -712,8 +712,8 @@ test("侧边栏：长视频在速览里连续播满 1 分钟切到精读，问�
 
       await panel.evaluate(`(${qaSheet}).querySelector(".overlay-head [aria-label='关闭']").click(), true`);
       await waitIn(panel, "顶上一行", `${textOf(".notice-text")} === "已切到精读"`);
-      assert.ok(await clickText(panel, ".notice-action", "回到速览"));
-      await waitIn(panel, "回到速览", `document.querySelector(".mode-view")?.getAttribute("aria-label") === "速览"`);
+      assert.ok(await clickText(panel, ".notice-action", "回到速读"));
+      await waitIn(panel, "回到速读", `document.querySelector(".mode-view")?.getAttribute("aria-label") === "速读"`);
       await waitIn(panel, "这一行消失", `!${textOf(".notice-text")}.includes("已切到精读")`);
       const after = await panel.evaluate(`chrome.storage.session.get(${JSON.stringify(WATCH_SESSIONS_KEY)})`);
       assert.equal(after[WATCH_SESSIONS_KEY]?.[String(tabId)]?.autoSwitched, true, "这次观看记着切过，不再切");
@@ -844,7 +844,7 @@ test("侧边栏：语言选繁体以后，模式切换、底部工具条、各�
       assert.equal(await panel.evaluate("document.title"), "簡幕");
       assert.match(await panel.evaluate(`getComputedStyle(document.documentElement).getPropertyValue("--font-sans")`), /PingFang TC/);
       assert.deepEqual(await panel.evaluate(modes), [
-        ["速覽", "true"],
+        ["速讀", "true"],
         ["精讀", "false"],
       ]);
       const view = await panel.evaluate(`({
@@ -866,7 +866,7 @@ test("侧边栏：语言选繁体以后，模式切换、底部工具条、各�
         assert.ok(text, `${name} 是空的`);
         assert.deepEqual(simplifiedIn(text), [], `${name}：${text}`);
       }
-      assert.equal(view.modeView, "速覽");
+      assert.equal(view.modeView, "速讀");
       assert.equal(view.ask, PANEL_HANT.dock.ask);
       assert.equal(view.history, PANEL_HANT.dock.history);
       assert.equal(view.notes, PANEL_HANT.head.notes);

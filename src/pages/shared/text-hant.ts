@@ -8,7 +8,7 @@ export const SHARED_HANT: SharedText = {
   serviceSaid: "服務的原話",
   jumpTo: (time) => `跳到 ${time}`,
 
-  modes: { label: "模式", skim: "速覽", study: "精讀" },
+  modes: { label: "模式", skim: "速讀", study: "精讀" },
 
   chapters: {
     label: "章節",

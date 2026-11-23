@@ -140,8 +140,8 @@ async function panelFlow(launcher, panelUrl, videoId) {
   if (`${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}` !== label) throw new Error(`点的是 ${label}，视频页跳到了 ${seeked} 秒`);
   console.log("✓ 侧边栏跟着视频页读到字幕，点一句跳到了那里");
 
-  // 长视频打开进速览，还没有概览时字幕接在下面。
-  await until("长视频进速览", async () => (await evaluate(panel, `document.querySelector(".mode-view")?.getAttribute("aria-label")`)) === "速览");
+  // 长视频打开进速读，还没有概览时字幕接在下面。
+  await until("长视频进速读", async () => (await evaluate(panel, `document.querySelector(".mode-view")?.getAttribute("aria-label")`)) === "速读");
   await until("生成概览可以点", () => clickIn(panel, "button", "生成概览"));
   await until("概览生成完", async () => (await textOf(panel, ".chapter-name")).includes("模拟服务写的章节"));
   await until("结论写好", async () => (await textOf(panel, ".verdict-text")).includes("模拟服务写的一句话结论"));
@@ -176,9 +176,9 @@ async function panelFlow(launcher, panelUrl, videoId) {
   const keyChapterOnCard = () => until("卡片上的重点章节也标出来", () => evaluate(card, `Boolean(document.querySelector("#card-overview .chapter[data-key] .key-dot"))`));
   // 浏览器报得出侧边栏开关时（新一些的版本），侧边栏开着卡片就让位收起；报不出的照旧只跟模式走。
   const yields = await evaluate(launcher, `Boolean(chrome.sidePanel.onOpened && chrome.sidePanel.onClosed)`);
-  if (yields) await until("侧边栏开着，速览的卡片也让位收起", async () => (await cardCollapsed()) === "true");
+  if (yields) await until("侧边栏开着，速读的卡片也让位收起", async () => (await cardCollapsed()) === "true");
   else {
-    await until("速览时卡片展开", async () => (await cardCollapsed()) === "false");
+    await until("速读时卡片展开", async () => (await cardCollapsed()) === "false");
     await keyChapterOnCard();
   }
   await until("切到精读", () => clickIn(panel, ".mode", "精读"));
@@ -196,18 +196,18 @@ async function panelFlow(launcher, panelUrl, videoId) {
   console.log("✓ 整理字幕：点了才整理，整理后的替换原文显示，能切回原始字幕");
   await until("说记住了这个频道", async () => (await textOf(panel, ".notice-text")).includes("以后先进精读"));
   await until("精读时卡片收起", async () => (await cardCollapsed()) === "true");
-  await until("切回速览", () => clickIn(panel, ".mode", "速览"));
-  await until("回到速览的章节", async () => (await textOf(panel, ".chapter-name")).includes("模拟服务写的章节"));
+  await until("切回速读", () => clickIn(panel, ".mode", "速读"));
+  await until("回到速读的章节", async () => (await textOf(panel, ".chapter-name")).includes("模拟服务写的章节"));
   if (!yields) {
-    await until("回到速览卡片展开", async () => (await cardCollapsed()) === "false");
-    console.log("✓ 速览和精读：主动切到精读显示当前章节、卡片跟着收起，记住频道，再切回速览、卡片展开");
+    await until("回到速读卡片展开", async () => (await cardCollapsed()) === "false");
+    console.log("✓ 速读和精读：主动切到精读显示当前章节、卡片跟着收起，记住频道，再切回速读、卡片展开");
     return;
   }
-  if (!(await stillFalse(async () => (await cardCollapsed()) !== "true", 20))) throw new Error("侧边栏开着时切回速览，卡片不该展开");
-  console.log("✓ 速览和精读：主动切到精读显示当前章节，记住频道，再切回速览；侧边栏开着，卡片一直让位收着");
-  // 关上侧边栏：速览的卡片回来；再打开又让位。侧边栏页面自己调 window.close() 就关掉面板，关掉以后求值等不到回复，不等它。
+  if (!(await stillFalse(async () => (await cardCollapsed()) !== "true", 20))) throw new Error("侧边栏开着时切回速读，卡片不该展开");
+  console.log("✓ 速读和精读：主动切到精读显示当前章节，记住频道，再切回速读；侧边栏开着，卡片一直让位收着");
+  // 关上侧边栏：速读的卡片回来；再打开又让位。侧边栏页面自己调 window.close() 就关掉面板，关掉以后求值等不到回复，不等它。
   void evaluate(panel, "window.close()").catch(() => {});
-  await until("关上侧边栏，速览的卡片展开", async () => (await cardCollapsed()) === "false");
+  await until("关上侧边栏，速读的卡片展开", async () => (await cardCollapsed()) === "false");
   await keyChapterOnCard();
   await evaluate(launcher, `chrome.sidePanel.open({ windowId: ${windowId} }).then(() => true)`, true);
   await until("再打开侧边栏，卡片又让位收起", async () => (await cardCollapsed()) === "true");

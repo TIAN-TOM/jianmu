@@ -144,7 +144,7 @@ const CHANGELOG = `# 更新记录
 
 ### 新功能
 
-- 速览和精读
+- 速读和精读
 
 ## 0.0.9
 
@@ -152,7 +152,7 @@ const CHANGELOG = `# 更新记录
 `;
 
 test("CHANGELOG 取本版一节，到下一个二级标题为止", () => {
-  assert.equal(extractChangelogSection(CHANGELOG, "0.1.0"), "### 新功能\n\n- 速览和精读");
+  assert.equal(extractChangelogSection(CHANGELOG, "0.1.0"), "### 新功能\n\n- 速读和精读");
   assert.equal(extractChangelogSection(CHANGELOG, "0.2.0"), "- 新的一版");
   assert.equal(extractChangelogSection(CHANGELOG.replaceAll("\n", "\r\n"), "0.0.9"), "- 更早");
   assert.throws(() => extractChangelogSection(CHANGELOG, "0.3.0"), /没有 0\.3\.0 一节/);
@@ -170,7 +170,7 @@ test("找出待定标记和它的原因", () => {
   assert.deepEqual(findPendingMarkers("没有标记，正文里提到待定两个字不算\n"), []);
 });
 
-const notesInput = { version: "0.1.0", section: "### 新功能\n\n- 速览和精读", zipName: "jianmu-0.1.0.zip", sha256: "e".repeat(64) };
+const notesInput = { version: "0.1.0", section: "### 新功能\n\n- 速读和精读", zipName: "jianmu-0.1.0.zip", sha256: "e".repeat(64) };
 
 test("发布说明带本版内容、校验值、适用平台、安装链接和无关联声明", () => {
   const notes = buildReleaseNotes(notesInput);
@@ -179,7 +179,7 @@ test("发布说明带本版内容、校验值、适用平台、安装链接和�
   assert.ok(notes.includes("适用于哔哩哔哩和 YouTube™"));
   assert.ok(notes.includes(DISCLAIMER));
   assert.ok(notes.includes("与 Google、YouTube 和哔哩哔哩没有关联"));
-  assert.ok(notes.includes("- 速览和精读"));
+  assert.ok(notes.includes("- 速读和精读"));
   assert.match(notes, /\(https:\/\/github\.com\/TIAN-TOM\/jianmu\/blob\/v0\.1\.0\/README\.md#安装和更新\)/);
   assert.ok(notes.endsWith("\n") && !notes.includes("\r"));
   assert.deepEqual(findForbiddenPhrases(notes), []);
@@ -192,7 +192,7 @@ test("发布说明里出现禁用的说法或待定标记就不放行", () => {
     const notes = buildReleaseNotes({ ...notesInput, section: `- 回答${phrase}` });
     assert.ok(releaseNotesProblems(notes).some((problem) => problem.includes(phrase)), phrase);
   }
-  const pending = buildReleaseNotes({ ...notesInput, section: "- 速览 <!-- 待定：开关结论 -->" });
+  const pending = buildReleaseNotes({ ...notesInput, section: "- 速读 <!-- 待定：开关结论 -->" });
   assert.ok(releaseNotesProblems(pending).some((problem) => problem.includes("待定标记")));
 });
 

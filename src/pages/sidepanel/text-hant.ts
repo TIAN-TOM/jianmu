@@ -12,7 +12,7 @@ export const PANEL_HANT: PanelText = {
   openSettings: "打開設定",
   notFound: (query) => `找不到「${query}」`,
   optionsFailed: "打不開設定頁，可以在擴充功能管理裡打開簡幕的選項。",
-  remembered: (author, study) => `已記住：${author ? `${author}的影片` : "這個頻道的影片"}以後先進${study ? "精讀" : "速覽"}`,
+  remembered: (author, study) => `已記住：${author ? `${author}的影片` : "這個頻道的影片"}以後先進${study ? "精讀" : "速讀"}`,
 
   head: {
     loadingVideo: "正在讀取影片",
@@ -37,7 +37,7 @@ export const PANEL_HANT: PanelText = {
     connect: "影片頁還沒連上簡幕，重新整理後才能跳轉和跟著播放捲動",
     reloadPage: "重新整理影片頁",
     switchedToStudy: "已切到精讀",
-    backToSkim: "回到速覽",
+    backToSkim: "回到速讀",
     autoPaused: {
       quota: "額度用完，打開就出結論已暫停。手動生成成功一次，或在設定頁關掉再開啟就會恢復",
       key: "金鑰被拒，打開就出結論已暫停。手動生成成功一次，或在設定頁關掉再開啟就會恢復",

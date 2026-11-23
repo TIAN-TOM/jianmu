@@ -1,4 +1,4 @@
-// 速览：一句话结论在最上面，然后是模型生成的章节，每章展开看要点、金句和这一段的字幕，再是视频网站的官方总结和 UP 主分段。
+// 速读：一句话结论在最上面，然后是模型生成的章节，每章展开看要点、金句和这一段的字幕，再是视频网站的官方总结和 UP 主分段。
 // 还没有概览时先摆官方总结和 UP 主分段，下面是「生成概览」和字幕。长视频边生成边显示，能停止、补失败块、重新生成；
 // 没有结论时可以只用官方总结写一句。换过字幕时，依据旧字幕写的结论和章节标「基于旧字幕」，不删不改。
 import { groupQuotesIntoChapters, type ChapterPart, type QuotePart } from "../../core/ai/chunking.ts";
@@ -268,7 +268,7 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
       {hasOverview ? guides : null}
       {!hasOverview && !running ? (
         <section class="skim-transcript" aria-label={t.transcriptLabel}>
-          {/* 速览里的字幕不跟着播放滚动：不然整个侧边栏会被拉过结论和导读。 */}
+          {/* 速读里的字幕不跟着播放滚动：不然整个侧边栏会被拉过结论和导读。 */}
           <TranscriptTab panel={panel} guides={false} follow={false} />
         </section>
       ) : null}
