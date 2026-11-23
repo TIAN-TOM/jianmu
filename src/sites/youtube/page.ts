@@ -12,6 +12,8 @@ const VIDEO = "ytd-watch-flexy .html5-video-player video.html5-main-video";
 const AD_CLASSES = ["ad-showing", "ad-interrupting"];
 // 控制栏自动藏起来时播放器带上这个状态。
 const AUTOHIDE_CLASS = "ytp-autohide";
+// 视频带信息卡片时，播放器右上角有页面自己的信息按钮和卡片提示条，全屏时更大；悬停图标排在它们下面。
+const HOVER_ICON_TOP = 76;
 // 观看页的外壳，标着它正在放的视频编号。
 const WATCH_SHELL = "ytd-watch-flexy";
 const SHELL_VIDEO_ATTRIBUTE = "video-id";
@@ -95,6 +97,7 @@ export function createYoutubePage({ document, location, sleep = waitFor, every =
   return {
     rules: youtubeRules,
     noteShortcut: "n",
+    hoverIconTop: HOVER_ICON_TOP,
     currentRef,
 
     // 站内跳转完成时页面会派发事件；事件漏了也有定时比地址兜底。
