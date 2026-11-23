@@ -93,6 +93,7 @@ export const OPTIONS_HANT: OptionsText = {
       dashscope: "阿里雲百煉（通義千問）",
       siliconflow: "矽基流動 SiliconFlow",
       openrouter: "OpenRouter",
+      ollama: "Ollama（本機）",
       custom: "自訂",
     },
     docsBefore: "到 ",

@@ -99,7 +99,7 @@ const BROADCAST_SHAPES = {
   "panel.changed": ({ windowId, open }) => Number.isInteger(windowId) && typeof open === "boolean",
   "appearance.changed": ({ accentTheme, inPageCard }) => isText(accentTheme) && typeof inPageCard === "boolean",
   "activation.changed": ({ confirmed }) => typeof confirmed === "boolean",
-  "auto.changed": ({ paused }) => paused === null || paused === "quota" || paused === "key",
+  "auto.changed": ({ paused }) => paused === null || paused === "quota" || paused === "key" || paused === "local-origin",
   ...(FEATURE_FRAME_EXPLAIN ? FRAME_BROADCAST_SHAPES : {}),
 } as Readonly<Record<BroadcastType, (message: Readonly<Record<string, unknown>>) => boolean>>;
 

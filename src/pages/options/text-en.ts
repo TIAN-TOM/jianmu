@@ -95,6 +95,7 @@ export const OPTIONS_EN: OptionsText = {
       dashscope: "Alibaba Cloud Model Studio (Qwen)",
       siliconflow: "SiliconFlow",
       openrouter: "OpenRouter",
+      ollama: "Ollama (on this computer)",
       custom: "Custom",
     },
     docsBefore: "Create an API key in the ",

@@ -143,11 +143,12 @@ export function quotaOf(sent: readonly number[], running: number, now: number): 
   return recent >= AUTO_WINDOW_LIMIT ? "window-full" : null;
 }
 
-/** 失败的模型请求是不是额度用完或密钥不对：这两种等多久都不会好，停掉自动生成。 */
+/** 失败的模型请求是不是额度用完、密钥不对或本机服务不收扩展的请求：这几种等多久都不会好，停掉自动生成。 */
 export function pauseReasonOf(error: unknown): AutoPauseReason | null {
   const failure = error as { readonly status?: unknown; readonly code?: unknown; readonly quotaExhausted?: unknown } | null;
   if (typeof failure !== "object" || failure === null) return null;
   if (failure.quotaExhausted === true || failure.status === 402) return "quota";
+  if (failure.code === "AI_LOCAL_ORIGIN_REJECTED") return "local-origin";
   if (failure.status === 401 || failure.status === 403 || failure.code === "INVALID_AI_KEY" || failure.code === "ANTHROPIC_WORKSPACE_REQUIRED") return "key";
   return null;
 }

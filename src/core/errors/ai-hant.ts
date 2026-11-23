@@ -18,6 +18,11 @@ export const AI_ERROR_TEXT_HANT: Readonly<Record<AiErrorCode, ErrorCopy>> = {
   },
   INVALID_BASE_URL: { cause: "API 網址不對。", impact: NOT_SENT, next: "到設定頁檢查一下 API 網址。" },
   INVALID_AI_KEY: { cause: "AI 服務不接受這把金鑰。", impact: NO_RESULT, next: "到設定頁檢查金鑰，看它和 API 網址是不是同一家服務商的。" },
+  AI_LOCAL_ORIGIN_REJECTED: {
+    cause: "本機的模型服務拒絕了來自瀏覽器擴充功能的請求，多半不是金鑰的問題。",
+    impact: NO_RESULT,
+    next: "用的是 Ollama 的話，在啟動它的環境裡把 OLLAMA_ORIGINS 設成 chrome-extension://*，再重新啟動 Ollama。",
+  },
   MODEL_OR_ENDPOINT_NOT_FOUND: {
     cause: "AI 服務找不到這個模型或端點。",
     impact: NO_RESULT,
