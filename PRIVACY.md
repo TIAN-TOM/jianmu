@@ -106,6 +106,7 @@
 ### 删除和备份
 
 - **清除缓存**（设置页）：删掉上面说的缓存，以及各项功能最近一次请求的用量。概览、问答、笔记、译文、导入的字幕、设置和密钥都留着。
+- **删除全部笔记**（设置页）：删掉这台电脑上所有视频的笔记。概览、问答、译文、导入的字幕、设置和密钥都留着。删了不能恢复，要留着的先导出备份；之后导入旧备份，备份里的笔记会回来。
 - **清除全部数据**（设置页）：删掉简幕在这台电脑上存的全部资料，包括笔记、概览、问答、译文、导入的字幕、设置、密钥、数据同意和启用确认。删了不能恢复，之后要重新启用、重新同意。只留下两样：B 站限流以后要等多久，和哪些窗口开着简幕的侧边栏（只有窗口编号）。前一样是为了清除以后不马上又去请求，后一样是为了还开着的侧边栏和播放页卡片对得上。它们都不含你的内容，浏览器关闭后就没了。
 - **一条一条删**：笔记和问答可以在侧边栏里单独删。
 - **卸载扩展**：Chrome 会删掉扩展存在这台电脑上的数据。
@@ -314,6 +315,7 @@ Everything is kept in the extension storage of this Chrome profile on this compu
 ### Deleting data and backups
 
 - **Clear cache** (in Settings) deletes the caches above and the usage of each feature's most recent request. Overviews, Q&A, notes, translations, imported subtitles, settings and the key stay.
+- **Delete all notes** (in Settings) deletes the notes for every video on this computer. Overviews, Q&A, translations, imported subtitles, settings and the key are kept. This can't be undone, so export a backup first if you want to keep them. If you import an older backup later, the notes in it come back.
 - **Clear all data** (in Settings) deletes everything Jianmu keeps on this computer, including notes, overviews, Q&A, translations, imported subtitles, settings, the key, your data consent and your confirmation to enable Jianmu. It cannot be undone, and you will need to enable Jianmu and agree again afterwards. Only two things are left: how long to wait after Bilibili rate-limits requests, and which windows have Jianmu's side panel open (window numbers only). The first is kept so Jianmu does not start requesting again straight after clearing, the second so a side panel that is still open and the card on the watch page stay in step. Neither holds any of your content, and both are gone once the browser closes.
 - **One at a time**: notes and Q&A entries can be deleted individually in the side panel.
 - **Uninstalling**: Chrome deletes the data the extension kept on this computer.
