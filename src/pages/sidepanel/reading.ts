@@ -1,5 +1,5 @@
 // 字幕列表的规则：播放到哪一段、导出 SRT 时每段写原文、译文还是双语、划词解释取多长。
-import type { TranscriptSegment } from "../../core/transcript/segment.ts";
+import { formatTimestamp, type TranscriptSegment } from "../../core/transcript/segment.ts";
 import { breaksToShow } from "../../core/transcript/lines.ts";
 import { buildSrt } from "../../core/transcript/srt.ts";
 import type { CueView } from "../../shared/messages/transcript.ts";
@@ -53,6 +53,20 @@ export function srtOf(
     return { start: segment.start, text: sub ? `${main}\n${sub}` : main };
   });
   return buildSrt(items, { entries: cues, duration: durationSec });
+}
+
+/** 复制全部字幕：每段一行「[时间] 主文」，对照视图里有译文的段落紧跟一行不带时间的译文。 */
+export function copyTextOf(
+  segments: readonly TranscriptSegment[],
+  mode: TranscriptMode,
+  translated: Readonly<Record<string, string>>,
+  tidied: Readonly<Record<string, string>> = {},
+): string {
+  return segments.map((segment) => {
+    const { main, sub } = linesOf(segment, mode, translated, tidied);
+    const line = `[${formatTimestamp(segment.start)}] ${main}`;
+    return sub ? `${line}\n${sub}` : line;
+  }).join("\n");
 }
 
 /** 划词解释最多交这么长的选区，再长就不弹「解释」。 */
