@@ -77,7 +77,7 @@ describe("规则能拦下造好的违规", () => {
     assert.deepEqual(rulesHit("src/sites/a.ts", "// 读 /some/request/path 的结果\n"), [3]);
     assert.deepEqual(rulesHit("src/sites/a.ts", "// 读取/some/request/path的结果\n"), [3]);
     assert.deepEqual(rulesHit("src/sites/a.ts", "// 见 sample.example.com/path\n"), [3]);
-    assert.deepEqual(rulesHit("src/sites/a.ts", "// 读字幕轨，速览/精读共用\n"), []);
+    assert.deepEqual(rulesHit("src/sites/a.ts", "// 读字幕轨，速读/精读共用\n"), []);
     assert.deepEqual(rulesHit("src/sites/a.ts", "// 一\n// 二\n// 三\n// 四\nconst a = 1;\n"), [3]);
     assert.deepEqual(rulesHit("src/sites/a.ts", "// 一\n// 二\n// 三\nconst a = 1;\n"), []);
   });

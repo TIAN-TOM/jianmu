@@ -1,11 +1,11 @@
-// 模式规则：打开视频时进哪个模式，长视频在速览里播满 1 分钟切到精读。纯函数，规则照 PRD 第 6 节。
+// 模式规则：打开视频时进哪个模式，长视频在速读里播满 1 分钟切到精读。纯函数，规则照 PRD 第 6 节。
 // 观看会话每次有变化都调它，侧边栏和卡片只读结果，自己不算模式。
 import type { Mode, ModeSource } from "./types.ts";
 
 /** 不到这么长算短视频，打开就进精读。 */
 export const SHORT_VIDEO_SEC = 5 * 60;
 
-/** 长视频在速览里累计播放满这么久，切到精读。 */
+/** 长视频在速读里累计播放满这么久，切到精读。 */
 export const AUTO_SWITCH_SEC = 60;
 
 export interface ModeState {

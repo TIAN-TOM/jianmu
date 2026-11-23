@@ -9,7 +9,7 @@ export const SHARED_ZH = {
   serviceSaid: "服务的原话",
   jumpTo: (time: string) => `跳到 ${time}`,
 
-  modes: { label: "模式", skim: "速览", study: "精读" },
+  modes: { label: "模式", skim: "速读", study: "精读" },
 
   chapters: {
     label: "章节",

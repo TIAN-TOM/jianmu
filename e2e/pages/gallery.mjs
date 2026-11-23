@@ -188,14 +188,14 @@ test("组件样张：模式切换是单选组，左右方向键切换，只有�
       const group = document.querySelector("#modes-demo [role='radiogroup']");
       return { label: group.getAttribute("aria-label"), radios: [...group.querySelectorAll("[role='radio']")].map((radio) => [radio.textContent, radio.getAttribute("aria-checked"), radio.tabIndex]), value: document.getElementById("mode-value").textContent };
     })()`);
-  assert.deepEqual(await read(), { label: "模式", radios: [["速览", "true", 0], ["精读", "false", -1]], value: "skim" });
+  assert.deepEqual(await read(), { label: "模式", radios: [["速读", "true", 0], ["精读", "false", -1]], value: "skim" });
   await page.click("#modes-demo [role='radio'][aria-checked='true']");
   await page.press("ArrowRight");
   await page.waitFor("切到精读", `document.getElementById("mode-value").textContent === "study"`);
-  assert.deepEqual((await read()).radios, [["速览", "false", -1], ["精读", "true", 0]]);
+  assert.deepEqual((await read()).radios, [["速读", "false", -1], ["精读", "true", 0]]);
   assert.equal((await page.focused())?.text, "精读", "焦点跟着选中项走");
   await page.press("ArrowLeft");
-  await page.waitFor("切回速览", `document.getElementById("mode-value").textContent === "skim"`);
+  await page.waitFor("切回速读", `document.getElementById("mode-value").textContent === "skim"`);
 });
 
 // 无头 Chrome 里经调试协议发 Esc 键关模态对话框，扩展页面的渲染进程会卡住十几秒，测试不稳。

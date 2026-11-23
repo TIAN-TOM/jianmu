@@ -26,7 +26,7 @@ function setup(session: SessionView | null = null) {
   return { fake, store };
 }
 
-test("会话还没到：按视频时长先定，不到 5 分钟进精读，5 分钟及以上和不知道时长进速览；不切换模式", async () => {
+test("会话还没到：按视频时长先定，不到 5 分钟进精读，5 分钟及以上和不知道时长进速读；不切换模式", async () => {
   const { fake, store } = setup();
   store.bind(TAB, VIDEO);
   assert.ok(await until(() => fake.attempts("session.get") === 1), "问过会话");
@@ -100,7 +100,7 @@ test("会话的回复比广播晚到：以广播为准，不被旧回复盖回�
   store.bind(TAB, VIDEO);
   fake.broadcast({ type: "session.changed", tabId: TAB, session: view({ mode: "study", modeSource: "auto", autoSwitched: true }) });
   gate.resolve();
-  assert.ok(await stillFalse(() => store.view.value.mode !== "study"), "旧回复没把模式盖回速览");
+  assert.ok(await stillFalse(() => store.view.value.mode !== "study"), "旧回复没把模式盖回速读");
 });
 
 test("主动切换：不等后台立刻换，请求带上频道编号；回复说记住了就回 true；点当前模式什么都不发", async () => {
@@ -132,7 +132,7 @@ test("主动切换后台没存成：照样按用户选的显示，不说记住�
   assert.deepEqual(fake.sent.find((item) => item.type === "session.setMode")?.req, { tabId: TAB, video: VIDEO, intent: "manual", mode: "study" }, "不知道频道就不带");
 });
 
-test("撤销自动切换：只在停在自动切的结果上时发，回来的会话回到速览", async () => {
+test("撤销自动切换：只在停在自动切的结果上时发，回来的会话回到速读", async () => {
   const { fake, store } = setup(view());
   fake.reply("session.setMode", { value: { ok: true, value: { session: view({ autoSwitched: true, playedSec: 61 }), remembered: false } } });
   store.bind(TAB, VIDEO);
@@ -174,7 +174,7 @@ test("报视频信息的回复在路上时来了更新的会话广播：不拿�
   assert.ok(await until(() => fake.attempts("session.describe") === 1));
   fake.broadcast({ type: "session.changed", tabId: TAB, session: view({ mode: "study", modeSource: "auto", autoSwitched: true, playedSec: 60 }) });
   gate.resolve();
-  assert.ok(await stillFalse(() => store.view.value.mode !== "study"), "旧回复没把模式盖回速览");
+  assert.ok(await stillFalse(() => store.view.value.mode !== "study"), "旧回复没把模式盖回速读");
 });
 
 test("主动切换的回复在路上时来了更新的会话广播：按广播显示，不再顶着刚点的", async () => {

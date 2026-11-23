@@ -120,7 +120,7 @@ test("下一步里说的页面确实有", () => {
   }
 });
 
-test("不提已经没有的页签：侧边栏现在分速览和精读两种模式，没有字幕、概览、笔记、问答页签", () => {
+test("不提已经没有的页签：侧边栏现在分速读和精读两种模式，没有字幕、概览、笔记、问答页签", () => {
   for (const { label, copy } of allCopies()) {
     for (const part of partsOf(copy)) assert.doesNotMatch(part, /页签/, `${label}：${part}`);
   }

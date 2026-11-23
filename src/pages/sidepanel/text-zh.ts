@@ -27,7 +27,7 @@ export const PANEL_ZH = {
   openSettings: "打开设置",
   notFound: (query: string) => `没有找到「${query}」`,
   optionsFailed: "打不开设置页，可以在扩展管理里打开简幕的选项。",
-  remembered: (author: string, study: boolean) => `已记住：${author ? `${author}的视频` : "这个频道的视频"}以后先进${study ? "精读" : "速览"}`,
+  remembered: (author: string, study: boolean) => `已记住：${author ? `${author}的视频` : "这个频道的视频"}以后先进${study ? "精读" : "速读"}`,
 
   head: {
     loadingVideo: "正在读取视频",
@@ -52,7 +52,7 @@ export const PANEL_ZH = {
     connect: "视频页还没连上简幕，刷新后才能跳转和跟着播放滚动",
     reloadPage: "刷新视频页",
     switchedToStudy: "已切到精读",
-    backToSkim: "回到速览",
+    backToSkim: "回到速读",
     autoPaused: {
       quota: "额度用完，打开就出结论已暂停。手动生成成功一次，或在设置页关掉再打开就恢复",
       key: "密钥被拒，打开就出结论已暂停。手动生成成功一次，或在设置页关掉再打开就恢复",

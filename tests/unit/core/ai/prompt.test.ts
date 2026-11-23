@@ -219,7 +219,7 @@ test("分批/分块任务的系统提示词保持稳定前缀，服务商缓存�
   );
 });
 
-test("每份提示词都按模式放：速览的在 skim/，精读的在 study/，两种模式共用的在 common/，后台内联的就是这几份", () => {
+test("每份提示词都按模式放：速读的在 skim/，精读的在 study/，两种模式共用的在 common/，后台内联的就是这几份", () => {
   for (const file of Object.keys(PROMPTS)) assert.match(file, /^(?:skim|study|common)\/[a-z-]+\.md$/, file);
   // 解释当前画面那一份在开关模块里登记。
   const inlined = ["prompts.ts", "prompts-frame.ts"].map((file) => readFileSync(new URL(`../../../../src/background/${file}`, import.meta.url), "utf8")).join("\n");

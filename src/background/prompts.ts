@@ -1,5 +1,5 @@
 // 内置提示词：构建时内联进后台包，运行时不读文件。
-// 按模式放：skim/ 是速览用的，study/ 是精读用的，common/ 是两种模式都用的。
+// 按模式放：skim/ 是速读用的，study/ 是精读用的，common/ 是两种模式都用的。
 // 解释当前画面的提示词只在构建开关 FEATURE_FRAME_EXPLAIN 打开时进包，见 prompts-frame.ts。
 import qa from "prompt:common/qa.md";
 import chapters from "prompt:skim/chapters.md";
