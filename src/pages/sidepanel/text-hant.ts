@@ -13,6 +13,8 @@ export const PANEL_HANT: PanelText = {
   notFound: (query) => `找不到「${query}」`,
   optionsFailed: "打不開設定頁，可以在擴充功能管理裡打開簡幕的選項。",
   remembered: (author, study) => `已記住：${author ? `${author}的影片` : "這個頻道的影片"}以後先進${study ? "精讀" : "速讀"}`,
+  copied: "已複製",
+  copyFailed: "沒能複製，瀏覽器拒絕存取剪貼簿",
 
   head: {
     loadingVideo: "正在讀取影片",
@@ -143,6 +145,8 @@ export const PANEL_HANT: PanelText = {
     edit: "編輯",
     delete: "刪除",
     deleteHint: "刪了就找不回來",
+    copyText: "複製正文",
+    copyLink: "複製連結",
     content: "筆記內容",
     save: "儲存",
     nothingToExport: "沒有可以匯出的筆記",
@@ -159,6 +163,7 @@ export const PANEL_HANT: PanelText = {
     title: "問答",
     delete: "刪除這則問答",
     truncated: "回答被截斷了，可能不完整。",
+    copyAnswer: "複製回答",
     unsaved: "這則回答沒能存進問答紀錄。",
     citations: "引用的字幕",
     placeholder: "針對這部影片提問，按 Enter 傳送",
@@ -178,7 +183,6 @@ export const PANEL_HANT: PanelText = {
     translateHint: "會請模型翻譯還沒譯過的段落，要用 API 額度；關掉側邊欄也會譯完",
     file: "字幕",
     copied: "已複製全部字幕",
-    copyFailed: "沒能複製，瀏覽器拒絕存取剪貼簿",
     reload: "重新讀取字幕",
     reloadHint: "不看本機快取",
     copyAll: "複製全部字幕",

@@ -6,6 +6,7 @@ import type { NoteItemView } from "../../shared/messages/notes.ts";
 import { Button } from "../shared/ui/button.tsx";
 import { Menu } from "../shared/ui/menu.tsx";
 import { StateBlock } from "../shared/ui/state-block.tsx";
+import { copyText } from "./copy.ts";
 import { downloadText, notesExport } from "./files.ts";
 import type { NotesScope } from "./notes.ts";
 import type { Panel } from "./panel.ts";
@@ -52,6 +53,8 @@ function NoteItem({ panel, note, showVideo }: { readonly panel: Panel; readonly 
         <Menu
           label={t.actions}
           items={[
+            { label: t.copyText, onSelect: () => void copyText(panel, note.text) },
+            { label: t.copyLink, onSelect: () => void copyText(panel, note.url) },
             { label: t.edit, onSelect: () => setDraft(note.text) },
             { label: t.delete, hint: t.deleteHint, danger: true, onSelect: () => void panel.notes.remove(note.id).then((problem) => panel.say(problem || panelText().notes.deleted)) },
           ]}

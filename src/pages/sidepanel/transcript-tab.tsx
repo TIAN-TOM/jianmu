@@ -19,6 +19,7 @@ import { Sheet } from "../shared/ui/overlay.tsx";
 import { StateBlock } from "../shared/ui/state-block.tsx";
 import { stateCopy } from "../shared/ui/state.ts";
 import { downloadText, safeFileName } from "./files.ts";
+import { copyText } from "./copy.ts";
 import { CreatorChapters, OfficialSummary } from "./guides.tsx";
 import type { Panel } from "./panel.ts";
 import { activeIndex, copyTextOf, explainable, linesOf, mainBreaks, refreshLang, srtOf } from "./reading.ts";
@@ -96,10 +97,7 @@ function Toolbar({ panel, view, onSearch, searching, onImport }: { readonly pane
   };
   const copyAll = (): void => {
     const text = copyTextOf(view.transcript.segments, mode, translation.lines.peek(), tidiedOf(panel));
-    void navigator.clipboard.writeText(text).then(
-      () => panel.say(t.copied),
-      () => panel.say(t.copyFailed),
-    );
+    void copyText(panel, text, t.copied);
   };
   const moreItems: MenuItem[] = [
     {

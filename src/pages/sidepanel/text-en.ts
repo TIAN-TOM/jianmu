@@ -15,6 +15,8 @@ export const PANEL_EN: PanelText = {
   notFound: (query) => `No results for “${query}”`,
   optionsFailed: "Couldn't open settings. You can open Jianmu's options from the extensions page.",
   remembered: (author, study) => `Remembered: videos from ${author || "this channel"} will open in ${study ? "Study" : "Skim"} from now on`,
+  copied: "Copied",
+  copyFailed: "Couldn't copy. The browser blocked clipboard access",
 
   head: {
     loadingVideo: "Loading video",
@@ -149,6 +151,8 @@ export const PANEL_EN: PanelText = {
     edit: "Edit",
     delete: "Delete",
     deleteHint: "This can't be undone",
+    copyText: "Copy text",
+    copyLink: "Copy link",
     content: "Note text",
     save: "Save",
     nothingToExport: "There are no notes to export",
@@ -165,6 +169,7 @@ export const PANEL_EN: PanelText = {
     title: "Q&A",
     delete: "Delete this Q&A",
     truncated: "The answer was cut off and may be incomplete.",
+    copyAnswer: "Copy answer",
     unsaved: "This answer couldn't be saved to your Q&A history.",
     citations: "Quoted subtitles",
     placeholder: "Ask about this video, then press Enter",
@@ -184,7 +189,6 @@ export const PANEL_EN: PanelText = {
     translateHint: "Asks the model to translate any segments not yet translated, using your API credit. It keeps going if you close the side panel",
     file: "Subtitles",
     copied: "Copied all subtitles",
-    copyFailed: "Couldn't copy. The browser blocked clipboard access",
     reload: "Reload subtitles",
     reloadHint: "Skips the copy saved on this computer",
     copyAll: "Copy all subtitles",
