@@ -145,21 +145,24 @@ function AdvancedBlock({ state, saved }: { readonly state: OptionsState; readonl
   return (
     <details class="field" id="advanced" open={open.current}>
       <summary>{t.advanced}</summary>
-      <EffortBlock state={state} />
+      {/* 折叠里的内容不归 details 自己的间距管，另包一层来隔开两块。 */}
+      <div class="fold-body">
+        <EffortBlock state={state} />
 
-      <div>
-        <label class="field">
-          <span class="field-label">{t.chunk}</span>
-          <select class="input" id="analysisChunkMode" value={saved.analysisChunkMode} onChange={(event) => void state.saveInstant({ analysisChunkMode: event.currentTarget.value })}>
-            {(Object.keys(ANALYSIS_CHUNK_MODES) as AnalysisChunkMode[]).map((mode) => (
-              <option key={mode} value={mode}>
-                {t.chunks[mode]}
-              </option>
-            ))}
-          </select>
-          <span class="field-hint">{t.chunkHint}</span>
-        </label>
-        <AiStatusLine state={state} at="chunk" />
+        <div>
+          <label class="field">
+            <span class="field-label">{t.chunk}</span>
+            <select class="input" id="analysisChunkMode" value={saved.analysisChunkMode} onChange={(event) => void state.saveInstant({ analysisChunkMode: event.currentTarget.value })}>
+              {(Object.keys(ANALYSIS_CHUNK_MODES) as AnalysisChunkMode[]).map((mode) => (
+                <option key={mode} value={mode}>
+                  {t.chunks[mode]}
+                </option>
+              ))}
+            </select>
+            <span class="field-hint">{t.chunkHint}</span>
+          </label>
+          <AiStatusLine state={state} at="chunk" />
+        </div>
       </div>
     </details>
   );
