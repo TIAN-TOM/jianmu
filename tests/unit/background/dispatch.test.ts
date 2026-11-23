@@ -24,6 +24,7 @@ function setup({ enabled = true, cardEnabled = true, panelOpens = true, routes }
   const logged: unknown[][] = [];
   const contentTabs = createContentTabs();
   const router = createRouter({
+    clearEpoch: () => undefined,
     routes,
     ports: {},
     senders: createSenders({ extensionId: EXTENSION_ID, extensionUrl, rules: fake.siteRules }),

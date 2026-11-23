@@ -1,6 +1,7 @@
 // 消息分发。顺序是：认发送方、认消息（不认识的单独回码）、按路由表放行发送方、核对请求形状、要手势的先打开侧边栏、
 // 过启用闸门、这时才按地址认内容脚本的站点和视频、卡片开关、处理。闸门之前不读任何网页地址。
 // 端口走同一套发送方核对和启用闸门；连上以后启用失效就断开，会发起工作的消息每条再查一次启用。
+import type { ClearEpoch, ClearGuard } from "../core/clear-guard.ts";
 import { fail, type ErrorCode, type Failure, type Result } from "../core/errors.ts";
 import type { Platform } from "../core/video-ref.ts";
 import { jsonCopy, type PortLike } from "../platform/messaging.ts";
@@ -19,6 +20,8 @@ type Gate =
   | { readonly beforeEnable?: undefined; readonly video?: "from-sender" };
 
 export interface HandlerCtx {
+  /** 后台收到请求时的清除代数。 */
+  readonly since?: ClearEpoch | undefined;
   readonly sender: SenderCtx | SiteSenderCtx;
   /** 要手势的路由：分发时已经同步发起了打开侧边栏，这里是它的结果。 */
   readonly panelOpened?: Promise<boolean>;
@@ -53,6 +56,8 @@ export type AnyRoute = Gate & {
 
 /** 后台这一头的端口：给页面发消息、主动断开。 */
 export interface PortHandle<Out = unknown> {
+  /** 后台收到连接时的清除代数。 */
+  readonly since?: ClearEpoch | undefined;
   readonly id: string;
   post(message: Out): void;
   close(): void;
@@ -88,6 +93,7 @@ export interface AnyPortSpec {
 }
 
 export interface RouterDeps {
+  readonly clearEpoch: ClearGuard["epoch"];
   readonly routes: Readonly<Record<string, AnyRoute>>;
   readonly ports: Readonly<Record<string, AnyPortSpec>>;
   readonly senders: Senders;
@@ -211,6 +217,7 @@ export function createRouter(deps: RouterDeps): Router {
     };
     const handle: PortHandle<unknown> = {
       id,
+      since: deps.clearEpoch(),
       post: (message) => {
         if (state === "open") quietly(() => port.postMessage(jsonCopy(message)));
       },
@@ -268,6 +275,7 @@ export function createRouter(deps: RouterDeps): Router {
     panelOpened: Promise<boolean> | undefined,
   ): Promise<Result<unknown>> {
     try {
+      const since = deps.clearEpoch();
       if (route.beforeEnable !== true && !(await deps.enabled())) return fail("NOT_ENABLED");
       // 撤了权的站上残留的内容脚本：业务请求不放行，确认后放行的那几条也不放行，并叫它撤下。确认前不按地址认站点。
       if (ctx.kind === "content" && deps.siteGranted && (route.beforeEnable !== true || (await deps.enabled()))) {
@@ -285,7 +293,7 @@ export function createRouter(deps: RouterDeps): Router {
         resolved = site;
       }
       if (ctx.kind === "card" && !(await deps.cardEnabled())) return fail("CARD_DISABLED");
-      return await route.handler(req as never, panelOpened ? { sender: resolved, panelOpened } : { sender: resolved });
+      return await route.handler(req as never, panelOpened ? { sender: resolved, since, panelOpened } : { sender: resolved, since });
     } catch (error) {
       return failureOf(type, error);
     }

@@ -114,7 +114,7 @@ test("设置页：确认启用之前只有启用说明和资料一节，确认�
   })`);
   assert.equal(before.hasPreset, false);
   assert.deepEqual(before.sections, ["学习资料", "关于"]);
-  assert.deepEqual(before.buttons, ["导出备份", "清除缓存", "清除全部数据"], "确认前不能恢复备份");
+  assert.deepEqual(before.buttons, ["导出备份", "清除缓存", "删除全部笔记", "清除全部数据"], "确认前不能恢复备份");
   await enable(page);
   const after = await page.evaluate(`[...document.querySelectorAll(".card > h2")].map((node) => node.textContent)`);
   assert.deepEqual(after, ["外观", "播放页", "YouTube", "AI 服务", "打开就出结论", "速读和精读", "稍后再看粗筛", "学习资料", "关于"]);
@@ -582,6 +582,30 @@ async function clearAllAndEnable(page) {
   await enable(page);
 }
 
+test("设置页：删除全部笔记需要确认，取消保留笔记，确认后仍可恢复备份", async ({ open }) => {
+  const page = await freshOptions(open);
+  await enable(page);
+  await keepDownloads(page);
+  assert.ok((await send(page, "notes.save", { video: VIDEO, atSec: 31, text: "要备份的笔记" })).ok);
+  const clickDataButton = async (label) => {
+    await page.waitFor(label, `[...document.querySelectorAll("#learning-data button")].some(button => !button.disabled && button.textContent.trim() === ${JSON.stringify(label)})`);
+    await clickButton(page, label, "#learning-data");
+  };
+  await clickDataButton("导出备份");
+  await statusStarts(page, "learning-data", "已导出 1 条笔记");
+  await clickDataButton("删除全部笔记");
+  await clickDataButton("取消");
+  assert.equal((await send(page, "notes.list", {})).value.notes.length, 1);
+
+  await clickDataButton("删除全部笔记");
+  await clickDataButton("确认删除");
+  await statusStarts(page, "learning-data", "已删除全部笔记");
+  assert.deepEqual((await send(page, "notes.list", {})).value.notes, []);
+  await chooseBackup(page, `window.__downloads.at(-1)`);
+  assert.match(await statusStarts(page, "learning-data", "合并完成"), /笔记新增 1 条/);
+  assert.deepEqual((await send(page, "notes.list", {})).value.notes.map((note) => note.text), ["要备份的笔记"]);
+});
+
 test("设置页：导出的备份清除全部数据后能再导回来", async ({ open }) => {
   const page = await freshOptions(open);
   await enable(page);
@@ -711,7 +735,7 @@ test("设置页：语言选 English 以后，标题、各节标题和按钮马�
     title: "Jianmu settings",
     heading: "Jianmu settings",
     sections: ["Appearance", "Video page", "YouTube", "AI service", "Verdict on open", "Skim and Study", "Watch Later triage", "Saved data", "About"],
-    buttons: ["Save and authorise", "Test connection", "Export backup", "Restore backup", "Clear cache", "Clear all data"],
+    buttons: ["Save and authorise", "Test connection", "Export backup", "Restore backup", "Clear cache", "Delete all notes", "Clear all data"],
     languages: ["Match browser", "简体中文", "繁體中文", "English"],
   };
   const chinese = {
@@ -719,7 +743,7 @@ test("设置页：语言选 English 以后，标题、各节标题和按钮马�
     title: "简幕设置",
     heading: "简幕设置",
     sections: ["外观", "播放页", "YouTube", "AI 服务", "打开就出结论", "速读和精读", "稍后再看粗筛", "学习资料", "关于"],
-    buttons: ["保存并授权", "测试连接", "导出备份", "恢复备份", "清除缓存", "清除全部数据"],
+    buttons: ["保存并授权", "测试连接", "导出备份", "恢复备份", "清除缓存", "删除全部笔记", "清除全部数据"],
     languages: ["跟随浏览器", "简体中文", "繁體中文", "English"],
   };
   assert.deepEqual(await page.evaluate(view), chinese);
@@ -758,7 +782,7 @@ test("设置页：语言选「繁體中文」以后，标题、各节标题和�
     title: "簡幕設定",
     heading: "簡幕設定",
     sections: ["外觀", "播放頁", "YouTube", "AI 服務", "打開就出結論", "速讀和精讀", "稍後再看粗篩", "學習資料", "關於"],
-    buttons: ["儲存並授權", "測試連線", "匯出備份", "還原備份", "清除快取", "清除全部資料"],
+    buttons: ["儲存並授權", "測試連線", "匯出備份", "還原備份", "清除快取", "刪除全部筆記", "清除全部資料"],
     languages: ["跟隨瀏覽器", "简体中文", "繁體中文", "English"],
   };
   const chinese = {
@@ -766,7 +790,7 @@ test("设置页：语言选「繁體中文」以后，标题、各节标题和�
     title: "简幕设置",
     heading: "简幕设置",
     sections: ["外观", "播放页", "YouTube", "AI 服务", "打开就出结论", "速读和精读", "稍后再看粗筛", "学习资料", "关于"],
-    buttons: ["保存并授权", "测试连接", "导出备份", "恢复备份", "清除缓存", "清除全部数据"],
+    buttons: ["保存并授权", "测试连接", "导出备份", "恢复备份", "清除缓存", "删除全部笔记", "清除全部数据"],
     languages: ["跟随浏览器", "简体中文", "繁體中文", "English"],
   };
   const fontSans = `getComputedStyle(document.documentElement).getPropertyValue("--font-sans")`;

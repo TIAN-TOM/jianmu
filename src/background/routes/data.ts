@@ -25,7 +25,7 @@ const hasOnly = (value: Readonly<Record<string, unknown>>, keys: readonly string
   Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
 
 function isClearRequest(req: unknown): req is DataClearRequest {
-  return isRecord(req) && Object.keys(req).length === 1 && (req.scope === "cache" || req.scope === "all");
+  return isRecord(req) && Object.keys(req).length === 1 && (req.scope === "cache" || req.scope === "notes" || req.scope === "all");
 }
 
 const isExportIn = (message: unknown): message is BackupExportIn => isRecord(message) && hasOnly(message, ["type"]) && message.type === "start";
@@ -85,7 +85,7 @@ export function dataPorts({ data, log }: DataRouteDeps): DataPorts {
       validate: isImportIn,
       starts: () => false,
       onConnect(port) {
-        const session = data.openImport();
+        const session = data.openImport(port.since);
         // 一段合并完再轮到下一段；页面也是等回了才发下一段。
         let queue: Promise<void> = Promise.resolve();
         return {

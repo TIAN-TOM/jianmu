@@ -1,12 +1,12 @@
 // 设置页「资料」一节：导出、导入备份，清除本机数据。
 // 导出只读本机的四个仓储（笔记、概览、问答、译文和整理后的字幕），不发平台和模型请求，确认启用之前也能用；
 // 导入分段进来（单条消息有大小上限），每段在对应仓储的写入队列里读本机的再合并，清除闸门的代数从连上那一刻算起；
-// 清除先停下在跑的任务，再在清除闸门里删仓库和存储键，删完广播给各页面。
+// 清除在闸门里按范围删仓库和存储键，删完广播；单独删笔记时只刷新笔记。
 // 这三样从开始到完全结束（成功失败都算）都记作忙：文件换了要重新加载时等它们做完，不留清了一半、导了一半的数据，也不关掉发起的页面。
 import { buildBackup, type Backup } from "../../core/backup/format.ts";
 import { mergeNotes, mergeOverviews, mergeQa, mergeTranslations, type MergeResult } from "../../core/backup/merge.ts";
 import { checkNote, checkOverview, checkQa, checkTranslation, keepValid, type RecordKind } from "../../core/backup/records.ts";
-import type { ClearGuard, ClearScope } from "../../core/clear-guard.ts";
+import type { ClearEpoch, ClearGuard, ClearScope } from "../../core/clear-guard.ts";
 import { fail, ok, type Result } from "../../core/errors.ts";
 import type { ExtensionStorage } from "../../platform/storage.ts";
 import type { SettingsStore } from "../../platform/settings-store.ts";
@@ -57,7 +57,7 @@ export interface ExportSession {
 
 export interface DataService {
   readonly openExport: () => ExportSession;
-  readonly openImport: () => ImportSession;
+  readonly openImport: (since?: ClearEpoch) => ImportSession;
   readonly clear: (scope: ClearScope) => Promise<void>;
   /** 有导出、导入或清除没做完。 */
   readonly busy: () => boolean;
@@ -98,9 +98,8 @@ export function createDataService(deps: DataServiceDeps): DataService {
     };
   }
 
-  function openImport(): ImportSession {
+  function openImport(since = guard.epoch()): ImportSession {
     const release = hold();
-    const since = guard.epoch();
     let changed = false;
 
     // 记录在页面已经核对过，这里再过一遍：后台只认自己核对过的记录。
@@ -157,19 +156,19 @@ export function createDataService(deps: DataServiceDeps): DataService {
     const release = hold();
     try {
       // 在跑的生成先停下：它们回来写的那一下也会被闸门拦住，停下是为了不再花钱。
-      deps.tasks.cancelAll(CLEARING);
+      if (scope !== "notes") deps.tasks.cancelAll(CLEARING);
       const targets = clearTargets(scope);
       await guard.clear(scope, async () => {
-        deps.forgetMemory(scope);
+        if (scope !== "notes") deps.forgetMemory(scope);
         await Promise.all(targets.stores.map((name) => deps.clearStore(name)));
         if (scope === "all") {
           await deps.settings.clearAll();
-          return;
+        } else if (scope === "cache") {
+          await deps.storage.local.remove([...targets.local]);
+          await deps.storage.session.remove([...targets.session]);
         }
-        await deps.storage.local.remove([...targets.local]);
-        await deps.storage.session.remove([...targets.session]);
       });
-      deps.broadcast({ type: "data.cleared", scope });
+      deps.broadcast(scope === "notes" ? { type: "notes.changed" } : { type: "data.cleared", scope });
     } finally {
       release();
     }

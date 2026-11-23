@@ -12,7 +12,7 @@ import { SETTINGS_REVISION_KEY, SETTINGS_STORAGE_KEY, USAGE_STORAGE_KEY } from "
 import { originOf, validateForSave, type FeatureSlotId } from "../../shared/settings-schema.ts";
 import type { PageApi } from "../shared/api.ts";
 import { createAiStatus, type AiPlace, type PlacedStatus, type Status } from "./ai-status.ts";
-import { backupFailureText, importSummary, receiveBackup, sendBackup } from "./backup-transfer.ts";
+import { backupFailureText, importSummary, receiveBackup, withBackupImport } from "./backup-transfer.ts";
 import { chosenFeatures, formOf, settingsInput, withAddress, withPreset, type AiForm } from "./form.ts";
 import { probeFrameImage } from "./image-probe.ts";
 import type { UiLang } from "../shared/ui-lang.ts";
@@ -438,27 +438,29 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       // 读文件之前就占住：大文件要读一会儿，这期间不能再点导出、清除或另一次导入。
       busy.value = "import";
       try {
-        let text: string;
-        try {
-          text = await readFile();
-        } catch {
-          dataStatus.value = { text: copy().backup.unreadable, tone: "error" };
-          return;
-        }
-        let payload: unknown;
-        try {
-          payload = JSON.parse(text);
-        } catch {
-          dataStatus.value = { text: copy().backup.notBackup, tone: "error" };
-          return;
-        }
-        const read = readBackup(payload);
-        if (!read.ok) {
-          dataStatus.value = { text: copy().backup.importFailed(failText(read)), tone: "error" };
-          return;
-        }
-        const reply = await sendBackup(api, read.value);
-        dataStatus.value = reply.ok ? { text: importSummary(reply.value, lang()), tone: "ok" } : { text: backupFailureText(reply, "import", failText, lang()), tone: "error" };
+        await withBackupImport(api, async (send) => {
+          let text: string;
+          try {
+            text = await readFile();
+          } catch {
+            dataStatus.value = { text: copy().backup.unreadable, tone: "error" };
+            return;
+          }
+          let payload: unknown;
+          try {
+            payload = JSON.parse(text);
+          } catch {
+            dataStatus.value = { text: copy().backup.notBackup, tone: "error" };
+            return;
+          }
+          const read = readBackup(payload);
+          if (!read.ok) {
+            dataStatus.value = { text: copy().backup.importFailed(failText(read)), tone: "error" };
+            return;
+          }
+          const reply = await send(read.value);
+          dataStatus.value = reply.ok ? { text: importSummary(reply.value, lang()), tone: "ok" } : { text: backupFailureText(reply, "import", failText, lang()), tone: "error" };
+        });
       } finally {
         busy.value = null;
       }
@@ -480,7 +482,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
           dataStatus.value = { text: copy().backup.clearedAll, tone: "ok" };
           return;
         }
-        dataStatus.value = { text: copy().backup.clearedCache, tone: "ok" };
+        dataStatus.value = { text: scope === "notes" ? copy().backup.clearedNotes : copy().backup.clearedCache, tone: "ok" };
       } finally {
         ownWrites -= 1;
         busy.value = null;

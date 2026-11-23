@@ -209,6 +209,14 @@ function DataSection({ state, enabled }: { readonly state: OptionsState; readonl
           onConfirm={() => void state.clearData("cache")}
         />
         <Confirmable
+          label={t.clearNotes}
+          question={t.clearNotesQuestion}
+          confirmLabel={t.clearNotesConfirm}
+          danger
+          disabled={working}
+          onConfirm={() => void state.clearData("notes")}
+        />
+        <Confirmable
           label={t.clearAll}
           question={t.clearAllQuestion}
           confirmLabel={t.clearAllConfirm}

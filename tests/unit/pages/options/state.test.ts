@@ -4,6 +4,13 @@
 // 保存以后那句「还差什么」跟着同意的勾选更新，不留着过时的话；点了保存就先收起上一次的结果。
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { buildBackup } from "../../../../src/core/backup/format.ts";
+import { videoKey } from "../../../../src/core/video-ref.ts";
+import type { NoteListView, NoteSaveView } from "../../../../src/shared/messages/notes.ts";
+import { pageApiOver } from "../../../helpers/backup-port.ts";
+import { senders } from "../../../helpers/chrome.ts";
+import { SAMPLE_ID } from "../../../helpers/fake-site-service.ts";
+import { studyBackground } from "../../../helpers/study-background.ts";
 import { createOptionsState } from "../../../../src/pages/options/state.ts";
 import type { LoadedSettings, WrittenSettings } from "../../../../src/platform/settings-store.ts";
 import { SETTINGS_REVISION_KEY, SETTINGS_STORAGE_KEY } from "../../../../src/shared/names.ts";
@@ -407,34 +414,75 @@ test("同意过数据说明、密钥却是空的（多半是重启以后清空�
 test("恢复备份：读文件的工夫就占着，这期间点导出、清除、另一次恢复都不发；读不出、读不懂、导完都放开", async () => {
   const sent: string[] = [];
   const connected: string[] = [];
+  let closed = 0;
   const state = createOptionsState({
     store: { load: async () => assert.fail(), save: async () => assert.fail(), update: async () => assert.fail(), setDataConsent: async () => assert.fail() },
     api: {
       send: (async (type: string) => (sent.push(type), { ok: true, value: {} })) as never,
-      connect: ((name: string) => (connected.push(name), assert.fail("读文件时不该连后台"))) as never,
+      connect: (name) => {
+        connected.push(name);
+        return { post: () => assert.fail("读不出备份时不发记录"), close: () => { closed += 1; }, isOpen: () => true };
+      },
     },
     requestHost: async () => true,
     download: () => assert.fail("读文件时不该导出"),
   });
   let finishReading!: (text: string) => void;
   const reading = new Promise<string>((resolve) => (finishReading = resolve));
-  const importing = state.importBackup(() => reading);
+  const importing = state.importBackup(() => {
+    assert.deepEqual(connected, ["backup.import"], "开始读文件时已连上导入端口");
+    return reading;
+  });
   assert.equal(state.busy.value, "import", "读文件之前就占住");
   await state.exportBackup();
   await state.clearData("all");
   let readAgain = false;
   await state.importBackup(async () => ((readAgain = true), "{}"));
-  assert.deepEqual([sent, connected, readAgain], [[], [], false], "读文件期间别的操作都不发");
+  assert.deepEqual([sent, connected, readAgain], [[], ["backup.import"], false], "读文件期间别的操作都不发");
   finishReading("不是 JSON");
   await importing;
+  assert.equal(closed, 1, "读不懂时关掉导入连接");
   assert.equal(state.busy.value, null, "读不懂也放开");
   assert.match(state.dataStatus.value?.text ?? "", /读不懂这个文件/);
 
   await state.importBackup(async () => Promise.reject(new Error("文件被移走了")));
+  assert.equal(closed, 2, "读文件失败也关掉导入连接");
   assert.equal(state.busy.value, null, "读不出也放开");
   assert.match(state.dataStatus.value?.text ?? "", /读不出这个文件/);
 
   await state.importBackup(async () => JSON.stringify({ hello: 1 }));
+  assert.equal(closed, 3, "认不出格式也关掉导入连接");
   assert.equal(state.busy.value, null, "认不出格式也放开");
   assert.match(state.dataStatus.value?.text ?? "", /^恢复失败/);
+});
+
+test("选好备份还在读文件时另一页删除了全部笔记，等文件读完也不会恢复旧笔记", async () => {
+  const bg = studyBackground({ withoutAi: true });
+  const video = videoKey({ platform: "bilibili", videoId: SAMPLE_ID, segment: 1 });
+  const saved = await bg.send<NoteSaveView>("notes.save", { video, atSec: 8, text: "备份里的一条笔记" });
+  assert.ok(saved.ok);
+  const file = JSON.stringify(buildBackup({ notes: [saved.value.note] }, 10));
+
+  let received = false;
+  const api = pageApiOver(bg.fake, { connect(port) { bg.app.connect(port); received = true; } });
+  const state = createOptionsState({
+    store: { load: async () => assert.fail(), save: async () => assert.fail(), update: async () => assert.fail(), setDataConsent: async () => assert.fail() },
+    api,
+    requestHost: async () => true,
+    download: () => assert.fail(),
+  });
+  const reading = deferred();
+  const importing = state.importBackup(async () => {
+    await reading.promise;
+    return file;
+  });
+  assert.ok(await until(() => received), "文件还在读，后台已收到这次导入连接");
+  assert.ok((await bg.send("data.clear", { scope: "notes" }, senders.options())).ok);
+  reading.resolve();
+  await importing;
+  assert.equal(state.dataStatus.value?.tone, "error");
+  assert.match(state.dataStatus.value?.text ?? "", /清除了本机数据/);
+  const listed = await bg.send<NoteListView>("notes.list", {});
+  assert.ok(listed.ok);
+  assert.deepEqual(listed.value.notes, []);
 });

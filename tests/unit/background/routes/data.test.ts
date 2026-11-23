@@ -155,6 +155,46 @@ test("导入途中清除全部数据：后面几段不再写，页面收到「�
   assert.equal(await noteCount(bg), 0);
 });
 
+test("删笔记时导入连接还在核对启用，已发来的第一段也不能写入", async () => {
+  const bg = studyBackground({ withoutAi: true });
+  pageApiOver(bg.fake, bg.app);
+  const port = bg.fake.connect("backup.import", senders.options());
+  port.send({ type: "part", seq: 0, kind: "notes", records: [NOTE] });
+  assert.ok((await bg.send("data.clear", { scope: "notes" }, senders.options())).ok);
+  assert.ok(await until(() => port.disconnected));
+  assert.deepEqual(port.posted, [{ type: "port.error", code: "LOCAL_DATA_CLEARED" }]);
+  assert.equal(await noteCount(bg), 0);
+});
+
+test("删除全部笔记清掉所有视频的笔记，挡住之前开始的导入；重新导入备份能恢复", async () => {
+  const bg = studyBackground({ withoutAi: true });
+  const sample = JSON.parse(readFileSync(new URL("../../../fixtures/legacy-backups/existing-version.json", import.meta.url), "utf8"));
+  assert.ok((await importOver(bg.fake, bg.app, sample)).ok);
+  const before = await exportOver(bg.fake, bg.app);
+  assert.ok(before.ok);
+  assert.ok(before.value.notes.length > 0 && before.value.overviews.length > 0 && before.value.qa.length > 0);
+  const port = bg.fake.connect("backup.import", senders.options());
+  port.send({ type: "part", seq: 0, kind: "notes", records: [NOTE] });
+  assert.ok(await until(() => port.posted.length === 1));
+  const settings = await bg.fake.local.get(SETTINGS_STORAGE_KEY);
+  const broadcasts = bg.fake.calls.broadcasts.length;
+  assert.deepEqual(await bg.send("data.clear", { scope: "notes" }, senders.options()), { ok: true, value: {} });
+  assert.deepEqual(bg.fake.calls.broadcasts.slice(broadcasts), [{ type: "notes.changed" }]);
+  port.send({ type: "part", seq: 1, kind: "notes", records: [NOTE] });
+  assert.ok(await until(() => port.disconnected));
+  assert.deepEqual(port.posted.at(-1), { type: "port.error", code: "LOCAL_DATA_CLEARED" });
+  assert.deepEqual(await bg.fake.local.get(SETTINGS_STORAGE_KEY), settings);
+  const after = await exportOver(bg.fake, bg.app);
+  assert.ok(after.ok);
+  assert.deepEqual(after.value.notes, []);
+  assert.deepEqual(after.value.qa, before.value.qa);
+  assert.deepEqual(after.value.overviews, before.value.overviews);
+  const restored = await importOver(bg.fake, bg.app, before.value);
+  assert.ok(restored.ok);
+  assert.deepEqual(restored.value.counts.notes, { added: before.value.notes.length, updated: 0, skipped: 0 });
+  assert.equal(await noteCount(bg), before.value.notes.length);
+});
+
 test("两份旧格式样例经端口导入：后台核对时不再多跳过，条数和整份一次读出来的一样；再导一次不重复", async () => {
   for (const name of ["digest-for-bilibili.json", "existing-version.json"]) {
     const bg = studyBackground({ withoutAi: true });
@@ -270,7 +310,8 @@ test("侧边栏、粗筛页、卡片和内容脚本都连不上、发不了", as
   }
 });
 
-test("两种清除都忘掉取字幕服务内存里记着的，而且在清除闸门里做", async () => {
+test("清缓存和清全部会停任务、在闸门里忘掉字幕；只删笔记时两者照常", async () => {
+  let cancelled = 0;
   const forgotten: string[] = [];
   let clearing = false;
   const guard = createClearGuard();
@@ -291,7 +332,7 @@ test("两种清除都忘掉取字幕服务内存里记着的，而且在清除�
           }
         }),
     },
-    tasks: { cancelAll: () => {} },
+    tasks: { cancelAll: () => { cancelled += 1; } },
     settings: { clearAll: async () => {} },
     storage: createFakeChrome().deps({ warn() {}, error() {} }).storage,
     forgetMemory: (scope) => void forgotten.push(`${scope}:${clearing}`),
@@ -299,7 +340,10 @@ test("两种清除都忘掉取字幕服务内存里记着的，而且在清除�
     broadcast: () => {},
     now: () => 0,
   });
+  await data.clear("notes");
+  assert.equal(cancelled, 0);
   await data.clear("cache");
   await data.clear("all");
+  assert.equal(cancelled, 2);
   assert.deepEqual(forgotten, ["cache:true", "all:true"]);
 });

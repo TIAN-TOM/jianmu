@@ -62,17 +62,17 @@ export function noteRoutes({ notes, playerNotePolish }: NoteRouteDeps): NoteRout
       senders: ["panel", "page"],
       pages: PAGES,
       validate: isSaveRequest,
-      handler: (req) => notes.save(req),
+      handler: (req, { since }) => notes.save(req, { since }),
     },
     "notes.saveAtTime": {
       senders: ["content:bilibili", "content:youtube"],
       video: "from-sender",
       validate: isAtTimeRequest,
-      async handler(req, { sender }) {
+      async handler(req, { sender, since }) {
         // 视频以标签页地址上的为准：页面脚本能伪造消息，改不了标签页正在放的视频。
         const playing = "site" in sender ? keyOf(sender.video) : null;
         if (!playing || playing !== req.video) return fail("FORBIDDEN");
-        return notes.save({ video: playing, atSec: req.atSec }, { mayPolish: playerNotePolish });
+        return notes.save({ video: playing, atSec: req.atSec }, { mayPolish: playerNotePolish, since });
       },
     },
     "notes.list": {
@@ -86,13 +86,13 @@ export function noteRoutes({ notes, playerNotePolish }: NoteRouteDeps): NoteRout
       senders: ["panel", "page"],
       pages: PAGES,
       validate: isUpdateRequest,
-      handler: (req) => notes.update(req.id, req.text),
+      handler: (req, { since }) => notes.update(req.id, req.text, since),
     },
     "notes.delete": {
       senders: ["panel", "page"],
       pages: PAGES,
       validate: isDeleteRequest,
-      handler: (req) => notes.remove(req.id),
+      handler: (req, { since }) => notes.remove(req.id, since),
     },
   };
 }
