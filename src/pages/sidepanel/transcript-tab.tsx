@@ -5,6 +5,7 @@ import { hasMatch, splitMatches } from "../../core/highlight.ts";
 import { lineBreaks, splitRuns } from "../../core/transcript/lines.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
 import type { TranscriptView } from "../../shared/messages/transcript.ts";
+import { canStartTranslation } from "./translate.ts";
 import { readsOnClick } from "./transcript.ts";
 import { openReadHint } from "./open-transcript.ts";
 
@@ -86,9 +87,11 @@ function Toolbar({ panel, view, onSearch, searching, onImport }: { readonly pane
   const p = panelText();
   const t = p.transcript;
   const modeLabel = t.modes;
+  const hasWork = mode !== "original" && canStartTranslation(translation.state.value) && view.transcript.segments.some(({ id }) => !translation.lines.value[id]);
+  const currentHint = hasWork ? t.translateHint : p.inUse;
   const modeItems: MenuItem[] = (["original", "translated", "bilingual"] as const).map((item) => ({
     label: modeLabel[item],
-    ...(item === mode ? { hint: p.inUse } : item !== "original" ? { hint: t.translateHint } : {}),
+    ...(item === mode ? { hint: currentHint } : item !== "original" ? { hint: t.translateHint } : {}),
     onSelect: () => translation.setMode(item, position?.atSec),
   }));
   const exportSrt = (): void => {

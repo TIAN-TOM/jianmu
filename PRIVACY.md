@@ -185,6 +185,7 @@ IndexedDB 数据库 `jianmu` 里的仓库：
 | `jianmu_usage` | 每项功能最近一次模型请求的用量：服务回报的输入、输出、思考和合计的 token 数，加上当时的模型名和推理档位，没有请求和回复的内容 | 会话 | 删 | 删 |
 | `jianmu_image_probe` | 画面分析的模型能不能看图 | 本机 | 删 | 删 |
 | `jianmu_frame_results` | 最近几次画面解释的文字，没有截图；超过半小时不再显示，下次用到时删掉 | 会话 | 删 | 删 |
+| `jianmu_transcript_modes` | 最近 50 个手动选过字幕显示方式的视频编号和所选方式 | 会话 | 留 | 删 |
 | `jianmu_watch_sessions` | 每个标签页正在看的视频用哪个模式、播放了多久、卡片展开没有 | 会话 | 留 | 删 |
 | `jianmu_auto_ledger` | 「打开就出结论」试过哪些视频、最近几次的时间、暂停的原因 | 会话 | 留 | 删 |
 | `jianmu_settings_revision` | 设置的修订号，是个随机值，防止过时的设置页写回旧设置 | 本机 | 留 | 换成新值 |
@@ -392,6 +393,7 @@ Keys in extension storage, none of which go into backups. "Local" is written to 
 | `jianmu_usage` | The usage of each feature's most recent model request: the input, output and reasoning token counts the service reported, plus the model name and reasoning level used, with nothing from the request or the reply | Session | Deleted | Deleted |
 | `jianmu_image_probe` | Whether the frame-analysis model accepts images | Local | Deleted | Deleted |
 | `jianmu_frame_results` | The text of recent frame explanations, without the frames; no longer shown after half an hour and deleted the next time it is used | Session | Deleted | Deleted |
+| `jianmu_transcript_modes` | The video ID and subtitle display mode for the last 50 videos where you chose a mode | Session | Kept | Deleted |
 | `jianmu_watch_sessions` | For each tab, the mode of the video being watched, how long it has played and whether the card is expanded | Session | Kept | Deleted |
 | `jianmu_auto_ledger` | Which videos "Verdict on open" has tried, the times of recent attempts and why it is paused | Session | Kept | Deleted |
 | `jianmu_settings_revision` | A random revision number for settings, so an out-of-date Settings page cannot write old settings back | Local | Kept | Replaced with a new value |

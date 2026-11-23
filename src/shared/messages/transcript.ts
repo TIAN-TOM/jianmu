@@ -165,7 +165,20 @@ export interface VideoCheckView {
   readonly available: boolean;
 }
 
+export type TranscriptMode = "original" | "translated" | "bilingual";
+
+export function isTranscriptMode(value: unknown): value is TranscriptMode {
+  return value === "original" || value === "translated" || value === "bilingual";
+}
+
+export interface TranscriptModeRequest {
+  readonly video: VideoKey;
+  /** 只有用户主动选择时才带上；不带时只读。 */
+  readonly mode?: TranscriptMode;
+}
+
 export interface TranscriptApi {
+  "transcript.displayMode": { req: TranscriptModeRequest; res: { readonly mode: TranscriptMode } };
   "transcript.get": { req: TranscriptGetRequest; res: TranscriptView | GuidesView };
   "video.checkAvailable": { req: VideoCheckRequest; res: VideoCheckView };
 }

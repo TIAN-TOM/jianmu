@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { createApp } from "../../../../src/background/app.ts";
 import type { MessageSender } from "../../../../src/background/senders.ts";
 import { videoKey } from "../../../../src/core/video-ref.ts";
-import { SETTINGS_STORAGE_KEY } from "../../../../src/shared/names.ts";
+import { SETTINGS_STORAGE_KEY, TRANSCRIPT_MODES_KEY } from "../../../../src/shared/names.ts";
 import { CONFIRMED, createFakeChrome, senders, STALE_CONFIRMATION, type FakeChromeOptions } from "../../../helpers/chrome.ts";
 import { failed, fakeSiteService, SAMPLE_ID, type SiteScript } from "../../../helpers/fake-site-service.ts";
 
@@ -128,4 +128,34 @@ test("查原视频：没登录、被限流都当作还在，只有平台说找�
   }
   const { send } = appOn();
   assert.deepEqual(await send("video.checkAvailable", { video: VIDEO, extra: 1 }), { ok: false, code: "INVALID_REQUEST" });
+});
+
+test("字幕显示方式只给已启用的侧边栏，多个视频分别记住，最近改选的 50 个保留", async () => {
+  const { send, fake } = appOn();
+  const mode = (video: string) => send("transcript.displayMode", { video });
+  assert.deepEqual(await mode(VIDEO), { ok: true, value: { mode: "original" } });
+  for (const req of [{ video: "bad" }, { video: VIDEO, mode: "other" }, { video: VIDEO, text: "多余" }]) {
+    assert.deepEqual(await send("transcript.displayMode", req), { ok: false, code: "INVALID_REQUEST" });
+  }
+  assert.deepEqual(await send("transcript.displayMode", { video: VIDEO }, senders.card()), { ok: false, code: "FORBIDDEN" });
+  assert.deepEqual(await appOn({}, { local: {} }).send("transcript.displayMode", { video: VIDEO, mode: "bilingual" }), { ok: false, code: "NOT_ENABLED" });
+  const videos = Array.from({ length: 51 }, (_, index) => videoKey({ platform: "youtube", videoId: `sample-${index}` }));
+  await Promise.all(videos.slice(0, 50).map((video) => send("transcript.displayMode", { video, mode: "translated" })));
+  await send("transcript.displayMode", { video: videos[0], mode: "bilingual" });
+  await send("transcript.displayMode", { video: videos[50], mode: "translated" });
+  assert.deepEqual(await mode(videos[0]!), { ok: true, value: { mode: "bilingual" } });
+  assert.deepEqual(await mode(videos[1]!), { ok: true, value: { mode: "original" } }, "最早的那条挤出去了");
+  assert.deepEqual(await mode(videos[2]!), { ok: true, value: { mode: "translated" } });
+  assert.equal((fake.session.data[TRANSCRIPT_MODES_KEY] as unknown[]).length, 50);
+  assert.equal(fake.local.data[TRANSCRIPT_MODES_KEY], undefined);
+  assert.deepEqual(await send("transcript.displayMode", { video: videos[0], mode: "original" }), { ok: true, value: { mode: "original" } });
+  assert.deepEqual(await mode(videos[0]!), { ok: true, value: { mode: "original" } });
+});
+
+test("清除全部数据期间还在核对启用的字幕显示选择不能写回", async () => {
+  const { send, fake } = appOn();
+  const saving = send("transcript.displayMode", { video: VIDEO, mode: "bilingual" });
+  assert.deepEqual(await send("data.clear", { scope: "all" }, senders.options()), { ok: true, value: {} });
+  assert.deepEqual(await saving, { ok: false, code: "LOCAL_DATA_CLEARED" });
+  assert.equal(fake.session.data[TRANSCRIPT_MODES_KEY], undefined);
 });

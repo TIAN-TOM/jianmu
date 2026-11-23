@@ -25,6 +25,7 @@ const ROWS: readonly (readonly [string, Plan])[] = [
   ["jianmu_settings", { area: "local", clearCache: "keep", clearAll: "clear", backup: false }],
   ["jianmu_api_key", { area: "session", clearCache: "keep", clearAll: "clear", backup: false }],
   ["jianmu_api_key_local", { area: "local", clearCache: "keep", clearAll: "clear", backup: false }],
+  ["jianmu_transcript_modes", { area: "session", clearCache: "keep", clearAll: "clear", backup: false }],
   ["jianmu_watch_sessions", { area: "session", clearCache: "keep", clearAll: "clear", backup: false }],
   ["jianmu_auto_ledger", { area: "session", clearCache: "keep", clearAll: "clear", backup: false }],
   ["jianmu_settings_revision", { area: "local", clearCache: "keep", clearAll: "renew", backup: false }],
@@ -49,6 +50,7 @@ function seeded() {
       jianmu_relaxed_params: { someModel: { temperature: false } },
       jianmu_usage: { analysis: { effort: "high", model: "some-model", usage: { input: 10, output: 5 } } },
       jianmu_auto_ledger: { attempts: 1 },
+      jianmu_transcript_modes: [{ video: "youtube:sample12345", mode: "bilingual" }],
       jianmu_watch_sessions: { 7: { mode: "skim" } },
     }),
   };
@@ -79,6 +81,7 @@ test("清除缓存：只清字幕缓存、粗筛、模型能力、放宽记录�
   assert.deepEqual(Object.keys(world.session.data).sort(), [
     "jianmu_api_key",
     "jianmu_auto_ledger",
+    "jianmu_transcript_modes",
     "jianmu_watch_sessions",
   ]);
   assert.deepEqual(world.local.data["jianmu_settings"], { accent: "ochre" });

@@ -2,6 +2,8 @@
 // 闸门之前不读网页地址、不查标签页；卡片和内容脚本收到的回复和广播里没有密钥。
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { NO_CLEAR_GUARD } from "../../../src/core/clear-guard.ts";
+import { memoryStorage } from "../../helpers/memory-storage.ts";
 import { createApp } from "../../../src/background/app.ts";
 import type { MessageSender } from "../../../src/background/senders.ts";
 import { createRoutes } from "../../../src/background/routes/index.ts";
@@ -73,6 +75,8 @@ const realRoutes = (): Readonly<Record<string, AnyRoute>> =>
     },
     channels: { clear: async () => assert.fail() },
     playbackLimits: { admitMilestone: () => assert.fail() },
+    sessionStorage: memoryStorage(),
+    clearGuard: NO_CLEAR_GUARD,
     transcript: {
       get: async () => assert.fail(),
       light: async () => assert.fail(),
