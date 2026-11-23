@@ -5,12 +5,11 @@
 import { signal, type ReadonlySignal } from "@preact/signals";
 import { describe } from "../../core/errors.ts";
 import type { VideoKey } from "../../core/video-ref.ts";
+import type { TranscriptMode } from "../../shared/messages/transcript.ts";
 import type { TextPurpose, TranslateOut } from "../../shared/messages/translate.ts";
 import type { PagePort, PageApi } from "../shared/api.ts";
 import type { UiLang } from "../shared/ui-lang.ts";
 import { panelTextOf } from "./text.ts";
-
-export type TranscriptMode = "original" | "translated" | "bilingual";
 
 export interface TranslateState {
   readonly phase: "idle" | "running" | "done" | "failed";
@@ -20,6 +19,11 @@ export interface TranslateState {
   readonly message: string;
   /** 失败时模型服务自己说的话，显示在那一句下面，默认收着。 */
   readonly said?: string;
+}
+
+/** 此时主动选择译文或双语会尝试补译。 */
+export function canStartTranslation(state: TranslateState): boolean {
+  return state.phase === "idle" || state.phase === "failed" || state.message !== "";
 }
 
 export interface Translation {
@@ -195,7 +199,9 @@ function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | unde
   };
 }
 
-export function createTranslation({ api, lang = () => "zh" }: { readonly api: Pick<PageApi, "connect">; readonly lang?: () => UiLang }): Translation {
+export function createTranslation({ api, lang = () => "zh" }: { readonly api: Pick<PageApi, "connect" | "send">; readonly lang?: () => UiLang }): Translation {
+  let boundVideo: VideoKey | null = null;
+  let choiceVersion = 0;
   const mode = signal<TranscriptMode>("original");
   const stream = createStream(api, undefined, translateWords, lang);
   return {
@@ -204,13 +210,22 @@ export function createTranslation({ api, lang = () => "zh" }: { readonly api: Pi
     lines: stream.lines,
     bind(video, fingerprint, tabId) {
       if (!stream.bind(video, fingerprint, tabId ?? null)) return;
-      mode.value = "original";
+      if (video !== boundVideo) {
+        boundVideo = video;
+        const version = ++choiceVersion;
+        mode.value = "original";
+        if (video) void api.send("transcript.displayMode", { video }).then((reply) => {
+          // 换过视频或用户已经改选，迟到的回复就丢掉；恢复只改变显示。
+          if (reply.ok && choiceVersion === version) mode.value = reply.value.mode;
+        });
+      }
       stream.peek();
     },
     setMode(next, fromSec) {
+      choiceVersion++;
       mode.value = next;
-      const now = stream.state.peek();
-      if (next !== "original" && (now.phase === "idle" || now.phase === "failed" || now.message !== "")) stream.start(fromSec);
+      if (boundVideo) void api.send("transcript.displayMode", { video: boundVideo, mode: next });
+      if (next !== "original" && canStartTranslation(stream.state.peek())) stream.start(fromSec);
     },
     stopRunning: stream.stopRunning,
     stop: stream.stop,

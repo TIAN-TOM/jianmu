@@ -10,7 +10,7 @@ import { errorCopy } from "../../src/core/errors.ts";
 import { translationId } from "../../src/core/notes/records.ts";
 import { textFingerprint } from "../../src/core/transcript/fingerprint.ts";
 import { channelKey, videoKey } from "../../src/core/video-ref.ts";
-import { API_KEY_SESSION_KEY, AUTO_LEDGER_KEY, DATABASE_NAME, SETTINGS_STORAGE_KEY, WATCH_SESSIONS_KEY } from "../../src/shared/names.ts";
+import { API_KEY_SESSION_KEY, AUTO_LEDGER_KEY, DATABASE_NAME, SETTINGS_STORAGE_KEY, TRANSCRIPT_MODES_KEY, WATCH_SESSIONS_KEY } from "../../src/shared/names.ts";
 import { ANTHROPIC, BRIEF_SAMPLE, PLAYING_SAMPLE, VIDEOS } from "../fixtures.mjs";
 import { playingWatchPage, PROBE, watchPage } from "../mock-server.mjs";
 import { storedSettings } from "../settings.mjs";
@@ -250,6 +250,56 @@ test("侧边栏：搜索字幕时，译文、整理后的字幕和原始字幕�
       assert.equal(await panel.evaluate(textOf(".cue-text")), segments[0].text);
     } finally {
       await editDatabase(panel, {}, { translations: records.map(({ id }) => id) });
+    }
+  });
+});
+
+test("侧边栏：重开后恢复这个视频的双语显示，缺译文的段保留原文，不发起翻译", async (ctx) => {
+  await withVideo(ctx, async (panel) => {
+    const button = ".toolbar .menu-anchor:has([aria-label='字幕视图']) > button";
+    const list = "[aria-label='字幕视图']:popover-open";
+    await waitIn(panel, "字幕和视图按钮出现", `Boolean(document.querySelector(".cue-text") && document.querySelector(${JSON.stringify(button)}))`);
+    const send = (type, req) => panel.evaluate(`chrome.runtime.sendMessage(${JSON.stringify({ type, req })})`);
+    const first = "画室里的学生拿起画笔在白纸上描出月光落在河面时最明亮的那道银色轮廓。";
+    const second = "窗外的月亮升高了。";
+    const srt = `1\n00:00:01,000 --> 00:00:07,000\n${first}\n\n2\n00:00:28,000 --> 00:00:32,000\n${second}\n`;
+    let recordId;
+    const settings = await panel.evaluate(`chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)})`);
+    const session = await panel.evaluate(`chrome.storage.session.get(${JSON.stringify([TRANSCRIPT_MODES_KEY, API_KEY_SESSION_KEY])})`);
+    const stored = await storedSettings(ANTHROPIC);
+    try {
+      assert.equal((await send("imports.add", { video: VIDEO, fileName: "月光.srt", text: srt })).ok, true);
+      const read = await send("transcript.get", { video: VIDEO, mode: "full" });
+      assert.equal(read.ok, true);
+      const { ref, segments } = read.value.transcript;
+      assert.deepEqual(segments.map(({ text }) => text), [first, second]);
+      const hash = await textFingerprint(first);
+      recordId = translationId(ref, "en");
+      const translated = "Moonlight on the water.";
+      await editDatabase(panel, { translations: [{
+        id: recordId, video: VIDEO, transcript: ref, target: "en", segments: { [hash]: translated },
+        derived: { basis: { source: "transcript", transcript: ref }, gen: { feature: "rewrite", promptVersion: "p", model: "sample", effort: "off" } }, updatedAt: 1,
+      }] });
+      await panel.evaluate("location.reload(), true");
+      await waitIn(panel, "样例的两段字幕出现", `${textOf(".cue-text")} === ${JSON.stringify(first + "\n" + second)}`);
+      await tap(panel, button);
+      await waitIn(panel, "双语选项出现", `${textOf(list + " .menu-label")}.includes("双语")`);
+      assert.ok(await clickText(panel, list + " .menu-item", "双语"));
+      const remembered = `chrome.runtime.sendMessage({ type: "transcript.displayMode", req: { video: ${JSON.stringify(VIDEO)} } }).then((reply) => reply.value?.mode)`;
+      await waitIn(panel, "已记住双语", `${remembered}.then((mode) => mode === "bilingual")`);
+      await waitIn(panel, "第一次主动翻译因服务未设置而结束", `Boolean(document.querySelector("p.progress-row")?.textContent)`);
+      await panel.evaluate(`Promise.all([chrome.storage.local.set(${JSON.stringify({ [SETTINGS_STORAGE_KEY]: stored.local[SETTINGS_STORAGE_KEY] })}), chrome.storage.session.set(${JSON.stringify(stored.session)})]).then(() => true)`);
+      const since = ctx.requests.length;
+      await panel.evaluate("location.reload(), true");
+      await waitIn(panel, "双语恢复，只有第一段显示译文，第二段保留原文", `${textOf(button)} === "双语" && ${textOf(".cue:first-child .cue-sub")} === ${JSON.stringify(translated)} && ${textOf(".cue:nth-child(2) .cue-text")} === ${JSON.stringify(second)} && !document.querySelector(".cue:nth-child(2) .cue-sub")`);
+      await tap(panel, button);
+      await waitIn(panel, "再次点双语会用额度", `[...document.querySelectorAll(${JSON.stringify(list + " .menu-item")})].some((item) => item.querySelector(".menu-label")?.textContent === "双语" && item.querySelector(".menu-hint")?.textContent.includes("额度"))`);
+      assert.ok(await stillFalse(() => ctx.requests.slice(since).some((item) => "kind" in item), 20), `恢复双语以后的模型请求：${ctx.requests.slice(since).flatMap((item) => item.kind ?? [])}`);
+    } finally {
+      if (recordId) await editDatabase(panel, {}, { translations: [recordId] });
+      await send("imports.remove", { video: VIDEO });
+      await panel.evaluate(`chrome.storage.session.remove(${JSON.stringify([TRANSCRIPT_MODES_KEY, API_KEY_SESSION_KEY])}).then(() => chrome.storage.session.set(${JSON.stringify(session)}))`);
+      await panel.evaluate(`chrome.storage.local.set(${JSON.stringify(settings)})`);
     }
   });
 });

@@ -4,7 +4,7 @@ import { formatTimestamp, type TranscriptSegment } from "../../core/transcript/s
 import { breaksToShow } from "../../core/transcript/lines.ts";
 import { buildSrt } from "../../core/transcript/srt.ts";
 import type { CueView } from "../../shared/messages/transcript.ts";
-import type { TranscriptMode } from "./translate.ts";
+import type { TranscriptMode } from "../../shared/messages/transcript.ts";
 
 export { chapterAt } from "../shared/ui/chapters.ts";
 

@@ -43,7 +43,7 @@ export const ROUTE_MATRIX: readonly MatrixRow[] = [
   ...row(["task.list", "task.cancel", "task.start"], { ...PAGES, card: true, content: [], beforeEnable: false }),
   ...row(["transcript.get"], { ...PAGES, card: true, content: [], beforeEnable: false }),
   ...row(["video.checkAvailable"], { ...PAGES, card: false, content: [], beforeEnable: false }),
-  ...row(["imports.add", "imports.remove"], { ...PANEL_ONLY, card: false, content: [], beforeEnable: false }),
+  ...row(["transcript.displayMode", "imports.add", "imports.remove"], { ...PANEL_ONLY, card: false, content: [], beforeEnable: false }),
   ...row(["overview.start"], { ...PANEL_ONLY, card: true, content: [], beforeEnable: false }),
   ...row(["overview.retryFailed", "overview.get"], { ...PAGES, card: false, content: [], beforeEnable: false }),
   ...row(["verdict.fromOfficial"], { ...PANEL_ONLY, card: false, content: [], beforeEnable: false }),

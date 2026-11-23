@@ -5,7 +5,7 @@
 import type { AutoPauseReason } from "../../shared/messages/ai.ts";
 import type { WindowRunView } from "../../shared/messages/batch.ts";
 import type { PlayerFailure } from "./player.ts";
-import type { TranscriptMode } from "./translate.ts";
+import type { TranscriptMode } from "../../shared/messages/transcript.ts";
 
 /** 本窗口全部生成的进度里要写的几种条数。 */
 export interface BatchProgress {
