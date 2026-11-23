@@ -5,7 +5,7 @@
 import { createSettingsStore } from "../src/platform/settings-store.ts";
 import { INJECTED } from "../src/shared/names.ts";
 import { stillFalse } from "../tests/helpers/wait-until.ts";
-import { WATCH_PAGE_AT_SEC } from "./watch-page.mjs";
+import { QUIET_MEDIA_PATH, WATCH_PAGE_AT_SEC } from "./watch-page.mjs";
 
 /** 页面框架激活以后内容脚本还要稳一会儿再插节点；这里多等一截，确认前确实什么都没插。 */
 const SETTLE_MS = 3000;
@@ -176,16 +176,25 @@ export function createWatchSteps({ cdp, until, evaluate, findSession, url }) {
       await moveTo(player.x + player.width + 40, player.y + player.height + 40);
       await setControlsHidden(null);
 
-      await evaluate(page, `(document.querySelector("video").currentTime = 100, true)`);
+      await evaluate(page, `(async () => {
+        const video = document.querySelector("video");
+        video.src = ${JSON.stringify(QUIET_MEDIA_PATH)};
+        await video.play();
+        document.addEventListener("keydown", () => { window.noteKeySecond = Math.floor(video.currentTime); }, { capture: true, once: true });
+        return true;
+      })()`);
+      await until("视频已播放五秒", () => evaluate(page, `(() => { const video = document.querySelector("video"); return !video.paused && video.currentTime >= 5; })()`));
       await press("n", "KeyN", 78);
+      const keySecond = await evaluate(page, `(document.querySelector("video").pause(), window.noteKeySecond)`);
       await until("按快捷键时图标带着提示露出来", async () => {
         const now = await icon();
         return now.visibility === "visible" && now.text !== "";
       });
-      await until("快捷键存下第二条笔记", async () => {
+      const playingNote = await until("播放中按快捷键存下第二条笔记", async () => {
         const reply = await ask("notes.list", { video });
-        return reply?.ok && reply.value.notes.some((note) => note.atSec === 100);
+        return reply?.ok && reply.value.notes.find((note) => note.atSec !== WATCH_PAGE_AT_SEC);
       });
+      if (playingNote.atSec !== keySecond - 3) throw new Error(`按键时在第${keySecond}秒，笔记记在第${playingNote.atSec}秒`);
       await until("提示闪完，图标收起", async () => {
         const now = await icon();
         return now.visibility === "hidden" && now.text === "";

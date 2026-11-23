@@ -10,6 +10,7 @@ import { createHoverIcons, NOTE_ICON, noteIcon, type HoverIconEntry } from "./ho
 import { createContentLang, pageUiLanguage } from "./lang.ts";
 import { createMiniPlayer, type MiniPlayerDeps } from "./mini-player.ts";
 import { pageTone } from "./page-tone.ts";
+import { noteTimestamp } from "./player.ts";
 import type { ContentRuntime } from "./runtime.ts";
 import { listenShortcut } from "./shortcut.ts";
 import { contentText } from "./text.ts";
@@ -79,7 +80,7 @@ export function createSurface({ document, page, runtime, player, frame, retire, 
     saving = true;
     button.flash(text().saving, 0);
     try {
-      const reply = await runtime.send("notes.saveAtTime", { video, atSec: Math.floor(main.video.currentTime || 0) });
+      const reply = await runtime.send("notes.saveAtTime", { video, atSec: noteTimestamp(main.video) });
       if (!runtime.alive()) return showReloadHint();
       if (reply.ok) {
         button.setTitle(text().noteTitle);

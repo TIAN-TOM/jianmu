@@ -383,6 +383,36 @@ const editDatabase = (page, puts, deletes = {}) =>
     return true;
   })()`);
 
+test("侧边栏：搜索笔记时标出正文和引文里的关键词，全部笔记还显示并标出视频标题和作者", async (ctx) => {
+  const from = await ctx.open(LAUNCHER);
+  const note = {
+    id: "note_page_search", kind: "note", origin: "user", video: VIDEO, atSec: 5, createdAt: 1, updatedAt: 1,
+    snapshot: { title: "航线 Atlas", author: "Atlas 读书会" }, text: "翻到 ATLAS 的目录", quote: "小册子叫 atlas",
+  };
+  await editDatabase(from, { notes: [note] });
+  try {
+    await withVideo(ctx, async (panel) => {
+      await waitIn(panel, "笔记按钮出现", `Boolean(document.querySelector(".mode-row [aria-label='笔记']"))`);
+      await tap(panel, ".mode-row [aria-label='笔记']");
+      await waitIn(panel, "本视频的笔记", `${textOf(".note-text")} === ${JSON.stringify(note.text)}`);
+      assert.equal(await panel.evaluate('document.querySelector(".note .note-video, .note .note-author") === null'), true);
+      await panel.evaluate(`(() => { const input = document.querySelector(".notes .search-input"); input.value = "atlas"; input.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+      await waitIn(panel, "本视频的笔记正文和引文标出关键词", `${textOf(".note mark")} === "ATLAS\\natlas"`);
+
+      await waitIn(panel, "全部范围出现", `[...document.querySelectorAll(".notes .segment")].some((node) => node.textContent === "全部")`);
+      assert.ok(await clickText(panel, ".notes .segment", "全部"));
+      await waitIn(panel, "全部笔记显示作者", `${textOf(".note-author")} === ${JSON.stringify(note.snapshot.author)}`);
+      assert.equal(await panel.evaluate(textOf(".note-video")), note.snapshot.title);
+      assert.equal(await panel.evaluate(textOf(".note-video mark")), "Atlas");
+      assert.equal(await panel.evaluate(textOf(".note-author mark")), "Atlas");
+      await panel.evaluate(`(() => { const input = document.querySelector(".notes .search-input"); input.value = ""; input.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+      await waitIn(panel, "清空搜索后还显示笔记，高亮消失", `Boolean(document.querySelector(".note-text")) && !document.querySelector(".note mark")`);
+    });
+  } finally {
+    await editDatabase(from, {}, { notes: [note.id] });
+  }
+});
+
 const STALE_SRT = "1\n00:00:01,000 --> 00:00:04,000\n换过的样例字幕一\n\n2\n00:00:05,000 --> 00:00:08,000\n换过的样例字幕二\n";
 const STALE_QA_ID = "qa_page-test-stale";
 const SWITCH_QA_ID = "qa_page-test-switch";

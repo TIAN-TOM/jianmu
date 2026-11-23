@@ -5,7 +5,7 @@ import { createPlayClock, type PlayClock } from "../core/mode/play-clock.ts";
 import type { VideoKey } from "../core/video-ref.ts";
 import type { PlaybackInfoReply, PlaybackMilestoneReply } from "../shared/messages/session.ts";
 import type { MainVideo } from "../sites/page-types.ts";
-import type { Player } from "./player.ts";
+import { isPlaying, type Player } from "./player.ts";
 
 /** 每个视频报一次时长，两次上报至少隔这么久。 */
 export const PLAYBACK_INFO_INTERVAL_MS = 10_000;
@@ -15,9 +15,6 @@ export const CHANNEL_WAIT_MS = 5_000;
 
 /** 每累计这么多秒报一次。 */
 export const MILESTONE_SEC = 10;
-
-/** 视频元素有了当前画面。 */
-const HAVE_CURRENT_DATA = 2;
 
 type Reply<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly code: string };
 
@@ -46,7 +43,7 @@ interface Watch {
 function playingOf(main: MainVideo): { readonly playing: boolean; readonly position: number; readonly rate: number } {
   if (main.status !== "found") return { playing: false, position: 0, rate: 1 };
   const video = main.video;
-  const playing = !video.paused && !video.ended && !video.seeking && video.readyState >= HAVE_CURRENT_DATA;
+  const playing = isPlaying(video);
   return { playing, position: Number(video.currentTime) || 0, rate: Number(video.playbackRate) || 1 };
 }
 

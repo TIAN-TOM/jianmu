@@ -428,7 +428,8 @@
   line-height: var(--lh-body);
 }
 
-.cue mark {
+.cue mark,
+.note mark {
   border-radius: 2px;
   background: color-mix(in oklab, var(--mark) 35%, transparent);
   color: inherit;
@@ -572,14 +573,19 @@
   gap: var(--space-2);
 }
 
-.note-video {
-  flex: 1;
+.note-video,
+.note-author {
   min-width: 0;
   overflow: hidden;
   color: var(--text-muted);
   font-size: var(--fs-meta);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.note-author {
+  flex: 0 0 auto;
+  max-width: 40%;
 }
 
 .note-head .menu-anchor {
