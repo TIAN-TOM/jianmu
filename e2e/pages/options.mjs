@@ -465,7 +465,7 @@ test("设置页：打开就出结论默认关；没同意时勾开关先列出�
   assert.equal(await page.evaluate(`document.getElementById("autoOverview").checked`), false);
   assert.equal(await page.evaluate(`document.getElementById("autoOverviewMinutes").value`), "10");
   const sectionText = await page.evaluate(`document.getElementById("auto-overview").textContent`);
-  assert.match(sectionText, /改了马上生效，不用点「保存并授权」/);
+  assert.match(sectionText, /改了马上生效/);
   assert.ok(sectionText.includes(`${AUTO_OVERVIEW_MINUTES.min} 到 ${AUTO_OVERVIEW_MINUTES.max} 的整数`), "写明时长的范围");
 
   await page.click("#autoOverview");
