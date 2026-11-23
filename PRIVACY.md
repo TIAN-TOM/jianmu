@@ -92,7 +92,7 @@
 - 阿里云百炼（通义千问）：<https://terms.aliyun.com/legal-agreement/terms/suit_bu1_ali_cloud/suit_bu1_ali_cloud202107091605_49213.html>
 - 硅基流动 SiliconFlow：<https://docs.siliconflow.cn/cn/legals/privacy-policy>
 - OpenRouter：<https://openrouter.ai/privacy>。OpenRouter 会把请求转给它背后的模型服务商，那些服务商的政策也适用。
-- Ollama（本机）：请求发到你这台电脑上的 Ollama。用本机的模型时，发送的内容不出这台电脑；选了 Ollama 的云端模型时，内容会交给 Ollama 处理：<https://ollama.com/privacy>
+- Ollama（本机）：请求发到你这台电脑上的 Ollama。按 Ollama 的说明，用本机的模型时内容留在这台电脑上；选了 Ollama 的云端模型时，内容会交给 Ollama 处理：<https://ollama.com/privacy>
 
 ### 本机存什么、存多久
 
@@ -299,7 +299,7 @@ Privacy policies of the preset services:
 - Alibaba Cloud Model Studio, Qwen (in Chinese): <https://terms.aliyun.com/legal-agreement/terms/suit_bu1_ali_cloud/suit_bu1_ali_cloud202107091605_49213.html>
 - SiliconFlow (in Chinese): <https://docs.siliconflow.cn/cn/legals/privacy-policy>
 - OpenRouter: <https://openrouter.ai/privacy>. OpenRouter passes requests on to the model providers behind it, and their policies apply as well.
-- Ollama (on this computer): requests go to Ollama on your own computer. With a local model, the content you send stays on your computer. If you choose one of Ollama's cloud models, the content is processed by Ollama: <https://ollama.com/privacy>
+- Ollama (on this computer): requests go to Ollama on your own computer. According to Ollama, content stays on your computer when you use a local model. If you choose one of Ollama's cloud models, the content is processed by Ollama: <https://ollama.com/privacy>
 
 ### What is stored on your computer, and for how long
 

@@ -483,7 +483,7 @@ test("设置页：选 Ollama 预设，地址和协议跟着预设走、不显示
   assert.equal(session, "");
 });
 
-test("设置页：本机服务回 403 时，拉模型列表和测试连接都说是来源被拒、和密钥无关", async ({ open }) => {
+test("设置页：本机服务回 403 时，拉模型列表和测试连接都说是来源被拒、多半不是密钥的问题", async ({ open }) => {
   const local = await startLocalService(["local-model"], { rejectOrigin: true });
   try {
     const page = await freshOptions(open);
@@ -498,11 +498,11 @@ test("设置页：本机服务回 403 时，拉模型列表和测试连接都说
 
     await clickButton(page, "拉取模型列表");
     await page.waitFor("拉列表报来源被拒", `${statusText("ai-service")}.includes("OLLAMA_ORIGINS")`);
-    assert.match(await statusOf(page, "ai-service"), /和密钥无关/);
+    assert.match(await statusOf(page, "ai-service"), /多半不是密钥的问题/);
     await clickButton(page, "测试连接");
     await page.waitFor("测试连接的提示换了一次", `${statusText("ai-service")}.startsWith("默认模型")`);
     const tested = await statusOf(page, "ai-service");
-    assert.match(tested, /和密钥无关.*OLLAMA_ORIGINS/);
+    assert.match(tested, /多半不是密钥的问题.*OLLAMA_ORIGINS/);
     assert.doesNotMatch(tested, /检查密钥/);
     assert.deepEqual(local.seen.map(({ path }) => path), ["/v1/models", "/v1/chat/completions"]);
   } finally {

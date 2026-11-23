@@ -1432,9 +1432,9 @@ test("本机地址回 403 单独报来源被拒，三种语言都说不是密钥
     assert.equal(error.status, 403, aiBaseUrl);
     const response = TRANSPORT.aiErrorResponse(error);
     assert.equal(response.error, "AI_LOCAL_ORIGIN_REJECTED", aiBaseUrl);
-    assert.match(response.message, /和密钥无关.*OLLAMA_ORIGINS/, aiBaseUrl);
-    assert.match(TRANSPORT.aiErrorResponse(error, "en").message, /isn't a key problem.*OLLAMA_ORIGINS/, aiBaseUrl);
-    assert.match(TRANSPORT.aiErrorResponse(error, "zh-Hant").message, /和金鑰無關.*OLLAMA_ORIGINS/, aiBaseUrl);
+    assert.match(response.message, /多半不是密钥的问题.*OLLAMA_ORIGINS/, aiBaseUrl);
+    assert.match(TRANSPORT.aiErrorResponse(error, "en").message, /usually isn't a key problem.*OLLAMA_ORIGINS/, aiBaseUrl);
+    assert.match(TRANSPORT.aiErrorResponse(error, "zh-Hant").message, /多半不是金鑰的問題.*OLLAMA_ORIGINS/, aiBaseUrl);
     assert.equal(TRANSPORT.serviceSaid(error), "", aiBaseUrl);
   }
   const keyError = (status: number, aiBaseUrl: string) =>
@@ -1451,6 +1451,37 @@ test("经传输层发到本机的请求回 403：错误码是来源被拒，状�
   assert.equal(error.code, "AI_LOCAL_ORIGIN_REJECTED");
   assert.equal(error.status, 403);
   assert.equal(TRANSPORT.aiErrorResponse(error).error, "AI_LOCAL_ORIGIN_REJECTED");
+});
+
+test("本机地址回的 403 带着服务自己的说明时仍是密钥错误：JSON 说明、纯文本说明都算，空的和 HTML 错误页才算来源被拒", async () => {
+  const local = { aiBaseUrl: "http://localhost:11434/v1", aiApiKey: "sk-sample-local" };
+  const codeOf = (data: unknown) => TRANSPORT.aiErrorResponse(PROVIDER.keyedHttpError(data, 403, local)).error;
+  assert.equal(codeOf({ error: { message: "this key cannot use the model" } }), "INVALID_AI_KEY");
+  assert.equal(codeOf({ error: { type: "permission_error" } }), "INVALID_AI_KEY");
+  assert.equal(codeOf({ message: "forbidden by gateway policy" }), "INVALID_AI_KEY");
+  assert.equal(codeOf({}), "AI_LOCAL_ORIGIN_REJECTED");
+  assert.equal(codeOf({ error: { message: "   " } }), "AI_LOCAL_ORIGIN_REJECTED");
+
+  const sent = async (body: string) => {
+    const t = makeTransport(async () => new Response(body, { status: 403 }));
+    return failureOf(t.sendAiRequest(local, SEND_REQUEST));
+  };
+  assert.equal((await sent("this key cannot use the model")).code, undefined, "纯文本说明按密钥错误");
+  assert.equal(TRANSPORT.aiErrorResponse(await sent("this key cannot use the model")).error, "INVALID_AI_KEY");
+  assert.equal((await sent(JSON.stringify({ error: { message: "no access to this model" } }))).code, undefined);
+  assert.equal((await sent("<html><body>403 Forbidden</body></html>")).code, "AI_LOCAL_ORIGIN_REJECTED");
+  assert.equal((await sent("")).code, "AI_LOCAL_ORIGIN_REJECTED");
+});
+
+test("本机网关在事件流里报权限错误：映射成 403 也带着说明，仍是密钥错误", async () => {
+  const stream = `event: error\ndata: ${JSON.stringify({ type: "error", error: { type: "permission_error", message: "Your key cannot use this model" } })}\n\n`;
+  const t = makeTransport(async () => new Response(stream, { status: 200, headers: { "content-type": "text/event-stream" } }));
+  const error = await failureOf(
+    t.sendAiRequest({ aiBaseUrl: "http://localhost:4000", aiApiKey: "sk-sample-local", protocol: PROVIDER.PROTOCOLS.ANTHROPIC }, SEND_REQUEST),
+  );
+  assert.equal(error.status, 403);
+  assert.equal(error.code, undefined);
+  assert.equal(TRANSPORT.aiErrorResponse(error).error, "INVALID_AI_KEY");
 });
 
 test("HTTP 状态映射成用户能行动的错误码", () => {

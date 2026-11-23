@@ -14,7 +14,7 @@ export const TRANSPORT_HANT: TransportText = {
   refused: "模型拒絕了這次請求。可以換一個模型再試。",
   badKey: "服務拒絕了這把金鑰，請在設定裡檢查金鑰和網址是否相符。",
   localOriginRejected:
-    "本機的服務拒絕了來自瀏覽器擴充功能的請求，和金鑰無關。用的是 Ollama 的話，在啟動它的環境裡把 OLLAMA_ORIGINS 設成 chrome-extension://*，再重新啟動 Ollama。",
+    "本機的服務拒絕了來自瀏覽器擴充功能的請求，多半不是金鑰的問題。用的是 Ollama 的話，在啟動它的環境裡把 OLLAMA_ORIGINS 設成 chrome-extension://*，再重新啟動 Ollama。",
   notFound: "服務傳回 404，多半是模型名稱寫錯或 API 網址不對，請到設定頁核對。",
   rateLimited: "服務限流了，稍等一下再試。",
   serviceError: (status, detail) => `AI 服務出錯（HTTP ${status}）：${detail}`,

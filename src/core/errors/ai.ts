@@ -43,7 +43,7 @@ export const AI_ERROR_TEXT: Readonly<Record<AiErrorCode, ErrorCopy>> = {
   INVALID_BASE_URL: { cause: "API 地址不对。", impact: NOT_SENT, next: "到设置页检查一下 API 地址。" },
   INVALID_AI_KEY: { cause: "AI 服务不认这把密钥。", impact: NO_RESULT, next: "到设置页检查密钥，看它和 API 地址是不是同一家服务商的。" },
   AI_LOCAL_ORIGIN_REJECTED: {
-    cause: "本机的模型服务拒绝了来自浏览器扩展的请求，和密钥无关。",
+    cause: "本机的模型服务拒绝了来自浏览器扩展的请求，多半不是密钥的问题。",
     impact: NO_RESULT,
     next: "用的是 Ollama 的话，在启动它的环境里把 OLLAMA_ORIGINS 设成 chrome-extension://*，再重启 Ollama。",
   },
@@ -109,7 +109,7 @@ export const AI_ERROR_TEXT_EN: Readonly<Record<AiErrorCode, ErrorCopy>> = {
   INVALID_BASE_URL: { cause: "The API address isn't right.", impact: NOT_SENT_EN, next: "Check the API address in settings." },
   INVALID_AI_KEY: { cause: "The AI service didn't accept this key.", impact: NO_RESULT_EN, next: "Check the key in settings and make sure it's from the same provider as the API address." },
   AI_LOCAL_ORIGIN_REJECTED: {
-    cause: "The model service on this computer refused requests from the browser extension. This isn't a key problem.",
+    cause: "The model service on this computer refused requests from the browser extension. This usually isn't a key problem.",
     impact: NO_RESULT_EN,
     next: "If you use Ollama, set OLLAMA_ORIGINS to chrome-extension://* where Ollama starts, then restart Ollama.",
   },
