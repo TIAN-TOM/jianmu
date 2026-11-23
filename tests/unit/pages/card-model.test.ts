@@ -517,6 +517,44 @@ test("收着、有章节、侧边栏关着时才问播放位置，写出播到�
   assert.equal(bare.player.asked, 0);
 });
 
+test("播满时长自动切到精读时鼠标正停在卡片上：先不收，离开又回来的接着等，离开够久才收、照样说一句；等的时候打开侧边栏就按让位收，不说", async () => {
+  const auto = () => session({ mode: "study", modeSource: "auto", autoSwitched: true });
+  const open = async () => {
+    const made = setup(READY, undefined, { manualWait: true });
+    let mine = session();
+    made.fake.reply("session.get", () => ({ ok: true, value: { session: mine } }));
+    made.model.configChanged();
+    await made.model.start();
+    assert.ok(await until(() => made.model.view.value.phase === "loaded"));
+    made.elapse();
+    made.model.hover(true);
+    mine = auto();
+    made.fake.broadcast({ type: "session.changed", tabId: 3, session: mine });
+    assert.ok(await stillFalse(() => made.model.view.value.collapsed), "鼠标在卡片上，不收");
+    return made;
+  };
+
+  const { model, elapse } = await open();
+  model.hover(false);
+  model.hover(true);
+  elapse();
+  assert.equal(model.view.value.collapsed, false, "离开一下又回来，不收");
+  model.hover(false);
+  assert.equal(model.view.value.collapsed, false, "刚离开，还没到点");
+  elapse();
+  assert.deepEqual([model.view.value.collapsed, model.view.value.headNote], [true, AUTO_FOLD_NOTE]);
+
+  const yielded = await open();
+  yielded.fake.broadcast({ type: "panel.changed", windowId: WINDOW, open: true });
+  assert.ok(await until(() => yielded.model.view.value.collapsed));
+  assert.equal(yielded.model.view.value.headNote, "");
+  yielded.fake.broadcast({ type: "panel.changed", windowId: WINDOW, open: false });
+  yielded.model.hover(false);
+  yielded.elapse();
+  assert.equal(yielded.model.view.value.collapsed, true, "精读，侧边栏关了也收着");
+  assert.equal(yielded.model.view.value.headNote, "");
+});
+
 test("播满时长自动切到精读：展开着的卡片收起时在那一行说一句，过一会儿收回；手动收起、让位收起、一打开就是精读的不说", async () => {
   const { fake, model, elapse } = setup(READY, undefined, { manualWait: true });
   let mine = session();

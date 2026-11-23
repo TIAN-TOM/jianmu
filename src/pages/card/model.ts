@@ -18,8 +18,6 @@ import { cardTextOf } from "./text.ts";
 import { CARD_ZH } from "./text-zh.ts";
 import { createActionHold, realTimers, type CardTimers } from "./timers.ts";
 
-export { SESSION_WAIT_MS } from "./fold.ts";
-
 export interface CardTab {
   readonly id: number;
   readonly url: string;
@@ -475,6 +473,8 @@ export function createCardModel(deps: CardDeps) {
     generate,
     cancel,
     toggle: () => fold.toggle(),
+    /** 鼠标进了卡片或离开了卡片：播满时长自动收起要等它离开。 */
+    hover: (inside: boolean): void => fold.use(inside),
     /** 浏览器没让卡片直接打开侧边栏：展开着时在正文里说，收着时在那一行上说。 */
     panelRefused(): void {
       patch({ notice: { text: t().panelRefused, tone: "error" } });
