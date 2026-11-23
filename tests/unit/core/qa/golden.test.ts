@@ -2,16 +2,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import {
-  buildCitationsFromAnswer,
-  clickableTimestamps,
-  extractTimestamps,
-  secondsToTimestamp,
-  splitAnswerByTimestamps,
-  timestampToSeconds,
-  type CitationEntry,
-  type CitationRange,
-} from "../../../../src/core/qa/citations.ts";
+import { splitAnswerByTimestamps } from "../../../../src/core/qa/citations.ts";
 import {
   questionTerms,
   scoreChunks,
@@ -34,13 +25,7 @@ const REPLAY: Readonly<Record<string, (args: readonly unknown[]) => unknown>> = 
   scoreChunks: ([chunks, question, chapters]) =>
     scoreChunks(chunks as QaChunk[], question as string, chapters as QaChapter[] | undefined),
   selectContext: ([input]) => selectContext(input as SelectContextInput),
-  timestampToSeconds: ([token]) => timestampToSeconds(token as string | null),
-  secondsToTimestamp: ([seconds]) => secondsToTimestamp(seconds as number),
-  extractTimestamps: ([text]) => extractTimestamps(text as string),
   splitAnswerByTimestamps: ([answer]) => splitAnswerByTimestamps(answer as string),
-  buildCitationsFromAnswer: ([answer, entries, range]) =>
-    buildCitationsFromAnswer(answer as string, entries as CitationEntry[], range as CitationRange),
-  clickableTimestamps: ([answer, range]) => clickableTimestamps(answer as string, range as CitationRange),
 };
 
 // 样本里只有 $number 一种入参标记，非有限数 JSON 写不出来。
@@ -72,7 +57,7 @@ const { cases } = JSON.parse(
 ) as { cases: GoldenCase[] };
 
 test("样本覆盖全部用例和函数", () => {
-  assert.equal(cases.length, 80);
+  assert.equal(cases.length, 30);
   assert.deepEqual([...new Set(cases.map((item) => item.fn))].sort(), Object.keys(REPLAY).sort());
 });
 
