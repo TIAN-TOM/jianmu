@@ -17,22 +17,22 @@ export const TRIAGE_EN: TriageText = {
 
   list: {
     title: "Read the list",
-    hint: "Sign in to Bilibili in this browser first. Each click reads the list once, including how far you've watched each video. This step doesn't use the model. The list and official summaries stay on this computer for 30 days and are read again after that. Watch progress is only shown and exported here, never sent to the model service.",
+    hint: "Sign in to Bilibili in this browser first. The list includes how far you've watched each video, which is only shown and exported here and never sent to the model service. The list and official summaries stay on this computer for 30 days.",
     reading: "Reading",
     read: "Load my Watch Later",
   },
 
   official: {
     title: "Step 1: Fetch Bilibili official summaries",
-    hint: "Doesn't use the model or any API credit. One video at a time, at least 1 second apart. Videos that already have a result are skipped. Stops if Bilibili rate-limits the requests or keeps asking you to sign in.",
+    hint: "Doesn't use API credit. Videos that already have a result are skipped.",
     start: "Fetch official summaries",
   },
   verdict: {
     title: "Step 2: Write one-line verdicts",
-    hint: "Uses API credit. Only videos with an official summary and no verdict yet get one. Each video is one small request that sends the title, description, creator name, length and official summary to the model service you set up. Subtitles and watch progress aren't sent. Videos without an official summary are skipped here. Each has a link to its video page, where you can decide whether to generate a full overview.",
+    hint: "Uses API credit. Only videos with an official summary and no verdict yet get one. The model service receives the title, description, creator name, length and official summary. Subtitles and watch progress aren't sent.",
     start: "Write verdicts",
   },
-  closeNote: "Closing this page stops new videos from starting. Requests already sent will finish and may still be charged. Fetched summaries and written verdicts are saved, so they're there when you reopen this page, and starting again skips them.",
+  closeNote: "Closing this page stops new videos from starting, and requests already sent may still be charged. Finished work is saved, and starting again skips it.",
   confirmLabel: "Confirm before starting",
   confirm: "Start now",
   cancel: "Cancel",

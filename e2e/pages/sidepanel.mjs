@@ -799,7 +799,7 @@ test("侧边栏：语言选 English 以后，模式切换、底部工具条、�
       assert.deepEqual(qa, {
         placeholder: "Ask about this video, then press Enter",
         button: "Ask",
-        hint: "Each question is answered on its own, without the earlier Q&A. Write follow-up questions out in full.",
+        hint: "Each question is answered on its own, so write follow-up questions out in full.",
         close: "Close",
       });
       await panel.evaluate(`(${sheet}).querySelector(".overlay-head [aria-label='Close']").click(), true`);
