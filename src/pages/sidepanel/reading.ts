@@ -94,6 +94,11 @@ export function copyTextOf(
   }).join("\n");
 }
 
+export function selectedNote(raw: string, segment: Pick<TranscriptSegment, "start"> | undefined): { text: string; atSec: number } | null {
+  const text = raw.trim();
+  return text && segment ? { text, atSec: segment.start } : null;
+}
+
 /** 划词解释最多交这么长的选区，再长就不弹「解释」。 */
 export const MAX_SELECTION = 300;
 

@@ -254,6 +254,58 @@ test("侧边栏：搜索字幕时，译文、整理后的字幕和原始字幕�
   });
 });
 
+test("侧边栏：字幕选区能直接存笔记，保留选中文字和所在段起点", async (ctx) => {
+  await withVideo(ctx, async (panel) => {
+    const send = (type, req) => panel.evaluate(`chrome.runtime.sendMessage(${JSON.stringify({ type, req })})`);
+    const sample = "纸上画着半轮明月。";
+    const selection = "半轮明月";
+    const srt = `1\n00:00:37,000 --> 00:00:42,000\n${sample}\n`;
+    const selectWords = () => panel.call(`(sample, words) => {
+      const cue = [...document.querySelectorAll(".cue-text")].find((item) => item.textContent === sample);
+      const start = sample.indexOf(words);
+      const range = document.createRange();
+      range.setStart(cue.firstChild, start);
+      range.setEnd(cue.firstChild, start + words.length);
+      const selection = getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      cue.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+    }`, sample, selection);
+    const action = (label) => `[...document.querySelectorAll(".explain-pick button")].find((button) => button.textContent === ${JSON.stringify(label)} && !button.disabled)`;
+    const notes = `chrome.runtime.sendMessage({ type: "notes.list", req: { video: ${JSON.stringify(VIDEO)} } }).then((reply) => reply.value.notes)`;
+    const before = await panel.evaluate(notes);
+    const settings = await panel.evaluate(`chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)})`);
+    const stored = await storedSettings(ANTHROPIC);
+    assert.equal((await send("imports.add", { video: VIDEO, fileName: "选区.srt", text: srt })).ok, true);
+    try {
+      await panel.evaluate(`Promise.all([chrome.storage.local.set(${JSON.stringify({ [SETTINGS_STORAGE_KEY]: stored.local[SETTINGS_STORAGE_KEY] })}), chrome.storage.session.set(${JSON.stringify(stored.session)})]).then(() => true)`);
+      await panel.evaluate("location.reload(), true");
+      await waitIn(panel, "选区样例显示", `${textOf(".cue-text")} === ${JSON.stringify(sample)}`);
+      await selectWords();
+      await waitIn(panel, "选区有解释和存笔记", `Boolean(${action("解释")} && ${action("存笔记")})`);
+      const since = ctx.requests.length;
+      // 在浮条上松开鼠标时，选区可能已经收起；松开的事件还会冒泡到字幕列表。
+      await panel.evaluate(`(() => {
+        const button = ${action("存笔记")};
+        button.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+        getSelection().removeAllRanges();
+        button.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+      })()`);
+      await waitIn(panel, "松开鼠标后存笔记仍可点击", `Boolean(${action("存笔记")})`);
+      assert.ok(await clickText(panel, ".explain-pick button", "存笔记"));
+      const saved = await panel.waitFor("选中文字已存入笔记", `${notes}.then((rows) => rows.find((row) => row.text === ${JSON.stringify(selection)}))`);
+      assert.equal(saved.atSec, 37);
+      assert.equal(saved.quote, undefined);
+      assert.ok(await stillFalse(() => ctx.requests.slice(since).some((item) => "kind" in item), 20), "存笔记不请求模型");
+    } finally {
+      const added = (await panel.evaluate(notes)).filter((row) => !before.some((old) => old.id === row.id));
+      for (const row of added) await send("notes.delete", { id: row.id });
+      await send("imports.remove", { video: VIDEO });
+      await panel.evaluate(`Promise.all([chrome.storage.local.set(${JSON.stringify(settings)}), chrome.storage.session.remove(${JSON.stringify(API_KEY_SESSION_KEY)})]).then(() => true)`);
+    }
+  });
+});
+
 test("侧边栏：速读还没有概览时先摆官方总结；没设置 AI 服务时生成概览停用并写明原因", async (ctx) => {
   await withVideo(ctx, async (panel) => {
     await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);

@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { safeFileName } from "../../../../src/pages/sidepanel/files.ts";
-import { activeIndex, chapterAt, copyTextOf, explainable, linesOf, mainBreaks, MAX_SELECTION, refreshLang, segmentsBetween, srtOf, transcriptRows } from "../../../../src/pages/sidepanel/reading.ts";
+import { activeIndex, chapterAt, copyTextOf, explainable, linesOf, mainBreaks, MAX_SELECTION, refreshLang, segmentsBetween, selectedNote, srtOf, transcriptRows } from "../../../../src/pages/sidepanel/reading.ts";
 import { fileProblem } from "../../../../src/pages/sidepanel/transcript.ts";
 
 const segment = (id: string, start: number, text: string) => ({ id, start, text, texts: [text] });
@@ -53,6 +53,13 @@ test("复制全部字幕：原文和译文视图每段一行，对照视图有�
 
 test("复制全部字幕：有整理结果时主文用整理后的", () => {
   assert.equal(copyTextOf([SEGMENTS[0]!], "bilingual", { s0: "First" }, { s0: "第一句。" }), "[0:00] 第一句。\nFirst");
+});
+
+test("划词存笔记取选中文字和所在段的起点，空选区或找不到段落时不保存", () => {
+  assert.deepEqual(selectedNote(" 第二 ", SEGMENTS[1]), { text: "第二", atSec: 10 });
+  assert.deepEqual(selectedNote("字".repeat(MAX_SELECTION + 1), SEGMENTS[0]), { text: "字".repeat(MAX_SELECTION + 1), atSec: 0 });
+  assert.equal(selectedNote("  ", SEGMENTS[1]), null);
+  assert.equal(selectedNote("第二", undefined), null);
 });
 
 test("划词解释：空白和太长的选区不弹「解释」", () => {

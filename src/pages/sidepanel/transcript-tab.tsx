@@ -22,7 +22,7 @@ import { downloadText, safeFileName } from "./files.ts";
 import { copyText } from "./copy.ts";
 import { CreatorChapters, OfficialSummary } from "./guides.tsx";
 import type { Panel } from "./panel.ts";
-import { activeIndex, copyTextOf, explainable, mainBreaks, refreshLang, srtOf, transcriptRows } from "./reading.ts";
+import { activeIndex, copyTextOf, explainable, mainBreaks, refreshLang, selectedNote, srtOf, transcriptRows } from "./reading.ts";
 import { setupReason } from "../shared/config.ts";
 import { uiLang, type UiLang } from "../shared/ui-lang.ts";
 import { sharedText } from "../shared/text.ts";
@@ -206,7 +206,7 @@ function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: 
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [following, setFollowing] = useState(follow);
-  const [pick, setPick] = useState<{ readonly text: string; readonly context: string; readonly top: number } | null>(null);
+  const [pick, setPick] = useState<{ readonly text: string; readonly atSec: number; readonly context: string; readonly top: number } | null>(null);
   const list = useRef<HTMLOListElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -250,15 +250,17 @@ function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: 
 
   const onSelectEnd = (): void => {
     const selection = getSelection();
-    const text = selection?.toString() ?? "";
-    const anchor = selection?.anchorNode?.parentElement?.closest<HTMLElement>(".cue");
-    if (!selection || !anchor || !explainable(text)) {
-      setPick(null);
-      return;
-    }
-    const box = selection.getRangeAt(0).getBoundingClientRect();
-    const host = list.current?.getBoundingClientRect();
-    setPick({ text: text.trim(), context: anchor.querySelector(".cue-text")?.textContent ?? "", top: box.bottom - (host?.top ?? 0) + (list.current?.scrollTop ?? 0) });
+    const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+    const listNode = list.current;
+    if (!range || !listNode?.contains(range.commonAncestorContainer)) return setPick(null);
+    const cueOf = (node: Node): HTMLElement | null =>
+      (node instanceof Element ? node : node.parentElement)?.closest(".cue-text, .cue-sub")?.closest<HTMLElement>(".cue") ?? null;
+    const first = cueOf(range.startContainer);
+    if (!first || !cueOf(range.endContainer)) return setPick(null);
+    const note = selectedNote(selection?.toString() ?? "", segments[Number(first.dataset.index)]);
+    if (!note) return setPick(null);
+    const top = range.getBoundingClientRect().bottom - listNode.getBoundingClientRect().top + listNode.scrollTop;
+    setPick({ ...note, context: first.querySelector(".cue-text")?.textContent ?? "", top });
   };
 
   return (
@@ -310,9 +312,17 @@ function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: 
           </li>
         ))}
         {pick ? (
-          <li class="explain-pick" style={{ top: `${pick.top}px` }}>
-            <Button variant="primary" onClick={() => { setPick(null); void panel.qa.explainSelection(pick.text, pick.context); }}>
-              {t.explain}
+          <li class="explain-pick" style={{ top: `${pick.top}px` }} onMouseUp={(event) => event.stopPropagation()} onKeyUp={(event) => event.stopPropagation()}>
+            {explainable(pick.text) ? (
+              <Button variant="primary" onClick={() => { setPick(null); void panel.qa.explainSelection(pick.text, pick.context); }}>
+                {t.explain}
+              </Button>
+            ) : null}
+            <Button onClick={() => {
+              setPick(null);
+              if (panel.notes.state.peek().video === view.video) void panel.notes.save(pick.atSec, pick.text).then(panel.say);
+            }}>
+              {p.dock.saveNote}
             </Button>
           </li>
         ) : null}
@@ -378,5 +388,5 @@ export function TranscriptTab({ panel, guides = true, follow = true }: { readonl
       </>
     );
   }
-  return <Ready key={now.view.transcript.ref.fingerprint} panel={panel} view={now.view} follow={follow} />;
+  return <Ready key={`${now.video}/${now.view.transcript.ref.fingerprint}`} panel={panel} view={now.view} follow={follow} />;
 }
