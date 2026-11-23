@@ -43,7 +43,7 @@ export function createSurface({ document, page, runtime, player, frame, retire, 
     { spec: noteIcon(lang.current()), onPress: () => void saveNote() },
     ...(FEATURE_FRAME_EXPLAIN ? frameIconEntries(frame, () => void pressFrame?.(), lang.current()) : []),
   ];
-  const icons = createHoverIcons({ document, anchor: () => page.hoverIconAnchor(), icons: entries });
+  const icons = createHoverIcons({ document, anchor: () => page.hoverIconAnchor(), icons: entries, top: page.hoverIconTop });
   const button = icons.icon(NOTE_ICON.id) ?? { flash: () => undefined, setTitle: () => undefined };
   pressFrame = FEATURE_FRAME_EXPLAIN
     ? frame

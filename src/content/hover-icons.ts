@@ -28,7 +28,7 @@ const BUTTON_BASE = `display:inline-flex;align-items:center;justify-content:cent
   padding:0 8px;border:none;border-radius:16px;cursor:pointer;font-size:13px;line-height:1;color:#fff;white-space:nowrap;position:static;${PINNED}`;
 const REST_BACKGROUND = "rgba(0,0,0,.5)";
 // 藏和露只用可见性和能不能点，不动透明度：防点击劫持的核对拿透明度当依据。
-const OVERLAY_STYLE = `position:absolute;top:${OVERLAY_INSET}px;right:${OVERLAY_INSET}px;z-index:9999;display:flex;flex-direction:column;align-items:flex-end;gap:${BUTTON_GAP}px;
+const overlayStyle = (top: number): string => `position:absolute;top:${top}px;right:${OVERLAY_INSET}px;z-index:9999;display:flex;flex-direction:column;align-items:flex-end;gap:${BUTTON_GAP}px;
   visibility:hidden;pointer-events:none;${PINNED}`;
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -69,6 +69,8 @@ export interface HoverIconsDeps {
   readonly anchor: () => Element | null;
   /** 从上往下的顺序。 */
   readonly icons: readonly HoverIconEntry[];
+  /** 浮层离挂载点上沿的距离；页面自己在右上角放了按钮时往下让开，不给时和离右边一样。 */
+  readonly top?: number | undefined;
 }
 
 export interface HoverIcons {
@@ -103,7 +105,7 @@ function rgbOf(swatch: string): string {
   return `${(value >> 16) & 255},${(value >> 8) & 255},${value & 255}`;
 }
 
-export function createHoverIcons({ document, anchor, icons }: HoverIconsDeps): HoverIcons {
+export function createHoverIcons({ document, anchor, icons, top = OVERLAY_INSET }: HoverIconsDeps): HoverIcons {
   const view = document.defaultView;
   let accent = rgbOf(swatchOf(undefined));
   let overlay: HTMLElement | null = null;
@@ -231,7 +233,7 @@ export function createHoverIcons({ document, anchor, icons }: HoverIconsDeps): H
     if (!keepsLook(lookOf(button), "button")) return "按钮的样子被改过";
     if (!keepsLook(lookOf(overlay), "overlay")) return "浮层的样子被改过";
     if (!keepsLook(lookOf(icon), "icon")) return "图标的样子被改过";
-    if (!placedAsInjected({ anchor: paddingBoxOf(host), overlay: boxOf(overlay), button: boxOf(button), index, hinting: state.hinting })) return "位置或大小被改过";
+    if (!placedAsInjected({ anchor: paddingBoxOf(host), overlay: boxOf(overlay), button: boxOf(button), index, hinting: state.hinting, top })) return "位置或大小被改过";
     return null;
   }
 
@@ -268,7 +270,7 @@ export function createHoverIcons({ document, anchor, icons }: HoverIconsDeps): H
     if (view?.getComputedStyle(player).position === "static") (player as HTMLElement).style.position = "relative";
     const node = document.createElement("div");
     node.id = INJECTED.overlay;
-    node.style.cssText = OVERLAY_STYLE;
+    node.style.cssText = overlayStyle(top);
     node.addEventListener("pointerenter", onOverlayEnter);
     node.addEventListener("pointerleave", onOverlayLeave);
     player.appendChild(node);

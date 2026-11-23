@@ -13,6 +13,9 @@ const PLAYER_SELECTORS = [
   "#playerWrap",
 ];
 
+// 播放器顶栏右边有页面自己的反馈按钮，控制栏露出来时和悬停图标一起露，悬停图标排在它下面。
+const HOVER_ICON_TOP = 50;
+
 // 卡片排在右栏的弹幕列表旁边，于是也在推荐视频上面。
 const CARD_ANCHOR_SELECTORS = ["#danmukuBox", ".danmaku-box"];
 // 没有弹幕列表时放到右栏最上面，依次是新版播放页、合集页、旧版播放页。
@@ -101,6 +104,7 @@ export function createBilibiliPage({ document, location, sleep = waitFor, every 
   return {
     rules: bilibiliRules,
     noteShortcut: "n",
+    hoverIconTop: HOVER_ICON_TOP,
     currentRef,
 
     // 换视频不刷新页面，靠定时比地址发现。
