@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { INJECTED } from "../../../../src/shared/names.ts";
-import { askPlayerCaption } from "../../../../src/sites/youtube/page/caption-ask.ts";
+import { askPlayerCaption, switchCaptionCatch } from "../../../../src/sites/youtube/page/caption-ask.ts";
 import { captionSourceOf, startCaptionCatch, type CatchScope } from "../../../../src/sites/youtube/page/caption-catch.ts";
 import { CAPTION_LIMITS, captionReplyOf, playerCaptionOf } from "../../../../src/sites/youtube/page/caption-types.ts";
 import { startMainBridge } from "../../../../src/sites/youtube/page/main-bridge.ts";
@@ -166,4 +166,25 @@ test("后台核对内容脚本的回答：接住了必须带字幕，别的结�
   assert.deepEqual(captionReplyOf({ outcome: "ad", caption: null }), { outcome: "ad", caption: null, player: null });
   assert.equal(captionReplyOf({ outcome: "other" }), null);
   assert.equal(playerCaptionOf({ ...good, targetLang: "fr" }), null, "不是机器翻译却带着译成的语言");
+});
+
+test("内容脚本撤下时叫小桥停下：接住的清掉、之后的不接、问也不答；再接上以后照常接", () => {
+  const w = pageWith();
+  const stop = startCaptionCatch(w.scope);
+  w.request(address(`v=${ID}&lang=en`));
+  assert.equal(askPlayerCaption(w.document, ID, TOKEN)?.videoId, ID);
+  switchCaptionCatch(w.document, false);
+  assert.equal(askPlayerCaption(w.document, ID, TOKEN), null);
+  // 停着的时候页面的请求照常发出，只是不记。
+  const made = w.request(address(`v=${ID}&lang=en`));
+  assert.deepEqual(made.opened, ["GET", address(`v=${ID}&lang=en`)]);
+  assert.equal(FakeRequest.sent.length, 2);
+  switchCaptionCatch(w.document, true);
+  assert.equal(askPlayerCaption(w.document, ID, TOKEN), null);
+  w.request(address(`v=${ID}&lang=en`));
+  assert.equal(askPlayerCaption(w.document, ID, TOKEN)?.videoId, ID);
+  // 认不出的指令不理。
+  w.document.dispatchEvent(new CustomEvent(INJECTED.captionsSwitch, { detail: "sample" }));
+  assert.equal(askPlayerCaption(w.document, ID, TOKEN)?.videoId, ID);
+  stop();
 });

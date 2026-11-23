@@ -4,6 +4,15 @@
 import { INJECTED } from "../../../shared/names.ts";
 import { CAPTION_LIMITS, playerCaptionOf, type PlayerCaption } from "./caption-types.ts";
 
+/** 叫小桥开始接字幕，或者停下并把接住的清掉：内容脚本接上、撤下时各叫一次。 */
+export function switchCaptionCatch(document: Pick<Document, "dispatchEvent">, on: boolean): void {
+  try {
+    document.dispatchEvent(new CustomEvent(INJECTED.captionsSwitch, { detail: on ? "on" : "off" }));
+  } catch {
+    // 派发不出去就当没有小桥。
+  }
+}
+
 export function askPlayerCaption(
   document: Pick<Document, "addEventListener" | "removeEventListener" | "dispatchEvent">,
   videoId: string,

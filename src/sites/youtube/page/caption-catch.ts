@@ -63,10 +63,12 @@ export function startCaptionCatch(scope: CatchScope): () => void {
   const kept: PlayerCaption[] = [];
   const sources = new WeakMap<PageRequest, CaptionSource>();
   let live = true;
+  // 内容脚本撤下（用户收回了这个站的授权）以后不再接、接住的清掉；页面一开始加载时内容脚本还没来，先接着。
+  let wanted = true;
 
   const keep = (request: PageRequest, source: CaptionSource): void => {
     try {
-      if (!live || request.readyState !== DONE || request.status !== OK_STATUS) return;
+      if (!live || !wanted || request.readyState !== DONE || request.status !== OK_STATUS) return;
       if (request.responseType !== "" && request.responseType !== "text") return;
       const text = request.responseText;
       if (typeof text !== "string" || text.length === 0 || text.length > CAPTION_LIMITS.text) return;
@@ -79,7 +81,7 @@ export function startCaptionCatch(scope: CatchScope): () => void {
 
   const open: Method = function (this: PageRequest, ...args: unknown[]) {
     try {
-      const address = live ? addressOf(args[1]) : null;
+      const address = live && wanted ? addressOf(args[1]) : null;
       const source = address === null ? null : captionSourceOf(address, origin);
       if (source) sources.set(this, source);
       else sources.delete(this);
@@ -91,7 +93,7 @@ export function startCaptionCatch(scope: CatchScope): () => void {
 
   const send: Method = function (this: PageRequest, ...args: unknown[]) {
     try {
-      const source = live ? sources.get(this) : undefined;
+      const source = live && wanted ? sources.get(this) : undefined;
       if (source) {
         const request = this;
         const done = (): void => {
@@ -119,14 +121,22 @@ export function startCaptionCatch(scope: CatchScope): () => void {
       return;
     }
     const { token, videoId } = (typeof asked === "object" && asked !== null ? asked : {}) as { token?: unknown; videoId?: unknown };
-    if (typeof token !== "string" || !TOKEN.test(token) || typeof videoId !== "string") return;
+    if (!wanted || typeof token !== "string" || !TOKEN.test(token) || typeof videoId !== "string") return;
     const caption = kept.filter((item) => item.videoId === videoId).at(-1) ?? null;
     document.dispatchEvent(new CustomEvent(INJECTED.captionsAnswer, { detail: JSON.stringify({ token, caption }) }));
+  };
+
+  const onSwitch = (event: Event): void => {
+    const detail: unknown = (event as CustomEvent<unknown>).detail;
+    if (detail !== "on" && detail !== "off") return;
+    wanted = detail === "on";
+    if (!wanted) kept.length = 0;
   };
 
   const stop = (): void => {
     live = false;
     kept.length = 0;
+    document.removeEventListener(INJECTED.captionsSwitch, onSwitch);
     // 别人又包了一层时还不回去：这时这一层只原样转过去。
     if (methods.open === open) methods.open = originalOpen;
     if (methods.send === send) methods.send = originalSend;
@@ -134,6 +144,7 @@ export function startCaptionCatch(scope: CatchScope): () => void {
     document.removeEventListener(INJECTED.bridgeRetire, stop);
   };
   document.addEventListener(INJECTED.captionsAsk, onAsk);
+  document.addEventListener(INJECTED.captionsSwitch, onSwitch);
   document.addEventListener(INJECTED.bridgeRetire, stop);
   return stop;
 }
