@@ -139,6 +139,7 @@ export const OPTIONS_HANT: OptionsText = {
     test: "測試連線",
     testAll: "測試全部模型",
     hostHint: "儲存時瀏覽器會詢問是否允許簡幕存取所選服務商的網域，只申請這一個網域。",
+    advanced: "進階（推理強度、概覽分塊）",
     chunk: "概覽分塊",
     chunks: {
       auto: "自動（推薦）",

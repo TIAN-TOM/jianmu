@@ -841,6 +841,8 @@ test("设置页：English 下数据说明的条目、勾选框和校验提示都
 test("设置页：三档字号下输入框和下拉框都是 2rem 高；2 倍屏上 2rem 是整像素时文字行上下留的空是整像素，别的情况行高照旧", async ({ open }) => {
   const page = await freshOptions(open);
   await enable(page);
+  // 推理强度和概览分块默认收着：展开了，里面的下拉也一起量。
+  await page.evaluate(`document.getElementById("advanced").open = true`);
   const problems = [];
   for (const uiFontScale of UI_FONT_SCALES) {
     await page.setAppearance({ accentTheme: "ink", themeMode: "light", uiFontScale });
@@ -877,6 +879,11 @@ test("设置页：推理强度新安装全关；每项功能单独选，改了�
   assert.deepEqual(Object.keys(initial), FEATURE_MODEL_SLOTS.map(({ id }) => id), "每项用到模型的功能一行");
   assert.ok(Object.values(initial).every((value) => value === "off"), JSON.stringify(initial));
   assert.match(await page.evaluate(`document.getElementById("featureEfforts").textContent`), /越贵也越慢/);
+  // 两项收在一个折叠里：都是默认值时收着，标题写明里面是什么。
+  assert.deepEqual(
+    await page.evaluate(`(() => { const fold = document.getElementById("advanced"); return [fold.open, fold.querySelector("summary").textContent, fold.contains(document.getElementById("featureEfforts")), fold.contains(document.getElementById("analysisChunkMode"))]; })()`),
+    [false, "高级（推理强度、概览分块）", true, true],
+  );
   // 推理强度和概览分块不归「保存并授权」管，排在那个按钮后面。
   const afterSave = await page.evaluate(`(() => {
     const save = [...document.querySelectorAll("#ai-service button")].find((node) => node.textContent.trim() === "保存并授权");
@@ -913,5 +920,6 @@ test("设置页：推理强度新安装全关；每项功能单独选，改了�
     "重新打开后档位和分块填回来、照样标出",
     `document.querySelector('[data-effort="qa"]')?.value === "high" && document.querySelector('[data-effort-note="notes"]') !== null && document.querySelector("#analysisChunkMode")?.value === "short"`,
   );
+  assert.equal(await reopened.evaluate(`document.getElementById("advanced").open`), true, "有一项不是默认值，重新打开时展开着");
   assert.equal(await reopened.overflowsX(), false);
 });

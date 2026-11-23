@@ -141,6 +141,7 @@ export const OPTIONS_EN: OptionsText = {
     test: "Test connection",
     testAll: "Test all models",
     hostHint: "When you save, the browser asks whether Jianmu may access your chosen provider's domain. It asks for that one domain only.",
+    advanced: "Advanced (reasoning effort, overview chunk size)",
     chunk: "Overview chunk size",
     chunks: {
       auto: "Automatic (recommended)",

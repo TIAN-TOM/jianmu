@@ -154,6 +154,7 @@ export const OPTIONS_ZH = {
     test: "测试连接",
     testAll: "测试全部模型",
     hostHint: "保存时浏览器会问是否允许简幕访问所选服务商的域名，只申请这一个域名。",
+    advanced: "高级（推理强度、概览分块）",
     chunk: "概览分块",
     chunks: {
       auto: "自动（推荐）",
