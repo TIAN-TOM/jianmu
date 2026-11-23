@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { safeFileName } from "../../../../src/pages/sidepanel/files.ts";
-import { activeIndex, chapterAt, explainable, linesOf, mainBreaks, MAX_SELECTION, refreshLang, segmentsBetween, srtOf } from "../../../../src/pages/sidepanel/reading.ts";
+import { activeIndex, chapterAt, copyTextOf, explainable, linesOf, mainBreaks, MAX_SELECTION, refreshLang, segmentsBetween, srtOf } from "../../../../src/pages/sidepanel/reading.ts";
 import { fileProblem } from "../../../../src/pages/sidepanel/transcript.ts";
 
 const segment = (id: string, start: number, text: string) => ({ id, start, text, texts: [text] });
@@ -26,6 +26,18 @@ test("原文、译文、双语：译文没到的段落先显示原文；导出 S
   const srt = srtOf(SEGMENTS, [], 30, "bilingual", translated);
   assert.match(srt, /^1\n00:00:00,000 --> 00:00:10,000\n第一句\nFirst\n/);
   assert.match(srt, /\n3\n00:00:20,000 --> /);
+});
+
+test("复制全部字幕：原文和译文视图每段一行，对照视图有译文的段落紧跟一行译文、没译到的只有主文", () => {
+  const translated = { s0: "First", s2: "Third" };
+  assert.equal(copyTextOf(SEGMENTS, "original", translated), "[0:00] 第一句\n[0:10] 第二句\n[0:20] 第三句");
+  assert.equal(copyTextOf(SEGMENTS, "translated", translated), "[0:00] First\n[0:10] 第二句\n[0:20] Third");
+  assert.equal(copyTextOf(SEGMENTS, "bilingual", translated), "[0:00] 第一句\nFirst\n[0:10] 第二句\n[0:20] 第三句\nThird");
+  assert.equal(copyTextOf(SEGMENTS, "bilingual", {}), "[0:00] 第一句\n[0:10] 第二句\n[0:20] 第三句");
+});
+
+test("复制全部字幕：有整理结果时主文用整理后的", () => {
+  assert.equal(copyTextOf([SEGMENTS[0]!], "bilingual", { s0: "First" }, { s0: "第一句。" }), "[0:00] 第一句。\nFirst");
 });
 
 test("划词解释：空白和太长的选区不弹「解释」", () => {

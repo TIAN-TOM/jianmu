@@ -21,7 +21,7 @@ import { stateCopy } from "../shared/ui/state.ts";
 import { downloadText, safeFileName } from "./files.ts";
 import { CreatorChapters, OfficialSummary } from "./guides.tsx";
 import type { Panel } from "./panel.ts";
-import { activeIndex, explainable, linesOf, mainBreaks, refreshLang, srtOf } from "./reading.ts";
+import { activeIndex, copyTextOf, explainable, linesOf, mainBreaks, refreshLang, srtOf } from "./reading.ts";
 import { setupReason } from "../shared/config.ts";
 import { uiLang, type UiLang } from "../shared/ui-lang.ts";
 import { sharedText } from "../shared/text.ts";
@@ -95,7 +95,7 @@ function Toolbar({ panel, view, onSearch, searching, onImport }: { readonly pane
     downloadText(`${safeFileName(view.info.title, t.file)}.srt`, text, "application/x-subrip");
   };
   const copyAll = (): void => {
-    const text = view.transcript.segments.map((segment) => `[${formatTimestamp(segment.start)}] ${linesOf(segment, mode, translation.lines.peek(), tidiedOf(panel)).main}`).join("\n");
+    const text = copyTextOf(view.transcript.segments, mode, translation.lines.peek(), tidiedOf(panel));
     void navigator.clipboard.writeText(text).then(
       () => panel.say(t.copied),
       () => panel.say(t.copyFailed),
