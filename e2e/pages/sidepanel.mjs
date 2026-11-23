@@ -7,6 +7,8 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { ACTIVATION_TABLE, noticeLines, noticeStatus } from "../../src/core/consent.ts";
 import { errorCopy } from "../../src/core/errors.ts";
+import { translationId } from "../../src/core/notes/records.ts";
+import { textFingerprint } from "../../src/core/transcript/fingerprint.ts";
 import { channelKey, videoKey } from "../../src/core/video-ref.ts";
 import { API_KEY_SESSION_KEY, AUTO_LEDGER_KEY, DATABASE_NAME, SETTINGS_STORAGE_KEY, WATCH_SESSIONS_KEY } from "../../src/shared/names.ts";
 import { ANTHROPIC, BRIEF_SAMPLE, PLAYING_SAMPLE, VIDEOS } from "../fixtures.mjs";
@@ -171,6 +173,13 @@ test("侧边栏：没登录时也读到视频信息，长视频进速读；字�
   });
 });
 
+const pressAtFocus = (page, key) => page.evaluate(`document.activeElement.dispatchEvent(new KeyboardEvent("keydown", { key: ${JSON.stringify(key)}, bubbles: true, cancelable: true }))`);
+const typeSearch = (page, text) => page.call(`(value) => {
+  const input = document.querySelector(".search-row input");
+  input.value = value;
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}`, text);
+
 test("侧边栏：登录以后长视频进速读，还没有概览时下面接着字幕；搜索只留命中的段落并高亮", async (ctx) => {
   const from = await ctx.open(LAUNCHER);
   const login = await openTab(from, PROBE.login, false);
@@ -191,11 +200,57 @@ test("侧边栏：登录以后长视频进速读，还没有概览时下面接�
     // 自造的语音识别字幕没有标点：一段里的两行原始字幕分开显示，拼起来的文字和原文一样，划词解释取的上下文不变。
     const firstCue = await panel.evaluate(`(() => { const cue = document.querySelector(".cue-text"); return { lines: [...cue.querySelectorAll(".cue-line")].map((line) => line.textContent), text: cue.textContent }; })()`);
     assert.deepEqual(firstCue, { lines: ["样例台词一", "样例台词二"], text: "样例台词一样例台词二" });
-    await tap(panel, "[aria-label='搜索字幕']");
-    await panel.evaluate(`(() => { const input = document.querySelector(".search-input"); input.value = "台词二"; input.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+    const search = ".search-row input";
+    await panel.evaluate(`document.querySelector(".ask-entry input").focus(), true`);
+    assert.equal(await pressAtFocus(panel, "/"), true, "问答输入框里能输入斜杠");
+    assert.equal(await panel.evaluate(`document.activeElement.matches(".ask-entry input") && !document.querySelector("${search}")`), true);
+    await panel.evaluate(`document.querySelector(".cue-time").focus(), true`);
+    assert.equal(await pressAtFocus(panel, "/"), false);
+    await waitIn(panel, "斜杠聚焦字幕搜索", `document.activeElement.matches("${search}")`);
+    await typeSearch(panel, "台词二");
     await waitIn(panel, "只留命中的段落", `document.querySelectorAll(".cue").length === 1 && document.querySelector(".cue mark")?.textContent === "台词二"`);
     assert.equal(await panel.evaluate(`document.querySelector(".cue mark")?.closest(".cue-line")?.textContent`), "样例台词二", "高亮落在第二行里");
     assert.equal(await panel.evaluate(textOf(".search-count")), "1 处");
+    assert.equal(await pressAtFocus(panel, "/"), true, "搜索框自己能输入斜杠");
+    assert.equal(await pressAtFocus(panel, "Escape"), false);
+    await waitIn(panel, "搜索收起并恢复全部段落", `!document.querySelector("${search}") && !document.querySelector(".cue mark")`);
+    await waitIn(panel, "搜索按钮可用", `Boolean(document.querySelector("button[aria-label='搜索字幕']"))`);
+    await tap(panel, "button[aria-label='搜索字幕']");
+    await waitIn(panel, "再次打开时搜索词已清空", `document.activeElement.matches("${search}") && document.activeElement.value === ""`);
+  });
+});
+
+test("侧边栏：搜索字幕时，译文、整理后的字幕和原始字幕都能作为命中行显示", async (ctx) => {
+  await withVideo(ctx, async (panel) => {
+    await waitIn(panel, "字幕列出来", `Boolean(document.querySelector(".cue"))`);
+    const read = await panel.evaluate(`chrome.runtime.sendMessage({ type: "transcript.get", req: { video: ${JSON.stringify(VIDEO)}, mode: "cache-only" } })`);
+    assert.equal(read.ok, true);
+    const { ref, segments } = read.value.transcript;
+    const hash = await textFingerprint(segments[0].text);
+    const record = (target, text) => ({
+      id: translationId(ref, target), video: VIDEO, transcript: ref, target, segments: { [hash]: text },
+      derived: { basis: { source: "transcript", transcript: ref }, gen: { feature: target === "tidy" ? "tidy" : "rewrite", promptVersion: "p", model: "sample", effort: "off" } }, updatedAt: 1,
+    });
+    const records = [record("en", "A painted moon"), record("tidy", "样例旁白。")];
+    await editDatabase(panel, { translations: records });
+    try {
+      await panel.evaluate("location.reload(), true");
+      await waitIn(panel, "缓存的整理结果显示", `${textOf(".cue-text")}.includes("样例旁白。")`);
+      await pressAtFocus(panel, "/");
+      await waitIn(panel, "搜索框打开", `document.activeElement.matches(".search-row input")`);
+      await typeSearch(panel, "台词二");
+      await waitIn(panel, "原始字幕的命中行高亮", `document.querySelector(".cue-sub mark")?.textContent === "台词二"`);
+      await typeSearch(panel, "moon");
+      await waitIn(panel, "译文的命中行高亮", `document.querySelector(".cue-sub mark")?.textContent === "moon"`);
+      assert.equal(await panel.evaluate(textOf(".cue-text")), "样例旁白。");
+      await waitIn(panel, "可以切回原始字幕", `${textOf(".tidy-row button")}.includes("看原始字幕")`);
+      assert.ok(await clickText(panel, ".tidy-row button", "看原始字幕"));
+      await typeSearch(panel, "旁白");
+      await waitIn(panel, "收起的整理结果也高亮", `document.querySelector(".cue-sub mark")?.textContent === "旁白"`);
+      assert.equal(await panel.evaluate(textOf(".cue-text")), segments[0].text);
+    } finally {
+      await editDatabase(panel, {}, { translations: records.map(({ id }) => id) });
+    }
   });
 });
 

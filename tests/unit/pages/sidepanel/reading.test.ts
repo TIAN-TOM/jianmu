@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { safeFileName } from "../../../../src/pages/sidepanel/files.ts";
-import { activeIndex, chapterAt, copyTextOf, explainable, linesOf, mainBreaks, MAX_SELECTION, refreshLang, segmentsBetween, srtOf } from "../../../../src/pages/sidepanel/reading.ts";
+import { activeIndex, chapterAt, copyTextOf, explainable, linesOf, mainBreaks, MAX_SELECTION, refreshLang, segmentsBetween, srtOf, transcriptRows } from "../../../../src/pages/sidepanel/reading.ts";
 import { fileProblem } from "../../../../src/pages/sidepanel/transcript.ts";
 
 const segment = (id: string, start: number, text: string) => ({ id, start, text, texts: [text] });
@@ -26,6 +26,21 @@ test("原文、译文、双语：译文没到的段落先显示原文；导出 S
   const srt = srtOf(SEGMENTS, [], 30, "bilingual", translated);
   assert.match(srt, /^1\n00:00:00,000 --> 00:00:10,000\n第一句\nFirst\n/);
   assert.match(srt, /\n3\n00:00:20,000 --> /);
+});
+
+test("搜索字幕：原文、译文和整理后的文字都能找到，只在可见行没命中时补行", () => {
+  const translated = { s0: "First line", s2: "Third line" };
+  const tidied = { s0: "首句。", s2: "Third line" };
+  const rows = (query: string, mode: "original" | "translated" | "bilingual", showTidied: boolean) =>
+    transcriptRows(SEGMENTS, mode, translated, tidied, showTidied, query).map(({ index, main, sub, extra }) => [index, main, sub, extra]);
+  assert.deepEqual(rows(" 首句 ", "original", false), [[0, "第一句", "", ["首句。"]]]);
+  assert.deepEqual(rows("第一句", "bilingual", true), [[0, "首句。", "First line", ["第一句"]]]);
+  assert.deepEqual(rows("首句", "translated", true), [[0, "First line", "", ["首句。"]]]);
+  assert.deepEqual(rows("FIRST", "bilingual", true), [[0, "首句。", "First line", []]]);
+  assert.deepEqual(rows("line", "original", false), [[0, "第一句", "", ["First line"]], [2, "第三句", "", ["Third line"]]]);
+  assert.deepEqual(rows("第二", "translated", true), [[1, "第二句", "", []]]);
+  assert.deepEqual(rows("无此句", "original", false), []);
+  assert.deepEqual(rows("  ", "translated", false), [[0, "First line", "", []], [1, "第二句", "", []], [2, "Third line", "", []]]);
 });
 
 test("复制全部字幕：原文和译文视图每段一行，对照视图有译文的段落紧跟一行译文、没译到的只有主文", () => {

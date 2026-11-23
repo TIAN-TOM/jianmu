@@ -22,7 +22,7 @@ import { downloadText, safeFileName } from "./files.ts";
 import { copyText } from "./copy.ts";
 import { CreatorChapters, OfficialSummary } from "./guides.tsx";
 import type { Panel } from "./panel.ts";
-import { activeIndex, copyTextOf, explainable, linesOf, mainBreaks, refreshLang, srtOf } from "./reading.ts";
+import { activeIndex, copyTextOf, explainable, mainBreaks, refreshLang, srtOf, transcriptRows } from "./reading.ts";
 import { setupReason } from "../shared/config.ts";
 import { uiLang, type UiLang } from "../shared/ui-lang.ts";
 import { sharedText } from "../shared/text.ts";
@@ -208,13 +208,15 @@ function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: 
   const [following, setFollowing] = useState(follow);
   const [pick, setPick] = useState<{ readonly text: string; readonly context: string; readonly top: number } | null>(null);
   const list = useRef<HTMLOListElement>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const segments = view.transcript.segments;
   // 每段按原始字幕的哪几处断开：只看这一份字幕，换版本时整个列表重建。
   const breaks = useMemo(() => lineBreaks(segments, view.transcript.cues), [segments, view.transcript.cues]);
   const mode = panel.translation.mode.value;
   const translated = panel.translation.lines.value;
-  const tidied = panel.tidy.show.value ? panel.tidy.lines.value : NO_LINES;
+  const tidied = panel.tidy.lines.value;
+  const showTidied = panel.tidy.show.value;
   const position = panel.player.position.value;
   const at = position?.video === view.video ? position.atSec : null;
   const active = activeIndex(segments, at);
@@ -222,7 +224,24 @@ function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: 
   const p = panelText();
   const t = p.transcript;
   const jumpTo = sharedText().jumpTo;
-  const shown = needle ? segments.filter((segment) => { const { main, sub } = linesOf(segment, mode, translated, tidied); return hasMatch(splitMatches(`${main}\n${sub}`, needle)); }) : segments;
+  const shown = useMemo(() => transcriptRows(segments, mode, translated, tidied, showTidied, needle), [segments, mode, translated, tidied, showTidied, needle]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== "/" || event.defaultPrevented || event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea, select, [role='textbox'], dialog[open], [role='menu']"))) return;
+      event.preventDefault();
+      setSearching(true);
+      searchInput.current?.focus();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (searching) searchInput.current?.focus();
+  }, [searching]);
 
   useEffect(() => {
     if (!following || needle || active < 0) return;
@@ -248,32 +267,48 @@ function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: 
       <ImportInput panel={panel} inputRef={fileInput} />
       {searching ? (
         <div class="search-row">
-          <input class="search-input" type="search" placeholder={t.searchPlaceholder} aria-label={t.search} value={query} autoFocus onInput={(event) => setQuery(event.currentTarget.value)} />
+          <input
+            ref={searchInput}
+            class="search-input"
+            type="search"
+            placeholder={t.searchPlaceholder}
+            aria-label={t.search}
+            value={query}
+            onInput={(event) => setQuery(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && !event.isComposing) {
+                event.preventDefault();
+                setQuery("");
+                setSearching(false);
+              }
+            }}
+          />
           <span class="search-count">{needle ? t.matches(shown.length) : ""}</span>
         </div>
       ) : null}
       <TranslateRow panel={panel} />
       <TidyRow panel={panel} segments={segments.length} />
       <ol class="cues" ref={list} onWheel={() => setFollowing(false)} onTouchMove={() => setFollowing(false)} onMouseUp={onSelectEnd} onKeyUp={onSelectEnd}>
-        {shown.map((segment) => {
-          const index = segments.indexOf(segment);
-          const { main, sub } = linesOf(segment, mode, translated, tidied);
-          return (
-            <li key={segment.id} class="cue" data-index={index} data-active={index === active ? "true" : undefined}>
-              <button type="button" class="cue-time" aria-label={jumpTo(formatTimestamp(segment.start))} onClick={() => void panel.seek(segment.start)}>
-                {formatTimestamp(segment.start)}
-              </button>
-              <p class="cue-text">
-                <Highlighted text={main} query={needle} breaks={mainBreaks(segment, main, breaks)} />
+        {shown.map(({ segment, index, main, sub, extra }) => (
+          <li key={segment.id} class="cue" data-index={index} data-active={index === active ? "true" : undefined}>
+            <button type="button" class="cue-time" aria-label={jumpTo(formatTimestamp(segment.start))} onClick={() => void panel.seek(segment.start)}>
+              {formatTimestamp(segment.start)}
+            </button>
+            <p class="cue-text">
+              <Highlighted text={main} query={needle} breaks={mainBreaks(segment, main, breaks)} />
+            </p>
+            {sub ? (
+              <p class="cue-sub">
+                <Highlighted text={sub} query={needle} />
               </p>
-              {sub ? (
-                <p class="cue-sub">
-                  <Highlighted text={sub} query={needle} />
-                </p>
-              ) : null}
-            </li>
-          );
-        })}
+            ) : null}
+            {extra.map((line) => (
+              <p key={line} class="cue-sub">
+                <Highlighted text={line} query={needle} />
+              </p>
+            ))}
+          </li>
+        ))}
         {pick ? (
           <li class="explain-pick" style={{ top: `${pick.top}px` }}>
             <Button variant="primary" onClick={() => { setPick(null); void panel.qa.explainSelection(pick.text, pick.context); }}>
