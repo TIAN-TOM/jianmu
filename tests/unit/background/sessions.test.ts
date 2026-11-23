@@ -71,7 +71,7 @@ async function play(world: ReturnType<typeof harness>, video: VideoKey, untilSec
   return last;
 }
 
-test("第一次报时长和频道开会话：长视频进速览，回从 0 开始计、接着报", async () => {
+test("第一次报时长和频道开会话：长视频进速读，回从 0 开始计、接着报", async () => {
   const world = harness();
   assert.deepEqual(await world.sessions.onPlaybackInfo(TAB, VIDEO, { durationSec: LONG, channel: CHANNEL_REF }), {
     ok: true,
@@ -131,7 +131,7 @@ test("播满 1 分钟切到精读：只在模式变了时广播，切过以后�
   ]);
 });
 
-test("撤销自动切换回到速览、不记频道，这次观看不再切；之后主动选精读才记住频道", async () => {
+test("撤销自动切换回到速读、不记频道，这次观看不再切；之后主动选精读才记住频道", async () => {
   const world = harness();
   await world.sessions.onPlaybackInfo(TAB, VIDEO, { durationSec: LONG, channel: CHANNEL_REF });
   await play(world, VIDEO, 60);

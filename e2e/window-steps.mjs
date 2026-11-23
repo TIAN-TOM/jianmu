@@ -28,14 +28,14 @@ export async function windowFlow({ until, evaluate, cdp, sessions, launcher, pan
   const third = idOf(THIRD_VIDEO);
   const fourth = idOf(FOURTH_VIDEO);
   const windowId = await evaluate(launcher, "chrome.tabs.getCurrent().then((tab) => tab.windowId)");
-  // 侧边栏跟着当前标签页走：第三个视频页切到前台，它是长视频，进速览，批量那一条在上面。
+  // 侧边栏跟着当前标签页走：第三个视频页切到前台，它是长视频，进速读，批量那一条在上面。
   for (const [id, active] of [[third, true], [fourth, false]]) {
     await evaluate(launcher, `chrome.tabs.create({ windowId: ${windowId}, url: ${JSON.stringify(watchPage(id))}, active: ${active} }).then(() => true)`);
   }
   // 第四个视频的概览请求挂住，等会儿在它生成中途停下。
   mock.models.hold(fourth);
 
-  await until("速览里的批量那一条", () => evaluate(panel, `Boolean(document.querySelector(".skim .batch-bar"))`));
+  await until("速读里的批量那一条", () => evaluate(panel, `Boolean(document.querySelector(".skim .batch-bar"))`));
   await click("本窗口全部生成");
   const counted = await until("清点完给出确认", async () => ((await status()).includes("要新生成") ? status() : null));
   // 窗口里还有前面播放页步骤和侧边栏主流程打开的两个视频页，它们都已经有概览。
@@ -53,7 +53,7 @@ export async function windowFlow({ until, evaluate, cdp, sessions, launcher, pan
   await until("侧边栏关掉", async () => !(await cdp.send("Target.getTargets")).targetInfos.some((info) => info.targetId === closedId));
   await evaluate(launcher, `chrome.sidePanel.open({ windowId: ${windowId} }).then(() => true)`, true);
   panel = await until("侧边栏重新打开", () => panels().find((sessionId) => !known.has(sessionId)) ?? null);
-  await until("重开后速览里的批量那一条", () => evaluate(panel, `Boolean(document.querySelector(".skim .batch-bar"))`));
+  await until("重开后速读里的批量那一条", () => evaluate(panel, `Boolean(document.querySelector(".skim .batch-bar"))`));
   await until("重开后接上这一批", async () => (await status()).startsWith("本窗口：已完成 1 / 2"));
   console.log("✓ 本窗口全部生成：关掉侧边栏再打开，接上了还在生成的这一批");
 

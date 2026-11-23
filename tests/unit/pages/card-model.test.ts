@@ -1,7 +1,7 @@
 // 卡片：没启用、卡片关着时不显示也不读；读数据只用轻量读取；生成概览只认真实点击，凭登记换到的令牌开始；
 // 侧边栏为同一视频起的任务就跟着看进度，结束后重读；换了视频，迟到的结果不渲染。
-// 展开收起跟着模式（PRD 6.5）：速览展开、精读收起，手动展开收起过的为准；收起时不读，后台标签页第一次到前台才读。
-// 新视频的会话还没有时先收着等它定模式，等不到才按速览展开。
+// 展开收起跟着模式（PRD 6.5）：速读展开、精读收起，手动展开收起过的为准；收起时不读，后台标签页第一次到前台才读。
+// 新视频的会话还没有时先收着等它定模式，等不到才按速读展开。
 // 本窗口的侧边栏开着时让位收起，关上再回来；手动展开收起过的不跟，别的窗口的不算。
 // 收着、有章节、侧边栏关着时隔一会儿问一次播放位置，写出播到第几章；播满时长自动收起的那一下在收起的一行上说一句，只在看得见时计时。
 // 按钮行在每个视频第一次读完、官方总结有了结果才摆，等不到也有上限；摆出来以后不再收回。
@@ -193,7 +193,7 @@ test("换了视频以后，上一个视频迟到的读取结果不渲染", async
 
 const session = (patch: object = {}) => ({ video: KEY, mode: "skim", modeSource: "default", autoSwitched: false, playedSec: 0, ...patch });
 
-test("模式决定展开收起：精读（含短视频）收起成一行、不读；速览展开、读", async () => {
+test("模式决定展开收起：精读（含短视频）收起成一行、不读；速读展开、读", async () => {
   const study = setup();
   study.fake.reply("session.get", { value: { ok: true, value: { session: session({ mode: "study", modeSource: "short" }) } } });
   study.model.configChanged();
@@ -209,7 +209,7 @@ test("模式决定展开收起：精读（含短视频）收起成一行、不�
   assert.equal(skim.model.view.value.collapsed, false);
 });
 
-test("新视频的会话还没有：先收着不读；会话说是精读就一直收着、一次都不读，说是速览才展开、读", async () => {
+test("新视频的会话还没有：先收着不读；会话说是精读就一直收着、一次都不读，说是速读才展开、读", async () => {
   for (const [mode, modeSource] of [["study", "short"], ["skim", "default"]] as const) {
     const { fake, model, waiting } = setup(READY, undefined, { manualWait: true });
     let mine: object | null = null;
@@ -236,7 +236,7 @@ test("新视频的会话还没有：先收着不读；会话说是精读就一�
   }
 });
 
-test("等够了会话还没来：按速览展开、读；之后会话说是精读再收起", async () => {
+test("等够了会话还没来：按速读展开、读；之后会话说是精读再收起", async () => {
   const { fake, model, elapse, waiting } = setup(READY, undefined, { manualWait: true });
   let mine: object | null = null;
   fake.reply("session.get", () => ({ ok: true, value: { session: mine } }));
@@ -280,7 +280,7 @@ test("还在等会话时手动点开：马上展开、读，不再等；等着�
   assert.equal(moved.fake.attempts("transcript.get"), 1, "第一个视频没读过");
 });
 
-test("这个视频里手动展开收起过的为准：精读时手动展开的照样展开，速览时手动收起的照样收起", async () => {
+test("这个视频里手动展开收起过的为准：精读时手动展开的照样展开，速读时手动收起的照样收起", async () => {
   const opened = setup();
   opened.fake.reply("session.get", { value: { ok: true, value: { session: session({ mode: "study", modeSource: "manual", cardOverride: "expanded" }) } } });
   opened.model.configChanged();
@@ -305,7 +305,7 @@ test("自动切到精读：卡片跟着收起；手动展开过的不动；别�
   await model.start();
   assert.ok(await until(() => model.view.value.phase === "loaded"));
 
-  // 别的标签页同一视频切到精读：广播里的视频一样，但自己标签页的会话还是速览。
+  // 别的标签页同一视频切到精读：广播里的视频一样，但自己标签页的会话还是速读。
   fake.broadcast({ type: "session.changed", tabId: 99, session: session({ mode: "study", modeSource: "auto", autoSwitched: true }) });
   assert.ok(await until(() => fake.attempts("session.get") === 2));
   assert.ok(await stillFalse(() => model.view.value.collapsed));
@@ -322,7 +322,7 @@ test("自动切到精读：卡片跟着收起；手动展开过的不动；别�
   assert.ok(await stillFalse(() => model.view.value.collapsed), "手动展开过的不再跟着收");
 });
 
-test("本窗口的侧边栏开着：速览也收着、不读；关上才展开、读，再打开又让位", async () => {
+test("本窗口的侧边栏开着：速读也收着、不读；关上才展开、读，再打开又让位", async () => {
   const { fake, model } = setup();
   fake.reply("session.get", { value: { ok: true, value: { session: session() } } });
   fake.reply("panel.state", { value: { ok: true, value: { open: true } } });
@@ -515,6 +515,44 @@ test("收着、有章节、侧边栏关着时才问播放位置，写出播到�
   await bare.model.toggle();
   bare.tick();
   assert.equal(bare.player.asked, 0);
+});
+
+test("播满时长自动切到精读时鼠标正停在卡片上：先不收，离开又回来的接着等，离开够久才收、照样说一句；等的时候打开侧边栏就按让位收，不说", async () => {
+  const auto = () => session({ mode: "study", modeSource: "auto", autoSwitched: true });
+  const open = async () => {
+    const made = setup(READY, undefined, { manualWait: true });
+    let mine = session();
+    made.fake.reply("session.get", () => ({ ok: true, value: { session: mine } }));
+    made.model.configChanged();
+    await made.model.start();
+    assert.ok(await until(() => made.model.view.value.phase === "loaded"));
+    made.elapse();
+    made.model.hover(true);
+    mine = auto();
+    made.fake.broadcast({ type: "session.changed", tabId: 3, session: mine });
+    assert.ok(await stillFalse(() => made.model.view.value.collapsed), "鼠标在卡片上，不收");
+    return made;
+  };
+
+  const { model, elapse } = await open();
+  model.hover(false);
+  model.hover(true);
+  elapse();
+  assert.equal(model.view.value.collapsed, false, "离开一下又回来，不收");
+  model.hover(false);
+  assert.equal(model.view.value.collapsed, false, "刚离开，还没到点");
+  elapse();
+  assert.deepEqual([model.view.value.collapsed, model.view.value.headNote], [true, AUTO_FOLD_NOTE]);
+
+  const yielded = await open();
+  yielded.fake.broadcast({ type: "panel.changed", windowId: WINDOW, open: true });
+  assert.ok(await until(() => yielded.model.view.value.collapsed));
+  assert.equal(yielded.model.view.value.headNote, "");
+  yielded.fake.broadcast({ type: "panel.changed", windowId: WINDOW, open: false });
+  yielded.model.hover(false);
+  yielded.elapse();
+  assert.equal(yielded.model.view.value.collapsed, true, "精读，侧边栏关了也收着");
+  assert.equal(yielded.model.view.value.headNote, "");
 });
 
 test("播满时长自动切到精读：展开着的卡片收起时在那一行说一句，过一会儿收回；手动收起、让位收起、一打开就是精读的不说", async () => {

@@ -77,7 +77,7 @@ describe("规则能拦下造好的违规", () => {
     assert.deepEqual(rulesHit("src/sites/a.ts", "// 读 /some/request/path 的结果\n"), [3]);
     assert.deepEqual(rulesHit("src/sites/a.ts", "// 读取/some/request/path的结果\n"), [3]);
     assert.deepEqual(rulesHit("src/sites/a.ts", "// 见 sample.example.com/path\n"), [3]);
-    assert.deepEqual(rulesHit("src/sites/a.ts", "// 读字幕轨，速览/精读共用\n"), []);
+    assert.deepEqual(rulesHit("src/sites/a.ts", "// 读字幕轨，速读/精读共用\n"), []);
     assert.deepEqual(rulesHit("src/sites/a.ts", "// 一\n// 二\n// 三\n// 四\nconst a = 1;\n"), [3]);
     assert.deepEqual(rulesHit("src/sites/a.ts", "// 一\n// 二\n// 三\nconst a = 1;\n"), []);
   });
@@ -320,6 +320,18 @@ describe("第 6 条：YouTube 一侧的边界", () => {
       "src/sites/youtube/service.ts": 'import type { SiteCtx } from "../types.ts";\n',
     };
     assert.deepEqual(filesHit(typeOnly), []);
+  });
+});
+
+describe("第 6 条：主世界里接住播放器字幕", () => {
+  test("只有接住字幕的那个文件许取一次网页请求对象的原型，别处、第二处、新建、别的网络调用都拦", () => {
+    const file = "src/sites/youtube/page/caption-catch.ts";
+    assert.deepEqual(rulesHit(file, "const methods = scope.XMLHttpRequest.prototype;\n"), []);
+    assert.deepEqual(rulesHit(file, "const a = scope.XMLHttpRequest.prototype;\nconst b = scope.XMLHttpRequest.prototype;\n"), [6]);
+    assert.deepEqual(rulesHit(file, "const a = scope.XMLHttpRequest.prototype;\nconst r = new XMLHttpRequest();\n"), [6]);
+    assert.deepEqual(rulesHit(file, "const a = scope.XMLHttpRequest.prototype;\nawait fetch(url);\n"), [6]);
+    assert.deepEqual(rulesHit("src/sites/youtube/page/main-bridge.ts", "const methods = scope.XMLHttpRequest.prototype;\n"), [6]);
+    assert.deepEqual(rulesHit("src/content/youtube-bridge.ts", "const methods = scope.XMLHttpRequest.prototype;\n"), [6]);
   });
 });
 

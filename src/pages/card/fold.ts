@@ -1,13 +1,17 @@
 // 卡片展开还是收起：跟着本标签页的观看会话和本窗口的侧边栏。用户在这个视频里手动展开收起过的为准；
-// 否则侧边栏关着、又在速览才展开。侧边栏开着时同一份结论和章节已经摆在那边，卡片让位；精读也收起（短视频进精读，所以默认收起）。
-// 新视频的会话要等内容脚本报了时长才有：先收着等它定模式，等不到再按速览展开，短视频就不会先展开、读一次、再收起。
+// 否则侧边栏关着、又在速读才展开。侧边栏开着时同一份结论和章节已经摆在那边，卡片让位；精读也收起（短视频进精读，所以默认收起）。
+// 播满时长自动切到精读的那一下，鼠标正停在卡片上就先不收：人多半正读着，等鼠标离开一会儿再收。
+// 新视频的会话要等内容脚本报了时长才有：先收着等它定模式，等不到再按速读展开，短视频就不会先展开、读一次、再收起。
 import type { CardOverride, Mode, SessionView } from "../../core/mode/types.ts";
 import type { VideoKey } from "../../core/video-ref.ts";
 import type { PageApi } from "../shared/api.ts";
 import type { CardTimers } from "./timers.ts";
 
-/** 新视频的模式最多等这么久，等不到按速览展开。 */
+/** 新视频的模式最多等这么久，等不到按速读展开。 */
 export const SESSION_WAIT_MS = 2_000;
+
+/** 鼠标离开卡片以后过这么久才收：擦过边上一下、马上又回来的不算离开。 */
+export const LEAVE_GRACE_MS = 1_000;
 
 export interface FoldDeps {
   readonly api: Pick<PageApi, "send" | "on">;
@@ -34,12 +38,25 @@ export function createFold({ api, after, video, windowId, collapsed, place, pane
   let panelAsk = 0;
   // 正在等新视频的会话定模式：这里是「不等了」的收尾，没在等时是 null。
   let stopWaiting: (() => void) | null = null;
+  // 鼠标这会儿停在卡片上。
+  let inUse = false;
+  // 该自动收起了，因为鼠标停在卡片上先没收。
+  let held = false;
+  let cancelLeave: (() => void) | null = null;
 
   const wanted = (): boolean => (override ? override === "collapsed" : panelOpen || mode === "study");
+
+  /** 先没收的那一下不用再惦记：已经另外定了，或者不该收了。 */
+  function unhold(): void {
+    held = false;
+    cancelLeave?.();
+    cancelLeave = null;
+  }
 
   /** 按现在知道的模式、侧边栏和手动展开收起定下来。 */
   function decide(auto = false): void {
     stopWaiting?.();
+    unhold();
     const next = wanted();
     place(next, auto && next && !collapsed());
   }
@@ -48,7 +65,14 @@ export function createFold({ api, after, video, windowId, collapsed, place, pane
     if (!session || session.video !== video()) return;
     override = session.cardOverride ?? null;
     mode = session.mode;
-    if (stopWaiting || wanted() !== collapsed()) decide(session.modeSource === "auto" && !override && !panelOpen);
+    if (!stopWaiting && wanted() === collapsed()) return unhold();
+    const auto = session.modeSource === "auto" && !override && !panelOpen;
+    // 播满时长自己收起，而鼠标正停在展开的卡片上：先不收，等它离开。
+    if (auto && inUse && !stopWaiting && !collapsed()) {
+      held = true;
+      return;
+    }
+    decide(auto);
   }
 
   /** 读本标签页的会话：卡片只读得到自己所在的标签页。 */
@@ -88,6 +112,7 @@ export function createFold({ api, after, video, windowId, collapsed, place, pane
       override = null;
       mode = null;
       stopWaiting?.();
+      unhold();
     },
     /** 新视频：先收着问会话，有了就按它的模式定；一直没有就等够了按现在知道的定。 */
     wait(): void {
@@ -103,12 +128,25 @@ export function createFold({ api, after, video, windowId, collapsed, place, pane
     async toggle(): Promise<void> {
       // 还在等会话时点了就不等了；在途的会话回复问的时候还没有这一下，也不算数。
       stopWaiting?.();
+      unhold();
       sessionAsk += 1;
       const next = !collapsed();
       override = next ? "collapsed" : "expanded";
       place(next, false);
       const current = video();
       if (current) await api.send("card.setOverride", { video: current, value: override });
+    },
+    /** 鼠标进了卡片或离开了卡片（标签页到了后台也算离开）。先没收的那一下，离开够久就收，回来了接着等。 */
+    use(inside: boolean): void {
+      inUse = inside;
+      cancelLeave?.();
+      cancelLeave = null;
+      if (inside || !held) return;
+      cancelLeave = after(LEAVE_GRACE_MS, () => {
+        cancelLeave = null;
+        if (held && wanted() !== collapsed()) decide(true);
+        else unhold();
+      });
     },
     /** 问本窗口的侧边栏开没开，问不到当关着。等回复时来过广播、又问了一次，就不拿这次的回复盖：它可能是旧的。 */
     async readPanel(): Promise<void> {
@@ -119,6 +157,7 @@ export function createFold({ api, after, video, windowId, collapsed, place, pane
     },
     stop(): void {
       stopWaiting?.();
+      unhold();
       for (const off of subscriptions) off();
     },
   };

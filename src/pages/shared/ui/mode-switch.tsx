@@ -1,4 +1,4 @@
-// 模式切换：「速览　精读」两个词组成的单选组，方向键切换，只有选中的那个在 Tab 顺序里。
+// 模式切换：「速读　精读」两个词组成的单选组，方向键切换，只有选中的那个在 Tab 顺序里。
 import { useRef } from "preact/hooks";
 import type { Mode } from "../../../core/mode/types.ts";
 import { sharedText } from "../text.ts";

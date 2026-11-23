@@ -109,6 +109,7 @@ test("日用包只收和日用那份一模一样的构建，重打的提示是�
   const refused: [string, unknown, RegExp][] = [
     ["测试构建", buildFlagsRecord(TEST_BUILD_FEATURES), /没开 FEATURE_KEEP_CONSENT，这个包要带它.*npm run package:daily/],
     ["关着代开文字稿", buildFlagsRecord({ ...DAILY_FEATURES, youtubeOpenPanel: false }), /没开 FEATURE_YOUTUBE_OPEN_PANEL.*npm run package:daily/],
+    ["关着读播放器字幕", buildFlagsRecord({ ...DAILY_FEATURES, youtubeCaptionCatch: false }), /没开 FEATURE_YOUTUBE_CAPTION_CATCH.*npm run package:daily/],
     ["关着解释当前画面", buildFlagsRecord({ ...DAILY_FEATURES, frameExplain: false }), /没开 FEATURE_FRAME_EXPLAIN.*npm run package:daily/],
     ["关着 YouTube", buildFlagsRecord({ ...DAILY_FEATURES, youtube: false }), /没开 FEATURE_YOUTUBE，.*npm run package:daily/],
     ["没有记录", undefined, /找不到这次构建的开关记录/],

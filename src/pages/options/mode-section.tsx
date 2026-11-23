@@ -1,4 +1,4 @@
-// 设置页「速览和精读」一节：说明打开视频时怎么定模式，能清掉记住的频道偏好。清掉以后同一频道的视频回到按时长定。
+// 设置页「速读和精读」一节：说明打开视频时怎么定模式，能清掉记住的频道偏好。清掉以后同一频道的视频回到按时长定。
 import { useId, useState } from "preact/hooks";
 import type { PageApi } from "../shared/api.ts";
 import { Confirmable, StatusLine } from "./controls.tsx";

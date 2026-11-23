@@ -1,4 +1,4 @@
-// 侧边栏的各块数据拼在一起：启用、配置、跟随的标签页、播放器、模式，速览、精读、问答和笔记的数据。
+// 侧边栏的各块数据拼在一起：启用、配置、跟随的标签页、播放器、模式，速读、精读、问答和笔记的数据。
 // 启用以后才跟着当前视频读取；换了视频，各块一起换，没启用或没有视频时全部清空。
 // 问答抽屉和笔记层的开关和模式是两层：切模式不动抽屉，开抽屉也不切模式。
 // 打开就出结论停下或恢复时重问一次配置，顶上那一行跟着变。
@@ -150,7 +150,7 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
       const info = !current ? undefined : now.state === "ready" ? now.view.info : now.state === "failed" ? now.failure.info : undefined;
       mode.describe(info?.durationSec, info?.channel?.channelId);
     }),
-    // 要跟着播放时才每秒问一次播放位置：精读（当前章节和「存笔记」没有字幕也要用），或者速览里还没有概览、下面接着字幕。
+    // 要跟着播放时才每秒问一次播放位置：精读（当前章节和「存笔记」没有字幕也要用），或者速读里还没有概览、下面接着字幕。
     effect(() => {
       const ready = transcript.state.value.state === "ready";
       const skimShowsTranscript = ready && mode.view.value.mode === "skim" && !overview.state.value.task && !overview.state.value.saved?.analysis?.chapters?.length;

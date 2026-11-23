@@ -87,7 +87,7 @@ test("交回正文前面板换过内容或换了视频：不交", async () => {
   }
 });
 
-test("面板几种状态各有各的结果；认不出的都是暂时无法读取", async () => {
+test("面板几种状态各有各的结果；认不出的都是暂时无法读取（读播放器字幕关着时）", async () => {
   const table = [
     ["closed", { ok: false, code: "PAGE_ACTION_NEEDED" }],
     ["reopen", { ok: false, code: "PAGE_ACTION_NEEDED", detail: "reopen" }],
@@ -98,7 +98,7 @@ test("面板几种状态各有各的结果；认不出的都是暂时无法读�
     ["chapters", { ok: false, code: "PAGE_ACTION_NEEDED", detail: "chapters" }],
   ] as const;
   for (const [state, expected] of table) {
-    const service = createYoutubeService();
+    const service = createYoutubeService({ caughtCaptions: null });
     const { ctx } = ctxWith(() => snapshotOf({ state, cues: [] }));
     const info = okValue(await service.readVideoInfo(REF, ctx));
     assert.deepEqual(await service.listCaptionTracks(info, ctx), expected, state);

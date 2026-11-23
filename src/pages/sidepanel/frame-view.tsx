@@ -1,5 +1,5 @@
 // 侧边栏里解释当前画面的按钮和结果：只在构建开关 FEATURE_FRAME_EXPLAIN 打开时进包，只从 app.tsx 的开关分支引用。
-// 结果排在模式内容上面，两种模式都看得到（播放页图标点出来时侧边栏可能停在速览）；按钮只在精读的底部工具条上。
+// 结果排在模式内容上面，两种模式都看得到（播放页图标点出来时侧边栏可能停在速读）；按钮只在精读的底部工具条上。
 // 失败按原因、影响、下一步三段写，要去设置页的给一个按钮。
 import { errorCopy, type ErrorCode } from "../../core/errors.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";

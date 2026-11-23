@@ -7,6 +7,7 @@
 // 文字稿入口在页面上有两份：简介里一份，一直关着的简介面板里一份；点了后面那份，页面记一笔，测试据此判点错了。
 // 新式面板的页面另有播放器自己的数据：字幕轨列表和默认音轨里的默认字幕轨，交给页面主世界的小桥读。
 // 另有一个入口晚出来的视频：简介里起初没有文字稿入口，测试叫页面过一会儿再放上去，扮演页面还在加载。
+// 另有一个页面上没有文字稿的视频：播放器上有字幕按钮，点开时播放器自己取回带时间轴的字幕，页面记下取了几次、按钮现在开没开。
 // 播放器右边有一栏：上面是装侧栏面板（文字稿在里面）的一层，下面是推荐视频。页面上另有一个按钮扮演窗口变窄，
 // 把推荐视频挪到播放器下面，再点一下挪回右栏；这只是简化的替身，不照着真实页面的排版逻辑写。
 import { QUIET_MEDIA_PATH } from "./watch-page.mjs";
@@ -23,7 +24,23 @@ export const TUBE_VIDEOS = Object.freeze({
   jmTube00006: { layout: "modern", title: "样例自动生成的视频", author: "样例频道", channel: "@sample.channel", label: "", lines: ["auto line one", "auto line two"] },
   jmTube00007: { layout: "modern", title: "样例卡片上生成的视频", author: "样例频道", channel: "@sample.channel", label: "", lines: ["card line one", "card line two"] },
   jmTube00008: { layout: "modern", lateEntry: true, title: "样例入口晚出来的视频", author: "样例频道", channel: "@sample.channel", label: "", lines: ["late line one", "late line two"] },
+  jmTube00009: { layout: "modern", playerOnly: true, title: "样例只有播放器字幕的视频", author: "样例频道", channel: "@sample.channel", label: "", lines: ["player line one", "player line two", "player line three"] },
 });
+
+/** 播放器取字幕的路径和它回的正文：一个只管位置的事件、每句一个事件（第二句分成几个片段）、夹着只含换行的事件。 */
+export const TUBE_CAPTION_PATH = "/api/timedtext";
+/** @param {string} id */
+export function tubeCaptionJson(id) {
+  const video = TUBE_VIDEOS[/** @type {keyof typeof TUBE_VIDEOS} */ (id)];
+  /** @type {Record<string, unknown>[]} */
+  const events = [{ tStartMs: 0, dDurationMs: 600000, id: 1, wpWinPosId: 1 }];
+  video.lines.forEach((line, index) => {
+    const words = line.split(" ");
+    events.push({ tStartMs: index * STEP_SEC * 1000, dDurationMs: 4000, wWinId: 1, segs: index === 1 ? words.map((word, at) => ({ utf8: at === 0 ? word : ` ${word}` })) : [{ utf8: line }] });
+    events.push({ tStartMs: index * STEP_SEC * 1000 + 4000, dDurationMs: 10, wWinId: 1, aAppend: 1, segs: [{ utf8: "\n" }] });
+  });
+  return JSON.stringify({ wireMagic: "pb3", events });
+}
 
 const HUMAN_EN = { name: { simpleText: "English" }, vssId: ".en", languageCode: "en" };
 const AUTO_EN = { name: { runs: [{ text: "English (auto-generated)" }] }, vssId: "a.en", languageCode: "en", kind: "asr" };
@@ -35,6 +52,7 @@ export const TUBE_PLAYER_TRACKS = Object.freeze({
   jmTube00003: { tracks: [HUMAN_EN, AUTO_EN], audioTracks: [{ defaultCaptionTrackIndex: 0, hasDefaultTrack: true }] },
   jmTube00004: { tracks: [AUTO_EN], audioTracks: [{}] },
   jmTube00005: { tracks: [HUMAN_EN, AUTO_EN], audioTracks: [{}] },
+  jmTube00009: { tracks: [HUMAN_EN, AUTO_EN], audioTracks: [{ defaultCaptionTrackIndex: 0, hasDefaultTrack: true }] },
 });
 export const TUBE_TRACK_ADDRESS = "/e2e-never-read-track";
 
@@ -164,7 +182,8 @@ function classicPageHtml(id) {
  * 新式面板的页面。有章节时打开的是带页签的面板（没有 target-id），没章节时打开新式文字稿面板；
  * 旧面板和新式面板的空壳都关着留在页面上。段落的时间、给读屏的一句和正文各占一块。
  * 入口晚出来的视频起初简介里没有入口，页面上的 e2eShowEntryLater(毫秒) 过这么久再放上去。
- * @param {string} id @param {{ layout: string, lateEntry?: boolean, title: string, author: string, channel: string, lines: readonly string[] }} video
+ * 只有播放器字幕的视频页面上没有入口也没有文字稿面板的空壳（只留一个不带标记的关着的面板），播放器上多一个字幕按钮。
+ * @param {string} id @param {{ layout: string, lateEntry?: boolean, playerOnly?: boolean, title: string, author: string, channel: string, lines: readonly string[] }} video
  */
 function modernPageHtml(id, video) {
   const chapters = video.layout === "chapters";
@@ -201,24 +220,24 @@ function modernPageHtml(id, video) {
   <ytd-watch-flexy video-id="${id}">
     <div id="columns">
       <div id="primary">
-        <div class="html5-video-player" id="movie_player"><video class="html5-main-video" muted autoplay loop src="${QUIET_MEDIA_PATH}"></video></div>
+        <div class="html5-video-player" id="movie_player"><video class="html5-main-video" muted autoplay loop src="${QUIET_MEDIA_PATH}"></video>${video.playerOnly ? '<button class="ytp-subtitles-button ytp-button" aria-pressed="false" id="e2e-captions"></button>' : ""}</div>
         <ytd-watch-metadata>
           <h1>${video.title}</h1>
           <ytd-channel-name><a href="/${video.channel}">${video.author}</a></ytd-channel-name>
           <div id="description-inline-expander">样例简介</div>
         </ytd-watch-metadata>
-        ${video.lateEntry ? '<div id="e2e-entry-slot"></div>' : entry}
+        ${video.lateEntry ? '<div id="e2e-entry-slot"></div>' : video.playerOnly ? "" : entry}
         <button id="e2e-close-transcript">关上文字稿</button>
         <button id="e2e-narrow">窗口变窄</button>
         <div id="below"></div>
       </div>
       <div id="secondary"><div id="secondary-inner">
         <div id="panels">
-          <ytd-engagement-panel-section-list-renderer target-id="engagement-panel-searchable-transcript" visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN"></ytd-engagement-panel-section-list-renderer>
+          ${video.playerOnly ? '<ytd-engagement-panel-section-list-renderer id="e2e-open-panel" visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN"><div id="content"></div></ytd-engagement-panel-section-list-renderer>' : `<ytd-engagement-panel-section-list-renderer target-id="engagement-panel-searchable-transcript" visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN"></ytd-engagement-panel-section-list-renderer>
           <ytd-engagement-panel-section-list-renderer target-id="engagement-panel-structured-description" visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN">
             <ytd-video-description-transcript-section-renderer><button id="e2e-hidden-entry">Show transcript</button></ytd-video-description-transcript-section-renderer>
           </ytd-engagement-panel-section-list-renderer>
-          ${opened}
+          ${opened}`}
         </div>
         ${RELATED_HTML}
       </div></div>
@@ -238,6 +257,18 @@ function modernPageHtml(id, video) {
         defaultAudioTrackIndex: 0,
       },
     },
+  });
+  // 播放器的字幕按钮：打开时播放器自己去取当前视频的字幕，页面记下取过几次。
+  const captions = document.getElementById("e2e-captions");
+  captions?.addEventListener("click", () => {
+    const on = captions.getAttribute("aria-pressed") !== "true";
+    captions.setAttribute("aria-pressed", String(on));
+    if (!on) return;
+    document.body.dataset.e2eCaptionFetches = String(Number(document.body.dataset.e2eCaptionFetches ?? 0) + 1);
+    const request = new XMLHttpRequest();
+    request.open("GET", ${JSON.stringify(TUBE_CAPTION_PATH)} + "?v=" + ${JSON.stringify(id)} + "&lang=en&xorb=2&xobt=3");
+    request.responseType = "text";
+    request.send();
   });
   const panel = document.getElementById("e2e-open-panel");
   const content = panel.querySelector("#content");
@@ -286,7 +317,7 @@ function modernPageHtml(id, video) {
     }, ms);
     return true;
   };
-  document.getElementById("e2e-hidden-entry").addEventListener("click", () => document.body.setAttribute("data-e2e-wrong-entry", "1"));
+  document.getElementById("e2e-hidden-entry")?.addEventListener("click", () => document.body.setAttribute("data-e2e-wrong-entry", "1"));
   document.getElementById("e2e-close-transcript").addEventListener("click", () => {
     panel.setAttribute("visibility", "ENGAGEMENT_PANEL_VISIBILITY_HIDDEN");
   });
