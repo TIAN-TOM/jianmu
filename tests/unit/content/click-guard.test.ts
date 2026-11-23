@@ -76,10 +76,10 @@ const first: Box = { left: 756, top: 112, right: 788, bottom: 144 };
 const second: Box = { left: 756, top: 152, right: 788, bottom: 184 };
 
 test("位置和大小：贴着锚点右上角、从上往下排、32 见方；挂着提示时可以变宽", () => {
-  assert.equal(placedAsInjected({ anchor: ANCHOR, overlay: OVERLAY_BOX, button: first, index: 0, hinting: false }), true);
-  assert.equal(placedAsInjected({ anchor: ANCHOR, overlay: OVERLAY_BOX, button: second, index: 1, hinting: false }), true);
-  assert.equal(placedAsInjected({ anchor: ANCHOR, overlay: OVERLAY_BOX, button: { ...first, left: 640 }, index: 0, hinting: true }), true, "挂着提示");
-  assert.equal(placedAsInjected({ anchor: ANCHOR, overlay: OVERLAY_BOX, button: { ...first, top: 112.5, bottom: 144.5 }, index: 0, hinting: false }), true, "小数像素");
+  assert.equal(placedAsInjected({ anchor: ANCHOR, overlay: OVERLAY_BOX, button: first, index: 0, hinting: false, top: 12 }), true);
+  assert.equal(placedAsInjected({ anchor: ANCHOR, overlay: OVERLAY_BOX, button: second, index: 1, hinting: false, top: 12 }), true);
+  assert.equal(placedAsInjected({ anchor: ANCHOR, overlay: OVERLAY_BOX, button: { ...first, left: 640 }, index: 0, hinting: true, top: 12 }), true, "挂着提示");
+  assert.equal(placedAsInjected({ anchor: ANCHOR, overlay: OVERLAY_BOX, button: { ...first, top: 112.5, bottom: 144.5 }, index: 0, hinting: false, top: 12 }), true, "小数像素");
 });
 
 test("被挪走、撑大的都不放行", () => {
@@ -91,7 +91,15 @@ test("被挪走、撑大的都不放行", () => {
     ["挂着提示也不能宽过一行字", OVERLAY_BOX, { ...first, left: 400 }, 0, true],
     ["第二个按钮排在第一个的位置", OVERLAY_BOX, first, 1, false],
   ];
-  for (const [label, overlay, button, index, hinting] of moved) assert.equal(placedAsInjected({ anchor: ANCHOR, overlay, button, index, hinting }), false, label);
+  for (const [label, overlay, button, index, hinting] of moved) assert.equal(placedAsInjected({ anchor: ANCHOR, overlay, button, index, hinting, top: 12 }), false, label);
+});
+
+test("站点给了离上沿的距离：照它核对，挪回默认位置的不放行", () => {
+  const lowered = (box: Box): Box => ({ ...box, top: box.top + 38, bottom: box.bottom + 38 });
+  const overlay = lowered(OVERLAY_BOX);
+  assert.equal(placedAsInjected({ anchor: ANCHOR, overlay, button: lowered(first), index: 0, hinting: false, top: 50 }), true);
+  assert.equal(placedAsInjected({ anchor: ANCHOR, overlay, button: lowered(second), index: 1, hinting: false, top: 50 }), true);
+  assert.equal(placedAsInjected({ anchor: ANCHOR, overlay: OVERLAY_BOX, button: first, index: 0, hinting: false, top: 50 }), false, "还在默认位置");
 });
 
 test("只认鼠标真点在按钮框里、点在自己建的节点上：脚本点的、键盘触发的、点在框外的、点在别的元素上的都不算", () => {

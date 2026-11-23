@@ -2,7 +2,7 @@
 // 被劫持的页面能用 !important 的样式表改样子、挪位置、撑大，能把按钮里的节点撑成铺满视口的透明层，
 // 也能把焦点挪到图标上等用户按键；这里核对的是点击那一刻的计算样式、几何位置和点击本身。
 
-/** 浮层贴着锚点内边距框右上角的距离、按钮的边长、按钮之间的间距，hover-icons.ts 的内联样式也用这几个数。 */
+/** 浮层离锚点内边距框右边（站点没另给时也是上沿）的距离、按钮的边长、按钮之间的间距，hover-icons.ts 的内联样式也用这几个数。 */
 export const OVERLAY_INSET = 12;
 export const BUTTON_SIZE = 32;
 export const BUTTON_GAP = 8;
@@ -95,15 +95,23 @@ export function keepsLook(now: Look | null, kind: "button" | "overlay" | "icon")
 }
 
 /**
- * 按钮还在注入时的位置：浮层贴着锚点的内边距框右上角，按钮从上往下排，32 高，没挂提示时 32 宽。
+ * 按钮还在注入时的位置：浮层贴着锚点的内边距框右上角（离上沿 top），按钮从上往下排，32 高，没挂提示时 32 宽。
  * 页面不改定位方式也能用 top、right、margin、宽高把按钮挪到视频正中、撑成一块热区，在这里拦。
  */
-export function placedAsInjected(input: { readonly anchor: Box; readonly overlay: Box; readonly button: Box; readonly index: number; readonly hinting: boolean }): boolean {
-  const { anchor, overlay, button, index, hinting } = input;
+export function placedAsInjected(input: {
+  readonly anchor: Box;
+  readonly overlay: Box;
+  readonly button: Box;
+  readonly index: number;
+  readonly hinting: boolean;
+  /** 注入时浮层离锚点上沿的距离。 */
+  readonly top: number;
+}): boolean {
+  const { anchor, overlay, button, index, hinting, top } = input;
   const near = (value: number, expected: number): boolean => Math.abs(value - expected) <= SLACK;
   const width = button.right - button.left;
   return (
-    near(overlay.top - anchor.top, OVERLAY_INSET) &&
+    near(overlay.top - anchor.top, top) &&
     near(anchor.right - overlay.right, OVERLAY_INSET) &&
     near(button.right, overlay.right) &&
     near(button.top - overlay.top, index * (BUTTON_SIZE + BUTTON_GAP)) &&
