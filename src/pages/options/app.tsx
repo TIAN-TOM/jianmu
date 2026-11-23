@@ -69,7 +69,6 @@ function AppearanceSection({ state }: { readonly state: OptionsState }) {
   return (
     <section class="card" aria-labelledby={`${id}-title`}>
       <h2 id={`${id}-title`}>{t.title}</h2>
-      <p class="hint">{t.intro}</p>
       <div class="field">
         <span class="field-label" id={`${id}-theme`}>
           {t.theme}
@@ -113,7 +112,6 @@ function AppearanceSection({ state }: { readonly state: OptionsState }) {
             </option>
           ))}
         </select>
-        <span class="field-hint">{t.fontHint}</span>
       </label>
       <label class="field">
         <span class="field-label">{t.language}</span>

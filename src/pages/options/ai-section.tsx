@@ -1,7 +1,7 @@
 // 设置页「AI 服务」一节：先是要点「保存并授权」的表单（服务商、地址、密钥和记住密钥、默认模型和按功能选模型），
-// 接着数据说明和同意、保存和测试；按钮后面是即改即存的推理强度和概览分块，值按存着的设置显示。
+// 接着数据说明和同意、保存和测试；按钮后面是即改即存的推理强度和概览分块，收在一个折叠里，值按存着的设置显示。
 // 状态行跟着控件走：清除密钥、记住密钥、拉取模型、推理强度、概览分块的结果写在各自下面，保存和测试连接的写在按钮下面。
-import { useEffect, useId } from "preact/hooks";
+import { useEffect, useId, useRef } from "preact/hooks";
 import { DATA_CONSENT_TABLE, noticeLines, noticeStatus, type DataConsentKind, type NoticeItem } from "../../core/consent.ts";
 import {
   ANALYSIS_CHUNK_MODES,
@@ -132,6 +132,39 @@ function EffortBlock({ state }: { readonly state: OptionsState }) {
       })}
       {pending ? <span class="field-hint">{t.pending}</span> : null}
     </fieldset>
+  );
+}
+
+/**
+ * 推理强度和概览分块：多数人不用动，收在一个折叠里，标题写明里面是什么。两项即改即存，不归「保存并授权」管，排在按钮后面。
+ * 打开设置页时有一项不是默认值就展开着；之后开合只听用户的，改回默认值也不替他收起来。
+ */
+function AdvancedBlock({ state, saved }: { readonly state: OptionsState; readonly saved: NonNullable<OptionsState["saved"]["value"]> }) {
+  const t = optionsText().ai;
+  const open = useRef(saved.analysisChunkMode !== "auto" || FEATURE_MODEL_SLOTS.some(({ id }) => saved.featureEfforts[id] !== "off"));
+  return (
+    <details class="field" id="advanced" open={open.current}>
+      <summary>{t.advanced}</summary>
+      {/* 折叠里的内容不归 details 自己的间距管，另包一层来隔开两块。 */}
+      <div class="fold-body">
+        <EffortBlock state={state} />
+
+        <div>
+          <label class="field">
+            <span class="field-label">{t.chunk}</span>
+            <select class="input" id="analysisChunkMode" value={saved.analysisChunkMode} onChange={(event) => void state.saveInstant({ analysisChunkMode: event.currentTarget.value })}>
+              {(Object.keys(ANALYSIS_CHUNK_MODES) as AnalysisChunkMode[]).map((mode) => (
+                <option key={mode} value={mode}>
+                  {t.chunks[mode]}
+                </option>
+              ))}
+            </select>
+            <span class="field-hint">{t.chunkHint}</span>
+          </label>
+          <AiStatusLine state={state} at="chunk" />
+        </div>
+      </div>
+    </details>
   );
 }
 
@@ -316,23 +349,7 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
       <AiStatusLine state={state} at="actions" />
       <p class="hint">{t.hostHint}</p>
 
-      {/* 下面两项即改即存，不归「保存并授权」管，排在按钮后面。 */}
-      <EffortBlock state={state} />
-
-      <div>
-        <label class="field">
-          <span class="field-label">{t.chunk}</span>
-          <select class="input" id="analysisChunkMode" value={saved.analysisChunkMode} onChange={(event) => void state.saveInstant({ analysisChunkMode: event.currentTarget.value })}>
-            {(Object.keys(ANALYSIS_CHUNK_MODES) as AnalysisChunkMode[]).map((mode) => (
-              <option key={mode} value={mode}>
-                {t.chunks[mode]}
-              </option>
-            ))}
-          </select>
-          <span class="field-hint">{t.chunkHint}</span>
-        </label>
-        <AiStatusLine state={state} at="chunk" />
-      </div>
+      <AdvancedBlock state={state} saved={saved} />
     </section>
   );
 }

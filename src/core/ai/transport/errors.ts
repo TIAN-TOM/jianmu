@@ -46,11 +46,16 @@ function saidOf(error: AiErrorLike, lang: OutputLang): string {
   return serviceWords(raw, lang);
 }
 
-export function taskCanceledError(): TransportError {
-  const { message, messageEn, messageHant } = transportBoth((text) => text.canceled);
+// 简幕自己报的传输错误：三种语言的文案取自同一处，附上错误码。
+export function transportError(code: string, pick: Parameters<typeof transportBoth>[0]): TransportError {
+  const { message, messageEn, messageHant } = transportBoth(pick);
   const error: TransportError = withEnglish(new Error(message), messageEn, messageHant);
-  error.code = "TASK_CANCELED";
+  error.code = code;
   return error;
+}
+
+export function taskCanceledError(): TransportError {
+  return transportError("TASK_CANCELED", (text) => text.canceled);
 }
 
 export function throwIfTaskCanceled(signal: AbortSignal | undefined): void {
@@ -59,10 +64,7 @@ export function throwIfTaskCanceled(signal: AbortSignal | undefined): void {
 
 // 拒绝回答改配置也救不了，重试只会再付一次费，直接报给用户。
 export function refusedError(reason: string): TransportError {
-  const { message, messageEn, messageHant } = transportBoth((text) => (reason ? text.refusedWith(reason) : text.refused));
-  const error: TransportError = withEnglish(new Error(message), messageEn, messageHant);
-  error.code = "AI_REFUSED";
-  return error;
+  return transportError("AI_REFUSED", (text) => (reason ? text.refusedWith(reason) : text.refused));
 }
 
 /** 把模型服务的错误翻译成用户能看懂、且知道下一步该干什么的提示。message 按 lang 写，不传时是中文。 */

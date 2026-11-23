@@ -246,7 +246,7 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
             {hasChapters ? (
               <>
                 {failures > 0 ? (
-                  <Button onClick={() => void panel.overview.retryFailed()} disabled={!ready} {...(notReady ? { disabledReason: notReady } : {})} note={t.retryFailedNote}>
+                  <Button onClick={() => void panel.overview.retryFailed()} disabled={!ready} {...(notReady ? { disabledReason: notReady } : {})}>
                     {t.retryFailed}
                   </Button>
                 ) : null}
@@ -255,7 +255,7 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
                 </Button>
               </>
             ) : (
-              <Button variant="primary" onClick={() => void panel.overview.generate(false)} disabled={!ready || transcript.state !== "ready"} {...(notReady ? { disabledReason: notReady } : transcript.state !== "ready" ? { disabledReason: t.needTranscript } : {})} note={t.generateNote}>
+              <Button variant="primary" onClick={() => void panel.overview.generate(false)} disabled={!ready || transcript.state !== "ready"} {...(notReady ? { disabledReason: notReady } : transcript.state !== "ready" ? { disabledReason: t.needTranscript } : {})}>
                 {t.generate}
               </Button>
             )}

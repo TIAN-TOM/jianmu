@@ -14,7 +14,6 @@ export const OPTIONS_EN: OptionsText = {
 
   appearance: {
     title: "Appearance",
-    intro: "Applies to the side panel, the video page card and this page on this computer. Changes take effect straight away, so there's no need to click “Save and authorise”. Language sets both the interface text and what the model writes.",
     theme: "Theme",
     themes: {
       ink: { name: "Paper and ink", note: "Teal on warm white" },
@@ -26,33 +25,32 @@ export const OPTIONS_EN: OptionsText = {
     modeHint: "The video page card follows the video page, not this setting.",
     fontSize: "Text size",
     fontSizes: { 100: "Standard", 112: "Large", 125: "Extra large" },
-    fontHint: "Subtitles, overviews and notes scale with it.",
     language: "Language",
     followBrowser: "Match browser",
-    languageHint: "The interface switches straight away. New overviews, answers and explanations are written in this language. Ones you already have stay as they are.",
+    languageHint: "New overviews, answers and explanations are written in this language. Ones you already have stay as they are.",
   },
 
   card: {
     title: "Video page",
-    hint: "The card sits above the danmaku list and shows Bilibili's official summary and any overview you've generated. You can collapse it or open the side panel from it. With the card off, the video page only keeps the notes icon, which appears when you hover over the player, and you open the side panel from the extension icon in the browser toolbar. Changes take effect straight away.",
+    hint: "With the card off, open the side panel from the Jianmu icon in the browser toolbar.",
     toggle: "Show the summary card beside the video",
   },
 
   triage: {
     title: "Watch Later triage",
-    hint: "Opens your Bilibili Watch Later list in a new tab. See what each video covers from its official summary first, then spend API credit on a one-line verdict when you need one. Group videos by verdict and export the list. Loading the list and the official summaries doesn't call the model.",
+    hint: "Reads your Bilibili Watch Later list, groups videos by verdict and exports the list. Loading the list and the official summaries doesn't use API credit.",
     open: "Open Watch Later triage",
   },
 
   data: {
     title: "Saved data",
-    hint: "Notes, overviews and Q&A history are stored only on this computer, and the browser removes them when you uninstall the extension. A backup includes notes, overviews, Q&A history, translations and tidied subtitles. It leaves out your API key, settings and imported subtitle files. Restoring merges the backup with what's already here. When an item exists in both, the more recently updated one wins. Translations only fill in missing segments, and nothing that exists only on this computer is deleted.",
+    hint: "Stored only on this computer. A backup leaves out your API key, settings and imported subtitle files. Restoring merges with what's already here, and nothing that exists only on this computer is deleted.",
     exporting: "Exporting…",
     export: "Export backup",
     importing: "Restoring…",
     import: "Restore backup",
     clearTitle: "Clear local data",
-    clearHint: "“Clear cache” removes cached subtitles and video details, plus the list loaded by Watch Later triage. Notes, imported subtitle files, saved overviews and Q&A, and settings are kept. “Clear all data” removes everything Jianmu stores on this computer, including notes, overviews, Q&A, imported subtitle files, settings and your API key. This can't be undone, so export a backup first if there's anything you want to keep. Overviews and answers being generated are stopped first.",
+    clearHint: "“Clear cache” keeps your notes, overviews, Q&A and settings. “Clear all data” can't be undone, so export a backup first if there's anything you want to keep.",
     clearCache: "Clear cache",
     clearCacheQuestion: "Clear cached subtitles and video details, plus the Watch Later triage list? Notes, overviews, Q&A and settings are kept.",
     clearCacheConfirm: "Clear cache",
@@ -73,7 +71,7 @@ export const OPTIONS_EN: OptionsText = {
 
   modes: {
     title: "Skim and Study",
-    hint: "When you open a video, Jianmu uses the mode you picked for it this time, then the one you picked for that creator. If there's neither, it goes by length: videos under 5 minutes open in Study and the rest in Skim. Switch modes at the top of the side panel and Jianmu remembers the choice for that creator. If a long video plays for a full minute in Skim, it moves to Study, and you can undo that.",
+    hint: "Videos under 5 minutes open in Study and the rest in Skim. A long video that plays for a full minute in Skim moves to Study, and you can undo that. Switch modes once at the top of the side panel and Jianmu remembers the choice for that creator.",
     clear: "Forget saved creators",
     clearQuestion: "Videos from these creators will go back to picking the mode by length.",
     clearConfirm: "Forget",
@@ -83,10 +81,10 @@ export const OPTIONS_EN: OptionsText = {
 
   ai: {
     title: "AI service",
-    hint: "Translation, overviews, selection explanations, note polishing and Q&A use a large language model. Pick a provider and enter your own API key and a model name. The address is built in. For a service that isn't listed, choose “Custom” and enter the address and protocol yourself. Your key is only sent to the provider you choose.",
+    hint: "Pick a provider and enter your API key and a model name. For a service that isn't listed, choose “Custom”. Your key is only sent to the provider you choose.",
     regionTitle: "Pick a starting point",
     regions: { domestic: "Services in China", overseas: "International services" },
-    regionHint: "This just fills in a provider for you. You can also pick one from the list below. Whether you can open an account, and where your data is stored, depends on each provider.",
+    regionHint: "This just fills in a provider below. Where your data is stored depends on each provider.",
     provider: "Provider",
     presets: {
       anthropic: "Anthropic Claude",
@@ -109,24 +107,24 @@ export const OPTIONS_EN: OptionsText = {
       "openai-responses": "OpenAI Responses (official OpenAI)",
       anthropic: "Anthropic (Claude)",
     },
-    protocolHint: "Apart from Anthropic, most major services use the OpenAI-compatible protocol. If you're not sure, choose that.",
+    protocolHint: "If you're not sure, choose OpenAI-compatible.",
     baseUrl: "API address",
     baseUrlHint: "Enter it up to the version number. Only https is accepted, except for services running on this computer (localhost or 127.0.0.1), which can use http.",
     apiKey: "API key",
     clearKey: "Clear key",
     clearKeyQuestion: "Delete the saved API key? The copy in this session and any copy remembered on this computer will both be deleted. You'll need to enter it again to use AI features.",
     clearKeyConfirm: "Delete key",
-    keyHint: "By default the key is kept only in memory for this browser session and never written to disk. You'll need to enter it again after restarting the browser, or after the extension is turned off, reloaded or updated. If a service on this computer doesn't need a key, leave this blank.",
+    keyHint: "By default the key is kept only for this browser session and never written to disk. You'll need to enter it again after restarting the browser, or after the extension is reloaded or updated. If a service on this computer doesn't need a key, leave this blank.",
     remember: "Remember the key on this computer",
-    rememberHint: "Once you tick this and click “Save and authorise”, the key is stored unencrypted in the extension's storage on this computer and keeps working after a browser restart. Any program or person that can read this computer's browser data could get the key, so don't turn this on for a shared computer. If you're worried it has leaked, revoke the key in your provider's dashboard. Unticking deletes the copy on this computer straight away and keeps the key for this session only. The key is never included in backups or synced with your browser account.",
+    rememberHint: "The key is stored unencrypted in the extension's storage on this computer and keeps working after a browser restart. Any program or person that can read this computer's browser data could get the key, so don't turn this on for a shared computer. Unticking deletes the copy on this computer straight away. The key is never included in backups or synced with your browser account.",
     model: "Model",
     modelPlaceholder: "Enter a model name, or fetch the list with the button on the right",
     modelPick: "Choose from fetched models",
     fetching: "Fetching…",
     fetch: "Fetch model list",
-    modelHint: "Fetching saves the form first, then asks the provider which models are available.",
+    modelHint: "Fetching saves the form first.",
     featureModels: "Models per feature (optional)",
-    featureHint: "With the same provider and key, you can pick a different model for individual features. Leave a field blank to use the default model above. Short tasks like one-line verdicts, translation and selection explanations can use a faster, cheaper model. A more capable model works better for overviews and Q&A. These are cleared when you change provider.",
+    featureHint: "Leave a field blank to use the default model above. One-line verdicts, translation and selection explanations can use a faster, cheaper model. These are cleared when you change provider.",
     featurePick: (feature) => `${feature}: choose from fetched models`,
     slots: {
       analysis: "Overview",
@@ -143,7 +141,8 @@ export const OPTIONS_EN: OptionsText = {
     testing: "Testing…",
     test: "Test connection",
     testAll: "Test all models",
-    hostHint: "When you click “Save and authorise”, the browser asks whether Jianmu may access your chosen provider's domain. The extension can't know at install time which service you'll use, so it asks once you've chosen, and only for that one domain.",
+    hostHint: "When you save, the browser asks whether Jianmu may access your chosen provider's domain. It asks for that one domain only.",
+    advanced: "Advanced (reasoning effort, overview chunk size)",
     chunk: "Overview chunk size",
     chunks: {
       auto: "Automatic (recommended)",
@@ -151,7 +150,7 @@ export const OPTIONS_EN: OptionsText = {
       long: "Longer: fewer requests, faster",
       whole: "Whole video where possible: fewest requests and best-connected chapters, needs a long-context model, more likely to time out",
     },
-    chunkHint: "Automatic suits most models. Choose “Shorter” if the model has a small context window, the overview misses things, or requests for long videos time out (each request is limited to 120 seconds, or 180 and 300 seconds with medium and high reasoning effort). If the model's context is long enough to hold tens of thousands of words, try “Whole video where possible”. Most videos are then done in one request, but timeouts are more likely, so switch back if they happen. Changes take effect straight away, so there's no need to click “Save and authorise”.",
+    chunkHint: "Automatic suits most models. Choose “Shorter” if the overview misses things or requests time out. If the model's context is long enough, try “Whole video where possible”, and switch back if requests time out. Changes take effect straight away.",
   },
 
   consent: {
@@ -166,7 +165,7 @@ export const OPTIONS_EN: OptionsText = {
 
   efforts: {
     title: "Reasoning effort",
-    hint: "Higher levels let the model think for longer, which costs more and takes more time. If a service or model doesn't support a level, the closest one is used and noted beside it. Changes take effect straight away, so there's no need to click “Save and authorise”.",
+    hint: "Higher levels let the model think for longer, which costs more and takes more time. If a model doesn't support a level, the closest one is used and noted beside it. Changes take effect straight away.",
     pending: "You've changed the provider or model. The actual levels will show once you save.",
     labels: { off: "Off", low: "Low", medium: "Medium", high: "High" },
     cannotDisable: (lowest) => `This model can't turn thinking off, so the lowest level, “${lowest}”, is used`,
@@ -187,8 +186,8 @@ export const OPTIONS_EN: OptionsText = {
 
   auto: {
     title: "Verdict on open",
-    hint: "When this is on, opening a Bilibili video, or a YouTube video once YouTube is turned on, that runs longer than the set length automatically calls your AI service to write an overview and a one-line verdict, shown on the video page card. Tabs opened in the background that you haven't looked at yet are queued too, including ones already open when you turn this on, and the video you're watching goes first. Each video uses your API credit, so the more tabs you open at once, the more you spend. Up to two are generated at a time, and no more than 40 every 10 minutes. Videos in other languages aren't translated automatically.",
-    instant: "Changes take effect straight away, so there's no need to click “Save and authorise”.",
+    hint: "When this is on, a video longer than the set length gets an overview and a one-line verdict as soon as you open it, shown on the video page card. Tabs opened in the background are queued too, including ones already open when you turn this on. Each video uses your API credit, so the more tabs you open, the more you spend. Up to two are generated at a time, and no more than 40 every 10 minutes. Videos in other languages aren't translated automatically.",
+    instant: "Changes take effect straight away.",
     toggle: "Write an overview and verdict when I open a video",
     askLabel: "Agree to the data notice before turning this on",
     askUpdated: "The data notice has changed. Agree to what's new before turning this on:",

@@ -9,11 +9,9 @@ import {
   rejectRedirect,
   type ChatRequest,
   type Protocol,
-  withEnglish,
 } from "../provider/index.ts";
 import { parseErrorEnvelope, parseResponseEnvelope, streamFailureStatus } from "./envelope.ts";
-import { taskCanceledError } from "./errors.ts";
-import { transportBoth } from "./text.ts";
+import { taskCanceledError, transportError } from "./errors.ts";
 import { BUSY_RETRY_MAX_WAIT_MS, BUSY_RETRY_STATUSES, MODEL_UNAVAILABLE, QUOTA_EXHAUSTED, retryAfterMsOf } from "./policy.ts";
 import type { AiFetch, SendSettings, TransportError, TransportResponse } from "./types.ts";
 
@@ -46,25 +44,17 @@ export function createAiSender({
     request: ChatRequest,
     externalSignal?: AbortSignal,
   ): Promise<unknown> {
-    const controller = new AbortController();
-    let timeoutKind = "";
+    // 外部取消、空闲超时、硬超时各占一路，合成一个信号交给 fetch；合并信号的 reason 是最先中止那一路的，据此认出是谁。
+    // 硬超时用清得掉的定时器而不是 AbortSignal.timeout：请求一结束就撤掉，不留一个几分钟后才到点的计时。
+    const idle = new AbortController();
+    const hard = new AbortController();
+    const signal = AbortSignal.any(externalSignal ? [externalSignal, idle.signal, hard.signal] : [idle.signal, hard.signal]);
     let idleTimer: ReturnType<typeof setTimeout> | undefined;
-    let hardTimer: ReturnType<typeof setTimeout> | undefined;
-
-    const abortFor = (kind: string): void => {
-      if (controller.signal.aborted) return;
-      timeoutKind = kind;
-      controller.abort();
-    };
-    const onExternalAbort = (): void => abortFor("external");
-    if (externalSignal?.aborted) onExternalAbort();
-    else externalSignal?.addEventListener("abort", onExternalAbort, { once: true });
+    const hardTimer = setTimeout(() => hard.abort(), timeoutMs);
     const resetIdleTimer = (): void => {
       clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => abortFor("idle"), idleTimeoutMs);
+      idleTimer = setTimeout(() => idle.abort(), idleTimeoutMs);
     };
-
-    hardTimer = setTimeout(() => abortFor("hard"), timeoutMs);
     // 空闲计时绝不能在这里起表：非流式请求在模型生成完之前一个字节都不会到，
     // 提前起表等于把「模型在慢慢想」当成「服务端死了」。这一段只由硬超时负责。
 
@@ -74,7 +64,7 @@ export function createAiSender({
         headers: request.headers,
         body: JSON.stringify(request.body),
         redirect: KEYED_FETCH_REDIRECT,
-        signal: controller.signal,
+        signal,
       });
       rejectRedirect(response, settings.aiBaseUrl);
       // 响应头到了，body 应连续到达，空闲超时从这一刻起才有判断力。
@@ -111,31 +101,16 @@ export function createAiSender({
 
       return data;
     } catch (error) {
-      if (timeoutKind === "external" || externalSignal?.aborted) {
-        throw taskCanceledError();
-      }
-      if (timeoutKind === "idle") {
-        const { message, messageEn, messageHant } = transportBoth((text) => text.idleTimeout);
-        const timeout: TransportError = withEnglish(new Error(message), messageEn, messageHant);
-        timeout.code = "AI_IDLE_TIMEOUT";
-        throw timeout;
-      }
-      if (timeoutKind === "hard") {
-        const { message, messageEn, messageHant } = transportBoth((text) => text.hardTimeout(Math.round(timeoutMs / 1000)));
-        const timeout: TransportError = withEnglish(new Error(message), messageEn, messageHant);
-        timeout.code = "AI_HARD_TIMEOUT";
-        throw timeout;
+      if (externalSignal?.aborted) throw taskCanceledError();
+      if (signal.aborted && signal.reason === idle.signal.reason) throw transportError("AI_IDLE_TIMEOUT", (text) => text.idleTimeout);
+      if (signal.aborted && signal.reason === hard.signal.reason) {
+        throw transportError("AI_HARD_TIMEOUT", (text) => text.hardTimeout(Math.round(timeoutMs / 1000)));
       }
       // fetch 对跨域被拒和网络不通都只抛笼统的 TypeError，给一句能指导下一步的提示。
-      if (error instanceof TypeError) {
-        const { message, messageEn, messageHant } = transportBoth((text) => text.network(String(settings.aiBaseUrl)));
-        const network: TransportError = withEnglish(new Error(message), messageEn, messageHant);
-        network.code = "AI_NETWORK_ERROR";
-        throw network;
-      }
+      if (error instanceof TypeError) throw transportError("AI_NETWORK_ERROR", (text) => text.network(String(settings.aiBaseUrl)));
       throw error;
     } finally {
-      externalSignal?.removeEventListener("abort", onExternalAbort);
+      // 成功失败都清掉两个定时器，不让请求结束后还有一路自己中止。
       clearTimeout(idleTimer);
       clearTimeout(hardTimer);
     }
@@ -176,10 +151,7 @@ export function createAiSender({
       bytes += value?.byteLength ?? 0;
       if (bytes > maxResponseBytes) {
         await reader.cancel?.().catch(() => {});
-        const { message, messageEn, messageHant } = transportBoth((text) => text.tooLarge);
-        const error: TransportError = withEnglish(new Error(message), messageEn, messageHant);
-        error.code = "AI_RESPONSE_TOO_LARGE";
-        throw error;
+        throw transportError("AI_RESPONSE_TOO_LARGE", (text) => text.tooLarge);
       }
       text += decoder.decode(value, { stream: true });
     }

@@ -251,6 +251,14 @@ details.field[open] {
   gap: var(--space-3);
 }
 
+/* 折叠里几块之间的间隔，和卡片里各块之间一样大；和标题之间隔一小段。 */
+.fold-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+}
+
 .feature-row {
   display: grid;
   grid-template-columns: 7rem minmax(0, 1fr);

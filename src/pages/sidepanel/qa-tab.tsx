@@ -111,7 +111,7 @@ export function QaTab({ panel }: { readonly panel: Panel }) {
         ))}
       </ol>
       {state.loaded && state.entries.length === 0 && state.pending.length === 0 ? (
-        <StateBlock title={t.emptyTitle} impact={t.emptyImpact} />
+        <StateBlock title={t.emptyTitle} />
       ) : null}
     </div>
   );

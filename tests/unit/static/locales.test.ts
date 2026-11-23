@@ -17,12 +17,12 @@ const ENGLISH = {
   actionTitle: "Open Jianmu",
 };
 const CHINESE = {
-  extensionName: "简幕：AI 视频速览与学习助手",
+  extensionName: "简幕：AI 视频速读与学习助手",
   extensionDescription: "几分钟判断一个 B 站或 YouTube 长视频值不值得看、重点看哪段；决定看了，再陪你精读。",
   actionTitle: "打开简幕",
 };
 const TRADITIONAL = {
-  extensionName: "簡幕：AI 影片速覽與學習助手",
+  extensionName: "簡幕：AI 影片速讀與學習助手",
   extensionDescription: "幾分鐘判斷一部 B 站或 YouTube 長影片值不值得看、重點看哪段；決定看了，再陪你精讀。",
   actionTitle: "打開簡幕",
 };

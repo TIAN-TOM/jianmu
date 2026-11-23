@@ -4,15 +4,11 @@ import { validateAnalysis, type Analysis } from "./validate.ts";
 
 // 元数据里的时长有时缺失或不准，取「元数据时长」与「字幕最后一个时间戳」的较大值。
 export function analysisTimingVariables(
-  transcriptTextTimestamped: string | null | undefined,
+  transcriptTextTimestamped: string,
   videoDuration: unknown,
 ): { maxTimestampSeconds: number; durationFormatted: string; lateThreshold: string } {
-  const stamps = String(transcriptTextTimestamped || "").match(/\[(\d+):(\d{2})\]/g) || [];
-  let lastTranscriptSeconds = 0;
-  const last = stamps[stamps.length - 1]?.match(/\[(\d+):(\d{2})\]/);
-  if (last) {
-    lastTranscriptSeconds = Number(last[1]) * 60 + Number(last[2]);
-  }
+  const last = [...transcriptTextTimestamped.matchAll(/\[(\d+):(\d{2})\]/g)].at(-1);
+  const lastTranscriptSeconds = last ? Number(last[1]) * 60 + Number(last[2]) : 0;
 
   const effectiveSeconds = Math.max(
     Math.floor(Number(videoDuration) || 0),
@@ -132,12 +128,12 @@ export function planAnalysisChunks<T extends AnalysisSegment>(
 // 取一组分段末尾约 chars 个字，用作下一块的前情。至少给一段，
 // 否则正好卡在边界的那句话反而是最缺上下文的一句。
 function tailSegments<T extends AnalysisSegment>(group: readonly T[] | undefined, chars: number): T[] {
-  if (!Array.isArray(group) || !group.length || chars <= 0) return [];
+  if (!group?.length || chars <= 0) return [];
   const tail: T[] = [];
   let total = 0;
-  for (let i = group.length - 1; i >= 0; i--) {
-    tail.unshift(group[i]);
-    total += group[i].text.length;
+  for (const segment of [...group].reverse()) {
+    tail.unshift(segment);
+    total += segment.text.length;
     if (total >= chars) break;
   }
   return tail;
@@ -222,44 +218,42 @@ export interface StoredRange {
   readonly endSeconds?: unknown;
 }
 
-type Chunks = readonly (ChunkSpan | null | undefined)[] | null | undefined;
-type ChunkResults = readonly (ChunkResult | null | undefined)[] | null | undefined;
-type StoredRanges = readonly (StoredRange | null | undefined)[] | null | undefined;
+// 存过的区间读成确定的起止秒数：起点缺了或不是数字按 0，终点缺了、不是数字或早于起点按起点。
+function storedSpan(range: StoredRange): { start: number; end: number } {
+  const start = Math.max(0, Number(range.startSeconds) || 0);
+  return { start, end: Math.max(start, Number(range.endSeconds) || start) };
+}
 
 /**
  * describe（可选）把失败原因翻译成给人看的一句话，记进区间里。
  * 不记的话，事后只知道哪一段失败了，查不到为什么。
  */
 export function chunkFailureRanges(
-  chunks: Chunks,
-  results: ChunkResults,
+  chunks: readonly ChunkSpan[],
+  results: readonly ChunkResult[],
   describe?: (reason: unknown) => unknown,
 ): FailureRange[] {
-  const list: readonly (ChunkResult | null | undefined)[] = Array.isArray(results) ? results : [];
-  return list
-    .map((result, index) => {
-      if (result?.status !== "rejected") return null;
-      const chunk = chunks?.[index];
-      if (!chunk) return null;
-      const range: FailureRange = {
-        index: chunk.index,
-        startSeconds: chunk.startSeconds,
-        endSeconds: chunk.endSeconds,
-      };
-      if (typeof describe === "function") {
-        let reason = "";
-        try {
-          reason = String(describe(result.reason) || "");
-        } catch {
-          reason = "";
-        }
-        const error = result.reason as { readonly message?: unknown } | null | undefined;
-        reason = (reason || String(error?.message || "")).trim().slice(0, 200);
-        if (reason) range.reason = reason;
+  return results.flatMap((result, index) => {
+    const chunk = chunks[index];
+    if (result.status !== "rejected" || !chunk) return [];
+    const range: FailureRange = {
+      index: chunk.index,
+      startSeconds: chunk.startSeconds,
+      endSeconds: chunk.endSeconds,
+    };
+    if (describe) {
+      let reason = "";
+      try {
+        reason = String(describe(result.reason) || "");
+      } catch {
+        reason = "";
       }
-      return range;
-    })
-    .filter((range) => range !== null);
+      const error = result.reason as { readonly message?: unknown } | null | undefined;
+      reason = (reason || String(error?.message || "")).trim().slice(0, 200);
+      if (reason) range.reason = reason;
+    }
+    return [range];
+  });
 }
 
 /**
@@ -267,16 +261,12 @@ export function chunkFailureRanges(
  * 记下时间区间随概览保存，界面据此提示「这部分内容可能不完整」。
  * 只看成功的块；截断后一条有效条目都没有的块已经记成失败块了。
  */
-export function truncatedChunkRanges(chunks: Chunks, results: ChunkResults): TimeRange[] {
-  const list: readonly (ChunkResult | null | undefined)[] = Array.isArray(results) ? results : [];
-  return list
-    .map((result, index) => {
-      if (result?.status !== "fulfilled" || !result.value?.truncated) return null;
-      const chunk = chunks?.[index];
-      if (!chunk) return null;
-      return { startSeconds: chunk.startSeconds, endSeconds: chunk.endSeconds };
-    })
-    .filter((range) => range !== null);
+export function truncatedChunkRanges(chunks: readonly ChunkSpan[], results: readonly ChunkResult[]): TimeRange[] {
+  return results.flatMap((result, index) => {
+    const chunk = chunks[index];
+    if (result.status !== "fulfilled" || !result.value?.truncated || !chunk) return [];
+    return [{ startSeconds: chunk.startSeconds, endSeconds: chunk.endSeconds }];
+  });
 }
 
 /**
@@ -284,25 +274,22 @@ export function truncatedChunkRanges(chunks: Chunks, results: ChunkResults): Tim
  * 补失败块时先去掉被重试区间里的旧记录，再接上这次重试的结果。
  */
 export function withTruncatedRanges<T extends object>(
-  analysis: T | null | undefined,
-  ranges: readonly StoredRange[] | null | undefined,
-  { replacing = [] }: { readonly replacing?: StoredRanges } = {},
+  analysis: T,
+  ranges: readonly StoredRange[],
+  { replacing = [] }: { readonly replacing?: readonly TimeRange[] } = {},
 ): Omit<T, "truncatedRanges"> & { truncatedRanges?: StoredRange[] } {
-  const { truncatedRanges: previous, ...rest } = (analysis || {}) as T & { readonly truncatedRanges?: unknown };
+  const { truncatedRanges: previous, ...rest } = analysis as T & { readonly truncatedRanges?: unknown };
+  // 概览里存着的区间可能是脏数据：不是对象的丢掉，起止按原值比较，读不成数字的不算重叠、照样留着。
   const stored: readonly (StoredRange | null | undefined)[] = Array.isArray(previous) ? previous : [];
-  const replaced: readonly (StoredRange | null | undefined)[] = Array.isArray(replacing) ? replacing : [];
   const kept = stored.filter(
     (range): range is StoredRange =>
       Boolean(range) &&
       typeof range === "object" &&
-      !replaced.some(
-        (chunk) =>
-          Number(range?.startSeconds) < Number(chunk?.endSeconds) &&
-          Number(range?.endSeconds) > Number(chunk?.startSeconds),
+      !replacing.some(
+        (chunk) => Number(range?.startSeconds) < chunk.endSeconds && Number(range?.endSeconds) > chunk.startSeconds,
       ),
   );
-  const added: readonly StoredRange[] = Array.isArray(ranges) ? ranges : [];
-  const merged = [...kept, ...added].sort(
+  const merged = [...kept, ...ranges].sort(
     (left, right) => Number(left.startSeconds) - Number(right.startSeconds),
   );
   return (merged.length ? { ...rest, truncatedRanges: merged } : rest) as Omit<T, "truncatedRanges"> & {
@@ -311,20 +298,15 @@ export function withTruncatedRanges<T extends object>(
 }
 
 export function chunksForFailureRanges<T extends ChunkSpan>(
-  chunks: readonly T[] | null | undefined,
-  ranges: StoredRanges,
+  chunks: readonly T[],
+  ranges: readonly StoredRange[],
 ): T[] {
-  const list: readonly T[] = Array.isArray(chunks) ? chunks : [];
-  const stored: readonly (StoredRange | null | undefined)[] = Array.isArray(ranges) ? ranges : [];
-  const fails = stored.filter((range): range is StoredRange => Boolean(range) && typeof range === "object");
-  if (!fails.length) return [];
-  return list.filter((chunk) =>
-    fails.some((range) => {
+  return chunks.filter((chunk) =>
+    ranges.some((range) => {
       if (Number(range.index) === chunk.index && Number(range.startSeconds) === chunk.startSeconds) {
         return true;
       }
-      const start = Math.max(0, Number(range.startSeconds) || 0);
-      const end = Math.max(start, Number(range.endSeconds) || start);
+      const { start, end } = storedSpan(range);
       // 上界取严格小于：切段允许同一秒内开新块，邻居块的 startSeconds
       // 可能与失败块 endSeconds 相同——包含式判断会把没失败的邻居连带
       // 选中，重试合并时把它的好章节一并删掉。失败块自身命中走上面的
@@ -334,13 +316,11 @@ export function chunksForFailureRanges<T extends ChunkSpan>(
   );
 }
 
-function timestampInRanges(seconds: unknown, ranges: StoredRanges): boolean {
+function timestampInRanges(seconds: unknown, ranges: readonly StoredRange[]): boolean {
   const value = Number(seconds);
   if (!Number.isFinite(value)) return false;
-  const list: readonly (StoredRange | null | undefined)[] = Array.isArray(ranges) ? ranges : [];
-  return list.some((range) => {
-    const start = Math.max(0, Number(range?.startSeconds) || 0);
-    const end = Math.max(start, Number(range?.endSeconds) || start);
+  return ranges.some((range) => {
+    const { start, end } = storedSpan(range);
     // 上界严格小于：区间端点可能与相邻块的起始秒重合，包含式判断会把
     // 没有失败、也没被重试的邻居章节连带删掉。被重试块自己的边界章节
     // 不会被误删——重试结果在 mergeAnalyses 里按精确秒去重。
@@ -350,8 +330,8 @@ function timestampInRanges(seconds: unknown, ranges: StoredRanges): boolean {
 
 export function mergeRetryIntoAnalysis(
   existing: AnalysisPart | null | undefined,
-  incomingParts: readonly (AnalysisPart | null | undefined)[] | null | undefined,
-  retriedRanges: StoredRanges,
+  incomingParts: readonly (AnalysisPart | null | undefined)[],
+  retriedRanges: readonly StoredRange[],
   maxSeconds: unknown,
 ): Analysis {
   const current: AnalysisPart = existing && typeof existing === "object" ? existing : {};
@@ -363,7 +343,7 @@ export function mergeRetryIntoAnalysis(
       (item) => !timestampInRanges(item?.timestampSeconds, retriedRanges),
     ),
   };
-  return mergeAnalyses([kept, ...(Array.isArray(incomingParts) ? incomingParts : [])], maxSeconds);
+  return mergeAnalyses([kept, ...incomingParts], maxSeconds);
 }
 
 interface Timed {
@@ -397,11 +377,9 @@ export function groupQuotesIntoChapters<C extends Timed, Q extends Timed>(
 
   for (const quote of quoteList) {
     const seconds = Number(quote.timestampSeconds);
-    let owner = -1;
-    for (let i = 0; i < chapterList.length; i += 1) {
-      if (Number(chapterList[i]?.timestampSeconds) <= seconds) owner = i;
-      else break;
-    }
+    // 从头数起，停在第一个晚于金句的章节，前一个就是归属；章节没排好序时也不往后跳。
+    const after = chapterList.findIndex((chapter) => Number(chapter.timestampSeconds) > seconds);
+    const owner = (after < 0 ? chapterList.length : after) - 1;
     if (owner >= 0) grouped[owner]?.quotes.push(quote);
     else orphans.push(quote);
   }

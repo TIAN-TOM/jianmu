@@ -1,16 +1,12 @@
-// 回答引文、字幕原句和可跳转的时间点。超过一小时继续用分钟计时。
+// 回答里的时间点：切成可跳转的片段，用短引核对字幕原句。超过一小时继续用分钟计时。
+import { formatTimestamp } from "../transcript/segment.ts";
 
 export interface TimeSpan {
   readonly min: number;
   readonly max: number;
 }
 
-/** 引用校验的合法区间；带 ranges 时要落在其中一段里。 */
-export interface CitationRange extends TimeSpan {
-  readonly ranges?: readonly TimeSpan[];
-}
-
-export interface FoundTimestamp {
+interface FoundTimestamp {
   readonly raw: string;
   readonly seconds: number;
 }
@@ -34,15 +30,10 @@ export interface Citation {
 
 /** "03:12" → 192；非法输入返回 null。分钟数不设上限：超长直播回放的
  *  formatTimestamp 会产出 1000:30 这种四位分钟，正则必须接得住。 */
-export function timestampToSeconds(token: string | null | undefined): number | null {
+function timestampToSeconds(token: string | null | undefined): number | null {
   const match = /^(\d{1,5}):([0-5]\d)$/.exec(String(token || "").trim());
   if (!match) return null;
   return Number(match[1]) * 60 + Number(match[2]);
-}
-
-export function secondsToTimestamp(seconds: number): string {
-  const value = Math.max(0, Math.floor(Number(seconds) || 0));
-  return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, "0")}`;
 }
 
 // 回答正文里的时间戳 token：单点 [M:SS] 或区间 [M:SS-M:SS]。
@@ -50,7 +41,7 @@ export function secondsToTimestamp(seconds: number): string {
 const TIMESTAMP_TOKEN = /\[(\d{1,5}:[0-5]\d)(?:-(\d{1,5}:[0-5]\d))?\]/g;
 
 /** 找出回答文本里的全部时间戳（区间取起点），非法 token 跳过。 */
-export function extractTimestamps(text: string | null | undefined): FoundTimestamp[] {
+function extractTimestamps(text: string | null | undefined): FoundTimestamp[] {
   const source = String(text || "");
   const found: FoundTimestamp[] = [];
   for (const match of source.matchAll(TIMESTAMP_TOKEN)) {
@@ -86,73 +77,6 @@ export function splitAnswerByTimestamps(answer: string | null | undefined): Answ
   return segments;
 }
 
-// range 带 ranges 时（问答只选了部分不相邻的块）要落在其中一段里。
-function isWithin(seconds: number, range: CitationRange | null | undefined): boolean {
-  if (!range) return true;
-  const inside = (part: TimeSpan): boolean =>
-    seconds >= Math.floor(part.min) && seconds <= Math.ceil(part.max);
-  if (!Number.isFinite(seconds)) return false;
-  if (Array.isArray(range.ranges) && range.ranges.length) return range.ranges.some(inside);
-  return inside(range);
-}
-
-/**
- * 从回答正文提取合法时间戳，并本地查出对应字幕原句作为依据。
- * 按播放位置取当时的字幕，不验证它能否支撑回答；
- * 越界的时间戳不生成依据条目，渲染时也不可点击。
- *
- * entries: 字幕原文 [{start, text}]
- * 返回 [{startSeconds, quote}]，按时间升序、同一秒去重。
- */
-export function buildCitationsFromAnswer(
-  answer: string | null | undefined,
-  entries: readonly CitationEntry[] | null | undefined,
-  timeRange?: CitationRange | null,
-): Citation[] {
-  const list: readonly CitationEntry[] = Array.isArray(entries) ? entries : [];
-  if (!list.length) return [];
-  const at = (seconds: number): string => {
-    // 按播放位置查字幕时，片头的空白沿用第一句。
-    if (seconds < Math.floor(Number(list[0]?.start) || 0)) return String(list[0]?.text || "").trim();
-    for (let i = 0; i < list.length; i += 1) {
-      const start = Math.floor(Number(list[i]?.start) || 0);
-      const next = Math.floor(Number(list[i + 1]?.start) || Infinity);
-      if (seconds >= start && seconds < next) return String(list[i]?.text || "").trim();
-    }
-    const last = list[list.length - 1];
-    return last ? String(last.text || "").trim() : "";
-  };
-
-  const seen = new Set<number>();
-  const citations: Citation[] = [];
-  for (const item of extractTimestamps(answer)) {
-    if (!isWithin(item.seconds, timeRange) || seen.has(item.seconds)) continue;
-    seen.add(item.seconds);
-    const quote = at(item.seconds);
-    if (!quote) continue;
-    citations.push({
-      startSeconds: item.seconds,
-      quote,
-    });
-  }
-  return citations.sort((a, b) => a.startSeconds - b.startSeconds);
-}
-
-/**
- * 回答正文里的 [M:SS] 哪些可以做成可点击跳转：必须落在合法区间内。
- * 返回合法秒数的 Set——UI 拿它决定某个 token 渲染成按钮还是纯文本。
- */
-export function clickableTimestamps(
-  answer: string | null | undefined,
-  timeRange?: CitationRange | null,
-): Set<number> {
-  return new Set(
-    extractTimestamps(answer)
-      .filter((item) => isWithin(item.seconds, timeRange))
-      .map((item) => item.seconds),
-  );
-}
-
 /** 将回答里的短引对回本次发出的字幕行，再生成历史记录和界面共用的时间点。 */
 export function groundQaAnswer(answer: string, entries: readonly CitationEntry[]): { answer: string; citations: Citation[] } {
   const rows = entries.map((entry) => ({
@@ -181,7 +105,7 @@ export function groundQaAnswer(answer: string, entries: readonly CitationEntry[]
       }
       const row = candidates[0]!;
       found.push(row);
-      return `[${secondsToTimestamp(row.seconds)}]`;
+      return `[${formatTimestamp(row.seconds)}]`;
     });
     if (invalid || !found.length) continue;
     accepted.push(text);
