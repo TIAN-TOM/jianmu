@@ -22,16 +22,24 @@ export function AiStatusLine({ state, at }: { readonly state: OptionsState; read
   return <StatusLine status={status?.at === at ? status : null} inline={at !== "actions"} at={at} />;
 }
 
-/** 就地确认：点一下换成「确认」和「取消」两个按钮，不弹系统对话框。 */
+/**
+ * 就地确认：点一下换成「确认」和「取消」两个按钮，不弹系统对话框。
+ * 一组里同一时间只许开一个时，由上层传 open 和 onOpenChange；不传就自己记着开没开。
+ * disabled 同时挡住「确认」：操作进行中，开着的确认框也点不中。
+ */
 export function Confirmable(props: {
   readonly label: string;
   readonly question: string;
   readonly confirmLabel: string;
   readonly danger?: boolean;
   readonly disabled?: boolean;
+  readonly open?: boolean;
+  readonly onOpenChange?: (open: boolean) => void;
   readonly onConfirm: () => void;
 }) {
-  const [asking, setAsking] = useState(false);
+  const [ownAsking, setOwnAsking] = useState(false);
+  const asking = props.open ?? ownAsking;
+  const setAsking = props.onOpenChange ?? setOwnAsking;
   if (!asking) {
     return (
       <Button variant={props.danger ? "danger" : "secondary"} disabled={props.disabled} onClick={() => setAsking(true)}>
@@ -45,6 +53,7 @@ export function Confirmable(props: {
       <div class="actions">
         <Button
           variant={props.danger ? "danger" : "primary"}
+          disabled={props.disabled}
           onClick={() => {
             setAsking(false);
             props.onConfirm();

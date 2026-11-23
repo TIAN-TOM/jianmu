@@ -1,6 +1,6 @@
 // 设置页：确认启用之前只有启用说明、资料和「关于」两节，「关于」里的版本号、构建标识和四个链接都对；确认以后能保存服务商、密钥和模型，拉模型列表（状态行说已保存，框里的型号不在列表里时提醒）、测试连接对着模拟的模型服务走通，
 // 密钥只进会话存储；本机 http 地址不填密钥也能保存、拉列表和测试连接，Ollama 预设不填密钥也能保存，本机服务回 403 时报来源被拒；导出的备份清除全部数据后能再导回来，
-// 超过单条消息上限的备份也一样。各测试开头先清除全部数据，从没启用的状态开始。
+// 超过单条消息上限的备份也一样；清除数据的确认框同一时间只开一个。各测试开头先清除全部数据，从没启用的状态开始。
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
@@ -604,6 +604,40 @@ test("设置页：删除全部笔记需要确认，取消保留笔记，确认�
   await chooseBackup(page, `window.__downloads.at(-1)`);
   assert.match(await statusStarts(page, "learning-data", "合并完成"), /笔记新增 1 条/);
   assert.deepEqual((await send(page, "notes.list", {})).value.notes.map((note) => note.text), ["要备份的笔记"]);
+});
+
+test("设置页：清除数据的确认框同一时间只开一个；开着删除笔记再去清缓存，笔记的收回成按钮，在原处连点两下清缓存的确认也删不到笔记", async ({ open }) => {
+  const page = await freshOptions(open);
+  await enable(page);
+  assert.ok((await send(page, "notes.save", { video: VIDEO, atSec: 12, text: "连点也不该删掉的笔记" })).ok);
+  const clickDataButton = async (label) => {
+    await page.waitFor(label, `[...document.querySelectorAll("#learning-data button")].some(button => !button.disabled && button.textContent.trim() === ${JSON.stringify(label)})`);
+    await clickButton(page, label, "#learning-data");
+  };
+  const confirmBoxes = () =>
+    page.evaluate(`[...document.querySelectorAll("#learning-data .confirm")].map((node) => node.getAttribute("aria-label"))`);
+
+  await clickDataButton("删除全部笔记");
+  await page.waitFor("删除笔记的确认框", `document.querySelector('#learning-data .confirm[aria-label="删除全部笔记"]') !== null`);
+  await clickDataButton("清除缓存");
+  await page.waitFor("清缓存的确认框", `document.querySelector('#learning-data .confirm[aria-label="清除缓存"]') !== null`);
+  assert.deepEqual(await confirmBoxes(), ["清除缓存"], "只开着一个确认框");
+  const buttons = await page.evaluate(`[...document.querySelectorAll("#learning-data button")].map((button) => button.textContent.trim())`);
+  assert.ok(buttons.includes("删除全部笔记"), "删除笔记的确认框收回成按钮");
+  assert.ok(!buttons.includes("确认删除"), "页面上没有删除笔记的确认按钮");
+
+  // 清缓存的确认按钮和取消按钮都叫得出来，按位置找确认那一个，在同一点连点两下。
+  const box = await page.evaluate(`(() => {
+    const node = document.querySelector('#learning-data .confirm[aria-label="清除缓存"] button');
+    node.scrollIntoView({ block: "center" });
+    const rect = node.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  })()`);
+  await page.clickAt(box.x, box.y);
+  await page.clickAt(box.x, box.y);
+  await statusStarts(page, "learning-data", "已清除缓存");
+  await page.waitFor("清除结束，按钮可点", `[...document.querySelectorAll("#learning-data button")].every((button) => !button.disabled)`);
+  assert.deepEqual((await send(page, "notes.list", {})).value.notes.map((note) => note.text), ["连点也不该删掉的笔记"]);
 });
 
 test("设置页：导出的备份清除全部数据后能再导回来", async ({ open }) => {
