@@ -43,6 +43,7 @@ export const PANEL_EN: PanelText = {
     autoPaused: {
       quota: "Your API credit ran out, so Verdict on open is paused. It resumes after one successful manual overview, or after you turn it off and on again in settings.",
       key: "Your API key was rejected, so Verdict on open is paused. It resumes after one successful manual overview, or after you turn it off and on again in settings.",
+      "local-origin": "The service on this computer refused requests from the browser extension. This isn't a key problem. Verdict on open is paused. Once it's fixed, it resumes after one successful manual overview, or after you turn it off and on again in settings.",
     },
   },
 

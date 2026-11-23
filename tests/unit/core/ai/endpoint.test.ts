@@ -44,6 +44,7 @@ test("预设表逐项固定协议和地址", () => {
     ["dashscope", OPENAI, "https://dashscope.aliyuncs.com/compatible-mode/v1"],
     ["siliconflow", OPENAI, "https://api.siliconflow.cn/v1"],
     ["openrouter", OPENAI, "https://openrouter.ai/api/v1"],
+    ["ollama", OPENAI, "http://localhost:11434/v1"],
     ["custom", OPENAI, ""],
   ];
   for (const [id, protocol, baseUrl] of expected) {

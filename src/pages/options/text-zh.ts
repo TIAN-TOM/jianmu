@@ -107,6 +107,7 @@ export const OPTIONS_ZH = {
       dashscope: "阿里云百炼（通义千问）",
       siliconflow: "硅基流动 SiliconFlow",
       openrouter: "OpenRouter",
+      ollama: "Ollama（本机）",
       custom: "自定义",
     } satisfies Readonly<Record<PresetId, string>>,
     // 密钥页链接前后的文字，空格写在这里，链接放中间。

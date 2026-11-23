@@ -58,6 +58,8 @@ const PRESET_DETAILS: Readonly<Record<PresetId, PresetDetail>> = {
   dashscope: { model: "", docsUrl: "https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key" },
   siliconflow: { model: "", docsUrl: "https://cloud.siliconflow.cn/account/ak" },
   openrouter: { model: "", docsUrl: "https://openrouter.ai/keys" },
+  // 本机服务没有密钥页。
+  ollama: { model: "", docsUrl: "" },
   [CUSTOM_PRESET_ID]: { model: "", docsUrl: "" },
 };
 

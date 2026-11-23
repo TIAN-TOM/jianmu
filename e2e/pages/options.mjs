@@ -1,5 +1,5 @@
 // 设置页：确认启用之前只有启用说明、资料和「关于」两节，「关于」里的版本号、构建标识和四个链接都对；确认以后能保存服务商、密钥和模型，拉模型列表（状态行说已保存，框里的型号不在列表里时提醒）、测试连接对着模拟的模型服务走通，
-// 密钥只进会话存储；本机 http 地址不填密钥也能保存、拉列表和测试连接；导出的备份清除全部数据后能再导回来，
+// 密钥只进会话存储；本机 http 地址不填密钥也能保存、拉列表和测试连接，Ollama 预设不填密钥也能保存，本机服务回 403 时报来源被拒；导出的备份清除全部数据后能再导回来，
 // 超过单条消息上限的备份也一样。各测试开头先清除全部数据，从没启用的状态开始。
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -292,12 +292,18 @@ test("设置页：选服务商、填密钥、勾同意后保存，拉模型列�
 });
 
 /** 本机的 OpenAI 兼容服务，只开 http、不要密钥。记下每个请求的地址和认证头。models 是它列出的模型。 */
-async function startLocalService(models = ["local-model"]) {
+async function startLocalService(models = ["local-model"], { rejectOrigin = false } = {}) {
   const seen = [];
   const server = createServer((req, res) => {
     seen.push({ path: req.url ?? "", authorization: req.headers.authorization ?? null, apiKey: req.headers["x-api-key"] ?? null });
     req.resume();
     req.on("end", () => {
+      // 不接受浏览器扩展这个来源的本机服务：一律空着回 403。
+      if (rejectOrigin) {
+        res.writeHead(403);
+        res.end();
+        return;
+      }
       res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
       if (req.url?.endsWith("/models")) res.end(JSON.stringify({ object: "list", data: models.map((id) => ({ id, object: "model" })) }));
       else res.end(JSON.stringify({ id: "local", object: "chat.completion", choices: [{ index: 0, message: { role: "assistant", content: "可用" }, finish_reason: "stop" }] }));
@@ -452,6 +458,53 @@ test("设置页：自定义填本机 http 地址、密钥留空，保存、拉�
     assert.equal(stored.aiBaseUrl, local.base);
     assert.deepEqual(local.seen.map(({ path }) => path), ["/v1/models", "/v1/chat/completions"]);
     for (const request of local.seen) assert.deepEqual([request.authorization, request.apiKey], [null, null], request.path);
+  } finally {
+    await local.close();
+  }
+});
+
+test("设置页：选 Ollama 预设，地址和协议跟着预设走、不显示地址框，密钥留空也能保存", async ({ open }) => {
+  const page = await freshOptions(open);
+  await enable(page);
+  await page.waitFor("服务商里有 Ollama", `document.querySelector('#preset option[value="ollama"]')?.textContent === ${JSON.stringify(OPTIONS_ZH.ai.presets.ollama)}`);
+  await fill(page, "#preset", "ollama");
+  await page.waitFor("选上 Ollama", `document.getElementById("preset").value === "ollama"`);
+  assert.equal(await page.evaluate(`document.getElementById("aiBaseUrl") === null && document.getElementById("protocol") === null`), true);
+  assert.equal(await page.evaluate(`document.getElementById("aiApiKey").value`), "");
+  await page.click("#dataConsent");
+  await page.waitFor("同意记下了", `document.getElementById("dataConsent").checked`);
+
+  // 只保存、不拉模型列表也不测试连接：保存不访问本机服务。提示只说缺模型，不要密钥。
+  await clickButton(page, "保存并授权");
+  assert.equal(await statusStarts(page, "ai-service", "已保存"), "已保存并授权，但 AI 功能暂时用不了：请填写模型名称，或点击「拉取模型列表」进行选择。");
+  const stored = await page.evaluate(`chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)}).then((items) => items[${JSON.stringify(SETTINGS_STORAGE_KEY)}])`);
+  assert.deepEqual([stored.presetId, stored.protocol, stored.aiBaseUrl], ["ollama", "openai", "http://localhost:11434/v1"]);
+  const session = await page.evaluate(`chrome.storage.session.get(${JSON.stringify(API_KEY_SESSION_KEY)}).then((items) => items[${JSON.stringify(API_KEY_SESSION_KEY)}]?.key ?? "")`);
+  assert.equal(session, "");
+});
+
+test("设置页：本机服务回 403 时，拉模型列表和测试连接都说是来源被拒、和密钥无关", async ({ open }) => {
+  const local = await startLocalService(["local-model"], { rejectOrigin: true });
+  try {
+    const page = await freshOptions(open);
+    await enable(page);
+    await fill(page, "#preset", "custom");
+    await page.waitFor("出现地址框", `document.getElementById("aiBaseUrl") !== null`);
+    await fill(page, "#protocol", "openai");
+    await fill(page, "#aiBaseUrl", local.base);
+    await fill(page, "#aiModel", "local-model");
+    await page.click("#dataConsent");
+    await page.waitFor("同意记下了", `document.getElementById("dataConsent").checked`);
+
+    await clickButton(page, "拉取模型列表");
+    await page.waitFor("拉列表报来源被拒", `${statusText("ai-service")}.includes("OLLAMA_ORIGINS")`);
+    assert.match(await statusOf(page, "ai-service"), /和密钥无关/);
+    await clickButton(page, "测试连接");
+    await page.waitFor("测试连接的提示换了一次", `${statusText("ai-service")}.startsWith("默认模型")`);
+    const tested = await statusOf(page, "ai-service");
+    assert.match(tested, /和密钥无关.*OLLAMA_ORIGINS/);
+    assert.doesNotMatch(tested, /检查密钥/);
+    assert.deepEqual(local.seen.map(({ path }) => path), ["/v1/models", "/v1/chat/completions"]);
   } finally {
     await local.close();
   }

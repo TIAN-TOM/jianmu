@@ -104,6 +104,10 @@ function errorResponseOf(error: AiErrorLike, lang: OutputLang): AiErrorResponse 
   if (error.code !== undefined && ACTIONABLE.has(error.code)) {
     return { success: false, error: error.code, message: lang === "zh" ? (error.message as string) : messageIn(error, lang) };
   }
+  // 本机地址回的 403 已在 keyedHttpError 里单独标出，别的 401、403 才当密钥问题。
+  if (error.code === "AI_LOCAL_ORIGIN_REJECTED") {
+    return { success: false, error: error.code, message: say.localOriginRejected };
+  }
   if (error.status === 401 || error.status === 403) {
     return {
       success: false,

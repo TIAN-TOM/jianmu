@@ -263,6 +263,27 @@ test("本机 http 地址不填密钥：配置检查算设置好，拉模型列�
   }
 });
 
+test("Ollama 预设不填密钥就算设置好；本机服务回 403 时拉模型列表、测试连接和正式请求都报来源被拒，不报密钥错误", async () => {
+  const OLLAMA = { presetId: "ollama", aiModel: "local-model" };
+  const { ai, ask, service } = setup({
+    ...keyedStorage(OLLAMA, "http://localhost:11434/", ""),
+    granted: ["http://localhost:11434/"],
+    handler: () => reply({}, 403),
+  });
+  assert.deepEqual(await ask("config.check"), { ok: true, value: { ready: true, errors: [] } });
+  const listed = (await ask("models.list", senders.options())) as { ok: boolean; code?: string; detail?: string };
+  assert.equal(listed.code, "AI_LOCAL_ORIGIN_REJECTED");
+  assert.match(listed.detail ?? "", /OLLAMA_ORIGINS/);
+  const tested = (await ask("ai.testConnection", senders.options())) as { ok: boolean; code?: string };
+  assert.equal(tested.code, "AI_LOCAL_ORIGIN_REJECTED");
+  await rejectsWith(ai.requestAiCompletion(EXPLAIN), "AI_LOCAL_ORIGIN_REJECTED");
+  assert.deepEqual(service.sent.map((request) => request.url), [
+    "http://localhost:11434/v1/models",
+    "http://localhost:11434/v1/chat/completions",
+    "http://localhost:11434/v1/chat/completions",
+  ]);
+});
+
 test("本机 http 地址没授权时照样只查不申请，一个请求都不发；别的 http 地址按配置错误收尾", async () => {
   const LOCAL = { presetId: "custom", protocol: PROTOCOLS.OPENAI, aiBaseUrl: "http://127.0.0.1:1234/v1", aiModel: "m" };
   const local = setup({ ...keyedStorage(LOCAL, "http://127.0.0.1:1234/", ""), granted: [], handler: () => chatReply("不该发出") });

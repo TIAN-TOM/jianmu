@@ -34,7 +34,7 @@ export const triedKey = (feature: AutoFeature, video: VideoKey): string => `${fe
 
 const isPlainObject = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null && !Array.isArray(value);
 const isTime = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
-const isPauseReason = (value: unknown): value is AutoPauseReason => value === "quota" || value === "key";
+const isPauseReason = (value: unknown): value is AutoPauseReason => value === "quota" || value === "key" || value === "local-origin";
 
 /** 存储里的记录形状不可信，逐项核对。早先只记 attempts 的写法照样认概览那种，别的（翻译）忽略。 */
 export function parseLedger(stored: unknown, now: number): AutoLedger {

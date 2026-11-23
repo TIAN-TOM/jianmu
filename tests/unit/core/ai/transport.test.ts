@@ -1425,6 +1425,34 @@ test("Anthropic 密钥没限定工作区的 400 翻成中文，指向设置页�
   assert.equal(other.message, "temperature is not supported");
 });
 
+test("本机地址回 403 单独报来源被拒，三种语言都说不是密钥的问题；非本机的 403 和所有 401 仍是密钥错误", () => {
+  for (const aiBaseUrl of ["http://localhost:11434/v1", "http://127.0.0.1:8080/v1"]) {
+    const error = PROVIDER.keyedHttpError({}, 403, { aiBaseUrl, aiApiKey: "" });
+    assert.equal(error.code, "AI_LOCAL_ORIGIN_REJECTED", aiBaseUrl);
+    assert.equal(error.status, 403, aiBaseUrl);
+    const response = TRANSPORT.aiErrorResponse(error);
+    assert.equal(response.error, "AI_LOCAL_ORIGIN_REJECTED", aiBaseUrl);
+    assert.match(response.message, /和密钥无关.*OLLAMA_ORIGINS/, aiBaseUrl);
+    assert.match(TRANSPORT.aiErrorResponse(error, "en").message, /isn't a key problem.*OLLAMA_ORIGINS/, aiBaseUrl);
+    assert.match(TRANSPORT.aiErrorResponse(error, "zh-Hant").message, /和金鑰無關.*OLLAMA_ORIGINS/, aiBaseUrl);
+    assert.equal(TRANSPORT.serviceSaid(error), "", aiBaseUrl);
+  }
+  const keyError = (status: number, aiBaseUrl: string) =>
+    TRANSPORT.aiErrorResponse(PROVIDER.keyedHttpError({}, status, { aiBaseUrl, aiApiKey: "sk-sample" })).error;
+  assert.equal(keyError(403, "https://api.example.com/v1"), "INVALID_AI_KEY");
+  assert.equal(keyError(401, "https://api.example.com/v1"), "INVALID_AI_KEY");
+  assert.equal(keyError(401, "http://localhost:11434/v1"), "INVALID_AI_KEY");
+  assert.equal(keyError(403, "http://192.168.1.50:11434/v1"), "INVALID_AI_KEY");
+});
+
+test("经传输层发到本机的请求回 403：错误码是来源被拒，状态码照旧", async () => {
+  const t = makeTransport(async () => new Response("", { status: 403 }));
+  const error = await failureOf(t.sendAiRequest({ aiBaseUrl: "http://localhost:11434/v1", aiApiKey: "" }, SEND_REQUEST));
+  assert.equal(error.code, "AI_LOCAL_ORIGIN_REJECTED");
+  assert.equal(error.status, 403);
+  assert.equal(TRANSPORT.aiErrorResponse(error).error, "AI_LOCAL_ORIGIN_REJECTED");
+});
+
 test("HTTP 状态映射成用户能行动的错误码", () => {
   const aiError = (props: { readonly status?: number; readonly baseUrl?: string }) =>
     TRANSPORT.aiErrorResponse(Object.assign(new Error("x"), props));

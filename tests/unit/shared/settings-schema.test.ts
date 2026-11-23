@@ -591,10 +591,26 @@ test("预设表以地址模块为准：顺序、协议和地址都来自那边�
       ["dashscope", "阿里云百炼（通义千问）"],
       ["siliconflow", "硅基流动 SiliconFlow"],
       ["openrouter", "OpenRouter"],
+      ["ollama", "Ollama（本机）"],
       ["custom", "自定义"],
     ],
   );
   assert.equal(SETTINGS.presetById("没有这家"), null);
+});
+
+test("Ollama 预设指向本机的 OpenAI 兼容地址，不预置模型、没有密钥页，不填密钥也能保存", () => {
+  const preset = SETTINGS.presetById("ollama");
+  assert.equal(preset?.protocol, PROTOCOLS.OPENAI);
+  assert.equal(preset?.baseUrl, "http://localhost:11434/v1");
+  assert.equal(preset?.model, "");
+  assert.equal(preset?.docsUrl, "");
+  const normalized = SETTINGS.normalize({ presetId: "ollama", aiModel: "local-model" });
+  assert.equal(normalized.aiBaseUrl, "http://localhost:11434/v1");
+  assert.equal(SETTINGS.originOf(normalized.aiBaseUrl), "http://localhost:11434/");
+  assert.equal(chatCompletionsUrl(normalized), "http://localhost:11434/v1/chat/completions");
+  assert.equal(modelsUrl(normalized), "http://localhost:11434/v1/models");
+  assert.equal(SETTINGS.validate({ presetId: "ollama", aiModel: "local-model", ...CONSENTED }).ok, true);
+  assert.deepEqual(SETTINGS.validate({ presetId: "ollama", ...CONSENTED }).errors, [MODEL_ERROR]);
 });
 
 test("快捷选择指向真实的预设，国内在前", () => {

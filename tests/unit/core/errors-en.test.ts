@@ -176,7 +176,8 @@ function sameShapeHant(label: string, zh: ErrorCopy, hant: ErrorCopy): void {
     if (text === undefined) continue;
     assert.match(text, /^\S.*[。…]$/s, `${label}.${part}：「${text}」不是以句号结尾的整句`);
     assert.deepEqual(charsIn(text, SIMPLIFIED_ONLY), [], `${label}.${part}：「${text}」里有简体字`);
-    assert.doesNotMatch(text, /[,;:?!]/, `${label}.${part}：「${text}」里有半形标点`);
+    // 要用户照抄的来源写法（例如 chrome-extension://*）里的冒号不算标点。
+    assert.doesNotMatch(text.replace(/[a-z-]+:\/\/[\x21-\x7e]*/g, ""), /[,;:?!]/, `${label}.${part}：「${text}」里有半形标点`);
     if (/[^\x00-\x7f。]/.test(zh[part] ?? "")) assert.notEqual(text, zh[part], `${label}.${part} 照抄了简体`);
   }
 }

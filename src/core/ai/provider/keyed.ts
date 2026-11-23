@@ -1,4 +1,5 @@
 // 带密钥的请求：模型调用、模型能力、设置页的测试连接和模型列表共用这几条约定。
+import { isLocalBaseUrl } from "./endpoint.ts";
 import { errorBodyOf, parseErrorMessage } from "./response.ts";
 import { bothLangs, HIDDEN_SECRET, withEnglish } from "./text.ts";
 import type { AiSettings, ProviderError } from "./types.ts";
@@ -57,10 +58,17 @@ interface ParamBody {
 export function keyedHttpError(
   data: unknown,
   status: number,
-  settings: Partial<Pick<AiSettings, "aiApiKey">> | null | undefined,
+  settings: Partial<Pick<AiSettings, "aiApiKey" | "aiBaseUrl">> | null | undefined,
 ): ProviderError {
   const secret = settings?.aiApiKey;
   const raw = redactSecret(parseErrorMessage(data, status), secret);
+  // 本机的服务回 403，多半是它不接受浏览器扩展这个来源，和密钥无关：单独一个码，回执换成对应的说明。
+  if (status === 403 && isLocalBaseUrl(settings?.aiBaseUrl)) {
+    const error: ProviderError = new Error(raw);
+    error.status = status;
+    error.code = "AI_LOCAL_ORIGIN_REJECTED";
+    return error;
+  }
   if (status === 400 && WORKSPACE_REQUIRED.test(raw)) {
     const { message, messageEn, messageHant } = bothLangs((text) => text.workspaceRequired);
     const error: ProviderError = withEnglish(new Error(message), messageEn, messageHant);

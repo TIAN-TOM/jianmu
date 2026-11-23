@@ -38,6 +38,8 @@ export const ENDPOINT_PRESETS = Object.freeze([
   { id: "dashscope", protocol: PROTOCOLS.OPENAI, baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
   { id: "siliconflow", protocol: PROTOCOLS.OPENAI, baseUrl: "https://api.siliconflow.cn/v1" },
   { id: "openrouter", protocol: PROTOCOLS.OPENAI, baseUrl: "https://openrouter.ai/api/v1" },
+  // 这台电脑上的 Ollama，默认端口，不要密钥。改过端口或跑在别的机器上就选「自定义」。
+  { id: "ollama", protocol: PROTOCOLS.OPENAI, baseUrl: "http://localhost:11434/v1" },
   { id: CUSTOM_PRESET_ID, protocol: PROTOCOLS.OPENAI, baseUrl: "" },
 ] as const satisfies readonly EndpointPreset[]);
 

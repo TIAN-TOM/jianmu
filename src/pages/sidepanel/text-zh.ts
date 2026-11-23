@@ -56,6 +56,7 @@ export const PANEL_ZH = {
     autoPaused: {
       quota: "额度用完，打开就出结论已暂停。手动生成成功一次，或在设置页关掉再打开就恢复",
       key: "密钥被拒，打开就出结论已暂停。手动生成成功一次，或在设置页关掉再打开就恢复",
+      "local-origin": "本机的服务拒绝了来自浏览器扩展的请求，和密钥无关，打开就出结论已暂停。改好以后手动生成成功一次，或在设置页关掉再打开就恢复",
     } satisfies Readonly<Record<AutoPauseReason, string>>,
   },
 
