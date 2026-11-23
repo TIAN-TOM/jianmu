@@ -1,4 +1,5 @@
 // 字幕列表的规则：播放到哪一段、导出 SRT 时每段写原文、译文还是双语、划词解释取多长。
+import { hasMatch, splitMatches } from "../../core/highlight.ts";
 import { formatTimestamp, type TranscriptSegment } from "../../core/transcript/segment.ts";
 import { breaksToShow } from "../../core/transcript/lines.ts";
 import { buildSrt } from "../../core/transcript/srt.ts";
@@ -37,6 +38,30 @@ export function linesOf(
   if (mode === "translated") return { main: translation || original, sub: "" };
   if (mode === "bilingual") return { main: original, sub: translation };
   return { main: original, sub: "" };
+}
+
+/** 字幕搜索保留整段。当前显示的两行都没命中时，补上其他版本里命中的文字。 */
+export function transcriptRows(
+  segments: readonly TranscriptSegment[],
+  mode: TranscriptMode,
+  translated: Readonly<Record<string, string>>,
+  tidied: Readonly<Record<string, string>>,
+  showTidied: boolean,
+  query: string,
+) {
+  const needle = query.trim();
+  const matches = (line: string): boolean => hasMatch(splitMatches(line, needle));
+  const displayedTidy = showTidied ? tidied : {};
+  return segments.flatMap((segment, index) => {
+    const { main, sub } = linesOf(segment, mode, translated, displayedTidy);
+    let extra: string[] = [];
+    if (needle && !matches(main) && !matches(sub)) {
+      const candidates = new Set([segment.text, translated[segment.id] ?? "", tidied[segment.id] ?? ""]);
+      extra = [...candidates].filter((line) => line && line !== main && line !== sub && matches(line));
+      if (!extra.length) return [];
+    }
+    return [{ segment, index, main, sub, extra }];
+  });
 }
 
 /** 导出 SRT：内容跟着当前的原文（整理过就是整理后的）、译文或双语视图。 */
