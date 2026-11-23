@@ -63,7 +63,7 @@ const SITE_DETAILS = {
   },
   UNAVAILABLE: {
     stale: { cause: "视频页上的文字稿还没换成这个视频的。", impact: "读到的内容没有用，免得记到别的视频上。", next: "刷新视频页，再打开文字稿，然后点读取。" },
-    "no-entry": { cause: "这个视频页上找不到文字稿。", impact: NOT_READ, next: `这个视频可能没有字幕，也可能是页面改版了。${IMPORT_FILE}` },
+    "no-entry": { cause: "这个视频页上找不到文字稿。", impact: NOT_READ, next: `有的视频播放器里有字幕，页面上却没有文字稿，简幕只读文字稿；也可能是页面改版了。${IMPORT_FILE}` },
     "no-page": { cause: "要在视频页上读，可这会儿连不上视频页。", impact: NOT_READ, next: "回到视频页，在侧边栏点读取；还不行就刷新视频页。" },
   },
   UNPLAYABLE: {
@@ -117,7 +117,7 @@ export const SITE_DETAIL_TEXT_EN: SameDetails<typeof SITE_DETAILS> = {
   },
   UNAVAILABLE: {
     stale: { cause: "The transcript on the video page hasn't switched to this video yet.", impact: "What was read has been discarded so it doesn't end up on the wrong video.", next: "Refresh the video page, open the transcript again, then click “Read subtitles”." },
-    "no-entry": { cause: "There's no transcript on this video page.", impact: NOT_READ_EN, next: `This video may have no subtitles, or the page layout may have changed. ${IMPORT_FILE_EN}` },
+    "no-entry": { cause: "There's no transcript on this video page.", impact: NOT_READ_EN, next: `Some videos show subtitles in the player but have no transcript on the page, and Jianmu only reads the transcript. The page layout may also have changed. ${IMPORT_FILE_EN}` },
     "no-page": { cause: "Reading needs the video page, but Jianmu can't reach it right now.", impact: NOT_READ_EN, next: "Go back to the video page and click “Read subtitles” in the side panel. If that doesn't work, refresh the video page." },
   },
   UNPLAYABLE: {
