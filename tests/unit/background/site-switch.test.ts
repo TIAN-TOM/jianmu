@@ -29,7 +29,7 @@ test("安装时授权在就注册，脚本和匹配规则取自站点规则，�
     [...granted.fake.registered.entries()],
     [
       [SCRIPT_ID, { matches: [ORIGIN], js: ["content/youtube.js"] }],
-      [BRIDGE_ID, { matches: [ORIGIN], js: ["content/youtube-bridge.js"], world: "MAIN" }],
+      [BRIDGE_ID, { matches: [ORIGIN], js: ["content/youtube-bridge.js"], world: "MAIN", runAt: "document_start" }],
     ],
   );
 

@@ -15,14 +15,15 @@ interface SiteScript {
   readonly id: string;
   readonly file: string;
   readonly world?: "MAIN";
+  readonly runAt?: "document_start";
 }
 
-// 各站动态注册的内容脚本：编号、产物里的文件，跑在页面主世界的另外标出来。
+// 各站动态注册的内容脚本：编号、产物里的文件，跑在页面主世界的、页面一开始加载就要跑的另外标出来。
 const SCRIPTS: Readonly<Partial<Record<Platform, readonly SiteScript[]>>> = {
   youtube: [
     { id: "jianmu-youtube", file: "content/youtube.js" },
-    // 只读的小桥：内容脚本问它播放器上已有哪些字幕轨。
-    { id: "jianmu-youtube-bridge", file: "content/youtube-bridge.js", world: "MAIN" },
+    // 只读的小桥：内容脚本问它播放器上已有哪些字幕轨。页面一开始加载就装上，播放器最早取回的字幕也接得住。
+    { id: "jianmu-youtube-bridge", file: "content/youtube-bridge.js", world: "MAIN", runAt: "document_start" },
   ],
 };
 
@@ -99,7 +100,7 @@ export function createSiteSwitch({ rules, permissions, scripts, tabs, messenger,
       if (present && (fresh || !granted)) await scripts.unregister(found);
       const missing = fresh ? site.scripts : site.scripts.filter(({ id }) => !found.includes(id));
       if (granted) {
-        for (const { id, file, world } of missing) await scripts.register({ id, matches: site.rules.scriptMatches, js: [file], ...(world ? { world } : {}) });
+        for (const { id, file, world, runAt } of missing) await scripts.register({ id, matches: site.rules.scriptMatches, js: [file], ...(world ? { world } : {}), ...(runAt ? { runAt } : {}) });
       }
     } catch (error) {
       log.error("同步站点的内容脚本注册失败", errorLabel(error));

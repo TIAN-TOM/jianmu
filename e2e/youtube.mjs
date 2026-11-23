@@ -7,6 +7,7 @@
 // 点读取时简介里的入口还没出来（页面还在加载）：等它出来再点开，读得到。
 // 播放页卡片插在右栏推荐视频上面、不进侧栏面板，本机没有字幕时不去读；侧边栏生成的结论卡片跟着摆出来，
 // 精读时收起、速览时展开，窗口变窄时跟着推荐视频挪到播放器下面。
+// 页面上没有文字稿、播放器有字幕的视频：点读取时简幕替用户开一下播放器的字幕，接住播放器自己取回的那份，读完关上，生成概览。
 // 最后打开「打开就出结论」：新开的视频不用点，简幕替用户点开文字稿读完、关上，生成概览。
 // 第一个加载：装的是日用包，之后导入的产品模块按日用构建的开关取值算。
 import "../scripts/lib/daily-globals.mjs";
@@ -24,7 +25,7 @@ import { ANTHROPIC } from "./fixtures.mjs";
 import { startMockServer } from "./mock-server.mjs";
 import { QUIET_MEDIA_PATH } from "./watch-page.mjs";
 import { storedSettings } from "./settings.mjs";
-import { TUBE_HOST, TUBE_TRACK_ADDRESS, TUBE_VIDEOS, tubeWatchPage } from "./youtube-page.mjs";
+import { TUBE_CAPTION_PATH, TUBE_HOST, TUBE_TRACK_ADDRESS, TUBE_VIDEOS, tubeWatchPage } from "./youtube-page.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TIMEOUT_MS = 20_000;
@@ -444,6 +445,7 @@ async function modernFlow(launcher, panel, worker, windowId) {
 
   await lateEntryFlow(launcher, panel, worker, windowId);
   await cardGenerateFlow(launcher, panel, worker, windowId);
+  await caughtCaptionsFlow(launcher, panel, worker, windowId);
   await autoFlow(launcher, panel, worker, windowId);
 }
 
@@ -503,6 +505,33 @@ async function cardGenerateFlow(launcher, panel, worker, windowId) {
   if (!cached?.ok || !cached.value.transcript.cues.some((cue) => cue.text === TUBE_VIDEOS[CARD_ID]?.lines.at(-1))) throw new Error(`字幕没读对：${JSON.stringify(cached)}`);
   await cdp.send("Browser.setWindowBounds", { windowId: browserWindow, bounds: { width: bounds.width, height: bounds.height } });
   console.log("✓ 卡片上点「生成概览」：本机还没有字幕，简幕经视频页替用户点开文字稿读完、关上，生成后结论摆在卡片上");
+}
+
+/**
+ * 页面上没有文字稿入口、播放器有字幕：点读取，简幕等不到入口，改替用户点一下播放器的字幕按钮，接住播放器自己取回的字幕，
+ * 读完再点一下关上；按播放器的轨标成人工英文。简幕自己不向 YouTube 发请求，播放器只取了一次。然后生成概览。
+ */
+async function caughtCaptionsFlow(launcher, panel, worker, windowId) {
+  const PLAYER_ID = "jmTube00009";
+  const page = await openWatch(launcher, panel, worker, windowId, PLAYER_ID);
+  const captionCalls = () => mock.requests.filter((entry) => entry.host === TUBE_HOST && entry.path === TUBE_CAPTION_PATH).length;
+  const before = captionCalls();
+  await until("点读取字幕", () => clickIn(panel, ".state-block .button", "读取字幕"));
+  const lines = TUBE_VIDEOS[PLAYER_ID]?.lines ?? [];
+  await until("读到播放器取回的字幕", async () => (await textOf(panel, ".cue-text")).includes(lines.at(-1) ?? "")).catch(async (error) => {
+    throw new Error(`${error.message}；侧边栏上是「${await stateTitle(panel)}」`);
+  });
+  const cues = await textOf(panel, ".cue-text");
+  if (!cues.includes(lines[1] ?? "-")) throw new Error(`分片段的那句没拼好：${cues}`);
+  await expectTrack(panel, PLAYER_ID, { lang: "en", kind: "human", label: "English" });
+  const state = await evaluate(page, `JSON.stringify([document.getElementById("e2e-captions").getAttribute("aria-pressed"), document.body.dataset.e2eCaptionFetches ?? "0"])`);
+  if (state !== JSON.stringify(["false", "1"])) throw new Error(`字幕按钮没有点一下开、读完点一下关：${state}`);
+  if (captionCalls() - before !== 1) throw new Error(`播放器取字幕的次数不对：${captionCalls() - before}`);
+  if (mock.requests.slice(-50).some((entry) => entry.host === TUBE_HOST && entry.unexpected)) throw new Error("YouTube 上有意外请求");
+  console.log("✓ 页面上没有文字稿：简幕替用户开一下播放器的字幕，接住播放器自己取回的那份，读完关上；标成人工英文，播放器只取了一次");
+  await until("生成概览可以点", () => clickIn(panel, "button", "生成概览"));
+  await until("结论写好", async () => (await textOf(panel, ".verdict-text")).includes("模拟服务写的一句话结论"));
+  console.log("✓ 用播放器字幕生成了概览");
 }
 
 /** 打开就出结论：门槛调到 0，新开的视频不用点就生成；简幕替用户点开文字稿，读完关上；YouTube 上不发请求。 */

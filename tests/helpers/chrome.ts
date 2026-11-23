@@ -183,7 +183,7 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
   /** 运行时授权过的来源，测试里可以中途增减。 */
   const granted = new Set(options.grantedOrigins ?? []);
   /** 动态注册着的内容脚本。 */
-  const registered = new Map<string, { readonly matches: readonly string[]; readonly js: readonly string[]; readonly world?: string }>();
+  const registered = new Map<string, { readonly matches: readonly string[]; readonly js: readonly string[]; readonly world?: string; readonly runAt?: string }>();
   const timers = manualTimers();
   /** 建着的右键菜单项，按建的先后：标识到标题、类型和勾选。 */
   const menuItems = new Map<string, { readonly title: string; readonly type: string; readonly contexts: readonly string[]; checked?: boolean }>();
@@ -288,10 +288,10 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     async getRegisteredContentScripts(filter?: { ids?: string[] }) {
       return [...registered.keys()].filter((id) => !filter?.ids || filter.ids.includes(id)).map((id) => ({ id }));
     },
-    async registerContentScripts(scripts: { id: string; matches: string[]; js: string[]; world?: string }[]) {
-      for (const { id, matches, js, world } of scripts) {
+    async registerContentScripts(scripts: { id: string; matches: string[]; js: string[]; world?: string; runAt?: string }[]) {
+      for (const { id, matches, js, world, runAt } of scripts) {
         if (registered.has(id)) throw new Error(`Duplicate script ID '${id}'`);
-        registered.set(id, { matches: [...matches], js: [...js], ...(world ? { world } : {}) });
+        registered.set(id, { matches: [...matches], js: [...js], ...(world ? { world } : {}), ...(runAt && runAt !== "document_idle" ? { runAt } : {}) });
         record(calls.registrations, { action: "register", ids: [id], matches: [...matches], js: [...js] });
       }
     },

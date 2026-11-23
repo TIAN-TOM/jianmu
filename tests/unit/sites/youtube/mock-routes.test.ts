@@ -2,7 +2,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { hostRulesFor, route } from "../../../../e2e/mock-server.mjs";
-import { TUBE_HOST, TUBE_VIDEOS, tubePageHtml, tubeWatchPage } from "../../../../e2e/youtube-page.mjs";
+import { TUBE_CAPTION_PATH, TUBE_HOST, TUBE_VIDEOS, tubeCaptionJson, tubePageHtml, tubeWatchPage } from "../../../../e2e/youtube-page.mjs";
+import { parseCaptionJson } from "../../../../src/sites/youtube/caption-json.ts";
+import { PANEL_LIMITS } from "../../../../src/sites/youtube/page/panel-types.ts";
 import { parseWatchUrl } from "../../../../src/sites/youtube/url.ts";
 
 const ask = (path: string, query = "") => route({ host: TUBE_HOST, path, query: new URLSearchParams(query), cookie: "" });
@@ -38,4 +40,13 @@ test("模拟观看页的结构：应用外壳、带视频编号的观看页外�
   ]) {
     assert.ok(html.includes(piece), piece);
   }
+});
+
+test("播放器取的字幕：只给只有播放器字幕的那个视频的英文原文，别的视频、别的语言、机器翻译都算意外；正文解析得出每一句", () => {
+  const id = "jmTube00009";
+  const answer = ask(TUBE_CAPTION_PATH, `v=${id}&lang=en`);
+  assert.equal(answer.status, 200);
+  assert.equal(answer.unexpected, undefined);
+  assert.deepEqual(parseCaptionJson(tubeCaptionJson(id), PANEL_LIMITS)?.map((line) => line.text), TUBE_VIDEOS[id].lines);
+  for (const query of ["v=jmTube00001&lang=en", `v=${id}&lang=fr`, `v=${id}&lang=en&tlang=fr`]) assert.equal(ask(TUBE_CAPTION_PATH, query).unexpected, true, query);
 });

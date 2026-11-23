@@ -323,6 +323,18 @@ describe("第 6 条：YouTube 一侧的边界", () => {
   });
 });
 
+describe("第 6 条：主世界里接住播放器字幕", () => {
+  test("只有接住字幕的那个文件许取一次网页请求对象的原型，别处、第二处、新建、别的网络调用都拦", () => {
+    const file = "src/sites/youtube/page/caption-catch.ts";
+    assert.deepEqual(rulesHit(file, "const methods = scope.XMLHttpRequest.prototype;\n"), []);
+    assert.deepEqual(rulesHit(file, "const a = scope.XMLHttpRequest.prototype;\nconst b = scope.XMLHttpRequest.prototype;\n"), [6]);
+    assert.deepEqual(rulesHit(file, "const a = scope.XMLHttpRequest.prototype;\nconst r = new XMLHttpRequest();\n"), [6]);
+    assert.deepEqual(rulesHit(file, "const a = scope.XMLHttpRequest.prototype;\nawait fetch(url);\n"), [6]);
+    assert.deepEqual(rulesHit("src/sites/youtube/page/main-bridge.ts", "const methods = scope.XMLHttpRequest.prototype;\n"), [6]);
+    assert.deepEqual(rulesHit("src/content/youtube-bridge.ts", "const methods = scope.XMLHttpRequest.prototype;\n"), [6]);
+  });
+});
+
 describe("第 6 条：页面模块和读页面的边界", () => {
   test("各站 page/ 下的模块和 page.ts 一样：不发请求、不带入后台读取代码、只在本站里互相带入", () => {
     assert.deepEqual(rulesHit("src/sites/youtube/page/read-panel.ts", 'import { read } from "../service.ts";\n'), [6]);
