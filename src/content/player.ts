@@ -25,6 +25,20 @@ export interface Player {
 /** 地址变化前后这么久里媒体元素开始加载，算作换上了新视频。 */
 export const MEDIA_SWITCH_WINDOW_MS = 3000;
 
+type PlaybackState = Pick<HTMLVideoElement, "paused" | "ended" | "seeking" | "readyState">;
+
+/** 视频有了当前画面，正在播放，也没有在跳转。 */
+export function isPlaying(video: PlaybackState): boolean {
+  const haveCurrentData = 2;
+  return !video.paused && !video.ended && !video.seeking && video.readyState >= haveCurrentData;
+}
+
+/** 播放时把笔记记在三秒前，暂停时记在当下。 */
+export function noteTimestamp(video: PlaybackState & Pick<HTMLVideoElement, "currentTime">): number {
+  const second = Number.isFinite(video.currentTime) ? Math.floor(video.currentTime) : 0;
+  return Math.max(0, isPlaying(video) ? second - 3 : second);
+}
+
 const keyOf = (ref: VideoRef | null): VideoKey | null => {
   if (!ref) return null;
   try {

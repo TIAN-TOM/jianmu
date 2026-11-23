@@ -21,7 +21,11 @@ function matches(note: NoteItemView, needle: string): boolean {
   return [note.text, note.quote ?? "", note.snapshot.title, note.snapshot.author].some((field) => hasMatch(splitMatches(field, needle)));
 }
 
-function NoteItem({ panel, note, showVideo }: { readonly panel: Panel; readonly note: NoteItemView; readonly showVideo: boolean }) {
+function highlighted(text: string, query: string) {
+  return query ? splitMatches(text, query).map((part, index) => part.hit ? <mark key={index}>{part.text}</mark> : part.text) : text;
+}
+
+function NoteItem({ panel, note, showVideo, query }: { readonly panel: Panel; readonly note: NoteItemView; readonly showVideo: boolean; readonly query: string }) {
   const [draft, setDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const here = note.video === panel.follow.target.value.video;
@@ -48,7 +52,8 @@ function NoteItem({ panel, note, showVideo }: { readonly panel: Panel; readonly 
             {time}
           </a>
         )}
-        {showVideo ? <span class="note-video">{note.snapshot.title}</span> : null}
+        {showVideo && note.snapshot.title ? <span class="note-video" title={note.snapshot.title}>{highlighted(note.snapshot.title, query)}</span> : null}
+        {showVideo && note.snapshot.author ? <span class="note-author" title={note.snapshot.author}>{highlighted(note.snapshot.author, query)}</span> : null}
         {note.polishing ? <span class="note-flag">{t.polishing}</span> : null}
         <Menu
           label={t.actions}
@@ -61,7 +66,7 @@ function NoteItem({ panel, note, showVideo }: { readonly panel: Panel; readonly 
         />
       </div>
       {draft === null ? (
-        <p class="note-text">{note.text}</p>
+        <p class="note-text">{highlighted(note.text, query)}</p>
       ) : (
         <div class="note-edit">
           <textarea class="note-input" aria-label={t.content} value={draft} onInput={(event) => setDraft(event.currentTarget.value)} rows={4} />
@@ -75,7 +80,7 @@ function NoteItem({ panel, note, showVideo }: { readonly panel: Panel; readonly 
           </span>
         </div>
       )}
-      {note.quote && note.quote !== note.text ? <blockquote class="note-quote">{note.quote}</blockquote> : null}
+      {note.quote && note.quote !== note.text ? <blockquote class="note-quote">{highlighted(note.quote, query)}</blockquote> : null}
     </li>
   );
 }
@@ -127,7 +132,7 @@ export function NotesTab({ panel }: { readonly panel: Panel }) {
       ) : (
         <ol class="note-list">
           {shown.map((note) => (
-            <NoteItem key={note.id} panel={panel} note={note} showVideo={state.scope === "all"} />
+            <NoteItem key={note.id} panel={panel} note={note} showVideo={state.scope === "all"} query={needle} />
           ))}
         </ol>
       )}
