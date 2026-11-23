@@ -7,6 +7,7 @@ import { Button, IconButton } from "../shared/ui/button.tsx";
 import { ServiceSaid } from "../shared/ui/notice.tsx";
 import { StateBlock } from "../shared/ui/state-block.tsx";
 import { StaleTranscriptLine } from "../shared/ui/verdict-block.tsx";
+import { answerCopyText, copyText } from "./copy.ts";
 import type { Panel } from "./panel.ts";
 import { setupReason } from "../shared/config.ts";
 import { sharedText } from "../shared/text.ts";
@@ -36,7 +37,10 @@ function Entry({ panel, entry, unsaved, current }: { readonly panel: Panel; read
     <li class="qa-entry" data-id={entry.id}>
       <div class="qa-question">
         <span>{entry.question}</span>
-        <IconButton icon="trash" label={t.delete} onClick={() => void panel.qa.remove(entry.id)} />
+        <span class="toolbar-actions">
+          <IconButton icon="copy" label={t.copyAnswer} onClick={() => void copyText(panel, answerCopyText(entry.answer))} />
+          <IconButton icon="trash" label={t.delete} onClick={() => void panel.qa.remove(entry.id)} />
+        </span>
       </div>
       {onOldTranscript(transcriptFingerprintOf(entry.derived), current) ? <StaleTranscriptLine /> : null}
       <Answer panel={panel} entry={entry} />

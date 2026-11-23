@@ -28,6 +28,8 @@ export const PANEL_ZH = {
   notFound: (query: string) => `没有找到「${query}」`,
   optionsFailed: "打不开设置页，可以在扩展管理里打开简幕的选项。",
   remembered: (author: string, study: boolean) => `已记住：${author ? `${author}的视频` : "这个频道的视频"}以后先进${study ? "精读" : "速读"}`,
+  copied: "已复制",
+  copyFailed: "没能复制，浏览器拒绝了剪贴板",
 
   head: {
     loadingVideo: "正在读取视频",
@@ -160,6 +162,8 @@ export const PANEL_ZH = {
     edit: "编辑",
     delete: "删除",
     deleteHint: "删了找不回来",
+    copyText: "复制正文",
+    copyLink: "复制链接",
     content: "笔记内容",
     save: "保存",
     nothingToExport: "没有可以导出的笔记",
@@ -176,6 +180,7 @@ export const PANEL_ZH = {
     title: "问答",
     delete: "删除这条问答",
     truncated: "回答被截断了，可能不完整。",
+    copyAnswer: "复制回答",
     unsaved: "这条回答没能存进问答历史。",
     citations: "引用的字幕",
     placeholder: "针对这个视频提问，Enter 发送",
@@ -195,7 +200,6 @@ export const PANEL_ZH = {
     translateHint: "会请模型翻译没译过的段落，要用 API 额度；关掉侧边栏也会译完",
     file: "字幕",
     copied: "已复制全部字幕",
-    copyFailed: "没能复制，浏览器拒绝了剪贴板",
     reload: "重新读取字幕",
     reloadHint: "不看本机缓存",
     copyAll: "复制全部字幕",

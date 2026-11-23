@@ -79,6 +79,14 @@ const tap = async (page, selector) => {
 const clickText = (page, selector, text) =>
   page.evaluate(`(() => { const node = [...document.querySelectorAll(${JSON.stringify(selector)})].find((item) => item.textContent.includes(${JSON.stringify(text)})); if (!node) return false; node.click(); return true; })()`);
 
+/**
+ * 无头 Chrome 里写剪贴板可能被拒：把侧边栏的写剪贴板换成记下来，看复制了什么。几个测试共用同一个侧边栏，每次从空的记起。
+ * 复制以后顶上一行说「已复制」，笔记层开着时在层里说。
+ */
+const recordClipboard = `(window.copiedTexts = [], navigator.clipboard.writeText = async (text) => { window.copiedTexts.push(text); }, true)`;
+const copiedTexts = `window.copiedTexts ?? []`;
+const copiedSaid = `[...document.querySelectorAll(".notice-text, .layer-toast")].some((node) => node.textContent === "已复制")`;
+
 test("侧边栏：确认启用前只有启用说明，点启用以后说明怎么打开视频", async ({ open, openSidePanel }) => {
   const from = await open(LAUNCHER);
   const panel = await openSidePanel(from);
@@ -322,7 +330,7 @@ test("侧边栏：设置好 AI 服务以后，底下的提问框空着回车和�
   });
 });
 
-test("侧边栏：头部的笔记按钮打开笔记层，列出本视频的笔记，能改能删，删完回到空状态", async (ctx) => {
+test("侧边栏：头部的笔记按钮打开笔记层，列出本视频的笔记，能复制正文和链接，能改能删，删完回到空状态", async (ctx) => {
   await withVideo(ctx, async (panel) => {
     await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
     await tap(panel, ".mode-row [aria-label='笔记']");
@@ -332,6 +340,18 @@ test("侧边栏：头部的笔记按钮打开笔记层，列出本视频的笔�
     assert.equal(saved?.ok, true, JSON.stringify(saved));
     await waitIn(panel, "列出这条", `${textOf(".note-text")} === "页面测试记的一条"`);
     assert.equal(await panel.evaluate(textOf(".layer .toolbar-count")), "1 条");
+
+    await panel.evaluate(recordClipboard);
+    await tap(panel, ".note .menu-anchor button");
+    assert.ok(await clickText(panel, ".menu-item", "复制正文"));
+    await waitIn(panel, "复制了正文", `${copiedTexts}.length === 1`);
+    assert.equal((await panel.evaluate(copiedTexts))[0], "页面测试记的一条");
+    await waitIn(panel, "层里说已复制", copiedSaid);
+    await tap(panel, ".note .menu-anchor button");
+    assert.ok(await clickText(panel, ".menu-item", "复制链接"));
+    await waitIn(panel, "复制了链接", `${copiedTexts}.length === 2`);
+    const link = (await panel.evaluate(copiedTexts))[1];
+    assert.ok(link.startsWith("http") && link.includes(FIRST_ID), `复制的是这条笔记的视频链接：${link}`);
 
     await tap(panel, ".note .menu-anchor button");
     assert.ok(await clickText(panel, ".menu-item", "编辑"));
@@ -466,6 +486,34 @@ test("侧边栏：同一个视频换到另一个标签页，重读本机的概�
   } finally {
     await editDatabase(panel, {}, { overviews: [VIDEO], qa: [SWITCH_QA_ID] });
     for (const tabId of tabs) await closeTab(from, tabId);
+  }
+});
+
+const COPY_QA_ID = "qa_page-test-copy";
+
+test("侧边栏：问答里的「复制回答」复制回答，时间点按 [分:秒] 写回去，说一声已复制", async (ctx) => {
+  const from = await ctx.open(LAUNCHER);
+  const panel = await ctx.openSidePanel(from);
+  let tabId = null;
+  try {
+    const answer = "页面测试的回答 [0:02]，依据在 [0:01-0:03]。";
+    const qa = { id: COPY_QA_ID, video: VIDEO, question: "页面测试的复制问题", answer, citations: [], clickable: [2], derived: { basis: { source: "legacy-unknown" } }, createdAt: 1 };
+    await editDatabase(panel, { qa: [qa] });
+    tabId = await openTab(panel, watchPage(FIRST_ID));
+    await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
+    await panel.evaluate(recordClipboard);
+
+    await tap(panel, ".dock [aria-label='问答记录']");
+    await waitIn(panel, "问答里列出那一条", `${textOf(".qa-entry .qa-question")}.includes("页面测试的复制问题")`);
+    await tap(panel, ".qa-entry [aria-label='复制回答']");
+    await waitIn(panel, "复制了回答", `${copiedTexts}.length === 1`);
+    assert.equal((await panel.evaluate(copiedTexts))[0], answer, "时间点带回方括号，和存着的回答一字不差");
+    await waitIn(panel, "说已复制", copiedSaid);
+    await panel.evaluate(`(${qaSheet}).querySelector(".overlay-head [aria-label='关闭']").click(), true`);
+    await waitIn(panel, "抽屉关上", `${qaSheet}?.open === false`);
+  } finally {
+    await editDatabase(panel, {}, { qa: [COPY_QA_ID] });
+    if (tabId !== null) await closeTab(from, tabId);
   }
 });
 
