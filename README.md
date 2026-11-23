@@ -4,7 +4,7 @@
 
 帮你在几分钟内判断一个 B 站或 YouTube 长视频值不值得看、重点看哪段；决定看了，再陪你精读。
 
-> **当前状态：正在重写，尚未发布，还没有可以下载的安装包。** B 站的主流程（读字幕、生成概览、引用问答、记笔记、播放页卡片和设置页）、稍后再看粗筛、本窗口全部生成、「打开就出结论」和下面列的功能都已经做进主线，自动测试对着本机模拟的页面跑；开发者本人已经在用它日用 B 站。YouTube 的按需授权、读字幕和替你点开文字稿也已经做进主线，开发者本人也在 YouTube 上日用，首发会带上。两站都走通再在 GitHub 发第一个版本（[产品需求说明](notes/product-prd.md)第 1 节）。
+> **当前状态：尚未发布，还没有可以下载的安装包。** B 站的主流程（读字幕、生成概览、引用问答、记笔记、播放页卡片和设置页）、稍后再看粗筛、本窗口全部生成、「打开就出结论」和下面列的功能都已经做进主线，自动测试对着本机模拟的页面跑；开发者本人已经在用它日用 B 站。YouTube 的按需授权、读字幕和替你点开文字稿也已经做进主线，开发者本人也在 YouTube 上日用，首发会带上。两站都走通再在 GitHub 发第一个版本（[产品需求说明](notes/product-prd.md)第 1 节）。
 
 ![速读：一句话结论带观看判断，加带时间点的章节，重点章节标出来；展开一章能读这一段的摘要和字幕](.github/assets/skim.png)
 
@@ -103,4 +103,4 @@ MIT 许可，见 [LICENSE](LICENSE)。
 
 YouTube 是 Google LLC 的商标。哔哩哔哩和 bilibili 是其权利人的商标。简幕是个人开发的独立工具，与 Google、YouTube 和哔哩哔哩没有关联，也没有获得它们的授权或认可。
 
-最早基于 [Digest for Bilibili](https://github.com/biuworks/bilibili-digest) 分叉，正在重写。
+致谢：简幕起步于 [Digest for Bilibili](https://github.com/biuworks/bilibili-digest)，它又源自 [youtube-digest](https://github.com/zarazhangrui/youtube-digest)。

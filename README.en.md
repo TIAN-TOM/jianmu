@@ -4,7 +4,7 @@
 
 Jianmu helps you work out within a few minutes whether a long Bilibili or YouTube video is worth watching and which parts matter. Once you decide to watch, it helps you read along closely.
 
-> **Status: being rewritten, not released yet, and there is no package to download.** On Bilibili, the main flow (reading subtitles, generating overviews, Q&A with citations, taking notes, the card on the video page and the settings page), Watch Later triage, Generate all in this window, Verdict on open and the features listed below are on the main branch, and automated tests run them against locally simulated pages. The developer now uses it day to day on Bilibili. On YouTube, turning it on per site, reading subtitles and opening the transcript for you are on the main branch too. The developer uses them day to day on YouTube as well, and they will be in the first version. The first version goes out on GitHub once both sites work end to end ([PRD](notes/product-prd.md), section 1, in Chinese).
+> **Status: not released yet, and there is no package to download.** On Bilibili, the main flow (reading subtitles, generating overviews, Q&A with citations, taking notes, the card on the video page and the settings page), Watch Later triage, Generate all in this window, Verdict on open and the features listed below are on the main branch, and automated tests run them against locally simulated pages. The developer now uses it day to day on Bilibili. On YouTube, turning it on per site, reading subtitles and opening the transcript for you are on the main branch too. The developer uses them day to day on YouTube as well, and they will be in the first version. The first version goes out on GitHub once both sites work end to end ([PRD](notes/product-prd.md), section 1, in Chinese).
 
 ![Skim view: a one-line verdict with a recommendation, timestamped chapters with the key ones marked, and an expanded chapter showing its summary and subtitles](.github/assets/skim.png)
 
@@ -103,4 +103,4 @@ Released under the MIT License, see [LICENSE](LICENSE).
 
 YouTube is a trademark of Google LLC. 哔哩哔哩 and bilibili are trademarks of their respective owners. Jianmu is an independent tool made by one person. It is not affiliated with Google, YouTube or Bilibili, and is not authorised or endorsed by them.
 
-Originally forked from [Digest for Bilibili](https://github.com/biuworks/bilibili-digest), now being rewritten.
+Acknowledgements: Jianmu started from [Digest for Bilibili](https://github.com/biuworks/bilibili-digest), which in turn builds on [youtube-digest](https://github.com/zarazhangrui/youtube-digest).
