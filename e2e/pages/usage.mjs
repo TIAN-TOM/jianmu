@@ -32,6 +32,7 @@ test("设置页：推理强度那一节按功能显示最近一次的用量，�
   const first = await open(PAGE_PATHS.options, { width: WIDTH });
   assert.deepEqual(await send(first, "data.clear", { scope: "all" }), { ok: true, value: {} });
   const page = await open(PAGE_PATHS.options, { width: WIDTH });
+  await page.waitFor("显示启用说明", `document.querySelector(".activation") !== null`);
   await clickButton(page, "启用简幕");
   await page.waitFor("推理强度一节挂上", `document.querySelector('[data-effort="qa"]') !== null`);
   assert.deepEqual(await page.evaluate(usageLines), {}, "还没请求过，一行都没有");
