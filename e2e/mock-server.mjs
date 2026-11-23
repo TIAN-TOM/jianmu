@@ -8,7 +8,7 @@ import { createServer } from "node:https";
 import { join } from "node:path";
 import { createModelServices, MODEL_HOSTS } from "./mock-ai.mjs";
 import { QUIET_MEDIA_PATH, quietWav, watchPageHtml } from "./watch-page.mjs";
-import { TUBE_HOST, TUBE_VIDEOS, tubePageHtml } from "./youtube-page.mjs";
+import { TUBE_CAPTION_PATH, TUBE_HOST, TUBE_VIDEOS, tubeCaptionJson, tubePageHtml } from "./youtube-page.mjs";
 import {
   COVER_SVG,
   FOURTH_VIDEO,
@@ -281,7 +281,8 @@ function pageRoute(path, query) {
 }
 
 /**
- * YouTube 只有观看页和静音媒体：简幕在 YouTube 上不发任何请求，别的路径一律算意外。
+ * YouTube 只有观看页、静音媒体和播放器自己取的字幕：简幕在 YouTube 上不发任何请求，别的路径一律算意外。
+ * 字幕只给只有播放器字幕的那个视频，只给英文原文。
  * @param {string} path @param {URLSearchParams} query @returns {MockResponse}
  */
 function tubeRoute(path, query) {
@@ -292,6 +293,8 @@ function tubeRoute(path, query) {
   }
   const id = query.get("v") ?? "";
   if (path === "/watch" && Object.hasOwn(TUBE_VIDEOS, id)) return text(200, "text/html; charset=utf-8", tubePageHtml(id));
+  const video = TUBE_VIDEOS[/** @type {keyof typeof TUBE_VIDEOS} */ (id)];
+  if (path === TUBE_CAPTION_PATH && video && "playerOnly" in video && query.get("lang") === "en" && !query.has("tlang")) return text(200, "application/json; charset=utf-8", tubeCaptionJson(id));
   return unexpected();
 }
 

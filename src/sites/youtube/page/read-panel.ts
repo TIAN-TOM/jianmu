@@ -3,7 +3,7 @@
 // 就有的内容认不出是谁的，要用户刷新视频页再开。读到的时间不超过视频时长，超过的整份不用；播广告时不拿时长。
 import type { VideoRef } from "../../../core/video-ref.ts";
 import { advertising, ENTRY, LANGUAGE_LABEL, openPanelOf, PANELS, searching, SEGMENTS, SEGMENT_TEXT, SEGMENT_TIME, transcriptShell, videoOnPage } from "./panel-dom.ts";
-import { PANEL_LIMITS, type PanelCue, type PanelCurrent, type PanelInfo, type PanelRequest, type PanelSnapshot, type PanelState, type PlayerTracks } from "./panel-types.ts";
+import { END_SLACK_SEC, PANEL_LIMITS, type PanelCue, type PanelCurrent, type PanelInfo, type PanelRequest, type PanelSnapshot, type PanelState, type PlayerTracks } from "./panel-types.ts";
 
 // 观看页的标题、作者和简介。
 const TITLE = "ytd-watch-metadata h1";
@@ -21,8 +21,6 @@ const REOPEN_WINDOW_MS = 5000;
 // 面板内容还在变时等它停下：隔这么久没变就算加载完，最多等这么久。
 const SETTLE_MS = 400;
 const LOADING_LIMIT_MS = 4000;
-// 文字稿的最后一句可以比视频时长晚这么一点，再晚就不是这个视频的。
-const END_SLACK_SEC = 5;
 
 export interface PanelReaderDeps {
   readonly document: Document;

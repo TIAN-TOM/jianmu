@@ -2,6 +2,7 @@
 export const FRAME_EXPLAIN_PROBE = "flag-probe:frameExplain";
 export const YOUTUBE_PROBE = "flag-probe:site-youtube";
 export const YOUTUBE_OPEN_PANEL_PROBE = "flag-probe:youtubeOpenPanel";
+export const YOUTUBE_PLAYER_CAPTIONS_PROBE = "flag-probe:youtubeCaptionCatch";
 export const KEEP_CONSENT_PROBE = "flag-probe:keepConsent";
 
 export function frameExplainRoute(): string {

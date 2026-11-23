@@ -85,8 +85,10 @@ export const PANEL_LIMITS = {
 } as const;
 
 const STATES: readonly string[] = ["ready", "closed", "reopen", "loading", "stale", "no-entry", "filtered", "chapters"];
-const VIDEO_ID = /^[A-Za-z0-9_-]{1,64}$/;
-const LANG_CODE = /^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/;
+export const VIDEO_ID = /^[A-Za-z0-9_-]{1,64}$/;
+export const LANG_CODE = /^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/;
+// 字幕的最后一句可以比视频时长晚这么一点，再晚就不是这个视频的。
+export const END_SLACK_SEC = 5;
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null && !Array.isArray(value);
 const isText = (value: unknown, max: number): value is string => typeof value === "string" && value.length <= max;

@@ -46,6 +46,8 @@ export const SITE_DETAIL_TEXT_HANT: SameDetails<SiteDetails> = {
     stale: { cause: "影片頁上的轉錄稿還沒換成這部影片的。", impact: "讀到的內容沒有用，免得記到別的影片上。", next: "重新整理影片頁，再打開轉錄稿，然後點選讀取。" },
     "no-entry": { cause: "這個影片頁上找不到轉錄稿。", impact: NOT_READ, next: `有的影片播放器裡有字幕，頁面上卻沒有轉錄稿，簡幕只讀轉錄稿；也可能是頁面改版了。${IMPORT_FILE}` },
     "no-page": { cause: "要在影片頁上讀取，可是這時連不上影片頁。", impact: NOT_READ, next: "回到影片頁，在側邊欄點選讀取；還不行就重新整理影片頁。" },
+    "player-none": { cause: "這個影片頁上沒有轉錄稿，播放器裡也沒讀到字幕。", impact: NOT_READ, next: `這部影片可能本來就沒有字幕。${IMPORT_FILE}` },
+    "player-missed": { cause: "播放器的字幕開著，可是簡幕沒接住它取回來的字幕。", impact: NOT_READ, next: "重新整理影片頁，等影片開始播放，再點選讀取。" },
   },
   UNPLAYABLE: {
     paid: { cause: "這是付費內容。", impact: "簡幕不讀取付費內容，什麼都沒讀，也沒傳給模型。" },

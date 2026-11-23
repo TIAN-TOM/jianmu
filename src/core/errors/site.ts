@@ -65,6 +65,8 @@ const SITE_DETAILS = {
     stale: { cause: "视频页上的文字稿还没换成这个视频的。", impact: "读到的内容没有用，免得记到别的视频上。", next: "刷新视频页，再打开文字稿，然后点读取。" },
     "no-entry": { cause: "这个视频页上找不到文字稿。", impact: NOT_READ, next: `有的视频播放器里有字幕，页面上却没有文字稿，简幕只读文字稿；也可能是页面改版了。${IMPORT_FILE}` },
     "no-page": { cause: "要在视频页上读，可这会儿连不上视频页。", impact: NOT_READ, next: "回到视频页，在侧边栏点读取；还不行就刷新视频页。" },
+    "player-none": { cause: "这个视频页上没有文字稿，播放器里也没读到字幕。", impact: NOT_READ, next: `这个视频可能本来就没有字幕。${IMPORT_FILE}` },
+    "player-missed": { cause: "播放器的字幕开着，可简幕没接住它取回来的字幕。", impact: NOT_READ, next: "刷新视频页，等视频开始播放，再点读取。" },
   },
   UNPLAYABLE: {
     paid: { cause: "这是付费内容。", impact: "简幕不读付费内容，什么都没读，也没发给模型。" },
@@ -119,6 +121,8 @@ export const SITE_DETAIL_TEXT_EN: SameDetails<typeof SITE_DETAILS> = {
     stale: { cause: "The transcript on the video page hasn't switched to this video yet.", impact: "What was read has been discarded so it doesn't end up on the wrong video.", next: "Refresh the video page, open the transcript again, then click “Read subtitles”." },
     "no-entry": { cause: "There's no transcript on this video page.", impact: NOT_READ_EN, next: `Some videos show subtitles in the player but have no transcript on the page, and Jianmu only reads the transcript. The page layout may also have changed. ${IMPORT_FILE_EN}` },
     "no-page": { cause: "Reading needs the video page, but Jianmu can't reach it right now.", impact: NOT_READ_EN, next: "Go back to the video page and click “Read subtitles” in the side panel. If that doesn't work, refresh the video page." },
+    "player-none": { cause: "There's no transcript on this video page, and Jianmu couldn't get subtitles from the player either.", impact: NOT_READ_EN, next: `This video may not have subtitles. ${IMPORT_FILE_EN}` },
+    "player-missed": { cause: "Subtitles are on in the player, but Jianmu didn't catch the subtitles it loaded.", impact: NOT_READ_EN, next: "Refresh the video page, wait for the video to start playing, then click “Read subtitles”." },
   },
   UNPLAYABLE: {
     paid: { cause: "This is paid content.", impact: "Jianmu doesn't read paid content, so nothing was read or sent to the model." },

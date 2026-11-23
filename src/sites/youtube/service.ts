@@ -1,10 +1,14 @@
-// YouTube 的读取服务：不向平台发任何请求，只经内容脚本读观看页上用户自己打开的文字稿面板。
+// YouTube 的读取服务：不向平台发任何请求，只经内容脚本读观看页上的文字稿面板；构建开关打开时，页面上没有文字稿就改读播放器取回的字幕。
 // 开始读时核对页面上是不是这个视频；交回正文之前隔一会儿再问一次，视频、面板内容和语言有一样变了就整份不用。
 // 读到的只有面板当前显示的那一条轨：对照播放器上已有的字幕轨列表判定是哪一条，判定不了就记来源未确认。
 import type { VideoRef } from "../../core/video-ref.ts";
 import type { CaptionTrack, Cue, PageChannel, SiteCtx, SiteFailure, SiteResult, SiteService, VideoInfo } from "../types.ts";
-import { panelCurrentOf, panelSnapshotOf, type PanelSnapshot, type PlayerTrack, type PlayerTracks } from "./page/panel-types.ts";
+import { panelCurrentOf, panelSnapshotOf, type PanelCue, type PanelSnapshot, type PlayerTrack, type PlayerTracks } from "./page/panel-types.ts";
+import { readCaughtCaptions, type PlayerFallback, type PlayerRead } from "./player-fallback.ts";
 import { TRACK_PREFIX, UNCONFIRMED_TRACK, UNNAMED_TRACK, youtubeRules } from "./url.ts";
+
+// 页面上没有文字稿时读播放器取回的字幕：关掉开关的构建里这一支连同后备的代码一起裁掉。
+const playerFallback = FEATURE_YOUTUBE_CAPTION_CATCH ? readCaughtCaptions : null;
 
 // 等页面回话的上限：面板还在加载时页面那头最多等几秒。
 const ASK_TIMEOUT_MS = 10_000;
@@ -132,13 +136,28 @@ export function trackOfPanel(snapshot: Pick<PanelSnapshot, "videoId" | "label" |
 }
 
 /** 段落的时长按下一段的开始算，最后一段按视频剩下的时间、最多几秒。 */
-export function cuesOf(snapshot: PanelSnapshot): Cue[] {
-  const { cues, info } = snapshot;
+export function timedCues(cues: readonly PanelCue[], durationSec: number): Cue[] {
   return cues.map((cue, index) => {
     const next = cues[index + 1]?.start;
-    const end = next ?? (info.durationSec > cue.start ? Math.min(info.durationSec, cue.start + LAST_CUE_SEC) : cue.start + LAST_CUE_SEC);
+    const end = next ?? (durationSec > cue.start ? Math.min(durationSec, cue.start + LAST_CUE_SEC) : cue.start + LAST_CUE_SEC);
     return { start: cue.start, duration: Math.max(0, end - cue.start), text: cue.text };
   });
+}
+
+export const cuesOf = (snapshot: PanelSnapshot): Cue[] => timedCues(snapshot.cues, snapshot.info.durationSec);
+
+/**
+ * 播放器取回的字幕标哪条轨：认出了就用那条轨的语言、来源和显示名；认不出记来源未确认，
+ * 机器翻译的语言按译成的那种，别的按正文的文字认。
+ */
+export function trackOfPlayer(read: Pick<PlayerRead, "track" | "translatedTo" | "lines">): CaptionTrack {
+  const { track } = read;
+  if (track && track.lang) {
+    const shown = track.name || UNNAMED_TRACK;
+    return { trackId: `${TRACK_PREFIX}${shown}`, lang: track.lang, label: shown, kind: track.kind === AUTO_KIND ? "auto" : "human" };
+  }
+  const lang = read.translatedTo || langOfText(read.lines.map((line) => line.text));
+  return { trackId: `${TRACK_PREFIX}${UNCONFIRMED_TRACK}`, lang, label: UNCONFIRMED_TRACK, kind: "unconfirmed" };
 }
 
 type Asked = { readonly ok: true; readonly answer: unknown } | { readonly ok: false; readonly failure: SiteFailure };
@@ -194,6 +213,17 @@ async function readPanel(ref: VideoRef, ctx: SiteCtx, limitMs: number): Promise<
   return { ok: true, value: snapshot };
 }
 
+/** 交回播放器字幕之前再问一次：页面还是这个视频。 */
+async function stillOnVideo(ref: VideoRef, ctx: SiteCtx, limitMs: number): Promise<SiteFailure | null> {
+  if (!ctx.page) return fail("UNAVAILABLE", "no-page");
+  await pause(RECHECK_DELAY_MS, ctx.signal);
+  const asked = await ask(ctx.page, { type: "youtube.current", req: { videoId: ref.videoId } }, ctx.signal, limitMs);
+  if (!asked.ok) return asked.failure;
+  const current = panelCurrentOf(asked.answer);
+  if (!current) return malformed("current-shape");
+  return current.videoId === ref.videoId ? null : fail("VIDEO_CHANGED");
+}
+
 /** 交回正文之前再问一次：页面还是这个视频、面板内容没有再变过。 */
 async function stillSame(ref: VideoRef, ctx: SiteCtx, snapshot: PanelSnapshot, limitMs: number): Promise<SiteFailure | null> {
   if (!ctx.page) return fail("UNAVAILABLE", "no-page");
@@ -206,9 +236,29 @@ async function stillSame(ref: VideoRef, ctx: SiteCtx, snapshot: PanelSnapshot, l
   return current.stamp === snapshot.stamp && current.label === snapshot.label ? null : fail("UNAVAILABLE", "stale");
 }
 
-export function createYoutubeService({ askTimeoutMs = ASK_TIMEOUT_MS }: { readonly askTimeoutMs?: number } = {}): SiteService {
+export interface YoutubeServiceOptions {
+  readonly askTimeoutMs?: number;
+  /** 页面上没有文字稿时读播放器取回的字幕；构建开关关着时没有，测试可以换替身或关掉。 */
+  readonly caughtCaptions?: PlayerFallback | null;
+}
+
+export function createYoutubeService({ askTimeoutMs = ASK_TIMEOUT_MS, caughtCaptions = playerFallback }: YoutubeServiceOptions = {}): SiteService {
   // 一次读取里问到的那份快照：列轨和读正文共用，不跨读取操作。
   const snapshots = new WeakMap<SiteCtx, PanelSnapshot>();
+  // 一次读取里读到的播放器字幕：一次读取只走一回，重新列轨也不再点。
+  const fromPlayer = new WeakMap<SiteCtx, SiteResult<PlayerRead>>();
+
+  /** 页面上没有文字稿：改读播放器取回的字幕。 */
+  async function viaPlayer(fallback: PlayerFallback, ref: VideoRef, ctx: SiteCtx, snapshot: PanelSnapshot): Promise<SiteResult<PlayerRead>> {
+    const done = fromPlayer.get(ctx);
+    if (done) return done;
+    const page = ctx.page;
+    const read = page
+      ? await fallback({ videoId: ref.videoId, durationSec: snapshot.info.durationSec, ask: (message) => ask(page, message, ctx.signal, askTimeoutMs) })
+      : fail("UNAVAILABLE", "no-page");
+    fromPlayer.set(ctx, read);
+    return read;
+  }
   return {
     rules: youtubeRules,
 
@@ -237,12 +287,21 @@ export function createYoutubeService({ askTimeoutMs = ASK_TIMEOUT_MS }: { readon
         snapshots.set(ctx, snapshot);
       }
       const failure = failureOfState(snapshot);
+      if (failure && snapshot.state === "no-entry" && caughtCaptions) {
+        const read = await viaPlayer(caughtCaptions, info.ref, ctx, snapshot);
+        return read.ok ? { ok: true, value: [trackOfPlayer(read.value)] } : read;
+      }
       return failure ?? { ok: true, value: [trackOfPanel(snapshot)] };
     },
 
     async readCaptions(info, track, ctx) {
       const snapshot = snapshots.get(ctx);
       if (!snapshot) return fail("UNAVAILABLE", "stale");
+      const player = snapshot.state === "no-entry" ? fromPlayer.get(ctx) : undefined;
+      if (player?.ok && trackOfPlayer(player.value).trackId === track.trackId) {
+        const changed = await stillOnVideo(info.ref, ctx, askTimeoutMs);
+        return changed ?? { ok: true, value: timedCues(player.value.lines, info.durationSec) };
+      }
       const failure = failureOfState(snapshot);
       if (failure) return failure;
       // 面板上的轨换了（用户在面板里换了语言）：这份不是要的那条。

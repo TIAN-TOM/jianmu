@@ -20,7 +20,7 @@ import {
   type FeatureSet,
 } from "../src/shared/features.ts";
 import { INJECTED } from "../src/shared/names.ts";
-import { FRAME_EXPLAIN_PROBE, KEEP_CONSENT_PROBE, YOUTUBE_OPEN_PANEL_PROBE, YOUTUBE_PROBE } from "./fixtures/build-flags/gated.ts";
+import { FRAME_EXPLAIN_PROBE, KEEP_CONSENT_PROBE, YOUTUBE_OPEN_PANEL_PROBE, YOUTUBE_PLAYER_CAPTIONS_PROBE, YOUTUBE_PROBE } from "./fixtures/build-flags/gated.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BUILD = join(ROOT, "build");
@@ -327,6 +327,7 @@ const PROBES: Readonly<Record<FeatureName, string>> = {
   frameExplain: FRAME_EXPLAIN_PROBE,
   youtube: YOUTUBE_PROBE,
   youtubeOpenPanel: YOUTUBE_OPEN_PANEL_PROBE,
+  youtubeCaptionCatch: YOUTUBE_PLAYER_CAPTIONS_PROBE,
   keepConsent: KEEP_CONSENT_PROBE,
 };
 
@@ -481,6 +482,28 @@ test("YouTube 代开文字稿首发带上：发行构建的后台、侧边栏和
       assert.ok(release.get(file)?.includes(marker), `发行构建的 ${file} 里没有 ${marker}`);
       assert.ok(readBuild(file.replace(/^build\//, "")).includes(marker), `build/ 里的 ${file} 没有 ${marker}`);
       assert.ok(!withoutOpener.get(file)?.includes(marker), `关掉代开开关的 ${file} 里有 ${marker}`);
+    }
+  }
+});
+
+test("读播放器取回的字幕只在日用包里：日用构建的后台、YouTube 内容脚本和主世界小桥里有这段代码，发行包和 build/ 里都没有", async () => {
+  const files = ["build/background.js", "build/content/youtube.js", "build/content/youtube-bridge.js"];
+  const pick = async (features: FeatureSet) => {
+    const options = bundleOptions(features).filter((option) => files.includes(String(option.outfile)));
+    const built = await Promise.all(options.map(async (option) => [String(option.outfile), (await build({ ...option, write: false })).outputFiles.map((output) => output.text).join("\n")] as const));
+    return new Map(built);
+  };
+  const markers: Readonly<Record<string, readonly string[]>> = {
+    "build/background.js": ["youtube.caughtCaptions", "src/sites/youtube/player-fallback", "src/sites/youtube/caption-json", "src/sites/youtube/page/caption-types"],
+    "build/content/youtube.js": ["youtube.caughtCaptions", "src/sites/youtube/page/caption-types", "ytp-subtitles-button", "src/sites/youtube/page/caption-ask"],
+    "build/content/youtube-bridge.js": ["src/sites/youtube/page/caption-catch", "XMLHttpRequest", "src/sites/youtube/page/caption-types"],
+  };
+  const [release, daily] = await Promise.all([pick(RELEASE_FEATURES), pick(DAILY_FEATURES)]);
+  for (const [file, list] of Object.entries(markers)) {
+    for (const marker of list) {
+      assert.ok(daily.get(file)?.includes(marker), `日用构建的 ${file} 里没有 ${marker}`);
+      assert.ok(!release.get(file)?.includes(marker), `发行构建的 ${file} 里有 ${marker}`);
+      assert.ok(!readBuild(file.replace(/^build\//, "")).includes(marker), `build/ 里的 ${file} 有 ${marker}`);
     }
   }
 });

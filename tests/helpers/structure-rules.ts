@@ -65,6 +65,11 @@ const NETWORK_ALLOWED: Readonly<Record<string, RegExp>> = {
   "src/sites/services.ts": /\bfetch: fetch\.bind\(globalThis\)/, // 把 fetch 交给读取环境
   "src/sites/types.ts": /\bfetch: typeof fetch;/, // 读取环境里 fetch 的类型
 };
+// 第 6 条：YouTube 一侧只有主世界里接住播放器字幕的那一处许提到网页的请求对象，只认取它原型的那一种写法、只放行一处：
+// 包住页面自己的请求，不新建、不发出。
+const PAGE_REQUEST_HOOK: Readonly<Record<string, RegExp>> = {
+  "src/sites/youtube/page/caption-catch.ts": /\bscope\.XMLHttpRequest\.prototype\b/,
+};
 // 前台模块只许写播放页的地址，接口地址只在后台读取模块里。
 const PAGE_ADDRESS = /^https:\/\/www\.(?:bilibili|youtube)\.com\/(?:video|watch)\b/;
 const BILIBILI_READ = /^src\/sites\/bilibili\/(?!(?:url|page|page\/[^/]+)\.ts$)/;
@@ -136,8 +141,10 @@ function edgesOf(file: string, code: string): Edge[] {
 function toModule(file: SourceFile): Module {
   const parts = splitSource(file.text);
   const allowed = NETWORK_ALLOWED[file.path];
-  const sends = NETWORK_CALL.test(allowed ? parts.code.replace(allowed, "") : parts.code);
-  return { ...file, ...parts, edges: edgesOf(file.path, parts.code), sends, calls: NETWORK_CALL.test(parts.code) };
+  const hook = PAGE_REQUEST_HOOK[file.path];
+  const code = hook ? parts.code.replace(hook, "") : parts.code;
+  const sends = NETWORK_CALL.test(allowed ? code.replace(allowed, "") : code);
+  return { ...file, ...parts, edges: edgesOf(file.path, parts.code), sends, calls: NETWORK_CALL.test(code) };
 }
 
 function checkImport(file: string, { specifier, target, typeOnly }: Edge): string | null {

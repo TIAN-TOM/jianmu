@@ -57,6 +57,9 @@ export const INJECTED = {
   tracksAsk: "jianmu-tracks-ask",
   tracksAnswer: "jianmu-tracks-answer",
   bridgeRetire: "jianmu-bridge-retire",
+  // 同一座小桥上问播放器取回的字幕：问、答。
+  captionsAsk: "jianmu-captions-ask",
+  captionsAnswer: "jianmu-captions-answer",
 } as const;
 
 // 工具栏图标右键菜单里简幕自己的几项，以 jianmu- 开头。
