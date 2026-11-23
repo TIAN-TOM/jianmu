@@ -48,7 +48,7 @@ export const OPTIONS_HANT: OptionsText = {
     importing: "正在還原",
     import: "還原備份",
     clearTitle: "清除本機資料",
-    clearHint: "清除快取不動筆記、概覽、問答和設定。清除全部資料刪了無法復原，要保留的請先匯出備份。",
+    clearHint: "清除快取不動筆記、概覽、問答和設定。刪除全部筆記和清除全部資料刪了無法復原，要保留的請先匯出備份。",
     clearCache: "清除快取",
     clearCacheQuestion: "要清除字幕和影片資訊的快取，以及粗篩讀到的清單嗎？筆記、概覽、問答和設定都會保留。",
     clearCacheConfirm: "清除快取",

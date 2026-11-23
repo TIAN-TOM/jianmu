@@ -62,7 +62,7 @@ export const OPTIONS_ZH = {
     importing: "正在恢复",
     import: "恢复备份",
     clearTitle: "清除本机数据",
-    clearHint: "清除缓存不动笔记、概览、问答和设置。清除全部数据删了不能恢复，要留着的先导出备份。",
+    clearHint: "清除缓存不动笔记、概览、问答和设置。删除全部笔记和清除全部数据删了不能恢复，要留着的先导出备份。",
     clearCache: "清除缓存",
     clearCacheQuestion: "清除字幕和视频信息的缓存，以及粗筛读到的列表？笔记、概览、问答和设置都留着。",
     clearCacheConfirm: "清除缓存",
