@@ -56,14 +56,14 @@ function videoOf(prompt) {
 }
 
 /** 回纯文本的几种请求。 @type {Readonly<Record<string, string>>} */
-const PLAIN_REPLIES = { test: "可用", probe: "红色", frame: "模拟服务的画面解释：幻灯片上是一张受力分析图。" };
+const PLAIN_REPLIES = { probe: "红色", frame: "模拟服务的画面解释：幻灯片上是一张受力分析图。" };
 
-/** 设置页「测试连接」发的那句话。 */
-const TEST_PROMPT = "回复两个字：可用";
+/** 设置页「测试连接」按语言发的那句话 → 模型照着回的词。 @type {Readonly<Record<string, string>>} */
+const TEST_PROMPTS = { "回复两个字：可用": "可用", "回覆兩個字：可用": "可用", "Reply with one word: OK": "OK" };
 
 /** @param {string} prompt @returns {"analysis" | "verdict" | "qa" | "tidy" | "frame" | "probe" | "test" | ""} */
 function kindOf(prompt) {
-  if (prompt.trim() === TEST_PROMPT) return "test";
+  if (Object.hasOwn(TEST_PROMPTS, prompt.trim())) return "test";
   if (prompt.includes("这张小图是什么颜色")) return "probe";
   if (prompt.includes("这一帧的时间：")) return "frame";
   if (prompt.includes("你在整理视频字幕")) return "tidy";
@@ -215,7 +215,7 @@ export function createModelServices({ record }) {
         return undefined;
       }
       serial += 1;
-      const text = PLAIN_REPLIES[call.kind] ?? JSON.stringify(resultOf(/** @type {"analysis" | "verdict" | "qa" | "tidy"} */ (call.kind), prompt));
+      const text = (call.kind === "test" ? TEST_PROMPTS[prompt.trim()] : PLAIN_REPLIES[call.kind]) ?? JSON.stringify(resultOf(/** @type {"analysis" | "verdict" | "qa" | "tidy"} */ (call.kind), prompt));
       send(res, 200, completion(protocol, body?.model ?? service.model, text, serial));
       call.answeredAt = Date.now();
       return undefined;

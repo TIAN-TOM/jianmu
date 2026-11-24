@@ -307,7 +307,7 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
             if (probed.ok && !probed.value.imageInput) return fail("AI_IMAGE_UNSUPPORTED");
           }
           deps.log.error("解释画面失败", errorLabel(error));
-          return aiFailure(error);
+          return aiFailure(error, outputLangOf(gen));
         }
       },
       { autoFinish: true },

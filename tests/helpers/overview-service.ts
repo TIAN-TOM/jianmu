@@ -14,6 +14,7 @@ import { ok, type ErrorCode, type Failure, type Result } from "../../src/core/er
 import type { ClearEpoch } from "../../src/core/clear-guard.ts";
 import type { OverviewRecord } from "../../src/core/notes/records.ts";
 import type { FrozenGen, TaskKind, TaskOrigin, TaskView } from "../../src/core/tasks.ts";
+import type { OutputLang } from "../../src/core/output-lang.ts";
 import type { TranscriptSegment } from "../../src/core/transcript/segment.ts";
 import { videoKey, type VideoKey, type VideoRef } from "../../src/core/video-ref.ts";
 import { createKeepAlive, type KeepAlive } from "../../src/platform/keepalive.ts";
@@ -155,6 +156,8 @@ export interface OverviewHarnessOptions {
   readonly wrapDriver?: (inner: ObjectStoreDriver<OverviewRecord>) => ObjectStoreDriver<OverviewRecord>;
   readonly keepAlive?: KeepAlive;
   readonly timers?: ManualTimers;
+  /** 任务取定的输出语言，不给时按简体（冻结的配置里不带这一项）。 */
+  readonly outputLang?: OutputLang;
 }
 
 export interface Logged {
@@ -334,7 +337,8 @@ export function overviewHarness(options: OverviewHarnessOptions = {}): OverviewH
   });
 
   const register = async (video: VideoKey = VIDEO): Promise<string> => {
-    const registered = await tasks.register({ kind: "overview", origin: "user", video, gen: ANALYSIS_GEN, stages: [VERDICT_GEN], followsPage: false }, {});
+    const lang = options.outputLang ? { outputLang: options.outputLang } : {};
+    const registered = await tasks.register({ kind: "overview", origin: "user", video, gen: { ...ANALYSIS_GEN, ...lang }, stages: [{ ...VERDICT_GEN, ...lang }], followsPage: false }, {});
     if (!("task" in registered)) throw new Error(`登记失败：${JSON.stringify(registered)}`);
     return registered.task.id;
   };

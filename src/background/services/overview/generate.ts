@@ -12,7 +12,7 @@ import type { LearningAnalysis } from "../../../core/notes/markdown.ts";
 import { normalizeAnalysisFailures, overviewTranscriptBasis, type Basis, type OverviewPart, type OverviewRecord } from "../../../core/notes/records.ts";
 import { genInfo } from "../../../core/tasks.ts";
 import { localizePrompt } from "../../../core/ai/prompt.ts";
-import { outputLangOf } from "../../../core/output-lang.ts";
+import { outputLangOf, type OutputLang } from "../../../core/output-lang.ts";
 import { parseVideoKey, type VideoKey } from "../../../core/video-ref.ts";
 import type { Broadcast } from "../../../shared/messages.ts";
 import type { OverviewResultView } from "../../../shared/messages/overview.ts";
@@ -75,12 +75,12 @@ const tooBig = (error: unknown): boolean => TOO_BIG_CODES.has((error as { readon
  * 抛出来的错误换成结果：概览自己的码照用，其余按模型服务的错误归类。
  * 选了「尽量整份」又是块太大的那类失败时，单独报，下一步提示换回别的档。
  */
-function failureOf(error: unknown, whole = false): Failure {
+function failureOf(error: unknown, lang: OutputLang, whole = false): Failure {
   const code = (error as { readonly code?: unknown } | null)?.code;
   if (whole && tooBig(error)) return fail("WHOLE_CHUNK_TOO_BIG");
   if (code === "EMPTY_CHUNK") return fail("EMPTY_ANALYSIS");
   if (code === "ANALYSIS_PARSE_FAILED" && isErrorCode(code)) return fail(code);
-  return aiFailure(error);
+  return aiFailure(error, lang);
 }
 
 function storedView(video: VideoKey, record: OverviewRecord): OverviewResultView {
@@ -233,7 +233,7 @@ export function createGenerator(deps: GenerateDeps) {
           ),
         });
         const parts = partsOf(results);
-        const remaining = chunkFailureRanges(chunks, results, describeChunkFailure);
+        const remaining = chunkFailureRanges(chunks, results, (reason) => describeChunkFailure(reason, outputLangOf(run.gen)));
         const regenerating = existing !== null && hasAnalysisContent(existing.analysis);
         if (run.signal.aborted) {
           // 重新生成时停下：不拿残缺的结果覆盖原来那份。一块都没完成、因为清除本机数据停下的，什么也不存。
@@ -249,7 +249,7 @@ export function createGenerator(deps: GenerateDeps) {
         return await finish(job, finishing);
       } catch (error) {
         logFailure("概览生成", error, run.signal);
-        return failureOf(error, whole);
+        return failureOf(error, outputLangOf(run.gen), whole);
       }
     },
 
@@ -293,7 +293,7 @@ export function createGenerator(deps: GenerateDeps) {
         if (whole && !parts.length && !run.signal.aborted && results.some((result) => result.status === "rejected" && tooBig(result.reason))) {
           return fail("WHOLE_CHUNK_TOO_BIG");
         }
-        const remaining = chunkFailureRanges(selected, results, describeChunkFailure);
+        const remaining = chunkFailureRanges(selected, results, (reason) => describeChunkFailure(reason, outputLangOf(run.gen)));
         // 合并只换被重试的区间；截断记录沿用旧的，被重试的区间换成这次的。结论先留着，补全后再重写。
         const previous = (existing.analysis as { readonly truncatedRanges?: readonly StoredRange[] }).truncatedRanges;
         const merged = withTruncatedRanges(
@@ -312,7 +312,7 @@ export function createGenerator(deps: GenerateDeps) {
         return done.ok ? ok({ ...done.value, recoveredChunks: parts.length }) : done;
       } catch (error) {
         logFailure("补失败块", error, run.signal);
-        return failureOf(error, whole);
+        return failureOf(error, outputLangOf(run.gen), whole);
       }
     },
   };

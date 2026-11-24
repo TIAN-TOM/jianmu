@@ -8,6 +8,7 @@ import { createApp } from "../../../../../src/background/app.ts";
 import { CLAIM_MS } from "../../../../../src/background/tasks.ts";
 import { ANALYSIS_CHUNK, VERDICT } from "../../../../../src/core/ai/schemas.ts";
 import { PROTOCOLS } from "../../../../../src/core/ai/provider/index.ts";
+import { errorCopy } from "../../../../../src/core/errors.ts";
 import type { OverviewRecord } from "../../../../../src/core/notes/records.ts";
 import type { VideoKey } from "../../../../../src/core/video-ref.ts";
 import type { ObjectStoreDriver } from "../../../../../src/platform/idb.ts";
@@ -289,6 +290,19 @@ test("分块返回空对象时记为失败块，不把缺了一段的概览当�
   assert.equal(result.analysisFailures[0]?.startSeconds, 150);
   assert.match(result.analysisFailures[0]?.reason ?? "", /没有产出有效的章节或金句/);
   assert.equal((await h.record())?.analysisFailures?.length, 1);
+});
+
+test("英文、繁体任务里失败块的原因按任务的语言记：空分块和读不出结构化结果都是", async () => {
+  const cases = [
+    ["en", "{}", "The model didn't write any usable chapters or key quotes."],
+    ["en", "not json", "The model didn't return the overview in the expected format, so it couldn't be read."],
+    ["zh-Hant", "{}", errorCopy("EMPTY_ANALYSIS", undefined, "zh-Hant").cause],
+  ] as const;
+  for (const [outputLang, text, expected] of cases) {
+    const h = overviewHarness({ outputLang, respond: ({ user, isVerdict }) => (!isVerdict && FAIL_CHUNK(user) ? { text } : undefined) });
+    const result = value(await h.generate().result);
+    assert.equal(result.analysisFailures[0]?.reason, expected, `${outputLang} ${text}`);
+  }
 });
 
 test("条目全部校验失败（时间戳越界）的分块同样记为失败", async () => {

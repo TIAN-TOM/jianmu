@@ -33,6 +33,7 @@ import {
   SAMPLE_KEY,
   type ModelService,
   type ServiceHandler,
+  type ServiceReply,
 } from "../../helpers/fake-model-service.ts";
 import { until } from "../../helpers/wait-until.ts";
 
@@ -661,21 +662,21 @@ test("后台：配置检查分得清缺什么：只是密钥没了回 missing �
 
 test("模型服务的失败带上服务的原话；鉴权失败、取消不带", () => {
   const http = (status: number, message: string) => Object.assign(new Error(message), { status });
-  assert.deepEqual(AI.aiFailure(http(404, "model sample-old was retired, use sample-new")), {
+  assert.deepEqual(AI.aiFailure(http(404, "model sample-old was retired, use sample-new"), "zh"), {
     ok: false,
     code: "MODEL_OR_ENDPOINT_NOT_FOUND",
     detail: "服务返回 404，多半是模型名写错或 API 地址不对，请到设置页核对。",
     said: "model sample-old was retired, use sample-new",
   });
-  assert.equal(AI.aiFailure(http(400, "unsupported parameter: sample")).said, "unsupported parameter: sample", "认不出的错误也带原话");
-  assert.equal(AI.aiFailure(http(400, "unsupported parameter: sample")).code, "AI_REQUEST_FAILED");
-  assert.equal("said" in AI.aiFailure(http(401, "Incorrect API key provided: sk-test-abcd****wxyz")), false);
-  assert.equal("said" in AI.aiFailure(Object.assign(new Error("任务已取消。"), { code: "TASK_CANCELED" })), false);
+  assert.equal(AI.aiFailure(http(400, "unsupported parameter: sample"), "zh").said, "unsupported parameter: sample", "认不出的错误也带原话");
+  assert.equal(AI.aiFailure(http(400, "unsupported parameter: sample"), "zh").code, "AI_REQUEST_FAILED");
+  assert.equal("said" in AI.aiFailure(http(401, "Incorrect API key provided: sk-test-abcd****wxyz"), "zh"), false);
+  assert.equal("said" in AI.aiFailure(Object.assign(new Error("任务已取消。"), { code: "TASK_CANCELED" }), "zh"), false);
 });
 
 test("服务的原话里遮掉密钥的占位字按语言写：英文是英文，中文照旧", () => {
   const error = Object.assign(new Error("model sample-x refused [已隐藏的密钥], token 9f8e7d6c5b4a39281706f5e4d3c2b1a0"), { status: 404 });
-  assert.equal(AI.aiFailure(error).said, "model sample-x refused [已隐藏的密钥], token [已隐藏]");
+  assert.equal(AI.aiFailure(error, "zh").said, "model sample-x refused [已隐藏的密钥], token [已隐藏]");
   assert.equal(AI.aiFailure(error, "en").said, "model sample-x refused [key hidden], token [hidden]");
 });
 
@@ -691,7 +692,7 @@ test("错误链：挂着繁体说明的错误经回执和结果出来是繁体�
   const expected = providerText("zh-Hant").redirected("https://api.example.test/v1?k=[已隱藏的金鑰]");
   assert.equal(aiErrorResponse(error, "zh-Hant").message, expected);
   assert.deepEqual(AI.aiFailure(error, "zh-Hant"), { ok: false, code: "AI_REDIRECT_BLOCKED", detail: expected });
-  assert.equal(AI.aiFailure(error).detail, text.message, "不传语言还是简体");
+  assert.equal(AI.aiFailure(error, "zh").detail, text.message, "简体照旧");
   assert.deepEqual(Object.keys(error), ["code"]);
   assert.equal(JSON.stringify({ ...error }), before);
   assert.equal(error.message, text.message);
@@ -716,4 +717,31 @@ test("设置页拉模型列表、测试连接失败时的说明跟着语言设�
       assert.equal(tested.detail, `AI 还没配置好：${DATA_CONSENT_ERROR}`, language);
     }
   }
+});
+
+test("测试连接发给模型的那句话跟着语言设置：选英文发英文、要模型回英文的词，设置页原样显示回的词", async () => {
+  const sentPrompt = (service: ModelService): unknown => (service.posts()[0]?.body?.["messages"] as { content?: unknown }[] | undefined)?.[0]?.content;
+  const english = setup({ ...keyedStorage({ ...DEEPSEEK, language: "en" }, DEEPSEEK_ORIGIN), handler: () => chatReply("OK") });
+  assert.deepEqual(await english.ask("ai.testConnection", senders.options()), { ok: true, value: { model: "deepseek-v4-flash", reply: "OK" } });
+  assert.equal(sentPrompt(english.service), "Reply with one word: OK");
+  for (const language of ["zh", "zh-Hant"] as const) {
+    const { ask, service } = setup({ ...keyedStorage({ ...DEEPSEEK, language }, DEEPSEEK_ORIGIN), handler: () => chatReply("可用") });
+    assert.equal(((await ask("ai.testConnection", senders.options())) as { ok: boolean }).ok, true, language);
+    const prompt = String(sentPrompt(service));
+    assert.match(prompt, /可用$/, language);
+    assert.equal(prompt === "回复两个字：可用", language === "zh", `${language}：${prompt}`);
+  }
+});
+
+test("任务里的请求没写语言时按冻结的语言写：英文任务被限流重发时的进度是英文", async () => {
+  let sends = 0;
+  const limited: ServiceReply = { ...reply({ error: { message: "rate limited" } }, 429), headers: new Headers({ "retry-after": "1" }) };
+  const { ai } = setup({ ...keyedStorage(DEEPSEEK, DEEPSEEK_ORIGIN), handler: () => (++sends === 1 ? limited : chatReply("done")) });
+  const notices: string[] = [];
+  const frozen: FrozenGen = { ...frozenFor("deepseek-v4-flash", "https://api.deepseek.com"), outputLang: "en" };
+  const { text } = await ai.forTask(frozen).requestAiCompletion({ ...EXPLAIN, onRetry: ({ message }) => notices.push(message) });
+  assert.equal(text, "done");
+  assert.equal(notices.length, 1);
+  const [notice = ""] = notices;
+  assert.doesNotMatch(notice, /[一-鿿]/, notice);
 });

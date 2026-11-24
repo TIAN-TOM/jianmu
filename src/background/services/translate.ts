@@ -326,24 +326,26 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
   }
 
   async function runJob(job: Job, session: Session, todo: readonly TranscriptSegment[]): Promise<void> {
-    const counted: { outcome?: BatchOutcome } = {};
+    const counted: { outcome?: BatchOutcome; lang?: OutputLang } = {};
     const result = await deps.tasks.run(
       session.taskId,
       async (run) => {
+        const lang = outputLangOf(run.gen);
         const settled = await translateAll(run, job, session, todo);
         if (!settled.ok) return settled;
         counted.outcome = settled.value;
+        counted.lang = lang;
         // 一批都没成：任务按失败收尾。译成了一部分的不算，页面按没译完的批数提示再点一次补齐。
         const { rejected, total, first } = settled.value;
         // 额度用完、密钥不对时按失败收尾，原因说清；只是部分批次没成的，页面按没成的批数提示再点一次补齐。
-        if (first !== undefined && pauseReasonOf(first)) return { ok: false as const, ...failureOf(first) };
-        return rejected > 0 && rejected === total ? { ok: false as const, ...failureOf(first) } : settled;
+        if (first !== undefined && pauseReasonOf(first)) return { ok: false as const, ...failureOf(first, lang) };
+        return rejected > 0 && rejected === total ? { ok: false as const, ...failureOf(first, lang) } : settled;
       },
       { autoFinish: true },
     );
-    const { outcome } = counted;
+    const { outcome, lang } = counted;
     const canceled = !result.ok && result.code === "TASK_CANCELED";
-    const failure = canceled || result.ok ? undefined : outcome?.first !== undefined ? failureOf(outcome.first) : bare(result);
+    const failure = canceled || result.ok ? undefined : outcome?.first !== undefined && lang ? failureOf(outcome.first, lang) : bare(result);
     broadcast(session, {
       type: "translate.done",
       taskId: session.taskId,

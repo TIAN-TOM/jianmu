@@ -159,7 +159,7 @@ export const OPTIONS_EN: OptionsText = {
   consent: {
     title: "What's sent when you use AI features",
     headings: { category: "What's sent", purpose: "Used for", recipient: "Sent to", trigger: "When" },
-    joiner: "; ",
+    joiner: ". ",
     updated: "The notice has changed. Here's what's new:",
     full: "See the full notice",
     agree: "I understand and agree to send the above when I use AI features",
