@@ -8,12 +8,14 @@ const videos = (count: number): string => plural(count, "video", "videos");
 export const TRIAGE_EN: TriageText = {
   title: "Watch Later triage · Jianmu",
   heading: "Watch Later triage",
-  back: "← Back to settings",
+  back: "Settings",
   lede: "Use Bilibili's official summaries to see what each video covers, then decide whether to spend API credit on a one-line verdict. Jianmu only reads your own Watch Later list and doesn't change anything on Bilibili.",
   activationLoading: "Checking whether Jianmu is turned on…",
   retry: "Try again",
   notEnabledTitle: "Jianmu isn't turned on yet",
-  notEnabledImpact: "Read the activation notice in the side panel or settings, click “Turn on Jianmu”, then come back to this page.",
+  notEnabledImpact: "Turn it on to read your Watch Later list.",
+  enableInSettings: "Turn on in settings",
+  openSettings: "Open settings",
 
   list: {
     title: "Read the list",
@@ -106,7 +108,7 @@ export const TRIAGE_EN: TriageText = {
   },
   allWritten: "Every video with an official summary already has a verdict.",
   noneToWrite: "No videos are ready for a verdict yet. Do step 1 first to fetch official summaries.",
-  notConfigured: "The AI service isn't set up yet. Go to settings and fill in the provider, API key and model.",
+  notConfigured: "The AI service isn't set up yet.",
   askVerdict: {
     count: (count) => `Jianmu will write a one-line verdict for ${videos(count)} with an official summary.`,
     cost: (concurrency) => `This uses your API credit. Each video is one small request that sends the title, description, creator name, length and official summary to the model service you set up, without subtitles. Up to ${concurrency} run at once.`,

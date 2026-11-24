@@ -5,12 +5,14 @@ import type { TriageText } from "./text-zh.ts";
 export const TRIAGE_HANT: TriageText = {
   title: "稍後再看粗篩 · 簡幕",
   heading: "稍後再看粗篩",
-  back: "← 返回設定",
+  back: "設定",
   lede: "先用 B 站官方總結看每部影片講了什麼，再決定要不要花 API 額度寫一句話結論。只讀取你自己的稍後再看清單，不會改動 B 站上的任何資料。",
   activationLoading: "正在讀取啟用狀態……",
   retry: "重試",
   notEnabledTitle: "還沒啟用簡幕",
-  notEnabledImpact: "先在側邊欄或設定頁讀一下啟用說明，點選「啟用簡幕」，再回到這一頁。",
+  notEnabledImpact: "啟用以後才能讀取稍後再看。",
+  enableInSettings: "去設定頁啟用",
+  openSettings: "打開設定",
 
   list: {
     title: "讀取清單",
@@ -103,7 +105,7 @@ export const TRIAGE_HANT: TriageText = {
   },
   allWritten: "有官方總結的影片都已經有結論了。",
   noneToWrite: "還沒有可以寫結論的影片：先做第一步取得官方總結。",
-  notConfigured: "還沒設定好 AI 服務：先到設定頁填好服務商、金鑰和模型。",
+  notConfigured: "還沒設定好 AI 服務。",
   askVerdict: {
     count: (count) => `要替 ${count} 部有官方總結的影片寫一句話結論。`,
     cost: (concurrency) => `會用到你的 API 額度：每部影片傳送一次小請求，把標題、簡介、UP 主名稱、長度和官方總結傳給你設定的模型服務，不含字幕，同時最多 ${concurrency} 部。`,

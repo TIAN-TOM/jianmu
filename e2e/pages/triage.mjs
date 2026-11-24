@@ -1,4 +1,5 @@
-// 粗筛页：读稍后再看、第一步取官方总结、没设置模型服务时第二步不开始、按判断筛选，重新打开时直接显示读过的；
+// 粗筛页：读稍后再看、读完直接摆出第一步的确认、第一步取官方总结、没设置模型服务时第二步不开始并给「打开设置」（设置页停在 AI 服务那一节）、
+// 「关掉这个页面……」只在进行中或等确认时显示、按判断筛选，重新打开时直接显示读过的、不自动弹确认；
 // 语言选 English 以后页面上的字是英文，读列表失败时的说明也是英文，切回中文马上恢复；选繁体时读列表失败的说明是繁体。
 // 排在侧边栏之后：那时已经确认启用、登录了模拟的 B 站；页面测试里没有设置模型服务的密钥。
 import assert from "node:assert/strict";
@@ -44,7 +45,14 @@ async function statusHas(page, id, text, timeoutMs) {
 const rows = (page) =>
   page.evaluate(`[...document.querySelectorAll(".video")].map((row) => ({ video: row.dataset.video, group: row.dataset.group, text: row.innerText }))`);
 
-test("粗筛页：读列表、第一步取官方总结、没设置模型服务时第二步不开始、按判断筛选", async ({ open }) => {
+const OPTIONS_PATH = "/pages/options.html";
+const optionsView = `chrome.extension.getViews({ type: "tab" }).find((view) => view.location.pathname === ${JSON.stringify(OPTIONS_PATH)})`;
+/** 设置页「AI 服务」一节的顶边在视口里的位置；设置页没开或没渲染出这一节时是 null。 */
+const aiSectionTop = `(() => { const view = ${optionsView}; const top = view?.document.getElementById("ai-service")?.getBoundingClientRect().top; return top === undefined ? null : top; })()`;
+const closeOptions = `chrome.runtime.getContexts({ contextTypes: ["TAB"] }).then((list) => Promise.all(list.filter((item) => new URL(item.documentUrl).pathname === ${JSON.stringify(OPTIONS_PATH)}).map((item) => chrome.tabs.remove(item.tabId)))).then(() => true)`;
+const hasCloseNote = `document.querySelector("#triage-steps .note") !== null`;
+
+test("粗筛页：读列表、读完直接确认第一步、取官方总结、没设置模型服务时第二步不开始、按判断筛选", async ({ open }) => {
   const page = await open(PAGE_PATHS.triage, { width: WIDTH });
   await page.waitFor("读取按钮出来", `[...document.querySelectorAll("button")].some((button) => button.textContent.includes("读取我的稍后再看"))`);
   assert.equal(await page.evaluate(`document.querySelector("#triage-steps") === null`), true, "读列表之前没有两步");
@@ -57,12 +65,15 @@ test("粗筛页：读列表、第一步取官方总结、没设置模型服务�
     TITLES,
   );
 
-  await clickButton(page, "开始取官方总结");
+  // 读完就摆出第一步的确认，不用再点「开始取官方总结」；等确认时费用提示在。
+  await page.waitFor("第一步的确认", `document.querySelector('#step-official .confirm') !== null`);
   const confirm = await page.evaluate(`document.querySelector(".confirm")?.innerText ?? ""`);
   assert.match(confirm, new RegExp(`要逐个请求 ${TITLES.length} 个视频的 B 站官方总结`));
   assert.match(confirm, /不调模型，不花 API 额度/);
+  assert.equal(await page.evaluate(hasCloseNote), true, "等确认时有费用提示");
   await clickButton(page, "现在开始");
   await statusHas(page, "step-official", "这一轮取完了", 20_000);
+  assert.equal(await page.evaluate(hasCloseNote), false, "做完以后不再摆费用提示");
   const fetched = await rows(page);
   const fourth = fetched.find((row) => row.text.includes(FOURTH_VIDEO.title));
   assert.match(fourth?.text ?? "", /没有官方总结/);
@@ -70,8 +81,15 @@ test("粗筛页：读列表、第一步取官方总结、没设置模型服务�
   for (const row of fetched.filter((entry) => entry !== fourth)) assert.match(row.text, /B 站官方总结：/);
 
   await clickButton(page, "开始写结论");
-  await statusHas(page, "step-verdict", "还没配置好 AI 服务");
+  await statusHas(page, "step-verdict", "还没设置好 AI 服务");
   assert.equal(await page.evaluate(`document.querySelector(".confirm") === null`), true, "没设置好时不弹确认");
+  await page.evaluate(closeOptions);
+  try {
+    await clickButton(page, "打开设置");
+    await page.waitFor("设置页停在 AI 服务", `(() => { const top = ${aiSectionTop}; return top !== null && top > -1 && top <= 200; })()`);
+  } finally {
+    await page.evaluate(closeOptions);
+  }
 
   await clickButton(page, "还没判断");
   assert.equal((await rows(page)).length, TITLES.length);
@@ -85,6 +103,8 @@ test("粗筛页：重新打开时直接显示读过的列表和官方总结；�
   await page.waitFor("直接列出读过的", `document.querySelectorAll(".video").length === ${TITLES.length}`);
   assert.match(await statusOf(page, "triage-list"), /要看最新的列表就再读取一次/);
   assert.match(await statusOf(page, "step-official"), new RegExp(`有官方总结 ${TITLES.length - 1} 个，没有 1 个`));
+  assert.equal(await page.evaluate(`document.querySelector(".confirm") === null`), true, "重新打开时不自动弹确认");
+  assert.equal(await page.evaluate(hasCloseNote), false);
 
   const options = await open(PAGE_PATHS.options, { width: WIDTH });
   await options.waitFor("设置页有粗筛入口", `document.getElementById("openTriage") !== null`);
@@ -104,6 +124,7 @@ test("粗筛页：语言选 English 以后标题、各步、按钮、分组和�
     lang: document.documentElement.lang,
     title: document.title,
     heading: document.querySelector("h1")?.textContent,
+    back: document.querySelector(".back-link")?.textContent,
     sections: [...document.querySelectorAll(".card h2")].map((node) => node.textContent),
     buttons: [...document.querySelectorAll(".actions button, .results-head button")].map((node) => node.textContent.trim()),
     filters: [...document.querySelectorAll(".filter")].map((node) => node.textContent.replace(/ \\d+$/, "")),
@@ -117,6 +138,7 @@ test("粗筛页：语言选 English 以后标题、各步、按钮、分组和�
       lang: "en",
       title: "Watch Later triage · Jianmu",
       heading: "Watch Later triage",
+      back: "Settings",
       sections: ["Read the list", "Step 1: Fetch Bilibili official summaries", "Step 2: Write one-line verdicts", "Results"],
       buttons: ["Load my Watch Later", "Fetch official summaries", "Write verdicts", "Export Markdown"],
       filters: ["All", "Worth watching", "Watch the key parts", "Skip", "Not enough info", "Not judged yet"],
@@ -139,6 +161,7 @@ test("粗筛页：语言选 English 以后标题、各步、按钮、分组和�
       lang: "zh-CN",
       title: "稍后再看粗筛 · 简幕",
       heading: "稍后再看粗筛",
+      back: "设置",
       sections: ["读取列表", "第一步：取 B 站官方总结", "第二步：写一句话结论", "结果"],
       buttons: ["读取我的稍后再看", "开始取官方总结", "开始写结论", "导出 Markdown"],
       filters: ["全部", "推荐看", "可以看", "可跳过", "信息不足", "还没判断"],

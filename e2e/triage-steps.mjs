@@ -36,7 +36,8 @@ export async function triageFlow({ until, evaluate, cdp, findSession, mock, exte
   console.log(`✓ 粗筛：从设置页打开粗筛页，读到稍后再看的 ${LISTED.length} 个视频`);
 
   const beforeOfficial = mock.requests.length;
-  await click("开始取官方总结");
+  // 读完列表就摆出第一步的确认，直接点「现在开始」。
+  await until("第一步的确认", async () => (await text("#step-official .confirm")) !== "");
   await click("现在开始");
   await until("第一步取完", async () => (await text("#step-official .status")).includes("这一轮取完了"));
   const summaries = mock.requests.slice(beforeOfficial).filter(officialRead);
