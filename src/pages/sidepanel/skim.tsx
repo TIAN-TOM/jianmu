@@ -250,9 +250,10 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
       <section class="ai-overview" aria-label={t.overviewLabel}>
         {stale.chapters && hasOverview && !running ? <StaleTranscriptLine /> : null}
         {analysis && hasOverview ? <Chapters panel={panel} analysis={analysis} segments={view?.transcript.segments ?? NO_SEGMENTS} cues={view?.transcript.cues ?? NO_CUES} /> : null}
-        {!running && state.loaded ? (
+        {/* 这个视频正在生成时，这排只留「本窗口全部生成」：别的视频照样能一起清点。 */}
+        {state.loaded && (!running || (!setup && panel.batch.state.value.phase === "idle")) ? (
           <div class="state-actions">
-            {hasChapters ? (
+            {running ? null : hasChapters ? (
               <>
                 {failures > 0 ? (
                   <Button onClick={() => void panel.overview.retryFailed()} disabled={!ready} {...(notReady ? { disabledReason: notReady } : {})}>
@@ -273,7 +274,7 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
               </Button>
             )}
             {setup ? null : <BatchStart panel={panel} ready={ready} />}
-            {canExport ? (
+            {!running && canExport ? (
               <Button variant="text" onClick={exportLearning}>
                 {t.exportStudy}
               </Button>
