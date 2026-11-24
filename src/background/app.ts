@@ -485,8 +485,8 @@ export function createApp(deps: AppDeps): App {
       if (autoSwitchToggled(changes, area)) await core.auto.resume().then(consider, (error: unknown) => deps.log.error("恢复自动生成失败", errorLabel(error)));
       // 先断端口：启用失效以后，连着的页面不能再发起新的读取和模型请求。
       if (activationLost(changes, area)) router.closeBusinessPorts("NOT_ENABLED");
-      // 只发给发过消息的内容脚本：启用已经失效，不再按地址查标签页。
-      if (activationDropped(changes, area)) await core.messenger.toTabs(core.contentTabs.list(), { type: "activation.changed", confirmed: false });
+      // 只发给发过消息的内容脚本：启用已经失效，不再按地址查标签页。要启用确认才注册的页面脚本跟着撤掉。
+      if (activationDropped(changes, area)) await Promise.all([core.messenger.toTabs(core.contentTabs.list(), { type: "activation.changed", confirmed: false }), core.siteSwitch?.sync()]);
       await menu.settingsChanged(changes, area);
       const message = appearanceChange(changes, area);
       if (!message) return;

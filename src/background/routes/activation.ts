@@ -6,6 +6,7 @@ import { SETTINGS_STORAGE_KEY } from "../../shared/names.ts";
 import { wasEnabled } from "../../core/consent-carry.ts";
 import { activationStatus } from "../../shared/settings-schema.ts";
 import type { Reinject } from "../reinject.ts";
+import type { SiteSwitch } from "../site-switch.ts";
 import type { Route } from "../router.ts";
 import type { StorageChange } from "./appearance.ts";
 import { isEmptyRequest } from "./validate.ts";
@@ -16,11 +17,13 @@ export interface ActivationRouteDeps {
   /** 要通知的内容脚本标签页。只在确认之后取。 */
   readonly contentTargets: () => Promise<readonly number[]>;
   readonly reinject: Reinject;
+  /** 确认以后补上要启用确认才注册的页面脚本（YouTube 的小桥）。构建开关关着时没有。 */
+  readonly siteSwitch?: Pick<SiteSwitch, "sync"> | null;
 }
 
 type ActivationRoutes = { readonly [K in "activation.get" | "activation.confirm"]: Route<K> };
 
-export function activationRoutes({ settings, messenger, contentTargets, reinject }: ActivationRouteDeps): ActivationRoutes {
+export function activationRoutes({ settings, messenger, contentTargets, reinject, siteSwitch }: ActivationRouteDeps): ActivationRoutes {
   return {
     "activation.get": {
       senders: ["panel", "page", "content:bilibili", "content:youtube"],
@@ -41,7 +44,7 @@ export function activationRoutes({ settings, messenger, contentTargets, reinject
         const status = await settings.confirmActivation();
         if (FEATURE_KEEP_CONSENT ? wasEnabled(before) : false) return ok({ ...status, unreachableTabs: [] });
         const message = { type: "activation.changed", confirmed: status.state === "current" } as const;
-        await Promise.all([messenger.toPages(message), messenger.toTabs(await contentTargets(), message)]);
+        await Promise.all([messenger.toPages(message), messenger.toTabs(await contentTargets(), message), siteSwitch?.sync()]);
         const { failed } = await reinject();
         return ok({ ...status, unreachableTabs: failed });
       },
