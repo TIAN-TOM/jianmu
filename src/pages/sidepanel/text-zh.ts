@@ -217,7 +217,7 @@ export const PANEL_ZH = {
     tidying: (done: number, total: number) => `正在整理字幕 ${done}/${total} 段，关掉侧边栏也会继续`,
     tidyingPlain: "正在整理字幕…",
     tidy: "整理字幕",
-    tidyNote: "补标点、改同音错字，要用 API 额度；关掉侧边栏也继续",
+    tidyNote: "补标点、改同音错字，要用 API 额度，长视频大约和翻译一遍差不多；关掉侧边栏也继续",
     showOriginal: "看原始字幕",
     showTidied: "看整理后的字幕",
     continueTidy: "接着整理",

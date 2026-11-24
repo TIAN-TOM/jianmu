@@ -201,7 +201,7 @@ export const PANEL_HANT: PanelText = {
     tidying: (done, total) => `正在整理字幕 ${done}/${total} 段，關掉側邊欄也會繼續`,
     tidyingPlain: "正在整理字幕…",
     tidy: "整理字幕",
-    tidyNote: "補標點、改同音錯字，要用 API 額度；關掉側邊欄也會繼續",
+    tidyNote: "補標點、改同音錯字，要用 API 額度，長影片大約和翻譯一遍差不多；關掉側邊欄也會繼續",
     showOriginal: "看原始字幕",
     showTidied: "看整理後的字幕",
     continueTidy: "繼續整理",

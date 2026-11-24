@@ -185,7 +185,7 @@ function TidyRow({ panel, segments }: { readonly panel: Panel; readonly segments
             {show ? t.showOriginal : t.showTidied}
           </Button>
           {count < segments && offer ? (
-            <Button variant="text" onClick={start} disabled={!ready} {...(reason ? { disabledReason: reason } : {})}>
+            <Button variant="text" onClick={start} disabled={!ready} {...(reason ? { disabledReason: reason } : {})} note={t.tidyNote}>
               {t.continueTidy}
             </Button>
           ) : null}
@@ -215,21 +215,23 @@ function TranslateRow({ panel, view }: { readonly panel: Panel; readonly view: T
       </div>
     );
   }
-  if (!message) return null;
   const lines = panel.translation.lines.value;
   const more = canStartTranslation(state) && !needsSetup(panel.config.state.value) && view.transcript.segments.some(({ id }) => !lines[id]);
+  // 停下的说明只在这次打开里有；关掉侧边栏再开，显示方式还在、有没译的段时照样给「接着翻译」。点了花额度，旁边写明。
+  const text = message || (more ? p.transcript.translateUnfinished : "");
+  if (!text) return null;
   return (
     <>
       <div class="progress-row" role="status">
-        <span>{message}</span>
+        <span>{text}</span>
         {more ? (
-          <Button variant="text" onClick={() => panel.translation.setMode(mode, panel.player.position.peek()?.atSec)}>
+          <Button variant="text" note={p.transcript.translateHint} onClick={() => panel.translation.setMode(mode, panel.player.position.peek()?.atSec)}>
             {p.transcript.continueTranslate}
           </Button>
         ) : null}
       </div>
-      <ServiceSaid said={said} />
-      <SettingsExit panel={panel} code={code} />
+      {message ? <ServiceSaid said={said} /> : null}
+      {message ? <SettingsExit panel={panel} code={code} /> : null}
     </>
   );
 }
