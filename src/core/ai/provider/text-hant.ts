@@ -33,6 +33,7 @@ export const PROVIDER_HANT: ProviderText = {
   quotaOnReasoning: "模型把 token 配額全用在推理上了，沒能輸出正文。已經放大預算重試過，仍然不夠，可以換一個推理較少的型號。",
   contentFiltered: "輸出被服務方的內容過濾擋下了，沒有正文。",
   generationFailed: "模型生成失敗，請重試。",
+  generationFailedWith: (said) => `模型生成失敗，服務說：${said}`,
   reasoningOnlyResponses: "模型只做了推理，沒有輸出正文。可以換一個推理較少的型號再試。",
 };
 

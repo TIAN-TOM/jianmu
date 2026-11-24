@@ -12,6 +12,7 @@ import { senders } from "../../../helpers/chrome.ts";
 import { SAMPLE_ID } from "../../../helpers/fake-site-service.ts";
 import { studyBackground } from "../../../helpers/study-background.ts";
 import { createOptionsState } from "../../../../src/pages/options/state.ts";
+import type { UiLang } from "../../../../src/pages/shared/ui-lang.ts";
 import type { LoadedSettings, WrittenSettings } from "../../../../src/platform/settings-store.ts";
 import { SETTINGS_REVISION_KEY, SETTINGS_STORAGE_KEY } from "../../../../src/shared/names.ts";
 import { DATA_CONSENT_CONFIRMED, DEFAULTS, normalize, type SettingsInput } from "../../../../src/shared/settings-schema.ts";
@@ -20,7 +21,7 @@ import { until } from "../../../helpers/wait-until.ts";
 
 type Listener = (changes: object, area: string) => void;
 
-function world(initial: Record<string, unknown>) {
+function world(initial: Record<string, unknown>, lang: UiLang = "zh") {
   let current: LoadedSettings = { ...normalize({ ...DEFAULTS, ...initial }), settingsRevision: "r1" };
   const saves: SettingsInput[] = [];
   const updates: SettingsInput[] = [];
@@ -67,6 +68,7 @@ function world(initial: Record<string, unknown>) {
     },
   };
   const state = createOptionsState({
+    lang: () => lang,
     store,
     api: {
       send: (async (type: string, req: { efforts: Record<string, string> }) => {
@@ -249,6 +251,22 @@ test("推理强度没存上：提示没有保存，页面记着的还是原来�
   assert.match(w.state.aiStatus.value?.text ?? "", /没有保存/);
   assert.equal(w.state.saved.value?.featureEfforts.qa, "off");
   assert.equal(w.current().featureEfforts.qa, "off");
+});
+
+test("不带码的错误（浏览器自己报的）不把原话放进状态行，按界面语言说出了意外的错误", async (t) => {
+  const warned = t.mock.method(console, "warn", () => undefined);
+  for (const [lang, expected] of [
+    ["zh", "没有保存：出了意外的错误。"],
+    ["en", "Not saved: Something unexpected went wrong."],
+    ["zh-Hant", "沒有儲存：出了意外的錯誤。"],
+  ] as const) {
+    const w = world({ ...GATEWAY }, lang);
+    await w.state.load();
+    w.failUpdates();
+    await w.state.saveInstant({ featureEfforts: { qa: "high" } });
+    assert.equal(w.state.aiStatus.value?.text, expected, lang);
+  }
+  assert.equal(warned.mock.callCount(), 3, "原话留在控制台里");
 });
 
 test("AI 服务一节的状态行落在点的那个控件下面：记住密钥、清除密钥、拉取模型各在自己那里，保存和测试连接在按钮下面", async () => {

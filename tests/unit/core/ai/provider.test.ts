@@ -1087,7 +1087,7 @@ test("Responses 的空响应按成因诊断", () => {
   );
   assert.equal(
     provider.diagnoseEmptyResponse(PROTOCOLS.RESPONSES, RESP.baseResponse({ status: "failed", error: { code: "server_error", message: "boom" } })).message,
-    "boom",
+    "模型生成失败，服务说：boom",
   );
   assert.equal(
     provider.diagnoseEmptyResponse(PROTOCOLS.RESPONSES, RESP.baseResponse({ output: [RESP.reasoningItem()] })).reason,

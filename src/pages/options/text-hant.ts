@@ -9,6 +9,7 @@ export const OPTIONS_HANT: OptionsText = {
   activationLoading: "正在讀取啟用狀態……",
   loadFailed: "讀不到設定",
   loadFailedDetail: (reason) => `讀不到設定：${reason}`,
+  unexpected: "出了意外的錯誤。",
 
   appearance: {
     title: "外觀",

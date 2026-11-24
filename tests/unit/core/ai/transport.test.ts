@@ -2609,9 +2609,9 @@ test("Responses 返回 200 但生成失败、报错里回显密钥时，空响�
     transport.requestAiCompletion({ messages: [{ role: "user", content: "离线测试" }], maxTokens: 64 }),
   );
   assert.equal(error.code, "EMPTY_AI_RESPONSE");
-  assert.equal(error.message, "service rejected [已隐藏的密钥]");
-  assert.equal(TRANSPORT.aiErrorResponse(error).message, "service rejected [已隐藏的密钥]");
-  assert.equal(TRANSPORT.aiErrorResponse(error, "en").message, "service rejected [key hidden]");
+  assert.equal(error.message, "模型生成失败，服务说：service rejected [已隐藏的密钥]");
+  assert.equal(TRANSPORT.aiErrorResponse(error).message, "模型生成失败，服务说：service rejected [已隐藏的密钥]");
+  assert.equal(TRANSPORT.aiErrorResponse(error, "en").message, "The model couldn't generate a reply. The service said: service rejected [key hidden]");
 });
 
 test("拒答说明里回显密钥时，报错同样脱敏", async () => {

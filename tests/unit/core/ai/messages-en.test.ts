@@ -85,10 +85,11 @@ test("空响应的诊断：英文说明挂在不可枚举的 messageEn 上，可
     assert.doesNotMatch(result.messageEn ?? "", CJK, `${label}：${result.messageEn}`);
     assert.match(result.message, CJK, label);
   }
-  // 服务自己给了失败说明：两种语言都用它。
+  // 服务自己给了失败说明：原话照带，前面按各自的语言说明这是服务说的。
   const said = PROVIDER.diagnoseEmptyResponse(PROTOCOLS.RESPONSES, { status: "failed", error: { message: "backend exploded" }, output: [] });
-  assert.equal(said.message, "backend exploded");
-  assert.equal(said.messageEn, "backend exploded");
+  assert.equal(said.message, "模型生成失败，服务说：backend exploded");
+  assert.equal(said.messageEn, "The model couldn't generate a reply. The service said: backend exploded");
+  assert.equal(said.messageHant, PROVIDER.providerText("zh-Hant").generationFailedWith("backend exploded"));
 });
 
 test("API 地址的校验：不传语言是中文，英文每一种都有", () => {

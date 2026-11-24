@@ -22,6 +22,8 @@ export const OPTIONS_ZH = {
   activationLoading: "正在读取启用状态……",
   loadFailed: "读不出设置",
   loadFailedDetail: (reason: string) => `读不出设置：${reason}`,
+  // 浏览器自己报的错（多半是英文）不放进界面时，拼在各句「…失败：」后面的原因。
+  unexpected: "出了意外的错误。",
 
   appearance: {
     title: "外观",
