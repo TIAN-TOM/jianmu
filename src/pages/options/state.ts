@@ -1,7 +1,6 @@
 // 设置页的状态和动作：设置直接经设置仓库读写（排在同一把锁里，密钥不落盘），拉模型、测试连接、备份和清除发给后台。
 // 主机权限的申请要在用户点击的同一个调用栈里发起，所以保存先同步发起申请，再等别的。
 import { signal, type ReadonlySignal } from "@preact/signals";
-import { backupText, readBackup } from "../../core/backup/format.ts";
 import type { ClearScope } from "../../core/clear-guard.ts";
 import { describe, isErrorCode, type Failure } from "../../core/errors.ts";
 import { isLocalBaseUrl } from "../../core/ai/provider/index.ts";
@@ -12,7 +11,7 @@ import { SETTINGS_REVISION_KEY, SETTINGS_STORAGE_KEY, USAGE_STORAGE_KEY } from "
 import { originOf, validateForSave, type FeatureSlotId } from "../../shared/settings-schema.ts";
 import type { PageApi } from "../shared/api.ts";
 import { createAiStatus, type AiPlace, type PlacedStatus, type Status } from "./ai-status.ts";
-import { backupFailureText, importSummary, receiveBackup, withBackupImport } from "./backup-transfer.ts";
+import { exportBackupFile, importBackupFile } from "./backup-transfer.ts";
 import { chosenFeatures, formOf, settingsInput, withAddress, withPreset, type AiForm } from "./form.ts";
 import { probeFrameImage } from "./image-probe.ts";
 import type { UiLang } from "../shared/ui-lang.ts";
@@ -420,17 +419,9 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       if (busy.peek()) return;
       busy.value = "export";
       try {
-        const reply = await receiveBackup(api);
-        if (!reply.ok) {
-          dataStatus.value = { text: backupFailureText(reply, "export", failText, lang()), tone: "error" };
-          return;
-        }
         const date = (deps.now ?? (() => new Date()))();
         const stamp = `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}`;
-        deps.download(copy().backup.fileName(stamp), backupText(reply.value));
-        const { notes, overviews, qa, translations } = reply.value;
-        const counts = { notes: notes.length, overviews: overviews.length, qa: qa.length, translations: translations.length };
-        dataStatus.value = { text: copy().backup.exported(counts), tone: "ok" };
+        dataStatus.value = await exportBackupFile(api, deps.download, stamp, failText, lang());
       } finally {
         busy.value = null;
       }
@@ -440,29 +431,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       // 读文件之前就占住：大文件要读一会儿，这期间不能再点导出、清除或另一次导入。
       busy.value = "import";
       try {
-        await withBackupImport(api, async (send) => {
-          let text: string;
-          try {
-            text = await readFile();
-          } catch {
-            dataStatus.value = { text: copy().backup.unreadable, tone: "error" };
-            return;
-          }
-          let payload: unknown;
-          try {
-            payload = JSON.parse(text);
-          } catch {
-            dataStatus.value = { text: copy().backup.notBackup, tone: "error" };
-            return;
-          }
-          const read = readBackup(payload);
-          if (!read.ok) {
-            dataStatus.value = { text: copy().backup.importFailed(failText(read)), tone: "error" };
-            return;
-          }
-          const reply = await send(read.value);
-          dataStatus.value = reply.ok ? { text: importSummary(reply.value, lang()), tone: "ok" } : { text: backupFailureText(reply, "import", failText, lang()), tone: "error" };
-        });
+        dataStatus.value = await importBackupFile(api, readFile, failText, lang());
       } finally {
         busy.value = null;
       }
