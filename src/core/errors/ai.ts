@@ -50,7 +50,7 @@ export const AI_ERROR_TEXT: Readonly<Record<AiErrorCode, ErrorCopy>> = {
   MODEL_OR_ENDPOINT_NOT_FOUND: {
     cause: "AI 服务找不到这个模型或接口。",
     impact: NO_RESULT,
-    next: "到设置页核对模型名和 API 地址，可以点「拉取模型列表」从里面挑。",
+    next: "到设置页核对模型名和 API 地址，可以点「获取模型列表」从里面挑。",
   },
   AI_RATE_LIMITED: { cause: "AI 服务限流了，也可能是账户额度用完了。", impact: NO_RESULT, next: "等几分钟再试；一直这样，就到服务商后台看看额度。" },
   AI_SERVICE_BUSY: { cause: "AI 服务那边暂时繁忙或出错。", impact: NO_RESULT, next: "稍后再试。" },

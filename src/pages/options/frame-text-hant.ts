@@ -3,11 +3,11 @@
 import type { FrameText } from "./frame-text.ts";
 
 export const FRAME_HANT: FrameText = {
-  slot: "畫面分析",
-  probeHint: "畫面分析要選能看圖的模型。",
+  slot: "畫面解釋",
+  probeHint: "畫面解釋要選能看圖的模型。",
   probing: "正在檢測",
   probe: "檢測能不能看圖",
-  probeFailed: (reason) => `畫面分析：沒有檢測成功，${reason}`,
-  canSee: (model) => `畫面分析（${model}）能看圖。`,
-  cannotSee: (model) => `畫面分析（${model}）不能看圖：在「按功能選模型」裡替畫面分析換一個能看圖的模型。`,
+  probeFailed: (reason) => `畫面解釋：沒有檢測成功，${reason}`,
+  canSee: (model) => `畫面解釋（${model}）能看圖。`,
+  cannotSee: (model) => `畫面解釋（${model}）不能看圖：在「按功能選模型」裡替畫面解釋換一個能看圖的模型。`,
 };

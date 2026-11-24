@@ -274,7 +274,11 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
           </span>
           <AiStatusLine state={state} at="key" />
         </div>
-        <span class="field-hint">{t.keyHint}</span>
+        <span class="field-hint">
+          {t.keyHint}
+          {/* 只有本机跑的服务可能不要密钥：Ollama 和自定义地址。 */}
+          {custom || form.presetId === "ollama" ? t.localKeyHint : null}
+        </span>
       </div>
 
       <div>

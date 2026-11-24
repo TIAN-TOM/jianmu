@@ -35,7 +35,7 @@ import { clearTargets } from "../../../src/shared/storage-plan.ts";
 import { deferred, nextTurn } from "../../helpers/deferred.ts";
 import { memoryStorage, type MemoryStorage } from "../../helpers/memory-storage.ts";
 
-const KEY_ERROR = "请填写 API 密钥（没选记住密钥时，浏览器重启、扩展更新后要重新填）。";
+const KEY_ERROR = "请填写 API 密钥（没选记住密钥时，浏览器重启、简幕更新后要重新填）。";
 const DEEPSEEK_ORIGIN = "https://api.deepseek.com/";
 const ANTHROPIC_ORIGIN = "https://api.anthropic.com/";
 const OPENAI_KEY = "sk-openai-secret";

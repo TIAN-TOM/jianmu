@@ -161,11 +161,16 @@ test("设置页：「关于」一节显示清单里的版本号和这次构建�
   assert.equal(await page.overflowsX(), false);
 });
 
+/** 密钥框下面那行说明。 */
+const KEY_HINT = `document.getElementById("aiApiKey").closest(".field").querySelector(":scope > .field-hint")?.textContent ?? ""`;
+
 test("设置页：选服务商、填密钥、勾同意后保存，拉模型列表和测试连接对着模拟服务走通，密钥只进会话", async ({ open }) => {
   const page = await freshOptions(open);
   await enable(page);
   await fill(page, "#preset", ANTHROPIC.presetId);
   await fill(page, "#aiApiKey", ANTHROPIC.key);
+  // 云端服务一定要密钥：密钥下面不提「可以留空」。
+  assert.doesNotMatch(await page.evaluate(KEY_HINT), /可以留空/);
   // 没勾同意先保存：提示还差同意。勾上以后这句话跟着变，不留着「请勾选」。
   await clickButton(page, "保存并授权");
   assert.match(await statusStarts(page, "ai-service", "已保存并授权，但 AI 功能暂时用不了"), /我已了解/);
@@ -176,10 +181,10 @@ test("设置页：选服务商、填密钥、勾同意后保存，拉模型列�
   // 状态行跟着点的那个控件走：拉取的结果紧挨在模型框下面，不用滚到这一节最底下找。
   // 拉取先保存过，状态行说出来；框里预填的型号不在拉到的列表里，多提醒一句。
   const prefilled = await page.evaluate(`document.getElementById("aiModel").value`);
-  await clickButton(page, "拉取模型列表");
+  await clickButton(page, "获取模型列表");
   assert.equal(
-    await statusStarts(page, "ai-service", "已保存并授权，拉到"),
-    `已保存并授权，拉到 1 个模型，可以在模型框里直接选。模型框里的「${prefilled}」不在列表里，可能是旧名字或打错了，核对一下；有的服务也认列表外的别名。`,
+    await statusStarts(page, "ai-service", "已保存并授权，找到"),
+    `已保存并授权，找到 1 个模型，可以在模型框里直接选。模型框里的「${prefilled}」不在列表里，可能是旧名字或打错了，核对一下；有的服务也认列表外的别名。`,
   );
   const fetched = await placedStatus(page, "#aiModel");
   assert.deepEqual({ at: fetched.at, inView: fetched.inView, shown: fetched.shown }, { at: "model", inView: true, shown: 1 });
@@ -263,8 +268,8 @@ test("设置页：选服务商、填密钥、勾同意后保存，拉模型列�
   assert.equal(await statusStarts(page, "ai-service", "默认模型"), `默认模型（${ANTHROPIC.model}）连接正常，回复「可用」`);
   assert.deepEqual((({ at, shown }) => ({ at, shown }))(await placedStatus(page, "#aiModel")), { at: "actions", shown: 1 });
   // 框里换成列表里有的型号以后再拉，不再提醒。
-  await clickButton(page, "拉取模型列表");
-  await page.waitFor("再拉一次只说已保存和拉到几个", `${statusText("ai-service")} === "已保存并授权，拉到 1 个模型，可以在模型框里直接选。"`);
+  await clickButton(page, "获取模型列表");
+  await page.waitFor("再拉一次只说已保存和拉到几个", `${statusText("ai-service")} === "已保存并授权，找到 1 个模型，可以在模型框里直接选。"`);
 
   const stored = await page.evaluate(`Promise.all([chrome.storage.local.get(null), chrome.storage.session.get(${JSON.stringify(API_KEY_SESSION_KEY)})])`);
   const [local, session] = stored;
@@ -342,8 +347,8 @@ test("设置页：拉到很多模型时，候选列表自己滚、长名字折�
     await fill(page, "#aiBaseUrl", local.base);
     await page.click("#dataConsent");
     await page.waitFor("同意记下了", `document.getElementById("dataConsent").checked`);
-    await clickButton(page, "拉取模型列表");
-    await statusStarts(page, "ai-service", `已保存并授权，拉到 ${MANY_MODELS.length} 个模型`);
+    await clickButton(page, "获取模型列表");
+    await statusStarts(page, "ai-service", `已保存并授权，找到 ${MANY_MODELS.length} 个模型`);
 
     const list = () =>
       page.evaluate(`(() => {
@@ -438,6 +443,8 @@ test("设置页：自定义填本机 http 地址、密钥留空，保存、拉�
     await enable(page);
     await fill(page, "#preset", "custom");
     await page.waitFor("出现地址框", `document.getElementById("aiBaseUrl") !== null`);
+    // 自定义可能是本机的服务：密钥下面说可以留空。
+    assert.match(await page.evaluate(KEY_HINT), /本机的服务不要密钥时可以留空/);
     await fill(page, "#protocol", "openai");
     await fill(page, "#aiBaseUrl", local.base);
     await page.click("#dataConsent");
@@ -445,9 +452,9 @@ test("设置页：自定义填本机 http 地址、密钥留空，保存、拉�
 
     // 模型还没填，先保存拿到授权；提示只说缺模型，不要密钥。
     await clickButton(page, "保存并授权");
-    assert.equal(await statusStarts(page, "ai-service", "已保存"), "已保存并授权，但 AI 功能暂时用不了：请填写模型名称，或点击「拉取模型列表」进行选择。");
-    await clickButton(page, "拉取模型列表");
-    assert.equal(await statusStarts(page, "ai-service", "已保存并授权，拉到"), "已保存并授权，拉到 1 个模型，在模型框里选一个，再点「保存并授权」。");
+    assert.equal(await statusStarts(page, "ai-service", "已保存"), "已保存并授权，但 AI 功能暂时用不了：请填写模型名称，或点「获取模型列表」从里面选。");
+    await clickButton(page, "获取模型列表");
+    assert.equal(await statusStarts(page, "ai-service", "已保存并授权，找到"), "已保存并授权，找到 1 个模型，在模型框里选一个，再点「保存并授权」。");
     await fill(page, "#aiModel", "local-model");
     await clickButton(page, "保存并授权");
     await page.waitFor("模型存下", `chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)}).then((items) => items[${JSON.stringify(SETTINGS_STORAGE_KEY)}]?.aiModel === "local-model")`);
@@ -476,7 +483,7 @@ test("设置页：选 Ollama 预设，地址和协议跟着预设走、不显示
 
   // 只保存、不拉模型列表也不测试连接：保存不访问本机服务。提示只说缺模型，不要密钥。
   await clickButton(page, "保存并授权");
-  assert.equal(await statusStarts(page, "ai-service", "已保存"), "已保存并授权，但 AI 功能暂时用不了：请填写模型名称，或点击「拉取模型列表」进行选择。");
+  assert.equal(await statusStarts(page, "ai-service", "已保存"), "已保存并授权，但 AI 功能暂时用不了：请填写模型名称，或点「获取模型列表」从里面选。");
   const stored = await page.evaluate(`chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)}).then((items) => items[${JSON.stringify(SETTINGS_STORAGE_KEY)}])`);
   assert.deepEqual([stored.presetId, stored.protocol, stored.aiBaseUrl], ["ollama", "openai", "http://localhost:11434/v1"]);
   const session = await page.evaluate(`chrome.storage.session.get(${JSON.stringify(API_KEY_SESSION_KEY)}).then((items) => items[${JSON.stringify(API_KEY_SESSION_KEY)}]?.key ?? "")`);
@@ -496,7 +503,7 @@ test("设置页：本机服务回 403 时，拉模型列表和测试连接都说
     await page.click("#dataConsent");
     await page.waitFor("同意记下了", `document.getElementById("dataConsent").checked`);
 
-    await clickButton(page, "拉取模型列表");
+    await clickButton(page, "获取模型列表");
     await page.waitFor("拉列表报来源被拒", `${statusText("ai-service")}.includes("OLLAMA_ORIGINS")`);
     assert.match(await statusOf(page, "ai-service"), /多半不是密钥的问题/);
     await clickButton(page, "测试连接");
