@@ -10,7 +10,7 @@ import type { LearningAnalysis } from "../../core/notes/markdown.ts";
 import { breaksToShow, lineBreaks, splitRuns } from "../../core/transcript/lines.ts";
 import { formatTimestamp, type TranscriptSegment } from "../../core/transcript/segment.ts";
 import type { CueView } from "../../shared/messages/transcript.ts";
-import { useMemo, useRef, useState } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { Button } from "../shared/ui/button.tsx";
 import { ChapterList } from "../shared/ui/chapter-list.tsx";
 import { ServiceSaid } from "../shared/ui/notice.tsx";
@@ -198,15 +198,18 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
   // YouTube 上本机还没有字幕：能代开文字稿面板的构建里，点「生成概览」先经视频页读字幕。
   const { tabId } = panel.follow.target.value;
   const readFirst = FEATURE_YOUTUBE_OPEN_PANEL && transcript.state === "failed" && transcript.failure.code === "NOT_CACHED" && readsOnClick(transcript.video) && tabId !== null;
-  const generate = (): void => {
-    if (!readFirst || tabId === null) return void panel.overview.generate(false);
-    const video = transcript.video;
-    void panel.overview.generate(false, tabId).then(() => {
-      // 生成时读到的字幕已经存进本机：还停在读取提示上的话，把它摆出来。
-      const now = panel.transcript.state.peek();
-      if (now.state === "failed" && now.video === video && panel.follow.target.peek().video === video) void panel.transcript.load(video, tabId, { localOnly: true });
-    });
-  };
+  const generate = (): void => void (readFirst && tabId !== null ? panel.overview.generate(false, tabId) : panel.overview.generate(false));
+  // 概览存好时，生成路上经视频页读到的字幕也已经存进本机：字幕这块还停在「还没读取」，就从本机把它摆出来。
+  // 按概览真的存好来算，不按点击返回：接上别处已经在跑的同一个任务时，点击马上返回，字幕那会儿还没读到。
+  // 只在还是「还没读取」时补；用户自己读字幕读到了别的结果（比如正在播广告），不去盖掉。每个视频只补一次，本机也没有就照旧摆读取提示。
+  const refilled = useRef("");
+  useEffect(() => {
+    if (!FEATURE_YOUTUBE_OPEN_PANEL || !state.saved || tabId === null) return;
+    if (transcript.state !== "failed" || transcript.failure.code !== "NOT_CACHED" || transcript.video !== state.video || !readsOnClick(transcript.video)) return;
+    if (refilled.current === transcript.video) return;
+    refilled.current = transcript.video;
+    void panel.transcript.load(transcript.video, tabId, { localOnly: true });
+  }, [state.saved, state.video, transcript, tabId]);
   const canGenerate = transcript.state === "ready" || readFirst;
   const t = panelText().skim;
   const verdictShown = !state.verdictTask && text(state.saved?.analysis.verdict?.summary) !== "";
