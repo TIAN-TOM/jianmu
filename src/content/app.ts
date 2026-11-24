@@ -44,6 +44,8 @@ export interface ContentAppDeps {
   readonly superseded: Superseded;
   /** 站点自己的页面读取（YouTube 的文字稿面板）：过了启用闸门才建，撤下时停；认得的后台问话由它回。 */
   readonly siteReader?: () => SiteReader;
+  /** 闸门没放行（问到没启用、问不到）时调：页面主世界里先于闸门装上的东西靠它停下、清掉。 */
+  readonly onHeld?: () => void;
   /** 截帧工具的工厂，构建开关打开时才传：挂界面时建，撤下时停。 */
   readonly frame?: (identity: FrameIdentity) => FrameTool;
   readonly every?: (ms: number, run: () => void) => () => void;
@@ -198,6 +200,7 @@ export function createContentApp(deps: ContentAppDeps): ContentApp {
     },
     open: () => void open(),
     close,
+    ...(deps.onHeld ? { held: deps.onHeld } : {}),
     ...(deps.gateTimers ? { timers: deps.gateTimers } : {}),
   });
 
