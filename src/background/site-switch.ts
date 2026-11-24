@@ -34,7 +34,7 @@ export interface SiteSwitchDeps {
   readonly rules: readonly SiteRules[];
   readonly permissions: Pick<Permissions, "containsAll">;
   readonly scripts: RegisteredScripts;
-  readonly tabs: Pick<Tabs, "tabsMatching" | "inject">;
+  readonly tabs: Pick<Tabs, "tabsMatching" | "inject" | "allTabIds">;
   readonly messenger: Pick<Messenger, "toTabs" | "toPages">;
   readonly contentTabs: Pick<ContentTabs, "list">;
   /** 撤权时删掉这个站的观看会话。 */
@@ -132,7 +132,10 @@ export function createSiteSwitch({ rules, permissions, scripts, tabs, messenger,
       log.error("删掉撤权站点的观看会话失败", errorLabel(error));
     }
     const message = { type: "site.changed", platform, enabled: false } as const;
-    await Promise.all([messenger.toTabs(contentTabs.list(), message), messenger.toPages(message)]);
+    // 授权已经没了，不能再按地址找这个站的页面；后台重启过以后内存里登记的又是空的，一直没出声的页面会漏。
+    // 所以按编号发给全部已开标签页：别的站的内容脚本不理这个站的撤权，没有内容脚本的标签页收不到也不报错。
+    const tabIds = [...new Set([...contentTabs.list(), ...(await tabs.allTabIds())])];
+    await Promise.all([messenger.toTabs(tabIds, message), messenger.toPages(message)]);
   }
 
   const syncAll = (fresh: boolean): Promise<readonly Synced[]> => Promise.all(sites.map((site) => syncSite(site, fresh)));
