@@ -1,5 +1,6 @@
 // 设置页的状态和动作：设置直接经设置仓库读写（排在同一把锁里，密钥不落盘），拉模型、测试连接、备份和清除发给后台。
 // 主机权限的申请要在用户点击的同一个调用栈里发起，所以保存先同步发起申请，再等别的。
+// 密钥默认不记住；保存密钥成功、还没记住也没问过时，就地问一句要不要记在这台电脑上，答过就不再问。
 import { signal, type ReadonlySignal } from "@preact/signals";
 import type { ClearScope } from "../../core/clear-guard.ts";
 import { describe, isErrorCode, type Failure } from "../../core/errors.ts";
@@ -49,6 +50,8 @@ export interface OptionsState {
   readonly models: ReadonlySignal<readonly string[]>;
   /** 每项功能实际生效的推理档位，后台按已保存的服务、模型和档位算；问不到时是 null。 */
   readonly efforts: ReadonlySignal<readonly EffortPreviewItem[] | null>;
+  /** 刚保存了密钥、还没记住也没问过：就地问要不要记在这台电脑上。 */
+  readonly rememberAsk: ReadonlySignal<boolean>;
   load(): Promise<void>;
   edit(patch: Partial<Pick<AiForm, "aiModel" | "rememberApiKey">>): void;
   editKey(key: string): void;
@@ -64,6 +67,8 @@ export interface OptionsState {
   /** 打开就出结论：先同意当前的数据说明，同意存上了才打开开关。 */
   enableAuto(): Promise<void>;
   setRemember(remember: boolean): Promise<void>;
+  /** 答保存后那一问：记住等于勾上「记住密钥」再保存（要在点击里同步调用，保存要申请权限）；不用就记下问过，不再问。 */
+  answerRemember(remember: boolean): Promise<void>;
   clearKey(): Promise<void>;
   fetchModels(): Promise<void>;
   testConnection(all: boolean): Promise<void>;
@@ -112,6 +117,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
   const busy = signal<Busy>(null);
   const models = signal<readonly string[]>([]);
   const efforts = signal<readonly EffortPreviewItem[] | null>(null);
+  const rememberAsk = signal(false);
   // 表单打开时的修订号：保存时在锁里核对，即改即存后比对，别的页面改过就重新载入。
   let revision = "";
   let ownWrites = 0;
@@ -125,6 +131,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       saved.value = settings;
       form.value = formOf(settings);
       loadError.value = null;
+      rememberAsk.value = false;
       void refreshEfforts();
       const check = validateForSave(settings, lang());
       if (!check.ok) say("actions", check.errors.join(" "), "error");
@@ -264,6 +271,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       // 回收是尽力而为：失败只是多留几条授权。
       await api.send("grants.release", {});
       saySaved(at, written);
+      rememberAsk.value = written.aiApiKey !== "" && !written.rememberApiKey && !written.rememberKeyAsked;
       return true;
     } finally {
       busy.value = null;
@@ -313,6 +321,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
     busy,
     models,
     efforts,
+    rememberAsk,
     load,
     edit(patch) {
       const current = form.peek();
@@ -365,6 +374,8 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
     async setRemember(remember) {
       const current = form.peek();
       if (!current) return;
+      // 自己动了勾选，那一问就不用再摆着。
+      rememberAsk.value = false;
       setForm({ ...current, rememberApiKey: remember });
       if (remember) {
         say("remember", status().rememberAfterSave, "warn");
@@ -378,10 +389,27 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
         say("remember", status().rememberOffFailed(errorText(error)), "error");
       }
     },
+    async answerRemember(remember) {
+      const current = form.peek();
+      if (!current) return;
+      rememberAsk.value = false;
+      if (remember) {
+        // 等于勾上再点保存：保存先同步申请权限，所以这里前面不能有等待。记住过的密钥由设置仓库记成问过。
+        setForm({ ...current, rememberApiKey: true });
+        await save();
+        return;
+      }
+      try {
+        await ownWrite(() => store.update({ rememberKeyAsked: true }), "remember");
+      } catch (error) {
+        say("remember", status().notSaved(errorText(error)), "error");
+      }
+    },
     async clearKey() {
       try {
         const written = await ownWrite(() => store.update({ aiApiKey: "" }), "key");
         if (!written) return;
+        rememberAsk.value = false;
         const current = form.peek();
         if (current) setForm({ ...current, aiApiKey: "", keyTyped: false, rememberApiKey: false });
         say("key", status().keyCleared, "ok");

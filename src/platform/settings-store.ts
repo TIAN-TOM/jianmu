@@ -55,12 +55,13 @@ const INSTANT_FIELDS = [
 ] as const;
 
 /**
- * update 能改的字段，加上清空密钥、关掉记住这两个收回的动作。featureEfforts 只带要改的那几项功能，其余照旧。
- * 写密钥、改来源、换服务商、打开记住都走 save，那里核对修订号。
+ * update 能改的字段，加上清空密钥、关掉记住这两个收回的动作，和答过「要不要记住密钥」。featureEfforts 只带要改的那几项功能，其余照旧。
+ * 清空密钥时「问过」跟着回到没问过。写密钥、改来源、换服务商、打开记住都走 save，那里核对修订号。
  */
 export type SettingsPatch = Pick<SettingsInput, (typeof INSTANT_FIELDS)[number]> & {
   readonly aiApiKey?: "";
   readonly rememberApiKey?: false;
+  readonly rememberKeyAsked?: true;
 };
 
 export type { SettingsErrorCode };
@@ -184,7 +185,9 @@ function allowedFields(patch: SettingsPatch): SettingsInput {
   const present = INSTANT_FIELDS.filter((field) => Object.hasOwn(patch, field));
   return {
     ...Object.fromEntries(present.map((field) => [field, patch[field]])),
-    ...(patch.aiApiKey === "" ? { aiApiKey: "" } : {}),
+    ...(patch.rememberKeyAsked === true ? { rememberKeyAsked: true } : {}),
+    // 清除密钥：下一把密钥保存以后重新问要不要记住。
+    ...(patch.aiApiKey === "" ? { aiApiKey: "", rememberKeyAsked: false } : {}),
     ...(patch.rememberApiKey === false ? { rememberApiKey: false } : {}),
   };
 }
@@ -261,8 +264,8 @@ export function createSettingsStore({ storage, locks }: SettingsStoreDeps): Sett
   }
 
   async function write(next: NormalizedSettings, current: Snapshot): Promise<WrittenSettings> {
-    // 没有密钥就没有可记的：清空密钥时开关跟着关，下一把密钥不会悄悄记到磁盘上。
-    const settings = next.aiApiKey ? next : { ...next, rememberApiKey: false };
+    // 没有密钥就没有可记的：清空密钥时开关跟着关，下一把密钥不会悄悄记到磁盘上。记住过密钥，就不用再问要不要记住。
+    const settings = next.aiApiKey ? { ...next, rememberKeyAsked: next.rememberKeyAsked || next.rememberApiKey } : { ...next, rememberApiKey: false };
     const before = compose(current);
     const changed = credentialChanged(settings, before);
     const revision = changed || consentChanged(settings, before) ? crypto.randomUUID() : current.revision;

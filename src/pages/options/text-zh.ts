@@ -136,6 +136,8 @@ export const OPTIONS_ZH = {
     // 只在选了 Ollama 或自定义时接在 keyHint 后面，句子之间要空格的语言把空格写在开头。
     localKeyHint: "本机的服务不要密钥时可以留空。",
     remember: "在这台电脑上记住密钥",
+    // 保存密钥以后就地问的那一句，下面照写 rememberHint。两个按钮一样分量，不替用户选。
+    rememberAsk: { label: "要不要记住密钥", question: "要把密钥记在这台电脑上吗？", yes: "记住", no: "不用" },
     rememberHint: "密钥会不加密地存在这台电脑上，重启浏览器后还能用。能看到这台电脑浏览器数据的人或程序可能拿到它，公用的电脑别勾。取消勾选马上删掉。密钥不进备份，也不跟浏览器账号同步。",
     model: "模型",
     modelPlaceholder: "填模型名称，或点右边的按钮获取",

@@ -121,6 +121,7 @@ export const OPTIONS_EN: OptionsText = {
     keyHint: "By default the key is forgotten when you close the browser or Jianmu updates, so you'll need to enter it again.",
     localKeyHint: " If a service on this computer doesn't need a key, leave this blank.",
     remember: "Remember the key on this computer",
+    rememberAsk: { label: "Remember the key?", question: "Remember the key on this computer?", yes: "Remember", no: "No thanks" },
     rememberHint: "The key is stored unencrypted in the extension's storage on this computer and keeps working after a browser restart. Any program or person that can read this computer's browser data could get the key, so don't turn this on for a shared computer. Unticking deletes the copy on this computer straight away. The key is never included in backups or synced with your browser account.",
     model: "Model",
     modelPlaceholder: "Enter a model name, or fetch the list with the button on the right",

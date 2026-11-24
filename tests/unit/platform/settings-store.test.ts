@@ -1,5 +1,5 @@
 // 设置的读写：密钥默认只在会话存储、记住密钥的本机记录、设置修订号、写入排队、读不到写到一半的状态、
-// 启用确认的读写和失效。
+// 启用确认的读写和失效、保存密钥以后问没问过要不要记住。
 // 后台路由不在这一层，带密钥的请求用真实的传输层守到发出之前。
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -31,7 +31,7 @@ import {
   validate,
   type SettingsInput,
 } from "../../../src/shared/settings-schema.ts";
-import { clearTargets } from "../../../src/shared/storage-plan.ts";
+import { clearTargets, STORAGE_PLAN } from "../../../src/shared/storage-plan.ts";
 import { deferred, nextTurn } from "../../helpers/deferred.ts";
 import { memoryStorage, type MemoryStorage } from "../../helpers/memory-storage.ts";
 
@@ -1639,4 +1639,61 @@ test("保存不带启用字段的表单不会抹掉确认", async () => {
   await store.update({ accentTheme: "ochre" });
 
   assert.deepEqual(await store.activation(), { state: "current" });
+});
+
+// ============================================================
+// 保存密钥以后问过要不要记住
+// ============================================================
+
+test("问过要不要记住密钥：旧设置没有这一项按没问过，只认 true", () => {
+  assert.equal(DEFAULTS.rememberKeyAsked, false);
+  assert.equal(normalize({}).rememberKeyAsked, false);
+  for (const value of ["true", 1, {}, null]) {
+    assert.equal(normalize({ rememberKeyAsked: value }).rememberKeyAsked, false, JSON.stringify(value));
+  }
+  assert.equal(normalize({ rememberKeyAsked: true }).rememberKeyAsked, true);
+});
+
+test("答了「不用」记成问过：修订号和密钥都不动，改外观、浏览器重启以后还在；清除密钥回到没问过", async () => {
+  const world = areas();
+  const saved = await storeOn(world).save({ ...DEEPSEEK, aiApiKey: "sk-ds" }, NO_REVISION);
+  assert.equal(saved.rememberKeyAsked, false);
+  const revision = revisionOf(world);
+
+  const answered = await storeOn(world).update({ rememberKeyAsked: true });
+  assert.equal(answered.rememberKeyAsked, true);
+  assert.equal(savedSettings(world)["rememberKeyAsked"], true);
+  assert.equal(revisionOf(world), revision);
+  assert.equal(answered.aiApiKey, "sk-ds");
+  assert.equal(answered.rememberApiKey, false, "不改记住开关");
+  assert.equal((await storeOn(world).update({ accentTheme: "ochre" })).rememberKeyAsked, true);
+  const reopened = await storeOn(restarted(world)).load();
+  assert.equal(reopened.aiApiKey, "", "密钥照旧随重启清空");
+  assert.equal(reopened.rememberKeyAsked, true, "重启以后不再问");
+
+  const cleared = await storeOn(world).update({ aiApiKey: "" });
+  assert.equal(cleared.rememberKeyAsked, false);
+  assert.equal(savedSettings(world)["rememberKeyAsked"], false);
+});
+
+test("记住过密钥就算问过：取消记住以后也不再问；勾了记住却没填密钥不算", async () => {
+  const world = await remembered();
+  assert.equal(savedSettings(world)["rememberKeyAsked"], true);
+  const off = await storeOn(world).update({ rememberApiKey: false });
+  assert.equal(off.rememberKeyAsked, true);
+
+  const empty = areas();
+  const none = await storeOn(empty).save({ ...DEEPSEEK, aiApiKey: "", rememberApiKey: true }, NO_REVISION);
+  assert.equal(none.rememberKeyAsked, false);
+});
+
+test("清除全部数据以后回到没问过；这一项和设置一起不进备份", async () => {
+  const world = areas();
+  const store = storeOn(world);
+  await store.save({ ...DEEPSEEK, aiApiKey: "sk-ds" }, NO_REVISION);
+  await store.update({ rememberKeyAsked: true });
+  await store.clearAll();
+  assert.equal((await store.load()).rememberKeyAsked, false);
+  assert.equal(STORAGE_PLAN[SETTINGS_STORAGE_KEY].backup, false);
+  assert.equal(STORAGE_PLAN[SETTINGS_STORAGE_KEY].clearAll, "clear");
 });

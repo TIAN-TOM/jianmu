@@ -191,6 +191,7 @@ export interface SettingsInput {
   readonly autoOverview?: unknown;
   readonly autoOverviewMinutes?: unknown;
   readonly rememberApiKey?: unknown;
+  readonly rememberKeyAsked?: unknown;
   readonly dataConsentVersion?: unknown;
   readonly dataConsentFingerprint?: unknown;
   readonly activationVersion?: unknown;
@@ -220,6 +221,8 @@ export interface NormalizedSettings extends AiSettings {
   readonly autoOverviewMinutes: number;
   /** 「在这台电脑上记住密钥」。默认关，打开只走设置页的保存，见 settings-store。 */
   readonly rememberApiKey: boolean;
+  /** 保存密钥以后问过要不要记在这台电脑上：答了「不用」或者记住过就不再问，清除密钥或全部数据以后回到没问过。不进备份。 */
+  readonly rememberKeyAsked: boolean;
   /** 用户确认过的数据说明版本和指纹，0 和空串是还没确认。 */
   readonly dataConsentVersion: number;
   readonly dataConsentFingerprint: string;
@@ -247,6 +250,7 @@ export const DEFAULTS: NormalizedSettings = Object.freeze({
   autoOverview: false,
   autoOverviewMinutes: AUTO_OVERVIEW_MINUTES.default,
   rememberApiKey: false,
+  rememberKeyAsked: false,
   dataConsentVersion: 0,
   dataConsentFingerprint: "",
   activationVersion: 0,
@@ -393,10 +397,10 @@ export function normalize(input: unknown = {}): NormalizedSettings {
     // 花额度的开关只认 true：没有这一项、或写成别的值，都按关着。
     autoOverview: source.autoOverview === true,
     autoOverviewMinutes: normalizeAutoMinutes(source.autoOverviewMinutes),
-    // 只认 true：没有这一项、或写成别的值，都按没选记住。
+    // 这两项只认 true：没有这一项（旧设置没有「问过」）、或写成别的值，都按没选记住、没问过，下次保存密钥时问一次。
     rememberApiKey: source.rememberApiKey === true,
-    // 同意和启用的版本、指纹只核对形状就存下：对不对得上当前说明由校验和 activationStatus 判断，
-    // 认得出确认过哪一版，才能只列之后新增的内容。
+    rememberKeyAsked: source.rememberKeyAsked === true,
+    // 同意和启用的版本、指纹只核对形状就存下：对不对得上当前说明由校验和 activationStatus 判断，认得出确认过哪一版，才能只列之后新增的内容。
     dataConsentVersion: positiveInteger(source.dataConsentVersion),
     dataConsentFingerprint: stringOrEmpty(source.dataConsentFingerprint),
     activationVersion: positiveInteger(source.activationVersion),
