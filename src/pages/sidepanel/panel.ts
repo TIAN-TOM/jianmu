@@ -4,7 +4,7 @@
 // 打开就出结论停下或恢复时重问一次配置，顶上那一行跟着变。
 import { computed, effect, signal, type ReadonlySignal, type Signal } from "@preact/signals";
 import { describe } from "../../core/errors.ts";
-import { parseVideoKey } from "../../core/video-ref.ts";
+import { parseVideoKey, type VideoKey } from "../../core/video-ref.ts";
 import type { NoticeAction } from "../shared/ui/notice.ts";
 import type { Mode } from "../../core/mode/types.ts";
 import type { PageApi } from "../shared/api.ts";
@@ -117,10 +117,8 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
     toastTimer = setTimeout(() => (toast.value = null), action ? TOAST_WITH_ACTION_MS : TOAST_MS);
   };
 
-  // 刚记住的频道反悔了：只忘掉这一个，眼下的模式不变。
-  const forgetChannel = async (): Promise<void> => {
-    const { tabId, video } = follow.target.peek();
-    if (tabId === null || !video) return;
+  // 刚记住的频道反悔了：只忘掉这一个，眼下的模式不变。标签页和视频按说那句话时的算，不按点按钮时的：提示留着的几秒里可能换了视频。
+  const forgetChannel = async (tabId: number, video: VideoKey): Promise<void> => {
     const reply = await api.send("channels.forget", { tabId, video });
     say(reply.ok ? panelTextOf(lang()).forgotten(parseVideoKey(video)?.platform === "bilibili") : describe(reply.code, reply.detail, lang()));
   };
@@ -148,8 +146,9 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
         overview.refresh();
         qa.refresh();
       } else {
-        // 换了视频：给上一个视频打的问题不带过来。
+        // 换了视频：给上一个视频打的问题不带过来；带按钮的提示（「不记」）说的是上一个视频，也撤下。
         draft.value = "";
+        if (toast.peek()?.action) toast.value = null;
       }
       if (active) void transcript.load(active, tabId, readsOnClick(active) ? { localOnly: true } : {});
       else transcript.clear();
@@ -215,9 +214,10 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
     async chooseMode(next) {
       const now = transcript.state.peek();
       const info = now.state === "ready" ? now.view.info : now.state === "failed" ? now.failure.info : undefined;
+      const { tabId, video } = follow.target.peek();
       const remembered = await mode.choose(next, info?.channel?.channelId);
       const t = panelTextOf(lang());
-      if (remembered) say(t.remembered(info?.author ?? "", next === "study"), { label: t.forget, run: () => void forgetChannel() });
+      if (remembered && tabId !== null && video) say(t.remembered(info?.author ?? "", next === "study"), { label: t.forget, run: () => void forgetChannel(tabId, video) });
     },
     async seek(atSec) {
       const { tabId, video } = follow.target.peek();

@@ -11,13 +11,24 @@ export function ModeSection({ api }: { readonly api: Pick<PageApi, "send"> }) {
   const id = useId();
   const [status, setStatus] = useState<Status | null>(null);
   const [count, setCount] = useState<number | null>(null);
+  // 设置页常开着放在一边：回到这一页时重新数一次，在侧边栏刚记住或「不记」的频道也算进来。
   useEffect(() => {
     let alive = true;
-    void api.send("channels.count", {}).then((reply) => {
-      if (alive && reply.ok) setCount(reply.value.count);
-    });
+    const refresh = (): void => {
+      void api.send("channels.count", {}).then((reply) => {
+        if (alive && reply.ok) setCount(reply.value.count);
+      });
+    };
+    const onVisible = (): void => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    refresh();
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", refresh);
     return () => {
       alive = false;
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", refresh);
     };
   }, []);
   const clear = async (): Promise<void> => {
