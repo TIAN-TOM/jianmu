@@ -202,7 +202,7 @@ test("推理强度和概览分块：载入时按存着的档位问实际档位�
   assert.equal(w.current().analysisChunkMode, "short");
   assert.equal(w.state.saved.value?.analysisChunkMode, "short");
 
-  assert.deepEqual(w.saves, [], "不走保存并授权");
+  assert.deepEqual(w.saves, [], "不走「保存」");
   assert.equal(w.hostAsks(), 0);
 });
 
@@ -278,7 +278,7 @@ test("AI 服务一节的状态行落在点的那个控件下面：记住密钥�
 
   await w.state.setRemember(true);
   assert.equal(at(), "remember");
-  assert.match(text(), /保存并授权/);
+  assert.match(text(), /点「保存」以后/);
   await w.state.setRemember(false);
   assert.equal(at(), "remember");
   assert.match(text(), /不再记住/);
@@ -293,7 +293,7 @@ test("AI 服务一节的状态行落在点的那个控件下面：记住密钥�
 
   assert.equal(await w.state.save(), true);
   assert.equal(at(), "actions");
-  assert.match(text(), /已保存并授权/);
+  assert.match(text(), /已保存/);
 
   await w.state.clearKey();
   assert.equal(at(), "key");
@@ -306,7 +306,7 @@ test("又点了保存、授权框还开着：上一次的「已保存」先收�
   await w.state.load();
   const status = () => w.state.aiStatus.value;
   assert.equal(await w.state.save(), true);
-  assert.match(status()?.text ?? "", /已保存并授权/);
+  assert.match(status()?.text ?? "", /已保存/);
 
   const popup = w.holdHost();
   const saving = w.state.save();
@@ -314,7 +314,7 @@ test("又点了保存、授权框还开着：上一次的「已保存」先收�
   assert.equal(status(), null);
   popup.resolve();
   assert.equal(await saving, true);
-  assert.match(status()?.text ?? "", /已保存并授权/);
+  assert.match(status()?.text ?? "", /已保存/);
 });
 
 test("拉取模型列表先保存过，状态行照实说已保存；模型框里的型号不在列表里时提醒一句，带不带 models/ 前缀都算在列表里", async () => {
@@ -327,16 +327,16 @@ test("拉取模型列表先保存过，状态行照实说已保存；模型框�
     return w.state.aiStatus.value;
   };
 
-  assert.deepEqual(await fetched({}), { at: "model", tone: "ok", text: "已保存并授权，找到 2 个模型，可以在模型框里直接选。" });
+  assert.deepEqual(await fetched({}), { at: "model", tone: "ok", text: "已保存，找到 2 个模型，可以在模型框里直接选。" });
   assert.equal((await fetched({ aiModel: "models/M2" }))?.tone, "ok");
 
   const stale = await fetched({ aiModel: "m-old" });
   assert.equal(stale?.tone, "warn");
-  assert.match(stale?.text ?? "", /^已保存并授权，找到 2 个模型，可以在模型框里直接选。模型框里的「m-old」不在列表里/);
+  assert.match(stale?.text ?? "", /^已保存，找到 2 个模型，可以在模型框里直接选。模型框里的「m-old」不在列表里/);
   assert.match(stale?.text ?? "", /有的服务也认列表外的别名/);
 
   const empty = await fetched({ aiModel: "" });
-  assert.deepEqual({ tone: empty?.tone, text: empty?.text }, { tone: "warn", text: "已保存并授权，找到 2 个模型，在模型框里选一个，再点「保存并授权」。" });
+  assert.deepEqual({ tone: empty?.tone, text: empty?.text }, { tone: "warn", text: "已保存，找到 2 个模型，在模型框里选一个，再点「保存」。" });
 
   // 还差同意：拉取会被后台拦下，状态行仍然说清楚保存是成了的。
   const refused = world({ ...GATEWAY, aiApiKey: "sk-old", aiApiKeyOrigin: "https://gateway.example.com/" });
@@ -344,7 +344,7 @@ test("拉取模型列表先保存过，状态行照实说已保存；模型框�
   await refused.state.load();
   refused.failModels();
   await refused.state.fetchModels();
-  assert.match(refused.state.aiStatus.value?.text ?? "", /^已保存并授权，但没获取到模型列表：/);
+  assert.match(refused.state.aiStatus.value?.text ?? "", /^已保存，但没获取到模型列表：/);
 });
 
 test("拉取模型没成：服务拒绝、拉取前那次保存没拿到权限，都写在模型框下面", async () => {
@@ -390,11 +390,11 @@ test("没勾同意就保存，提示还差同意；勾上以后那句提示跟�
   const status = () => w.state.aiStatus.value;
 
   assert.equal(await w.state.save(), true);
-  assert.match(status()?.text ?? "", /已保存并授权，但 AI 功能暂时用不了/);
+  assert.match(status()?.text ?? "", /已保存，但 AI 功能暂时用不了/);
   assert.equal(status()?.tone, "warn");
 
   await w.state.setConsent(true);
-  assert.deepEqual(status(), { text: "已保存并授权。", tone: "ok", at: "actions" });
+  assert.deepEqual(status(), { text: "已保存。", tone: "ok", at: "actions" });
 
   await w.state.setConsent(false);
   assert.match(status()?.text ?? "", /暂时用不了/);
@@ -403,7 +403,7 @@ test("没勾同意就保存，提示还差同意；勾上以后那句提示跟�
   await w.state.setRemember(true);
   await w.state.setConsent(true);
   assert.equal(status()?.at, "remember", "眼前是别的提示，勾同意不把它换掉");
-  assert.match(status()?.text ?? "", /保存并授权/);
+  assert.match(status()?.text ?? "", /点「保存」以后/);
 });
 
 test("同意过数据说明、密钥却是空的（多半是重启以后清空了）：打开设置页就在密钥框下面说要重新填，开始填了这句话就收起", async () => {

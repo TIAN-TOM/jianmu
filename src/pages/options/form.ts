@@ -1,5 +1,5 @@
 // 设置页「AI 服务」表单的纯逻辑：从存着的设置填表、换服务商、拼出保存用的设置、推理强度旁边的说明（语言缺省中文）。不碰存储和浏览器接口。
-// 表单只装要点「保存并授权」才生效的几项：服务商、地址、密钥、模型、记住密钥。推理强度和概览分块即改即存，不在表单里。
+// 表单只装要点「保存」才生效的几项：服务商、地址、密钥、模型、记住密钥。推理强度和概览分块即改即存，不在表单里。
 import type { LoadedSettings } from "../../platform/settings-store.ts";
 import type { EffortPreviewItem } from "../../shared/messages/ai.ts";
 import {

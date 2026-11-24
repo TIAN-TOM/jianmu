@@ -33,12 +33,12 @@ const THINKING_EXHAUSTED = "模型把输出额度都用在思考上了，还没�
 const SWITCH_MODEL = "再试一次；老是这样，就到设置页换个模型。";
 
 export const AI_ERROR_TEXT: Readonly<Record<AiErrorCode, ErrorCopy>> = {
-  NO_AI_CONFIG: { cause: "AI 服务还没设置好。", impact: NOT_SENT, next: "到设置页填好服务商、密钥和模型，再点「保存并授权」。" },
+  NO_AI_CONFIG: { cause: "AI 服务还没设置好。", impact: NOT_SENT, next: "到设置页填好服务商、密钥和模型，再点「保存」。" },
   NO_DATA_CONSENT: { cause: "还没同意数据说明。", impact: "没有任何内容发给模型服务。", next: "到设置页读一下数据说明，勾上「我已了解」。" },
   NEED_HOST_PERMISSION: {
     cause: "简幕还没拿到访问这个 API 地址的权限。",
     impact: NOT_SENT,
-    next: "到设置页点「保存并授权」，浏览器问的时候选允许。",
+    next: "到设置页点「保存」，浏览器问的时候选允许。",
   },
   INVALID_BASE_URL: { cause: "API 地址不对。", impact: NOT_SENT, next: "到设置页检查一下 API 地址。" },
   INVALID_AI_KEY: { cause: "AI 服务不认这把密钥。", impact: NO_RESULT, next: "到设置页检查密钥，看它和 API 地址是不是同一家服务商的。" },
@@ -99,12 +99,12 @@ const THINKING_EXHAUSTED_EN = "The model spent its whole output allowance on thi
 const SWITCH_MODEL_EN = "Try again. If it keeps happening, choose a different model in settings.";
 
 export const AI_ERROR_TEXT_EN: Readonly<Record<AiErrorCode, ErrorCopy>> = {
-  NO_AI_CONFIG: { cause: "The AI service isn't set up yet.", impact: NOT_SENT_EN, next: "In settings, fill in the provider, key and model, then click “Save and authorise”." },
+  NO_AI_CONFIG: { cause: "The AI service isn't set up yet.", impact: NOT_SENT_EN, next: "In settings, fill in the provider, key and model, then click “Save”." },
   NO_DATA_CONSENT: { cause: "You haven't agreed to the data notice yet.", impact: "Nothing has been sent to the AI service.", next: "Read the data notice in settings and tick the box to agree." },
   NEED_HOST_PERMISSION: {
     cause: "Jianmu doesn't have permission to reach this API address yet.",
     impact: NOT_SENT_EN,
-    next: "Click “Save and authorise” in settings and allow access when the browser asks.",
+    next: "Click “Save” in settings and allow access when the browser asks.",
   },
   INVALID_BASE_URL: { cause: "The API address isn't right.", impact: NOT_SENT_EN, next: "Check the API address in settings." },
   INVALID_AI_KEY: { cause: "The AI service didn't accept this key.", impact: NO_RESULT_EN, next: "Check the key in settings and make sure it's from the same provider as the API address." },
