@@ -15,6 +15,7 @@ export const PANEL_HANT: PanelText = {
   remembered: (author, study) => `已記住：${author ? `${author}的影片` : "這個頻道的影片"}以後先進${study ? "精讀" : "速讀"}`,
   forget: "不記",
   forgotten: (bilibili) => (bilibili ? "好，不記這位 UP 主" : "好，不記這個頻道"),
+  forgetFailed: "沒能取消記住，再點一次試試",
   copied: "已複製",
   copyFailed: "沒能複製，瀏覽器拒絕存取剪貼簿",
 
