@@ -99,6 +99,8 @@ export interface Tabs {
   readonly contentScripts: () => readonly ContentScript[];
   /** 地址匹配得上这几条规则的已开标签页。只在确认启用之后调。 */
   readonly tabsMatching: (matches: readonly string[]) => Promise<readonly number[]>;
+  /** 全部已开标签页的编号。不带地址条件查，浏览器也不给没授权网站的地址和标题，所以什么时候都能调；查不到时是空的。 */
+  readonly allTabIds: () => Promise<readonly number[]>;
   /** 往一个标签页补注入一组内容脚本，先样式后脚本。注入不进去时抛错。 */
   readonly inject: (tabId: number, script: ContentScript) => Promise<void>;
   /** 标签页的标题，读不到时是 null。只在确认启用之后调。 */
@@ -135,6 +137,11 @@ export function createTabs(
   };
   return {
     contentScriptTabs: () => tabsMatching((runtime.getManifest().content_scripts ?? []).flatMap(({ matches: list = [] }) => list)),
+    allTabIds: () =>
+      tabs.query({}).then(
+        (found) => found.flatMap(({ id }) => (typeof id === "number" ? [id] : [])),
+        () => [],
+      ),
     send: (tabId, message) => tabs.sendMessage(tabId, message).then(
       () => undefined,
       () => undefined,

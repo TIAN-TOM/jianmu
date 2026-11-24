@@ -50,6 +50,8 @@ const app = createContentApp({
     ),
   // 小桥在页面一开始加载时就接着字幕，闸门问到没启用（比如清除了全部数据）就叫它停下、清掉，启用以后接上读取时再叫它接。
   onHeld: () => captionSwitch?.(document, false),
+  // 撤了授权：叫主世界的小桥整个退场（还回包住的函数、清掉接住的），不只停下接字幕；内容脚本还没问到启用状态时也叫。
+  onRevoked: () => void document.dispatchEvent(new CustomEvent(INJECTED.bridgeRetire)),
   createSurface: (env) => createSurface({ ...env, document, page, runtime, cardPath: PAGE_PATHS.card, miniPlayer: MINI_PLAYER }),
   visibility: {
     hidden: () => document.hidden,

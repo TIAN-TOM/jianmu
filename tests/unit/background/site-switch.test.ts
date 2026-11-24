@@ -1,5 +1,5 @@
 // 要用户另外授权的站（YouTube）：授权在就注册内容脚本，不在就注销；安装、更新后重新注册；新授权往已开页面补注入，
-// 撤权通知发过消息的页面撤下；撤了权，那个站上残留的内容脚本发来的请求不放行。授权本身就是启用。
+// 撤权按编号通知全部已开标签页撤下（后台重启过、页面没出声也发得到）；撤了权，那个站上残留的内容脚本发来的请求不放行。授权本身就是启用。
 // 主世界的小桥另外要首次启用确认算数才注册：确认前不注册，确认以后补上，清除全部数据以后撤掉。
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -151,6 +151,20 @@ test("确认启用时的补注入带上授权了的站的脚本", async () => {
   assert.equal((await app.dispatch({ type: "activation.confirm", req: {} }, senders.panel())).ok, true);
   assert.ok(fake.calls.injections.some(({ value }) => value.files.includes("content/youtube.js")));
   assert.ok(fake.calls.injections.some(({ value }) => value.files.includes("content/youtube-bridge.js") && value.world === "MAIN"));
+});
+
+test("后台被回收以后撤权：一直没出声的页面也按编号发出撤权通知，不按地址查", async () => {
+  const { fake, app: earlier } = appOn({ grantedOrigins: [ORIGIN], openTabs: [TUBE_TAB, 5] });
+  await earlier.onInstalled("install");
+  fake.revoke(ORIGIN);
+  const app = createApp(fake.deps({ warn() {}, error() {} }));
+  const queriesBefore = fake.calls.tabQueries.length;
+  await app.onPermissionsChanged();
+  const revoked = JSON.stringify({ type: "site.changed", platform: "youtube", enabled: false });
+  const notified = fake.calls.tabMessages.filter(({ message }) => JSON.stringify(message) === revoked).map(({ tabId }) => tabId);
+  assert.deepEqual(notified.sort((a, b) => a - b), [5, TUBE_TAB]);
+  const later = fake.calls.tabQueries.slice(queriesBefore).map(({ value }) => value as { url?: unknown });
+  assert.ok(later.length > 0 && later.every((query) => query.url === undefined), "撤权以后只不带地址条件查");
 });
 
 test("后台被回收以后撤权：注销、通知扩展页面、删掉这个站的观看会话；残留页面一发消息就叫它撤下", async () => {

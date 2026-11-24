@@ -20,7 +20,7 @@ const CURRENT = { ok: true, value: { state: "current" } };
 
 /** page 是几份内容脚本共用的页面：扩展重新加载前后注入的两份只共用它。 */
 function setup(
-  options: { readonly frame?: (identity: FrameIdentity) => FrameTool; readonly site?: VideoRef["platform"]; readonly durationSec?: number; readonly page?: EventTarget; readonly onHeld?: () => void } = {},
+  options: { readonly frame?: (identity: FrameIdentity) => FrameTool; readonly site?: VideoRef["platform"]; readonly durationSec?: number; readonly page?: EventTarget; readonly onHeld?: () => void; readonly onRevoked?: () => void } = {},
 ) {
   const fake = fakeRuntime();
   let activation: unknown = NEEDED;
@@ -85,6 +85,7 @@ function setup(
     ...(options.frame ? { frame: options.frame } : {}),
     ...(options.site ? { site: options.site } : {}),
     ...(options.onHeld ? { onHeld: options.onHeld } : {}),
+    ...(options.onRevoked ? { onRevoked: options.onRevoked } : {}),
   });
   return {
     fake,
@@ -238,6 +239,22 @@ test("新注入的一份接手时，旧的一份整套撤下、不再响应广�
   assert.ok(await until(() => surfaces.length === 1));
   app.stop();
   assert.equal(surfaces[0]?.removed, true);
+  assert.equal(fake.listeners(), 0);
+});
+
+test("撤了自己这个站的授权：还没问到启用状态也先叫一声再撤下；别的站的撤权、启用的通知不叫", async () => {
+  let revoked = 0;
+  const { fake, app } = setup({ site: "youtube", onRevoked: () => void (revoked += 1) });
+  // 后台一直不回启用状态：闸门从没放行过。
+  fake.reply("activation.get", () => new Promise(() => {}));
+  app.start();
+  assert.ok(await until(() => fake.attempts("activation.get") === 1));
+  fake.broadcast({ type: "site.changed", platform: "bilibili", enabled: false });
+  fake.broadcast({ type: "site.changed", platform: "youtube", enabled: true });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(revoked, 0);
+  fake.broadcast({ type: "site.changed", platform: "youtube", enabled: false });
+  assert.ok(await until(() => revoked === 1));
   assert.equal(fake.listeners(), 0);
 });
 

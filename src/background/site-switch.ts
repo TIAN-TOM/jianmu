@@ -2,7 +2,7 @@
 // 主世界的小桥一加载就接播放器取回的字幕，另外要首次启用确认算数才注册：确认前、清除全部数据以后都撤掉，确认以后再补上。
 // 只从 app.ts 的构建开关分支引用，开关关着时整个模块不进包。同步一次一次排着做，不交叉。
 // 「上一次的状态」看浏览器持久保存的注册：没注册而授权在是新给的，往已开页面补注入；注册着而授权没了是撤掉的，
-// 通知发过消息的页面和扩展页面，删掉这个站的观看会话（注销撤不回已经注入的脚本）。安装、更新后浏览器清掉注册，先撤再注册。
+// 按编号通知全部已开标签页和扩展页面，删掉这个站的观看会话（注销撤不回已经注入的脚本）。安装、更新后浏览器清掉注册，先撤再注册。
 import type { Platform } from "../core/video-ref.ts";
 import type { Messenger } from "../platform/messaging.ts";
 import type { Permissions } from "../platform/permissions.ts";
@@ -34,7 +34,7 @@ export interface SiteSwitchDeps {
   readonly rules: readonly SiteRules[];
   readonly permissions: Pick<Permissions, "containsAll">;
   readonly scripts: RegisteredScripts;
-  readonly tabs: Pick<Tabs, "tabsMatching" | "inject">;
+  readonly tabs: Pick<Tabs, "tabsMatching" | "inject" | "allTabIds">;
   readonly messenger: Pick<Messenger, "toTabs" | "toPages">;
   readonly contentTabs: Pick<ContentTabs, "list">;
   /** 撤权时删掉这个站的观看会话。 */
@@ -132,7 +132,12 @@ export function createSiteSwitch({ rules, permissions, scripts, tabs, messenger,
       log.error("删掉撤权站点的观看会话失败", errorLabel(error));
     }
     const message = { type: "site.changed", platform, enabled: false } as const;
-    await Promise.all([messenger.toTabs(contentTabs.list(), message), messenger.toPages(message)]);
+    // 授权已经没了，不能再按地址找这个站的页面；后台重启过以后内存里登记的又是空的，一直没出声的页面会漏。
+    // 所以不按地址筛选查全部已开标签页、只取编号发：别的站的内容脚本不理这个站的撤权，没有内容脚本的标签页收不到也不报错。
+    const tabIds = [...new Set([...contentTabs.list(), ...(await tabs.allTabIds())])];
+    // 不等页面回话：冻结的标签页要解冻才收消息，等它会拖住这条同步队列，连重新授权也排不上。
+    void messenger.toTabs(tabIds, message);
+    await messenger.toPages(message);
   }
 
   const syncAll = (fresh: boolean): Promise<readonly Synced[]> => Promise.all(sites.map((site) => syncSite(site, fresh)));
