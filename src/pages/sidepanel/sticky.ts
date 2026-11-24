@@ -9,9 +9,13 @@ export function useStickyHeight<T extends HTMLElement>(name: string, shown = tru
     const node = ref.current;
     const host = node?.closest<HTMLElement>(".panel");
     if (!node || !host) return;
-    const write = (): void => host.style.setProperty(name, `${node.offsetHeight}px`);
-    write();
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(write);
+    // 按带小数的实际高度写：取整（offsetHeight）会让下一层错开半个像素，滚过去的字幕从缝里露出来。
+    const write = (height: number): void => host.style.setProperty(name, `${height}px`);
+    write(node.getBoundingClientRect().height);
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver((entries) => write(entries[0]?.borderBoxSize?.[0]?.blockSize ?? node.getBoundingClientRect().height));
     observer?.observe(node);
     return () => {
       observer?.disconnect();
