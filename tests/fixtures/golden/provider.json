@@ -14821,7 +14821,7 @@
     }
    ],
    "result": {
-    "message": "内部错误",
+    "message": "模型生成失败，服务说：内部错误",
     "reason": "FAILED",
     "retryWithoutJsonMode": false
    }

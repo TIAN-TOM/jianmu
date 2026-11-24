@@ -83,10 +83,12 @@ export function failureText(failure: Failure, lang: UiLang = "zh"): string {
   return describe(failure.code, failure.detail, lang);
 }
 
+// 不带码的错误多半是浏览器自己报的，原话是浏览器的语言（多半是英文），不放进界面，留在控制台里。
 const errorTextIn = (error: unknown, lang: UiLang): string => {
   const code = (error as { code?: unknown } | null)?.code;
   if (isErrorCode(code)) return describe(code, undefined, lang);
-  return error instanceof Error ? error.message : String(error);
+  console.warn("[jianmu] 设置页的操作出错：", error);
+  return textOf(lang).unexpected;
 };
 
 const isStale = (error: unknown): boolean => (error as { code?: unknown } | null)?.code === "SETTINGS_STALE";

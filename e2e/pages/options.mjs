@@ -13,7 +13,7 @@ import { OPTIONS_EN } from "../../src/pages/options/text-en.ts";
 import { OPTIONS_HANT } from "../../src/pages/options/text-hant.ts";
 import { OPTIONS_ZH } from "../../src/pages/options/text-zh.ts";
 import { FEATURE_MODEL_SLOTS, UI_FONT_SCALES } from "../../src/shared/settings-schema.ts";
-import { charsIn, SIMPLIFIED_ONLY } from "../../tests/helpers/hant-chars.ts";
+import { charsIn, SIMPLIFIED_ONLY, TRADITIONAL_ONLY } from "../../tests/helpers/hant-chars.ts";
 import { ANTHROPIC, VIDEOS } from "../fixtures.mjs";
 import { scenario } from "./harness.mjs";
 
@@ -963,6 +963,30 @@ test("设置页：English 下数据说明的条目、勾选框和校验提示都
   const visible = await page.evaluate(`document.body.innerText`);
   const leftover = visible.replaceAll("简体中文", "").replaceAll("繁體中文", "").split("\n").filter((line) => han.test(line));
   assert.deepEqual(leftover, []);
+});
+
+test("设置页：简体下测试连接的结果是简体；整页可见文字里没有繁体专用字，也没有整行英文，语言下拉里的「繁體中文」「English」、YouTube 和服务商的名字除外", async ({ open }) => {
+  const page = await freshOptions(open);
+  await enable(page);
+  await fill(page, "#language", "zh");
+  await page.waitFor("界面是简体", `document.documentElement.lang === "zh-CN"`);
+
+  await fill(page, "#preset", ANTHROPIC.presetId);
+  await fill(page, "#aiApiKey", ANTHROPIC.key);
+  await page.click("#dataConsent");
+  await page.waitFor("同意记下了", `document.getElementById("dataConsent").checked`);
+  await clickButton(page, "保存并授权");
+  assert.equal(await statusStarts(page, "ai-service", OPTIONS_ZH.status.saved), OPTIONS_ZH.status.saved);
+  await clickButton(page, OPTIONS_ZH.ai.test);
+  // 这里没选型号，用的是服务商预设的默认型号。
+  assert.match(await statusStarts(page, "ai-service", OPTIONS_ZH.ai.defaultModel), /^默认模型（[^）]+）连接正常，回复「可用」$/);
+
+  const visible = await page.evaluate(`document.body.innerText`);
+  const lines = visible.split("\n").map((line) => line.trim()).filter(Boolean);
+  assert.deepEqual(lines.filter((line) => line !== "繁體中文" && charsIn(line, TRADITIONAL_ONLY).length > 0), []);
+  // 整行都是英文的只许是专名：语言下拉里的 English、YouTube 一节的标题、服务商的名字。
+  const names = new Set(["English", "YouTube", ...Object.values(OPTIONS_ZH.ai.presets)]);
+  assert.deepEqual(lines.filter((line) => /[A-Za-z]{2,}/.test(line) && !/\p{Script=Han}/u.test(line) && !names.has(line)), []);
 });
 
 // 只看几何关系，不看字体：2 倍及以上的屏上框高是整像素时，文字行上下留的空也是整像素，文字才跟边框一起对齐到像素；

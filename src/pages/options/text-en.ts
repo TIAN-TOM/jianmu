@@ -11,6 +11,7 @@ export const OPTIONS_EN: OptionsText = {
   activationLoading: "Checking whether Jianmu is turned on…",
   loadFailed: "Couldn't load settings",
   loadFailedDetail: (reason) => `Couldn't load settings: ${reason}`,
+  unexpected: "Something unexpected went wrong.",
 
   appearance: {
     title: "Appearance",

@@ -35,6 +35,7 @@ const PROVIDER_ZH = {
   quotaOnReasoning: "模型把 token 配额全用在推理上了，没能输出正文。已经放大预算重试过，仍然不够，可以换一个推理更少的型号。",
   contentFiltered: "输出被服务方的内容过滤拦下了，没有正文。",
   generationFailed: "模型生成失败，请重试。",
+  generationFailedWith: (said: string) => `模型生成失败，服务说：${said}`,
   reasoningOnlyResponses: "模型只做了推理，没有输出正文。可以换一个推理更少的型号再试。",
 };
 
@@ -71,6 +72,7 @@ const PROVIDER_EN: ProviderText = {
   quotaOnReasoning: "The model spent its whole token allowance on reasoning and couldn't write a reply. Jianmu already retried with a bigger budget, and it still wasn't enough. Try a model that reasons less.",
   contentFiltered: "The service's content filter blocked the output, so there's no reply.",
   generationFailed: "The model couldn't generate a reply. Try again.",
+  generationFailedWith: (said) => `The model couldn't generate a reply. The service said: ${said}`,
   reasoningOnlyResponses: "The model only reasoned and didn't write a reply. Try a model that reasons less.",
 };
 
