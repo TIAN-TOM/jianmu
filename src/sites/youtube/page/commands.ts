@@ -112,6 +112,9 @@ const CAPTIONS_BUTTON = "ytd-watch-flexy .html5-video-player .ytp-subtitles-butt
 // 点开字幕以后最多等这么久看小桥接没接住，每隔这么久看一次。
 export const CAPTION_WAIT_MS = 6000;
 const CAPTION_POLL_MS = 200;
+// 读完要关字幕时正在播广告：等广告播完再关，最多等这么久，每隔这么久看一次；等不到就不关了。
+export const CLOSE_AD_WAIT_MS = 180_000;
+const CLOSE_AD_POLL_MS = 1000;
 
 export interface CaptionToggleDeps {
   readonly document: Document;
@@ -130,8 +133,9 @@ export interface CaptionToggle {
 
 /**
  * 读播放器取回的字幕：只在构建开关打开、页面上没有文字稿时由后台转来。小桥里已经有就直接交；字幕关着时替用户点一下字幕按钮，
- * 等播放器自己去取，读完只关这次点开的那个（按钮还在、还标着开、还是这个视频）。一次只点一下，不连点、不重试；
+ * 等播放器自己去取，读完只关这次点开的那个（按钮还在、还能用、还标着开、还是这个视频）。一次只点一下，不连点、不重试；
  * 正在播广告、视频对不上、按钮不在或标着不可用时不点；按钮本来就开着却没接住的不点，照实报。
+ * 读完要关时正在播广告：先交回结果，等广告播完再关，最多等 CLOSE_AD_WAIT_MS。
  */
 export function createCaptionToggle({
   document,
@@ -147,6 +151,16 @@ export function createCaptionToggle({
   const pressed = (button: Element): string | null => button.getAttribute("aria-pressed");
   const usable = (button: Element): boolean =>
     button.getAttribute("aria-disabled") !== "true" && !button.hasAttribute("disabled") && (pressed(button) === "true" || pressed(button) === "false");
+
+  // 关上这次点开的字幕。没在播广告时当场就点，在播就等它播完再看一遍按钮和视频。
+  async function closeAfter(button: HTMLElement, videoId: string): Promise<void> {
+    const begun = now();
+    while (advertising(document)) {
+      if (now() - begun >= CLOSE_AD_WAIT_MS) return;
+      await sleep(CLOSE_AD_POLL_MS);
+    }
+    if (button.isConnected && usable(button) && pressed(button) === "true" && onPage(videoId)) button.click();
+  }
 
   async function read(videoId: string): Promise<CaptionReply> {
     if (!onPage(videoId)) return reply("video-changed");
@@ -169,7 +183,8 @@ export function createCaptionToggle({
       found = caption(videoId);
       if (found) break;
     }
-    if (button.isConnected && pressed(button) === "true" && onPage(videoId)) button.click();
+    // 不让交回结果跟着等广告：没在播广告时这一步当场点完。
+    void closeAfter(button, videoId).catch(() => undefined);
     if (changed) return reply("video-changed");
     return found ? reply("caught", found) : reply("not-caught");
   }
