@@ -281,7 +281,8 @@ test("侧边栏：重开后恢复这个视频的双语显示，缺译文的段�
         derived: { basis: { source: "transcript", transcript: ref }, gen: { feature: "rewrite", promptVersion: "p", model: "sample", effort: "off" } }, updatedAt: 1,
       }] });
       await panel.evaluate("location.reload(), true");
-      await waitIn(panel, "样例的两段字幕出现", `${textOf(".cue-text")} === ${JSON.stringify(first + "\n" + second)}`);
+      // 工具栏可能比字幕晚一拍渲染出来，点之前连按钮一起等。
+      await waitIn(panel, "样例的两段字幕和视图按钮出现", `${textOf(".cue-text")} === ${JSON.stringify(first + "\n" + second)} && Boolean(document.querySelector(${JSON.stringify(button)}))`);
       await tap(panel, button);
       await waitIn(panel, "双语选项出现", `${textOf(list + " .menu-label")}.includes("双语")`);
       assert.ok(await clickText(panel, list + " .menu-item", "双语"));
