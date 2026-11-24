@@ -1,7 +1,7 @@
 // 概览页签的数据：本机已有的概览、正在跑的概览和结论任务、长视频边生成边显示的临时概览。
 // 生成先登记任务再开始；重开面板时从任务表接上还在跑的，跟着任务广播收尾。换了视频，旧视频的回复和广播都不再进来。
 import { signal, type ReadonlySignal } from "@preact/signals";
-import { describe, type Failure } from "../../core/errors.ts";
+import { describe, type ErrorCode, type Failure } from "../../core/errors.ts";
 import type { LearningAnalysis } from "../../core/notes/markdown.ts";
 import type { TaskView } from "../../core/tasks.ts";
 import type { VideoKey } from "../../core/video-ref.ts";
@@ -28,6 +28,8 @@ export interface OverviewState {
   readonly result: OverviewResultView | null;
   /** 最近一次失败的说明。 */
   readonly error: string;
+  /** 最近一次失败的错误码：要到设置页去改的，说明下面给「打开设置」。没有失败时是 null。 */
+  readonly errorCode: ErrorCode | null;
   /** 失败时模型服务自己说的话，显示在说明下面，默认收着；没有时是空串。 */
   readonly errorSaid: string;
 }
@@ -45,14 +47,16 @@ export interface OverviewStore {
   stop(): void;
 }
 
-const EMPTY: OverviewState = { video: null, loaded: false, saved: null, task: null, verdictTask: null, preview: null, result: null, error: "", errorSaid: "" };
+const EMPTY: OverviewState = { video: null, loaded: false, saved: null, task: null, verdictTask: null, preview: null, result: null, error: "", errorCode: null, errorSaid: "" };
 
 const isRunning = (task: TaskView | null | undefined): task is TaskView => task?.state === "running";
 
 /** 失败说明：用户点了停止不算失败。 */
-function failureFields(failure: Failure, lang: UiLang): Pick<OverviewState, "error" | "errorSaid"> {
-  return failure.code === "TASK_CANCELED" ? { error: "", errorSaid: "" } : { error: describe(failure.code, failure.detail, lang), errorSaid: failure.said ?? "" };
+function failureFields(failure: Failure, lang: UiLang): Pick<OverviewState, "error" | "errorCode" | "errorSaid"> {
+  return failure.code === "TASK_CANCELED" ? NO_ERROR : { error: describe(failure.code, failure.detail, lang), errorCode: failure.code, errorSaid: failure.said ?? "" };
 }
+
+const NO_ERROR: Pick<OverviewState, "error" | "errorCode" | "errorSaid"> = { error: "", errorCode: null, errorSaid: "" };
 
 /** lang：说明用哪种语言写，缺省中文。页面传当前的界面语言。 */
 export function createOverviewStore({ api, lang = () => "zh" }: { readonly api: Pick<PageApi, "send" | "on">; readonly lang?: () => UiLang }): OverviewStore {
@@ -105,7 +109,7 @@ export function createOverviewStore({ api, lang = () => "zh" }: { readonly api: 
     if (!video) return;
     const slot = kind === "overview" ? "task" : "verdictTask";
     if (isRunning(state.peek()[slot])) return;
-    patch(asked, { error: "", errorSaid: "" });
+    patch(asked, NO_ERROR);
     const started = await api.send("task.start", { kind, video });
     if (!started.ok) {
       patch(asked, { ...failureFields(started, lang()) });
@@ -163,7 +167,7 @@ export function createOverviewStore({ api, lang = () => "zh" }: { readonly api: 
     verdictFromOfficial: () => run("verdict", (taskId, video) => api.send("verdict.fromOfficial", { video, taskId })),
     async cancel(taskId) {
       const reply = await api.send("task.cancel", { taskId });
-      if (!reply.ok && reply.code !== "TASK_NOT_FOUND") state.value = { ...state.peek(), error: describe(reply.code, reply.detail, lang()), errorSaid: "" };
+      if (!reply.ok && reply.code !== "TASK_NOT_FOUND") state.value = { ...state.peek(), error: describe(reply.code, reply.detail, lang()), errorCode: reply.code, errorSaid: "" };
     },
     stop() {
       generation += 1;

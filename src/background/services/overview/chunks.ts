@@ -190,7 +190,7 @@ export async function analyzePlannedChunks(
   const rejected = results.filter((result) => result.status === "rejected").length;
   const failedIndexes = results.flatMap((result, index) => (result.status === "rejected" && isTransientChunkFailure(result.reason) ? [index] : []));
   if (!failedIndexes.length || (retryPartialOnly && rejected >= chunks.length)) return results;
-  run.progress({ done: chunks.length - rejected, total: chunks.length, phase: "retrying", message: progressText(lang).chunkRetry(failedIndexes.length) });
+  run.progress({ done: chunks.length - rejected, total: chunks.length, phase: "retrying", message: progressText(lang).chunkRetry });
   const retried = await mapWithConcurrency(
     failedIndexes.map((index) => chunks[index] as Chunk),
     deps.concurrency,

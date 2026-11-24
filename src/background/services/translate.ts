@@ -303,7 +303,7 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
     const gaps = planTranslationBatches(results.flatMap((result) => (result.status === "fulfilled" ? result.value : [])));
     let unfinished = 0;
     if ((retry.length || gaps.length) && rejected() < batches.length && !run.signal.aborted && fatal === undefined) {
-      run.progress({ phase: "retrying", message: say.translateRetry(retry.length + gaps.length) });
+      run.progress({ phase: "retrying", message: say.translateRetry });
       await waitOrStop(deps.timers, TRANSLATE_RETRY_DELAY_MS, run.signal);
       const again = await mapWithConcurrency([...retry.map((index) => batches[index] ?? []), ...gaps], concurrency, (batch) => one(batch, true));
       retry.forEach((batchIndex, i) => {

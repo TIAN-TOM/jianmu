@@ -51,7 +51,7 @@ export interface ModeOutcome {
 
 export interface SessionsDeps {
   readonly storage: Pick<StorageArea, "get" | "set">;
-  readonly channels: Pick<ChannelStore, "get" | "put">;
+  readonly channels: Pick<ChannelStore, "get" | "put" | "remove">;
   readonly guard: ClearGuard;
   readonly now: () => number;
   readonly broadcast: (message: Broadcast) => void;
@@ -68,6 +68,8 @@ export interface Sessions {
   readonly get: (tabId: number) => Promise<SessionView | null>;
   readonly setMode: (tabId: number, video: VideoKey, change: ModeChange) => Promise<Result<ModeOutcome>>;
   readonly setCardOverride: (tabId: number, video: VideoKey, value: CardOverride) => Promise<Result<SessionView>>;
+  /** 侧边栏点了「不记」：忘掉这个标签页上视频所在的频道，以后这个频道的视频回到按时长定模式；眼下的模式不变。 */
+  readonly forgetChannel: (tabId: number, video: VideoKey) => Promise<Result<{ forgotten: boolean }>>;
   readonly onTabRemoved: (tabId: number) => Promise<void>;
   /** 撤了这个站的授权：它的观看会话都删掉，侧边栏不再按旧会话认出那些标签页上的视频。 */
   readonly forgetPlatform: (platform: Platform) => Promise<void>;
@@ -180,6 +182,15 @@ export function createSessions({ storage, channels, guard, now, broadcast, log }
     }
   }
 
+  async function forget(channel: string): Promise<boolean> {
+    try {
+      return await channels.remove(channel);
+    } catch (error) {
+      log.warn("忘掉频道的模式失败", errorLabel(error));
+      return false;
+    }
+  }
+
   async function remember(channel: string, mode: Mode): Promise<boolean> {
     try {
       return await channels.put(channel, mode);
@@ -268,6 +279,15 @@ export function createSessions({ storage, channels, guard, now, broadcast, log }
       const channel = change.intent === "manual" ? result.value.channel : undefined;
       const remembered = change.intent === "manual" && channel !== undefined ? await remember(channel, change.mode) : false;
       return ok({ session: sessionView(result.value), remembered });
+    },
+
+    async forgetChannel(tabId, video) {
+      // 只读会话找出记的是哪个频道，会话本身不动：这次手动选的模式照旧。
+      const session = (await load())[String(tabId)];
+      if (!session) return fail("SESSION_NOT_FOUND");
+      if (session.video !== video) return fail("VIDEO_CHANGED");
+      if (session.channel === undefined) return ok({ forgotten: false });
+      return ok({ forgotten: await forget(session.channel) });
     },
 
     async setCardOverride(tabId, video, value) {

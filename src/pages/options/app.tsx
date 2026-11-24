@@ -247,7 +247,7 @@ export function App({
 }: {
   readonly state: OptionsState;
   readonly activation: Activation;
-  readonly api: Pick<PageApi, "send">;
+  readonly api: Pick<PageApi, "send" | "on">;
   readonly version: string;
 }) {
   const t = optionsText();
@@ -264,7 +264,7 @@ export function App({
           <CardSection state={state} />
           {SiteSections ? <SiteSections /> : null}
           <AiSection state={state} />
-          <AutoSection state={state} />
+          <AutoSection state={state} api={api} />
           <ModeSection api={api} />
           <TriageSection />
         </>

@@ -15,9 +15,12 @@ test("进度的说法：不传语言和中文一样，英文和中文一样多�
     assert.match(sample(zh[key as keyof typeof zh]), CJK, key);
     assert.doesNotMatch(sample(value), CJK, key);
   }
-  assert.equal(zh.translateBatch(2, 5), "正在处理第 2/5 批");
-  assert.equal(en.translateRetry(1), "Retrying 1 batch");
-  assert.equal(en.chunkRetry(3), "Retrying 3 failed chunks");
+  assert.equal(zh.translateBatch(2, 5), "正在处理 2/5");
+  assert.equal(zh.overviewChunk(3, 8), "正在生成 3/8");
+  assert.equal(en.translateRetry, "Retrying the parts that failed");
+  assert.equal(en.chunkRetry, "Retrying the parts that failed");
+  // 分块、分批是内部做法，用户看到的话里不提「块」「批」。
+  for (const value of Object.values(zh)) assert.doesNotMatch(sample(value), /[块批]/);
 });
 
 test("进度的说法：繁体和简体一样多，每一句都是繁体那份，不是回落的简体", () => {
@@ -29,10 +32,10 @@ test("进度的说法：繁体和简体一样多，每一句都是繁体那份�
     const text = sample(value);
     assert.match(text, CJK, key);
     if (zhValue !== text) continue;
-    // 简繁写法一样的只有这两句。
-    assert.ok(["canceled", "done"].includes(key), `${key} 回落成了简体`);
+    // 简繁写法一样的只有这三句。
+    assert.ok(["canceled", "done", "overviewChunk"].includes(key), `${key} 回落成了简体`);
   }
-  assert.equal(hant.translateBatch(2, 5), "正在處理第 2/5 批");
+  assert.equal(hant.translateBatch(2, 5), "正在處理 2/5");
   assert.equal(hant.unclaimed, "沒有收到生成請求，已停止");
   assert.equal(hant.verdict, "正在寫一句話結論…");
 });

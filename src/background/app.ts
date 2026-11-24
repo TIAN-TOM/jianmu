@@ -16,7 +16,7 @@ import type { StoreName } from "../shared/names.ts";
 import type { SiteRules } from "../sites/types.ts";
 import { createActionMenu, type ContextMenusDeps, type MenuClick } from "./action-menu.ts";
 import { createAiWiring, type AiWiring, type ModelServiceFetch, type PromptTable } from "./ai.ts";
-import { autoSwitchToggled, createAutoWiring, pageTranscriptOf, watchPagesOf } from "./auto.ts";
+import { createAutoWiring, pageTranscriptOf, resumesAfter, watchPagesOf } from "./auto.ts";
 import { createContentTabs, createContentTargets, type ContentTabs, type ContentTargets } from "./content-tabs.ts";
 import { createGrants, siteOriginsOf, type Grants } from "./grants.ts";
 import { createOpenPanels, type OpenPanels } from "./open-panels.ts";
@@ -481,8 +481,8 @@ export function createApp(deps: AppDeps): App {
       void core.sessions.onTabRemoved(tabId).catch((error: unknown) => deps.log.error("删掉关闭标签页的观看会话失败", errorLabel(error)));
     },
     async onStorageChanged(changes, area) {
-      // 开关一动就恢复；刚打开时把已经开着的视频标签页排进来，不等下一个标签页事件。
-      if (autoSwitchToggled(changes, area)) await core.auto.resume().then(consider, (error: unknown) => deps.log.error("恢复自动生成失败", errorLabel(error)));
+      // 开关一动、密钥被拒后保存了新密钥就恢复；刚打开时把已经开着的视频标签页排进来，不等下一个标签页事件。
+      if (await resumesAfter(changes, area, core.auto)) await core.auto.resume().then(consider, (error: unknown) => deps.log.error("恢复自动生成失败", errorLabel(error)));
       // 先断端口：启用失效以后，连着的页面不能再发起新的读取和模型请求。
       if (activationLost(changes, area)) router.closeBusinessPorts("NOT_ENABLED");
       // 启用失效只发给发过消息的内容脚本，不再按地址查标签页；启用算不算数一变，要启用确认才注册的页面脚本跟着撤掉或补上。
