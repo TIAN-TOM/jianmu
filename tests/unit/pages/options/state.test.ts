@@ -537,6 +537,22 @@ test("保存了密钥、还没记住也没问过：按钮下面问要不要记�
   assert.equal(w.state.rememberAsk.value, true);
 });
 
+test("那一问还摆着时勾选框被勾上、又答「不用」：勾选框回到不记，之后再保存密钥也不会记到这台电脑上", async () => {
+  const w = world({ ...GATEWAY, ...DATA_CONSENT_CONFIRMED });
+  w.permission.resolve();
+  await w.state.load();
+  w.state.editKey("sk-first");
+  assert.equal(await w.state.save(), true);
+  assert.equal(w.state.rememberAsk.value, true);
+  // 保存收尾的那一会儿里勾上的，表单上留着一个没保存的勾。
+  w.state.edit({ rememberApiKey: true });
+  await w.state.answerRemember(false);
+  assert.equal(w.state.form.value?.rememberApiKey, false, "答了不用，勾选框跟着回到不记");
+  assert.equal(await w.state.save(), true);
+  assert.equal(w.current().rememberApiKey, false);
+  assert.equal(w.saves.at(-1)?.rememberApiKey, false);
+});
+
 test("答「记住」等于勾上记住密钥再保存：密钥记住、算问过，状态行说记住了；之后取消记住再保存也不问", async () => {
   const w = world({ ...GATEWAY, ...DATA_CONSENT_CONFIRMED });
   w.permission.resolve();

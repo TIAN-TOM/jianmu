@@ -271,7 +271,8 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       // 回收是尽力而为：失败只是多留几条授权。
       await api.send("grants.release", {});
       saySaved(at, written);
-      rememberAsk.value = written.aiApiKey !== "" && !written.rememberApiKey && !written.rememberKeyAsked;
+      // 保存收尾的这一会儿里用户自己动过勾选框，就以勾选框为准，不再问。
+      rememberAsk.value = written.aiApiKey !== "" && !written.rememberApiKey && !written.rememberKeyAsked && form.peek()?.rememberApiKey !== true;
       return true;
     } finally {
       busy.value = null;
@@ -399,6 +400,8 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
         await save();
         return;
       }
+      // 答了「不用」：勾选框也回到不记，免得留着一个没保存的勾，下次保存时把密钥记上。
+      if (current.rememberApiKey) setForm({ ...current, rememberApiKey: false });
       try {
         await ownWrite(() => store.update({ rememberKeyAsked: true }), "remember");
       } catch (error) {
