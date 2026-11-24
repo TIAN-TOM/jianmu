@@ -965,7 +965,7 @@ test("设置页：English 下数据说明的条目、勾选框和校验提示都
   assert.deepEqual(leftover, []);
 });
 
-test("设置页：简体下测试连接的结果是简体；整页可见文字里没有繁体专用字，也没有整行英文，语言下拉里的「繁體中文」「English」、YouTube 和服务商的名字除外", async ({ open }) => {
+test("设置页：简体下测试连接的结果是简体；整页可见文字里没有繁体专用字，也没有整行英文，语言下拉里的「繁體中文」「English」、YouTube 和服务商的名字除外", async ({ open, extensionDir }) => {
   const page = await freshOptions(open);
   await enable(page);
   await fill(page, "#language", "zh");
@@ -985,7 +985,9 @@ test("设置页：简体下测试连接的结果是简体；整页可见文字�
   const lines = visible.split("\n").map((line) => line.trim()).filter(Boolean);
   assert.deepEqual(lines.filter((line) => line !== "繁體中文" && charsIn(line, TRADITIONAL_ONLY).length > 0), []);
   // 整行都是英文的只许是专名：语言下拉里的 English、YouTube 一节的标题、服务商的名字。
-  const names = new Set(["English", "YouTube", ...Object.values(OPTIONS_ZH.ai.presets)]);
+  // 「关于」一节的构建标识是十六进制，里面碰巧连着两个字母也不算英文：它随源码变，不排除的话这条时过时不过。
+  const build = readFileSync(join(extensionDir, BUILD_ID_FILE), "utf8").trim();
+  const names = new Set(["English", "YouTube", build, ...Object.values(OPTIONS_ZH.ai.presets)]);
   assert.deepEqual(lines.filter((line) => /[A-Za-z]{2,}/.test(line) && !/\p{Script=Han}/u.test(line) && !names.has(line)), []);
 });
 
