@@ -3,11 +3,13 @@
 // 长视频每完成一块就把已完成的块合并成一份临时概览广播出去，只给界面先看，不落库。
 import { analysisTimingVariables, estimateOutputTokens, mergeAnalyses, truncatedChunkRanges, withTruncatedRanges, type AnalysisChunk } from "../../../core/ai/chunking.ts";
 import { parseLooseJson } from "../../../core/ai/parse.ts";
+import { withEnglish } from "../../../core/ai/provider/index.ts";
 import { extractPromptSection, type PromptVariables } from "../../../core/ai/prompt.ts";
 import { ANALYSIS_CHUNK } from "../../../core/ai/schemas.ts";
 import { aiErrorResponse, throwIfTaskCanceled, type RetryNotice, type TransportError } from "../../../core/ai/transport/index.ts";
 import { chunkFromModel, validateAnalysis, type Analysis } from "../../../core/ai/validate.ts";
 import { mapWithConcurrency, type Limiter } from "../../../core/concurrency.ts";
+import { errorCopy } from "../../../core/errors.ts";
 import type { LearningAnalysis } from "../../../core/notes/markdown.ts";
 import { formatTimestamp, type TranscriptSegment } from "../../../core/transcript/segment.ts";
 import { outputLangOf, type OutputLang } from "../../../core/output-lang.ts";
@@ -59,16 +61,20 @@ export function isTransientChunkFailure(error: unknown): boolean {
   return !(status >= 400 && status < 500 && status !== 408 && status !== 429);
 }
 
-function coded(code: string, message: string, sends: number): ChunkError {
-  const error: ChunkError = Object.assign(new Error(message), { code });
+// 失败块的原因记进概览、导出到笔记：英文、繁体的说法取整份失败时同一个码的原因，三种语言都挂在错误上。
+const CHUNK_COPY = { ANALYSIS_PARSE_FAILED: "ANALYSIS_PARSE_FAILED", EMPTY_CHUNK: "EMPTY_ANALYSIS" } as const;
+
+function coded(code: keyof typeof CHUNK_COPY, message: string, sends: number): ChunkError {
+  const copy = CHUNK_COPY[code];
+  const error: ChunkError = withEnglish(Object.assign(new Error(message), { code }), errorCopy(copy, undefined, "en").cause, errorCopy(copy, undefined, "zh-Hant").cause);
   // 传输层已经为这一块重发过（加码、脱掉 JSON 模式）：额度用掉了，补轮不再发。
   if (sends > 1) error.noAutoRetry = true;
   return error;
 }
 
-/** 失败块的原因：和整份失败同一套说法，记进失败区间，事后能查。 */
-export function describeChunkFailure(error: unknown): string {
-  return aiErrorResponse(error).message || (error instanceof Error ? error.message : "");
+/** 失败块的原因：和整份失败同一套说法，按任务的语言写，记进失败区间，事后能查。 */
+export function describeChunkFailure(error: unknown, lang: OutputLang): string {
+  return aiErrorResponse(error, lang).message || (error instanceof Error ? error.message : "");
 }
 
 /** 提示词的两段：系统提示词和用户提示词。 */

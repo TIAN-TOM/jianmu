@@ -257,7 +257,7 @@ export function createQaService(deps: QaServiceDeps): QaService {
         } catch (error) {
           if (run.signal.aborted || (error as { readonly code?: unknown } | null)?.code === "TASK_CANCELED") return fail("TASK_CANCELED");
           deps.log.error("问答失败", errorLabel(error));
-          return aiFailure(error);
+          return aiFailure(error, outputLangOf(run.gen));
         }
       });
     },

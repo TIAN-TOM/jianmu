@@ -941,6 +941,14 @@ test("设置页：English 下数据说明的条目、勾选框和校验提示都
   assert.doesNotMatch(listed, han, listed);
   assert.ok(listed.includes(DATA_CONSENT_EN_FIRST), listed);
 
+  // 测试连接（放在整页检查之前，状态行也算在整页里）：发给模型的那句话是英文，模型回的词显示在状态行里，也是英文。
+  await page.click("#dataConsent");
+  await clickButton(page, "Save and authorise");
+  assert.equal(await statusStarts(page, "ai-service", "Saved"), "Saved and authorised.");
+  await clickButton(page, "Test connection");
+  // 这里没选型号，用的是服务商预设的默认型号。
+  assert.match(await statusStarts(page, "ai-service", "Default model"), /^Default model \([^)]+\) is connected\. Reply: “OK”$/);
+
   // 整页：语言下拉里「简体中文」「繁體中文」两项用自己的语言写，别处不该有汉字。
   const visible = await page.evaluate(`document.body.innerText`);
   const leftover = visible.replaceAll("简体中文", "").replaceAll("繁體中文", "").split("\n").filter((line) => han.test(line));

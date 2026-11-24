@@ -98,7 +98,7 @@ export function BatchBar({ panel, ready }: { readonly panel: Panel; readonly rea
                 <span class="batch-failure-title" title={entry.title}>
                   {entry.title}
                 </span>
-                <span class="batch-failure-reason">{entry.status === "canceled" ? t.canceled : entry.failure ? describeFailure(entry.failure.code) : t.failed}</span>
+                <span class="batch-failure-reason">{entry.status === "canceled" ? t.canceled : entry.failure ? describeFailure(entry.failure.code, undefined, lang) : t.failed}</span>
               </span>
               <Button variant="text" disabled={!ready} {...notReady} onClick={() => batch.retry(entry.video)}>
                 {p.retry}

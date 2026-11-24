@@ -7,4 +7,5 @@ export const WIRING_HANT: WiringText = {
   badAddress: "API 網址無效，請到設定頁檢查。",
   noPermission: (origin) => `擴充功能還沒有存取 ${origin} 的權限。請打開設定頁，點選「儲存並授權」。`,
   noKey: "請先在設定頁填寫 API 金鑰。",
+  testPrompt: "回覆兩個字：可用",
 };
