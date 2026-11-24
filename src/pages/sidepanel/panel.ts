@@ -2,7 +2,10 @@
 // 启用以后才跟着当前视频读取；换了视频，各块一起换，没启用或没有视频时全部清空。
 // 问答抽屉和笔记层的开关和模式是两层：切模式不动抽屉，开抽屉也不切模式。
 // 打开就出结论停下或恢复时重问一次配置，顶上那一行跟着变。
-import { computed, effect, signal, type Signal } from "@preact/signals";
+import { computed, effect, signal, type ReadonlySignal, type Signal } from "@preact/signals";
+import { describe } from "../../core/errors.ts";
+import { parseVideoKey } from "../../core/video-ref.ts";
+import type { NoticeAction } from "../shared/ui/notice.ts";
 import type { Mode } from "../../core/mode/types.ts";
 import type { PageApi } from "../shared/api.ts";
 import { createActivation, type Activation } from "../shared/activation.ts";
@@ -25,6 +28,8 @@ import type { OptionsSection } from "../../shared/messages/core.ts";
 export interface Toast {
   readonly id: number;
   readonly text: string;
+  /** 跟在这句话后面的一个按钮，比如记住了频道以后的「不记」。 */
+  readonly action?: NoticeAction;
 }
 
 export interface Panel {
@@ -53,20 +58,28 @@ export interface Panel {
   readonly qaOpen: Signal<boolean>;
   /** 笔记层开着。 */
   readonly notesOpen: Signal<boolean>;
+  /** 还没发出去的问题：底部的提问框和问答抽屉里的输入框共用这一份，问不了时打开抽屉也带着。 */
+  readonly draft: Signal<string>;
   readonly toast: Signal<Toast | null>;
-  /** 主动切换模式：记住这个频道，记住了就说一声。 */
+  /** 字幕不再跟着播放滚动的次数：别处要把视野留给别的内容（比如新出的画面解释）时加一，字幕列表看到变了就停下跟随。 */
+  readonly followHold: ReadonlySignal<number>;
+  holdFollow(): void;
+  /** 主动切换模式：记住这个频道，记住了就说一声，旁边给「不记」。 */
   chooseMode(mode: Mode): Promise<void>;
-  /** 一闪而过的一句提示：存好了、导出了、跳转失败的原因。 */
-  say(text: string): void;
+  /** 一闪而过的一句提示：存好了、导出了、跳转失败的原因。带按钮的多留一会儿，够人看完再点。 */
+  say(text: string, action?: NoticeAction): void;
   /** 跳到当前视频的这一秒；跳不了时提示原因。 */
   seek(atSec: number): Promise<void>;
   openOptions(): void;
   /** 打开设置页并滚到这一节，比如因为 AI 服务没设置好才去设置页。 */
   openSettingsAt(section: OptionsSection): void;
+  /** 打开就出结论停着时用户点了「恢复」：后台恢复以后广播 auto.changed，顶上那一行跟着消失。 */
+  resumeAuto(): Promise<void>;
   stop(): void;
 }
 
 const TOAST_MS = 4000;
+const TOAST_WITH_ACTION_MS = 6000;
 
 export function createPanel(api: PageApi, storageChanged?: Parameters<typeof createConfigWatch>[0]["storageChanged"]): Panel {
   const activation = createActivation({ api });
@@ -90,16 +103,26 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
   const frame = FEATURE_FRAME_EXPLAIN ? createFrameStore({ api, target: follow.target, enabled: activation.enabled, lang }) : null;
   const qaOpen = signal(false);
   const notesOpen = signal(false);
+  const draft = signal("");
   const toast = signal<Toast | null>(null);
+  const followHold = signal(0);
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
   let toastId = 0;
 
-  const say = (text: string): void => {
+  const say = (text: string, action?: NoticeAction): void => {
     if (!text) return;
     toastId += 1;
-    toast.value = { id: toastId, text };
+    toast.value = { id: toastId, text, ...(action ? { action } : {}) };
     if (toastTimer !== null) clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => (toast.value = null), TOAST_MS);
+    toastTimer = setTimeout(() => (toast.value = null), action ? TOAST_WITH_ACTION_MS : TOAST_MS);
+  };
+
+  // 刚记住的频道反悔了：只忘掉这一个，眼下的模式不变。
+  const forgetChannel = async (): Promise<void> => {
+    const { tabId, video } = follow.target.peek();
+    if (tabId === null || !video) return;
+    const reply = await api.send("channels.forget", { tabId, video });
+    say(reply.ok ? panelTextOf(lang()).forgotten(parseVideoKey(video)?.platform === "bilibili") : describe(reply.code, reply.detail, lang()));
   };
 
   // 当前视频：没启用时一律当没有视频，不读取。只改了标题不算换视频。
@@ -124,6 +147,9 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
       if (sameVideo) {
         overview.refresh();
         qa.refresh();
+      } else {
+        // 换了视频：给上一个视频打的问题不带过来。
+        draft.value = "";
       }
       if (active) void transcript.load(active, tabId, readsOnClick(active) ? { localOnly: true } : {});
       else transcript.clear();
@@ -179,13 +205,19 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
     frame,
     qaOpen,
     notesOpen,
+    draft,
     toast,
+    followHold,
+    holdFollow() {
+      followHold.value += 1;
+    },
     say,
     async chooseMode(next) {
       const now = transcript.state.peek();
       const info = now.state === "ready" ? now.view.info : now.state === "failed" ? now.failure.info : undefined;
       const remembered = await mode.choose(next, info?.channel?.channelId);
-      if (remembered) say(panelTextOf(lang()).remembered(info?.author ?? "", next === "study"));
+      const t = panelTextOf(lang());
+      if (remembered) say(t.remembered(info?.author ?? "", next === "study"), { label: t.forget, run: () => void forgetChannel() });
     },
     async seek(atSec) {
       const { tabId, video } = follow.target.peek();
@@ -202,6 +234,11 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
       void api.send("options.open", { section }).then((reply) => {
         if (!reply.ok) say(panelTextOf(lang()).optionsFailed);
       });
+    },
+    async resumeAuto() {
+      const reply = await api.send("auto.resume", {});
+      if (!reply.ok) say(describe(reply.code, reply.detail, lang()));
+      void config.check();
     },
     stop() {
       for (const dispose of disposers) dispose();

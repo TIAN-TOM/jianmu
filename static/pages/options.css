@@ -414,6 +414,11 @@ details.field[open] {
   min-height: 0;
 }
 
+/* 打开就出结论停着：原因和「恢复」排在一行。 */
+.auto-paused {
+  align-items: center;
+}
+
 .status-inline:not(:empty) {
   margin-top: var(--space-2);
 }

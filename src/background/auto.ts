@@ -9,7 +9,7 @@ import type { StorageArea } from "../platform/storage.ts";
 import type { Tabs } from "../platform/tabs.ts";
 import type { Broadcast } from "../shared/messages.ts";
 import type { TranscriptView } from "../shared/messages/transcript.ts";
-import { SETTINGS_STORAGE_KEY } from "../shared/names.ts";
+import { SETTINGS_REVISION_KEY, SETTINGS_STORAGE_KEY } from "../shared/names.ts";
 import { activationStatus } from "../shared/settings-schema.ts";
 import type { SiteRules } from "../sites/types.ts";
 import type { AiWiring } from "./ai.ts";
@@ -137,6 +137,28 @@ function durationOf(view: TranscriptView): number {
 export function stopsReading(code: ErrorCode): "stop" | "broken" | null {
   if (code === "RATE_LIMITED" || code === "NEED_LOGIN") return "stop";
   return code === "MALFORMED" ? "broken" : null;
+}
+
+/**
+ * 这次存储变化是不是设置页保存了新的密钥或服务地址：保存时修订号换新，只换外观、模型这类写入不换。
+ * 因为密钥被拒停着的打开就出结论，保存成功以后自己恢复。
+ */
+export function aiCredentialsSaved(changes: Readonly<Record<string, { readonly oldValue?: unknown; readonly newValue?: unknown }>>, area: string): boolean {
+  const change = area === "local" ? changes[SETTINGS_REVISION_KEY] : undefined;
+  return typeof change?.newValue === "string" && change.newValue !== "" && change.newValue !== change.oldValue;
+}
+
+/**
+ * 存储变化以后打开就出结论要不要从暂停里恢复：开关一动就恢复；因为密钥被拒停着时，设置页保存了新的密钥或地址也恢复，
+ * 不用用户再点。额度用完、本机服务拒绝的要用户自己点「恢复」。
+ */
+export async function resumesAfter(
+  changes: Readonly<Record<string, { readonly oldValue?: unknown; readonly newValue?: unknown }>>,
+  area: string,
+  auto: Pick<AutoGenerate, "paused">,
+): Promise<boolean> {
+  if (autoSwitchToggled(changes, area)) return true;
+  return aiCredentialsSaved(changes, area) && (await auto.paused().catch(() => null)) === "key";
 }
 
 /** 这次存储变化是不是关掉或打开了开关：开关一动就从额度用完、密钥不对的暂停里恢复。 */

@@ -2,7 +2,6 @@
 // 构建开关保护的功能的文案不放这里：解释当前画面在 frame-text.ts，YouTube 的启用说明在 youtube-text.ts，
 // 代开文字稿的说明在 open-transcript.ts，沿用同意在 carried.tsx，都只从开关分支引用。
 // 模块顶层只放字面量和函数。带变量的文案写成函数。
-import type { AutoPauseReason } from "../../shared/messages/ai.ts";
 import type { WindowRunView } from "../../shared/messages/batch.ts";
 import type { PlayerFailure } from "./player.ts";
 import type { TranscriptMode } from "../../shared/messages/transcript.ts";
@@ -28,6 +27,8 @@ export const PANEL_ZH = {
   notFound: (query: string) => `没有找到「${query}」`,
   optionsFailed: "打不开设置页，可以在扩展管理里打开简幕的选项。",
   remembered: (author: string, study: boolean) => `已记住：${author ? `${author}的视频` : "这个频道的视频"}以后先进${study ? "精读" : "速读"}`,
+  forget: "不记",
+  forgotten: (bilibili: boolean): string => (bilibili ? "好，不记这个 UP 主" : "好，不记这个频道"),
   copied: "已复制",
   copyFailed: "没能复制，浏览器拒绝了剪贴板",
 
@@ -55,11 +56,6 @@ export const PANEL_ZH = {
     reloadPage: "刷新视频页",
     switchedToStudy: "已切到精读",
     backToSkim: "回到速读",
-    autoPaused: {
-      quota: "额度用完，打开就出结论已暂停。手动生成成功一次，或在设置页关掉再打开就恢复",
-      key: "密钥被拒，打开就出结论已暂停。手动生成成功一次，或在设置页关掉再打开就恢复",
-      "local-origin": "本机的服务拒绝了来自浏览器扩展的请求，多半不是密钥的问题，打开就出结论已暂停。改好以后手动生成成功一次，或在设置页关掉再打开就恢复",
-    } satisfies Readonly<Record<AutoPauseReason, string>>,
   },
 
   player: {
@@ -78,11 +74,10 @@ export const PANEL_ZH = {
     progressLabel: "本窗口的进度",
     stopping: "正在停止…",
     stopAll: "全部停止",
-    collapse: "收起",
     canceled: "已停止",
     failed: "生成失败",
     partialLabel: "不完整的概览",
-    partialReason: "有分块没生成成功，切到这个视频点「补失败块」",
+    partialReason: "有一部分没生成出来，切到这个视频点「补上缺的部分」",
     stopped: (reason: string) => `这一批停下了。${reason}`,
     empty: "本窗口没有打开的视频。",
     /** 确认前的说明：本窗口几个视频（不算要逐个打开的）、跳过几个、要新生成几个。 */
@@ -115,10 +110,10 @@ export const PANEL_ZH = {
   },
 
   guides: {
-    official: "视频网站的官方总结",
+    official: "B 站官方总结",
     creator: "UP 主分段",
-    queued: "视频网站现在没有这个视频的官方总结。",
-    needLogin: "登录视频网站以后才看得到官方总结。",
+    queued: "B 站现在没有这个视频的官方总结。",
+    needLogin: "登录 B 站以后才看得到官方总结。",
     failed: "这次没问到官方总结，过一会儿会再问。",
     pending: "正在问官方总结…",
   },
@@ -132,14 +127,14 @@ export const PANEL_ZH = {
     verdictFromOfficial: "用官方总结写结论",
     verdictFromOfficialNote: "只发一次小请求，不通读字幕",
     nothingToExport: "还没有可以导出的内容",
-    generating: (done: number, total: number) => `正在生成概览 ${done}/${total} 块`,
+    generating: (done: number, total: number) => `正在生成概览 ${done}/${total}`,
     generatingPlain: "正在生成概览…",
     stopGenerating: "停止生成",
-    failedChunks: (count: number) => `有 ${count} 块没生成成功，可以只补这几块。`,
+    failedChunks: "有一部分没生成出来，可以只补这部分。",
     saveFailed: "概览已经生成，但没能存进本机。",
-    canceled: (count: number) => `停在中途，已完成的 ${count} 块存下了。`,
+    canceled: "停在中途，做完的已经存下。",
     overviewLabel: "模型生成的概览",
-    retryFailed: "补失败块",
+    retryFailed: "补上缺的部分",
     regenerate: "重新生成",
     needTranscript: "要先读到字幕",
     generate: "生成概览",
@@ -158,7 +153,7 @@ export const PANEL_ZH = {
     deleted: "已删除这条笔记",
     scopes: { video: "本视频", all: "全部" },
     scopeLabel: "笔记范围",
-    polishing: "正在整理",
+    polishing: "正在润色",
     actions: "笔记操作",
     edit: "编辑",
     delete: "删除",
@@ -179,7 +174,9 @@ export const PANEL_ZH = {
 
   qa: {
     title: "问答",
-    delete: "删除这条问答",
+    actions: "问答操作",
+    delete: "删除",
+    deleted: "已删除这条问答",
     truncated: "回答被截断了，可能不完整。",
     copyAnswer: "复制回答",
     unsaved: "这条回答没能存进问答历史。",
@@ -223,12 +220,13 @@ export const PANEL_ZH = {
     showOriginal: "看原始字幕",
     showTidied: "看整理后的字幕",
     continueTidy: "接着整理",
-    tidyUnfinished: (batches: number) => `有 ${batches} 批没整理完，可以再点一次补上`,
-    tidyStopped: "整理已停止",
+    tidyUnfinished: "还有一部分没整理完",
+    tidyStopped: "整理停了",
     translating: (done: number, total: number) => `正在翻译 ${done}/${total} 段，关掉侧边栏也会继续`,
     translatingPlain: "正在翻译…",
-    translateUnfinished: (batches: number) => `有 ${batches} 批没译成，可以再切一次译文补上`,
-    translateStopped: "翻译已停止",
+    translateUnfinished: "还有一部分没译完",
+    translateStopped: "翻译停了",
+    continueTranslate: "接着翻译",
     searchPlaceholder: "搜索字幕（原文和译文都会搜）",
     matches: (count: number) => `${count} 处`,
     backToCurrent: "回到当前句",

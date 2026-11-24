@@ -48,6 +48,15 @@ export const SHARED_EN: SharedText = {
     note: "Open Jianmu pages will close. Just open them again.",
   },
 
+  autoPaused: {
+    reasons: {
+      quota: "Out of API credit, so Verdict on open is paused.",
+      key: "Your API key was rejected, so Verdict on open is paused.",
+      "local-origin": "The local service refused the extension's requests, so Verdict on open is paused.",
+    },
+    resume: "Resume",
+  },
+
   setup: {
     notice: {
       key: "Your API key was cleared when the browser restarted or the extension updated. Enter it again in settings, or tick “Remember the key on this computer” so you don't have to",
@@ -63,6 +72,11 @@ export const SHARED_EN: SharedText = {
       key: "Your API key was cleared when the browser restarted or the extension updated. Enter it again in settings to generate an overview, or tick “Remember the key on this computer” so you don't have to.",
       consent: "To generate an overview, agree to the data notice in settings first.",
       none: "No AI service is set up yet. To generate an overview, add a provider and API key first.",
+    },
+    action: {
+      key: "Re-enter API key",
+      consent: "Review data notice",
+      none: "Set up AI service",
     },
   },
 };

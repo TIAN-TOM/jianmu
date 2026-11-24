@@ -1,5 +1,6 @@
 // 观看会话的路由：确认前一律不收、不写会话；内容脚本报的视频必须是它所在标签页地址上的那个；
-// 播放进度每个标签页 10 秒最多一条，报到自动切换也引不出任务和模型请求；卡片只碰自己所在的标签页。
+// 播放进度每个标签页 10 秒最多一条，报到自动切换也引不出任务和模型请求；卡片只碰自己所在的标签页；
+// 刚记住的频道侧边栏能「不记」，只忘这一个、眼下的模式不变；设置页能看记住了几个。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createApp } from "../../../../src/background/app.ts";
@@ -216,6 +217,38 @@ test("主动切换模式记住频道，同一频道的新视频按它打开；�
   assert.deepEqual(await world.send("channels.clear", {}, senders.options()), { ok: true, value: {} });
   await world.send("playback.info", { video: OTHER, durationSec: LONG, channel: "4242" }, content(CONTENT_TAB + 3, OTHER_ID));
   assert.equal(world.sessions()[String(CONTENT_TAB + 3)]?.modeSource, "default");
+});
+
+test("刚记住的频道点「不记」：只收侧边栏，只忘掉这个标签页上的那个频道，眼下的模式不变；设置页数得出记住了几个", async () => {
+  const world = appOn();
+  const count = async () => (await world.send("channels.count", {}, senders.options())) as { ok: boolean; value?: { count: number } };
+  assert.deepEqual(await count(), { ok: true, value: { count: 0 } });
+
+  await world.send("playback.info", { video: VIDEO, durationSec: LONG, channel: "4242" }, content());
+  await world.send("playback.info", { video: OTHER, durationSec: LONG, channel: "7777" }, content(CONTENT_TAB + 1, OTHER_ID));
+  for (const [tabId, video] of [[CONTENT_TAB, VIDEO], [CONTENT_TAB + 1, OTHER]] as const) {
+    await world.send("session.setMode", { tabId, video, intent: "manual", mode: "study" }, senders.panel());
+  }
+  assert.deepEqual(await count(), { ok: true, value: { count: 2 } });
+
+  const forget = { tabId: CONTENT_TAB, video: VIDEO };
+  for (const sender of [senders.options(), senders.triage(), senders.card(), content()]) {
+    assert.deepEqual(await world.send("channels.forget", forget, sender), { ok: false, code: "FORBIDDEN" });
+  }
+  for (const req of [{ tabId: CONTENT_TAB }, { ...forget, channel: "4242" }, { tabId: -1, video: VIDEO }]) {
+    assert.deepEqual(await world.send("channels.forget", req, senders.panel()), { ok: false, code: "INVALID_REQUEST" }, JSON.stringify(req));
+  }
+  assert.deepEqual(await world.send("channels.forget", { tabId: CONTENT_TAB, video: OTHER }, senders.panel()), { ok: false, code: "VIDEO_CHANGED" }, "标签页上已经换了视频");
+  assert.deepEqual(await world.send("channels.forget", forget, senders.panel()), { ok: true, value: { forgotten: true } });
+  assert.deepEqual(await count(), { ok: true, value: { count: 1 } }, "另一个频道还记着");
+  assert.equal(world.sessions()[String(CONTENT_TAB)]?.mode, "study", "眼下的模式不变");
+  assert.equal(world.sessions()[String(CONTENT_TAB)]?.modeSource, "manual");
+
+  await world.send("playback.info", { video: OTHER, durationSec: LONG, channel: "4242" }, content(CONTENT_TAB + 2, OTHER_ID));
+  assert.equal(world.sessions()[String(CONTENT_TAB + 2)]?.modeSource, "default", "忘掉的频道回到按时长");
+  for (const sender of [senders.panel(), senders.triage(), senders.card()]) {
+    assert.deepEqual(await world.send("channels.count", {}, sender), { ok: false, code: "FORBIDDEN" });
+  }
 });
 
 test("播放页还没报频道时，侧边栏带上读到的频道编号切换模式，回复说明记住了；同一频道的新视频按它打开", async () => {
