@@ -3,11 +3,11 @@
 //   verify --record <candidate.json>    核对当前提交相对候选只改了包外的文件，重新打包的校验值和候选相同
 //   notes --record <candidate.json> [--out <文件>]   从 CHANGELOG 生成发布说明草稿
 //   final-check                         发布前的文字核对：待定标记、本版更新内容、已验证的浏览器版本、存储和权限
-//   upgrade-test [--bump patch] [--out <目录>]       同一份代码只改版本号的测试包，给升级测试用，不进 Releases
+//   upgrade-test [--bump patch] [--out <目录>]       同一份代码换了版本号和构建标识的测试包，给升级测试用，不进 Releases
 // 第一个加载：之后导入的产品模块按发行构建的开关取值算说明的版本。
 import "./lib/release-globals.mjs";
 import { execFileSync } from "node:child_process";
-import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { arch, release, tmpdir, type } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,6 +18,7 @@ import {
   DATA_CONSENT_FINGERPRINT,
   DATA_CONSENT_VERSION,
 } from "../src/core/consent.ts";
+import { BUILD_ID_FILE } from "../src/shared/build-id.ts";
 import { RELEASE_FEATURES } from "../src/shared/features.ts";
 import { DATABASE_NAME } from "../src/shared/names.ts";
 import { STORAGE_PLAN } from "../src/shared/storage-plan.ts";
@@ -34,6 +35,7 @@ import {
   hashPackageInputs,
   isPackageInput,
   releaseNotesProblems,
+  upgradeBuildId,
 } from "./lib/release.mjs";
 import { parseChecksumLine } from "./lib/zip-order.mjs";
 import { packageDirectory, readExpectedFiles, sourceDateEpoch } from "./package.mjs";
@@ -257,6 +259,28 @@ function finalCheck() {
   console.log("发布前检查通过");
 }
 
+/**
+ * 换掉测试包里的构建标识：编进各个包的和标识文件里的一起换，和真的换了一版一样对得上。
+ * 只换版本号的话标识没变，覆盖以后后台认不出文件换了，不会自己重新加载。
+ * @param {string} dir @param {string} version
+ */
+function swapBuildId(dir, version) {
+  const from = readFileSync(join(dir, BUILD_ID_FILE), "utf8").trim();
+  const to = upgradeBuildId(from, version);
+  const swapped = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true, recursive: true })) {
+    if (!entry.isFile() || !/\.(js|html|css|json|txt)$/.test(entry.name)) continue;
+    const path = join(entry.parentPath, entry.name);
+    const text = readFileSync(path, "utf8");
+    if (!text.includes(from)) continue;
+    writeFileSync(path, text.replaceAll(from, to));
+    swapped.push(relative(dir, path).split("\\").join("/"));
+  }
+  for (const required of [BUILD_ID_FILE, "background.js"]) {
+    if (!swapped.includes(required)) throw new ReleaseError(`升级测试包没换掉 ${required} 里的构建标识`, swapped);
+  }
+}
+
 /** @param {{ bump?: string, out?: string }} options */
 function upgradeTest({ bump = "patch", out }) {
   const next = bumpVersion(readVersion(), bump);
@@ -267,6 +291,7 @@ function upgradeTest({ bump = "patch", out }) {
     const manifestPath = join(work, "manifest.json");
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
     writeFileSync(manifestPath, `${JSON.stringify({ ...manifest, version: next }, null, 2)}\n`);
+    swapBuildId(work, next);
     const output = join(out ? resolve(out) : join(DIST, "upgrade-test"), `jianmu-${next}-upgrade-test.zip`);
     const { sha256 } = packageDirectory({
       dir: work,

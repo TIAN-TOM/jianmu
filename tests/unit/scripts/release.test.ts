@@ -21,6 +21,7 @@ import {
   isPackageInput,
   PLATFORM_LINE,
   releaseNotesProblems,
+  upgradeBuildId,
 } from "../../../scripts/lib/release.mjs";
 
 test("包输入：会改变 zip 字节的路径才算", () => {
@@ -253,6 +254,15 @@ test("测试包的版本号只改一段", () => {
   assert.equal(bumpVersion("1.2.3", "major"), "2.0.0");
   assert.throws(() => bumpVersion("0.1", "patch"), /三段数字/);
   assert.throws(() => bumpVersion("0.1.0", "build"), /patch、minor、major/);
+});
+
+test("升级测试包换一个构建标识：和原来的不同，同样的输入算出同一个", () => {
+  const original = "0123456789abcdef";
+  const next = upgradeBuildId(original, "0.1.1");
+  assert.match(next, /^[0-9a-f]{16}$/);
+  assert.notEqual(next, original);
+  assert.equal(upgradeBuildId(original, "0.1.1"), next);
+  assert.notEqual(upgradeBuildId(original, "0.2.0"), next);
 });
 
 test("发布脚本在当前 Node 上能加载，不认识的子命令只打印用法", () => {
