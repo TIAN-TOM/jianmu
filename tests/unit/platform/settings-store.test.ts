@@ -1676,6 +1676,18 @@ test("答了「不用」记成问过：修订号和密钥都不动，改外观�
   assert.equal(savedSettings(world)["rememberKeyAsked"], false);
 });
 
+test("删空密钥再保存：和清除密钥一样回到没问过；重启以后会话里本来没有密钥，改设置不算删", async () => {
+  const world = areas();
+  await storeOn(world).save({ ...DEEPSEEK, aiApiKey: "sk-ds" }, NO_REVISION);
+  await storeOn(world).update({ rememberKeyAsked: true });
+  const afterRestart = restarted(world);
+  assert.equal((await storeOn(afterRestart).update({ accentTheme: "ochre" })).rememberKeyAsked, true, "重启以后改外观不复位");
+  const emptied = await storeOn(world).save({ ...DEEPSEEK, aiApiKey: "" }, revisionOf(world));
+  assert.equal(emptied.aiApiKey, "");
+  assert.equal(emptied.rememberKeyAsked, false);
+  assert.equal(savedSettings(world)["rememberKeyAsked"], false);
+});
+
 test("记住过密钥就算问过：取消记住以后也不再问；勾了记住却没填密钥不算", async () => {
   const world = await remembered();
   assert.equal(savedSettings(world)["rememberKeyAsked"], true);

@@ -265,8 +265,11 @@ export function createSettingsStore({ storage, locks }: SettingsStoreDeps): Sett
 
   async function write(next: NormalizedSettings, current: Snapshot): Promise<WrittenSettings> {
     // 没有密钥就没有可记的：清空密钥时开关跟着关，下一把密钥不会悄悄记到磁盘上。记住过密钥，就不用再问要不要记住。
-    const settings = next.aiApiKey ? { ...next, rememberKeyAsked: next.rememberKeyAsked || next.rememberApiKey } : { ...next, rememberApiKey: false };
+    // 原来有密钥、这次存成空的（删空输入框再保存），和「清除密钥」一样回到没问过；重启以后会话里本来就没有密钥，不算。
     const before = compose(current);
+    const settings = next.aiApiKey
+      ? { ...next, rememberKeyAsked: next.rememberKeyAsked || next.rememberApiKey }
+      : { ...next, rememberApiKey: false, ...(before.aiApiKey ? { rememberKeyAsked: false } : {}) };
     const changed = credentialChanged(settings, before);
     const revision = changed || consentChanged(settings, before) ? crypto.randomUUID() : current.revision;
     const entries = {
