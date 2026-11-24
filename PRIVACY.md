@@ -207,7 +207,7 @@ IndexedDB 数据库 `jianmu` 里的仓库：
 - **不做的事**：简幕在 YouTube 上不向平台发任何请求，不换语言、不滚动，不读 Cookie。读字幕时不动播放器，只有没有文字稿时会替你开关一下字幕。不用平台自带的机器翻译字幕，只有一个例外：没有文字稿时，播放器自己选了机器翻译的那一条，简幕照用。
 - **发什么**：和 B 站一样，要先同意数据说明：字幕、视频标题和时长、频道名和简介，以及你的问题和选中的文字。平时只在你点按钮时发；打开「打开就出结论」以后，打开超过设定时长的 YouTube 视频也自动发，规矩和 B 站一样。
 - **存什么**：读到的字幕和视频信息和 B 站视频一样进缓存，你生成、保存的概览、问答、笔记和译文一样留在本机。
-- **权限**：可选的主机权限 `https://www.youtube.com/*`，只在你点启用时申请；授权以后，简幕用 `scripting` 在 YouTube 页面上注册自己的页面脚本，另有一小段脚本跑在页面自己的环境里（启用简幕以后才注册），只用来读上面说的字幕轨列表，以及没有文字稿时接住播放器取回的字幕；撤销授权时两份一起注销，已经开着的页面里也停下、清掉留着的字幕。
+- **权限**：可选的主机权限 `https://www.youtube.com/*`，只在你点启用时申请；授权以后，简幕用 `scripting` 在 YouTube 页面上注册自己的页面脚本，另有一小段脚本跑在页面自己的环境里（启用简幕以后才注册），只用来读上面说的字幕轨列表，以及接住播放器取回的字幕（页面上没有文字稿、要读字幕时才拿来用）；撤销授权时两份一起注销，已经开着的页面里也停下、清掉留着的字幕。
 
 ### 待定
 
@@ -417,7 +417,7 @@ The sections above describe Bilibili. On YouTube, Jianmu differs in these ways:
 - **What it does not do**: on YouTube, Jianmu sends no requests to the platform. It does not change the language or scroll, and does not read cookies. While reading subtitles it leaves the player alone, except for turning subtitles on and off when there is no transcript, as described above. It does not use the platform's machine-translated subtitles, with one exception: when there is no transcript and the player itself picks a machine-translated track, Jianmu uses that track.
 - **What it sends**: as on Bilibili, only after you agree to the data notice: the subtitles, the video title and length, the channel name and description, and your question or selected text. Normally this is sent when you click a button. With "Verdict on open" switched on, it is also sent automatically for YouTube videos longer than the set length, under the same rules as on Bilibili.
 - **What it keeps**: subtitles and video details go into the same cache as Bilibili videos. Overviews, Q&A, notes and translations you create stay on your computer in the same way.
-- **Permissions**: the optional host permission `https://www.youtube.com/*`, requested only when you click to turn it on. Once granted, Jianmu uses `scripting` to register its page script on YouTube pages, plus a small script that runs in the page's own environment (registered only after you turn Jianmu on), only to read the track list described above and, when there is no transcript, to pick up the subtitles the player loads. Both scripts are unregistered when access is withdrawn, and on pages that are already open Jianmu stops and clears any subtitles it was holding.
+- **Permissions**: the optional host permission `https://www.youtube.com/*`, requested only when you click to turn it on. Once granted, Jianmu uses `scripting` to register its page script on YouTube pages, plus a small script that runs in the page's own environment (registered only after you turn Jianmu on), only to read the track list described above and to keep the subtitles the player loads (they are used only when the page has no transcript and Jianmu is reading subtitles). Both scripts are unregistered when access is withdrawn, and on pages that are already open Jianmu stops and clears any subtitles it was holding.
 
 ### Still to be settled
 

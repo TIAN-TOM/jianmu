@@ -93,8 +93,9 @@ test("小桥要启用确认算数才注册：确认前只注册内容脚本，�
   assert.deepEqual([...fake.registered.keys()], [SCRIPT_ID]);
   // 浏览器重启或扩展更新时照样按启用确认来：没确认就不补上。
   await app.onStartup();
+  assert.deepEqual([...fake.registered.keys()], [SCRIPT_ID], "浏览器重启");
   await app.onInstalled("update");
-  assert.deepEqual([...fake.registered.keys()], [SCRIPT_ID]);
+  assert.deepEqual([...fake.registered.keys()], [SCRIPT_ID], "扩展更新");
   assert.deepEqual(errors, []);
 });
 
