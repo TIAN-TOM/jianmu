@@ -55,12 +55,12 @@ export const AI_ERROR_TEXT_HANT: Readonly<Record<AiErrorCode, ErrorCopy>> = {
   AI_THINKING_EXHAUSTED: {
     cause: THINKING_EXHAUSTED,
     impact: MAYBE_BILLED,
-    next: "到設定頁「推理強度」替這項功能調低一級再試；或者在「按功能選模型」裡替它換個型號。",
+    next: "到設定頁「推理強度」替這項功能調低一級再試；或者在「按功能選模型」裡替它換個模型。",
   },
   AI_THINKING_EXHAUSTED_LOCKED: {
     cause: THINKING_EXHAUSTED,
     impact: MAYBE_BILLED,
-    next: "這個型號要想多久，簡幕調不了；到設定頁「按功能選模型」替這項功能換個型號再試。",
+    next: "這個模型要想多久，簡幕調不了；到設定頁「按功能選模型」替這項功能換個模型再試。",
   },
   TASK_CANCELED: { cause: "已經停下了。", impact: "已經發出去的請求可能照樣計費。" },
   AI_REQUEST_FAILED: { cause: "AI 請求沒有成功。", impact: NO_RESULT, next: "稍後再試。" },

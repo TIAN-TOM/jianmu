@@ -6,7 +6,7 @@ import type { LangMessages } from "../provider/text.ts";
 import { TRANSPORT_HANT } from "./text-hant.ts";
 
 const TRANSPORT_ZH = {
-  notConfigured: (reasons: string) => `AI 还没配置好：${reasons}`,
+  notConfigured: (reasons: string) => `AI 还没设置好：${reasons}`,
   idleTimeout: "响应传到一半断了，请重试。",
   hardTimeout: (seconds: number) => `请求超过 ${seconds} 秒上限，可能是服务繁忙或这一段太长。概览可以在设置页把「概览分块」改成「较短」再试。`,
   network: (baseUrl: string) => `连不上 ${baseUrl}。请检查地址是否正确、服务是否在运行，以及是否已在设置页授权。`,

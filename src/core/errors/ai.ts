@@ -77,16 +77,16 @@ export const AI_ERROR_TEXT: Readonly<Record<AiErrorCode, ErrorCopy>> = {
   EMPTY_AI_RESPONSE: { cause: "模型没有写出内容。", impact: MAYBE_BILLED, next: SWITCH_MODEL },
   AI_RESPONSE_TOO_LARGE: { cause: "模型的回复太大，简幕没有收下。", impact: MAYBE_BILLED, next: SWITCH_MODEL },
   AI_RESPONSE_TRUNCATED: { cause: "模型的回复没写完就停了。", impact: MAYBE_BILLED, next: SWITCH_MODEL },
-  // 思考把输出额度用完了：换模型不是唯一的办法，能调低档位的先让人调；调不了的（服务自己决定想多少、已经在最低档）只给换型号。
+  // 思考把输出额度用完了：换模型不是唯一的办法，能调低档位的先让人调；调不了的（服务自己决定想多少、已经在最低档）只给换模型。
   AI_THINKING_EXHAUSTED: {
     cause: THINKING_EXHAUSTED,
     impact: MAYBE_BILLED,
-    next: "到设置页「推理强度」给这项功能调低一档再试；或者在「按功能选模型」里给它换个型号。",
+    next: "到设置页「推理强度」给这项功能调低一档再试；或者在「按功能选模型」里给它换个模型。",
   },
   AI_THINKING_EXHAUSTED_LOCKED: {
     cause: THINKING_EXHAUSTED,
     impact: MAYBE_BILLED,
-    next: "这个型号想多久，简幕调不了；到设置页「按功能选模型」给这项功能换个型号再试。",
+    next: "这个模型想多久，简幕调不了；到设置页「按功能选模型」给这项功能换个模型再试。",
   },
   TASK_CANCELED: { cause: "已经停下了。", impact: "已经发出去的请求可能照样计费。" },
   AI_REQUEST_FAILED: { cause: "AI 请求没有成功。", impact: NO_RESULT, next: "稍后再试。" },

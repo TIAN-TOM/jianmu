@@ -26,7 +26,7 @@ export const ROUTING_ERROR_TEXT: Readonly<Record<RoutingErrorCode, ErrorCopy>> =
   INVALID_REQUEST: { cause: "请求的内容不对。", impact: "没有处理。", next: "关掉这个页面重新打开，再试一次。" },
   CARD_DISABLED: { cause: "播放页卡片已经在设置里关掉了。", next: "要用的话，到设置页的「播放页」一节打开，或者直接用侧边栏。" },
   STORAGE_FULL: {
-    cause: "浏览器给扩展的存储空间满了。",
+    cause: "浏览器给简幕的存储空间满了。",
     impact: "这次的内容没有存进去，已经存下的不受影响。",
     next: "到设置页点「清除缓存」腾出空间再试，笔记和概览会留着。",
   },

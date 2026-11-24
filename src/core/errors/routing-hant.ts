@@ -15,7 +15,7 @@ export const ROUTING_ERROR_TEXT_HANT: Readonly<Record<RoutingErrorCode, ErrorCop
   INVALID_REQUEST: { cause: "請求的內容不對。", impact: "沒有處理。", next: "關掉這個頁面重新打開，再試一次。" },
   CARD_DISABLED: { cause: "播放頁卡片已經在設定裡關掉了。", next: "要用的話，到設定頁的「播放頁」一節打開，或者直接用側邊欄。" },
   STORAGE_FULL: {
-    cause: "瀏覽器給擴充功能的儲存空間滿了。",
+    cause: "瀏覽器給簡幕的儲存空間滿了。",
     impact: "這次的內容沒有存進去，已經存下的不受影響。",
     next: "到設定頁點選「清除快取」騰出空間再試，筆記和概覽會留著。",
   },

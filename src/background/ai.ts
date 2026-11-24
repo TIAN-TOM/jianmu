@@ -142,9 +142,9 @@ const FEATURE_PROMPTS = {
 // 测试连接发的那句话也按语言写：模型照着回的那个词原样显示在设置页上。
 const WIRING_TEXT = {
   zh: {
-    addressChanged: "AI 还没配置好：任务开始以后换了服务地址，请重新生成。",
+    addressChanged: "AI 还没设置好：任务开始以后换了服务地址，请重新生成。",
     badAddress: "API 地址不合法，请到设置页检查。",
-    noPermission: (origin: string) => `扩展还没有访问 ${origin} 的权限。请打开设置页，点「保存并授权」。`,
+    noPermission: (origin: string) => `简幕还没有访问 ${origin} 的权限。请打开设置页，点「保存并授权」。`,
     noKey: "请先在设置页填写 API 密钥。",
     testPrompt: "回复两个字：可用",
   },
