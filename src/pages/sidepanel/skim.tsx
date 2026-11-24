@@ -2,7 +2,8 @@
 // 还没有概览时先摆官方总结和 UP 主分段，下面是「生成概览」和字幕。长视频边生成边显示，能停止、补上缺的部分、重新生成；
 // 没有结论时可以只用官方总结写一句。换过字幕时，依据旧字幕写的结论和章节标「基于旧字幕」，不删不改。
 // AI 服务没设置好时，「生成概览」的位置是一个去设置页的主按钮，按缺什么写；本窗口全部生成这时不摆。
-// 「导出学习稿」有东西可导才摆。
+// 「导出学习稿」有东西可导才摆。YouTube 上还没读到字幕时「生成概览」照样能点：先经视频页读字幕（和卡片同一条路），读完接着生成，
+// 生成完把读到的字幕摆出来；只想看字幕的照旧点下面的「读取字幕」（开发者本人 2026-11-25 定）。
 import { groupQuotesIntoChapters, type ChapterPart, type QuotePart } from "../../core/ai/chunking.ts";
 import { keyChapterStarts } from "../../core/ai/verdict.ts";
 import type { LearningAnalysis } from "../../core/notes/markdown.ts";
@@ -20,6 +21,7 @@ import { downloadText, learningExport } from "./files.ts";
 import { CreatorChapters, OfficialSummary } from "./guides.tsx";
 import type { Panel } from "./panel.ts";
 import { segmentsBetween } from "./reading.ts";
+import { readsOnClick } from "./transcript.ts";
 import { SettingsExit } from "./settings-exit.tsx";
 import { TranscriptTab } from "./transcript-tab.tsx";
 import { needsSetup, setupAction, setupReason } from "../shared/config.ts";
@@ -193,6 +195,19 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
   const hasOverview = Boolean(analysis && (hasChapters || analysis.keyQuotes?.length));
   const notReady = ready ? undefined : setupReason(config, uiLang.value);
   const setup = needsSetup(config);
+  // YouTube 上本机还没有字幕：能代开文字稿面板的构建里，点「生成概览」先经视频页读字幕。
+  const { tabId } = panel.follow.target.value;
+  const readFirst = FEATURE_YOUTUBE_OPEN_PANEL && transcript.state === "failed" && transcript.failure.code === "NOT_CACHED" && readsOnClick(transcript.video) && tabId !== null;
+  const generate = (): void => {
+    if (!readFirst || tabId === null) return void panel.overview.generate(false);
+    const video = transcript.video;
+    void panel.overview.generate(false, tabId).then(() => {
+      // 生成时读到的字幕已经存进本机：还停在读取提示上的话，把它摆出来。
+      const now = panel.transcript.state.peek();
+      if (now.state === "failed" && now.video === video && panel.follow.target.peek().video === video) void panel.transcript.load(video, tabId, { localOnly: true });
+    });
+  };
+  const canGenerate = transcript.state === "ready" || readFirst;
   const t = panelText().skim;
   const verdictShown = !state.verdictTask && text(state.saved?.analysis.verdict?.summary) !== "";
   const stale = staleOverviewMarks(state.saved?.transcriptBasis, view?.transcript.ref.fingerprint, verdictShown);
@@ -269,7 +284,7 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
                 {setupAction(config, uiLang.value)}
               </Button>
             ) : (
-              <Button variant="primary" onClick={() => void panel.overview.generate(false)} disabled={!ready || transcript.state !== "ready"} {...(notReady ? { disabledReason: notReady } : transcript.state !== "ready" ? { disabledReason: t.needTranscript } : {})}>
+              <Button variant="primary" onClick={generate} disabled={!ready || !canGenerate} {...(notReady ? { disabledReason: notReady } : !canGenerate ? { disabledReason: t.needTranscript } : {})}>
                 {t.generate}
               </Button>
             )}

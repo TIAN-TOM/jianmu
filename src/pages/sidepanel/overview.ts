@@ -39,7 +39,8 @@ export interface OverviewStore {
   bind(video: VideoKey | null): void;
   /** 同一个视频换了标签页：重读本机存着的，接上在跑的任务，眼下的进度和说明不清。 */
   refresh(): void;
-  generate(fresh: boolean): Promise<void>;
+  /** tabId：YouTube 上本机还没有字幕时带上视频所在的标签页，后台先经它读到字幕再生成。 */
+  generate(fresh: boolean, tabId?: number): Promise<void>;
   retryFailed(): Promise<void>;
   verdictFromOfficial(): Promise<void>;
   /** 停掉概览任务或结论任务。 */
@@ -162,7 +163,7 @@ export function createOverviewStore({ api, lang = () => "zh" }: { readonly api: 
       void reload(generation, video);
       void attach(generation, video);
     },
-    generate: (fresh) => run("overview", (taskId, video) => api.send("overview.start", { video, taskId, ...(fresh ? { fresh: true } : {}) })),
+    generate: (fresh, tabId) => run("overview", (taskId, video) => api.send("overview.start", { video, taskId, ...(fresh ? { fresh: true } : {}), ...(tabId !== undefined ? { tabId } : {}) })),
     retryFailed: () => run("overview", (taskId, video) => api.send("overview.retryFailed", { video, taskId })),
     verdictFromOfficial: () => run("verdict", (taskId, video) => api.send("verdict.fromOfficial", { video, taskId })),
     async cancel(taskId) {

@@ -46,6 +46,8 @@ test("开始生成的请求形状：任务号和令牌恰好带一个，多带�
     { video: KEY, taskId: "" },
     { video: KEY, taskId: "t", extra: 1 },
     { video: KEY, taskId: "t", fresh: "yes" },
+    { video: KEY, taskId: "t", tabId: -1 },
+    { video: KEY, taskId: "t", tabId: "9" },
     { video: "不是视频键", taskId: "t" },
     null,
   ]) {
@@ -130,7 +132,7 @@ test("手动生成或补失败块在结论那一步被停：不算成功，不�
   assert.equal(resumed, 0);
 });
 
-test("卡片在 YouTube 上点生成：交给生成一个准备步骤，经卡片所在的标签页读到字幕；页面这会儿不能点、读不成，按页面报的原因收尾", async () => {
+test("卡片和侧边栏在 YouTube 上点生成：交给生成一个准备步骤，经视频所在的标签页读到字幕；页面这会儿不能点、读不成，按页面报的原因收尾", async () => {
   const TUBE = videoKey({ platform: "youtube", videoId: "tube-sample" });
   const reads: (readonly [string, number])[] = [];
   let read: unknown = { ok: true, value: {} };
@@ -173,4 +175,19 @@ test("卡片在 YouTube 上点生成：交给生成一个准备步骤，经卡�
   const before = prepared;
   await start(KEY);
   assert.equal(prepared, before, "B 站视频不经页面读");
+  read = { ok: true, value: {} };
+  assert.deepEqual(await routes["overview.start"].handler({ video: TUBE, token: "t", tabId: 9 }, ctx), { ok: false, code: "FORBIDDEN" }, "卡片不点名标签页");
+
+  // 侧边栏在 YouTube 上还没读到字幕：带上视频所在的标签页，走同一条路；不带就不经页面读。
+  const panel = { sender: { kind: "panel" } } as unknown as typeof ctx;
+  reads.length = 0;
+  const fromPanel = async (req: { video: string; taskId: string; tabId?: number }) => (await routes["overview.start"].handler(req as never, panel)) as { ok: boolean; code?: string };
+  assert.equal((await fromPanel({ video: TUBE, taskId: "t", tabId: 4 })).ok, true);
+  assert.deepEqual(reads, [["tube-sample", 4]]);
+  read = { later: "video-changed" };
+  assert.equal((await fromPanel({ video: TUBE, taskId: "t", tabId: 4 })).code, "VIDEO_CHANGED");
+  const counted = prepared;
+  assert.equal((await fromPanel({ video: TUBE, taskId: "t" })).ok, true);
+  await fromPanel({ video: KEY, taskId: "t", tabId: 4 });
+  assert.equal(prepared, counted, "不带标签页、B 站视频都不经页面读");
 });
