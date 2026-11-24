@@ -98,6 +98,18 @@ test("小桥要启用确认算数才注册：确认前只注册内容脚本，�
   assert.deepEqual(errors, []);
 });
 
+test("启用确认不经路由、直接写进存储变得算数：存储变化时也补上小桥；外观这类变化不动注册", async () => {
+  const { fake, app } = appOn({ local: {}, grantedOrigins: [ORIGIN] });
+  await app.onInstalled("install");
+  assert.deepEqual([...fake.registered.keys()], [SCRIPT_ID]);
+  fake.local.data[SETTINGS_STORAGE_KEY] = CONFIRMED;
+  await app.onStorageChanged({ [SETTINGS_STORAGE_KEY]: { oldValue: undefined, newValue: CONFIRMED } }, "local");
+  assert.deepEqual([...fake.registered.keys()].sort(), [SCRIPT_ID, BRIDGE_ID]);
+  const before = fake.calls.registrations.length;
+  await app.onStorageChanged({ [SETTINGS_STORAGE_KEY]: { oldValue: CONFIRMED, newValue: { ...CONFIRMED, accentTheme: "ochre" } } }, "local");
+  assert.equal(fake.calls.registrations.length, before);
+});
+
 test("撤了授权：注销，并通知发过消息的页面撤下；别的授权变化不重复补注入", async () => {
   const { fake, app } = appOn({ grantedOrigins: [ORIGIN], urlTabs: { [TUBE_TAB]: tubeUrl() } });
   await app.onInstalled("install");

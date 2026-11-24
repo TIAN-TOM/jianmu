@@ -243,10 +243,12 @@ async function explainFrame(video, panel, tubeCalls) {
   return { hint, explained, sent: frames[0] };
 }
 
+/** 后台动态注册了哪些脚本，按编号排好、逗号连起来。 */
+const registeredScripts = (worker) => evaluate(worker, `chrome.scripting.getRegisteredContentScripts().then((list) => list.map((item) => item.id).sort().join())`);
+
 async function flow(launcher, panelUrl, worker) {
-  const registered = await until("后台注册了 YouTube 的内容脚本", () => evaluate(worker, `chrome.scripting.getRegisteredContentScripts().then((list) => list.map((item) => item.id).join())`));
-  if (registered.split(",").sort().join() !== "jianmu-youtube,jianmu-youtube-bridge") throw new Error(`注册的脚本不对：${registered}`);
-  console.log("✓ 已有 YouTube 授权，后台注册了内容脚本和主世界的小桥");
+  await until("确认启用以后后台补注册了主世界的小桥", async () => (await registeredScripts(worker)) === "jianmu-youtube,jianmu-youtube-bridge");
+  console.log("✓ 确认启用以后，后台注册了内容脚本和主世界的小桥");
 
   const windowId = await evaluate(launcher, "chrome.tabs.getCurrent().then((tab) => chrome.sidePanel.open({ windowId: tab.windowId }).then(() => tab.windowId))", true);
   const panel = await until("侧边栏打开", () => {
@@ -566,6 +568,10 @@ try {
   await cdp.send("Target.createTarget", { url: pageUrl });
   const launcher = await until("启动用的侧边栏页面打开", () => findSession("page", pageUrl));
   await until("启动页渲染出内容", () => evaluate(launcher, 'document.getElementById("app")?.textContent ?? ""'));
+  // 装上时已有 YouTube 授权、还没确认启用：只注册内容脚本，接字幕的小桥要等确认。
+  const before = await until("后台注册了 YouTube 的内容脚本", () => registeredScripts(worker));
+  if (before !== "jianmu-youtube") throw new Error(`确认启用之前注册的脚本不对：${before}`);
+  console.log("✓ 已有 YouTube 授权、还没确认启用：只注册了内容脚本，没有主世界的小桥");
   const stored = await storedSettings(ANTHROPIC);
   await evaluate(launcher, `Promise.all([chrome.storage.local.set(${JSON.stringify(stored.local)}), chrome.storage.session.set(${JSON.stringify(stored.session)})]).then(() => true)`);
   await flow(launcher, pageUrl, worker).catch(async (error) => {

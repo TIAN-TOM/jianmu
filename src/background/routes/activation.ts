@@ -70,3 +70,10 @@ export function activationDropped(changes: Readonly<Record<string, StorageChange
   const change = changes[SETTINGS_STORAGE_KEY];
   return activationLost(changes, area) && change !== undefined && activationStatus(change.oldValue).state === "current";
 }
+
+/** 这次变化让启用确认从算数变成不算数，或者反过来：要启用确认才注册的页面脚本跟着撤掉或补上。不管是经确认路由还是直接写进存储。 */
+export function activationFlipped(changes: Readonly<Record<string, StorageChange>>, area: string): boolean {
+  const change = changes[SETTINGS_STORAGE_KEY];
+  if (area !== "local" || change === undefined) return false;
+  return (activationStatus(change.oldValue).state === "current") !== (activationStatus(change.newValue).state === "current");
+}
