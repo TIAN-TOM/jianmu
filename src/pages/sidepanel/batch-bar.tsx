@@ -33,7 +33,7 @@ export function BatchBar({ panel, ready }: { readonly panel: Panel; readonly rea
 
   if (state.phase === "counting") {
     return (
-      <section key="counting" class="batch-bar" data-phase="counting" aria-label={t.label}>
+      <section key="busy" class="batch-bar" data-phase="counting" aria-label={t.label}>
         <p class="batch-status" role="status">
           {t.counting}
         </p>
@@ -44,7 +44,7 @@ export function BatchBar({ panel, ready }: { readonly panel: Panel; readonly rea
   if (state.phase === "confirm") {
     const todo = state.items.filter((item) => item.state === "to-generate").length;
     return (
-      <section key="confirm" class="batch-bar" data-phase="confirm" aria-label={t.label}>
+      <section key="busy" class="batch-bar" data-phase="confirm" aria-label={t.label}>
         <p class="batch-status" role="status">
           {confirmText(state.items, lang)}
         </p>
@@ -74,13 +74,13 @@ export function BatchBar({ panel, ready }: { readonly panel: Panel; readonly rea
   const retryable = run.entries.filter((entry) => RETRYABLE.has(entry.status));
   const partial = run.entries.filter((entry) => entry.status === "completed" && entry.partial);
   return (
-    <section key="active" class="batch-bar" data-phase="active" aria-label={t.label}>
+    <section key="busy" class="batch-bar" data-phase="active" aria-label={t.label}>
       <p class="batch-status" role="status">
         {progressText(run, lang)}
       </p>
       {/* 和卡片上的一样是一道细条，往前走一截时滑过去。 */}
       <div class="batch-progress" role="progressbar" aria-label={t.progressLabel} aria-valuemin={0} aria-valuemax={Math.max(1, total)} aria-valuenow={settled}>
-        <div class="batch-progress-fill" style={{ width: `${Math.round((settled / Math.max(1, total)) * 100)}%` }} />
+        <div class="batch-progress-fill" style={{ transform: `scaleX(${settled / Math.max(1, total)})` }} />
       </div>
       <div class="batch-actions">
         {busy ? (

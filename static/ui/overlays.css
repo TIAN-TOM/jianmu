@@ -29,13 +29,19 @@
  * 离场只是画面晚一点走（要 Chrome 117 起的 allow-discrete）。更早的版本只有抽屉的升起，关上是瞬间的。 */
 @supports (transition-behavior: allow-discrete) {
   .sheet,
-  .layer,
-  .sheet::backdrop {
+  .layer {
     transition:
-      opacity var(--dur) var(--ease-exit),
       translate var(--dur) var(--ease-exit),
       display var(--dur) allow-discrete,
       overlay var(--dur) allow-discrete;
+  }
+
+  /* 遮罩在 Chrome 122 以前不继承页面上的变量，时长和曲线带上和 theme.css 一样的后备值，减少动态效果时单独归零。 */
+  .sheet::backdrop {
+    transition:
+      opacity var(--dur, 160ms) var(--ease-exit, cubic-bezier(0.4, 0, 1, 1)),
+      display var(--dur, 160ms) allow-discrete,
+      overlay var(--dur, 160ms) allow-discrete;
   }
 
   .sheet {
@@ -51,12 +57,23 @@
   }
 
   .sheet[open],
-  .layer[open],
-  .sheet[open]::backdrop {
-    opacity: 1;
+  .layer[open] {
     translate: none;
     transition-duration: var(--dur-mode);
     transition-timing-function: var(--ease);
+  }
+
+  .sheet[open]::backdrop {
+    opacity: 1;
+    transition-duration: var(--dur-mode, 240ms);
+    transition-timing-function: var(--ease, cubic-bezier(0.2, 0, 0, 1));
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sheet::backdrop,
+    .sheet[open]::backdrop {
+      transition-duration: 0ms;
+    }
   }
 
   .sheet:not([open]),

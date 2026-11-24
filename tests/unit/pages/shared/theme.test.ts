@@ -273,3 +273,52 @@ test("applyAppearance 把主题和明暗落到根节点的 data 属性上", () =
     assert.ok(zooms.has(target.style.values["--ui-font-zoom"] ?? ""), `${JSON.stringify(raw)} → ${target.style.values["--ui-font-zoom"]}`);
   }
 });
+
+/** 带整页淡化的页面替身：淡化的回调和动画帧都排着，测试自己决定什么时候跑。 */
+function fadingPage() {
+  const localStorage = memoryLocalStorage();
+  const transitions: (() => void)[] = [];
+  const frames: (() => void)[] = [];
+  const values: Record<string, string> = {};
+  const view = {
+    location: { protocol: "chrome-extension:" },
+    localStorage,
+    matchMedia: (_query: string) => ({ matches: false, addEventListener: () => undefined, removeEventListener: () => undefined }),
+    document: { visibilityState: "visible", startViewTransition: (update: () => void) => void transitions.push(update) },
+    requestAnimationFrame: (callback: () => void) => frames.push(callback),
+  };
+  const root = { dataset: {} as Record<string, string | undefined>, style: { values, setProperty: (name: string, value: string) => void (values[name] = value) }, ownerDocument: { defaultView: view } };
+  const run = (queue: (() => void)[]): void => {
+    for (const callback of queue.splice(0)) callback();
+  };
+  return { root, localStorage, transitions, flushTransitions: () => run(transitions), flushFrames: () => run(frames) };
+}
+
+test("watchAppearance：换主题时整页淡过去，换的那几帧挂着标记；淡化的回调晚到时已经又换回来了，不把旧主题写回去", async () => {
+  const source = fakeSource({ accentTheme: "ink", themeMode: "light" });
+  const page = fadingPage();
+  const watch = await watchAppearance(source.deps, page.root);
+  assert.equal(page.root.dataset.accentTheme, "ink");
+  assert.equal(page.transitions.length, 0, "第一次落地照着首帧直接写，不淡化");
+
+  source.emit({ [SETTINGS_STORAGE_KEY]: { newValue: { accentTheme: "graphite", themeMode: "light" } } });
+  assert.equal(page.transitions.length, 1, "换主题走整页淡化");
+  assert.equal(page.root.dataset.accentTheme, "ink", "淡化的回调还没跑，页面还是旧的");
+  page.flushTransitions();
+  assert.equal(page.root.dataset.accentTheme, "graphite");
+  assert.equal(page.root.dataset.themeSwitching, "true", "换的那几帧关掉换色过渡");
+  page.flushFrames();
+  page.flushFrames();
+  assert.equal(page.root.dataset.themeSwitching, undefined, "两帧以后拿掉标记");
+
+  // 换成墨青、回调还没跑就又换回石墨：先换的那次晚到的回调不能把墨青写回去。
+  source.emit({ [SETTINGS_STORAGE_KEY]: { newValue: { accentTheme: "ink", themeMode: "light" } } });
+  source.emit({ [SETTINGS_STORAGE_KEY]: { newValue: { accentTheme: "graphite", themeMode: "light" } } });
+  page.flushTransitions();
+  page.flushFrames();
+  page.flushFrames();
+  assert.equal(page.root.dataset.accentTheme, "graphite");
+  assert.equal(watch.current()?.accentTheme, "graphite");
+  assert.equal(JSON.parse(page.localStorage.getItem(APPEARANCE_CACHE_KEY) ?? "null")?.accentTheme, "graphite", "首帧缓存也是最后那次");
+  watch.stop();
+});

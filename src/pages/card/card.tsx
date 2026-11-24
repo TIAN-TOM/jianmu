@@ -302,7 +302,7 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
         {task ? (
           <div class="card-progress" id="card-progress" role="status">
             <div class="card-track">
-              <div class="card-bar" style={{ width: `${percent}%` }} />
+              <div class="card-bar" style={{ transform: `scaleX(${percent / 100})` }} />
             </div>
             <span class="card-progress-text">{progressText(task)}</span>
             <button type="button" class="button" data-variant="text" disabled={task.canceling} onClick={actions.cancel}>

@@ -16,10 +16,16 @@ export interface CollapseProps {
 
 export function Collapse({ open, outerClass = "", innerClass = "", children }: CollapseProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const mounted = useRef(false);
   const [gone, setGone] = useState(!open);
   const [settled, setSettled] = useState(open);
 
   useLayoutEffect(() => {
+    // 刚挂上时没有过渡要走，初始状态就是对的。
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
     // 这时 data-open 已经写上，量到的是这一次要走的那段过渡。
     const wait = motionMs(ref.current);
     if (open) setGone(false);

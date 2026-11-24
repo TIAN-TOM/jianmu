@@ -247,10 +247,16 @@ body {
   transform: rotate(45deg);
 }
 
+/* 收着时折叠那一块高度是零，却还占着弹性盒的一道间距：把这道间距挪进折叠里面，收着时就不多出一截空白。 */
+.card-block > .collapse {
+  margin-top: calc(-1 * var(--space-2));
+}
+
 .card-fold-body {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  padding-top: var(--space-2);
 }
 
 .card-status,
@@ -358,11 +364,23 @@ body {
   overflow: hidden;
 }
 
-/* 进度往前走一截时滑过去，不是一格一格跳。 */
+/* 进度往前走一截时滑过去，不是一格一格跳。只动 transform，不重排。 */
 .card-bar {
   height: 100%;
   background: var(--accent);
-  transition: width var(--dur-mode) var(--ease);
+  transform-origin: left;
+  transition: transform var(--dur-mode) var(--ease);
+}
+
+/* 系统强制配色时背景色会被换掉：轨道画一圈边，填充用系统的高亮色，分得清走到哪了。 */
+@media (forced-colors: active) {
+  .card-track {
+    border: 1px solid CanvasText;
+  }
+
+  .card-bar {
+    background: Highlight;
+  }
 }
 
 .card-progress-text {

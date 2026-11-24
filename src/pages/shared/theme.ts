@@ -164,14 +164,19 @@ export async function watchAppearance(deps: WatchAppearanceDeps, root: Appearanc
   let last: Appearance | null = null;
   let generation = 0;
   let stopped = false;
+  /** 第几次落地：整页淡化时真正写下去要晚一帧，那时已经有更新的一次落地了就不写，免得旧主题盖回来。 */
+  let landing = 0;
   const land = (raw: unknown): void => {
     if (stopped) return;
     const hostMode = deps.hostMode?.() ?? null;
     const next = appearanceOf(raw);
+    const ticket = ++landing;
     const apply = (): Appearance => applyAppearance(raw, root, hostMode);
     // 第一次落地照着首帧画的样子直接写；之后换了主题或明暗，整页淡过去。
     if (last !== null && recolors(root, next, hostMode)) {
-      repaint(root, apply);
+      repaint(root, () => {
+        if (ticket === landing && !stopped) apply();
+      });
       last = next;
     } else last = apply();
     setUiLanguage(last.language);

@@ -151,19 +151,20 @@
 
 /* ---------- 展开的小节（<details>） ----------
  * 浏览器能把高度过渡到 auto（Chrome 131 起）时，点开时高度长出来、内容淡进来；收起照旧当场收：
- * 收着的内容浏览器马上就不画了，再让高度慢慢收只会看到一块空白。更早的版本照旧当场打开。 */
+ * 收着的内容浏览器马上就不画了，再让高度慢慢收只会看到一块空白。更早的版本照旧当场打开。
+ * 只管纯文字的小节：设置页里装着控件的折叠（.field）不裁切，里面的模型候选列表要能伸出折叠的底边。 */
 @supports (interpolate-size: allow-keywords) and selector(::details-content) {
   :root {
     interpolate-size: allow-keywords;
   }
 
-  details::details-content {
+  details:not(.field)::details-content {
     block-size: 0;
     overflow: clip;
     opacity: 0;
   }
 
-  details[open]::details-content {
+  details:not(.field)[open]::details-content {
     block-size: auto;
     opacity: 1;
     transition:
@@ -173,11 +174,21 @@
 }
 
 /* ---------- 换主题 ----------
- * 换主题、换明暗时整页交叉淡化（脚本在 shared/theme.ts 里判断能不能做）；换的那一帧各处的颜色过渡都关掉，免得有的控件慢一拍。 */
-:root[data-theme-switching] *,
-:root[data-theme-switching] *::before,
-:root[data-theme-switching] *::after {
-  transition: none !important;
+ * 换主题、换明暗时整页交叉淡化（脚本在 shared/theme.ts 里判断能不能做）；换的那几帧只关掉换色的过渡，免得有的控件慢一拍。
+ * 高度、位移这些照旧走完：系统明暗恰好在展开途中变了，展开不会一下子跳到头。 */
+:root[data-theme-switching] {
+  --tint: all 0s;
+}
+
+:root[data-theme-switching] .cue {
+  transition-duration: 0s;
+}
+
+/* 减少动态效果时时长都已归零；带延迟的那一下也不留，标记和结论一起出现。读取中的骨架屏照旧晚 150ms 露面：那是为了读得快时根本不出现，不是动效。 */
+@media (prefers-reduced-motion: reduce) {
+  .verdict[data-fresh] .verdict-mark {
+    animation: none;
+  }
 }
 
 ::view-transition-group(root) {

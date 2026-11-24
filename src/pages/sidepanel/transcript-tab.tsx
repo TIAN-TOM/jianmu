@@ -345,7 +345,7 @@ function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: 
       </ol>
       {needle && shown.length === 0 ? <p class="empty-line">{p.notFound(needle)}</p> : null}
       {/* 一直挂着、用 data-shown 显隐：离开当前句时从底下浮上来，点了或者又跟上时沉下去。藏着时不进 Tab 顺序也不进读屏。 */}
-      <button type="button" class="follow-pill" data-shown={!following && at !== null ? "true" : undefined} onClick={() => setFollowing(true)}>
+      <button type="button" class="follow-pill" data-shown={!following && at !== null ? "true" : undefined} inert={following || at === null} onClick={() => setFollowing(true)}>
         <Icon name="target" />
         <span>{t.backToCurrent}</span>
       </button>

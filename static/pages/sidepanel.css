@@ -331,11 +331,23 @@
   overflow: hidden;
 }
 
-/* 进度往前走一截时滑过去，不是一格一格跳。 */
+/* 进度往前走一截时滑过去，不是一格一格跳。只动 transform，不重排。 */
 .batch-progress-fill {
   height: 100%;
   background: var(--accent);
-  transition: width var(--dur-mode) var(--ease);
+  transform-origin: left;
+  transition: transform var(--dur-mode) var(--ease);
+}
+
+/* 系统强制配色时背景色会被换掉：轨道画一圈边，填充用系统的高亮色，分得清走到哪了。 */
+@media (forced-colors: active) {
+  .batch-progress {
+    border: 1px solid CanvasText;
+  }
+
+  .batch-progress-fill {
+    background: Highlight;
+  }
 }
 
 .batch-actions {
@@ -418,12 +430,6 @@
 
 .stamp:hover {
   background: var(--bg-hover);
-}
-
-/* 按下去当场变色，松开才用 --dur-fast 回去。 */
-:is(.stamp, .cue-time, .segment, .follow-pill):active {
-  background: var(--bg-active);
-  transition-duration: 0ms;
 }
 
 /* ---------- 字幕 ---------- */
@@ -789,4 +795,10 @@
 .carried-title {
   margin: 0;
   font-weight: 600;
+}
+
+/* 按下去当场变色，松开才用 --dur-fast 回去。写在最后、权重压过各处的悬停，按住时看得到按下的颜色。 */
+:is(.stamp, .cue-time, .segment, .follow-pill):active:not(:disabled) {
+  background: var(--bg-active);
+  transition-duration: 0ms;
 }

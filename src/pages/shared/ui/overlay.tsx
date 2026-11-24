@@ -3,8 +3,8 @@
 // 开关由页面的状态决定：Esc 和点遮罩只是请页面关，页面把 open 改成 false 才真的关。
 // 关上的那一刻就不再挡住页面、焦点也还回去，画面晚一点走（离场的过渡在 overlays.css）；
 // 离场途中标题和内容照最后打开时的样子留着，不先变成空壳再淡出去。
-import type { ComponentChildren } from "preact";
-import { useEffect, useId, useRef } from "preact/hooks";
+import { Fragment, type ComponentChildren } from "preact";
+import { useEffect, useId, useLayoutEffect, useRef } from "preact/hooks";
 import { sharedText } from "../text.ts";
 import { IconButton } from "./button.tsx";
 import { usePresence } from "./presence.ts";
@@ -18,6 +18,15 @@ interface Shown {
 function useLeavingContent(open: boolean, title: string, children: ComponentChildren) {
   const kept = usePresence<Shown>(open ? { title, children } : null);
   return { view: kept.shown ?? { title, children }, ref: kept.ref };
+}
+
+/** 第几次打开：层里的内容每次打开都是新的（草稿、搜索词不跟到下一次），离场途中马上重开也一样。 */
+function useOpening(open: boolean): number {
+  const count = useRef(0);
+  const was = useRef(false);
+  if (open && !was.current) count.current += 1;
+  was.current = open;
+  return count.current;
 }
 
 function useModal(open: boolean, onClose: () => void) {
@@ -37,7 +46,8 @@ function useModal(open: boolean, onClose: () => void) {
     if (target?.isConnected) target.focus();
   };
 
-  useEffect(() => {
+  // 在布局阶段开关：后面量离场要等多久时，对话框已经是关上的样子。
+  useLayoutEffect(() => {
     const node = dialog.current;
     if (!node) return;
     if (open && !node.open) {
@@ -130,7 +140,8 @@ export interface LayerProps {
 export function Layer({ open, title, onClose, actions, children }: LayerProps) {
   const id = useId();
   const modal = useModal(open, onClose);
-  const { view, ref } = useLeavingContent(open, title, children);
+  const opening = useOpening(open);
+  const { view, ref } = useLeavingContent(open, title, <Fragment key={opening}>{children}</Fragment>);
   return (
     <dialog
       ref={(node) => {
