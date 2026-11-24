@@ -415,7 +415,7 @@ function assembleCore(deps: AppDeps): Core {
     verdict,
     ...assembleStudy(deps, generation, keepAlive, studyStores),
     translate: assembleTranslate(deps, generation, studyStores.translations),
-    data: assembleData(deps, generation, studyStores, { openPages: targets.beforeClear, toTabs: (tabIds, message) => messenger.toTabs(tabIds, message) }),
+    data: assembleData(deps, generation, studyStores, { openPages: targets.all, toTabs: (tabIds, message) => messenger.toTabs(tabIds, message) }),
     batch: assembleBatch(deps, generation, tabs, keepAlive, { overview, verdict, pageTranscript }, watchPages),
     auto: createAutoWiring({ ...autoParts, now: deps.timers.now, broadcast: (message) => void messenger.toPages(message), log: deps.log }),
   };

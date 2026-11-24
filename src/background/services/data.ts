@@ -19,6 +19,21 @@ import type { QaStore } from "../stores/qa.ts";
 import type { TranslationStore } from "../stores/translations.ts";
 import type { TaskRunner } from "../tasks.ts";
 
+// 清除全部数据前查已开的视频页最多等这么久，等不到就只靠设置变化时按登记的编号通知。
+const OPEN_PAGES_WAIT_MS = 2000;
+
+/** 等 work 最多 ms 毫秒，超时或出错都给 fallback。 */
+function within<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), ms);
+    const settle = (value: T): void => {
+      clearTimeout(timer);
+      resolve(value);
+    };
+    work.then(settle, () => settle(fallback));
+  });
+}
+
 export interface DataServiceDeps {
   readonly notes: Pick<NoteStore, "all" | "update">;
   readonly overviews: Pick<OverviewStore, "all" | "update">;
@@ -35,7 +50,7 @@ export interface DataServiceDeps {
   readonly broadcast: (message: Broadcast) => void;
   /**
    * 清除全部数据之前、启用还算数时查出已开的视频页，清完叫它们撤下。后台重启过以后，内存里登记的标签页是空的，
-   * 只靠设置变化时按登记的编号通知会漏掉一直没出声的页面。没确认过启用时只给登记过的。
+   * 只靠设置变化时按登记的编号通知会漏掉一直没出声的页面。启用不算数时它只给登记过的。
    */
   readonly openPages?: () => Promise<readonly number[]>;
   readonly toTabs?: (tabIds: readonly number[], message: { readonly type: "activation.changed"; readonly confirmed: false }) => Promise<void>;
@@ -160,15 +175,15 @@ export function createDataService(deps: DataServiceDeps): DataService {
 
   async function clear(scope: ClearScope): Promise<void> {
     const release = hold();
+    let pages: readonly number[] = [];
     try {
       // 在跑的生成先停下：它们回来写的那一下也会被闸门拦住，停下是为了不再花钱。
       if (scope !== "notes") deps.tasks.cancelAll(CLEARING);
       const targets = clearTargets(scope);
-      let pages: readonly number[] = [];
       await guard.clear(scope, async () => {
         if (scope !== "notes") deps.forgetMemory(scope);
-        // 清完启用就失效了，那时不能再按地址查标签页：代数已经递增，趁设置还没清查好。查不到不拦着清除。
-        if (scope === "all" && deps.openPages) pages = await deps.openPages().catch(() => []);
+        // 清完启用就失效了，那时不能再按地址查标签页：代数已经递增，趁设置还没清查好。查不到、查太久都不拦着清除。
+        if (scope === "all" && deps.openPages) pages = await within(deps.openPages(), OPEN_PAGES_WAIT_MS, []);
         await Promise.all(targets.stores.map((name) => deps.clearStore(name)));
         if (scope === "all") {
           await deps.settings.clearAll();
@@ -178,8 +193,10 @@ export function createDataService(deps: DataServiceDeps): DataService {
         }
       });
       deps.broadcast(scope === "notes" ? { type: "notes.changed" } : { type: "data.cleared", scope });
-      if (pages.length > 0) await deps.toTabs?.(pages, { type: "activation.changed", confirmed: false }).catch(() => undefined);
     } finally {
+      // 清到一半出错也通知：确认可能已经删了，这时不通知，那些页面就再也找不到了；启用其实还算数的页面再问一次会照常开着。
+      // 不等页面回话，设置页的回执不让哪个没反应的标签页拖住。
+      if (pages.length > 0) void deps.toTabs?.(pages, { type: "activation.changed", confirmed: false }).catch(() => undefined);
       release();
     }
   }

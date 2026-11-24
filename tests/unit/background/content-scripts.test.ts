@@ -7,7 +7,8 @@ import { test } from "node:test";
 import { createApp } from "../../../src/background/app.ts";
 import { activationDropped } from "../../../src/background/routes/activation.ts";
 import { SETTINGS_STORAGE_KEY } from "../../../src/shared/names.ts";
-import { CONFIRMED, createFakeChrome, senders, STALE_CONFIRMATION } from "../../helpers/chrome.ts";
+import { CONFIRMED, createFakeChrome, senders, STALE_CONFIRMATION, TUBE_ORIGIN, tubeUrl } from "../../helpers/chrome.ts";
+import { until } from "../../helpers/wait-until.ts";
 
 const TEMPLATE = JSON.parse(readFileSync(new URL("../../../manifest.template.json", import.meta.url), "utf8")) as {
   readonly content_scripts: readonly { readonly matches: readonly string[]; readonly js: readonly string[] }[];
@@ -45,12 +46,24 @@ const lostTabs = (fake: ReturnType<typeof createFakeChrome>) =>
     .map(({ tabId }) => tabId)
     .sort((a, b) => a - b);
 
-test("清除全部数据：趁启用还算数查好已开的视频页，清完叫它们撤下；后台刚重启、页面一直没出声也通知得到", async () => {
-  const fake = createFakeChrome({ manifest: { content_scripts: TEMPLATE.content_scripts }, local: { [SETTINGS_STORAGE_KEY]: CONFIRMED }, openTabs: [5, 6] });
+// 一个 B 站播放页、一个 YouTube 观看页、一个不相干的页面：按匹配规则筛，各查各的。
+const PAGES = { 5: "https://www.bilibili.com/video/BV1Sample001", 71: tubeUrl(), 9: "https://unrelated.example/" };
+
+test("清除全部数据：趁启用还算数按两站的匹配规则查好已开的视频页，清完叫它们撤下；后台刚重启、页面一直没出声也通知得到", async () => {
+  const fake = createFakeChrome({ manifest: { content_scripts: TEMPLATE.content_scripts }, local: { [SETTINGS_STORAGE_KEY]: CONFIRMED }, urlTabs: PAGES, matchUrlTabs: true, grantedOrigins: [`${TUBE_ORIGIN}/*`] });
   // 新建的后台就是刚重启的样子：内存里一个登记的标签页都没有。
   const app = createApp(fake.deps());
   assert.deepEqual(await app.dispatch({ type: "data.clear", req: { scope: "all" } }, senders.options()), { ok: true, value: {} });
-  assert.deepEqual(lostTabs(fake), [5, 6]);
+  assert.ok(await until(() => lostTabs(fake).length === 2));
+  assert.deepEqual(lostTabs(fake), [5, 71]);
+});
+
+test("没授权 YouTube 时清除全部数据：只按 B 站的规则查，只通知 B 站的页面", async () => {
+  const fake = createFakeChrome({ manifest: { content_scripts: TEMPLATE.content_scripts }, local: { [SETTINGS_STORAGE_KEY]: CONFIRMED }, urlTabs: PAGES, matchUrlTabs: true });
+  const app = createApp(fake.deps());
+  assert.deepEqual(await app.dispatch({ type: "data.clear", req: { scope: "all" } }, senders.options()), { ok: true, value: {} });
+  assert.ok(await until(() => lostTabs(fake).length === 1));
+  assert.deepEqual(lostTabs(fake), [5]);
 });
 
 test("从没确认过启用时清除全部数据：不按地址查标签页，也没有页面要通知", async () => {

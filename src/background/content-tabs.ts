@@ -33,10 +33,11 @@ export async function siteTabs(tabs: Pick<Tabs, "tabsMatching">, scripts: (() =>
 }
 
 export interface ContentTargets {
-  /** 要通知的内容脚本所在的标签页：登记过的，加上按清单和已授权站点的匹配规则查到的。通知是尽力而为，查不到时只给登记过的。 */
+  /**
+   * 要通知的内容脚本所在的标签页：登记过的，加上按清单和已授权站点的匹配规则查到的。每次按地址查之前都核对启用，
+   * 不算数（从没确认、清除全部数据以后）就只给登记过的，调用方不用另外核对。通知是尽力而为，查不到时只给登记过的。
+   */
   readonly all: () => Promise<readonly number[]>;
-  /** 清除全部数据之前要通知的：启用还算数才按地址查，没确认过只给登记过的。 */
-  readonly beforeClear: () => Promise<readonly number[]>;
 }
 
 export function createContentTargets({
@@ -50,6 +51,16 @@ export function createContentTargets({
   readonly siteScripts: (() => Promise<readonly ContentScript[]>) | undefined;
   readonly enabled: () => Promise<boolean>;
 }): ContentTargets {
-  const all = async (): Promise<readonly number[]> => [...new Set([...registered.list(), ...(await tabs.contentScriptTabs().catch(() => [])), ...(await siteTabs(tabs, siteScripts))])];
-  return { all, beforeClear: async () => ((await enabled()) ? all() : registered.list()) };
+  const queries = [() => tabs.contentScriptTabs(), () => siteTabs(tabs, siteScripts)];
+  return {
+    async all() {
+      const found = new Set(registered.list());
+      // 两次查之间隔着等待：中途启用失效（清除全部数据）就不再按地址查。
+      for (const query of queries) {
+        if (!(await enabled().catch(() => false))) break;
+        for (const tabId of await query().catch(() => [])) found.add(tabId);
+      }
+      return [...found];
+    },
+  };
 }
