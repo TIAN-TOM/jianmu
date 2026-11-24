@@ -48,6 +48,8 @@ const app = createContentApp({
     withOpener(
       createPanelReader({ document, currentRef: () => page.currentRef(), channelId: () => page.channelId?.() ?? null, playerTracks: () => askPlayerTracks(document) }),
     ),
+  // 小桥在页面一开始加载时就接着字幕，闸门问到没启用（比如清除了全部数据）就叫它停下、清掉，启用以后接上读取时再叫它接。
+  onHeld: () => captionSwitch?.(document, false),
   createSurface: (env) => createSurface({ ...env, document, page, runtime, cardPath: PAGE_PATHS.card, miniPlayer: MINI_PLAYER }),
   visibility: {
     hidden: () => document.hidden,
