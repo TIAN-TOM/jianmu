@@ -26,7 +26,7 @@ import { createReinject, type Reinject } from "./reinject.ts";
 import { createSiteSwitch, type SiteSwitch } from "./site-switch.ts";
 import { createRegisteredScripts, type RegisteredScriptsApi } from "../platform/registered-scripts.ts";
 import { createRouter, type AnyPortSpec, type Router } from "./router.ts";
-import { activationDropped, activationLost } from "./routes/activation.ts";
+import { activationDropped, activationFlipped, activationLost } from "./routes/activation.ts";
 import { appearanceChange, type StorageChange } from "./routes/appearance.ts";
 import { createFrameParts, createPorts, createRoutes } from "./routes/index.ts";
 import { createSenders } from "./senders.ts";
@@ -485,8 +485,8 @@ export function createApp(deps: AppDeps): App {
       if (autoSwitchToggled(changes, area)) await core.auto.resume().then(consider, (error: unknown) => deps.log.error("恢复自动生成失败", errorLabel(error)));
       // 先断端口：启用失效以后，连着的页面不能再发起新的读取和模型请求。
       if (activationLost(changes, area)) router.closeBusinessPorts("NOT_ENABLED");
-      // 只发给发过消息的内容脚本：启用已经失效，不再按地址查标签页。
-      if (activationDropped(changes, area)) await core.messenger.toTabs(core.contentTabs.list(), { type: "activation.changed", confirmed: false });
+      // 启用失效只发给发过消息的内容脚本，不再按地址查标签页；启用算不算数一变，要启用确认才注册的页面脚本跟着撤掉或补上。
+      await Promise.all([activationDropped(changes, area) ? core.messenger.toTabs(core.contentTabs.list(), { type: "activation.changed", confirmed: false }) : undefined, activationFlipped(changes, area) ? core.siteSwitch?.sync() : undefined]);
       await menu.settingsChanged(changes, area);
       const message = appearanceChange(changes, area);
       if (!message) return;

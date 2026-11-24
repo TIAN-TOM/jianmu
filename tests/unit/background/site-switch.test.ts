@@ -1,5 +1,6 @@
 // 要用户另外授权的站（YouTube）：授权在就注册内容脚本，不在就注销；安装、更新后重新注册；新授权往已开页面补注入，
 // 撤权通知发过消息的页面撤下；撤了权，那个站上残留的内容脚本发来的请求不放行。授权本身就是启用。
+// 主世界的小桥另外要首次启用确认算数才注册：确认前不注册，确认以后补上，清除全部数据以后撤掉。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createApp } from "../../../src/background/app.ts";
@@ -73,8 +74,41 @@ test("新给了授权：注册，并往已开的页面补注入一次；确认�
   before.fake.grant(ORIGIN);
   await before.app.onPermissionsChanged();
   assert.ok(before.fake.registered.has(SCRIPT_ID));
+  assert.ok(!before.fake.registered.has(BRIDGE_ID), "确认启用之前不注册小桥");
   assert.deepEqual(before.fake.calls.tabQueries, []);
   assert.deepEqual(before.fake.calls.injections, []);
+});
+
+test("小桥要启用确认算数才注册：确认前只注册内容脚本，确认以后补上，清除全部数据以后撤掉、内容脚本留着", async () => {
+  const { fake, app, errors } = appOn({ local: {}, grantedOrigins: [ORIGIN] });
+  await app.onInstalled("install");
+  await app.onStartup();
+  assert.deepEqual([...fake.registered.keys()], [SCRIPT_ID]);
+
+  assert.equal((await app.dispatch({ type: "activation.confirm", req: {} }, senders.panel())).ok, true);
+  assert.deepEqual([...fake.registered.keys()].sort(), [SCRIPT_ID, BRIDGE_ID]);
+
+  assert.equal((await app.dispatch({ type: "data.clear", req: { scope: "all" } }, senders.options())).ok, true);
+  await app.onStorageChanged({ [SETTINGS_STORAGE_KEY]: { oldValue: CONFIRMED, newValue: undefined } }, "local");
+  assert.deepEqual([...fake.registered.keys()], [SCRIPT_ID]);
+  // 浏览器重启或扩展更新时照样按启用确认来：没确认就不补上。
+  await app.onStartup();
+  assert.deepEqual([...fake.registered.keys()], [SCRIPT_ID], "浏览器重启");
+  await app.onInstalled("update");
+  assert.deepEqual([...fake.registered.keys()], [SCRIPT_ID], "扩展更新");
+  assert.deepEqual(errors, []);
+});
+
+test("启用确认不经路由、直接写进存储变得算数：存储变化时也补上小桥；外观这类变化不动注册", async () => {
+  const { fake, app } = appOn({ local: {}, grantedOrigins: [ORIGIN] });
+  await app.onInstalled("install");
+  assert.deepEqual([...fake.registered.keys()], [SCRIPT_ID]);
+  fake.local.data[SETTINGS_STORAGE_KEY] = CONFIRMED;
+  await app.onStorageChanged({ [SETTINGS_STORAGE_KEY]: { oldValue: undefined, newValue: CONFIRMED } }, "local");
+  assert.deepEqual([...fake.registered.keys()].sort(), [SCRIPT_ID, BRIDGE_ID]);
+  const before = fake.calls.registrations.length;
+  await app.onStorageChanged({ [SETTINGS_STORAGE_KEY]: { oldValue: CONFIRMED, newValue: { ...CONFIRMED, accentTheme: "ochre" } } }, "local");
+  assert.equal(fake.calls.registrations.length, before);
 });
 
 test("撤了授权：注销，并通知发过消息的页面撤下；别的授权变化不重复补注入", async () => {
