@@ -473,7 +473,9 @@ test("YouTube 代开文字稿首发带上：发行构建的后台、侧边栏和
   const markers: Readonly<Record<string, readonly string[]>> = {
     "build/background.js": ["youtube.openTranscript", "src/background/routes/youtube"],
     "build/pages/sidepanel.js": ["youtube.openTranscript", "src/pages/sidepanel/open-transcript"],
-    "build/content/youtube.js": ["youtube.openTranscript", "src/sites/youtube/page/commands"],
+    // commands.ts 里还有读播放器字幕时开关字幕的点击，那个开关也进发行包，所以按代开用的函数体认，不按模块路径；
+    // 关掉的构建里死分支还留着函数名，只有函数的定义会被裁掉。
+    "build/content/youtube.js": ["youtube.openTranscript", "function createPanelOpener("],
   };
   const release = await pick(RELEASE_FEATURES);
   const withoutOpener = await pick({ ...RELEASE_FEATURES, youtubeOpenPanel: false });
@@ -486,7 +488,7 @@ test("YouTube 代开文字稿首发带上：发行构建的后台、侧边栏和
   }
 });
 
-test("读播放器取回的字幕只在日用包里：日用构建的后台、YouTube 内容脚本和主世界小桥里有这段代码，发行包和 build/ 里都没有", async () => {
+test("读播放器取回的字幕进发行包：发行构建和 build/ 的后台、YouTube 内容脚本和主世界小桥里有这段代码，关掉这个开关的构建里没有", async () => {
   const files = ["build/background.js", "build/content/youtube.js", "build/content/youtube-bridge.js"];
   const pick = async (features: FeatureSet) => {
     const options = bundleOptions(features).filter((option) => files.includes(String(option.outfile)));
@@ -498,12 +500,12 @@ test("读播放器取回的字幕只在日用包里：日用构建的后台、Yo
     "build/content/youtube.js": ["youtube.caughtCaptions", "src/sites/youtube/page/caption-types", "ytp-subtitles-button", "src/sites/youtube/page/caption-ask"],
     "build/content/youtube-bridge.js": ["src/sites/youtube/page/caption-catch", "XMLHttpRequest", "src/sites/youtube/page/caption-types"],
   };
-  const [release, daily] = await Promise.all([pick(RELEASE_FEATURES), pick(DAILY_FEATURES)]);
+  const [release, off] = await Promise.all([pick(RELEASE_FEATURES), pick({ ...RELEASE_FEATURES, youtubeCaptionCatch: false })]);
   for (const [file, list] of Object.entries(markers)) {
     for (const marker of list) {
-      assert.ok(daily.get(file)?.includes(marker), `日用构建的 ${file} 里没有 ${marker}`);
-      assert.ok(!release.get(file)?.includes(marker), `发行构建的 ${file} 里有 ${marker}`);
-      assert.ok(!readBuild(file.replace(/^build\//, "")).includes(marker), `build/ 里的 ${file} 有 ${marker}`);
+      assert.ok(release.get(file)?.includes(marker), `发行构建的 ${file} 里没有 ${marker}`);
+      assert.ok(readBuild(file.replace(/^build\//, "")).includes(marker), `build/ 里的 ${file} 没有 ${marker}`);
+      assert.ok(!off.get(file)?.includes(marker), `关掉读播放器字幕的构建里，${file} 有 ${marker}`);
     }
   }
 });
