@@ -853,7 +853,7 @@ test("设置页：语言选「繁體中文」以后，标题、各节标题和�
   assert.deepEqual(await reopened.evaluate(view), chinese);
 });
 
-test("设置页：繁体下数据说明的条目、勾选框和校验提示都是繁体，打开就出结论列出的说明也是繁体；整页可见文字里没有简体专用字，语言下拉里的「简体中文」除外", async ({ open }) => {
+test("设置页：繁体下数据说明的条目、勾选框、校验提示和测试连接的结果都是繁体，打开就出结论列出的说明也是繁体；整页可见文字里没有简体专用字，语言下拉里的「简体中文」除外", async ({ open }) => {
   const page = await freshOptions(open);
   await enable(page);
   await fill(page, "#language", "zh-Hant");
@@ -882,6 +882,16 @@ test("设置页：繁体下数据说明的条目、勾选框和校验提示都�
   const listed = await page.evaluate(`document.querySelector("#auto-overview .consent-lines").innerText`);
   assert.deepEqual(simplified(listed), [], listed);
   assert.ok(listed.includes(DATA_CONSENT_HANT_FIRST), listed);
+
+  // 测试连接（放在整页检查之前，状态行也算在整页里）：发给模型的是繁体那句，模型回的词显示在状态行里。
+  await page.click("#dataConsent");
+  await clickButton(page, "儲存並授權");
+  assert.equal(await statusStarts(page, "ai-service", OPTIONS_HANT.status.saved), OPTIONS_HANT.status.saved);
+  await clickButton(page, OPTIONS_HANT.ai.test);
+  // 这里没选型号，用的是服务商预设的默认型号。
+  const connected = await statusStarts(page, "ai-service", OPTIONS_HANT.ai.defaultModel);
+  assert.match(connected, /^預設模型（[^）]+）連線正常，回覆「可用」$/);
+  assert.deepEqual(simplified(connected), [], connected);
 
   const visible = await page.evaluate(`document.body.innerText`);
   const leftover = visible.split("\n").filter((line) => simplified(line).length > 0);
