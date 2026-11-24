@@ -207,7 +207,7 @@ export const PANEL_EN: PanelText = {
     tidying: (done, total) => `Tidying subtitles, ${done} of ${total} segments. It keeps going if you close the side panel`,
     tidyingPlain: "Tidying subtitles…",
     tidy: "Tidy up subtitles",
-    tidyNote: "Adds punctuation and fixes misheard words, using your API credit. It finishes even if you close the side panel",
+    tidyNote: "Adds punctuation and fixes misheard words, using your API credit (for a long video, about as much as translating it once). It finishes even if you close the side panel",
     showOriginal: "Show original subtitles",
     showTidied: "Show tidied subtitles",
     continueTidy: "Keep tidying",
