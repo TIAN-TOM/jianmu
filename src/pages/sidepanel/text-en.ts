@@ -17,6 +17,7 @@ export const PANEL_EN: PanelText = {
   remembered: (author, study) => `Remembered: videos from ${author || "this channel"} will open in ${study ? "Study" : "Skim"} from now on`,
   forget: "Don't remember",
   forgotten: () => "OK, not remembered",
+  forgetFailed: "Couldn't forget it. Try again.",
   copied: "Copied",
   copyFailed: "Couldn't copy. The browser blocked clipboard access",
 

@@ -120,7 +120,11 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
   // 刚记住的频道反悔了：只忘掉这一个，眼下的模式不变。标签页和视频按说那句话时的算，不按点按钮时的：提示留着的几秒里可能换了视频。
   const forgetChannel = async (tabId: number, video: VideoKey): Promise<void> => {
     const reply = await api.send("channels.forget", { tabId, video });
-    say(reply.ok ? panelTextOf(lang()).forgotten(parseVideoKey(video)?.platform === "bilibili") : describe(reply.code, reply.detail, lang()));
+    const t = panelTextOf(lang());
+    // 后台删不掉时回的是「没忘掉」，不是报错：照实说没成，按钮留着可以再点。
+    if (!reply.ok) return say(describe(reply.code, reply.detail, lang()));
+    if (reply.value.forgotten) return say(t.forgotten(parseVideoKey(video)?.platform === "bilibili"));
+    say(t.forgetFailed, { label: t.forget, run: () => void forgetChannel(tabId, video) });
   };
 
   // 当前视频：没启用时一律当没有视频，不读取。只改了标题不算换视频。

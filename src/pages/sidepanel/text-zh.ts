@@ -29,6 +29,7 @@ export const PANEL_ZH = {
   remembered: (author: string, study: boolean) => `已记住：${author ? `${author}的视频` : "这个频道的视频"}以后先进${study ? "精读" : "速读"}`,
   forget: "不记",
   forgotten: (bilibili: boolean): string => (bilibili ? "好，不记这个 UP 主" : "好，不记这个频道"),
+  forgetFailed: "没能取消记住，再点一次试试",
   copied: "已复制",
   copyFailed: "没能复制，浏览器拒绝了剪贴板",
 
