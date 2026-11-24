@@ -36,7 +36,7 @@ export const DATA_CONSENT_HANT: DataConsentHant = {
 export const ACTIVATION_HANT: ActivationHant = {
   "read:video-info": { text: "影片資訊：標題、作者和頻道、長度、簡介" },
   "read:transcript": {
-    text: "字幕。YouTube 上讀取觀看頁轉錄稿面板裡顯示的內容，面板沒開時替你點開，打開就出結論、本視窗全部生成和卡片上的「生成概覽」點開的，讀完替你關上；頁面上沒有轉錄稿時，改讀播放器自己取回的那條字幕，字幕關著時替你打開、讀完關上；另外讀取播放器上已有的字幕軌清單，標出語言和是不是自動產生",
+    text: "字幕。YouTube 上讀取觀看頁轉錄稿面板裡顯示的內容，面板沒開時替你點開，打開就出結論、本視窗全部生成和卡片上的「生成概覽」點開的，讀完替你關上；頁面上沒有轉錄稿時，改用播放器取回的字幕（頁面裡的腳本留著播放器最近取回的兩份），需要時替你打開字幕、讀完關上；另外讀取播放器上已有的字幕軌清單，標出語言和是不是自動產生",
   },
   "read:official-summary": { text: "B 站官方總結和 UP 主分段" },
   "read:watch-state": { text: "觀看狀態：播放、暫停、累計播放時間" },
