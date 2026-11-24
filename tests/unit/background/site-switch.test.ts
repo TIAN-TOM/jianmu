@@ -153,7 +153,7 @@ test("确认启用时的补注入带上授权了的站的脚本", async () => {
   assert.ok(fake.calls.injections.some(({ value }) => value.files.includes("content/youtube-bridge.js") && value.world === "MAIN"));
 });
 
-test("后台被回收以后撤权：一直没出声的页面也按编号收到撤权通知，不按地址查", async () => {
+test("后台被回收以后撤权：一直没出声的页面也按编号发出撤权通知，不按地址查", async () => {
   const { fake, app: earlier } = appOn({ grantedOrigins: [ORIGIN], openTabs: [TUBE_TAB, 5] });
   await earlier.onInstalled("install");
   fake.revoke(ORIGIN);
