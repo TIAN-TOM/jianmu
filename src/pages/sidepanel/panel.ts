@@ -108,8 +108,8 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
   const followHold = signal(0);
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
   let toastId = 0;
-  /** 生成完从本机补过字幕的那个视频：每个视频只补一次。 */
-  let refilled = "";
+  /** 上一刻在跑的概览任务：从有到无就是任务结束了。 */
+  let lastTask: string | null = null;
 
   const say = (text: string, action?: NoticeAction): void => {
     if (!text) return;
@@ -159,18 +159,19 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
       if (active) void transcript.load(active, tabId, readsOnClick(active) ? { localOnly: true } : {});
       else transcript.clear();
     }),
-    // YouTube 一步生成：概览存好时，生成路上经视频页读到的字幕也已经存进本机。字幕这块还停在「还没读取」，就从本机把它摆出来。
-    // 放在这里而不是速读视图里：生成途中切到精读，速读视图卸掉了，字幕照样要补上。按概览真的存好来算，不按点击返回：
+    // YouTube 一步生成：生成路上经视频页读到的字幕已经存进本机。概览任务一结束（存好了、模型报错了、用户停了都算），
+    // 字幕这块还停在「还没读取」，就从本机把它摆出来；本机也没有就照旧摆读取提示。
+    // 放在这里而不是速读视图里：生成途中切到精读，速读视图卸掉了，字幕照样要补上。按任务结束来算，不按点击返回：
     // 接上别处已经在跑的同一个任务时，点击马上返回，字幕那会儿还没读到。只在还是「还没读取」时补，用户自己读字幕读到了别的结果
-    // （比如正在播广告）不去盖掉；每个视频只补一次，本机也没有就照旧摆读取提示。
+    // （比如正在播广告）不去盖掉。
     effect(() => {
-      if (!FEATURE_YOUTUBE_OPEN_PANEL) return;
-      const { saved, video } = overview.state.value;
-      const now = transcript.state.value;
+      const { task, video } = overview.state.value;
+      const ended = lastTask !== null && task === null;
+      lastTask = task?.id ?? null;
+      if (!FEATURE_YOUTUBE_OPEN_PANEL || !ended) return;
+      const now = transcript.state.peek();
       const { tabId } = follow.target.peek();
-      if (!saved || tabId === null || now.state !== "failed" || now.failure.code !== "NOT_CACHED" || now.video !== video || !readsOnClick(now.video)) return;
-      if (refilled === now.video) return;
-      refilled = now.video;
+      if (tabId === null || now.state !== "failed" || now.failure.code !== "NOT_CACHED" || now.video !== video || !readsOnClick(now.video)) return;
       void transcript.load(now.video, tabId, { localOnly: true });
     }),
     // 字幕换了版本，译文和整理结果跟着作废；整理过的这一版打开就用上。
