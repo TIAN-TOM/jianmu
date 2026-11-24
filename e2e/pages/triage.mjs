@@ -65,12 +65,12 @@ test("粗筛页：读列表、读完直接确认第一步、取官方总结、�
     TITLES,
   );
 
-  // 读完就摆出第一步的确认，不用再点「开始取官方总结」；等确认时费用提示在。
+  // 读完就摆出第一步的确认，不用再点「开始取官方总结」；第一步不花额度，不摆计费提示。
   await page.waitFor("第一步的确认", `document.querySelector('#step-official .confirm') !== null`);
   const confirm = await page.evaluate(`document.querySelector(".confirm")?.innerText ?? ""`);
   assert.match(confirm, new RegExp(`要逐个请求 ${TITLES.length} 个视频的 B 站官方总结`));
   assert.match(confirm, /不调模型，不花 API 额度/);
-  assert.equal(await page.evaluate(hasCloseNote), true, "等确认时有费用提示");
+  assert.equal(await page.evaluate(hasCloseNote), false, "第一步不花额度，等确认时不摆计费提示");
   await clickButton(page, "现在开始");
   await statusHas(page, "step-official", "这一轮取完了", 20_000);
   assert.equal(await page.evaluate(hasCloseNote), false, "做完以后不再摆费用提示");

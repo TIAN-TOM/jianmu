@@ -55,6 +55,8 @@ export async function triageFlow({ until, evaluate, cdp, findSession, mock, exte
   const confirm = await until("第二步的确认", () => text(".confirm"));
   // 前两个视频之前生成过概览，已经有结论。
   if (!confirm.includes("要给 1 个有官方总结的视频写一句话结论") || !confirm.includes("已经有结论的 2 个会跳过")) throw new Error(`第二步的确认不对：${confirm}`);
+  // 第二步花额度：等确认时摆着「关掉页面……可能照样计费」。
+  if (!(await text("#triage-steps .note")).includes("可能照样计费")) throw new Error("第二步等确认时没有计费提示");
   await click("现在开始");
   await until("第二步写完", async () => (await text("#step-verdict .status")).includes("这一轮写完了，写好 1 个"));
   const during = mock.requests.slice(beforeVerdict);

@@ -1,6 +1,6 @@
 // 稍后再看粗筛页：读取列表、第一步取官方总结、第二步写一句话结论、按判断分组筛选、导出 Markdown。
 // 没确认启用时给一个去设置页启用的按钮，这一页不能确认。状态和动作都在 state.ts，这里只渲染。
-// 第二步没有可写的视频时不摆按钮，只说为什么；「关掉这个页面……」是费用提示，只在有步骤在跑或在等确认时显示。
+// 第二步没有可写的视频时不摆按钮，只说为什么；「关掉这个页面……」是费用提示，只在第二步（写结论）在跑或在等确认时显示。
 import { hasOfficialContent, isOfficialDone } from "../../core/triage/batch.ts";
 import { formatDuration, progressText } from "../../core/triage/export.ts";
 import { GROUPS, groupItems, groupKeyOf, groupName, hasVerdict, type TriageVerdict } from "../../core/triage/groups.ts";
@@ -104,7 +104,8 @@ function Steps({ state, optionsUrl }: { readonly state: TriageState; readonly op
         {pending?.step === "verdict" ? <Confirm state={state} /> : null}
         <StatusLine status={state.verdictStatus.value} onSettings={() => openSettings(state, optionsUrl, "ai-service")} />
       </div>
-      {running === "official" || running === "verdict" || pending ? <p class="hint note">{t.closeNote}</p> : null}
+      {/* 计费提示只跟第二步：第一步不花额度，它自己的确认里已经说了关掉页面会停。 */}
+      {running === "verdict" || pending?.step === "verdict" ? <p class="hint note">{t.closeNote}</p> : null}
     </section>
   );
 }
