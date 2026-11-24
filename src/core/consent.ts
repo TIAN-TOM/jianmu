@@ -173,8 +173,8 @@ const ACTIVATION_V1 = [
   {
     kind: "read",
     id: "transcript",
-    text: "字幕。YouTube 上读观看页文字稿面板里显示的内容，面板没开时替你点开，打开就出结论、本窗口全部生成和卡片上的「生成概览」点开的读完替你关上；另读播放器上已有的字幕轨列表，标出语言和是不是自动生成",
-    en: "Subtitles. On YouTube, Jianmu reads what's shown in the transcript panel on the watch page and opens the panel for you if it's closed. If Verdict on open, Generate all in this window or “Generate overview” on the card opened it, Jianmu closes it again after reading. It also reads the list of subtitle tracks the player already has, noting each track's language and whether it's auto-generated",
+    text: "字幕。YouTube 上读观看页文字稿面板里显示的内容，面板没开时替你点开，打开就出结论、本窗口全部生成和卡片上的「生成概览」点开的读完替你关上；页面上没有文字稿时，改用播放器取回的字幕（页面里的脚本留着播放器最近取回的两份），需要时替你打开字幕、读完关上；另读播放器上已有的字幕轨列表，标出语言和是不是自动生成",
+    en: "Subtitles. On YouTube, Jianmu reads what's shown in the transcript panel on the watch page and opens the panel for you if it's closed. If Verdict on open, Generate all in this window or “Generate overview” on the card opened it, Jianmu closes it again after reading. If the page has no transcript, Jianmu uses the subtitles the player has loaded (a script in the page keeps the two most recent ones), turning subtitles on for you if needed and off again after reading. It also reads the list of subtitle tracks the player already has, noting each track's language and whether it's auto-generated",
   },
   { kind: "read", id: "official-summary", text: "B 站官方总结和 UP 主分段", en: "Bilibili official summaries and the creator's own chapters" },
   { kind: "read", id: "watch-state", text: "观看状态：播放、暂停、累计播放时长", en: "Viewing status: playing, paused, and total time played" },
