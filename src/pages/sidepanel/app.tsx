@@ -230,6 +230,22 @@ function UndoClock({ panel, shown }: { readonly panel: Panel; readonly shown: bo
   return null;
 }
 
+/** 抽屉和笔记层盖住了顶上那一行提示：同一句话在层里再说一遍，带着同一个按钮（比如「不记」），层里也收得回。 */
+function LayerToast({ panel, shown }: { readonly panel: Panel; readonly shown: boolean }) {
+  const toast = panel.toast.value;
+  if (!shown || !toast) return null;
+  return (
+    <p class="layer-toast" role="status">
+      <span>{toast.text}</span>
+      {toast.action ? (
+        <Button variant="text" onClick={toast.action.run}>
+          {toast.action.label}
+        </Button>
+      ) : null}
+    </p>
+  );
+}
+
 function BilibiliNoVideo(_props: { readonly panel: Panel }) {
   const t = panelText().noVideo;
   return <StateBlock title={t.title} impact={t.impact} />;
@@ -273,20 +289,12 @@ export function App({ panel }: { readonly panel: Panel }) {
       <Toolbar panel={panel} />
       <Sheet open={panel.qaOpen.value} title={panelText().qa.title} onClose={() => (panel.qaOpen.value = false)}>
         {/* 抽屉盖住了顶上那一行提示：复制了、删掉了在抽屉里说。 */}
-        {panel.qaOpen.value && panel.toast.value ? (
-          <p class="layer-toast" role="status">
-            {panel.toast.value.text}
-          </p>
-        ) : null}
+        <LayerToast panel={panel} shown={panel.qaOpen.value} />
         <QaTab panel={panel} />
       </Sheet>
       <Layer open={panel.notesOpen.value} title={panelText().head.notes} onClose={() => (panel.notesOpen.value = false)}>
         {/* 层盖住了顶上那一行提示：改笔记、删笔记的结果在层里说。 */}
-        {panel.notesOpen.value && panel.toast.value ? (
-          <p class="layer-toast" role="status">
-            {panel.toast.value.text}
-          </p>
-        ) : null}
+        <LayerToast panel={panel} shown={panel.notesOpen.value} />
         {panel.notesOpen.value ? <NotesTab panel={panel} /> : null}
       </Layer>
     </main>
