@@ -117,7 +117,7 @@ test("设置页：确认启用之前只有启用说明和资料一节，确认�
   assert.deepEqual(before.buttons, ["导出备份", "清除缓存", "删除全部笔记", "清除全部数据"], "确认前不能恢复备份");
   await enable(page);
   const after = await page.evaluate(`[...document.querySelectorAll(".card > h2")].map((node) => node.textContent)`);
-  assert.deepEqual(after, ["外观", "播放页", "YouTube", "AI 服务", "打开就出结论", "速读和精读", "稍后再看粗筛", "学习资料", "关于"]);
+  assert.deepEqual(after, ["AI 服务", "YouTube", "打开就出结论", "速读和精读", "播放页", "外观", "稍后再看粗筛", "学习资料", "关于"]);
   // 测试构建里 YouTube 开关打开；没给过授权，这一节只有启用按钮。
   await page.waitFor("YouTube 的启用按钮", `[...document.querySelectorAll("#youtube button")].map((node) => node.textContent.trim()).join() === "在 YouTube 上启用"`);
   assert.equal(await page.overflowsX(), false);
@@ -775,7 +775,7 @@ test("设置页：语言选 English 以后，标题、各节标题和按钮马�
     lang: "en",
     title: "Jianmu settings",
     heading: "Jianmu settings",
-    sections: ["Appearance", "Video page", "YouTube", "AI service", "Verdict on open", "Skim and Study", "Watch Later triage", "Saved data", "About"],
+    sections: ["AI service", "YouTube", "Verdict on open", "Skim and Study", "Video page", "Appearance", "Watch Later triage", "Saved data", "About"],
     buttons: ["Save", "Test connection", "Export backup", "Restore backup", "Clear cache", "Delete all notes", "Clear all data"],
     languages: ["Match browser", "简体中文", "繁體中文", "English"],
   };
@@ -783,7 +783,7 @@ test("设置页：语言选 English 以后，标题、各节标题和按钮马�
     lang: "zh-CN",
     title: "简幕设置",
     heading: "简幕设置",
-    sections: ["外观", "播放页", "YouTube", "AI 服务", "打开就出结论", "速读和精读", "稍后再看粗筛", "学习资料", "关于"],
+    sections: ["AI 服务", "YouTube", "打开就出结论", "速读和精读", "播放页", "外观", "稍后再看粗筛", "学习资料", "关于"],
     buttons: ["保存", "测试连接", "导出备份", "恢复备份", "清除缓存", "删除全部笔记", "清除全部数据"],
     languages: ["跟随浏览器", "简体中文", "繁體中文", "English"],
   };
@@ -822,7 +822,7 @@ test("设置页：语言选「繁體中文」以后，标题、各节标题和�
     lang: "zh-Hant",
     title: "簡幕設定",
     heading: "簡幕設定",
-    sections: ["外觀", "播放頁", "YouTube", "AI 服務", "打開就出結論", "速讀和精讀", "稍後再看粗篩", "學習資料", "關於"],
+    sections: ["AI 服務", "YouTube", "打開就出結論", "速讀和精讀", "播放頁", "外觀", "稍後再看粗篩", "學習資料", "關於"],
     buttons: ["儲存", "測試連線", "匯出備份", "還原備份", "清除快取", "刪除全部筆記", "清除全部資料"],
     languages: ["跟隨瀏覽器", "简体中文", "繁體中文", "English"],
   };
@@ -830,7 +830,7 @@ test("设置页：语言选「繁體中文」以后，标题、各节标题和�
     lang: "zh-CN",
     title: "简幕设置",
     heading: "简幕设置",
-    sections: ["外观", "播放页", "YouTube", "AI 服务", "打开就出结论", "速读和精读", "稍后再看粗筛", "学习资料", "关于"],
+    sections: ["AI 服务", "YouTube", "打开就出结论", "速读和精读", "播放页", "外观", "稍后再看粗筛", "学习资料", "关于"],
     buttons: ["保存", "测试连接", "导出备份", "恢复备份", "清除缓存", "删除全部笔记", "清除全部数据"],
     languages: ["跟随浏览器", "简体中文", "繁體中文", "English"],
   };

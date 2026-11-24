@@ -63,8 +63,11 @@ function Confirm({ state }: { readonly state: TriageState }) {
 
 function StepActions({ state, step }: { readonly state: TriageState; readonly step: "official" | "verdict" }) {
   const running = state.running.value;
-  const busy = running !== null || state.pending.value !== null;
+  const pending = state.pending.value;
+  const busy = running !== null || pending !== null;
   const t = triageText();
+  // 这一步的确认已经摆在下面：开始按钮先不摆，免得一个灰按钮压在确认上面。
+  if (pending?.step === step && running !== step) return null;
   return (
     <div class="actions">
       {running === step ? (
