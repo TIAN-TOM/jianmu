@@ -11,17 +11,17 @@ const CONTENT_ZH = {
   reloadTitle: "简幕已更新，刷新页面后可用",
   adPlaying: "正在播广告",
   switching: "视频还在切换",
-  saving: "保存中…",
-  duplicate: "该时刻已有笔记",
-  savedUnpolished: "已保存，未润色",
+  saving: "正在保存…",
+  duplicate: "这里已经记过了",
+  savedUnpolished: "已保存（没润色）",
   saved: "已保存",
   saveFailed: "保存失败",
-  // 保存失败的常见原因给个短说法，完整说明放在悬停提示里。
+  // 保存失败的常见原因给个短说法，完整说明放在悬停提示里。图标旁地方窄，闪的字最长 8 个字。
   shortFailures: {
-    NO_CAPTIONS: "无字幕",
-    NEED_LOGIN: "需登录",
-    STORAGE_FULL: "空间不足",
-    NOT_ENABLED: "未启用",
+    NO_CAPTIONS: "没有字幕",
+    NEED_LOGIN: "要先登录",
+    STORAGE_FULL: "空间不够了",
+    NOT_ENABLED: "还没启用",
   } satisfies Partial<Record<ErrorCode, string>>,
 };
 
