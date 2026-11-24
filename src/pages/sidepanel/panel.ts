@@ -71,7 +71,7 @@ const TOAST_MS = 4000;
 export function createPanel(api: PageApi, storageChanged?: Parameters<typeof createConfigWatch>[0]["storageChanged"]): Panel {
   const activation = createActivation({ api });
   const config = createConfigWatch({ api, enabled: activation.enabled, ...(storageChanged ? { storageChanged } : {}) });
-  const follow = createFollow({ api, enabled: activation.enabled });
+  const follow = createFollow({ api });
   const player = createPlayer();
   const mode = createModeStore({ api });
   const undoLine = createUndoLine({ mode: mode.view });
