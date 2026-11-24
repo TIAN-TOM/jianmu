@@ -1,11 +1,12 @@
 // 章节列表：时间是单独的按钮（跳到这一章），章节名展开要点和字幕。重点章节前面一个圆点，读屏读出「重点」。
-// 展开的内容由页面给；不给就只是一行时间加章节名。
+// 展开的内容由页面给；不给就只是一行时间加章节名。展开收起有高度过渡，收着的章节不算内容。
 import type { ComponentChildren } from "preact";
 import { useId } from "preact/hooks";
 import { formatTimestamp } from "../../../core/transcript/segment.ts";
 import { sharedText } from "../text.ts";
 import { uiLang } from "../ui-lang.ts";
 import { chapterHeading, keyFlags } from "./chapters.ts";
+import { Collapse } from "./collapse.tsx";
 
 export interface ChapterItem {
   readonly startSec: number;
@@ -73,10 +74,14 @@ export function ChapterList({ chapters, keyStarts, expanded = [], onToggle, onSe
                   <span class="chapter-title">{name}</span>
                 )}
               </div>
-              {renderDetail && open ? (
-                <div class="chapter-detail" id={detailId}>
-                  {renderDetail(chapter, index)}
-                </div>
+              {renderDetail ? (
+                <Collapse open={open}>
+                  {() => (
+                    <div class="chapter-detail" id={detailId}>
+                      {renderDetail(chapter, index)}
+                    </div>
+                  )}
+                </Collapse>
               ) : null}
             </li>
           );

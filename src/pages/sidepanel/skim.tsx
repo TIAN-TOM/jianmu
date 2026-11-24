@@ -7,7 +7,7 @@ import type { LearningAnalysis } from "../../core/notes/markdown.ts";
 import { breaksToShow, lineBreaks, splitRuns } from "../../core/transcript/lines.ts";
 import { formatTimestamp, type TranscriptSegment } from "../../core/transcript/segment.ts";
 import type { CueView } from "../../shared/messages/transcript.ts";
-import { useMemo, useState } from "preact/hooks";
+import { useMemo, useRef, useState } from "preact/hooks";
 import { Button } from "../shared/ui/button.tsx";
 import { ChapterList } from "../shared/ui/chapter-list.tsx";
 import { ServiceSaid } from "../shared/ui/notice.tsx";
@@ -134,11 +134,14 @@ function Verdict({
   readonly failures: number;
   readonly stale: boolean;
 }) {
-  const { verdictTask } = panel.overview.state.value;
+  const { verdictTask, task } = panel.overview.state.value;
   const p = panelText();
   const verdict = analysis?.verdict;
   const summary = text(verdict?.summary);
   const source = text(verdict?.source);
+  // 这一屏上等过它（在写结论，或者还没有结论时在生成概览）：写好了进来时有「有结果了」那一下。
+  const waited = useRef(false);
+  if (verdictTask || (task && !summary)) waited.current = true;
   if (verdictTask) {
     return (
       <div class="progress-row" role="status">
@@ -157,6 +160,7 @@ function Verdict({
         basis={BASIS.find((item) => item === source) ?? null}
         staleTranscript={stale}
         incomplete={failures > 0 || verdict?.incomplete === true}
+        fresh={waited.current}
       />
     );
   }

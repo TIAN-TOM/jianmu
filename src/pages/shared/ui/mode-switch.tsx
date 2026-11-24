@@ -1,4 +1,5 @@
 // 模式切换：「速读　精读」两个词组成的单选组，方向键切换，只有选中的那个在 Tab 顺序里。
+// 每个词按加粗以后的宽度占位（data-label），选中加粗时旁边的词不跟着挪。
 import { useRef } from "preact/hooks";
 import type { Mode } from "../../../core/mode/types.ts";
 import { sharedText } from "../text.ts";
@@ -35,6 +36,7 @@ export function ModeSwitch({ value, onChange }: ModeSwitchProps) {
             }}
             type="button"
             class="mode"
+            data-label={t[option]}
             role="radio"
             aria-checked={checked}
             tabIndex={checked ? 0 : -1}

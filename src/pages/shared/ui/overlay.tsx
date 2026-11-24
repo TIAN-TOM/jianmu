@@ -1,10 +1,24 @@
 // 抽屉和层：抽屉从底部升起，还看得见当前位置；层盖住整个面板。两者都不改模式。
 // 都用浏览器的模态对话框：打开时页面其余部分不可操作，Esc 关闭，关上以后焦点回到打开它的按钮。
 // 开关由页面的状态决定：Esc 和点遮罩只是请页面关，页面把 open 改成 false 才真的关。
+// 关上的那一刻就不再挡住页面、焦点也还回去，画面晚一点走（离场的过渡在 overlays.css）；
+// 离场途中标题和内容照最后打开时的样子留着，不先变成空壳再淡出去。
 import type { ComponentChildren } from "preact";
 import { useEffect, useId, useRef } from "preact/hooks";
 import { sharedText } from "../text.ts";
 import { IconButton } from "./button.tsx";
+import { usePresence } from "./presence.ts";
+
+interface Shown {
+  readonly title: string;
+  readonly children: ComponentChildren;
+}
+
+/** 打开时是传进来的标题和内容；关上以后到离场走完是最后打开时的那份，之后又是传进来的。 */
+function useLeavingContent(open: boolean, title: string, children: ComponentChildren) {
+  const kept = usePresence<Shown>(open ? { title, children } : null);
+  return { view: kept.shown ?? { title, children }, ref: kept.ref };
+}
 
 function useModal(open: boolean, onClose: () => void) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -76,9 +90,13 @@ export interface SheetProps {
 export function Sheet({ open, title, onClose, children }: SheetProps) {
   const id = useId();
   const modal = useModal(open, onClose);
+  const { view, ref } = useLeavingContent(open, title, children);
   return (
     <dialog
-      ref={modal.ref}
+      ref={(node) => {
+        modal.ref.current = node;
+        ref.current = node;
+      }}
       class="sheet"
       aria-labelledby={`${id}-title`}
       onCancel={modal.onCancel}
@@ -91,11 +109,11 @@ export function Sheet({ open, title, onClose, children }: SheetProps) {
       <div class="sheet-body">
         <header class="overlay-head">
           <h2 class="overlay-title" id={`${id}-title`}>
-            {title}
+            {view.title}
           </h2>
           <IconButton icon="close" label={sharedText().close} onClick={onClose} />
         </header>
-        <div class="overlay-content">{children}</div>
+        <div class="overlay-content">{view.children}</div>
       </div>
     </dialog>
   );
@@ -112,16 +130,26 @@ export interface LayerProps {
 export function Layer({ open, title, onClose, actions, children }: LayerProps) {
   const id = useId();
   const modal = useModal(open, onClose);
+  const { view, ref } = useLeavingContent(open, title, children);
   return (
-    <dialog ref={modal.ref} class="layer" aria-labelledby={`${id}-title`} onCancel={modal.onCancel} onClose={modal.onClose}>
+    <dialog
+      ref={(node) => {
+        modal.ref.current = node;
+        ref.current = node;
+      }}
+      class="layer"
+      aria-labelledby={`${id}-title`}
+      onCancel={modal.onCancel}
+      onClose={modal.onClose}
+    >
       <header class="overlay-head">
         <IconButton icon="back" label={sharedText().back} onClick={onClose} />
         <h2 class="overlay-title" id={`${id}-title`}>
-          {title}
+          {view.title}
         </h2>
         {actions ? <span class="overlay-actions">{actions}</span> : null}
       </header>
-      <div class="overlay-content">{children}</div>
+      <div class="overlay-content">{view.children}</div>
     </dialog>
   );
 }

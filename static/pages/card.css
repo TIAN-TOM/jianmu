@@ -20,6 +20,7 @@ body {
   border-radius: var(--radius-lg);
   background: var(--card);
   overflow: hidden;
+  animation: appear var(--dur) var(--ease);
 }
 
 .card-head-row,
@@ -80,6 +81,7 @@ body {
 
 .card-head-panel {
   flex: none;
+  animation: appear var(--dur) var(--ease);
   margin-right: var(--space-2);
   padding: 0 var(--space-1);
   border: 0;
@@ -90,9 +92,23 @@ body {
   cursor: pointer;
 }
 
-.card-head-panel:hover {
-  text-decoration: underline;
+.card-head-panel,
+.card-more {
+  text-decoration-line: underline;
+  text-decoration-color: transparent;
   text-underline-offset: 3px;
+  transition: var(--tint);
+}
+
+.card-head-panel:hover {
+  text-decoration-color: currentColor;
+}
+
+.card-head-panel:active,
+.card-more:active,
+.card-fold-head:active {
+  opacity: 0.6;
+  transition-duration: 0ms;
 }
 
 /* 后面没有章节那一段时，箭头自己靠到最右边。 */
@@ -104,37 +120,44 @@ body {
   border-right: 1.5px solid var(--text-muted);
   border-bottom: 1.5px solid var(--text-muted);
   transform: rotate(45deg);
-  transition: transform 0.15s;
+  transition: transform var(--dur) var(--ease);
 }
 
 .card[data-collapsed="true"] .card-chevron {
   transform: rotate(-45deg);
 }
 
-/* 标题栏下面那一整块。展开收起时这一行的高度在零和内容那么高之间过渡，里面那层不留最小高度，
- * 过渡到一半时多出来的裁掉，同时淡入淡出。卡片顶到高度上限时这一块跟着缩，里面只有正文区滚动。 */
+/* 标题栏下面那一整块。展开收起是共用的 .collapse（motion.css）：高度在零和内容那么高之间过渡，同时淡入淡出，
+ * 卡片把每一帧的高度报给页面。卡片顶到高度上限时这一块跟着缩，里面只有正文区滚动，所以展开走完以后也一直裁着。 */
 .card-sheet {
-  display: grid;
-  grid-template-rows: 1fr;
   flex: 0 1 auto;
   min-height: 0;
-  transition: grid-template-rows var(--dur-mode) var(--ease);
-}
-
-.card-sheet[data-open="false"] {
-  grid-template-rows: 0fr;
 }
 
 .card-sheet-in {
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-  transition: opacity var(--dur-mode) var(--ease);
 }
 
-.card-sheet[data-open="false"] > .card-sheet-in {
-  opacity: 0;
+.card .card-sheet > .card-sheet-in {
+  overflow: hidden;
+}
+
+/* 不是用户点出来的变化（提示、结论、进度、按钮行到了）：高度一步到位，只把新来的那块淡进来。
+ * 每报一次高度播放页的右栏就重排一次，只有点出来的展开收起才值得逐帧报。卡片里都只淡入，不位移。 */
+.card-status,
+.card-note,
+.card-pending,
+.card-progress,
+.card-actions,
+.card-glance,
+.card .chapter-list > .chapter,
+.card .verdict[data-fresh] {
+  animation: appear var(--dur) var(--ease);
+}
+
+.card .verdict[data-fresh] .verdict-mark {
+  animation: done-pop var(--dur-mode) var(--ease-pop) 60ms backwards;
 }
 
 .card-body {
@@ -192,8 +215,7 @@ body {
 }
 
 .card-more:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  text-decoration-color: currentColor;
 }
 
 .card-fold-head {
@@ -210,6 +232,7 @@ body {
   font-weight: var(--fw-medium);
   text-align: start;
   cursor: pointer;
+  transition: var(--tint);
 }
 
 .card-fold-head:hover {
@@ -292,7 +315,8 @@ body {
   color: var(--text-muted);
 }
 
-/* 能展开的小节：不用浏览器自带的三角，在标题后面画一个小箭头，标题不被顶歪。 */
+/* 能展开的小节：不用浏览器自带的三角，在标题后面画一个小箭头，标题不被顶歪。
+ * 箭头和标题栏的一样：收着朝右，展开转到朝下。 */
 .outline-details > summary {
   list-style: none;
   cursor: pointer;
@@ -310,11 +334,12 @@ body {
   margin-inline-start: var(--space-2);
   border-right: 1.5px solid var(--text-muted);
   border-bottom: 1.5px solid var(--text-muted);
-  transform: translateY(-0.2em) rotate(45deg);
+  transform: translateY(-0.1em) rotate(-45deg);
+  transition: transform var(--dur) var(--ease);
 }
 
 .outline-details[open] > summary::after {
-  transform: translateY(0.05em) rotate(-135deg);
+  transform: translateY(-0.2em) rotate(45deg);
 }
 
 .card-progress {
@@ -333,9 +358,11 @@ body {
   overflow: hidden;
 }
 
+/* 进度往前走一截时滑过去，不是一格一格跳。 */
 .card-bar {
   height: 100%;
   background: var(--accent);
+  transition: width var(--dur-mode) var(--ease);
 }
 
 .card-progress-text {

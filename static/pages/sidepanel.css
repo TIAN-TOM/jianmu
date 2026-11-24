@@ -16,6 +16,44 @@
   color: var(--text-muted);
 }
 
+/* ---------- 动效 ----------
+ * 写法统一在 ui/motion.css。这里只挑侧边栏里哪些东西用哪一种：
+ *   换样子、换模式、换视频：整块淡进来（模式内容里有固定定位的「回到当前句」，只淡不移）；
+ *   等结果的那几行（进度、报错、提示）和新到的问答：淡进来，高度一步到位；
+ *   结论在这一屏上写好：从下面升上来，标记有「有结果了」那一下。 */
+.panel,
+.mode-view > *,
+.cues,
+.chapter-bar-title,
+.chapter-list > .chapter,
+.progress-row,
+.error-line,
+.note-line,
+.empty-line,
+.search-row,
+.note-edit,
+.layer-toast,
+.qa-entry,
+.frame-card,
+.batch-bar:not([data-phase="idle"]),
+.batch-error {
+  animation: appear var(--dur) var(--ease);
+}
+
+/* 读字幕的骨架屏晚 150ms 才露面，读得快就根本看不到。 */
+.loading,
+.panel-loading {
+  animation: appear var(--dur) var(--ease) 150ms backwards;
+}
+
+.verdict[data-fresh] {
+  animation: appear-up var(--dur-mode) var(--ease);
+}
+
+.verdict[data-fresh] .verdict-mark {
+  animation: done-pop var(--dur-mode) var(--ease-pop) 60ms backwards;
+}
+
 /* ---------- 头部和页签 ---------- */
 
 .panel-head {
@@ -287,9 +325,17 @@
 }
 
 .batch-progress {
-  width: 100%;
-  height: 6px;
-  accent-color: var(--accent);
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--rail-track);
+  overflow: hidden;
+}
+
+/* 进度往前走一截时滑过去，不是一格一格跳。 */
+.batch-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width var(--dur-mode) var(--ease);
 }
 
 .batch-actions {
@@ -362,8 +408,22 @@
   cursor: pointer;
 }
 
+.stamp,
+.cue-time,
+.segment,
+.frame-card-close,
+.follow-pill {
+  transition: var(--tint);
+}
+
 .stamp:hover {
   background: var(--bg-hover);
+}
+
+/* 按下去当场变色，松开才用 --dur-fast 回去。 */
+:is(.stamp, .cue-time, .segment, .follow-pill):active {
+  background: var(--bg-active);
+  transition-duration: 0ms;
 }
 
 /* ---------- 字幕 ---------- */
@@ -376,16 +436,19 @@
   list-style: none;
 }
 
+/* 当前句的底色亮得快、灭得慢：上一句的底色还留一点尾巴，看得出是从上一句挪下来的。几百条上都写着过渡也没有代价，每次真在动的只有两条。 */
 .cue {
   display: grid;
   grid-template-columns: auto 1fr;
   column-gap: var(--space-2);
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-md);
+  transition: background-color var(--dur-mode) var(--ease);
 }
 
 .cue[data-active="true"] {
   background: var(--bg-active);
+  transition-duration: var(--dur-fast);
 }
 
 .cue-time {
@@ -401,7 +464,8 @@
   cursor: pointer;
 }
 
-.cue-time:hover {
+.cue-time:hover,
+.segment:hover:not([aria-pressed="true"]) {
   background: var(--bg-hover);
 }
 
@@ -435,6 +499,7 @@
   color: inherit;
 }
 
+/* 选中字以后在选区下面长出来的两个按钮：从右上角长出来，点了就走，不留离场。 */
 .explain-pick {
   display: flex;
   gap: var(--space-1);
@@ -442,8 +507,12 @@
   right: 0;
   z-index: 1;
   list-style: none;
+  transform-origin: top right;
+  animation: pop-in var(--dur-fast) var(--ease);
 }
 
+/* 「回到当前句」一直挂着：离开当前句时从下面浮上来，点了或者又跟上时沉下去；藏着时不进 Tab 顺序也不进读屏。
+ * 居中用 translate，浮上沉下用 transform，两者互不覆盖。 */
 .follow-pill {
   position: fixed;
   bottom: calc(var(--dock-h) + var(--space-3));
@@ -458,7 +527,29 @@
   background: var(--card);
   box-shadow: var(--shadow-md);
   cursor: pointer;
-  transform: translateX(-50%);
+  translate: -50% 0;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(0.5rem);
+  transition:
+    var(--tint),
+    transform var(--dur-fast) var(--ease-exit),
+    visibility 0s linear var(--dur-fast);
+}
+
+.follow-pill[data-shown] {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition:
+    var(--tint),
+    opacity var(--dur) var(--ease),
+    transform var(--dur) var(--ease),
+    visibility 0s;
+}
+
+.follow-pill:hover {
+  background: var(--bg-hover);
 }
 
 .explain-body {

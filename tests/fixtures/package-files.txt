@@ -28,5 +28,6 @@ pages/triage.js
 theme.css
 ui.css
 ui/controls.css
+ui/motion.css
 ui/overlays.css
 ui/reading.css

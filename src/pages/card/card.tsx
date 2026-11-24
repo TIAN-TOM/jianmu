@@ -10,6 +10,7 @@ import { formatTimestamp } from "../../core/transcript/segment.ts";
 import type { OfficialSummaryView, OutlineSectionView } from "../../shared/messages/transcript.ts";
 import { keyChapterStarts, verdictName } from "../../core/ai/verdict.ts";
 import { ChapterList, type ChapterItem } from "../shared/ui/chapter-list.tsx";
+import { Collapse } from "../shared/ui/collapse.tsx";
 import { ServiceSaid } from "../shared/ui/notice.tsx";
 import { StaleTranscriptLine, VerdictBlock } from "../shared/ui/verdict-block.tsx";
 import { staleOverviewMarks, type BasisSource } from "../shared/ui/verdict.ts";
@@ -140,6 +141,9 @@ function Overview({
 }) {
   const verdict = analysis.verdict;
   const summary = text(verdict?.summary);
+  // 卡片上等过它（先是「正在写结论」）：写好了进来时淡一下，标记有「有结果了」那一下。
+  const waited = useRef(false);
+  if (pending) waited.current = true;
   const chapters: ChapterItem[] = (analysis.chapters ?? []).map((chapter) => ({ startSec: chapter.timestampSeconds, title: text(chapter.title) }));
   const shown = cardRows(chapters, showAll);
   const cut = cardRows(chapters, false).length < chapters.length;
@@ -151,7 +155,7 @@ function Overview({
           {typeof pending === "string" ? pending : t.writingVerdict}
         </p>
       ) : summary ? (
-        <VerdictBlock label={text(verdict?.verdict)} text={summary} basis={basisOf(analysis)} staleTranscript={stale.verdict} incomplete={verdict?.incomplete === true} />
+        <VerdictBlock label={text(verdict?.verdict)} text={summary} basis={basisOf(analysis)} staleTranscript={stale.verdict} incomplete={verdict?.incomplete === true} fresh={waited.current} />
       ) : null}
       {stale.chapters && shown.length ? <StaleTranscriptLine /> : null}
       {shown.length ? <ChapterList chapters={shown} keyStarts={keyChapterStarts(analysis)} heading={false} onSeek={onSeek} /> : null}
@@ -195,37 +199,21 @@ export interface CardActions {
 export const OPEN_HOLD_MS = 500;
 
 /**
- * 标题栏下面那一整块，展开收起时高度有过渡。收起时内容留到过渡走完才拿掉，这期间点不到、读屏也读不到；
- * 没有过渡（系统设了减少动效）就马上拿掉。已经开着时换内容不关，高度照旧直接变。
+ * 标题栏下面那一整块，展开收起用共用的 Collapse：高度有过渡，收起时内容留到过渡走完才拿掉。
+ * 点了展开而内容还在读时先等一会儿。已经开着时换内容不关，高度照旧直接变：不是用户点出来的高度变化不逐帧报给播放页。
  */
 function Fold({ collapsed, waiting, children }: { readonly collapsed: boolean; readonly waiting: boolean; readonly children: ComponentChildren }) {
-  const ref = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(!collapsed && !waiting);
-  const [gone, setGone] = useState(!open);
   useLayoutEffect(() => {
     if (collapsed) return setOpen(false);
     if (!waiting) return setOpen(true);
     const timer = setTimeout(() => setOpen(true), OPEN_HOLD_MS);
     return () => clearTimeout(timer);
   }, [collapsed, waiting]);
-  useLayoutEffect(() => {
-    if (open) return setGone(false);
-    const node = ref.current;
-    if (!node || !(parseFloat(getComputedStyle(node).transitionDuration) > 0)) setGone(true);
-  }, [open]);
   return (
-    <div
-      ref={ref}
-      class="card-sheet"
-      data-open={open ? "true" : "false"}
-      onTransitionEnd={(event) => {
-        if (event.target === event.currentTarget && !open) setGone(true);
-      }}
-    >
-      <div class="card-sheet-in" inert={!open}>
-        {open || !gone ? children : null}
-      </div>
-    </div>
+    <Collapse open={open} outerClass="card-sheet" innerClass="card-sheet-in">
+      {children}
+    </Collapse>
   );
 }
 
@@ -293,11 +281,13 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
                 <span>{t.official}</span>
                 <span class="card-chevron" aria-hidden="true" />
               </button>
-              {view.officialOpen ? (
-                <div class="card-fold-body" id="card-official-body">
-                  <OfficialBody official={official} limited={false} onSeek={actions.seek} />
-                </div>
-              ) : null}
+              <Collapse open={view.officialOpen}>
+                {() => (
+                  <div class="card-fold-body" id="card-official-body">
+                    <OfficialBody official={official} limited={false} onSeek={actions.seek} />
+                  </div>
+                )}
+              </Collapse>
             </section>
           ) : official ? (
             <section class="card-block" id="card-official" aria-label={t.official}>

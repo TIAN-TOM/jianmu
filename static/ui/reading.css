@@ -96,7 +96,7 @@
 .rail-piece[data-kind="writing"] {
   background: var(--rail-played);
   cursor: default;
-  animation: ske-pulse 1.2s var(--ease) infinite alternate;
+  animation: ske-pulse 1.4s var(--ease) infinite alternate;
 }
 
 .rail-piece[data-kind="failed"] {
@@ -269,9 +269,16 @@
   cursor: pointer;
 }
 
+/* 下划线一直画着、平时透明，悬停时颜色淡出来。 */
+.chapter-toggle .chapter-name {
+  text-decoration-line: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+}
+
 .chapter-toggle:hover .chapter-name,
 .chapter[data-focus] .chapter-name {
-  text-decoration: underline;
+  text-decoration-line: underline;
   text-decoration-color: var(--border-strong);
   text-underline-offset: 3px;
 }
