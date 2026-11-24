@@ -13,7 +13,7 @@ import { originOf, validateForSave, type FeatureSlotId } from "../../shared/sett
 import type { PageApi } from "../shared/api.ts";
 import { createAiStatus, type AiPlace, type PlacedStatus, type Status } from "./ai-status.ts";
 import { exportBackupFile, importBackupFile } from "./backup-transfer.ts";
-import { chosenFeatures, formOf, settingsInput, withAddress, withPreset, type AiForm } from "./form.ts";
+import { asksRememberAfterSave, chosenFeatures, formOf, sameCredentials, settingsInput, withAddress, withPreset, type AiForm } from "./form.ts";
 import { probeFrameImage } from "./image-probe.ts";
 import type { UiLang } from "../shared/ui-lang.ts";
 import { slotLabel, textOf } from "./text.ts";
@@ -200,7 +200,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
 
   const setForm = (next: AiForm): void => {
     const before = form.peek(); // 那一问问的是刚保存的那把：换了服务商、地址或密钥就收起，免得点「记住」把没保存的新密钥记上。
-    if (before && (next.presetId !== before.presetId || next.protocol !== before.protocol || next.aiBaseUrl !== before.aiBaseUrl || next.aiApiKey !== before.aiApiKey)) rememberAsk.value = false;
+    if (before && !sameCredentials(next, before)) rememberAsk.value = false;
     form.value = next;
   };
 
@@ -273,8 +273,8 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       // 回收是尽力而为：失败只是多留几条授权。
       await api.send("grants.release", {});
       saySaved(at, written);
-      // 保存收尾的这一会儿里用户自己动过勾选框，就以勾选框为准，不再问。
-      rememberAsk.value = written.aiApiKey !== "" && !written.rememberApiKey && !written.rememberKeyAsked && form.peek()?.rememberApiKey !== true;
+      // 保存收尾等后台回话的这一会儿里改过密钥、服务商或勾选框的，以眼下的表单为准，不再问。
+      rememberAsk.value = asksRememberAfterSave(form.peek(), written);
       return true;
     } finally {
       busy.value = null;
