@@ -199,6 +199,8 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
   deps.storageChanged?.addListener(onStorage);
 
   const setForm = (next: AiForm): void => {
+    const before = form.peek(); // 那一问问的是刚保存的那把：换了服务商、地址或密钥就收起，免得点「记住」把没保存的新密钥记上。
+    if (before && (next.presetId !== before.presetId || next.protocol !== before.protocol || next.aiBaseUrl !== before.aiBaseUrl || next.aiApiKey !== before.aiApiKey)) rememberAsk.value = false;
     form.value = next;
   };
 

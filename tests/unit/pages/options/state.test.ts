@@ -553,6 +553,28 @@ test("那一问还摆着时勾选框被勾上、又答「不用」：勾选框�
   assert.equal(w.saves.at(-1)?.rememberApiKey, false);
 });
 
+test("那一问摆着时改了密钥或换了服务商：那一问收起，不会把还没保存的新密钥记上", async () => {
+  const typed = world({ ...GATEWAY, ...DATA_CONSENT_CONFIRMED });
+  typed.permission.resolve();
+  await typed.state.load();
+  typed.state.editKey("sk-first");
+  assert.equal(await typed.state.save(), true);
+  assert.equal(typed.state.rememberAsk.value, true);
+  typed.state.editKey("sk-second");
+  assert.equal(typed.state.rememberAsk.value, false, "改了密钥就收起");
+
+  const switched = world({ ...GATEWAY, ...DATA_CONSENT_CONFIRMED });
+  switched.permission.resolve();
+  await switched.state.load();
+  switched.state.editKey("sk-first");
+  assert.equal(await switched.state.save(), true);
+  assert.equal(switched.state.rememberAsk.value, true);
+  switched.state.edit({ aiModel: "another-model" });
+  assert.equal(switched.state.rememberAsk.value, true, "只改模型不收起");
+  switched.state.choosePreset("deepseek");
+  assert.equal(switched.state.rememberAsk.value, false, "换了服务商就收起");
+});
+
 test("答「记住」等于勾上记住密钥再保存：密钥记住、算问过，状态行说记住了；之后取消记住再保存也不问", async () => {
   const w = world({ ...GATEWAY, ...DATA_CONSENT_CONFIRMED });
   w.permission.resolve();

@@ -284,7 +284,8 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
 
       <div>
         <label class="check">
-          <input id="rememberApiKey" type="checkbox" checked={form.rememberApiKey} onChange={(event) => void state.setRemember(event.currentTarget.checked)} />
+          {/* 保存进行中不能动：保存按点击时的勾选写，中途取消会被它盖回去。 */}
+          <input id="rememberApiKey" type="checkbox" checked={form.rememberApiKey} disabled={working} onChange={(event) => void state.setRemember(event.currentTarget.checked)} />
           <span>{t.remember}</span>
         </label>
         <AiStatusLine state={state} at="remember" />
