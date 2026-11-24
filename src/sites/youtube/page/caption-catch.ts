@@ -63,12 +63,14 @@ export function startCaptionCatch(scope: CatchScope): () => void {
   const kept: PlayerCaption[] = [];
   const sources = new WeakMap<PageRequest, CaptionSource>();
   let live = true;
-  // 内容脚本撤下（用户收回了这个站的授权）以后不再接、接住的清掉；页面一开始加载时内容脚本还没来，先接着。
+  // 内容脚本撤下（用户收回了这个站的授权）或者问到还没启用时不再接、接住的清掉；页面一开始加载时内容脚本还没来，先接着。
   let wanted = true;
+  // 每停一次加一：停之前发出、停了以后才回来的请求，再接上时也不记。
+  let round = 0;
 
-  const keep = (request: PageRequest, source: CaptionSource): void => {
+  const keep = (request: PageRequest, source: CaptionSource, sentIn: number): void => {
     try {
-      if (!live || !wanted || request.readyState !== DONE || request.status !== OK_STATUS) return;
+      if (!live || !wanted || sentIn !== round || request.readyState !== DONE || request.status !== OK_STATUS) return;
       if (request.responseType !== "" && request.responseType !== "text") return;
       const text = request.responseText;
       if (typeof text !== "string" || text.length === 0 || text.length > CAPTION_LIMITS.text) return;
@@ -96,9 +98,10 @@ export function startCaptionCatch(scope: CatchScope): () => void {
       const source = live && wanted ? sources.get(this) : undefined;
       if (source) {
         const request = this;
+        const sentIn = round;
         const done = (): void => {
           request.removeEventListener("loadend", done);
-          keep(request, source);
+          keep(request, source, sentIn);
         };
         request.addEventListener("loadend", done);
       }
@@ -130,7 +133,9 @@ export function startCaptionCatch(scope: CatchScope): () => void {
     const detail: unknown = (event as CustomEvent<unknown>).detail;
     if (detail !== "on" && detail !== "off") return;
     wanted = detail === "on";
-    if (!wanted) kept.length = 0;
+    if (wanted) return;
+    kept.length = 0;
+    round += 1;
   };
 
   const stop = (): void => {
