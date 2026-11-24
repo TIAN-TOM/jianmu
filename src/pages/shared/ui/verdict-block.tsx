@@ -18,6 +18,8 @@ export interface VerdictBlockProps {
   readonly incomplete?: boolean;
   /** 右上角的菜单，由页面放进来。 */
   readonly menu?: ComponentChildren;
+  /** 这一屏上看着它写出来的（先是「正在写结论」）：进来时有「有结果了」那一下。打开页面时已经有的不算。 */
+  readonly fresh?: boolean;
 }
 
 /** 不在结论块里的结果（章节、问答）基于旧字幕时，单独标一行。 */
@@ -29,13 +31,13 @@ export function StaleTranscriptLine() {
   );
 }
 
-export function VerdictBlock({ label, text, basis, staleTranscript = false, incomplete = false, menu }: VerdictBlockProps) {
+export function VerdictBlock({ label, text, basis, staleTranscript = false, incomplete = false, menu, fresh = false }: VerdictBlockProps) {
   const t = sharedText().verdict;
   const lang = uiLang.value;
   const shape = markOf(label);
   const name = shape ? labelOf(label, lang) : "";
   return (
-    <section class="verdict" aria-label={t.label} data-shape={shape ?? undefined}>
+    <section class="verdict" aria-label={t.label} data-shape={shape ?? undefined} data-fresh={fresh ? "true" : undefined}>
       <div class="verdict-head">
         {shape ? (
           <span class="verdict-label">

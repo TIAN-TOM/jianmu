@@ -1,22 +1,34 @@
 // 一行提示：在头部和内容区之间，不盖内容，一次只显示一条。
 // 播报区一直在页面上，提示换了读屏才念得出来；念的方式是礼貌播报，不打断正在读的内容。
+// 出现时这一行从零长高、下面的内容跟着往下让，消失时收回去，内容不是一下子跳开；换一条时新的那条淡进来。
 import { sharedText } from "../text.ts";
 import { pickNotice, type NoticeEntry } from "./notice.ts";
+import { usePresence } from "./presence.ts";
 
 export function Notice({ notices }: { readonly notices: readonly (NoticeEntry | null | undefined | false)[] }) {
   const notice = pickNotice(notices);
+  const { shown, leaving, ref } = usePresence(notice);
   return (
-    <div class="notice-slot" aria-live="polite">
-      {notice ? (
-        <div class="notice" key={notice.id} data-id={notice.id} data-tone={notice.tone}>
-          <span class="notice-text">{notice.text}</span>
-          {notice.action ? (
-            <button type="button" class="notice-action" onClick={notice.action.run}>
-              {notice.action.label}
-            </button>
-          ) : null}
-        </div>
-      ) : null}
+    <div
+      ref={(node) => {
+        ref.current = node;
+      }}
+      class="notice-slot collapse"
+      aria-live="polite"
+      data-open={notice ? "true" : "false"}
+    >
+      <div class="notice-clip collapse-in">
+        {shown ? (
+          <div class="notice" key={shown.id} data-id={shown.id} data-tone={shown.tone} data-leaving={leaving ? "true" : undefined} inert={leaving}>
+            <span class="notice-text">{shown.text}</span>
+            {shown.action ? (
+              <button type="button" class="notice-action" onClick={shown.action.run}>
+                {shown.action.label}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

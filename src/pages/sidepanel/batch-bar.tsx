@@ -22,7 +22,7 @@ export function BatchBar({ panel, ready }: { readonly panel: Panel; readonly rea
 
   if (state.phase === "idle") {
     return (
-      <section class="batch-bar" data-phase="idle" aria-label={t.label}>
+      <section key="idle" class="batch-bar" data-phase="idle" aria-label={t.label}>
         <Button disabled={!ready} {...notReady} onClick={() => batch.count()}>
           {t.label}
         </Button>
@@ -33,7 +33,7 @@ export function BatchBar({ panel, ready }: { readonly panel: Panel; readonly rea
 
   if (state.phase === "counting") {
     return (
-      <section class="batch-bar" data-phase="counting" aria-label={t.label}>
+      <section key="busy" class="batch-bar" data-phase="counting" aria-label={t.label}>
         <p class="batch-status" role="status">
           {t.counting}
         </p>
@@ -44,7 +44,7 @@ export function BatchBar({ panel, ready }: { readonly panel: Panel; readonly rea
   if (state.phase === "confirm") {
     const todo = state.items.filter((item) => item.state === "to-generate").length;
     return (
-      <section class="batch-bar" data-phase="confirm" aria-label={t.label}>
+      <section key="busy" class="batch-bar" data-phase="confirm" aria-label={t.label}>
         <p class="batch-status" role="status">
           {confirmText(state.items, lang)}
         </p>
@@ -74,11 +74,14 @@ export function BatchBar({ panel, ready }: { readonly panel: Panel; readonly rea
   const retryable = run.entries.filter((entry) => RETRYABLE.has(entry.status));
   const partial = run.entries.filter((entry) => entry.status === "completed" && entry.partial);
   return (
-    <section class="batch-bar" data-phase="active" aria-label={t.label}>
+    <section key="busy" class="batch-bar" data-phase="active" aria-label={t.label}>
       <p class="batch-status" role="status">
         {progressText(run, lang)}
       </p>
-      <progress class="batch-progress" max={Math.max(1, total)} value={settled} aria-label={t.progressLabel} />
+      {/* 和卡片上的一样是一道细条，往前走一截时滑过去。 */}
+      <div class="batch-progress" role="progressbar" aria-label={t.progressLabel} aria-valuemin={0} aria-valuemax={Math.max(1, total)} aria-valuenow={settled}>
+        <div class="batch-progress-fill" style={{ transform: `scaleX(${settled / Math.max(1, total)})` }} />
+      </div>
       <div class="batch-actions">
         {busy ? (
           <Button disabled={run.stopping} onClick={() => batch.stopAll()}>

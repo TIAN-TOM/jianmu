@@ -39,19 +39,6 @@
   margin: var(--space-2) 0;
   border-radius: var(--radius-sm);
   background: var(--bg-subtle);
-  animation: ske-pulse 1.4s var(--ease) infinite alternate;
-}
-
-@keyframes ske-pulse {
-  to {
-    opacity: 0.45;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ske-line {
-    animation: none;
-  }
 }
 
 /* ---------- 按钮和标记 ---------- */
@@ -86,7 +73,6 @@
   font-weight: var(--fw-medium);
   line-height: var(--lh-tight);
   cursor: pointer;
-  transition: background-color var(--dur-fast) var(--ease);
 }
 
 /* 有边框的按钮：行高取离 --lh-tight 最近、又能让文字行上下各留整像素空白的值。按钮落在页面的小数位置上时，
@@ -140,7 +126,6 @@
 
 .button[data-variant="text"]:hover:not(:disabled) {
   background: transparent;
-  text-decoration: underline;
 }
 
 .button[data-variant="danger"] {
@@ -172,7 +157,6 @@
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  transition: background-color var(--dur-fast) var(--ease);
 }
 
 .icon-button:hover:not(:disabled),
@@ -220,14 +204,25 @@
   gap: var(--space-5);
 }
 
+/* 每个词按加粗以后的宽度占位（看不见的那份是 ::before），选中加粗时旁边的词不跟着挪。 */
 .mode {
   position: relative;
+  display: inline-grid;
+  justify-items: center;
   padding: var(--space-1) 0;
   border: 0;
   background: transparent;
   color: var(--text-muted);
   font-size: var(--fs-body);
   cursor: pointer;
+}
+
+.mode::before {
+  content: attr(data-label);
+  grid-area: 1 / 1;
+  height: 0;
+  font-weight: var(--fw-semibold);
+  visibility: hidden;
 }
 
 .mode:hover {
@@ -239,7 +234,8 @@
   font-weight: var(--fw-semibold);
 }
 
-.mode[aria-checked="true"]::after {
+/* 两个词底下各有一道线，平时缩成零。换模式时左边那道往右收、右边那道从左边长出来，看着就是一道线滑了过去；中途再点也能接着反向。 */
+.mode::after {
   content: "";
   position: absolute;
   left: 0;
@@ -247,11 +243,32 @@
   bottom: -1px;
   height: 2px;
   background: var(--text);
+  transform: scaleX(0);
+  transition: transform var(--dur) var(--ease);
 }
 
-/* ---------- 一行提示 ---------- */
+.mode:first-child::after {
+  transform-origin: right;
+}
+
+.mode:last-child::after {
+  transform-origin: left;
+}
+
+.mode[aria-checked="true"]::after {
+  transform: none;
+}
+
+/* ---------- 一行提示 ----------
+ * 外面那层是展开收起（motion.css 的 .collapse）：出现时长高、消失时收回，常来常去，开收都用 --dur。 */
+
+.notice-slot.collapse,
+.notice-slot > .notice-clip {
+  transition-duration: var(--dur);
+}
 
 .notice {
+  animation: appear var(--dur) var(--ease);
   display: flex;
   align-items: center;
   gap: var(--space-2);

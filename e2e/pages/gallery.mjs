@@ -237,7 +237,8 @@ test("组件样张：抽屉和层收到关闭请求就关，焦点回到打开�
   await page.evaluate("window.galleryControls.mountSheet()");
   await page.click("#open-sheet");
   await page.waitFor("抽屉打开", `document.querySelector("dialog.sheet").open`);
-  // 遮罩在抽屉上面那一截。
+  // 遮罩在抽屉上面那一截：等抽屉升到位再量，升的途中它的上沿还在往上走。
+  await page.waitFor("抽屉升到位", `document.querySelector("dialog.sheet").getAnimations().length === 0`);
   await page.evaluate(`(() => { const box = document.querySelector("dialog.sheet").getBoundingClientRect(); window.__backdrop = { x: box.left + 10, y: Math.max(2, box.top - 20) }; return true; })()`);
   const at = await page.evaluate("window.__backdrop");
   await page.clickAt(at.x, at.y);

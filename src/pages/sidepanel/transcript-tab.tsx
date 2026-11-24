@@ -130,6 +130,14 @@ function Toolbar({ panel, view, onSearch, searching, onImport }: { readonly pane
 
 const NO_LINES: Readonly<Record<string, string>> = {};
 
+/** 当前句离屏幕正中不到一屏半时滑过去，再远就直接跳：滑一长段既慢又晃眼。 */
+function followBehavior(node: Element): ScrollBehavior {
+  const view = node.ownerDocument.defaultView;
+  if (!view || view.matchMedia("(prefers-reduced-motion: reduce)").matches) return "instant";
+  const box = node.getBoundingClientRect();
+  return Math.abs(box.top + box.height / 2 - view.innerHeight / 2) < view.innerHeight * 1.5 ? "smooth" : "instant";
+}
+
 /** 正在显示的整理结果：用户切回原始字幕时不给。 */
 const tidiedOf = (panel: Panel): Readonly<Record<string, string>> => (panel.tidy.show.peek() ? panel.tidy.lines.peek() : NO_LINES);
 
@@ -246,9 +254,14 @@ function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: 
     if (searching) searchInput.current?.focus();
   }, [searching]);
 
+  // 跟着播放滚：下一句就在附近时滑过去，看得出是往下走了一句；刚进来、隔得远（拖了进度条）或者系统要求减少动态效果时直接到位。
+  const settled = useRef(false);
   useEffect(() => {
     if (!following || needle || active < 0) return;
-    list.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: "center" });
+    const node = list.current?.querySelector(`[data-index="${active}"]`);
+    if (!node) return;
+    node.scrollIntoView({ block: "center", behavior: settled.current ? followBehavior(node) : "instant" });
+    settled.current = true;
   }, [active, following, needle]);
 
   const onSelectEnd = (): void => {
@@ -331,12 +344,11 @@ function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: 
         ) : null}
       </ol>
       {needle && shown.length === 0 ? <p class="empty-line">{p.notFound(needle)}</p> : null}
-      {!following && at !== null ? (
-        <button type="button" class="follow-pill" onClick={() => setFollowing(true)}>
-          <Icon name="target" />
-          <span>{t.backToCurrent}</span>
-        </button>
-      ) : null}
+      {/* 一直挂着、用 data-shown 显隐：离开当前句时从底下浮上来，点了或者又跟上时沉下去。藏着时不进 Tab 顺序也不进读屏。 */}
+      <button type="button" class="follow-pill" data-shown={!following && at !== null ? "true" : undefined} inert={following || at === null} onClick={() => setFollowing(true)}>
+        <Icon name="target" />
+        <span>{t.backToCurrent}</span>
+      </button>
       <ExplainSheet panel={panel} />
     </>
   );

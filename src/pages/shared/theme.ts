@@ -28,6 +28,9 @@ interface PageView {
   readonly location?: { readonly protocol?: string };
   readonly localStorage?: Pick<Storage, "setItem">;
   readonly matchMedia?: (query: string) => MediaQueryLike;
+  /** 换主题、换明暗时整页交叉淡化用；测试的替身里没有，就当场换。 */
+  readonly document?: { readonly visibilityState?: string; startViewTransition?(update: () => void): unknown };
+  readonly requestAnimationFrame?: (callback: () => void) => number;
 }
 
 /** 页面的根节点 html。测试里换成只有这几样的替身。 */
@@ -93,6 +96,34 @@ export function applyAppearance(input: unknown, root: AppearanceRoot | null | un
   return appearance;
 }
 
+/** 这次落地会不会换颜色：主题或明暗跟根节点上现在写的不一样。 */
+function recolors(root: AppearanceRoot, next: Appearance, hostMode: ResolvedThemeMode | null): boolean {
+  return root.dataset.accentTheme !== next.accentTheme || root.dataset.themeMode !== (hostMode ?? resolveThemeMode(next.themeMode, viewOf(root)));
+}
+
+/**
+ * 换颜色：页面看得见、浏览器支持、系统没要求减少动态效果时整页交叉淡化（样式在 ui/motion.css）。
+ * 换的那几帧挂着 data-theme-switching，各处的颜色过渡都关掉，免得有的控件比整页慢一拍才变过去。
+ */
+function repaint(root: AppearanceRoot, apply: () => unknown): void {
+  const view = root.ownerDocument?.defaultView;
+  if (!view?.requestAnimationFrame) {
+    apply();
+    return;
+  }
+  // 经页面对象调：单独拿出来的 requestAnimationFrame 在浏览器里会报非法调用。
+  const frame = (callback: () => void): void => void view.requestAnimationFrame?.(callback);
+  const quiet = (): void => {
+    root.dataset.themeSwitching = "true";
+    apply();
+    frame(() => frame(() => delete root.dataset.themeSwitching));
+  };
+  const calm = view.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+  const page = view.document;
+  if (page?.startViewTransition && page.visibilityState === "visible" && !calm) page.startViewTransition(quiet);
+  else quiet();
+}
+
 type StorageListener = (changes: { readonly [key: string]: { readonly newValue?: unknown } }, area: string) => void;
 
 export interface WatchAppearanceDeps {
@@ -133,9 +164,21 @@ export async function watchAppearance(deps: WatchAppearanceDeps, root: Appearanc
   let last: Appearance | null = null;
   let generation = 0;
   let stopped = false;
+  /** 第几次落地：整页淡化时真正写下去要晚一帧，那时已经有更新的一次落地了就不写，免得旧主题盖回来。 */
+  let landing = 0;
   const land = (raw: unknown): void => {
     if (stopped) return;
-    last = applyAppearance(raw, root, deps.hostMode?.() ?? null);
+    const hostMode = deps.hostMode?.() ?? null;
+    const next = appearanceOf(raw);
+    const ticket = ++landing;
+    const apply = (): Appearance => applyAppearance(raw, root, hostMode);
+    // 第一次落地照着首帧画的样子直接写；之后换了主题或明暗，整页淡过去。
+    if (last !== null && recolors(root, next, hostMode)) {
+      repaint(root, () => {
+        if (ticket === landing && !stopped) apply();
+      });
+      last = next;
+    } else last = apply();
     setUiLanguage(last.language);
   };
   const reload = async (fallback: unknown): Promise<void> => {

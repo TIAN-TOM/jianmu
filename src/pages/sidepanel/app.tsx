@@ -217,9 +217,10 @@ function BilibiliNoVideo(_props: { readonly panel: Panel }) {
 const NoVideo = FEATURE_YOUTUBE ? YoutubeNoVideo : BilibiliNoVideo;
 
 export function App({ panel }: { readonly panel: Panel }) {
+  // 三种样子各带自己的 key：换样子时整页是新挂上的，淡进来，不是在旧节点上换孩子。
   if (!panel.activation.enabled.value) {
     return (
-      <main class="panel panel-gate">
+      <main key="activation" class="panel panel-gate">
         <Activation panel={panel} />
       </main>
     );
@@ -227,7 +228,7 @@ export function App({ panel }: { readonly panel: Panel }) {
   const { video } = panel.follow.target.value;
   if (!video) {
     return (
-      <main class="panel panel-gate">
+      <main key="no-video" class="panel panel-gate">
         <Notice notices={[panel.toast.value ? { id: "toast", priority: 0, text: panel.toast.value.text, tone: "accent" } : null, FEATURE_KEEP_CONSENT ? carriedNotice(panel) : null]} />
         {FEATURE_KEEP_CONSENT ? carriedList(panel) : null}
         <NoVideo panel={panel} />
@@ -237,14 +238,15 @@ export function App({ panel }: { readonly panel: Panel }) {
   const mode = panel.mode.view.value.mode;
   const lines = notices(panel);
   return (
-    <main class="panel" data-mode={mode}>
+    <main key="video" class="panel" data-mode={mode}>
       <UndoClock panel={panel} shown={pickNotice(lines)?.id === AUTO_SWITCHED} />
       <Header panel={panel} />
       <ModeRow panel={panel} />
       <Notice notices={lines} />
       {FEATURE_KEEP_CONSENT ? carriedList(panel) : null}
       {FEATURE_FRAME_EXPLAIN && panel.frame ? <FrameResults panel={panel} frame={panel.frame} /> : null}
-      <section class="mode-view" aria-label={sharedText().modes[mode]}>
+      {/* 换模式、换视频时内容是新挂上的，淡进来；章节展开这些只属于一个视频的状态也跟着清掉。 */}
+      <section key={`${mode}:${video}`} class="mode-view" aria-label={sharedText().modes[mode]}>
         {mode === "study" ? <StudyView panel={panel} /> : <SkimView panel={panel} />}
       </section>
       <Toolbar panel={panel} />

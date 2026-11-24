@@ -48,7 +48,10 @@ function ChapterBar({ panel }: { readonly panel: Panel }) {
         {index + 1}/{chapters.length}
       </span>
       {chapter.key ? <span class="key-dot" role="img" aria-label={sharedText().chapters.key} /> : null}
-      <span class="chapter-bar-title">{chapter.title || time}</span>
+      {/* 播到下一章时换上来的章节名淡进来。 */}
+      <span key={index} class="chapter-bar-title">
+        {chapter.title || time}
+      </span>
       <button type="button" class="stamp" aria-label={t.jumpToChapter(time)} onClick={() => void panel.seek(chapter.startSec)}>
         {time}
       </button>

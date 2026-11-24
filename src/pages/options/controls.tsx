@@ -4,11 +4,18 @@ import { Button } from "../shared/ui/button.tsx";
 import type { AiPlace, OptionsState, Status } from "./state.ts";
 import { optionsText } from "./text.ts";
 
-/** inline：跟在某个控件下面，没有内容时不占地方；不带时留着一行的高度，免得下面的内容跳。 */
+/**
+ * inline：跟在某个控件下面，没有内容时不占地方；不带时留着一行的高度，免得下面的内容跳。
+ * 状态行一直在页面上（读屏才播得出来），里面的字按内容换节点：换了一句话时新的那句淡进来。
+ */
 export function StatusLine({ status, inline = false, at }: { readonly status: Status | null; readonly inline?: boolean; readonly at?: string }) {
   return (
     <p class={inline ? "status status-inline" : "status"} role="status" data-tone={status?.tone} data-status-at={at}>
-      {status ? status.text : null}
+      {status ? (
+        <span key={status.text} class="status-text">
+          {status.text}
+        </span>
+      ) : null}
     </p>
   );
 }

@@ -316,10 +316,19 @@
     0 4px 12px rgb(var(--shadow-rgb) / calc(0.06 * var(--shadow-alpha))),
     0 16px 40px rgb(var(--shadow-rgb) / calc(0.12 * var(--shadow-alpha)));
 
-  --ease: cubic-bezier(0.2, 0, 0, 1);
-  --dur-fast: 120ms; /* 悬停、按压 */
-  --dur: 160ms; /* 展开、淡入 */
-  --dur-mode: 240ms; /* 切换模式、抽屉 */
+  /* 动效：全项目一套曲线和三档时长，同一类变化用同一种写法（共用的写法在 ui/motion.css）。
+   * 离场比进场低一档：走掉的东西用户已经不关心了。越常做的越快：按下去那一下不过渡，松开才用 --dur-fast 回去。
+   * 只动透明度、位移和缩放；改版面高度的只有展开收起和一行提示。 */
+  --ease: cubic-bezier(0.2, 0, 0, 1); /* 进场和原地变化：出现、展开、移动、换色，快起慢停 */
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1); /* 离场：加速离开 */
+  --ease-pop: cubic-bezier(0.3, 1.4, 0.5, 1); /* 只给「有结果了」那一下：结论的标记、做完的勾，略微过冲 */
+  --dur-fast: 120ms; /* 悬停、松开、换色，菜单和浮钮进场；也是小东西的离场 */
+  --dur: 160ms; /* 内容淡入、箭头、下划线、一行提示；也是大块的离场 */
+  --dur-mode: 240ms; /* 改版面的大块：展开收起、抽屉、笔记层、结论出现 */
+  /* 可点的东西悬停、选中、停用时换色：一律这一组，写 transition: var(--tint)。 */
+  --tint:
+    background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+    opacity var(--dur-fast) var(--ease), text-decoration-color var(--dur-fast) var(--ease);
 
   /* 版面尺寸。轨道粗细和播放头用 px，不随字号变 */
   --rail-gutter: 1.25rem; /* 时间轨占的左边距 */
@@ -418,7 +427,10 @@ html {
     rotate: 180deg;
   }
 
+  /* 展开的选项列表和菜单一样从下拉框那边长出来，收起是瞬间的。 */
   ::picker(select) {
+    transform-origin: top;
+    animation: pop-in var(--dur-fast) var(--ease);
     margin-block: var(--space-1);
     padding: var(--space-1);
     color: var(--text);

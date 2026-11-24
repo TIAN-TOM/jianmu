@@ -1,5 +1,5 @@
 // 菜单：用浏览器的弹出层，点外面或按 Esc 自动收起。打开后焦点在第一项，上下方向键移动；
-// 选了一项或收起以后，焦点回到打开它的按钮。
+// 选了一项或收起以后，焦点回到打开它的按钮。摆好位置才露出来，从挨着按钮的那个角长出来；收起是瞬间的。
 import { useId, useRef } from "preact/hooks";
 import { Icon } from "./icon.tsx";
 import type { IconName } from "./icons.ts";
@@ -35,9 +35,12 @@ export function Menu({ label, icon = "more", text, items }: MenuProps) {
     const menu = popup.current;
     const view = menu?.ownerDocument.defaultView;
     if (!button || !menu || !view) return;
-    const at = menuPlacement(button.getBoundingClientRect(), { width: menu.offsetWidth, height: menu.offsetHeight }, { width: view.innerWidth, height: view.innerHeight });
+    const box = button.getBoundingClientRect();
+    const at = menuPlacement(box, { width: menu.offsetWidth, height: menu.offsetHeight }, { width: view.innerWidth, height: view.innerHeight });
     menu.style.left = `${at.left}px`;
     menu.style.top = `${at.top}px`;
+    // 开在按钮上面还是下面：进场时从挨着按钮的那一边长出来。
+    menu.dataset["side"] = at.top < box.top ? "top" : "bottom";
   };
   const hide = (): void => {
     if (popup.current?.matches(":popover-open")) popup.current.hidePopover();

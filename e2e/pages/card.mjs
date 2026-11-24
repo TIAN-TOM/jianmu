@@ -170,7 +170,7 @@ test("卡片：展开收起有过渡，收起时内容留到过渡走完才拿�
   assert.deepEqual(await page.evaluate(`({ height: ${height}, inert: document.querySelector(".card-sheet-in").inert })`), { height: full, inert: false });
 
   // 没有过渡（系统设了减少动效时各个时长都是零）：点收起以后内容马上拿掉，不等过渡结束的事件。
-  await page.evaluate(`(document.documentElement.style.setProperty("--dur-mode", "0ms"), true)`);
+  await page.evaluate(`(["--dur-fast", "--dur", "--dur-mode"].forEach((name) => document.documentElement.style.setProperty(name, "0ms")), true)`);
   const instant = await page.evaluate(`(async () => {
     document.getElementById("card-toggle").click();
     await new Promise((done) => requestAnimationFrame(done));

@@ -189,7 +189,7 @@ test("侧边栏：登录以后长视频进速读，还没有概览时下面接�
     assert.deepEqual(await panel.evaluate(modes), SKIM);
     assert.equal(await panel.evaluate(`Boolean(document.querySelector(".skim .skim-transcript .cues"))`), true, "字幕摆在速读里");
     // 速读里的字幕不跟着播放滚动：知道播放位置以后出「回到当前句」，侧边栏没被拉下去。
-    await waitIn(panel, "知道播放位置", `Boolean(document.querySelector(".follow-pill"))`);
+    await waitIn(panel, "知道播放位置", `Boolean(document.querySelector(".follow-pill[data-shown]"))`);
     assert.equal(await panel.evaluate("scrollY"), 0, "侧边栏没被字幕拉着滚");
     // 往下滚，模式切换吸在顶上。
     await panel.evaluate(`(document.querySelector(".panel").style.minHeight = "3000px", scrollTo(0, 2000), true)`);
