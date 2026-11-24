@@ -31,3 +31,25 @@ export async function siteTabs(tabs: Pick<Tabs, "tabsMatching">, scripts: (() =>
     return [];
   }
 }
+
+export interface ContentTargets {
+  /** 要通知的内容脚本所在的标签页：登记过的，加上按清单和已授权站点的匹配规则查到的。通知是尽力而为，查不到时只给登记过的。 */
+  readonly all: () => Promise<readonly number[]>;
+  /** 清除全部数据之前要通知的：启用还算数才按地址查，没确认过只给登记过的。 */
+  readonly beforeClear: () => Promise<readonly number[]>;
+}
+
+export function createContentTargets({
+  registered,
+  tabs,
+  siteScripts,
+  enabled,
+}: {
+  readonly registered: Pick<ContentTabs, "list">;
+  readonly tabs: Pick<Tabs, "tabsMatching" | "contentScriptTabs">;
+  readonly siteScripts: (() => Promise<readonly ContentScript[]>) | undefined;
+  readonly enabled: () => Promise<boolean>;
+}): ContentTargets {
+  const all = async (): Promise<readonly number[]> => [...new Set([...registered.list(), ...(await tabs.contentScriptTabs().catch(() => [])), ...(await siteTabs(tabs, siteScripts))])];
+  return { all, beforeClear: async () => ((await enabled()) ? all() : registered.list()) };
+}

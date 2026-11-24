@@ -33,6 +33,12 @@ export interface DataServiceDeps {
   /** 清空一个数据库仓库。 */
   readonly clearStore: (name: StoreName) => Promise<void>;
   readonly broadcast: (message: Broadcast) => void;
+  /**
+   * 清除全部数据之前、启用还算数时查出已开的视频页，清完叫它们撤下。后台重启过以后，内存里登记的标签页是空的，
+   * 只靠设置变化时按登记的编号通知会漏掉一直没出声的页面。没确认过启用时只给登记过的。
+   */
+  readonly openPages?: () => Promise<readonly number[]>;
+  readonly toTabs?: (tabIds: readonly number[], message: { readonly type: "activation.changed"; readonly confirmed: false }) => Promise<void>;
   readonly now: () => number;
 }
 
@@ -158,8 +164,11 @@ export function createDataService(deps: DataServiceDeps): DataService {
       // 在跑的生成先停下：它们回来写的那一下也会被闸门拦住，停下是为了不再花钱。
       if (scope !== "notes") deps.tasks.cancelAll(CLEARING);
       const targets = clearTargets(scope);
+      let pages: readonly number[] = [];
       await guard.clear(scope, async () => {
         if (scope !== "notes") deps.forgetMemory(scope);
+        // 清完启用就失效了，那时不能再按地址查标签页：代数已经递增，趁设置还没清查好。查不到不拦着清除。
+        if (scope === "all" && deps.openPages) pages = await deps.openPages().catch(() => []);
         await Promise.all(targets.stores.map((name) => deps.clearStore(name)));
         if (scope === "all") {
           await deps.settings.clearAll();
@@ -169,6 +178,7 @@ export function createDataService(deps: DataServiceDeps): DataService {
         }
       });
       deps.broadcast(scope === "notes" ? { type: "notes.changed" } : { type: "data.cleared", scope });
+      if (pages.length > 0) await deps.toTabs?.(pages, { type: "activation.changed", confirmed: false }).catch(() => undefined);
     } finally {
       release();
     }

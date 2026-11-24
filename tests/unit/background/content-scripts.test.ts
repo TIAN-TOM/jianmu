@@ -1,5 +1,6 @@
 // 后台和真实清单里的内容脚本：确认启用时按清单模板补注入 B 站内容脚本；启用失效（清除全部数据）时，
 // 只按编号通知发过消息的内容脚本撤下界面，不再按地址查标签页；从没确认过时设置怎么变都不通知。
+// 设置页点清除全部数据时，趁启用还算数先按地址查好已开的视频页，清完一并通知：后台重启过、内存里没登记的页面也收得到。
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -35,6 +36,37 @@ test("清除全部数据让启用失效：只按编号通知发过消息的内�
 
   assert.deepEqual(fake.calls.tabMessages, [{ tabId: 7, message: { type: "activation.changed", confirmed: false } }]);
   assert.deepEqual(fake.calls.tabQueries, []);
+});
+
+const LOST = JSON.stringify({ type: "activation.changed", confirmed: false });
+const lostTabs = (fake: ReturnType<typeof createFakeChrome>) =>
+  fake.calls.tabMessages
+    .filter(({ message }) => JSON.stringify(message) === LOST)
+    .map(({ tabId }) => tabId)
+    .sort((a, b) => a - b);
+
+test("清除全部数据：趁启用还算数查好已开的视频页，清完叫它们撤下；后台刚重启、页面一直没出声也通知得到", async () => {
+  const fake = createFakeChrome({ manifest: { content_scripts: TEMPLATE.content_scripts }, local: { [SETTINGS_STORAGE_KEY]: CONFIRMED }, openTabs: [5, 6] });
+  // 新建的后台就是刚重启的样子：内存里一个登记的标签页都没有。
+  const app = createApp(fake.deps());
+  assert.deepEqual(await app.dispatch({ type: "data.clear", req: { scope: "all" } }, senders.options()), { ok: true, value: {} });
+  assert.deepEqual(lostTabs(fake), [5, 6]);
+});
+
+test("从没确认过启用时清除全部数据：不按地址查标签页，也没有页面要通知", async () => {
+  const fake = createFakeChrome({ manifest: { content_scripts: TEMPLATE.content_scripts }, openTabs: [5, 6] });
+  const app = createApp(fake.deps());
+  assert.deepEqual(await app.dispatch({ type: "data.clear", req: { scope: "all" } }, senders.options()), { ok: true, value: {} });
+  assert.deepEqual(fake.calls.tabQueries, []);
+  assert.deepEqual(lostTabs(fake), []);
+});
+
+test("只清缓存或笔记：启用不受影响，不查标签页、不通知", async () => {
+  const fake = createFakeChrome({ manifest: { content_scripts: TEMPLATE.content_scripts }, local: { [SETTINGS_STORAGE_KEY]: CONFIRMED }, openTabs: [5, 6] });
+  const app = createApp(fake.deps());
+  for (const scope of ["cache", "notes"] as const) assert.deepEqual(await app.dispatch({ type: "data.clear", req: { scope } }, senders.options()), { ok: true, value: {} });
+  assert.deepEqual(fake.calls.tabQueries, []);
+  assert.deepEqual(lostTabs(fake), []);
 });
 
 test("从没确认、原本就过期、确认没变的设置变化都不算启用失效", () => {

@@ -17,7 +17,7 @@ import type { SiteRules } from "../sites/types.ts";
 import { createActionMenu, type ContextMenusDeps, type MenuClick } from "./action-menu.ts";
 import { createAiWiring, type AiWiring, type ModelServiceFetch, type PromptTable } from "./ai.ts";
 import { autoSwitchToggled, createAutoWiring, pageTranscriptOf, watchPagesOf } from "./auto.ts";
-import { createContentTabs, siteTabs, type ContentTabs } from "./content-tabs.ts";
+import { createContentTabs, createContentTargets, type ContentTabs, type ContentTargets } from "./content-tabs.ts";
 import { createGrants, siteOriginsOf, type Grants } from "./grants.ts";
 import { createOpenPanels, type OpenPanels } from "./open-panels.ts";
 import { createCardLimits, createPlaybackLimits, createPlayerNoteLimit, type CardLimits, type PlaybackLimits } from "./limits.ts";
@@ -48,7 +48,7 @@ import { createOverviewService, type OverviewService } from "./services/overview
 import { createVerdictService, type VerdictService } from "./services/overview/verdict.ts";
 import { createExplainService, type ExplainService } from "./services/explain.ts";
 import { createNotesService, type NotesService } from "./services/notes.ts";
-import { createDataService, type DataService } from "./services/data.ts";
+import { createDataService, type DataService, type DataServiceDeps } from "./services/data.ts";
 import { createQaService, type QaService } from "./services/qa.ts";
 import { createTranslateService, type TranslateService } from "./services/translate.ts";
 import { createBatchService, type BatchService } from "./services/batch/index.ts";
@@ -122,8 +122,7 @@ interface Core {
   readonly tabs: Tabs;
   readonly messenger: Messenger;
   readonly contentTabs: ContentTabs;
-  /** 确认启用之后要通知的内容脚本：发过消息登记的编号，加上按清单匹配规则查到的已开标签页。 */
-  readonly contentTargets: () => Promise<readonly number[]>;
+  readonly contentTargets: ContentTargets["all"];
   /** 往已开的视频页补注入内容脚本，启用确认不算数时什么都不做。 */
   readonly reinject: Reinject;
   readonly grants: Grants;
@@ -343,7 +342,7 @@ function assembleBatch(deps: AppDeps, parts: OverviewParts, tabs: Tabs, keepAliv
 }
 
 // 清除用的驱动单独建，每个仓库一份，第一次清除时才开库。
-function assembleData(deps: AppDeps, parts: OverviewParts, stores: ReturnType<typeof assembleStudyStores>): DataService {
+function assembleData(deps: AppDeps, parts: OverviewParts, stores: ReturnType<typeof assembleStudyStores>, pages: Pick<DataServiceDeps, "openPages" | "toTabs">): DataService {
   const drivers = new Map<StoreName, ReturnType<typeof lazyDriver>>();
   const driverOf = (name: StoreName) => {
     let driver = drivers.get(name);
@@ -362,6 +361,7 @@ function assembleData(deps: AppDeps, parts: OverviewParts, stores: ReturnType<ty
     forgetMemory: (scope) => parts.transcript.forget(scope),
     clearStore: (name) => driverOf(name).clear(),
     broadcast: (message) => void parts.messenger.toPages(message),
+    ...pages,
     now: deps.timers.now,
   });
 }
@@ -391,6 +391,7 @@ function assembleCore(deps: AppDeps): Core {
   const watchPages = watchPagesOf(tabs, siteSwitch?.grantedScripts);
   const pageTranscript = pageTranscriptOf({ ask: tabs.ask, transcript, sites: deps.sites });
   const autoParts = { settings, tabs, watchPages, pageTranscript, sleep, rules: deps.siteRules, ai, tasks, overviews, transcript, overview, storage: deps.storage.session, guard: clearGuard };
+  const targets = createContentTargets({ registered: contentTabs, tabs, siteScripts: siteSwitch?.grantedScripts, enabled });
   return {
     settings,
     clearGuard,
@@ -402,8 +403,7 @@ function assembleCore(deps: AppDeps): Core {
     tabs,
     messenger,
     contentTabs,
-    // 通知是尽力而为：查不到标签页时只发给登记过的，不让确认启用这类写入跟着报错。
-    contentTargets: async () => [...new Set([...contentTabs.list(), ...(await tabs.contentScriptTabs().catch(() => [])), ...(await siteTabs(tabs, siteSwitch?.grantedScripts))])],
+    contentTargets: targets.all,
     reinject: createReinject({ tabs, enabled, ...(siteSwitch ? { extraScripts: siteSwitch.grantedScripts } : {}), log: deps.log }),
     // 授权回收只碰授权接口：读不含密钥的设置，站点来源按设置推。
     grants: createGrants({ permissions: createPermissions(deps.permissions, () => deps.runtime.getManifest()), loadSettings: settings.loadPublic, siteOrigins: () => siteOriginsOf(deps.siteRules), logError: (message, detail) => deps.log.error(message, errorLabel(detail)) }),
@@ -415,7 +415,7 @@ function assembleCore(deps: AppDeps): Core {
     verdict,
     ...assembleStudy(deps, generation, keepAlive, studyStores),
     translate: assembleTranslate(deps, generation, studyStores.translations),
-    data: assembleData(deps, generation, studyStores),
+    data: assembleData(deps, generation, studyStores, { openPages: targets.beforeClear, toTabs: (tabIds, message) => messenger.toTabs(tabIds, message) }),
     batch: assembleBatch(deps, generation, tabs, keepAlive, { overview, verdict, pageTranscript }, watchPages),
     auto: createAutoWiring({ ...autoParts, now: deps.timers.now, broadcast: (message) => void messenger.toPages(message), log: deps.log }),
   };
