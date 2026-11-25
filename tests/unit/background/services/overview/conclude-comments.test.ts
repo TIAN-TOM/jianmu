@@ -26,7 +26,7 @@ function deps(reply: unknown, sent: Sent[], extra: Partial<VerdictRequestDeps> =
       },
     } as unknown as VerdictRequestDeps["ai"],
     prompt: PROMPT,
-    commentPrompt: COMMENT_PROMPT,
+    commentPrompt: () => COMMENT_PROMPT,
     gate: (async (_n: number, work: () => Promise<unknown>) => work()) as unknown as VerdictRequestDeps["gate"],
     concurrency: 1,
     log: { error: () => undefined, warn: () => undefined, info: () => undefined } as unknown as VerdictRequestDeps["log"],

@@ -2,6 +2,7 @@
 // 只在构建开关 FEATURE_COMMENTS 打开时进包，只从 service.ts 的开关分支引用。
 import type { SiteCtx, SiteResult, TopComment, VideoInfo } from "../types.ts";
 import { REPLY_URL, type BiliHttp } from "./http.ts";
+import { readVideoInfo } from "./video-info.ts";
 
 interface RawReply {
   readonly rpid?: unknown;
@@ -57,10 +58,19 @@ export function parseTopComments(data: unknown): SiteResult<TopComment[]> {
   return { ok: true, value: comments };
 }
 
-/** 读一次，不翻页；登录门、限速和退避都在请求出口里，被拒或限流就照实交回，不另外再试。 */
+/**
+ * 读一次，不翻页；登录门、限速和退避都在请求出口里，被拒或限流就照实交回，不另外再试。
+ * 手上的视频信息里没有站内编号时先读一次视频信息，付费的在那一步就停下。
+ */
 export async function readTopComments(http: BiliHttp, info: VideoInfo, ctx: SiteCtx): Promise<SiteResult<TopComment[]>> {
-  if (!info.siteRef) return { ok: false, code: "MALFORMED", reach: "item", detail: "no-video-number" };
-  const params = { oid: info.siteRef, type: VIDEO_KIND, mode: HOT_ORDER };
+  let siteRef = info.siteRef;
+  if (!siteRef) {
+    const read = await readVideoInfo(http, info.ref, ctx);
+    if (!read.ok) return read;
+    siteRef = read.value.siteRef;
+  }
+  if (!siteRef) return { ok: false, code: "MALFORMED", reach: "item", detail: "no-video-number" };
+  const params = { oid: siteRef, type: VIDEO_KIND, mode: HOT_ORDER };
   const data = await http.getData({ url: REPLY_URL, params }, ctx);
   return data.ok ? parseTopComments(data.value) : data;
 }

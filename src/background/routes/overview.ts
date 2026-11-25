@@ -84,12 +84,12 @@ export function overviewRoutes({ overview, cardLimits, auto, pageTranscript }: O
           const taskId = cardLimits.redeemToken(req.token);
           if (!taskId) return fail("TASK_NOT_FOUND");
           const prepare = readInPage(req.video, sender.tabId);
-          return generated(overview.generate(taskId, req.video, { fresh: false, ...(prepare ? { prepare } : {}) }));
+          return generated(overview.generate(taskId, req.video, { fresh: false, ...(prepare ? { prepare } : {}), comments: { tabId: sender.tabId } }));
         }
         if (req.taskId === undefined) return fail("FORBIDDEN");
         // 侧边栏在 YouTube 上还没读到字幕时点生成：和卡片一样，先经视频所在的标签页读到字幕。
         const prepare = req.tabId === undefined ? null : readInPage(req.video, req.tabId);
-        return generated(overview.generate(req.taskId, req.video, { fresh: req.fresh === true, ...(prepare ? { prepare } : {}) }));
+        return generated(overview.generate(req.taskId, req.video, { fresh: req.fresh === true, ...(prepare ? { prepare } : {}), comments: { tabId: req.tabId } }));
       },
     },
     "overview.retryFailed": {

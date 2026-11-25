@@ -28,8 +28,8 @@ export interface VerdictRequestDeps {
   readonly ai: TaskAi;
   /** 模板原文，按 outputLang 填好语言那几处再发。 */
   readonly prompt: string;
-  /** 带评论区的模板原文；这次读到了足够的评论时换用它。 */
-  readonly commentPrompt?: string | undefined;
+  /** 取带评论区的模板原文；这次读到了足够的评论、真要发给模型时才取。 */
+  readonly commentPrompt?: (() => string) | undefined;
   /** 结论用的语言，跟着任务取定的配置；不给时按中文。 */
   readonly outputLang?: OutputLang;
   readonly gate: Limiter;
@@ -61,7 +61,7 @@ export async function requestVerdict(deps: VerdictRequestDeps, request: VerdictR
   const lang = deps.outputLang ?? "zh";
   const plan = planComments && request.comments && deps.commentPrompt ? planComments(request.comments) : null;
   const send = plan?.send;
-  const template = send && deps.commentPrompt ? deps.commentPrompt : deps.prompt;
+  const template = send && deps.commentPrompt ? deps.commentPrompt() : deps.prompt;
   const messages = promptMessages(localizePrompt(template, lang), send ? { ...request.variables, ...send.variables } : request.variables);
   const { text, truncated } = await deps.gate(
     deps.concurrency,

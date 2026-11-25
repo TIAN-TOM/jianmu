@@ -24,11 +24,18 @@ import type { OverviewStore } from "../../stores/overviews.ts";
 import type { TaskRun } from "../../tasks.ts";
 import type { TranscriptService } from "../transcript/index.ts";
 import { analyzePlannedChunks, describeChunkFailure, mergeChunks, partsOf, previewReporter, type Chunk, type ChunkDeps, type ChunkPart, type PromptCommon } from "./chunks.ts";
+import { commentStage } from "./comment-stage.ts";
 import { concludeOverview, VERDICT_PROMPT } from "./conclude.ts";
+import { COMMENT_VERDICT_PROMPT } from "./conclude-comments.ts";
+import type { CommentRead } from "../comments.ts";
+import type { CommentMaterial } from "../../../core/ai/comments.ts";
 import { CLEARED, createPersist, type ChapterWrite, type Saved, type SnapshotFields } from "./persist.ts";
 
 export const ANALYSIS_PROMPT = "skim/chapters.md";
 const VERDICT_FEATURE = "verdict";
+// 评论区那一步（PRD F23）：关掉开关的构建里连同读评论、带评论区的提示词一起裁掉。
+const commentSteps = FEATURE_COMMENTS ? commentStage : null;
+const commentPromptFile = FEATURE_COMMENTS ? COMMENT_VERDICT_PROMPT : null;
 
 export interface GenerateDeps {
   readonly transcript: Pick<TranscriptService, "ensure">;
@@ -44,6 +51,8 @@ export interface GenerateDeps {
   readonly broadcast: (message: Broadcast) => void;
   readonly log: Log;
   readonly now: () => number;
+  /** 读评论区（PRD F23）；构建开关关着时没有。 */
+  readonly comments?: CommentRead | undefined;
 }
 
 interface Job {
@@ -51,6 +60,8 @@ interface Job {
   readonly taskId: string;
   readonly video: VideoKey;
   readonly since: ClearEpoch | undefined;
+  /** 这次生成要读评论区：卡片、侧边栏点的，打开就出结论。YouTube 经这个标签页读。 */
+  readonly comments?: { readonly tabId?: number | undefined } | undefined;
 }
 
 
@@ -95,6 +106,7 @@ function commonOf(view: TranscriptView): PromptCommon {
 
 export function createGenerator(deps: GenerateDeps) {
   const persist = createPersist({ overviews: deps.overviews, now: deps.now, log: deps.log });
+  const comments = commentSteps?.(deps.comments);
 
   // 用户点停止或清除本机数据不是故障：不往日志里报错。
   function logFailure(label: string, error: unknown, signal: AbortSignal): void {
@@ -128,6 +140,8 @@ export function createGenerator(deps: GenerateDeps) {
     readonly regenerating: boolean;
     /** 补失败块一块都没补上时不重写结论。 */
     readonly conclude: boolean;
+    /** 这次读的评论，和分块请求同时在读；写结论前等它。 */
+    readonly comments?: Promise<CommentMaterial | undefined> | undefined;
   }
 
   function resultOf(job: Job, saved: Saved, chunkCount: number, extra: Partial<OverviewResultView> = {}): OverviewResultView {
@@ -161,12 +175,24 @@ export function createGenerator(deps: GenerateDeps) {
     if (!work.conclude || (!work.analysis.chapters?.length && !work.analysis.keyQuotes?.length)) return ok(resultOf(job, shown, work.chunkCount));
 
     const verdictStage = run.stage(VERDICT_FEATURE);
-    const outcome = await concludeOverview(
-      { ai: verdictStage.ai, prompt: deps.prompt(VERDICT_PROMPT), outputLang: outputLangOf(verdictStage.gen), gate: deps.gate, concurrency: deps.concurrency, log: deps.log },
+    const material = work.comments ? await work.comments : undefined;
+    const concluded = await concludeOverview(
+      {
+        ai: verdictStage.ai,
+        prompt: deps.prompt(VERDICT_PROMPT),
+        // 读到了足够的评论、真要发给模型时才取带评论区的提示词。
+        ...(commentPromptFile ? { commentPrompt: () => deps.prompt(commentPromptFile) } : {}),
+        outputLang: outputLangOf(verdictStage.gen),
+        gate: deps.gate,
+        concurrency: deps.concurrency,
+        log: deps.log,
+      },
       work.analysis,
       work.failures,
-      { common: work.common, title: work.fields.title, totalDuration: work.totalDuration, signal: run.signal, progress: (message) => run.progress({ done: 1, total: 1, phase: "verdict", message }) },
+      { common: work.common, title: work.fields.title, totalDuration: work.totalDuration, signal: run.signal, progress: (message) => run.progress({ done: 1, total: 1, phase: "verdict", message }), comments: material },
     );
+    const chapterStarts = (work.analysis.chapters ?? []).map((chapter) => Number(chapter.timestampSeconds));
+    const outcome = comments && "verdict" in concluded ? { verdict: comments.carry(concluded.verdict, work.analysis.verdict, chapterStarts) } : concluded;
     const draftKept = work.regenerating && !first.saveFailed;
     if (!("verdict" in outcome)) {
       const flags = { ...("canceled" in outcome ? { verdictCanceled: true as const } : {}), ...(draftKept ? { draftKept: true as const } : {}) };
@@ -219,6 +245,8 @@ export function createGenerator(deps: GenerateDeps) {
         whole = options.whole === true;
         const chunks = planAnalysisChunks(view.transcript.segments, options);
         if (!chunks.length) return fail("NO_TRANSCRIPT");
+        // 评论和分块请求同时读，写结论之前才等它；不读的任务这里是 undefined。
+        const commentsRead = comments?.start({ video: job.video, signal: run.signal, comments: job.comments });
         const common = commonOf(view);
         const totalDuration = totalOf(view, chunks);
         const say = progressText(outputLangOf(run.gen));
@@ -245,7 +273,7 @@ export function createGenerator(deps: GenerateDeps) {
         run.progress({ done: chunks.length, total: chunks.length, phase: "merging", message: say.merging });
         const analysis = mergeChunks(chunks, results, totalDuration);
         if (!analysis.chapters?.length && !analysis.keyQuotes?.length) return fail("EMPTY_ANALYSIS");
-        const finishing = { fields: fieldsOf(job, view), analysis, failures: remaining, basis: basisOf(view), common, totalDuration, chunkCount: chunks.length, regenerating, conclude: true };
+        const finishing = { fields: fieldsOf(job, view), analysis, failures: remaining, basis: basisOf(view), common, totalDuration, chunkCount: chunks.length, regenerating, conclude: true, comments: commentsRead };
         return await finish(job, finishing);
       } catch (error) {
         logFailure("概览生成", error, run.signal);

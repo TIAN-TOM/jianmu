@@ -165,6 +165,15 @@ test("评论区：置顶排前面，只交正文、点赞数和是否置顶，�
   assertNoStray(state);
 });
 
+test("评论区：手上的视频信息没有 av 号时先读一次视频信息，再读评论", async () => {
+  const state = loggedInWorld();
+  const { siteRef: _dropped, ...withoutNumber } = INFO;
+  assert.equal(value(await readComments(state, withoutNumber)).length, 3);
+  assert.equal(pathCount(state, VIEW_URL), 1);
+  assert.equal(pathCount(state, REPLY_URL), 1);
+  assertNoStray(state);
+});
+
 test("评论区是空的：交回空列表，不报错", async () => {
   const state = loggedInWorld();
   const info: VideoInfo = { ...INFO, ref: { ...REF, videoId: FOURTH_VIDEO.bvid }, siteRef: String(FOURTH_VIDEO.aid) };

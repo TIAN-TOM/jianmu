@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { COMMENT_LIMIT, COMMENT_MAX_CHARS, parseTopComments, readTopComments } from "../../../../src/sites/bilibili/comments.ts";
-import { REPLY_URL, type BiliHttp, type GetRequest } from "../../../../src/sites/bilibili/http.ts";
+import { REPLY_URL, VIEW_URL, type BiliHttp, type GetRequest } from "../../../../src/sites/bilibili/http.ts";
 import type { SiteCtx, SiteResult, VideoInfo } from "../../../../src/sites/types.ts";
 import { failure, value } from "../../../helpers/bilibili-fetch.ts";
 
@@ -94,9 +94,9 @@ test("请求出口报失败时照实交回，不另外再试", async () => {
   assert.equal(requests.length, 1);
 });
 
-test("视频信息里没有 av 号时不发请求", async () => {
-  const { http, requests } = fakeHttp({ ok: true, value: {} });
+test("视频信息里没有 av 号时先读视频信息；视频信息读不成（比如付费）就不读评论", async () => {
+  const { http, requests } = fakeHttp({ ok: false, code: "UNPLAYABLE", detail: "paid" });
   const { siteRef: _dropped, ...withoutNumber } = INFO;
-  assert.equal(failure(await readTopComments(http, withoutNumber, CTX)).code, "MALFORMED");
-  assert.equal(requests.length, 0);
+  assert.equal(failure(await readTopComments(http, withoutNumber, CTX)).code, "UNPLAYABLE");
+  assert.deepEqual(requests.map((request) => request.url), [VIEW_URL]);
 });
