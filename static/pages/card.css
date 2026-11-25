@@ -41,12 +41,13 @@ body {
   align-items: center;
 }
 
+/* 头部按钮不窄过自己放不下的那些（记号、判断词最长的一个词、箭头），右边的展开按钮不会被挤出去盖住别的东西。 */
 .card-head {
   display: flex;
-  flex: 1;
+  flex: 1 1 auto;
   align-items: center;
   gap: var(--space-2);
-  min-width: 0;
+  min-width: min-content;
   padding: var(--card-head-pad, 0.5rem 0.375rem 0.5rem 0.875rem);
   border: 0;
   background: transparent;
@@ -58,6 +59,8 @@ body {
 }
 
 .card[data-collapsed="true"] .card-head {
+  box-sizing: border-box;
+  height: 2.875rem;
   padding: 0.5rem 0.375rem 0.5rem var(--card-mini-left, 0.75rem);
 }
 
@@ -80,19 +83,27 @@ body {
   fill: var(--mark);
 }
 
+/* 判断词是这张卡片最要紧的字，不截断：放不下时按词换行，一个词也不拆。 */
 .card-verdict {
   display: inline-flex;
-  flex: none;
+  flex: 0 1 auto;
   align-items: center;
   gap: var(--space-2);
+  min-width: min-content;
   color: var(--verdict);
   font-weight: var(--fw-semibold);
-  white-space: nowrap;
+}
+
+/* 收起的一行高度固定：判断词换成两行时行距收紧，两行和展开按钮一样高。 */
+.card[data-collapsed="true"] .card-verdict {
+  line-height: 0.9375rem;
 }
 
 /* 收起时判断档后面：临时的一句话、播放到的章节或者一句话结论，一行，放不下就截断。 */
+/* 只占判断词和按钮剩下的地方，不跟判断词抢：剩下的不够就整句让出去。 */
 .card-glance {
-  flex: 1;
+  flex: 1 1 0;
+  width: 0;
   min-width: 0;
   overflow: hidden;
   color: var(--text-muted);
@@ -139,8 +150,11 @@ body {
   color: var(--text);
 }
 
+/* 地方不够时这个入口先折成两行，再轮到判断词换行；字始终整个露着。 */
 .card-head-panel {
-  flex: none;
+  flex: 0 1000 auto;
+  min-width: min-content;
+  text-align: center;
   animation: appear var(--dur) var(--ease);
   margin-right: var(--space-2);
   padding: 0 var(--space-1);
@@ -592,6 +606,7 @@ body {
   margin-right: auto;
   overflow: visible;
   clip-path: none;
+  white-space: normal;
   font-size: 1.375rem;
   font-weight: 800;
   line-height: 1.875rem;

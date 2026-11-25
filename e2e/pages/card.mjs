@@ -25,6 +25,8 @@ const test = scenario(import.meta.url);
 const SAMPLE = "pages/card-sample.html";
 // 右栏里卡片的宽度：和播放页右栏差不多，窄一点更容易撑高。
 const FRAME_WIDTH = 320;
+// 卡片实际会有的最窄宽度：播放页右栏收到最窄时。
+const NARROWEST = 300;
 
 test("卡片：全部展开、框架高度到顶、最大字号、内容很长时，正文区滚动，进度行、「停止」和「打开侧边栏」都露在框架里", async ({ open }) => {
   const page = await open(`${SAMPLE}#full`);
@@ -505,6 +507,48 @@ test("卡片：语言选 English 以后，打开的卡片第一帧就是英文�
       toggle: "收起总结卡片",
     });
     await glance.waitFor("收起的一行换回中文", `document.querySelector(".card-verdict-name").textContent === "可以看"`);
+  } finally {
+    await setLanguage(options, "zh");
+  }
+});
+
+test("卡片：英文界面、看不看、最大字号、右栏最窄时，最长的判断词在展开的头部里完整显示、换行不截断，收起按钮整个在卡片里；收起的一行高度不变，按钮和入口都露着、不叠", async ({ open }) => {
+  const options = await open(PAGE_PATHS.options);
+  await setLanguage(options, "en");
+  await options.waitFor("设置页换成英文", `document.documentElement.lang === "en"`);
+  try {
+    // 四档加旧档位里英文最长的是「可以看」那一档。
+    const longest = "Watch the key parts";
+    for (const hash of ["", "#collapsed-verdict"]) {
+      const page = await open(`pages/card-sample.html?verdict=${encodeURIComponent("可以看")}${hash}`);
+      await page.setWidth(NARROWEST, CARD_HEIGHT.max);
+      await page.setAppearance({ accentTheme: "band", themeMode: "light", uiFontScale: Math.max(...UI_FONT_SCALES) });
+      const at = await page.evaluate(`(() => {
+        const box = (selector) => { const node = document.querySelector(selector); if (!node) return null; const r = node.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, height: r.height }; };
+        const name = document.querySelector(".card-verdict-name");
+        return {
+          text: name?.textContent ?? "",
+          clipped: name ? name.scrollWidth > name.clientWidth + 1 : true,
+          ellipsis: name ? getComputedStyle(name).textOverflow === "ellipsis" : true,
+          name: box(".card-verdict-name"),
+          card: box("#card"),
+          chevron: box(".card-collapse"),
+          panel: box("#card-head-panel"),
+          row: box(".card-head-row"),
+          rowRem: 2.875 * parseFloat(getComputedStyle(document.documentElement).fontSize),
+        };
+      })()`);
+      const label = `${hash || "展开"}：${JSON.stringify(at)}`;
+      assert.equal(at.text, longest, label);
+      assert.deepEqual([at.clipped, at.ellipsis], [false, false], `判断词没有被裁、没有省略号 ${label}`);
+      assert.ok(at.chevron.left >= at.card.left && at.chevron.right <= at.card.right, `收起按钮整个在卡片里 ${label}`);
+      assert.ok(at.name.right <= at.chevron.left + 0.5, `判断词不压在按钮上 ${label}`);
+      if (hash) {
+        assert.ok(Math.abs(at.row.height - at.rowRem) < 0.6, `收起的一行高度不变 ${label}`);
+        assert.ok(at.name.top >= at.row.top - 0.5 && at.name.bottom <= at.row.bottom + 0.5, `判断词在这一行里 ${label}`);
+        assert.ok(at.panel && at.chevron.right <= at.panel.left + 0.5 && at.panel.right <= at.card.right, `「侧边栏」入口整个露着、不和按钮叠 ${label}`);
+      }
+    }
   } finally {
     await setLanguage(options, "zh");
   }
