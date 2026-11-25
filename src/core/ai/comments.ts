@@ -56,7 +56,9 @@ const CONTACT_PATTERNS: readonly RegExp[] = [
   /https?:\/\/|www\.|\b[\w-]+\.(?:com|cn|net|org|io|me|tv)\b/i,
   /(?<!\d)1[3-9]\d{9}(?!\d)/,
   /\+\d[\d\s-]{7,}\d/,
-  /(?:qq|vx|wx|微信|v信|电报|telegram|whatsapp|line)\s*[:：号]?\s*[\w-]{5,}/i,
+  // 英文的账号名前后要是词的边界，后面的号码里要有数字，免得把 timeline、pipeline 这类普通词当成账号。
+  /(?<![a-z])(?:qq|vx|wx|wechat|telegram|whatsapp|line\s*id)(?![a-z])\s*[:：号]?\s*(?=[\w-]*\d)[\w-]{5,}/i,
+  /(?:微信|v信|电报)\s*[:：号]?\s*[\w-]{5,}/i,
 ];
 
 /** 正文里带了联系方式或链接。 */
@@ -78,8 +80,10 @@ export function commentMaterial(comments: readonly CommentInput[]): CommentMater
   const kept: CommentQuote[] = [];
   for (const comment of comments) {
     if (kept.length >= COMMENT_SEND_MAX) break;
-    const text = squash(String(comment?.text ?? "")).slice(0, COMMENT_SEND_CHARS);
-    if (!text || hasContact(text)) continue;
+    // 先看整条有没有联系方式再截短：联系方式在截掉的那一截里也要整条跳过。
+    const whole = squash(String(comment?.text ?? ""));
+    if (!whole || hasContact(whole)) continue;
+    const text = whole.slice(0, COMMENT_SEND_CHARS);
     const likes = Number.isSafeInteger(comment.likes) && comment.likes > 0 ? comment.likes : 0;
     kept.push({ text, likes, pinned: comment.pinned === true });
   }

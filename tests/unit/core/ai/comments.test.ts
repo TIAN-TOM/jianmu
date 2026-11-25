@@ -10,7 +10,10 @@ test("带联系方式或链接的评论认得出：邮箱、网址、手机号�
   for (const text of ["联系 sample@example.com", "看 https://example.com/x", "去 www.example.cn 看", "电话 13812345678", "加微信 sample_id01", "qq: 123456789", "+61 400 000 000"]) {
     assert.equal(hasContact(text), true, text);
   }
-  for (const text of ["12:30 那里讲错了", "第 3 章最好", "赞了 100000 次", "1.5 倍速看正好"]) assert.equal(hasContact(text), false, text);
+  assert.equal(hasContact("LINE ID: sample42"), true);
+  for (const text of ["12:30 那里讲错了", "第 3 章最好", "赞了 100000 次", "1.5 倍速看正好", "The timeline clearly explains the sequence", "Great pipeline demo", "qq 音乐里也有这首"]) {
+    assert.equal(hasContact(text), false, text);
+  }
 });
 
 test("发给模型的评论：跳过空的和带联系方式的，截短，编上序号，置顶的标出来，不带昵称", () => {
@@ -19,6 +22,8 @@ test("发给模型的评论：跳过空的和带联系方式的，截短，编�
   assert.equal(material.kept[2]?.text.length, COMMENT_SEND_CHARS);
   assert.equal(material.text.split("\n")[0], "[1] 置顶 赞 12：置顶：前五分钟是背景");
   assert.equal(material.text.split("\n")[1], "[2] 赞 230：后半段的对比很清楚");
+  const longTail = commentMaterial([sample(`${"长".repeat(COMMENT_SEND_CHARS - 10)}联系 sample@example.com`)]);
+  assert.deepEqual(longTail.kept, [], "联系方式在截掉的那一截里也整条跳过");
   const many = commentMaterial(Array.from({ length: COMMENT_SEND_MAX + 5 }, (_, index) => sample(`评论${index}`)));
   assert.equal(many.kept.length, COMMENT_SEND_MAX);
 });
