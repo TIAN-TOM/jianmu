@@ -29,6 +29,35 @@ export function chapterAt(chapters: readonly ChapterStart[], atSec: number | nul
   return found;
 }
 
+const validLength = (seconds: number | null | undefined): seconds is number => typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0;
+
+/**
+ * 每一章有多长：到下一章开始为止，最后一章到 endSec（给了的话）或视频结束；章节要按开始时间排好。
+ * 某一章给了自己的 endSec 就用它（卡片只摆前几章时，最后摆出来的那一章照样到下一章为止）。算不出来的是 null。
+ */
+export function chapterLengths(chapters: readonly (ChapterStart & { readonly endSec?: number | undefined })[], totalSec: number | null | undefined): (number | null)[] {
+  return chapters.map((chapter, index) => {
+    const end = chapter.endSec ?? chapters[index + 1]?.startSec ?? (validLength(totalSec) ? totalSec : undefined);
+    if (end === undefined) return null;
+    const length = end - chapter.startSec;
+    return validLength(length) ? length : null;
+  });
+}
+
+/** 每一章的时长占最长一章的几成（0 到 1），时长条按它画宽；算不出时长的是 0。 */
+export function lengthShares(lengths: readonly (number | null)[]): number[] {
+  const longest = Math.max(0, ...lengths.map((length) => length ?? 0));
+  return lengths.map((length) => (length && longest > 0 ? length / longest : 0));
+}
+
+/** 视频总时长能用：是正的有限数。 */
+export const knownLength = validLength;
+
+/** 「全长 56:00」。 */
+export function totalLengthText(time: string, lang: UiLang = "zh"): string {
+  return sharedTextOf(lang).chapters.total(time);
+}
+
 /** 「章节 6，重点 2」，没有重点时只写「章节 6」。 */
 export function chapterHeading(count: number, keyCount: number, lang: UiLang = "zh"): string {
   return sharedTextOf(lang).chapters.heading(count, keyCount);

@@ -83,7 +83,19 @@ function ChapterTranscript({ panel, segments, breaks }: { readonly panel: Panel;
   );
 }
 
-function Chapters({ panel, analysis, segments, cues }: { readonly panel: Panel; readonly analysis: LearningAnalysis; readonly segments: readonly TranscriptSegment[]; readonly cues: readonly CueView[] }) {
+function Chapters({
+  panel,
+  analysis,
+  segments,
+  cues,
+  totalSec,
+}: {
+  readonly panel: Panel;
+  readonly analysis: LearningAnalysis;
+  readonly segments: readonly TranscriptSegment[];
+  readonly cues: readonly CueView[];
+  readonly totalSec: number | undefined;
+}) {
   const breaks = useMemo(() => lineBreaks(segments, cues), [segments, cues]);
   const [expanded, setExpanded] = useState<readonly number[]>([]);
   const chapters = (analysis.chapters ?? []).filter((chapter): chapter is ChapterPart => Number.isFinite(chapter.timestampSeconds));
@@ -95,6 +107,7 @@ function Chapters({ panel, analysis, segments, cues }: { readonly panel: Panel; 
       {chapters.length > 0 ? (
         <ChapterList
           keyStarts={keyChapterStarts(analysis)}
+          totalSec={totalSec}
           chapters={chapters.map((chapter) => ({ startSec: chapter.timestampSeconds, title: text(chapter.title) || formatTimestamp(chapter.timestampSeconds) }))}
           expanded={expanded}
           onToggle={(index) => setExpanded(expanded.includes(index) ? expanded.filter((item) => item !== index) : [...expanded, index])}
@@ -257,10 +270,10 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
       {hasOverview ? null : guides}
       <section class="ai-overview" aria-label={t.overviewLabel}>
         {stale.chapters && hasOverview && !running ? <StaleTranscriptLine /> : null}
-        {analysis && hasOverview ? <Chapters panel={panel} analysis={analysis} segments={view?.transcript.segments ?? NO_SEGMENTS} cues={view?.transcript.cues ?? NO_CUES} /> : null}
+        {analysis && hasOverview ? <Chapters panel={panel} analysis={analysis} segments={view?.transcript.segments ?? NO_SEGMENTS} cues={view?.transcript.cues ?? NO_CUES} totalSec={info?.durationSec} /> : null}
         {/* 这个视频正在生成时，这排只留「本窗口全部生成」：别的视频照样能一起清点。 */}
         {state.loaded && (!running || (!setup && panel.batch.state.value.phase === "idle")) ? (
-          <div class="state-actions">
+          <div class="state-actions overview-actions">
             {running ? null : hasChapters ? (
               <>
                 {failures > 0 ? (

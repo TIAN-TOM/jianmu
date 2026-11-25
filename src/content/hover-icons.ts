@@ -20,7 +20,7 @@ interface Swatch {
 export const ACCENT_SWATCHES: Readonly<Record<string, Swatch>> = {
   timecode: { fill: "#d3382c", ink: "#ffffff" },
   marker: { fill: "#0969da", ink: "#ffffff" },
-  band: { fill: "#4c4f69", ink: "#ffffff" },
+  band: { fill: "#4c4f69", ink: "#eff1f5" },
   pinkblue: { fill: "#ad1c5b", ink: "#ffffff" },
   redblack: { fill: "#ff0033", ink: "#0f0f0f" },
 };

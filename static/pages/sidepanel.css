@@ -1,4 +1,10 @@
-/* 侧边栏自己的版面：头部和模式切换、速读、精读、底部工具条、字幕列表、笔记和问答。共用组件的样式在 ui/ 下，这里只用 theme.css 的变量。 */
+/* 侧边栏自己的版面：头部和模式切换、速读、精读、底部工具条、字幕列表、笔记和问答。共用组件的样式在 ui/ 下，这里只用 theme.css 的变量。
+ * 各套主题在版面上的差异写在 ui/themes/ 下各自的文件里，这里是共同的部分。 */
+
+/* 侧边栏的底是卡片色（--panel-bg），吸顶和吸底的几层跟它一样。 */
+body {
+  background: var(--panel-bg);
+}
 
 .panel {
   /* 吸顶的几层各自的高度，由页面量好写进来：模式切换和提示一层，精读的章节条一层。 */
@@ -102,7 +108,7 @@
   top: 0;
   z-index: 2;
   margin: var(--space-2) calc(-1 * var(--panel-pad)) 0;
-  background: var(--bg);
+  background: var(--panel-bg);
 }
 
 .mode-row {
@@ -114,6 +120,11 @@
   min-height: var(--mode-row-h);
   padding: 0 var(--panel-pad);
   border-bottom: 1px solid var(--border);
+}
+
+/* 问答抽屉和侧边栏同一个底。 */
+.panel .sheet {
+  background: var(--panel-bg);
 }
 
 .layer-toast {
@@ -151,20 +162,29 @@
   border-top: 1px solid var(--border);
 }
 
-/* ---------- 精读的当前章节 ---------- */
+/* ---------- 精读的当前章节 ----------
+ * 同一份标记里带着各套主题要用的部分：判断档（.chapter-bar-verdict）、「第几章，共几章，几点开始」那一行（.chapter-bar-place）、
+ * 按章节时长分段的进度条（.chapter-strip）、播放进度条（.chapter-progress），这里默认都不显示，由主题的版面规则挑。 */
 
 .chapter-bar {
   position: sticky;
   top: var(--panel-top-h);
   z-index: 1;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: var(--space-2);
   margin: 0 calc(-1 * var(--panel-pad));
   padding: var(--space-2) var(--panel-pad);
   border-bottom: 1px solid var(--border);
-  background: var(--bg);
+  background: var(--panel-bg);
   font-size: var(--fs-meta);
+}
+
+.chapter-bar-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 .chapter-bar-count {
@@ -172,14 +192,42 @@
   color: var(--text-muted);
 }
 
-.chapter-bar-title {
+.chapter-bar-main {
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.chapter-bar-title {
   min-width: 0;
   overflow: hidden;
   color: var(--text);
   font-weight: var(--fw-medium);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.chapter-bar-verdict,
+.chapter-bar-place,
+.chapter-strip,
+.chapter-progress {
+  display: none;
+}
+
+.chapter-bar-place {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+  text-align: start;
+  cursor: pointer;
+}
+
+.chapter-bar-place:hover {
+  color: var(--text);
 }
 
 /* ---------- 速读里一章的字幕 ---------- */
@@ -207,6 +255,7 @@
   bottom: 0;
   z-index: 2;
   margin: 0 calc(-1 * var(--panel-pad));
+  background: var(--panel-bg);
 }
 
 .ask-entry {
@@ -258,7 +307,7 @@
   margin: 0 calc(-1 * var(--panel-pad));
   padding: var(--space-2) var(--panel-pad);
   border-bottom: 1px solid var(--border);
-  background: var(--bg);
+  background: var(--panel-bg);
 }
 
 .search-row {

@@ -1,0 +1,259 @@
+/* 荧光笔（marker）的版面：像在讲义上批改。时间戳放在左侧的页边栏里，右对齐、钢笔蓝，一道细线和正文分开；
+ * 判断是钢笔蓝的批改记号；重点章节、选中的模式、存过笔记的那句用荧光笔划下半截；操作按钮是带下划线的钢笔蓝文字。 */
+
+:root[data-accent-theme="marker"] {
+  --hit: 2rem;
+  /* 页边栏：时间戳那一列的宽度和它与正文的间隔，章节数那一行和操作按钮跟正文左边对齐 */
+  --margin-col: 2.5rem;
+  --margin-gap: 0.75rem;
+  /* 荧光笔只划下半截，换行的每一段都划 */
+  --highlight-stroke: linear-gradient(transparent 38%, var(--highlight) 38%, var(--highlight) 94%, transparent 94%);
+}
+
+/* ---------- 头部和模式切换 ---------- */
+
+:root[data-accent-theme="marker"] .panel-head {
+  margin: 0 calc(-1 * var(--panel-pad));
+  padding: 0.875rem var(--panel-pad) 0.625rem;
+  border-bottom: 1px solid var(--border);
+}
+
+:root[data-accent-theme="marker"] .video-title,
+:root[data-accent-theme="marker"] .overlay-title {
+  font-size: var(--fs-body);
+  line-height: 1.375rem;
+}
+
+:root[data-accent-theme="marker"] .panel-top {
+  margin-top: 0;
+}
+
+:root[data-accent-theme="marker"] .mode-row {
+  border-bottom: 0;
+}
+
+:root[data-accent-theme="marker"] .modes {
+  gap: 1.125rem;
+}
+
+:root[data-accent-theme="marker"] .mode {
+  padding: 2px 3px;
+  font-size: var(--fs-ui);
+  line-height: 1.25rem;
+}
+
+:root[data-accent-theme="marker"] .mode::after {
+  display: none;
+}
+
+:root[data-accent-theme="marker"] .mode[aria-checked="true"] {
+  color: var(--on-highlight);
+  background-image: linear-gradient(transparent 45%, var(--highlight) 45%, var(--highlight) 92%, transparent 92%);
+}
+
+/* ---------- 判断：批改记号 ---------- */
+
+:root[data-accent-theme="marker"] .mark-set[data-set="grade"] {
+  display: block;
+  height: 1.125rem;
+}
+
+:root[data-accent-theme="marker"] .verdict-label {
+  gap: 0.375rem;
+}
+
+:root[data-accent-theme="marker"] .verdict-text {
+  font-size: 1.0625rem;
+  font-weight: var(--fw-medium);
+  line-height: 1.75;
+}
+
+:root[data-accent-theme="marker"] .card .verdict-text {
+  font-size: var(--fs-body);
+  line-height: 1.625rem;
+}
+
+/* ---------- 章节：页边栏里的时间戳，重点用荧光笔划 ---------- */
+
+:root[data-accent-theme="marker"] .chapters-head,
+:root[data-accent-theme="marker"] .overview-actions,
+:root[data-accent-theme="marker"] .chapter-detail {
+  padding-left: calc(var(--margin-col) + var(--margin-gap));
+}
+
+:root[data-accent-theme="marker"] .section-title {
+  margin-bottom: 0.375rem;
+  font-size: 0.78125rem;
+  font-weight: var(--fw-regular);
+}
+
+:root[data-accent-theme="marker"] .chapter-list {
+  gap: var(--space-2);
+}
+
+:root[data-accent-theme="marker"] .chapter-row {
+  gap: var(--margin-gap);
+}
+
+:root[data-accent-theme="marker"] .chapter-time,
+:root[data-accent-theme="marker"] .cue-time {
+  box-sizing: border-box;
+  /* 定宽：当前句的时间戳加粗时这一栏不跟着变宽，正文不挪。 */
+  flex: none;
+  width: max(var(--margin-col), calc(var(--time-ch, 5) * 0.58em + var(--space-2)));
+  min-width: 0;
+  padding: 0 var(--space-2) 0 0;
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+  color: var(--accent-text);
+  font-size: 0.78125rem;
+  text-align: right;
+}
+
+:root[data-accent-theme="marker"] .chapter-toggle,
+:root[data-accent-theme="marker"] .chapter-title {
+  font-size: var(--fs-ui);
+  line-height: 1.375rem;
+}
+
+:root[data-accent-theme="marker"] .chapter[data-key] .chapter-name {
+  padding: 0 2px;
+  color: var(--on-highlight);
+  font-weight: var(--fw-medium);
+  background-image: var(--highlight-stroke);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/* 存过笔记的那句：字幕一段里可能按原始字幕分成几行（块），用画在字后面的粗下划线当笔迹，每一行都划到。 */
+:root[data-accent-theme="marker"] .cue[data-saved] .cue-text {
+  color: var(--on-highlight);
+  text-decoration-line: underline;
+  text-decoration-color: var(--highlight);
+  text-decoration-thickness: 0.62em;
+  text-decoration-skip-ink: none;
+  text-underline-offset: -0.42em;
+}
+
+/* 划过的章节名悬停时不再加下划线，免得和笔迹叠在一起。 */
+:root[data-accent-theme="marker"] .chapter[data-key] .chapter-name {
+  text-decoration-line: none;
+}
+
+/* ---------- 按钮：带下划线的钢笔蓝文字 ---------- */
+
+:root[data-accent-theme="marker"] .overview-actions {
+  gap: 0.25rem 1rem;
+}
+
+:root[data-accent-theme="marker"] .overview-actions .button {
+  min-height: auto;
+  padding: 0.25rem 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--accent-text);
+  font-size: 0.84375rem;
+  font-weight: var(--fw-regular);
+  text-decoration-line: underline;
+  text-decoration-color: currentColor;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+
+:root[data-accent-theme="marker"] .overview-actions .button:hover:not(:disabled) {
+  background: transparent;
+  color: var(--text);
+}
+
+:root[data-accent-theme="marker"] .toolbar-actions .menu-anchor > .button {
+  min-height: auto;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font-size: 0.78125rem;
+  text-decoration-line: none;
+}
+
+:root[data-accent-theme="marker"] .icon-button:hover:not(:disabled),
+:root[data-accent-theme="marker"] .icon-button[aria-pressed="true"] {
+  background: var(--bg-subtle);
+}
+
+/* ---------- 输入框 ---------- */
+
+:root[data-accent-theme="marker"] .search-input,
+:root[data-accent-theme="marker"] .note-input {
+  background: var(--bg-subtle);
+}
+
+:root[data-accent-theme="marker"] .ask-entry .search-input {
+  border-radius: var(--radius-md);
+}
+
+/* ---------- 精读：「第几章，共几章，几点开始」加粗体章节名 ---------- */
+
+:root[data-accent-theme="marker"] .chapter-bar {
+  font-size: 0.84375rem;
+}
+
+:root[data-accent-theme="marker"] .chapter-bar-count,
+:root[data-accent-theme="marker"] .chapter-bar-time {
+  display: none;
+}
+
+:root[data-accent-theme="marker"] .chapter-bar-place {
+  display: block;
+}
+
+:root[data-accent-theme="marker"] .chapter-bar-title {
+  font-weight: var(--fw-semibold);
+}
+
+/* ---------- 字幕：页边栏里的时间戳，当前句换粗线 ---------- */
+
+:root[data-accent-theme="marker"] .cues {
+  gap: 0.625rem;
+}
+
+:root[data-accent-theme="marker"] .cue {
+  grid-template-columns: auto 1fr;
+  column-gap: var(--margin-gap);
+  padding: 0;
+  border-radius: 0;
+}
+
+/* 页边线拉满整段的高度，时间戳停在第一行。 */
+:root[data-accent-theme="marker"] .cue-time {
+  display: flex;
+  align-self: stretch;
+  align-items: flex-start;
+  justify-content: flex-end;
+}
+
+:root[data-accent-theme="marker"] .cue[data-active="true"] {
+  background: transparent;
+}
+
+:root[data-accent-theme="marker"] .cue[data-active="true"] .cue-time {
+  padding-right: calc(var(--space-2) - 1px);
+  border-right: 2px solid var(--accent-text);
+  font-weight: var(--fw-semibold);
+}
+
+:root[data-accent-theme="marker"] .cue[data-active="true"] .cue-text {
+  font-weight: var(--fw-medium);
+}
+
+/* ---------- 问答：不加框 ---------- */
+
+:root[data-accent-theme="marker"] .qa-entry {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+:root[data-accent-theme="marker"] .qa-answer .stamp {
+  text-decoration-line: underline;
+  text-underline-offset: 3px;
+}

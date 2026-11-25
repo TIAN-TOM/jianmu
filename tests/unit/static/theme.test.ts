@@ -78,7 +78,7 @@ test("每套主题都是完整的：浅色、深色两组原始色值一个不�
   assert.deepEqual(blocks.sort(), THEMES.filter((theme) => theme !== DEFAULTS.accentTheme).sort());
 });
 
-// 页面上会出现的文字色，和它们会落在的四种底色。
+// 页面上会出现的文字色，和它们会落在的几种底色（--panel-bg 是侧边栏的底）。
 // 当前句和按下去的底色（--bg-active）上只有正文和时间戳，状态色不会落在上面，单独查。
 const TEXTS = [
   "--text",
@@ -95,16 +95,16 @@ const TEXTS = [
   "--verdict-skip",
   "--verdict-unknown",
 ];
-const SURFACES = ["--bg", "--card", "--bg-subtle", "--bg-hover"];
+const SURFACES = ["--bg", "--card", "--panel-bg", "--bg-subtle", "--bg-hover"];
 
 test("每套主题、每种明暗下，文字色和主按钮上的字都过 WCAG AA", () => {
-  eachLook((_theme, _mode, color, label) => {
+  eachLook((theme, _mode, color, label) => {
     for (const surface of SURFACES) {
       for (const text of TEXTS) assertContrast(`${label}：${text} 在 ${surface} 上`, color(text), color(surface), 4.5);
     }
-    for (const text of ["--text", "--text-strong", "--accent-text", "--accent-text-strong"]) {
-      assertContrast(`${label}：${text} 在 --bg-active 上`, color(text), color("--bg-active"), 4.5);
-    }
+    // 看不看的当前句铺分隔线那一档灰，上面的时间戳换成正文色（次要文字色在这层灰上不够），所以这一套不查 --accent-text。
+    const onActive = theme === "band" ? ["--text", "--text-strong", "--accent-text-strong"] : ["--text", "--text-strong", "--accent-text", "--accent-text-strong"];
+    for (const text of onActive) assertContrast(`${label}：${text} 在 --bg-active 上`, color(text), color("--bg-active"), 4.5);
     // 输入框里的字和占位字（次要文字色）落在输入框自己的底色上。
     for (const text of ["--text", "--text-muted"]) assertContrast(`${label}：${text} 在 --input 上`, color(text), color("--input"), 4.5);
     for (const fill of ["--accent", "--accent-strong"]) assertContrast(`${label}：--on-accent 在 ${fill} 上`, color("--on-accent"), color(fill), 4.5);
@@ -132,6 +132,70 @@ test("叠在底色上的选中文字、提示行、警告徽标，播放头、�
     // 输入框、下拉框的边框：和框里的底色、框所在的卡片都差 3:1。
     for (const base of ["--input", "--card"]) assertContrast(`${label}：--border-strong 在 ${base} 上`, color("--border-strong"), color(base), 3);
   });
+});
+
+// 各套主题版面上自己的颜色：页面上真会出现的前景和底色的配对，文字要 4.5:1，图形和控件要 3:1。
+// 时间码的刻度空格（--meter-off）贴着卡片色只有 1.4 到 1.9:1、细边框按钮的边框（--border）只有 1.4:1，画板就是这么取的，
+// 判断词和按钮上的字已经说清了意思，这两对不在这里查。
+const OWN_PAIRS: Readonly<Record<string, readonly (readonly [string, string, number])[]>> = {
+  timecode: [
+    ["--on-mark", "--mark", 4.5], // 当前句红底胶囊上的时间码
+    ["--text", "--bg", 4.5], // 当前句铺的页面底色
+    ["--length-bar", "--panel-bg", 3], // 时长条
+    ["--text", "--meter-off", 3], // 刻度和进度条里填上的格子挨着空格
+    ["--mark", "--meter-off", 3], // 进度条上的播放头
+  ],
+  marker: [
+    ["--on-highlight", "--highlight", 4.5], // 荧光笔划过的字
+    ["--on-highlight", "--panel-bg", 4.5], // 只划下半截，字的上半截落在底色上
+  ],
+  band: [
+    ...["go", "fair", "skip", "unknown"].flatMap((band) => [
+      [`--band-${band}-ink`, `--band-${band}`, 4.5] as const, // 判断词和记号
+      [`--band-${band}-say`, `--band-${band}`, 4.5] as const, // 色带上的结论句
+    ]),
+    ["--band-unknown-ink", "--band-unknown-alt", 4.5], // 斜纹的另一种颜色
+    ["--band-unknown-say", "--band-unknown-alt", 4.5],
+  ],
+  pinkblue: [
+    ["--verdict", "--key-tint", 4.5], // 判断胶囊里的字和记号
+    ["--mark-key", "--key-tint", 4.5], // 重点章节的时间
+    ["--text", "--key-tint", 4.5], // 重点章节名
+    ["--accent-text", "--now-tint", 4.5], // 当前句的时间
+    ["--text", "--now-tint", 4.5], // 当前句
+    ["--mark", "--now-tint", 3], // 当前句左边的竖线
+    ["--mark", "--panel-bg", 3], // 模式切换的短横线
+  ],
+  redblack: [
+    ["--text", "--key-tint", 4.5], // 「重点」小标签
+    ["--panel-bg", "--text", 4.5], // 当前句反显的时间码、选中的模式
+    ["--mark", "--panel-bg", 3], // 判断前的红色记号、播放进度
+    ["--mark", "--bg-subtle", 3], // 播放进度挨着它的轨道
+  ],
+};
+
+test("各套主题版面上自己的颜色：真会出现的配对都够对比度", () => {
+  assert.deepEqual(Object.keys(OWN_PAIRS).sort(), [...THEMES].sort());
+  eachLook((theme, _mode, color, label) => {
+    for (const [front, back, minimum] of OWN_PAIRS[theme] ?? []) assertContrast(`${label}：${front} 在 ${back} 上`, color(front), color(back), minimum);
+  });
+});
+
+test("看不看的色带取自画板：深色是原色 18% 叠在底色上，判断词用原色、结论句用正文色", () => {
+  const values = rawValues("band");
+  // 推荐看、可以看按这条规则算；可跳过、信息不足本来就是灰，深色照画板写的那两种灰。
+  const own = ["go", "fair"] as const;
+  const mix = (hex: string): string => {
+    const [r, g, b] = evaluateColor({}, hex);
+    const [br, bg, bb] = evaluateColor({}, values["--d-surface"] ?? "");
+    return `#${[[r, br], [g, bg], [b, bb]].map(([top = 0, base = 0]) => Math.round(top * 0.18 + base * 0.82).toString(16).padStart(2, "0")).join("")}`;
+  };
+  for (const band of own) {
+    assert.equal(values[`--d-band-${band}`], mix(values[`--l-band-${band}`] ?? ""), band);
+    assert.equal(values[`--d-band-${band}-ink`], values[`--l-band-${band}`], `${band}：深色的判断词用原色`);
+  }
+  const dark = palette("band", "dark");
+  for (const band of ["go", "fair", "skip", "unknown"]) assert.deepEqual(dark(`--band-${band}-say`), dark("--text"), `${band}：深色的结论句用正文色`);
 });
 
 test("设置页的主题预览和播放页按钮用的颜色，和 theme.css 一致", () => {

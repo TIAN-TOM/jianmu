@@ -14,6 +14,7 @@ export const SHARED_HANT: SharedText = {
     label: "章節",
     key: "重點",
     heading: (count, keyCount) => (keyCount > 0 ? `章節 ${count}，重點 ${keyCount}` : `章節 ${count}`),
+    total: (time) => `全長 ${time}`,
   },
 
   verdict: {

@@ -146,6 +146,7 @@ export const PANEL_ZH = {
   study: {
     currentChapter: "当前章节",
     jumpToChapter: (time: string) => `跳到这一章开头 ${time}`,
+    place: (index: number, count: number, time: string) => `第 ${index} 章，共 ${count} 章，${time} 开始`,
   },
 
   notes: {

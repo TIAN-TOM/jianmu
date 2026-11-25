@@ -103,6 +103,11 @@ test("读设置的途中设置变了：以变化为准，不让读回来的旧�
   const broken = await watchAppearance({ local: { get: () => Promise.reject(new Error("读不到")) } }, failing);
   assert.equal(broken.current(), null);
   assert.equal(failing.dataset.accentTheme, "redblack", "首帧脚本写下的样子不动");
+
+  // 首帧脚本也没写主题（比如没加载它）：写上默认主题，各套主题的版面规则都按这个属性写
+  const bare = fakePage().root;
+  await watchAppearance({ local: { get: () => Promise.reject(new Error("读不到")) } }, bare);
+  assert.equal(bare.dataset.accentTheme, "marker");
 });
 
 test("收到清除全部数据：按清除后的设置（默认值）重写外观和首帧缓存；只清缓存时不动", async () => {

@@ -32,11 +32,37 @@
   outline-offset: 2px;
 }
 
-.icon,
-.verdict-mark {
+.icon {
   display: inline-block;
   flex: none;
   vertical-align: -0.125em;
+}
+
+/* 只给读屏的字：看不见，读屏照读。 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* 判断标记：三套画法都在里面，主题的版面规则（ui/themes/）只把这一套用的那种显示出来、定大小。 */
+.verdict-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
+.mark-set {
+  display: none;
+  width: auto;
+  height: 1em;
+}
+
+.mark-off {
+  fill: var(--meter-off);
 }
 
 .ske-line {

@@ -130,6 +130,7 @@ export const PANEL_HANT: PanelText = {
   study: {
     currentChapter: "目前章節",
     jumpToChapter: (time) => `跳到這一章開頭 ${time}`,
+    place: (index, count, time) => `第 ${index} 章，共 ${count} 章，${time} 開始`,
   },
 
   notes: {

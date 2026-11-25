@@ -37,7 +37,7 @@ export const ACCENT_THEMES = Object.freeze({
   },
   band: {
     swatch: "#4c4f69",
-    onSwatch: "#ffffff",
+    onSwatch: "#eff1f5",
     preview: {
       light: { bg: "#e6e9ef", card: "#eff1f5", text: "#4c4f69", accent: "#4c4f69" },
       dark: { bg: "#181825", card: "#1e1e2e", text: "#cdd6f4", accent: "#cdd6f4" },

@@ -144,7 +144,12 @@ function Overview({
   // 卡片上等过它（先是「正在写结论」）：写好了进来时淡一下，标记有「有结果了」那一下。
   const waited = useRef(false);
   if (pending) waited.current = true;
-  const chapters: ChapterItem[] = (analysis.chapters ?? []).map((chapter) => ({ startSec: chapter.timestampSeconds, title: text(chapter.title) }));
+  // 只摆前几章时，最后摆出来的那一章也到下一章为止：时长条按整份章节算。
+  const all = analysis.chapters ?? [];
+  const chapters: ChapterItem[] = all.map((chapter, index) => {
+    const next = all[index + 1]?.timestampSeconds;
+    return { startSec: chapter.timestampSeconds, title: text(chapter.title), ...(next === undefined ? {} : { endSec: next }) };
+  });
   const shown = cardRows(chapters, showAll);
   const cut = cardRows(chapters, false).length < chapters.length;
   const t = cardText();

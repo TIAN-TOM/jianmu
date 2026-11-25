@@ -350,6 +350,14 @@ test("侧边栏：字幕选区能直接存笔记，保留选中文字和所在�
       const saved = await panel.waitFor("选中文字已存入笔记", `${notes}.then((rows) => rows.find((row) => row.text === ${JSON.stringify(selection)}))`);
       assert.equal(saved.atSec, 37);
       assert.equal(saved.quote, undefined);
+      // 存过笔记的那句带上标记；荧光笔主题把它用荧光笔划出来，别的主题不划。
+      await waitIn(panel, "存过笔记的那句标出来", `[...document.querySelectorAll(".cue[data-saved='true'] .cue-text")].some((node) => node.textContent === ${JSON.stringify(sample)})`);
+      const stroke = `getComputedStyle(document.querySelector(".cue[data-saved='true'] .cue-text")).textDecorationLine`;
+      await panel.setAppearance({ accentTheme: "marker", themeMode: "light", uiFontScale: 100 });
+      assert.equal(await panel.evaluate(stroke), "underline", "荧光笔主题划出来");
+      await panel.setAppearance({ accentTheme: "timecode", themeMode: "light", uiFontScale: 100 });
+      assert.equal(await panel.evaluate(stroke), "none", "别的主题不划");
+      await panel.setAppearance({ accentTheme: "marker", themeMode: "light", uiFontScale: 100 });
       assert.ok(await stillFalse(() => ctx.requests.slice(since).some((item) => "kind" in item), 20), "存笔记不请求模型");
     } finally {
       const added = (await panel.evaluate(notes)).filter((row) => !before.some((old) => old.id === row.id));
@@ -1032,6 +1040,67 @@ test("侧边栏：不到 5 分钟的短视频打开就进精读，跟着播放�
       await waitIn(panel, "没设置时不摆整理字幕", `!document.querySelector(".study .tidy-row")`);
     },
     BRIEF_SAMPLE.id,
+  );
+});
+
+// 精读的当前句在每套主题里怎么标：读的是计算出来的颜色，和主题变量比。
+const activeCueLook = `(() => {
+  const cue = document.querySelector(".cue[data-active='true']");
+  if (!cue) return null;
+  const color = (name) => { const probe = document.createElement("i"); probe.style.color = "var(" + name + ")"; document.body.append(probe); const value = getComputedStyle(probe).color; probe.remove(); return value; };
+  const row = getComputedStyle(cue);
+  const time = getComputedStyle(cue.querySelector(".cue-time"));
+  return {
+    rowBg: row.backgroundColor,
+    rowShadow: row.boxShadow,
+    timeBg: time.backgroundColor,
+    timeColor: time.color,
+    timeLine: time.borderRightWidth + " " + time.borderRightColor,
+    vars: Object.fromEntries(["--bg", "--mark", "--on-mark", "--accent-text", "--bg-active", "--text", "--now-tint", "--bg-subtle", "--panel-bg"].map((name) => [name, color(name)])),
+  };
+})()`;
+
+test("侧边栏：五套主题各自标出精读的当前句：时间码铺页面底色、时间码是红底胶囊；荧光笔时间戳右边换粗线；看不看铺分隔线那档灰、时间用正文色；粉蓝铺浅蓝底、左边一道竖线；红黑铺浅灰、时间码反显", async (ctx) => {
+  await withVideo(
+    ctx,
+    async (panel) => {
+      await waitIn(panel, "进了精读", `JSON.stringify(${modes}) === ${JSON.stringify(JSON.stringify(STUDY))}`);
+      await waitIn(panel, "播放到的那句标出来", `Boolean(document.querySelector(".cue[data-active='true']"))`);
+      // 当前句的底色有过渡：先关掉，读到的是落定的颜色。
+      await panel.evaluate(`(() => { const style = document.createElement("style"); style.id = "no-motion"; style.textContent = "*, *::before, *::after { transition: none !important; animation: none !important; }"; document.head.append(style); return true; })()`);
+      try {
+        for (const accentTheme of ["timecode", "marker", "band", "pinkblue", "redblack"]) {
+          for (const themeMode of ["light", "dark"]) {
+            await panel.setAppearance({ accentTheme, themeMode, uiFontScale: 100 });
+            const look = await panel.evaluate(activeCueLook);
+            const label = `${accentTheme} ${themeMode}：${JSON.stringify(look)}`;
+            assert.ok(look, label);
+            const { vars } = look;
+            if (accentTheme === "timecode") {
+              assert.equal(look.rowBg, vars["--bg"], `当前句铺页面底色：${label}`);
+              assert.deepEqual([look.timeBg, look.timeColor], [vars["--mark"], vars["--on-mark"]], `时间码是红底胶囊：${label}`);
+            } else if (accentTheme === "marker") {
+              assert.equal(look.rowBg, "rgba(0, 0, 0, 0)", `不铺底：${label}`);
+              assert.equal(look.timeLine, `2px ${vars["--accent-text"]}`, `时间戳右边换成钢笔蓝的粗线：${label}`);
+            } else if (accentTheme === "band") {
+              assert.equal(look.rowBg, vars["--bg-active"], `整行铺分隔线那档灰：${label}`);
+              assert.equal(look.timeColor, vars["--text"], `时间用正文色：${label}`);
+            } else if (accentTheme === "pinkblue") {
+              assert.equal(look.rowBg, vars["--now-tint"], `铺浅蓝底：${label}`);
+              assert.ok(look.rowShadow.includes("inset") && look.rowShadow.includes(vars["--mark"] ?? "?"), `左边一道蓝竖线：${label}`);
+            } else {
+              assert.equal(look.rowBg, vars["--bg-subtle"], `铺浅灰：${label}`);
+              assert.deepEqual([look.timeBg, look.timeColor], [vars["--text"], vars["--panel-bg"]], `时间码反显：${label}`);
+            }
+          }
+        }
+      } finally {
+        await panel.evaluate(`(document.getElementById("no-motion")?.remove(), true)`);
+        await panel.setAppearance({ accentTheme: "marker", themeMode: "light", uiFontScale: 100 });
+      }
+    },
+    BRIEF_SAMPLE.id,
+    playingWatchPage(BRIEF_SAMPLE.id),
   );
 });
 
