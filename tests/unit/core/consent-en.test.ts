@@ -20,6 +20,7 @@ import {
   type NoticeTable,
 } from "../../../src/core/consent.ts";
 import { ACTIVATION_HANT, DATA_CONSENT_ERROR_HANT, DATA_CONSENT_HANT } from "../../../src/core/consent-hant.ts";
+import { COMMENT_ACTIVATION_HANT, COMMENT_DATA_HANT } from "../../../src/core/consent-comments-hant.ts";
 import { FRAME_ACTIVATION_HANT, FRAME_DATA_HANT } from "../../../src/core/consent-frame-hant.ts";
 import { validate, validateForSave, DATA_CONSENT_CONFIRMED } from "../../../src/shared/settings-schema.ts";
 import { charsIn, SIMPLIFIED_ONLY } from "../../helpers/hant-chars.ts";
@@ -128,9 +129,9 @@ test("繁体：两张表的每个条目（各种 kind）都取到繁体那份，
 
 test("繁体：措辞表里的键正好是各条目的 kind:id，不多不少，两份说明的键不重", () => {
   const keysOf = (table: NoticeTable<string>) => itemsOf(table).map((item) => `${item.kind}:${item.id}`).sort();
-  // 测试构建打开了解释当前画面，画面那几条的繁体也要在。
-  assert.deepEqual(Object.keys({ ...DATA_CONSENT_HANT, ...FRAME_DATA_HANT }).sort(), keysOf(DATA_CONSENT_TABLE));
-  assert.deepEqual(Object.keys({ ...ACTIVATION_HANT, ...FRAME_ACTIVATION_HANT }).sort(), keysOf(ACTIVATION_TABLE));
+  // 测试构建打开了解释当前画面和评论区，那几条的繁体也要在。
+  assert.deepEqual(Object.keys({ ...DATA_CONSENT_HANT, ...FRAME_DATA_HANT, ...COMMENT_DATA_HANT }).sort(), keysOf(DATA_CONSENT_TABLE));
+  assert.deepEqual(Object.keys({ ...ACTIVATION_HANT, ...FRAME_ACTIVATION_HANT, ...COMMENT_ACTIVATION_HANT }).sort(), keysOf(ACTIVATION_TABLE));
   const data = new Set(keysOf(DATA_CONSENT_TABLE));
   assert.deepEqual(keysOf(ACTIVATION_TABLE).filter((key) => data.has(key)), []);
 });

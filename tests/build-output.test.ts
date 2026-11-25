@@ -368,6 +368,24 @@ test("构建开关：关着的开关保护的内容整段裁掉，打开哪个�
   }
 });
 
+test("评论区那几条说明只进日用包：日用构建的后台、设置页和侧边栏里有，发行构建和 build/ 里没有", async () => {
+  const files = ["build/background.js", "build/pages/options.js", "build/pages/sidepanel.js"];
+  const pick = async (features: FeatureSet) => {
+    const options = bundleOptions(features).filter((option) => files.includes(String(option.outfile)));
+    const built = await Promise.all(options.map(async (option) => [String(option.outfile), (await build({ ...option, write: false })).outputFiles.map((output) => output.text).join("\n")] as const));
+    return new Map(built);
+  };
+  const markers = ["第一批热评", "first batch of top comments", "第一批熱門留言", "src/core/consent-comments"];
+  const [release, daily] = await Promise.all([pick(RELEASE_FEATURES), pick(DAILY_FEATURES)]);
+  for (const file of files) {
+    for (const marker of markers) {
+      assert.ok(daily.get(file)?.includes(marker), `日用构建的 ${file} 里没有 ${marker}`);
+      assert.ok(!release.get(file)?.includes(marker), `发行构建的 ${file} 里有 ${marker}`);
+      assert.ok(!readBuild(file.replace(/^build\//, "")).includes(marker), `build/ 里的 ${file} 有 ${marker}`);
+    }
+  }
+});
+
 test("构建标识带上开关取值：只换开关重新构建，标识跟着变，同一组开关算出同一个", () => {
   const idOf = (features: FeatureSet): string[] => bundleOptions(features).map((options) => String(options.define?.["__JIANMU_BUILD_ID__"]));
   const release = idOf(RELEASE_FEATURES);
