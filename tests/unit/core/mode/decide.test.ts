@@ -23,6 +23,12 @@ const ROWS: readonly (readonly [string, ModeInput, ModeState])[] = [
   ["长视频速读里播满 1 分钟：切到精读", { ...base, durationSec: LONG, playedSec: AUTO_SWITCH_SEC }, { mode: "study", source: "auto" }],
   ["差一秒不切", { ...base, durationSec: LONG, playedSec: AUTO_SWITCH_SEC - 1 }, { mode: "skim", source: "default" }],
   ["时长不知道也照常切", { ...base, playedSec: 90 }, { mode: "study", source: "auto" }],
+  ["侧边栏开着：播满 1 分钟也先不切", { ...base, durationSec: LONG, playedSec: 90, panelOpen: true }, { mode: "skim", source: "default" }],
+  [
+    "已经自动切过：侧边栏开着也留在精读",
+    { ...base, durationSec: LONG, playedSec: 90, autoSwitched: true, current: { mode: "study", source: "auto" }, panelOpen: true },
+    { mode: "study", source: "auto" },
+  ],
   [
     "频道偏好是速读的长视频：照样自动切",
     { ...base, durationSec: LONG, channelMode: "skim", playedSec: 90 },

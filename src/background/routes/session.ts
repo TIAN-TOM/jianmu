@@ -14,6 +14,7 @@ import type {
   SessionSetModeRequest,
 } from "../../shared/messages/session.ts";
 import type { PlaybackLimits } from "../limits.ts";
+import type { OpenPanels } from "../open-panels.ts";
 import type { HandlerCtx, Route } from "../router.ts";
 import type { SenderCtx } from "../senders.ts";
 import type { Sessions } from "../sessions.ts";
@@ -24,6 +25,8 @@ export interface SessionRouteDeps {
   readonly sessions: Sessions;
   readonly channels: Pick<ChannelStore, "clear" | "count">;
   readonly playbackLimits: Pick<PlaybackLimits, "admitMilestone">;
+  /** 内容脚本所在窗口的侧边栏开没开：开着时先不自动切到精读。 */
+  readonly panels: Pick<OpenPanels, "isOpen">;
 }
 
 type SessionRoutes = {
@@ -117,7 +120,10 @@ function contentTab({ sender }: HandlerCtx, claimed: VideoKey): ContentTab | "FO
   return actual === claimed ? { tabId: sender.tabId, site: sender.site, video: actual } : "VIDEO_CHANGED";
 }
 
-export function sessionRoutes({ sessions, channels, playbackLimits }: SessionRouteDeps): SessionRoutes {
+export function sessionRoutes({ sessions, channels, playbackLimits, panels }: SessionRouteDeps): SessionRoutes {
+  // 内容脚本所在窗口的侧边栏开着：人可能正读着速读，先不自动切。不知道窗口时当关着。
+  const panelOpen = ({ sender }: HandlerCtx): Promise<boolean> => (sender.windowId === undefined ? Promise.resolve(false) : panels.isOpen(sender.windowId));
+
   return {
     "playback.info": {
       senders: ["content:bilibili", "content:youtube"],
@@ -126,10 +132,15 @@ export function sessionRoutes({ sessions, channels, playbackLimits }: SessionRou
       async handler(req, ctx) {
         const tab = contentTab(ctx, req.video);
         if (typeof tab === "string") return fail(tab);
-        return sessions.onPlaybackInfo(tab.tabId, tab.video, {
-          ...(req.durationSec === undefined ? {} : { durationSec: req.durationSec }),
-          ...(req.channel === undefined ? {} : { channel: { platform: tab.site, channelId: req.channel } }),
-        });
+        return sessions.onPlaybackInfo(
+          tab.tabId,
+          tab.video,
+          {
+            ...(req.durationSec === undefined ? {} : { durationSec: req.durationSec }),
+            ...(req.channel === undefined ? {} : { channel: { platform: tab.site, channelId: req.channel } }),
+          },
+          await panelOpen(ctx),
+        );
       },
     },
     "playback.milestone": {
@@ -140,7 +151,7 @@ export function sessionRoutes({ sessions, channels, playbackLimits }: SessionRou
         const tab = contentTab(ctx, req.video);
         if (typeof tab === "string") return fail(tab);
         if (!playbackLimits.admitMilestone(tab.tabId)) return fail("PLAYBACK_RATE_LIMITED");
-        return sessions.onMilestone(tab.tabId, tab.video, req.playedSec);
+        return sessions.onMilestone(tab.tabId, tab.video, req.playedSec, await panelOpen(ctx));
       },
     },
     "session.get": {

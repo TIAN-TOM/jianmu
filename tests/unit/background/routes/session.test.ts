@@ -6,10 +6,11 @@ import { test } from "node:test";
 import { createApp } from "../../../../src/background/app.ts";
 import type { MessageSender } from "../../../../src/background/senders.ts";
 import { videoKey } from "../../../../src/core/video-ref.ts";
-import { SETTINGS_STORAGE_KEY, WATCH_SESSIONS_KEY } from "../../../../src/shared/names.ts";
+import { OPEN_PANELS_KEY, SETTINGS_STORAGE_KEY, WATCH_SESSIONS_KEY } from "../../../../src/shared/names.ts";
 import {
   CONFIRMED,
   createFakeChrome,
+  extensionUrl,
   SAMPLE_VIDEO_ID,
   senders,
   STALE_CONFIRMATION,
@@ -158,6 +159,29 @@ test("播放进度一路报到自动切到精读：只改界面模式，不登�
   assert.equal(world.fake.calls.pings, 0);
   assert.equal(world.fake.timers.pending(), 0, "没有排任何计时");
   assert.ok(world.fake.calls.broadcasts.some((message) => (message as { session?: { modeSource?: string } }).session?.modeSource === "auto"));
+});
+
+const PANEL_CONTEXT = { contextType: "SIDE_PANEL", documentUrl: extensionUrl("pages/sidepanel.html"), tabId: -1, windowId: -1 };
+/** 内容脚本替身所在的窗口。 */
+const CONTENT_WINDOW = 3;
+
+test("内容脚本所在窗口的侧边栏开着：播满 1 分钟先不切、接着报；关上以后下一次上报再切，别的窗口开着不算", async () => {
+  const world = appOn({ contexts: [PANEL_CONTEXT] });
+  await world.send("playback.info", { video: VIDEO, durationSec: LONG }, content());
+  const open = () => (world.fake.session.data[OPEN_PANELS_KEY] ?? []) as readonly number[];
+  world.app.onPanelChanged(CONTENT_WINDOW + 1, true);
+  world.app.onPanelChanged(CONTENT_WINDOW, true);
+  assert.ok(await until(() => open().length === 2));
+
+  const replies = await play(world, 90);
+  assert.deepEqual(replies.at(-1), { ok: true, value: { report: true } }, "开着：接着报");
+  assert.equal(world.sessions()[String(CONTENT_TAB)]?.mode, "skim");
+
+  world.app.onPanelChanged(CONTENT_WINDOW, false);
+  assert.ok(await until(() => open().length === 1));
+  world.fake.timers.advance(10_000);
+  assert.deepEqual(await world.send("playback.milestone", { video: VIDEO, playedSec: 100 }, content()), { ok: true, value: { report: false } });
+  assert.equal(world.sessions()[String(CONTENT_TAB)]?.modeSource, "auto");
 });
 
 test("读会话：侧边栏按请求里的标签页读，卡片只读自己所在的标签页、不能点名别的", async () => {
