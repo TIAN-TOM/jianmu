@@ -107,13 +107,6 @@ function start(root: HTMLElement, api: PageApi): void {
     if (!confirmed) void config.check();
   });
 
-  // 鼠标停在卡片上算正在看，播满时长自动收起要等它离开；标签页到了后台也算离开。
-  document.addEventListener("mouseover", () => model.hover(true));
-  document.documentElement.addEventListener("mouseleave", () => model.hover(false));
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState !== "visible") model.hover(false);
-  });
-
   let parentOrigin: string | null = null;
   let lastHeight = -1;
   let heldUntil = 0;

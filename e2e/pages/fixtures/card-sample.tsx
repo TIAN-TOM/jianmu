@@ -11,7 +11,7 @@ import { signal } from "@preact/signals";
 import { render } from "preact";
 import { videoKey } from "../../../src/core/video-ref.ts";
 import { Card, type CardActions } from "../../../src/pages/card/card.tsx";
-import { AUTO_FOLD_NOTE } from "../../../src/pages/card/glance.ts";
+import { PANEL_REFUSED_NOTE } from "../../../src/pages/card/glance.ts";
 import { createCardModel, NOT_READ_TEXT, type CardView } from "../../../src/pages/card/model.ts";
 import { createPageApi, type PageRuntime } from "../../../src/pages/shared/api.ts";
 import { cardSetupHint, type ConfigState } from "../../../src/pages/shared/config.ts";
@@ -21,7 +21,7 @@ import { SETTINGS_STORAGE_KEY } from "../../../src/shared/names.ts";
 
 const LONG = "这是一段自造的样例文字，用来把卡片撑得很高，看底部的按钮会不会被裁掉。";
 const full = location.hash === "#full";
-// 收起的一行：#collapsed 只有名字（没读过）；#collapsed-glance 带判断档和播放到的章节；#collapsed-note 带自动收起时的那句话；
+// 收起的一行：#collapsed 只有名字（没读过）；#collapsed-glance 带判断档和播放到的章节；#collapsed-note 带临时说的那句话（打不开侧边栏时）；
 // #collapsed-yield 是侧边栏开着、让位收起，没有打开侧边栏的入口。#open-yield 是侧边栏开着时手动点开的，按钮行里没有「打开侧边栏」。
 const collapsed = location.hash.startsWith("#collapsed");
 // 只有官方总结：正文一百来个字，提纲 3 段。很窄的卡片加大字号时三行放不下，很宽的卡片标准字号时放得下；
@@ -69,9 +69,9 @@ const view = signal<CardView>({
   officialOpen: full,
   holdActions: false,
   panelOpen: location.hash === "#collapsed-yield" || location.hash === "#open-yield",
-  // 收起那一行写着播放到第 11 章；#collapsed-note 时先说自动收起的那句话。
+  // 收起那一行写着播放到第 11 章；#collapsed-note 时临时说一句话（打不开侧边栏时说的那句）。
   chapterNow: collapsed && location.hash !== "#collapsed" ? 10 : null,
-  headNote: location.hash === "#collapsed-note" ? AUTO_FOLD_NOTE : "",
+  headNote: location.hash === "#collapsed-note" ? PANEL_REFUSED_NOTE : "",
 });
 
 const noop = (): void => undefined;

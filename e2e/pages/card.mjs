@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { CARD_HEIGHT } from "../../src/content/card-frame.ts";
 import { describe } from "../../src/core/errors.ts";
 import { cardSetupHint } from "../../src/pages/shared/config.ts";
-import { AUTO_FOLD_NOTE } from "../../src/pages/card/glance.ts";
+import { PANEL_REFUSED_NOTE } from "../../src/pages/card/glance.ts";
 import { CARD_ROWS, NOT_READ_TEXT } from "../../src/pages/card/model.ts";
 import { PAGE_PATHS, SETTINGS_STORAGE_KEY } from "../../src/shared/names.ts";
 import { UI_FONT_SCALES } from "../../src/shared/settings-schema.ts";
@@ -213,9 +213,9 @@ test("卡片：收起的一行写判断档和播放到的章节，放不下就�
   assert.equal(glance.height, CARD_HEIGHT.initial);
   assert.ok(glance.chevron.right <= glance.panel.left && glance.panel.right <= glance.card.right, JSON.stringify(glance));
 
-  // 播满时长自动收起的那一下：先说一句为什么。
+  // 收起那一行上临时说一句话（打不开侧边栏时说的那句）：换掉章节，卡片不变高。
   const note = await read("#collapsed-note");
-  assert.deepEqual([note.glance, note.height], [AUTO_FOLD_NOTE, CARD_HEIGHT.initial]);
+  assert.deepEqual([note.glance, note.height], [PANEL_REFUSED_NOTE, CARD_HEIGHT.initial]);
 
   // 侧边栏开着、让位收起：不摆打开侧边栏的入口，箭头靠到最右边。
   const yielded = await read("#collapsed-yield");
