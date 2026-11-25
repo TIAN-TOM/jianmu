@@ -220,6 +220,7 @@ jianmu/
 | 读取视频信息：标题、作者、频道、简介、时长、分段列表、媒体版本 | 有 | 有（频道编号、简介能否读到：首发待验证，第 10 步） | 后台；YouTube 可能经页面读 |
 | 读取字幕轨和字幕正文 | 登录后有，列得出完整轨列表 | 读当前可读轨，列可选轨；完整轨列表只作验证参照（第 6.4 节；读取路线：首发待验证，第 10 步） | 同上 |
 | 读取官方总结和它附带的 AI 字幕、读取 UP 主分段 | 有 | 无 | 后台 |
+| 读取当前视频第一批热评（PRD F23） | 有，登录后 | 有，经页面读，可以替用户滚到评论区（PRD 第 8.2 节第 9 条；后台标签页能不能加载待验证） | 后台；YouTube 经页面读 |
 | 读取稍后再看；全部分 P 和所在合集（更新一） | 有（合集待评估） | 不做 | 后台 |
 | 页面激活、主视频元素、控制栏显隐信号、悬停图标挂载点 | 有 | 有（首发待验证：页面激活第 10 步；主视频元素、控制栏信号、悬停图标挂载点第 11 步） | 内容脚本 |
 | 播放页卡片插槽 | 有 | 首发不做 | 内容脚本 |
@@ -255,6 +256,7 @@ export interface OutlineSection { title: string; timestamp: number | null; point
 export interface OfficialSummary { status: "ok" | "none" | "queued" | "unsupported"; summary: string; outline: OutlineSection[]; cues: Cue[] }
 export interface WatchLaterItem extends TriageItem { cover: string; description: string; addedAt: number; paidChecked: boolean }   // paidChecked：确认了付费或免费才是真；为假时读官方总结前先过 readVideoInfo
 export interface WatchLaterList { total: number; dropped: number; items: WatchLaterItem[] }
+export interface TopComment { text: string; likes: number; pinned: boolean }   // 不带昵称和评论者身份（PRD F23）；序号按返回顺序在概览服务里编
 export type SiteErrorCode = "NEED_LOGIN" | "NO_CAPTIONS" | "EMPTY_CAPTION_FILE" | "RATE_LIMITED" | "UNPLAYABLE"
   | "NOT_FOUND" | "SEGMENT_OUT_OF_RANGE" | "VIDEO_CHANGED" | "TAB_NOT_READY" | "MALFORMED" | "NETWORK" | "TIMEOUT";
 export type SiteFailureReach = "item" | "source";   // 读取失败波及多大：item 只是这一个视频读不成，source 是这条读取路线这会儿整体读不了；由读取实现判定，调用方据此分流时不解析 detail
@@ -288,6 +290,7 @@ export interface SiteService {               // 后台里跑；带 ? 的是站�
   readOfficialSummary?(info: VideoInfo, ctx: SiteCtx): R<OfficialSummary>;
   readCreatorChapters?(info: VideoInfo, ctx: SiteCtx): R<Chapter[]>;
   readWatchLater?(ctx: SiteCtx): R<WatchLaterList>;
+  readTopComments?(info: VideoInfo, ctx: SiteCtx): R<TopComment[]>;   // 第一批热评，只在生成概览时调（PRD F23）
 }
 
 // src/sites/page-types.ts：内容脚本一侧的契约，要用 DOM 类型，后台的类型检查不含这个文件
@@ -335,6 +338,7 @@ export interface SitePage {                  // 内容脚本里跑
 - `page.ts`：用站内导航完成的页面事件加地址比对判断换了视频；地址和播放器数据里的视频编号都等于目标才算换好；播广告时 `findMainVideo()` 报 `ad`，不报 `none`。卡片插在右栏推荐视频上面，侧栏面板（文字稿在里面）排在它前面，推荐视频被挪到播放器下面时卡片跟着走；找到的位置在侧栏面板里面就不插。面板可能留着旧视频的内容，所以开始读、正文返回、写缓存前都核对视频、导航代次和所选轨，并要能证明面板内容已经更新；无法归属的结果一律丢弃。
 - `page/main-bridge.ts`：已生成（2026-11-19，为了标出新面板上字幕的语言和来源），最小、只读。只交回播放器现在放的视频编号、每条字幕轨的语言码、类别、显示名和编号，以及默认音轨里的默认字幕轨；不交字幕地址和别的字段，只读播放器自己的数据、不读页面初始数据，不调会改播放器的接口，不碰密钥，不调 AI，不发请求。新注入的一份先叫旧的停下。页面一开始加载就注入；`FEATURE_YOUTUBE_CAPTION_CATCH` 打开的构建里，同一个入口还带上 `page/caption-catch.ts`，接住播放器自己取回的字幕，同样不发请求。和隔离世界之间用带随机标记的页面事件通信。主世界和网页共享执行环境，随机标记不能替代核对：隔离世界按不可信输入核对字段、大小和视频身份，后台不代取页面给出的任意地址。
 - 路线专属的模拟路由用自造数据，测产品的成功和拒绝行为，第 10 步打通真实读取之后再做（第 11.3 节）。
+- 读评论（PRD F23 和第 8.2 节第 9 条）：经 `PageChannel` 读页面上已经显示的评论；评论区还没加载时，替用户滚到评论区、读完滚回原处的指令写在 `page/commands.ts`，和别的代用户操作放在一起。后台标签页里页面会不会加载评论，接进来时在真实页面上核对；加载不出来就报读不到，这次概览不带评论。
 - 中文对照用用户自己的模型翻译，不用平台的机器翻译字幕轨。
 - 第二选择（用户自己开字幕时被动接收）：用户自己打开字幕后，扩展观察播放器自然收到的字幕响应。获选前还缺三项，任一项不成立就不选它，获选后再修订主世界桥、注入时机、清理和权限边界：
   - 架构和条款：要在页面主世界观察响应，超出上面「最小、只读」的约束，要单独审阅算不算干扰服务，验证原响应、错误、播放行为和其他扩展都不受影响。只处理当前视频的原生字幕，不改请求或响应，不拦翻译请求，不保存或转发平台返回的字幕地址。只收到用户选的一轨时，同样要面对 PRD 第 8.2 节第 2 条。
@@ -819,6 +823,7 @@ YouTube 字幕和画面直接在产品里实现，再做真实页面验证，顺
 | 二 | 这一刻笔记 | 悬停图标、只带时间点的存笔记消息 | 任务种类和提示词 | 不升 |
 | 二 | 笔记里插关键画面 | 截帧模块 | 画面仓库、是否申请更大存储、进不进备份 | 升 |
 | 三 | 学英语 | `Mode` 含 `english`、频道偏好、播放器指令可扩 | 学英语视图、区间播放和暂停、挑词和判断提示词、生词的 `kind` 和按词索引 | 升（加索引） |
+| 另定 | 评论区怎么说（PRD F23，先进日用包） | 适配层可选方法、概览记录的版本号 | 两站的 `readTopComments`（YouTube 经页面读，加滚到评论区的指令）和模拟路由；概览提示词带评论、输出加口碑标签、要点、引用的评论序号和章节标记，黄金样本跟着改；卡片一行、侧边栏一块；开关 `FEATURE_COMMENTS`，只在日用构建里开；同意表加评论这一条 | 不升，记录版本加一 |
 
 ## 14. 首发待验证的项目
 
