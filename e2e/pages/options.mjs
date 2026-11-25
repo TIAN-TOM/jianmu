@@ -581,7 +581,7 @@ test("设置页：打开就出结论默认关；没同意时勾开关先列出�
   // 额度用完停着：重新打开设置页，开关下面写明原因，旁边是「恢复」；点了后台恢复，这一行消失。
   const paused = { tried: [], sent: [], paused: { reason: "quota", at: Date.now() } };
   await page.evaluate(`chrome.storage.session.set(${JSON.stringify({ [AUTO_LEDGER_KEY]: paused })}).then(() => true)`);
-  await page.evaluate("(location.reload(), true)");
+  await page.reload();
   await page.waitFor("停着的那一行", `document.querySelector("#auto-overview .auto-paused .status")?.textContent === "额度用完了，「打开就出结论」先停了"`);
   await clickButton(page, "恢复", "#auto-overview");
   await page.waitFor("恢复以后这一行消失", `!document.querySelector("#auto-overview .auto-paused")`);
