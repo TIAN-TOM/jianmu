@@ -549,6 +549,101 @@ test("侧边栏：头部的笔记按钮打开笔记层，列出本视频的笔�
   });
 });
 
+/**
+ * 删掉列表里的一条以前装上记录：那一条什么时候标上离场、是不是点不到、哪一帧真正拿掉，下面那一条每一帧在哪。
+ * 按帧数记，不按毫秒，看得出离场是不是走了好几帧、拿掉的那一下下面的有没有跳。
+ */
+const watchExit = (listSelector, rowSelector) => `(() => {
+  const list = document.querySelector(${JSON.stringify(listSelector)});
+  const target = list.querySelector(${JSON.stringify(rowSelector)});
+  const below = target.nextElementSibling;
+  const log = { index: [...list.children].indexOf(target), height: target.getBoundingClientRect().height, marked: null, inert: null, gone: null, tops: [], deltas: [] };
+  let frame = 0;
+  let last = performance.now();
+  const tick = (now) => {
+    log.deltas.push(now - last);
+    last = now;
+    frame += 1;
+    if (below) log.tops.push(below.getBoundingClientRect().top);
+    if (log.gone === null || frame < log.gone + 3) requestAnimationFrame(tick);
+    else log.done = true;
+  };
+  if (below) log.tops.push(below.getBoundingClientRect().top);
+  requestAnimationFrame(tick);
+  new MutationObserver((records) => {
+    for (const record of records) {
+      if (log.marked === null && record.type === "attributes" && record.target === target) {
+        log.marked = frame;
+        log.inert = target.inert;
+        log.kept = [...list.children].indexOf(target) === log.index;
+      }
+    }
+    if (log.gone === null && !target.isConnected) log.gone = frame;
+  }).observe(list, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-leaving"] });
+  window.exitLog = log;
+  return true;
+})()`;
+
+test("侧边栏：笔记层里删掉一条，那一条留在原位淡掉、收起，点不到，下面的跟着平滑上移，走完才拿掉；系统设了减少动态效果时当场拿掉", async (ctx) => {
+  await withVideo(ctx, async (panel) => {
+    await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
+    const send = (type, req) => panel.evaluate(`chrome.runtime.sendMessage(${JSON.stringify({ type, req })})`);
+    const listed = `chrome.runtime.sendMessage({ type: "notes.list", req: { video: ${JSON.stringify(VIDEO)} } }).then((reply) => reply.value.notes)`;
+    const before = await panel.evaluate(listed);
+    const COUNT = 40;
+    try {
+      for (let index = 0; index < COUNT; index += 1) {
+        const saved = await send("notes.save", { video: VIDEO, atSec: index + 1, text: `页面测试的长列表第 ${index + 1} 条` });
+        assert.equal(saved?.ok, true, JSON.stringify(saved));
+      }
+      await tap(panel, ".mode-row [aria-label='笔记']");
+      await waitIn(panel, "笔记层打开", `document.querySelector(".layer")?.open === true`);
+      await waitIn(panel, "列出全部", `document.querySelectorAll(".layer .note-list > .note").length === ${COUNT}`);
+      // 层的进场走完再删，量到的是删除这一下。
+      await panel.evaluate(`Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => {}))).then(() => true)`);
+
+      const deleteSecond = async () => {
+        const id = await panel.evaluate(`document.querySelectorAll(".layer .note-list > .note")[1].dataset.id`);
+        await panel.evaluate(watchExit(".layer .note-list", `.note[data-id="${id}"]`));
+        await panel.evaluate(`document.querySelectorAll(".layer .note-list > .note")[1].querySelector(".menu-anchor button").click(), true`);
+        // 每一条都带着自己的菜单，点开着的那一个里的「删除」。
+        assert.ok(await clickText(panel, ".menu:popover-open .menu-item", "删除"));
+        await panel.waitFor("拿掉以后又过了几帧", `window.exitLog.done === true`).catch(async (error) => {
+          const log = await panel.evaluate(`JSON.stringify({ ...window.exitLog, tops: window.exitLog.tops.length, deltas: window.exitLog.deltas.length, leaving: [...document.querySelectorAll(".note[data-leaving]")].map((node) => node.dataset.id), hidden: document.hidden })`);
+          throw new Error(`${error.message}\n${log}`);
+        });
+        await waitIn(panel, "说删掉了", `document.querySelector(".layer .layer-toast")?.textContent === "已删除这条笔记"`);
+        return panel.evaluate(`window.exitLog`);
+      };
+
+      const moving = await deleteSecond();
+      assert.notEqual(moving.marked, null, "删之前先标上离场");
+      assert.equal(moving.inert, true, "离场途中点不到");
+      assert.equal(moving.kept, true, "离场途中还在原来的位置");
+      assert.ok(moving.gone - moving.marked >= 3, `离场走了好几帧才拿掉：第 ${moving.marked} 帧标上，第 ${moving.gone} 帧拿掉`);
+      const tops = moving.tops;
+      const moved = tops[0] - tops[tops.length - 1];
+      const gap = await panel.evaluate(`parseFloat(getComputedStyle(document.querySelector(".layer .note-list")).rowGap)`);
+      assert.ok(Math.abs(moved - (moving.height + gap)) < 1, `下面那一条顶上来一条加一道缝那么高：${moved} 对 ${moving.height} + ${gap}`);
+      assert.ok(tops.every((top, index) => index === 0 || top <= tops[index - 1] + 0.5), `一路往上走，不往回弹：${tops.join(", ")}`);
+      const step = tops.slice(1).map((top, index) => tops[index] - top);
+      assert.ok(Math.max(...step) < moved, `分几帧走完，不是一下子跳上去：${step.join(", ")}`);
+      assert.ok(Math.abs(tops[moving.gone + 1] - tops[moving.gone]) < 1, `真正拿掉的那一帧下面的不再跳：${tops.join(", ")}`);
+      await waitIn(panel, "少了一条", `document.querySelectorAll(".layer .note-list > .note").length === ${COUNT - 1}`);
+
+      await panel.setReducedMotion(true);
+      const instant = await deleteSecond();
+      assert.ok(instant.marked === null || instant.gone === instant.marked, `减少动态效果时当场拿掉，不留一帧：第 ${instant.marked} 帧标上，第 ${instant.gone} 帧拿掉`);
+      await waitIn(panel, "又少了一条", `document.querySelectorAll(".layer .note-list > .note").length === ${COUNT - 2}`);
+    } finally {
+      await panel.setReducedMotion(false);
+      const added = (await panel.evaluate(listed)).filter((row) => !before.some((old) => old.id === row.id));
+      for (const row of added) await send("notes.delete", { id: row.id });
+      await panel.evaluate(`(document.querySelector(".layer [aria-label='返回']")?.click(), true)`);
+    }
+  });
+});
+
 /** 在扩展页面里直接改本机数据库：放进或删掉记录，测试做完自己收拾。 */
 const editDatabase = (page, puts, deletes = {}) =>
   page.evaluate(`(async () => {
