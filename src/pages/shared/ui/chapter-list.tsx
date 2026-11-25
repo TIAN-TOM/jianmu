@@ -21,6 +21,8 @@ export interface ChapterItem {
 export interface ChapterListProps {
   readonly chapters: readonly ChapterItem[];
   readonly keyStarts?: readonly number[] | undefined;
+  /** 每一章旁边多写的一句小字（比如评论区的标记），和章节一一对应；没有的是 null。 */
+  readonly notes?: readonly (string | null)[] | undefined;
   /** 视频总时长（秒）。知道的话小标题旁边写全长，最后一章的时长也按它算。 */
   readonly totalSec?: number | null | undefined;
   /** 展开着的章节序号。 */
@@ -35,7 +37,7 @@ export interface ChapterListProps {
   readonly heading?: boolean;
 }
 
-export function ChapterList({ chapters, keyStarts, totalSec, expanded = [], onToggle, onSeek, focusIndex = null, onHover, renderDetail, heading = true }: ChapterListProps) {
+export function ChapterList({ chapters, keyStarts, notes, totalSec, expanded = [], onToggle, onSeek, focusIndex = null, onHover, renderDetail, heading = true }: ChapterListProps) {
   const id = useId();
   const t = sharedText();
   const keys = keyFlags(chapters, keyStarts);
@@ -69,6 +71,7 @@ export function ChapterList({ chapters, keyStarts, totalSec, expanded = [], onTo
                     {t.chapters.key}
                   </span>
                 ) : null}
+                {notes?.[index] ? <span class="chapter-note">{notes[index]}</span> : null}
               </span>
               <span class="chapter-span" aria-hidden="true" style={`--share:${(shares[index] ?? 0).toFixed(4)}`} />
             </>

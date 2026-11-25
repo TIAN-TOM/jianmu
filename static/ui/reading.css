@@ -323,6 +323,60 @@
   color: var(--text-muted);
 }
 
+/* 评论区（PRD F23，只在日用包里有）：章节旁边的评论标记、侧边栏的「评论区」一块、卡片上的一行。原评论默认收着。 */
+.chapter-note {
+  margin-inline-start: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  white-space: nowrap;
+}
+
+.comment-block {
+  margin-top: var(--space-4);
+}
+
+.comment-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.comment-points {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  padding: 0;
+  list-style: none;
+}
+
+.comment-point summary {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.comment-count,
+.comment-quote-meta {
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  white-space: nowrap;
+}
+
+.comment-quotes {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-1) 0 var(--space-2);
+  padding-inline-start: var(--space-4);
+  list-style: none;
+}
+
+.comment-quote-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .rail-piece[data-kind="writing"] {
     animation: none;

@@ -872,6 +872,43 @@ test("侧边栏：结论带着标题译名时顶上的标题显示译名、悬�
   }
 });
 
+test("侧边栏：结论带着评论区时，章节下面摆「评论区」一块，口碑标签加一句话，要点点开露出原评论；评论的标记写在章节旁边", async (ctx) => {
+  const from = await ctx.open(LAUNCHER);
+  const panel = await ctx.openSidePanel(from);
+  const tabs = [];
+  const comments = {
+    tag: "有人指出错误",
+    line: "页面测试的评论区一句话",
+    points: [{ text: "页面测试的要点", quotes: [{ text: "页面测试的原评论", likes: 230, pinned: true }] }],
+    marks: [{ start: 0, kind: "有误" }],
+  };
+  const overview = {
+    schemaVersion: 1,
+    videoKey: VIDEO,
+    snapshot: { title: FIRST_TITLE, author: "" },
+    analysis: { chapters: [{ title: "页面测试的章节", timestamp: "0:00", timestampSeconds: 0, summary: "" }], keyQuotes: [], verdict: { verdict: "可以看", summary: "带评论区的结论", comments } },
+    updatedAt: 1,
+  };
+  try {
+    await editDatabase(panel, { overviews: [overview] });
+    tabs.push(await openTab(panel, watchPage(FIRST_ID)));
+    await waitIn(panel, "评论区摆出来", `${textOf(".comment-block .comment-line")}.includes("页面测试的评论区一句话")`);
+    const shown = await panel.evaluate(`({
+      tag: document.querySelector(".comment-block .badge")?.textContent ?? "",
+      note: document.querySelector(".chapter-note")?.textContent ?? "",
+      open: document.querySelector(".comment-point")?.open ?? null,
+      count: document.querySelector(".comment-count")?.textContent ?? "",
+    })`);
+    assert.deepEqual(shown, { tag: "有人指出错误", note: "评论说有误", open: false, count: "1 条评论" }, "原评论默认收着");
+    await panel.evaluate(`(document.querySelector(".comment-point summary").click(), true)`);
+    await waitIn(panel, "点开露出原评论", `${textOf(".comment-quote-text")} === "页面测试的原评论"`);
+    assert.equal(await panel.evaluate(`document.querySelector(".comment-quote-meta")?.textContent ?? ""`), "置顶 · 赞 230");
+  } finally {
+    await editDatabase(panel, {}, { overviews: [VIDEO] });
+    for (const tabId of tabs) await closeTab(from, tabId);
+  }
+});
+
 test("侧边栏：没设置 AI 服务时不摆本窗口全部生成；设置好以后它在「生成概览」那排按钮里，清点时回到速读最上面写清几个视频、要新生成几个，取消回到那排按钮", async (ctx) => {
   await withVideo(ctx, async (panel) => {
     await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);

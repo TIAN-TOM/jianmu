@@ -329,6 +329,24 @@ test("带评论区写结论只进日用包：日用构建的后台里有提示�
   }
 });
 
+test("评论区的界面只进日用包：日用构建的侧边栏和卡片里有，发行构建和 build/ 里没有", async () => {
+  const files = ["build/pages/sidepanel.js", "build/pages/card.js"];
+  const pick = async (features: FeatureSet) => {
+    const options = bundleOptions(features).filter((option) => files.includes(String(option.outfile)));
+    const built = await Promise.all(options.map(async (option) => [String(option.outfile), (await build({ ...option, write: false })).outputFiles.map((output) => output.text).join("\n")] as const));
+    return new Map(built);
+  };
+  const markers = ["评论说有误", "Called clickbait", "說是標題黨", "comment-line", "src/pages/shared/ui/comment-text"];
+  const [release, daily] = await Promise.all([pick(RELEASE_FEATURES), pick(DAILY_FEATURES)]);
+  for (const file of files) {
+    for (const marker of markers) {
+      assert.ok(daily.get(file)?.includes(marker), `日用构建的 ${file} 里没有 ${marker}`);
+      assert.ok(!release.get(file)?.includes(marker), `发行构建的 ${file} 里有 ${marker}`);
+      assert.ok(!readBuild(file.replace(/^build\//, "")).includes(marker), `build/ 里的 ${file} 有 ${marker}`);
+    }
+  }
+});
+
 test("发行构建：开关记录和发行那份一样，包里没有留下没换掉的开关常量", () => {
   assert.deepEqual(readBuildFlags(), buildFlagsRecord(RELEASE_FEATURES), "build/ 不是发行构建，先跑 npm run build");
   for (const file of BUNDLES) {
