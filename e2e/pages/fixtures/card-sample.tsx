@@ -21,10 +21,12 @@ import { SETTINGS_STORAGE_KEY } from "../../../src/shared/names.ts";
 
 const LONG = "这是一段自造的样例文字，用来把卡片撑得很高，看底部的按钮会不会被裁掉。";
 const full = location.hash === "#full";
-// 收起的一行：#collapsed 只有名字（没读过）；#collapsed-glance 带判断档和播放到的章节；#collapsed-note 带临时说的那句话（打不开侧边栏时）；
-// #collapsed-verdict 带判断档、不知道播到哪，后面写一句话结论；
+// 收起的一行：#collapsed 只有名字（没读过）；#collapsed-glance 有结论、也知道播到哪，写的是一句话结论；
+// #collapsed-chapters 只有章节没有结论，写播放到的章节；#collapsed-note 带临时说的那句话（打不开侧边栏时）；
+// #collapsed-verdict 有结论、不知道播到哪，同样写一句话结论；
 // #collapsed-yield 是侧边栏开着、让位收起，没有打开侧边栏的入口。#open-yield 是侧边栏开着时手动点开的，按钮行里没有「打开侧边栏」。
 const collapsed = location.hash.startsWith("#collapsed");
+const chaptersOnly = location.hash === "#collapsed-chapters";
 // 只有官方总结：正文一百来个字，提纲 3 段。很窄的卡片加大字号时三行放不下，很宽的卡片标准字号时放得下；
 // 宽窄差得开，换一套字体、字宽不一样也照样成立。
 const officialOnly = location.hash === "#official";
@@ -55,7 +57,7 @@ const view = signal<CardView>({
   analysis: officialOnly || keyCleared || noOverview || location.hash === "#collapsed" ? null : {
     chapters: Array.from({ length: 16 }, (_, index) => ({ title: `样例章节 ${index + 1}：${LONG}`, timestampSeconds: index * 90 })),
     // 重点是第 2 章和第 11 章：一个时间四位、一个五位，章节名要和别的章对齐。
-    verdict: { verdict: new URLSearchParams(location.search).get("verdict") || "可以看", summary: LONG.repeat(2), keyStarts: [90, 900] },
+    ...(chaptersOnly ? {} : { verdict: { verdict: new URLSearchParams(location.search).get("verdict") || "可以看", summary: LONG.repeat(2), keyStarts: [90, 900] } }),
   },
   transcriptBasis: stale ? { chapters: "old-sample", verdict: "old-sample" } : null,
   transcriptFingerprint: stale ? "new-sample" : null,
@@ -70,7 +72,7 @@ const view = signal<CardView>({
   officialOpen: full,
   holdActions: false,
   panelOpen: location.hash === "#collapsed-yield" || location.hash === "#open-yield",
-  // 收起那一行写着播放到第 11 章；#collapsed-note 时临时说一句话（打不开侧边栏时说的那句）；#collapsed-verdict 时不知道播到哪。
+  // 播放到第 11 章（有结论时收起那一行不写它）；#collapsed-note 时临时说一句话（打不开侧边栏时说的那句）；#collapsed-verdict 时不知道播到哪。
   chapterNow: collapsed && location.hash !== "#collapsed" && location.hash !== "#collapsed-verdict" ? 10 : null,
   headNote: location.hash === "#collapsed-note" ? PANEL_REFUSED_NOTE : "",
 });
