@@ -5,9 +5,9 @@ import { test } from "node:test";
 import vm from "node:vm";
 import { build } from "esbuild";
 import { applyAppearance, hostModeOf } from "../../../../src/pages/shared/theme.ts";
-import { applyCache, CACHE_KEY, FONT_SCALES, MODES, readCache, THEMES, TONE_PARAM, toneOf } from "../../../../src/pages/shared/theme-boot.ts";
+import { applyCache, CACHE_KEY, DEFAULT_THEME, FONT_SCALES, MODES, readCache, THEMES, TONE_PARAM, toneOf } from "../../../../src/pages/shared/theme-boot.ts";
 import { APPEARANCE_CACHE_KEY, CARD_TONE } from "../../../../src/shared/names.ts";
-import { ACCENT_THEMES, THEME_MODES, UI_FONT_SCALES } from "../../../../src/shared/settings-schema.ts";
+import { ACCENT_THEMES, DEFAULTS, THEME_MODES, UI_FONT_SCALES } from "../../../../src/shared/settings-schema.ts";
 import { fakePage, memoryLocalStorage, type MemoryLocalStorage } from "../../../helpers/fake-page.ts";
 
 // 页面读回设置以后落下的样子，以及它留下的缓存。
@@ -52,6 +52,7 @@ test("缓存的键名和合法取值与设置模块一致", () => {
   assert.equal(CACHE_KEY, APPEARANCE_CACHE_KEY);
   assert.match(CACHE_KEY, /^jianmu_/, "存储键沿用 jianmu_ 前缀");
   assert.deepEqual([...THEMES], Object.keys(ACCENT_THEMES));
+  assert.equal(DEFAULT_THEME, DEFAULTS.accentTheme);
   assert.deepEqual([...MODES], Object.values(THEME_MODES));
   assert.deepEqual([...FONT_SCALES], [...UI_FONT_SCALES]);
 });
@@ -89,7 +90,7 @@ test("卡片所在页面的明暗：首帧脚本和页面读地址的写法一�
   // 没有缓存也按页面的明暗画。
   const bare = fakePage().root;
   applyCache({}, bare, false, "dark");
-  assert.equal(bare.dataset.themeMode, "dark");
+  assert.deepEqual({ ...bare.dataset }, { accentTheme: "marker", themeMode: "dark" });
 });
 
 test("缓存只写扩展自己的页面；存储写不进去时照样落地外观，不抛错", () => {
@@ -132,7 +133,7 @@ test("每种主题、明暗、字号：首帧按缓存写下的，和读回存�
   }
 });
 
-test("缓存没有、损坏、读存储抛错时什么都不写；不合法的那一项单独丢掉", () => {
+test("缓存没有、损坏、读存储抛错时只写默认主题；不合法的那一项单独丢掉", () => {
   const storageWith = (raw?: string) => memoryLocalStorage(raw === undefined ? {} : { [CACHE_KEY]: raw });
 
   assert.deepEqual(readCache(storageWith()), {});
@@ -158,19 +159,19 @@ test("缓存没有、损坏、读存储抛错时什么都不写；不合法的�
   const nested = readCache(storageWith('{"__proto__": {"accentTheme": "redblack"}, "uiFontScale": 125}'));
   assert.deepEqual(nested, { uiFontScale: 125 });
 
-  // 早先版本的三套主题名不认：缓存里存着旧值时不写 data-accent-theme，交给样式表的默认主题
+  // 早先版本的三套主题名不认：缓存里存着旧值时写默认主题
   for (const old of ["ink", "graphite", "ochre"]) {
     const cached = readCache(storageWith(JSON.stringify({ accentTheme: old, themeMode: "light" })));
     assert.deepEqual(cached, { themeMode: "light" }, old);
     const page = fakePage().root;
     applyCache(cached, page, false);
-    assert.deepEqual({ ...page.dataset }, { themeMode: "light" }, old);
+    assert.deepEqual({ ...page.dataset }, { accentTheme: "marker", themeMode: "light" }, old);
   }
 
-  // 什么都没认出来时根节点原样不动，交给样式表的默认
+  // 什么都没认出来时只写默认主题（各套主题的版面规则都按这个属性写），明暗和字号交给样式表的默认
   const root = fakePage().root;
   applyCache({}, root, true);
-  assert.deepEqual({ dataset: { ...root.dataset }, style: { ...root.style.values } }, { dataset: {}, style: {} });
+  assert.deepEqual({ dataset: { ...root.dataset }, style: { ...root.style.values } }, { dataset: { accentTheme: "marker" }, style: {} });
 });
 
 test("在页面里真的跑一遍：同步写好 <html>，读不了存储时按默认画、不抛错", () => {
@@ -183,10 +184,10 @@ test("在页面里真的跑一遍：同步写好 <html>，读不了存储时按�
   });
   assert.equal(runBootInPage({ localStorage, prefersDark: false }).dataset.themeMode, "light");
 
-  // 刚装好还没有缓存：什么都不写，样式表的默认（荧光笔、跟随系统、标准字号）接手
-  assert.deepEqual(runBootInPage({ localStorage: memoryLocalStorage() }), { dataset: {}, zoom: undefined });
+  // 刚装好还没有缓存：写上默认主题（荧光笔），明暗和字号交给样式表的默认（跟随系统、标准字号）
+  assert.deepEqual(runBootInPage({ localStorage: memoryLocalStorage() }), { dataset: { accentTheme: "marker" }, zoom: undefined });
   // 存储被禁用时连读 localStorage 属性都会抛错
-  assert.deepEqual(runBootInPage({ storageThrows: true }), { dataset: {}, zoom: undefined });
+  assert.deepEqual(runBootInPage({ storageThrows: true }), { dataset: { accentTheme: "marker" }, zoom: undefined });
   // 打出来的是经典脚本：不带模块语法，也不往页面上挂全局变量
   assert.doesNotMatch(BOOT_SCRIPT, /^\s*(?:import|export)\b/m);
   const context: Record<string, unknown> = {};

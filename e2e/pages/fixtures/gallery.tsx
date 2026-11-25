@@ -64,6 +64,7 @@ function RailDemo({ id, keyStarts }: { readonly id: string; readonly keyStarts?:
         <ChapterList
           chapters={CHAPTERS}
           keyStarts={keyStarts}
+          totalSec={DURATION_SEC}
           expanded={expanded.value}
           onToggle={toggle}
           onSeek={seek}

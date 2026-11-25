@@ -20,7 +20,9 @@ test("组件样张：有重点和没重点两种章节显示，时间轨和章�
         const root = document.getElementById(id);
         return {
           heading: root.querySelector(".section-title").textContent,
-          dots: [...root.querySelectorAll(".chapter .key-dot")].map((dot) => [dot.getAttribute("role"), dot.getAttribute("aria-label")]),
+          // 重点对读屏只读一次：章节名前一段只给读屏的「重点」；画出来的标签不进读屏。
+          spoken: [...root.querySelectorAll(".chapter .sr-only")].map((node) => node.textContent.trim()),
+          tags: [...root.querySelectorAll(".chapter .key-tag")].map((node) => node.getAttribute("aria-hidden")),
           keyRows: [...root.querySelectorAll(".chapter[data-key]")].map((row) => row.dataset.index),
           keyPieces: [...root.querySelectorAll(".rail-piece[data-key]")].map((piece) => piece.dataset.index),
           names: [...root.querySelectorAll(".chapter-name")].map((name) => name.textContent),
@@ -30,15 +32,13 @@ test("组件样张：有重点和没重点两种章节显示，时间轨和章�
     );
   const withKeys = await read("rail-key");
   assert.equal(withKeys.heading, "章节 4，重点 2");
-  assert.deepEqual(withKeys.dots, [
-    ["img", "重点"],
-    ["img", "重点"],
-  ]);
+  assert.deepEqual(withKeys.spoken, ["重点", "重点"]);
+  assert.deepEqual(withKeys.tags, ["true", "true"]);
   assert.deepEqual(withKeys.keyRows, ["1", "3"]);
   assert.deepEqual(withKeys.keyPieces, ["1", "3"], "时间轨上加粗的是同两章");
   const plain = await read("rail-plain");
   assert.equal(plain.heading, "章节 4");
-  assert.deepEqual([plain.dots, plain.keyRows, plain.keyPieces], [[], [], []]);
+  assert.deepEqual([plain.spoken, plain.tags, plain.keyRows, plain.keyPieces], [[], [], [], []]);
   assert.deepEqual(plain.names, withKeys.names, "章节名原样，不因为是重点改写");
 });
 
@@ -134,6 +134,76 @@ test("组件样张：五种判断标记形状各不相同，档位名用文字�
     ["依据字幕", "依据 B 站官方总结，没有通读字幕", "依据标题和简介基于旧字幕", "依据未知（旧版）不完整", null, null],
   );
   assert.equal(state.verdicts[5]?.text, "样例结论：档位认不出来时只写结论句。");
+});
+
+// 每套主题的判断记号画法、重点章节的标法。颜色按主题样式表的原始色值写死在这里，换了色值这里要跟着改。
+const THEME_LOOKS = {
+  timecode: { set: "meter", total: true },
+  marker: { set: "grade", total: false },
+  band: { set: "player", total: false },
+  pinkblue: { set: "player", total: false },
+  redblack: { set: "player", total: false },
+};
+
+test("组件样张：五套主题各画各的判断记号和重点章节，读屏读到的不变", async ({ open }) => {
+  const page = await open(GALLERY);
+  for (const [accentTheme, look] of Object.entries(THEME_LOOKS)) {
+    for (const themeMode of ["light", "dark"]) {
+      await page.setAppearance({ accentTheme, themeMode, uiFontScale: 100 });
+      const label = `${accentTheme} ${themeMode}`;
+      const state = await page.evaluate(`(() => {
+        const shown = (node) => Boolean(node) && node.getClientRects().length > 0 && getComputedStyle(node).visibility !== "hidden";
+        const color = (name) => { const probe = document.createElement("i"); probe.style.color = "var(" + name + ")"; document.body.append(probe); const value = getComputedStyle(probe).color; probe.remove(); return value; };
+        const block = (shape) => document.querySelector("#verdicts .verdict[data-shape='" + shape + "']");
+        return {
+          sets: [...document.querySelectorAll("#verdicts .verdict-mark")].map((mark) => [...mark.querySelectorAll(".mark-set")].filter(shown).map((svg) => svg.dataset.set)),
+          total: shown(document.querySelector("#rail-key .chapters-total")) ? document.querySelector("#rail-key .chapters-total").textContent : null,
+          rows: [...document.querySelectorAll("#rail-key .chapter")].map((row) => ({
+            key: row.dataset.key === "true",
+            play: shown(row.querySelector(".key-play svg")),
+            tag: shown(row.querySelector(".key-tag")),
+            span: shown(row.querySelector(".chapter-span")) ? getComputedStyle(row.querySelector(".chapter-span")).backgroundColor : null,
+            stroke: getComputedStyle(row.querySelector(".chapter-name")).backgroundImage,
+            rowBg: getComputedStyle(row.querySelector(".chapter-row")).backgroundColor,
+          })),
+          band: { go: getComputedStyle(block("go")).backgroundColor, unknown: getComputedStyle(block("unknown")).backgroundImage },
+          pill: getComputedStyle(block("fair").querySelector(".verdict-label")).backgroundColor,
+          colors: { text: color("--text"), bar: color("--length-bar"), tint: color("--key-tint"), bandGo: color("--band-go") },
+        };
+      })()`);
+      // 每个判断标记只露出这套主题的那一种画法。
+      assert.ok(state.sets.length >= 5, label);
+      for (const sets of state.sets) assert.deepEqual(sets, [look.set], `${label}：判断记号`);
+      assert.equal(state.total !== null, look.total, `${label}：全长只在时间码里写`);
+      if (look.total) assert.equal(state.total, "全长 10:00", label);
+      const keys = state.rows.filter((row) => row.key);
+      const plain = state.rows.filter((row) => !row.key);
+      assert.ok(keys.length > 0 && plain.length > 0, label);
+      // 时间码：每章下面一条时长条，重点那条用正文色。
+      if (accentTheme === "timecode") {
+        assert.ok(state.rows.every((row) => row.span !== null), `${label}：每章都有时长条`);
+        assert.ok(keys.every((row) => row.span === state.colors.text), `${label}：重点的时长条用正文色`);
+        assert.ok(plain.every((row) => row.span === state.colors.bar), `${label}：普通的时长条用时长条色`);
+      } else assert.ok(state.rows.every((row) => row.span === null), `${label}：别的主题不画时长条`);
+      // 荧光笔：重点章节名划下半截。
+      assert.equal(keys.every((row) => row.stroke.includes("linear-gradient")), accentTheme === "marker", `${label}：荧光笔`);
+      assert.ok(plain.every((row) => row.stroke === "none"), `${label}：不是重点的不划`);
+      // 看不看：重点章节时间前一个小播放键；判断放在色带里。
+      assert.deepEqual([keys.every((row) => row.play), plain.some((row) => row.play)], [accentTheme === "band", false], `${label}：小播放键`);
+      if (accentTheme === "band") {
+        assert.equal(state.band.go, state.colors.bandGo, `${label}：推荐看的色带`);
+        assert.match(state.band.unknown, /repeating-linear-gradient/, `${label}：信息不足是斜纹`);
+      }
+      // 粉蓝：重点整行铺浅粉，判断在浅粉胶囊里。
+      if (accentTheme === "pinkblue") {
+        assert.ok(keys.every((row) => row.rowBg === state.colors.tint), `${label}：重点整行铺浅粉`);
+        assert.equal(state.pill, state.colors.tint, `${label}：判断胶囊`);
+      }
+      assert.ok(plain.every((row) => row.rowBg === "rgba(0, 0, 0, 0)"), `${label}：不是重点的行不铺底`);
+      // 红黑：重点章节名后面一个「重点」小标签。
+      assert.deepEqual([keys.every((row) => row.tag), plain.some((row) => row.tag)], [accentTheme === "redblack", false], `${label}：「重点」小标签`);
+    }
+  }
 });
 
 test("组件样张：三段式状态块写原因、影响和下一步，一个主按钮、最多两个次按钮", async ({ open }) => {

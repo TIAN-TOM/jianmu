@@ -19,6 +19,8 @@
  *   accent 主按钮底和进度，on-accent 主按钮上的字，accent-text 链接和时间戳这类落在文字上的强调色，
  *   mark 播放头，key 重点章节的记号，verdict 判断档位的文字。
  * mark、key 都是在说「看这里」，过 3:1；文字色在各自模式的底色上都过 WCAG AA，单元测试逐套核对。
+ * 另有几套主题版面上自己才用的颜色（刻度的空格、荧光笔、四档色带、淡底），只写在那一套里，见各块的注释；
+ * 它们经第 2 节的语义变量交给 ui/themes/ 下这套主题的版面规则。
  *
  * 深色挂两套选择器：data-theme-mode 承接首帧脚本和页面脚本写下的结果；
  * prefers-color-scheme 兜还没有首帧缓存时的首屏，免得系统深色的人先闪一下浅色。两处列表要同步维护。
@@ -49,6 +51,9 @@
   --l-key: #0969da;
   --l-verdict: #0969da;
   --l-shadow: 28 38 64;
+  /* 荧光笔：只划字的下半截，hl 是笔迹，on-hl 是划过的字 */
+  --l-hl: #fae17d;
+  --l-on-hl: #1f2328;
 
   --d-bg: #0d1117;
   --d-surface: #0d1117;
@@ -69,6 +74,8 @@
   --d-key: #4493f8;
   --d-verdict: #4493f8;
   --d-shadow: 0 0 0;
+  --d-hl: #5c471b;
+  --d-on-hl: #f8e3a1;
 
   /* 圆角：小标记、按钮和输入框、卡片和抽屉 */
   --radius-sm: 4px;
@@ -98,6 +105,10 @@
   --l-key: #d3382c;
   --l-verdict: #15171c;
   --l-shadow: 21 23 28;
+  /* off 是判断刻度和精读进度条里空着的格子，bar 是章节的时长条，on-mark 是红底胶囊上的字 */
+  --l-off: #d5d9df;
+  --l-bar: #868c96;
+  --l-on-mark: #ffffff;
 
   --d-bg: #242830;
   --d-surface: #1b1e24;
@@ -117,19 +128,23 @@
   --d-mark: #ff6f62;
   --d-key: #ff6f62;
   --d-verdict: #e8eaee;
+  --d-off: #454b55;
+  --d-bar: #747b86;
+  --d-on-mark: #1b1e24;
 
   --radius-sm: 2px;
   --radius-md: 4px;
   --radius-lg: 10px;
 }
 
-/* 看不看（band）：偏冷的浅灰底、灰紫的正文。主按钮是正文色底，时间戳用次要文字色，判断档位都是正文色。 */
+/* 看不看（band）：偏冷的浅灰底、灰紫的正文。主按钮是正文色底，时间戳用次要文字色，判断档位都是正文色。
+ * 当前句铺分隔线那一档灰，上面的时间戳用正文色（次要文字色在这层灰上不够 4.5:1）。 */
 :root[data-accent-theme="band"] {
   --l-bg: #e6e9ef;
   --l-surface: #eff1f5;
   --l-sunken: #e6e9ef;
   --l-hover: #e6e9ef;
-  --l-active: #ffffff;
+  --l-active: #ccd0da;
   --l-border: #ccd0da;
   --l-border-strong: #7c7f93;
   --l-text: #4c4f69;
@@ -144,6 +159,17 @@
   --l-key: #4c4f69;
   --l-verdict: #4c4f69;
   --l-shadow: 18 20 23;
+  /* 四档色带：推荐看绿、可以看黄、可跳过灰、信息不足两色斜纹；ink 是判断词和记号的颜色。
+   * 深色是同色的淡底配原色的字（结论句换回正文色）。 */
+  --l-band-go: #a6e3a1;
+  --l-band-go-ink: #4c4f69;
+  --l-band-fair: #f9e2af;
+  --l-band-fair-ink: #4c4f69;
+  --l-band-skip: #45475a;
+  --l-band-skip-ink: #cdd6f4;
+  --l-band-unknown: #e6e9ef;
+  --l-band-unknown-alt: #ccd0da;
+  --l-band-unknown-ink: #4c4f69;
 
   --d-bg: #181825;
   --d-surface: #1e1e2e;
@@ -163,6 +189,15 @@
   --d-mark: #cdd6f4;
   --d-key: #cdd6f4;
   --d-verdict: #cdd6f4;
+  --d-band-go: #364143;
+  --d-band-go-ink: #a6e3a1;
+  --d-band-fair: #454145;
+  --d-band-fair-ink: #f9e2af;
+  --d-band-skip: #45475a;
+  --d-band-skip-ink: #cdd6f4;
+  --d-band-unknown: #313244;
+  --d-band-unknown-alt: #45475a;
+  --d-band-unknown-ink: #cdd6f4;
 
   --radius-sm: 6px;
   --radius-md: 8px;
@@ -191,6 +226,9 @@
   --l-key: #ad1c5b;
   --l-verdict: #ad1c5b;
   --l-shadow: 24 25 28;
+  /* key-tint 是重点章节和判断胶囊的浅粉底，now-tint 是当前句的浅蓝底 */
+  --l-key-tint: #ffecf1;
+  --l-now-tint: #dff6fd;
 
   --d-bg: #0a0b0c;
   --d-surface: #17181a;
@@ -210,6 +248,8 @@
   --d-mark: #2c9cc8;
   --d-key: #e38caa;
   --d-verdict: #e38caa;
+  --d-key-tint: #2f1a22;
+  --d-now-tint: #0b202a;
 
   --radius-sm: 4px;
   --radius-md: 6px;
@@ -238,6 +278,8 @@
   --l-key: #ff0033;
   --l-verdict: #0f0f0f;
   --l-shadow: 15 15 15;
+  /* key-tint 是「重点」小标签的淡红底；深色的侧边栏铺页面底色（panel），不铺卡片色 */
+  --l-key-tint: #ffe6eb;
 
   --d-bg: #0f0f0f;
   --d-surface: #212121;
@@ -257,6 +299,8 @@
   --d-mark: #ff0033;
   --d-key: #ff0033;
   --d-verdict: #f1f1f1;
+  --d-key-tint: #350d15;
+  --d-panel: #0f0f0f;
 
   --radius-sm: 4px;
   --radius-md: 8px;
@@ -294,6 +338,30 @@
   --ok: #36714e;
   --shadow-rgb: var(--l-shadow);
   --shadow-alpha: 1;
+  /* 侧边栏的底：卡片色；只有红黑的深色铺页面底色 */
+  --panel-bg: var(--l-surface);
+  /* 下面这些只在用到它的那套主题里有值：刻度的空格、时长条和红底上的字（时间码），荧光笔（荧光笔），
+   * 四档色带（看不看；ink 是判断词，say 是色带上的结论句），重点和当前句的淡底（粉蓝、红黑）。 */
+  --meter-off: var(--l-off);
+  --length-bar: var(--l-bar);
+  --on-mark: var(--l-on-mark);
+  --highlight: var(--l-hl);
+  --on-highlight: var(--l-on-hl);
+  --band-go: var(--l-band-go);
+  --band-go-ink: var(--l-band-go-ink);
+  --band-go-say: var(--l-band-go-ink);
+  --band-fair: var(--l-band-fair);
+  --band-fair-ink: var(--l-band-fair-ink);
+  --band-fair-say: var(--l-band-fair-ink);
+  --band-skip: var(--l-band-skip);
+  --band-skip-ink: var(--l-band-skip-ink);
+  --band-skip-say: var(--l-band-skip-ink);
+  --band-unknown: var(--l-band-unknown);
+  --band-unknown-alt: var(--l-band-unknown-alt);
+  --band-unknown-ink: var(--l-band-unknown-ink);
+  --band-unknown-say: var(--l-band-unknown-ink);
+  --key-tint: var(--l-key-tint);
+  --now-tint: var(--l-now-tint);
 }
 
 :root[data-theme-mode="dark"] {
@@ -323,6 +391,27 @@
   --ok: #8bc49e;
   --shadow-rgb: var(--d-shadow);
   --shadow-alpha: 3;
+  --panel-bg: var(--d-panel, var(--d-surface));
+  --meter-off: var(--d-off);
+  --length-bar: var(--d-bar);
+  --on-mark: var(--d-on-mark);
+  --highlight: var(--d-hl);
+  --on-highlight: var(--d-on-hl);
+  --band-go: var(--d-band-go);
+  --band-go-ink: var(--d-band-go-ink);
+  --band-go-say: var(--d-text);
+  --band-fair: var(--d-band-fair);
+  --band-fair-ink: var(--d-band-fair-ink);
+  --band-fair-say: var(--d-text);
+  --band-skip: var(--d-band-skip);
+  --band-skip-ink: var(--d-band-skip-ink);
+  --band-skip-say: var(--d-text);
+  --band-unknown: var(--d-band-unknown);
+  --band-unknown-alt: var(--d-band-unknown-alt);
+  --band-unknown-ink: var(--d-band-unknown-ink);
+  --band-unknown-say: var(--d-text);
+  --key-tint: var(--d-key-tint);
+  --now-tint: var(--d-now-tint);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -353,6 +442,27 @@
     --ok: #8bc49e;
     --shadow-rgb: var(--d-shadow);
     --shadow-alpha: 3;
+    --panel-bg: var(--d-panel, var(--d-surface));
+    --meter-off: var(--d-off);
+    --length-bar: var(--d-bar);
+    --on-mark: var(--d-on-mark);
+    --highlight: var(--d-hl);
+    --on-highlight: var(--d-on-hl);
+    --band-go: var(--d-band-go);
+    --band-go-ink: var(--d-band-go-ink);
+    --band-go-say: var(--d-text);
+    --band-fair: var(--d-band-fair);
+    --band-fair-ink: var(--d-band-fair-ink);
+    --band-fair-say: var(--d-text);
+    --band-skip: var(--d-band-skip);
+    --band-skip-ink: var(--d-band-skip-ink);
+    --band-skip-say: var(--d-text);
+    --band-unknown: var(--d-band-unknown);
+    --band-unknown-alt: var(--d-band-unknown-alt);
+    --band-unknown-ink: var(--d-band-unknown-ink);
+    --band-unknown-say: var(--d-text);
+    --key-tint: var(--d-key-tint);
+    --now-tint: var(--d-now-tint);
   }
 }
 

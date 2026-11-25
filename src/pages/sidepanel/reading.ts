@@ -26,6 +26,15 @@ export function activeIndex(segments: readonly Pick<TranscriptSegment, "start">[
   return found;
 }
 
+/**
+ * 笔记对到哪一段：存笔记时时间向下取整到整秒，所以先找开始时间取整后正好等于笔记时间的第一段；
+ * 没有这样的段（笔记是在一段中途存的）再按播放位置找。同一秒里开始的几段分不清是哪一段，取舍是标第一段。
+ */
+export function noteSegmentIndex(segments: readonly Pick<TranscriptSegment, "start">[], atSec: number): number {
+  const exact = segments.findIndex((segment) => Math.floor(segment.start) === atSec);
+  return exact >= 0 ? exact : activeIndex(segments, atSec);
+}
+
 /** 一段在当前视图下显示的文字：译文还没到的段落先显示原文；有整理结果时原文用整理后的（tidied 只在用户没切回原始字幕时给）。 */
 export function linesOf(
   segment: TranscriptSegment,

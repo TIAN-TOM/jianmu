@@ -1,0 +1,242 @@
+/* 时间码（timecode）的版面：头部铺页面底色，判断是三格刻度，章节名下面一条按时长画的时长条，
+ * 模式切换是分段控件，精读顶上一条按章节时长分段的进度条。红色只给播放头和当前句的时间码。 */
+
+:root[data-accent-theme="timecode"] {
+  --hit: 2rem;
+}
+
+/* ---------- 头部和模式切换 ---------- */
+
+:root[data-accent-theme="timecode"] .panel-head {
+  margin: 0 calc(-1 * var(--panel-pad));
+  padding: 0.875rem var(--panel-pad) 0.75rem;
+  background: var(--bg);
+}
+
+:root[data-accent-theme="timecode"] .video-title,
+:root[data-accent-theme="timecode"] .overlay-title {
+  font-size: var(--fs-body);
+  line-height: 1.375rem;
+}
+
+:root[data-accent-theme="timecode"] .panel-top {
+  margin-top: 0;
+}
+
+:root[data-accent-theme="timecode"] .mode-row {
+  min-height: 3.25rem;
+}
+
+:root[data-accent-theme="timecode"] .modes {
+  gap: 0;
+  padding: 2px;
+  border-radius: var(--radius-md);
+  background: var(--bg);
+}
+
+:root[data-accent-theme="timecode"] .mode {
+  padding: 0.3125rem 0.875rem;
+  border-radius: 3px;
+  font-size: var(--fs-meta);
+  line-height: 1.125rem;
+  transition: var(--tint);
+}
+
+:root[data-accent-theme="timecode"] .mode::after {
+  display: none;
+}
+
+:root[data-accent-theme="timecode"] .mode[aria-checked="true"] {
+  background: var(--text);
+  color: var(--panel-bg);
+}
+
+/* ---------- 判断：三格刻度 ---------- */
+
+:root[data-accent-theme="timecode"] .mark-set[data-set="meter"] {
+  display: block;
+  height: 0.375rem;
+}
+
+:root[data-accent-theme="timecode"] .verdict-label {
+  font-size: var(--fs-meta);
+}
+
+/* ---------- 章节：时长条 ---------- */
+
+:root[data-accent-theme="timecode"] .section-title,
+:root[data-accent-theme="timecode"] .chapters-total {
+  margin-bottom: 0.375rem;
+  color: var(--text-muted);
+  font-size: 0.78125rem;
+  font-weight: var(--fw-regular);
+}
+
+:root[data-accent-theme="timecode"] .chapters-total {
+  display: inline;
+}
+
+:root[data-accent-theme="timecode"] .chapter-list {
+  gap: 0.5625rem;
+}
+
+:root[data-accent-theme="timecode"] .chapter-time {
+  min-width: max(2.875rem, calc(var(--time-ch, 4) * 0.62em));
+  padding: 0;
+  color: var(--text-muted);
+}
+
+:root[data-accent-theme="timecode"] .chapter-toggle,
+:root[data-accent-theme="timecode"] .chapter-title {
+  font-size: var(--fs-ui);
+  line-height: 1.25rem;
+}
+
+:root[data-accent-theme="timecode"] .chapter-span {
+  display: block;
+  border-radius: 2px;
+  background: var(--length-bar);
+}
+
+:root[data-accent-theme="timecode"] .chapter[data-key] .chapter-span {
+  background: var(--text);
+}
+
+:root[data-accent-theme="timecode"] .chapter[data-key] .chapter-time {
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+}
+
+/* ---------- 按钮：细边框的小按钮 ---------- */
+
+:root[data-accent-theme="timecode"] .button:not([data-variant="primary"], [data-variant="text"], [data-variant="danger"]),
+:root[data-accent-theme="timecode"] .overview-actions .button[data-variant="text"] {
+  min-height: 2rem;
+  padding: 0 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--panel-bg);
+  color: var(--text);
+  text-decoration-line: none;
+}
+
+:root[data-accent-theme="timecode"] .button:not([data-variant="primary"], [data-variant="text"], [data-variant="danger"]):hover:not(:disabled),
+:root[data-accent-theme="timecode"] .overview-actions .button[data-variant="text"]:hover:not(:disabled) {
+  border-color: var(--text);
+  background: var(--panel-bg);
+}
+
+:root[data-accent-theme="timecode"] .toolbar-actions .menu-anchor > .button {
+  min-height: auto;
+  padding: 0.1875rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font-size: 0.78125rem;
+  text-decoration-line: none;
+}
+
+:root[data-accent-theme="timecode"] .icon-button:hover:not(:disabled),
+:root[data-accent-theme="timecode"] .icon-button[aria-pressed="true"] {
+  background: var(--meter-off);
+  color: var(--text);
+}
+
+/* ---------- 输入框 ---------- */
+
+:root[data-accent-theme="timecode"] .search-input,
+:root[data-accent-theme="timecode"] .note-input {
+  background: var(--bg-subtle);
+}
+
+:root[data-accent-theme="timecode"] .ask-entry .search-input {
+  border-radius: var(--radius-md);
+}
+
+/* ---------- 精读：当前章节和分段进度条 ---------- */
+
+:root[data-accent-theme="timecode"] .chapter-bar {
+  gap: 0.375rem;
+  padding-bottom: 0.625rem;
+  font-size: 0.84375rem;
+}
+
+:root[data-accent-theme="timecode"] .chapter-bar-title {
+  font-weight: var(--fw-semibold);
+}
+
+:root[data-accent-theme="timecode"] .chapter-bar-time {
+  padding: 0;
+  color: var(--text-muted);
+  font-size: inherit;
+}
+
+:root[data-accent-theme="timecode"] .chapter-strip {
+  position: relative;
+  display: flex;
+  gap: 2px;
+  height: 6px;
+}
+
+:root[data-accent-theme="timecode"] .chapter-strip-piece {
+  flex-basis: 0;
+  height: 6px;
+  border-radius: 1px;
+  background: var(--meter-off);
+}
+
+:root[data-accent-theme="timecode"] .chapter-strip-piece[data-current] {
+  background: var(--text);
+}
+
+:root[data-accent-theme="timecode"] .chapter-strip-head {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 14px;
+  margin-left: -1px;
+  background: var(--mark);
+}
+
+/* ---------- 字幕：当前句铺页面底色，时间码是红底胶囊 ---------- */
+
+:root[data-accent-theme="timecode"] .cues {
+  gap: 0.25rem;
+}
+
+:root[data-accent-theme="timecode"] .cue {
+  grid-template-columns: minmax(2.875rem, auto) 1fr;
+  border-radius: 2px;
+}
+
+:root[data-accent-theme="timecode"] .cue-time {
+  justify-self: start;
+  color: var(--text-muted);
+}
+
+:root[data-accent-theme="timecode"] .cue[data-active="true"] {
+  background: var(--bg);
+}
+
+:root[data-accent-theme="timecode"] .cue[data-active="true"] .cue-time {
+  background: var(--mark);
+  color: var(--on-mark);
+  font-weight: var(--fw-semibold);
+}
+
+/* ---------- 问答：一条一道分隔线，引用的时间是小块 ---------- */
+
+:root[data-accent-theme="timecode"] .qa-entry {
+  padding: var(--space-3) 0 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+}
+
+:root[data-accent-theme="timecode"] .qa-answer .stamp,
+:root[data-accent-theme="timecode"] .citations .stamp {
+  border-radius: 2px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: var(--fs-caption);
+}

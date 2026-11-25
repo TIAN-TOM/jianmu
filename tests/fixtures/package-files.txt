@@ -31,3 +31,8 @@ ui/controls.css
 ui/motion.css
 ui/overlays.css
 ui/reading.css
+ui/themes/band.css
+ui/themes/marker.css
+ui/themes/pinkblue.css
+ui/themes/redblack.css
+ui/themes/timecode.css

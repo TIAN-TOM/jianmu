@@ -145,7 +145,7 @@ async function panelFlow(launcher, panelUrl, videoId) {
   await until("生成概览可以点", () => clickIn(panel, "button", "生成概览"));
   await until("概览生成完", async () => (await textOf(panel, ".chapter-name")).includes("模拟服务写的章节"));
   await until("结论写好", async () => (await textOf(panel, ".verdict-text")).includes("模拟服务写的一句话结论"));
-  await until("结论标的重点章节前面有圆点", () => evaluate(panel, `Boolean(document.querySelector(".skim .chapter[data-key] .key-dot[aria-label='重点']"))`));
+  await until("结论标的重点章节读屏读得出「重点」", () => evaluate(panel, `[...document.querySelectorAll(".skim .chapter[data-key] .sr-only")].some((node) => node.textContent.trim() === "重点")`));
   console.log("✓ 生成概览：章节和一句话结论都显示出来，重点章节标出来");
 
   await until("展开章节", () => clickIn(panel, ".chapter-toggle"));
@@ -173,7 +173,7 @@ async function panelFlow(launcher, panelUrl, videoId) {
   await evaluate(panel, `(() => { const sheet = [...document.querySelectorAll(".sheet")].find((node) => node.open); sheet?.querySelector(".overlay-head [aria-label='关闭']")?.click(); return true; })()`);
   const card = await until("这个视频页的卡片", () => cardOf(watchUrl));
   const cardCollapsed = () => evaluate(card, `document.getElementById("card")?.dataset.collapsed ?? ""`);
-  const keyChapterOnCard = () => until("卡片上的重点章节也标出来", () => evaluate(card, `Boolean(document.querySelector("#card-overview .chapter[data-key] .key-dot"))`));
+  const keyChapterOnCard = () => until("卡片上的重点章节也标出来", () => evaluate(card, `Boolean(document.querySelector("#card-overview .chapter[data-key] .sr-only"))`));
   // 浏览器报得出侧边栏开关时（新一些的版本），侧边栏开着卡片就让位收起；报不出的照旧只跟模式走。
   const yields = await evaluate(launcher, `Boolean(chrome.sidePanel.onOpened && chrome.sidePanel.onClosed)`);
   if (yields) await until("侧边栏开着，速读的卡片也让位收起", async () => (await cardCollapsed()) === "true");
@@ -183,10 +183,7 @@ async function panelFlow(launcher, panelUrl, videoId) {
   }
   await until("切到精读", () => clickIn(panel, ".mode", "精读"));
   await until("精读显示当前章节", async () => (await textOf(panel, ".chapter-bar-title")).includes("模拟服务写的章节"));
-  await until("当前章节是重点，条上也标出来", () => evaluate(panel, `Boolean(document.querySelector(".chapter-bar .key-dot"))`));
-  // 圆点排在条里、章节数和章节名之间：章节列表里给圆点的定位不能带到这条上来。
-  const dot = JSON.parse(await evaluate(panel, `(() => { const box = (selector) => { const r = document.querySelector(selector).getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom }; }; return JSON.stringify({ bar: box(".chapter-bar"), count: box(".chapter-bar-count"), dot: box(".chapter-bar .key-dot"), title: box(".chapter-bar-title") }); })()`));
-  if (!(dot.dot.left >= dot.count.right && dot.dot.right <= dot.title.left && dot.dot.top >= dot.bar.top && dot.dot.bottom <= dot.bar.bottom)) throw new Error(`当前章节条上的重点圆点不在章节数和章节名之间：${JSON.stringify(dot)}`);
+  await until("当前章节是重点，条上读屏也读得出「重点」", () => evaluate(panel, `Boolean(document.querySelector(".chapter-bar-title .sr-only"))`));
   // 整理字幕：点了才发，整理后的替换原文显示，不再按行断开；能切回原始字幕。
   await until("点整理字幕", () => clickIn(panel, ".tidy-row .button", "整理字幕"));
   await until("显示整理后的字幕", async () => (await textOf(panel, ".study .cue-text")).includes("样例台词一样例台词二。"));

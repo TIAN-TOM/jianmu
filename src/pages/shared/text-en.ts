@@ -16,6 +16,7 @@ export const SHARED_EN: SharedText = {
     label: "Chapters",
     key: "Key chapter",
     heading: (count, keyCount) => (keyCount > 0 ? `${plural(count, "chapter", "chapters")}, ${keyCount} key` : plural(count, "chapter", "chapters")),
+    total: (time) => `${time} long`,
   },
 
   verdict: {

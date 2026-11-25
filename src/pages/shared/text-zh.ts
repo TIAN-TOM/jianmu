@@ -16,6 +16,7 @@ export const SHARED_ZH = {
     label: "章节",
     key: "重点",
     heading: (count: number, keyCount: number) => (keyCount > 0 ? `章节 ${count}，重点 ${keyCount}` : `章节 ${count}`),
+    total: (time: string) => `全长 ${time}`,
   },
 
   verdict: {

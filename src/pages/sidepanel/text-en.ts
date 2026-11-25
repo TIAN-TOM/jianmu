@@ -136,6 +136,7 @@ export const PANEL_EN: PanelText = {
   study: {
     currentChapter: "Current chapter",
     jumpToChapter: (time) => `Jump to the start of this chapter at ${time}`,
+    place: (index, count, time) => `Chapter ${index} of ${count}, starts at ${time}`,
   },
 
   notes: {

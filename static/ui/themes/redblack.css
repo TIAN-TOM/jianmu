@@ -1,0 +1,231 @@
+/* 红黑（redblack）的版面：判断是红色播放器记号加粗体判断词；重点章节名后面一个淡红底的「重点」小标签；
+ * 时间戳是灰色，当前句铺浅灰、时间码反显；模式切换是圆角块，选中的那块黑底白字；按钮、输入框都是胶囊，图标按钮是圆的。 */
+
+:root[data-accent-theme="redblack"] {
+  --hit: 2.25rem;
+}
+
+/* ---------- 头部和模式切换 ---------- */
+
+:root[data-accent-theme="redblack"] .video-title,
+:root[data-accent-theme="redblack"] .overlay-title {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.375rem;
+}
+
+:root[data-accent-theme="redblack"] .mode-row {
+  min-height: 3.25rem;
+  border-bottom: 0;
+}
+
+:root[data-accent-theme="redblack"] .modes {
+  gap: var(--space-2);
+}
+
+:root[data-accent-theme="redblack"] .mode {
+  padding: 0.375rem 0.875rem;
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  color: var(--text);
+  font-size: 0.84375rem;
+  line-height: 1.25rem;
+  transition: var(--tint);
+}
+
+:root[data-accent-theme="redblack"] .mode::after {
+  display: none;
+}
+
+:root[data-accent-theme="redblack"] .mode[aria-checked="true"] {
+  background: var(--text);
+  color: var(--panel-bg);
+}
+
+:root[data-accent-theme="redblack"] .icon-button {
+  border-radius: var(--radius-pill);
+  color: var(--text);
+}
+
+:root[data-accent-theme="redblack"] .icon-button:hover:not(:disabled),
+:root[data-accent-theme="redblack"] .icon-button[aria-pressed="true"] {
+  background: var(--bg-subtle);
+}
+
+/* ---------- 判断：红色记号加粗体判断词 ---------- */
+
+:root[data-accent-theme="redblack"] .verdict .verdict-label {
+  gap: var(--space-2);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.375rem;
+}
+
+:root[data-accent-theme="redblack"] .mark-set[data-set="player"] {
+  display: block;
+  height: 1.25em;
+  color: var(--mark);
+}
+
+:root[data-accent-theme="redblack"] .verdict-text {
+  font-size: var(--fs-body);
+  font-weight: var(--fw-regular);
+  line-height: 1.5rem;
+}
+
+:root[data-accent-theme="redblack"] .card .verdict-text {
+  font-size: 0.90625rem;
+  line-height: 1.4375rem;
+}
+
+/* ---------- 章节：重点章节名后面一个「重点」小标签 ---------- */
+
+:root[data-accent-theme="redblack"] .section-title {
+  margin-bottom: 0.375rem;
+  color: var(--text);
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-semibold);
+}
+
+:root[data-accent-theme="redblack"] .chapter-list {
+  gap: var(--space-2);
+}
+
+:root[data-accent-theme="redblack"] .chapter-time {
+  min-width: max(2.75rem, calc(var(--time-ch, 4) * 0.62em));
+  padding: 0;
+}
+
+:root[data-accent-theme="redblack"] .chapter-toggle,
+:root[data-accent-theme="redblack"] .chapter-title {
+  font-size: var(--fs-ui);
+  line-height: 1.25rem;
+}
+
+:root[data-accent-theme="redblack"] .key-tag {
+  display: inline-block;
+  margin-inline-start: 0.375rem;
+  padding: 0 0.375rem;
+  border-radius: var(--radius-sm);
+  background: var(--key-tint);
+  color: var(--text);
+  font-size: 0.71875rem;
+  font-weight: var(--fw-semibold);
+  line-height: 1.125rem;
+  vertical-align: 1px;
+}
+
+/* ---------- 按钮和输入框：胶囊 ---------- */
+
+:root[data-accent-theme="redblack"] .button {
+  border-radius: var(--radius-pill);
+}
+
+:root[data-accent-theme="redblack"] .button:not([data-variant="primary"], [data-variant="text"], [data-variant="danger"]),
+:root[data-accent-theme="redblack"] .overview-actions .button[data-variant="text"] {
+  min-height: 2rem;
+  padding: 0 0.875rem;
+  border: 0;
+  background: var(--bg-subtle);
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+  text-decoration-line: none;
+}
+
+:root[data-accent-theme="redblack"] .button:not([data-variant="primary"], [data-variant="text"], [data-variant="danger"]):hover:not(:disabled),
+:root[data-accent-theme="redblack"] .overview-actions .button[data-variant="text"]:hover:not(:disabled) {
+  background: var(--bg-active);
+}
+
+:root[data-accent-theme="redblack"] .toolbar-actions .menu-anchor > .button {
+  min-height: auto;
+  padding: 0.3125rem 0.75rem;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  color: var(--text);
+  font-size: 0.78125rem;
+  font-weight: var(--fw-semibold);
+  text-decoration-line: none;
+}
+
+:root[data-accent-theme="redblack"] .search-input,
+:root[data-accent-theme="redblack"] .note-input {
+  background: var(--panel-bg);
+}
+
+:root[data-accent-theme="redblack"] .search-input {
+  padding-inline: 1rem;
+  border-radius: var(--radius-pill);
+}
+
+/* ---------- 精读：「第几章，共几章，几点开始」加粗体章节名，下面一条红色的播放进度 ---------- */
+
+:root[data-accent-theme="redblack"] .chapter-bar {
+  gap: var(--space-2);
+  padding-top: 0.125rem;
+  font-size: 0.84375rem;
+}
+
+:root[data-accent-theme="redblack"] .chapter-bar-count,
+:root[data-accent-theme="redblack"] .chapter-bar-time {
+  display: none;
+}
+
+:root[data-accent-theme="redblack"] .chapter-bar-place {
+  display: block;
+  font-size: 0.78125rem;
+}
+
+:root[data-accent-theme="redblack"] .chapter-bar-title {
+  font-weight: 700;
+}
+
+:root[data-accent-theme="redblack"] .chapter-progress {
+  display: block;
+  position: relative;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--bg-subtle);
+}
+
+:root[data-accent-theme="redblack"] .chapter-progress-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 2px;
+  background: var(--mark);
+}
+
+/* ---------- 字幕：当前句铺浅灰，时间码反显 ---------- */
+
+:root[data-accent-theme="redblack"] .cues {
+  gap: 2px;
+  margin-inline: calc(-1 * var(--space-2));
+}
+
+:root[data-accent-theme="redblack"] .cue {
+  grid-template-columns: minmax(2.875rem, auto) 1fr;
+  padding: 0.375rem var(--space-2);
+}
+
+:root[data-accent-theme="redblack"] .cue-time {
+  justify-self: start;
+}
+
+:root[data-accent-theme="redblack"] .cue[data-active="true"] {
+  background: var(--bg-subtle);
+}
+
+:root[data-accent-theme="redblack"] .cue[data-active="true"] .cue-time {
+  background: var(--text);
+  color: var(--panel-bg);
+  font-weight: 700;
+}
+
+/* ---------- 问答：一条铺浅灰、大圆角 ---------- */
+
+:root[data-accent-theme="redblack"] .qa-entry {
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--bg-subtle);
+}

@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { safeFileName } from "../../../../src/pages/sidepanel/files.ts";
-import { activeIndex, chapterAt, copyTextOf, explainable, linesOf, mainBreaks, MAX_SELECTION, refreshLang, segmentsBetween, selectedNote, srtOf, transcriptRows } from "../../../../src/pages/sidepanel/reading.ts";
+import { activeIndex, chapterAt, copyTextOf, explainable, linesOf, mainBreaks, MAX_SELECTION, noteSegmentIndex, refreshLang, segmentsBetween, selectedNote, srtOf, transcriptRows } from "../../../../src/pages/sidepanel/reading.ts";
 import { fileProblem } from "../../../../src/pages/sidepanel/transcript.ts";
 
 const segment = (id: string, start: number, text: string) => ({ id, start, text, texts: [text] });
@@ -117,4 +117,20 @@ test("重新读取字幕：平台的字幕点名现在的语言，导入的和�
   assert.equal(refreshLang({ ref: { kind: "human" } }), true);
   assert.equal(refreshLang({ fileName: "样例.srt", ref: { kind: "imported" } }), false);
   assert.equal(refreshLang({ ref: { kind: "official-ai" } }), false);
+});
+
+test("笔记对到哪一段：存下来的时间是整秒，开始时间带小数的那一段照样对得上；在一段中途存的按播放位置找", () => {
+  const starts = (...list: number[]) => list.map((start) => ({ start }));
+  // 37.5 秒开始的那一段存成 37：标到这一段，不标到前一段
+  assert.equal(noteSegmentIndex(starts(30, 37.5, 45), 37), 1);
+  assert.equal(activeIndex(starts(30, 37.5, 45), 37), 0, "只按播放位置找会标到前一段");
+  // 第一段带小数：0.4 秒开始的段存成 0，照样标第一段
+  assert.equal(noteSegmentIndex(starts(0.4, 6.2), 0), 0);
+  // 在一段中途存的：没有正好对上的段，按播放位置找
+  assert.equal(noteSegmentIndex(starts(30, 37.5, 45), 41), 1);
+  assert.equal(noteSegmentIndex(starts(30, 37.5, 45), 50), 2);
+  // 笔记时间早于所有段：一段都不标
+  assert.equal(noteSegmentIndex(starts(5, 9), 2), -1);
+  // 同一秒里开始的两段分不清，标第一段
+  assert.equal(noteSegmentIndex(starts(10, 12.1, 12.7, 15), 12), 1);
 });

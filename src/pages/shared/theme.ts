@@ -158,7 +158,8 @@ export function pageAppearanceSources(
 
 /**
  * 先读一次设置落地外观，之后设置变了、「跟随系统」时系统明暗变了、清除了全部数据，都重新落地。
- * 读设置失败就留着首帧脚本画的样子。读的途中设置已经变了，以变化为准，不让旧值盖回去。
+ * 读设置失败就留着首帧脚本画的样子；首帧脚本也没写主题时写上默认主题，各套主题的版面规则都按这个属性写。
+ * 读的途中设置已经变了，以变化为准，不让旧值盖回去。
  */
 export async function watchAppearance(deps: WatchAppearanceDeps, root: AppearanceRoot): Promise<AppearanceWatch> {
   let last: Appearance | null = null;
@@ -211,6 +212,7 @@ export async function watchAppearance(deps: WatchAppearanceDeps, root: Appearanc
   });
 
   await reload(undefined);
+  if (!stopped && root.dataset && !root.dataset.accentTheme) root.dataset.accentTheme = DEFAULTS.accentTheme;
   return {
     current: () => last,
     refresh() {

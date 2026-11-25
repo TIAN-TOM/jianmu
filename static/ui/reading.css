@@ -206,13 +206,30 @@
   font-size: var(--fs-meta);
 }
 
-/* ---------- 章节 ---------- */
+/* ---------- 章节 ----------
+ * 重点章节读屏读一次「重点」（.sr-only）。画出来的记号由主题的版面规则挑：时间前的小播放键（.key-play）、
+ * 章节名后的「重点」标签（.key-tag）、章节名下面的时长条（.chapter-span，宽度是这一章占最长一章的几成 --share），
+ * 小标题旁边的全长（.chapters-total），这里默认都不显示。 */
 
 .section-title {
   margin-bottom: var(--space-2);
   color: var(--text-muted);
   font-size: var(--fs-meta);
   font-weight: var(--fw-medium);
+}
+
+.chapters-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.chapters-total,
+.key-play,
+.key-tag,
+.chapter-span {
+  display: none;
 }
 
 .chapter-list {
@@ -250,9 +267,8 @@
 .chapter-toggle,
 .chapter-title {
   position: relative;
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--space-2);
+  display: block;
+  flex: 1;
   min-width: 0;
   padding: 0;
   border: 0;
@@ -282,26 +298,24 @@
   text-underline-offset: 3px;
 }
 
+.chapter-label {
+  display: block;
+}
+
 .chapter[data-key] .chapter-name {
   font-weight: var(--fw-semibold);
 }
 
-.key-dot {
-  flex: none;
-  align-self: center;
-  width: 7px;
-  height: 7px;
-  border-radius: var(--radius-pill);
-  background: var(--mark-key);
+.key-tag {
+  margin-inline-start: var(--space-2);
+  white-space: nowrap;
 }
 
-/* 章节列表里，重点的圆点放在时间和章节名之间的空里、对着第一行：不占章节名的位置，重点和不是重点的章节名对得齐。
- * 只管列表里的：别处（精读的当前章节条）的圆点照旧排在行里。 */
-.chapter-toggle > .key-dot,
-.chapter-title > .key-dot {
-  position: absolute;
-  top: calc(0.75em - 3.5px);
-  left: calc((var(--space-2) + var(--space-1)) / -2 - 3.5px);
+.chapter-span {
+  width: calc(var(--share, 0) * 100%);
+  height: 3px;
+  margin-top: var(--space-1);
+  border-radius: var(--radius-sm);
 }
 
 .chapter-detail {

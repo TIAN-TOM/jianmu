@@ -24,7 +24,7 @@ import { copyText } from "./copy.ts";
 import { CreatorChapters, OfficialSummary } from "./guides.tsx";
 import type { Panel } from "./panel.ts";
 import { SettingsExit } from "./settings-exit.tsx";
-import { activeIndex, copyTextOf, explainable, mainBreaks, refreshLang, selectedNote, srtOf, transcriptRows } from "./reading.ts";
+import { activeIndex, copyTextOf, noteSegmentIndex, explainable, mainBreaks, refreshLang, selectedNote, srtOf, transcriptRows } from "./reading.ts";
 import { needsSetup, setupReason } from "../shared/config.ts";
 import { uiLang, type UiLang } from "../shared/ui-lang.ts";
 import { sharedText } from "../shared/text.ts";
@@ -259,6 +259,12 @@ function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: 
   const t = p.transcript;
   const jumpTo = sharedText().jumpTo;
   const shown = useMemo(() => transcriptRows(segments, mode, translated, tidied, showTidied, needle), [segments, mode, translated, tidied, showTidied, needle]);
+  // 存过笔记的那几句：有的主题把它们用荧光笔划出来。
+  const notes = panel.notes.state.value;
+  const saved = useMemo(
+    () => new Set(notes.scope === "video" && notes.video === view.video ? notes.notes.map((note) => noteSegmentIndex(segments, note.atSec)) : []),
+    [notes, segments, view.video],
+  );
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
@@ -341,7 +347,7 @@ function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: 
       <TidyRow panel={panel} segments={segments.length} />
       <ol class="cues" ref={list} onWheel={() => setFollowing(false)} onTouchMove={() => setFollowing(false)} onMouseUp={onSelectEnd} onKeyUp={onSelectEnd}>
         {shown.map(({ segment, index, main, sub, extra }) => (
-          <li key={segment.id} class="cue" data-index={index} data-active={index === active ? "true" : undefined}>
+          <li key={segment.id} class="cue" data-index={index} data-active={index === active ? "true" : undefined} data-saved={saved.has(index) ? "true" : undefined}>
             <button type="button" class="cue-time" aria-label={jumpTo(formatTimestamp(segment.start))} onClick={() => void panel.seek(segment.start)}>
               {formatTimestamp(segment.start)}
             </button>
