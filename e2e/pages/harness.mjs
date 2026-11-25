@@ -30,7 +30,7 @@ export function scenario(fileUrl) {
 
 export const registered = () => [...registry];
 
-/** 三套主题、两种明暗、三档字号，取值和设置模块一致。 */
+/** 五套主题、两种明暗、三档字号，取值和设置模块一致。 */
 export const APPEARANCES = Object.keys(ACCENT_THEMES).flatMap((accentTheme) =>
   ["light", "dark"].flatMap((themeMode) => UI_FONT_SCALES.map((uiFontScale) => ({ accentTheme, themeMode, uiFontScale }))),
 );

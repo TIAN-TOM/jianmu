@@ -1,6 +1,7 @@
 // 设置的结构和规则：默认值、规整、校验、按功能选模型。读写存储在设置仓库里，这里不碰 chrome.*。
 // 协议和地址只写在 core/ai/provider/endpoint.ts，这里按 id 补给界面用的内容，依赖方向是这里导入那边。
 import { ANALYSIS_CHUNK_CHARS, ANALYSIS_SINGLE_CHARS } from "../core/ai/chunking.ts";
+import { ACCENT_THEMES, type AccentTheme } from "./accent-themes.ts";
 import {
   CUSTOM_PRESET_ID,
   DEFAULT_PRESET as DEFAULT_ENDPOINT,
@@ -108,46 +109,7 @@ export const ANALYSIS_CHUNK_MODES = Object.freeze({
 });
 export type AnalysisChunkMode = keyof typeof ANALYSIS_CHUNK_MODES;
 
-interface ThemeColors {
-  readonly bg: string;
-  readonly card: string;
-  readonly text: string;
-  readonly accent: string;
-}
-
-// 主题的名字和一句话说明在设置页的文案表里，按 id 取。
-interface AccentThemeInfo {
-  /** 浅色的强调色填充，播放页上的按钮落在平台的浅色页面上，从这取值。 */
-  readonly swatch: string;
-  /** 设置页主题卡片上的小预览，明暗各一组。 */
-  readonly preview: { readonly light: ThemeColors; readonly dark: ThemeColors };
-}
-
-// 三套完整配色共用同一套排版。完整色值在主题样式表里，按 html 的 data 属性切换，这里只留脚本要用的颜色，两边要一致。
-export const ACCENT_THEMES = Object.freeze({
-  ink: {
-    swatch: "#2a6664",
-    preview: {
-      light: { bg: "#f6f3ed", card: "#fdfbf8", text: "#1d2428", accent: "#2a6664" },
-      dark: { bg: "#141818", card: "#1b201f", text: "#e3dfd7", accent: "#76b9b6" },
-    },
-  },
-  graphite: {
-    swatch: "#515d9f",
-    preview: {
-      light: { bg: "#f2f4f8", card: "#ffffff", text: "#1f232b", accent: "#515d9f" },
-      dark: { bg: "#15171c", card: "#1c1f23", text: "#dde0e5", accent: "#9daae4" },
-    },
-  },
-  ochre: {
-    swatch: "#8e5729",
-    preview: {
-      light: { bg: "#f8f3ee", card: "#fdfbf9", text: "#29211d", accent: "#8e5729" },
-      dark: { bg: "#1a1614", card: "#221e1b", text: "#e5ded7", accent: "#dea77e" },
-    },
-  },
-} as const satisfies Readonly<Record<string, AccentThemeInfo>>);
-export type AccentTheme = keyof typeof ACCENT_THEMES;
+export { ACCENT_THEMES, type AccentTheme } from "./accent-themes.ts";
 
 export const THEME_MODES = Object.freeze({ SYSTEM: "system", LIGHT: "light", DARK: "dark" } as const);
 export type ThemeMode = (typeof THEME_MODES)[keyof typeof THEME_MODES];
@@ -243,7 +205,7 @@ export const DEFAULTS: NormalizedSettings = Object.freeze({
   featureEfforts: normalizeFeatureEfforts(undefined),
   analysisChunkMode: "auto",
   uiFontScale: UI_FONT_SCALES[0],
-  accentTheme: "ink",
+  accentTheme: "marker",
   themeMode: THEME_MODES.SYSTEM,
   language: "auto",
   inPageCard: true,

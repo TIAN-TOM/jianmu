@@ -5,7 +5,7 @@
 export const CACHE_KEY = "jianmu_appearance";
 /** 卡片嵌在视频页里时，内容脚本把页面的明暗写在卡片地址 # 后面的这个参数里。 */
 export const TONE_PARAM = "tone";
-export const THEMES = Object.freeze(["ink", "graphite", "ochre"] as const);
+export const THEMES = Object.freeze(["timecode", "marker", "band", "pinkblue", "redblack"] as const);
 export const MODES = Object.freeze(["system", "light", "dark"] as const);
 export const FONT_SCALES = Object.freeze([100, 112, 125] as const);
 

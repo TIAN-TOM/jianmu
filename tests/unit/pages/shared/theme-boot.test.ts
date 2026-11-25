@@ -59,12 +59,12 @@ test("缓存的键名和合法取值与设置模块一致", () => {
 test("applyAppearance 落地外观时把主题、明暗和字号记进页面的 localStorage，旧色板记成映射后的主题", () => {
   const localStorage = memoryLocalStorage();
   const { root } = fakePage({ localStorage });
-  // 认不出的主题名（比如别的版本留下的色板）按设置模块规整成三套之一，缓存里记规整后的值。
+  // 认不出的主题名（比如别的版本留下的色板）按设置模块规整成五套之一，缓存里记规整后的值。
   // 语言选项跟着一起记，界面语言的启动读它（ui-lang.ts），首帧脚本不管。
   applyAppearance({ accentTheme: "amber", themeMode: "dark", uiFontScale: 118 }, root);
-  assert.deepEqual(cachedIn(localStorage), { accentTheme: "ink", themeMode: "dark", uiFontScale: 112, language: "auto" });
-  applyAppearance({ accentTheme: "ochre", themeMode: "light", uiFontScale: 125, language: "en" }, root);
-  assert.deepEqual(cachedIn(localStorage), { accentTheme: "ochre", themeMode: "light", uiFontScale: 125, language: "en" });
+  assert.deepEqual(cachedIn(localStorage), { accentTheme: "marker", themeMode: "dark", uiFontScale: 112, language: "auto" });
+  applyAppearance({ accentTheme: "redblack", themeMode: "light", uiFontScale: 125, language: "en" }, root);
+  assert.deepEqual(cachedIn(localStorage), { accentTheme: "redblack", themeMode: "light", uiFontScale: 125, language: "en" });
 
   // 「跟随系统」记原值，不记解析结果：下次打开时系统可能已经换了明暗
   applyAppearance({ themeMode: "system" }, root);
@@ -83,8 +83,8 @@ test("卡片所在页面的明暗：首帧脚本和页面读地址的写法一�
 
   // 设置是深色、系统也是深色，页面是浅色：卡片第一帧就是浅色，主题和字号照缓存。
   const { root } = fakePage();
-  applyCache({ accentTheme: "ochre", themeMode: "dark", uiFontScale: 125 }, root, true, "light");
-  assert.deepEqual({ ...root.dataset }, { accentTheme: "ochre", themeMode: "light" });
+  applyCache({ accentTheme: "redblack", themeMode: "dark", uiFontScale: 125 }, root, true, "light");
+  assert.deepEqual({ ...root.dataset }, { accentTheme: "redblack", themeMode: "light" });
   assert.equal(root.style.values["--ui-font-zoom"], "1.25");
   // 没有缓存也按页面的明暗画。
   const bare = fakePage().root;
@@ -95,7 +95,7 @@ test("卡片所在页面的明暗：首帧脚本和页面读地址的写法一�
 test("缓存只写扩展自己的页面；存储写不进去时照样落地外观，不抛错", () => {
   // 万一这段代码被带进别人的网页：那边的 localStorage 不能碰
   const foreign = memoryLocalStorage();
-  applyAppearance({ accentTheme: "graphite" }, fakePage({ protocol: "https:", localStorage: foreign }).root);
+  applyAppearance({ accentTheme: "pinkblue" }, fakePage({ protocol: "https:", localStorage: foreign }).root);
   assert.equal(foreign.values.size, 0);
 
   const broken = fakePage({
@@ -106,13 +106,13 @@ test("缓存只写扩展自己的页面；存储写不进去时照样落地外�
       },
     },
   }).root;
-  assert.doesNotThrow(() => applyAppearance({ accentTheme: "graphite" }, broken));
-  assert.equal(broken.dataset.accentTheme, "graphite");
+  assert.doesNotThrow(() => applyAppearance({ accentTheme: "pinkblue" }, broken));
+  assert.equal(broken.dataset.accentTheme, "pinkblue");
 
   // 根节点没有所在页面（单元测试里的桩）时什么都不写
   const bare = { dataset: {} as Record<string, string | undefined> };
-  assert.doesNotThrow(() => applyAppearance({ accentTheme: "ochre" }, bare));
-  assert.equal(bare.dataset.accentTheme, "ochre");
+  assert.doesNotThrow(() => applyAppearance({ accentTheme: "redblack" }, bare));
+  assert.equal(bare.dataset.accentTheme, "redblack");
 });
 
 test("每种主题、明暗、字号：首帧按缓存写下的，和读回存储后落的一模一样", () => {
@@ -138,7 +138,7 @@ test("缓存没有、损坏、读存储抛错时什么都不写；不合法的�
   assert.deepEqual(readCache(storageWith()), {});
   assert.deepEqual(readCache(null), {});
   assert.deepEqual(readCache(undefined), {});
-  for (const raw of ["", "{", "null", "42", '"ink"', "[]", "undefined"]) {
+  for (const raw of ["", "{", "null", "42", '"marker"', "[]", "undefined"]) {
     assert.deepEqual(readCache(storageWith(raw)), {}, raw);
   }
   assert.deepEqual(
@@ -150,13 +150,22 @@ test("缓存没有、损坏、读存储抛错时什么都不写；不合法的�
     {},
   );
 
-  // 只认三套主题、三种明暗、三档字号；别的主题名、大小写不对、字符串字号都不认
+  // 只认五套主题、三种明暗、三档字号；别的主题名、大小写不对、字符串字号都不认
   const partial = readCache(storageWith(JSON.stringify({ accentTheme: "pink", themeMode: "dark", uiFontScale: "112" })));
   assert.deepEqual(partial, { themeMode: "dark" });
   const odd = readCache(storageWith(JSON.stringify({ accentTheme: "__proto__", themeMode: "Dark", uiFontScale: 140 })));
   assert.deepEqual(odd, {});
-  const nested = readCache(storageWith('{"__proto__": {"accentTheme": "ochre"}, "uiFontScale": 125}'));
+  const nested = readCache(storageWith('{"__proto__": {"accentTheme": "redblack"}, "uiFontScale": 125}'));
   assert.deepEqual(nested, { uiFontScale: 125 });
+
+  // 早先版本的三套主题名不认：缓存里存着旧值时不写 data-accent-theme，交给样式表的默认主题
+  for (const old of ["ink", "graphite", "ochre"]) {
+    const cached = readCache(storageWith(JSON.stringify({ accentTheme: old, themeMode: "light" })));
+    assert.deepEqual(cached, { themeMode: "light" }, old);
+    const page = fakePage().root;
+    applyCache(cached, page, false);
+    assert.deepEqual({ ...page.dataset }, { themeMode: "light" }, old);
+  }
 
   // 什么都没认出来时根节点原样不动，交给样式表的默认
   const root = fakePage().root;
@@ -166,15 +175,15 @@ test("缓存没有、损坏、读存储抛错时什么都不写；不合法的�
 
 test("在页面里真的跑一遍：同步写好 <html>，读不了存储时按默认画、不抛错", () => {
   const localStorage = memoryLocalStorage({
-    [CACHE_KEY]: JSON.stringify({ accentTheme: "graphite", themeMode: "system", uiFontScale: 125 }),
+    [CACHE_KEY]: JSON.stringify({ accentTheme: "pinkblue", themeMode: "system", uiFontScale: 125 }),
   });
   assert.deepEqual(runBootInPage({ localStorage, prefersDark: true }), {
-    dataset: { accentTheme: "graphite", themeMode: "dark" },
+    dataset: { accentTheme: "pinkblue", themeMode: "dark" },
     zoom: "1.25",
   });
   assert.equal(runBootInPage({ localStorage, prefersDark: false }).dataset.themeMode, "light");
 
-  // 刚装好还没有缓存：什么都不写，样式表的默认（宣纸墨青、跟随系统、标准字号）接手
+  // 刚装好还没有缓存：什么都不写，样式表的默认（荧光笔、跟随系统、标准字号）接手
   assert.deepEqual(runBootInPage({ localStorage: memoryLocalStorage() }), { dataset: {}, zoom: undefined });
   // 存储被禁用时连读 localStorage 属性都会抛错
   assert.deepEqual(runBootInPage({ storageThrows: true }), { dataset: {}, zoom: undefined });

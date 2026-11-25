@@ -174,7 +174,6 @@ function Gallery() {
         <IconButton icon="note" label="存笔记" />
         <Badge tone="warn">没润色</Badge>
         <Badge tone="line">基于旧字幕</Badge>
-        <Badge tone="ok">已保存</Badge>
       </section>
 
       <section id="overlays" class="gallery-wrap">

@@ -3,18 +3,22 @@
  * 四个扩展页面（侧边栏、设置页、播放页卡片、粗筛页）共用。页面样式只用第二层的语义变量，
  * 不写死色值；换主题、换明暗都只动这里。
  *
- *   1. 主题：三套完整配色，每套一组原始色值，浅色 --l-*、深色 --d-*，
+ *   1. 主题：五套完整配色，每套一组原始色值，浅色 --l-*、深色 --d-*，外加这套主题的圆角，
  *      由 html 的 data-accent-theme 切换（取值和设置模块的主题表一致，单元测试核对）
  *   2. 语义变量：--bg、--card、--text 按明暗从原始色值里取
  *   3. 时间轨和判断档位
- *   4. 字号、行高、间距、圆角、阴影、动效、版面尺寸；界面字号改根字号
+ *   4. 字号、行高、间距、阴影、动效、版面尺寸；界面字号改根字号
  *   5. 浏览器自己画的部分：复选框、滚动条、选中色、搜索框清除按钮、自动填充、下拉框
  *
  * 页面第一帧的主题、明暗和字号由首帧外观脚本在 <head> 里同步写到 html 上。
  *
- * 三套主题共用同一套明度阶梯、排版和间距，只换色相和彩度。
- * 强调色低饱和，只落在主要操作上；--mark 是唯一的第二种颜色，只给播放头和重点章节，
- * 两者都是在说「看这里」。文字色在各自模式的底色上都过 WCAG AA，单元测试逐套核对。
+ * 五套主题共用排版和间距，都用系统无衬线字体；各自换颜色和圆角。原始色值的角色：
+ *   bg 页面底，surface 卡片和浮层，sunken 输入框和引用，hover 悬停底色，active 当前句和按下去的底色，
+ *   border 分隔线，border-strong 输入框、下拉框这类控件的边框（过 3:1），
+ *   text、text-muted 正文和次要文字，text-faint 注释（各套都和 text-muted 同值），
+ *   accent 主按钮底和进度，on-accent 主按钮上的字，accent-text 链接和时间戳这类落在文字上的强调色，
+ *   mark 播放头，key 重点章节的记号，verdict 判断档位的文字。
+ * mark、key 都是在说「看这里」，过 3:1；文字色在各自模式的底色上都过 WCAG AA，单元测试逐套核对。
  *
  * 深色挂两套选择器：data-theme-mode 承接首帧脚本和页面脚本写下的结果；
  * prefers-color-scheme 兜还没有首帧缓存时的首屏，免得系统深色的人先闪一下浅色。两处列表要同步维护。
@@ -23,120 +27,240 @@
 
 /* ---------- 1. 主题：原始色值 ---------- */
 
-/* 宣纸墨青（ink，默认）：暖白纸面、偏冷的墨色文字、低饱和的青黛强调色。
+/* 荧光笔（marker，默认）：白纸、近黑的墨水字、钢笔蓝的时间戳和主按钮，判断档位也是钢笔蓝。
  * 写在 :root 上，还没写下 data-accent-theme 的首屏也是这一套。 */
 :root {
-  --l-bg: #f6f3ed;
-  --l-surface: #fdfbf8;
-  --l-sunken: #f0ede7;
-  --l-hover: #eeebe5;
-  --l-active: #e7e4dd;
-  --l-border: #e2dfd9;
-  --l-border-strong: #c3c0ba;
-  --l-text: #1d2428;
-  --l-text-muted: #4e555a;
-  --l-text-faint: #636a6f;
-  --l-accent: #2a6664;
-  --l-accent-strong: #165553;
-  --l-accent-text: #246361;
-  --l-accent-text-strong: #114c4a;
-  --l-on-accent: #ffffff;
-  --l-shadow: 40 32 20;
-  --l-mark: #a8620c;
-
-  --d-bg: #141818;
-  --d-surface: #1b201f;
-  --d-sunken: #171c1c;
-  --d-hover: #242928;
-  --d-active: #2b3030;
-  --d-border: #2e3332;
-  --d-border-strong: #414646;
-  --d-text: #e3dfd7;
-  --d-text-muted: #b4b1a9;
-  --d-text-faint: #949089;
-  --d-accent: #76b9b6;
-  --d-accent-strong: #86c9c6;
-  --d-accent-text: #88c9c5;
-  --d-accent-text-strong: #a7ddda;
-  --d-on-accent: #0b1918;
-  --d-shadow: 0 0 0;
-  --d-mark: #f2b544;
-}
-
-/* 石墨靛蓝（graphite）：冷调石墨灰、白卡片、低饱和的靛蓝强调色 */
-:root[data-accent-theme="graphite"] {
-  --l-bg: #f2f4f8;
+  --l-bg: #ffffff;
   --l-surface: #ffffff;
-  --l-sunken: #eceef2;
-  --l-hover: #eaecf0;
-  --l-active: #e2e4e8;
-  --l-border: #dde0e4;
-  --l-border-strong: #bfc1c5;
-  --l-text: #1f232b;
-  --l-text-muted: #50545d;
-  --l-text-faint: #646972;
-  --l-accent: #515d9f;
-  --l-accent-strong: #414c8c;
-  --l-accent-text: #4e5a9e;
-  --l-accent-text-strong: #3a4480;
+  --l-sunken: #f6f8fa;
+  --l-hover: #f6f8fa;
+  --l-active: #f6f8fa;
+  --l-border: #d1d9e0;
+  --l-border-strong: #818b98;
+  --l-text: #1f2328;
+  --l-text-muted: #59636e;
+  --l-text-faint: #59636e;
+  --l-accent: #0969da;
+  --l-accent-strong: #0969da;
+  --l-accent-text: #0969da;
+  --l-accent-text-strong: #0969da;
   --l-on-accent: #ffffff;
-  --l-shadow: 20 26 40;
-  --l-mark: #a8620c;
+  --l-mark: #0969da;
+  --l-key: #0969da;
+  --l-verdict: #0969da;
+  --l-shadow: 28 38 64;
 
-  --d-bg: #15171c;
-  --d-surface: #1c1f23;
-  --d-sunken: #191b20;
-  --d-hover: #25282d;
-  --d-active: #2d2f34;
-  --d-border: #2f3237;
-  --d-border-strong: #42454b;
-  --d-text: #dde0e5;
-  --d-text-muted: #aeb1b6;
-  --d-text-faint: #8e9196;
-  --d-accent: #9daae4;
-  --d-accent-strong: #acbaf5;
-  --d-accent-text: #adbbf2;
-  --d-accent-text-strong: #c7d2fd;
-  --d-on-accent: #13151f;
-  --d-mark: #f2b544;
+  --d-bg: #0d1117;
+  --d-surface: #0d1117;
+  --d-sunken: #151b23;
+  --d-hover: #151b23;
+  --d-active: #151b23;
+  --d-border: #3d444d;
+  --d-border-strong: #656c76;
+  --d-text: #f0f6fc;
+  --d-text-muted: #9198a1;
+  --d-text-faint: #9198a1;
+  --d-accent: #4493f8;
+  --d-accent-strong: #4493f8;
+  --d-accent-text: #4493f8;
+  --d-accent-text-strong: #4493f8;
+  --d-on-accent: #0d1117;
+  --d-mark: #4493f8;
+  --d-key: #4493f8;
+  --d-verdict: #4493f8;
+  --d-shadow: 0 0 0;
+
+  /* 圆角：小标记、按钮和输入框、卡片和抽屉 */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 12px;
 }
 
-/* 暖岩赭石（ochre）：带红褐的暖灰、压低饱和的赭石强调色。强调色已经是暖色，重点改用墨青。 */
-:root[data-accent-theme="ochre"] {
-  --l-bg: #f8f3ee;
-  --l-surface: #fdfbf9;
-  --l-sunken: #f2ede8;
-  --l-hover: #f0ebe6;
-  --l-active: #e8e3df;
-  --l-border: #e4dfda;
-  --l-border-strong: #c5c0bc;
-  --l-text: #29211d;
-  --l-text-muted: #5b524d;
-  --l-text-faint: #706762;
-  --l-accent: #8e5729;
-  --l-accent-strong: #7c4615;
-  --l-accent-text: #8b5425;
-  --l-accent-text-strong: #6c3d13;
+/* 时间码（timecode）：冷灰的头部和页面底、纯白卡片、近黑字，只有播放头是一道红。
+ * 主按钮是正文色底配底色字，时间戳用次要文字色，判断档位都是正文色。 */
+:root[data-accent-theme="timecode"] {
+  --l-bg: #eef0f3;
+  --l-surface: #ffffff;
+  --l-sunken: #f4f5f7;
+  --l-hover: #f4f5f7;
+  --l-active: #d5d9df;
+  --l-border: #dadde2;
+  --l-border-strong: #868c96;
+  --l-text: #15171c;
+  --l-text-muted: #565c66;
+  --l-text-faint: #565c66;
+  --l-accent: #15171c;
+  --l-accent-strong: #15171c;
+  --l-accent-text: #565c66;
+  --l-accent-text-strong: #15171c;
   --l-on-accent: #ffffff;
-  --l-shadow: 48 30 18;
-  --l-mark: #2a6664;
+  --l-mark: #d3382c;
+  --l-key: #d3382c;
+  --l-verdict: #15171c;
+  --l-shadow: 21 23 28;
 
-  --d-bg: #1a1614;
-  --d-surface: #221e1b;
-  --d-sunken: #1e1a17;
-  --d-hover: #2b2724;
-  --d-active: #322e2b;
-  --d-border: #35312e;
-  --d-border-strong: #484441;
-  --d-text: #e5ded7;
-  --d-text-muted: #b6b0a9;
-  --d-text-faint: #959089;
-  --d-accent: #dea77e;
-  --d-accent-strong: #efb78d;
-  --d-accent-text: #e9b58e;
-  --d-accent-text-strong: #f7cfb1;
-  --d-on-accent: #1d140d;
-  --d-mark: #76b9b6;
+  --d-bg: #242830;
+  --d-surface: #1b1e24;
+  --d-sunken: #242830;
+  --d-hover: #353a43;
+  --d-active: #353a43;
+  --d-border: #353a43;
+  --d-border-strong: #747b86;
+  --d-text: #e8eaee;
+  --d-text-muted: #a9afb9;
+  --d-text-faint: #a9afb9;
+  --d-accent: #e8eaee;
+  --d-accent-strong: #e8eaee;
+  --d-accent-text: #a9afb9;
+  --d-accent-text-strong: #e8eaee;
+  --d-on-accent: #1b1e24;
+  --d-mark: #ff6f62;
+  --d-key: #ff6f62;
+  --d-verdict: #e8eaee;
+
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 10px;
+}
+
+/* 看不看（band）：偏冷的浅灰底、灰紫的正文。主按钮是正文色底，时间戳用次要文字色，判断档位都是正文色。 */
+:root[data-accent-theme="band"] {
+  --l-bg: #e6e9ef;
+  --l-surface: #eff1f5;
+  --l-sunken: #e6e9ef;
+  --l-hover: #e6e9ef;
+  --l-active: #ffffff;
+  --l-border: #ccd0da;
+  --l-border-strong: #7c7f93;
+  --l-text: #4c4f69;
+  --l-text-muted: #5c5f77;
+  --l-text-faint: #5c5f77;
+  --l-accent: #4c4f69;
+  --l-accent-strong: #4c4f69;
+  --l-accent-text: #5c5f77;
+  --l-accent-text-strong: #4c4f69;
+  --l-on-accent: #eff1f5;
+  --l-mark: #4c4f69;
+  --l-key: #4c4f69;
+  --l-verdict: #4c4f69;
+  --l-shadow: 18 20 23;
+
+  --d-bg: #181825;
+  --d-surface: #1e1e2e;
+  --d-sunken: #313244;
+  --d-hover: #313244;
+  --d-active: #313244;
+  --d-border: #313244;
+  --d-border-strong: #7f849c;
+  --d-text: #cdd6f4;
+  --d-text-muted: #a6adc8;
+  --d-text-faint: #a6adc8;
+  --d-accent: #cdd6f4;
+  --d-accent-strong: #cdd6f4;
+  --d-accent-text: #a6adc8;
+  --d-accent-text-strong: #cdd6f4;
+  --d-on-accent: #1e1e2e;
+  --d-mark: #cdd6f4;
+  --d-key: #cdd6f4;
+  --d-verdict: #cdd6f4;
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+}
+
+/* 粉蓝（pinkblue）：浅灰底、白卡片，链接、时间戳和主按钮是蓝色，播放头是亮一点的蓝；
+ * 重点章节和判断档位用粉色字。 */
+:root[data-accent-theme="pinkblue"] {
+  --l-bg: #f1f2f3;
+  --l-surface: #ffffff;
+  --l-sunken: #f6f7f8;
+  --l-hover: #f6f7f8;
+  --l-active: #e3e5e7;
+  --l-border: #e3e5e7;
+  --l-border-strong: #797f87;
+  --l-text: #18191c;
+  --l-text-muted: #61666d;
+  --l-text-faint: #61666d;
+  --l-accent: #00699d;
+  --l-accent-strong: #00699d;
+  --l-accent-text: #00699d;
+  --l-accent-text-strong: #00699d;
+  --l-on-accent: #ffffff;
+  --l-mark: #008ac5;
+  --l-key: #ad1c5b;
+  --l-verdict: #ad1c5b;
+  --l-shadow: 24 25 28;
+
+  --d-bg: #0a0b0c;
+  --d-surface: #17181a;
+  --d-sunken: #232527;
+  --d-hover: #232527;
+  --d-active: #2f3134;
+  --d-border: #2f3134;
+  --d-border-strong: #757a81;
+  --d-text: #e7e9eb;
+  --d-text-muted: #a2a7ae;
+  --d-text-faint: #a2a7ae;
+  --d-accent: #58b1d4;
+  --d-accent-strong: #58b1d4;
+  --d-accent-text: #58b1d4;
+  --d-accent-text-strong: #58b1d4;
+  --d-on-accent: #17181a;
+  --d-mark: #2c9cc8;
+  --d-key: #e38caa;
+  --d-verdict: #e38caa;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 12px;
+}
+
+/* 红黑（redblack）：白底黑字、深色是近黑底，主按钮是正文色底配底色字，时间戳用灰色；
+ * 播放头和重点是红色，红色只做图形不做文字，判断档位都是正文色。 */
+:root[data-accent-theme="redblack"] {
+  --l-bg: #ffffff;
+  --l-surface: #ffffff;
+  --l-sunken: #f2f2f2;
+  --l-hover: #f2f2f2;
+  --l-active: #e6e6e6;
+  --l-border: #e6e6e6;
+  --l-border-strong: #909090;
+  --l-text: #0f0f0f;
+  --l-text-muted: #606060;
+  --l-text-faint: #606060;
+  --l-accent: #0f0f0f;
+  --l-accent-strong: #0f0f0f;
+  --l-accent-text: #606060;
+  --l-accent-text-strong: #0f0f0f;
+  --l-on-accent: #ffffff;
+  --l-mark: #ff0033;
+  --l-key: #ff0033;
+  --l-verdict: #0f0f0f;
+  --l-shadow: 15 15 15;
+
+  --d-bg: #0f0f0f;
+  --d-surface: #212121;
+  --d-sunken: #272727;
+  --d-hover: #272727;
+  --d-active: #373737;
+  --d-border: #373737;
+  --d-border-strong: #717171;
+  --d-text: #f1f1f1;
+  --d-text-muted: #aaaaaa;
+  --d-text-faint: #aaaaaa;
+  --d-accent: #f1f1f1;
+  --d-accent-strong: #f1f1f1;
+  --d-accent-text: #aaaaaa;
+  --d-accent-text-strong: #f1f1f1;
+  --d-on-accent: #0f0f0f;
+  --d-mark: #ff0033;
+  --d-key: #ff0033;
+  --d-verdict: #f1f1f1;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
 }
 
 /* ---------- 2. 语义变量 ---------- */
@@ -163,6 +287,8 @@
   --accent-text-strong: var(--l-accent-text-strong);
   --on-accent: var(--l-on-accent);
   --mark: var(--l-mark);
+  --mark-key: var(--l-key);
+  --verdict: var(--l-verdict);
   --danger: #a7463e;
   --warn: #835617;
   --ok: #36714e;
@@ -190,6 +316,8 @@
   --accent-text-strong: var(--d-accent-text-strong);
   --on-accent: var(--d-on-accent);
   --mark: var(--d-mark);
+  --mark-key: var(--d-key);
+  --verdict: var(--d-verdict);
   --danger: #e88f87;
   --warn: #e0b771;
   --ok: #8bc49e;
@@ -218,6 +346,8 @@
     --accent-text-strong: var(--d-accent-text-strong);
     --on-accent: var(--d-on-accent);
     --mark: var(--d-mark);
+    --mark-key: var(--d-key);
+    --verdict: var(--d-verdict);
     --danger: #e88f87;
     --warn: #e0b771;
     --ok: #8bc49e;
@@ -231,9 +361,7 @@
   --accent-soft: color-mix(in oklab, var(--accent) 9%, transparent);
   --accent-soft-strong: color-mix(in oklab, var(--accent) 16%, transparent);
   --accent-line: color-mix(in oklab, var(--accent) 40%, transparent);
-  --danger-soft: color-mix(in oklab, var(--danger) 10%, transparent);
-  --warn-soft: color-mix(in oklab, var(--warn) 12%, transparent);
-  --ok-soft: color-mix(in oklab, var(--ok) 11%, transparent);
+  --warn-soft: color-mix(in oklab, var(--warn) 9%, transparent);
   --focus-color: var(--accent-text);
   --focus-ring: 2px solid var(--focus-color);
   /* 滚动条拇指：注释文字色压到 80% 不透明度，和底色、卡片、悬停底色都差 ≥ 3:1 */
@@ -247,24 +375,21 @@
   --rail-track: var(--border-strong); /* 还没有章节时的细线、还没写的块 */
   --rail-seg: color-mix(in oklab, var(--text-faint) 78%, transparent); /* 章节段、写完的块 */
   --rail-played: var(--accent); /* 已播放的部分、正在写的块 */
-  --rail-key: var(--mark); /* 重点章节 */
+  --rail-key: var(--mark-key); /* 重点章节 */
   --rail-focus: var(--text); /* 悬停或当前章节 */
   --rail-failed: var(--danger); /* 失败的块，画成斜纹 */
 
-  /* 判断档位：颜色只是第二层，形状和文字才是主信息 */
-  --verdict-go: var(--ok); /* 推荐看 */
-  --verdict-fair: var(--accent-text); /* 可以看 */
-  --verdict-skip: var(--text-muted); /* 可跳过 */
-  --verdict-unknown: var(--warn); /* 信息不足 */
+  /* 判断档位：四档同一个颜色，靠形状和文字区分 */
+  --verdict-go: var(--verdict); /* 推荐看 */
+  --verdict-fair: var(--verdict); /* 可以看 */
+  --verdict-skip: var(--verdict); /* 可跳过 */
+  --verdict-unknown: var(--verdict); /* 信息不足 */
 }
 
-/* ---------- 4. 字号、行高、间距、圆角、阴影、动效、版面尺寸 ---------- */
+/* ---------- 4. 字号、行高、间距、阴影、动效、版面尺寸 ---------- */
 
 :root {
   --font-sans: -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
-  /* 宋体只用在结论句和页面大标题，16px 以下不用。不列 SimSun：小字号下发虚，
-   * Windows 上没装思源宋体时直接回到黑体。 */
-  --font-serif: "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", var(--font-sans);
   --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
 
   /* 界面字号的倍数：标准 1、较大 1.12、特大 1.25，由页面脚本写在 html 的行内样式上 */
@@ -300,10 +425,7 @@
   --space-8: 2rem;
   --space-10: 2.5rem;
 
-  /* 圆角收敛：小标记 6、按钮和输入框 8、抽屉和卡片 12；胶囊只留给进度类圆点 */
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  /* 圆角的小、中、大三档跟着主题，写在第 1 节；胶囊只留给进度类圆点 */
   --radius-pill: 999px;
 
   /* 阴影很轻：版面靠细线分层，只有浮层（抽屉、菜单、对话框）才真的浮起来。
@@ -343,7 +465,6 @@
 /* 繁体界面（<html lang> 是 zh-Hant）换成繁体字形的字体；简体和英文照旧用上面那组。 */
 :root:lang(zh-Hant) {
   --font-sans: -apple-system, "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
-  --font-serif: "Songti TC", "Noto Serif CJK TC", "Source Han Serif TC", var(--font-sans);
 }
 
 /* 四个页面的尺寸都用 rem，界面字号只改这里，卡片报给播放页的高度就是实际高度。 */

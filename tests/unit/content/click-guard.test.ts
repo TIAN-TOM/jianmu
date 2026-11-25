@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { alphaOf, contrastOf, keepsLook, placedAsInjected, pointedAt, type Box, type Look } from "../../../src/content/click-guard.ts";
+import { ACCENT_SWATCHES } from "../../../src/content/hover-icons.ts";
 
 const PINNED: Look = {
   opacity: "1",
@@ -24,21 +25,34 @@ const PINNED: Look = {
 };
 const OVERLAY: Look = { ...PINNED, position: "absolute", background: "rgba(0, 0, 0, 0)" };
 
-test("颜色：不透明度和亮度差；认不出的格式按看不见", () => {
+test("颜色：不透明度和对比度；认不出的格式、超出范围的分量按看不见", () => {
   assert.equal(alphaOf("rgb(255, 255, 255)"), 1);
   assert.equal(alphaOf("rgba(0, 0, 0, 0.5)"), 0.5);
   assert.equal(alphaOf("rgb(0 0 0 / 40%)"), 0.4);
   assert.equal(alphaOf("transparent"), 0);
   assert.equal(alphaOf("color(srgb 1 1 1)"), 0);
-  assert.ok(contrastOf("rgb(255, 255, 255)", "rgba(0, 0, 0, 0.5)") > 0.9);
-  assert.ok(contrastOf("rgb(255, 255, 255)", "rgba(142, 87, 41, 0.92)") > 0.3, "最亮的主题色上白字也够");
-  assert.equal(contrastOf("rgb(0, 0, 0)", "rgba(0, 0, 0, 0.5)"), 0, "黑底黑字");
+  assert.ok(contrastOf("rgb(255, 255, 255)", "rgba(0, 0, 0, 0.5)") > 20);
+  assert.ok(contrastOf("rgb(255, 255, 255)", "rgba(211, 56, 44, 0.92)") >= 3, "主题色上的白字也够");
+  assert.ok(contrastOf("rgb(15, 15, 15)", "rgba(255, 0, 51, 0.92)") >= 3, "红色标志色上的深色字也够");
+  assert.equal(contrastOf("rgb(0, 0, 0)", "rgba(0, 0, 0, 0.5)"), 1, "黑底黑字");
+  assert.ok(contrastOf("rgb(200, 200, 200)", "rgb(255, 255, 255)") < 3, "浅灰配白看不清");
   assert.equal(contrastOf("oklab(1 0 0)", "rgb(0, 0, 0)"), 0);
+  // 负分量会把比值的分母压小、算出虚高的对比度，超出范围的一律当认不出。
+  assert.equal(contrastOf("rgb(255, 255, 255)", "rgb(-500, -500, -500)"), 0, "负分量");
+  assert.equal(contrastOf("rgb(300, 300, 300)", "rgb(0, 0, 0)"), 0, "超过 255");
+  assert.equal(alphaOf("rgba(0, 0, 0, 2)"), 0, "不透明度超过 1");
 });
 
 test("钉死的样子照常放行：按钮平时的底色、亮起来的主题色、浮层、图标", () => {
   assert.equal(keepsLook(PINNED, "button"), true);
-  assert.equal(keepsLook({ ...PINNED, background: "rgba(42, 102, 100, 0.92)" }, "button"), true);
+  // 五套主题亮起来时：标志色 0.92 透明度的底配这套的字色。
+  for (const [theme, { fill, ink }] of Object.entries(ACCENT_SWATCHES)) {
+    const rgb = (hex: string): string => [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16)).join(", ");
+    assert.equal(keepsLook({ ...PINNED, color: `rgb(${rgb(ink)})`, background: `rgba(${rgb(fill)}, 0.92)` }, "button"), true, theme);
+  }
+  // 紧贴 3:1：黑底上 rgb(89, 89, 89) 是 2.998:1，rgb(90, 90, 90) 是 3.04:1。
+  assert.equal(keepsLook({ ...PINNED, color: "rgb(89, 89, 89)" }, "button"), false, "差一点不到 3:1");
+  assert.equal(keepsLook({ ...PINNED, color: "rgb(90, 90, 90)" }, "button"), true, "刚过 3:1");
   assert.equal(keepsLook(OVERLAY, "overlay"), true);
   assert.equal(keepsLook({ ...PINNED, position: "static" }, "icon"), true);
 });
@@ -61,6 +75,7 @@ test("被页面改过的样子一律不放行，读不到也不放行", () => {
     ["字透明", { color: "rgba(255, 255, 255, 0)" }],
     ["底色透明", { background: "rgba(0, 0, 0, 0)" }],
     ["黑底黑字", { color: "rgb(0, 0, 0)" }],
+    ["白底浅灰字，字不透明但对比度不够", { color: "rgb(200, 200, 200)", background: "rgb(255, 255, 255)" }],
   ];
   for (const [label, patch] of changed) assert.equal(keepsLook({ ...PINNED, ...patch }, "button"), false, label);
   assert.equal(keepsLook({ ...OVERLAY, filter: "opacity(0)" }, "overlay"), false, "浮层加滤镜");

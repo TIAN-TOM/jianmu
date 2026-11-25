@@ -6,11 +6,11 @@
 export const OVERLAY_INSET = 12;
 export const BUTTON_SIZE = 32;
 export const BUTTON_GAP = 8;
-// 防点击劫持：按钮挂着提示时最宽一行字；字和图标看得清，底色至少半透明，字和底色要有亮度差。
+// 防点击劫持：按钮挂着提示时最宽一行字；字和图标看得清，底色至少半透明，字和底色的对比度至少 3:1。
 export const MAX_WIDTH = 320;
 const MIN_TEXT_ALPHA = 0.9;
 const MIN_BACKGROUND_ALPHA = 0.4;
-const MIN_CONTRAST = 0.3;
+const MIN_CONTRAST = 3;
 // 几何位置的容差：取整、高分屏的小数像素。
 const SLACK = 2;
 
@@ -41,7 +41,7 @@ export interface Box {
   readonly bottom: number;
 }
 
-/** 颜色的各分量，0–1；认不出是 null。只认计算样式会给的 rgb()、rgba() 和 transparent。 */
+/** 颜色的各分量，0–1；认不出或超出 0–1 是 null。只认计算样式会给的 rgb()、rgba() 和 transparent。 */
 function rgbaOf(color: string): readonly [number, number, number, number] | null {
   const value = color.trim().toLowerCase();
   if (value === "transparent") return [0, 0, 0, 0];
@@ -53,7 +53,7 @@ function rgbaOf(color: string): readonly [number, number, number, number] | null
   const alphaPart = parts[3];
   const alpha = alphaPart === undefined ? 1 : alphaPart.endsWith("%") ? Number.parseFloat(alphaPart) / 100 : Number.parseFloat(alphaPart);
   const result = [channel(parts[0]), channel(parts[1]), channel(parts[2]), alpha] as const;
-  return result.every(Number.isFinite) ? result : null;
+  return result.every((part) => Number.isFinite(part) && part >= 0 && part <= 1) ? result : null;
 }
 
 /** 计算样式里颜色的不透明度，认不出的按 0。 */
@@ -69,16 +69,16 @@ function luminanceOf(color: string): number | null {
   return 0.2126 * linear(rgba[0]) + 0.7152 * linear(rgba[1]) + 0.0722 * linear(rgba[2]);
 }
 
-/** 字和底色的亮度差：认不出的按 0。黑底黑字这类两边都不透明、却看不见的，在这里拦。 */
+/** 字和底色的对比度（按 WCAG 的算法，不管透明度）：认不出的按 0。黑底黑字这类两边都不透明、却看不见的，在这里拦。 */
 export function contrastOf(text: string, background: string): number {
   const a = luminanceOf(text);
   const b = luminanceOf(background);
-  return a === null || b === null ? 0 : Math.abs(a - b);
+  return a === null || b === null ? 0 : (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 }
 
 /**
  * 现在的样子是不是钉死的那个：看得见、完全不透明，没有滤镜、裁剪、遮罩、变形、缩放、混合模式，定位方式没被改。
- * 按钮另要字和底色看得见、有亮度差；图标的描边看得见。读不到的一律不放行。
+ * 按钮另要字和底色看得见、对比度够；图标的描边看得见。读不到的一律不放行。
  */
 export function keepsLook(now: Look | null, kind: "button" | "overlay" | "icon"): boolean {
   if (!now || now.visibility !== "visible" || !(Number.parseFloat(now.opacity) >= 0.99)) return false;

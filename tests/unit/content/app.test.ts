@@ -25,7 +25,7 @@ function setup(
   const fake = fakeRuntime();
   let activation: unknown = NEEDED;
   fake.reply("activation.get", (_req) => activation);
-  fake.reply("appearance.get", { value: { ok: true, value: { accentTheme: "ink", inPageCard: true, language: "auto" } } });
+  fake.reply("appearance.get", { value: { ok: true, value: { accentTheme: "marker", inPageCard: true, language: "auto" } } });
   fake.reply("playback.info", { value: { ok: true, value: { playedSec: 0, report: true } } });
   // 页面那一头的替身也能当内容脚本这一头用：广播的监听多收一个回复函数，替身不给。
   const like = { ...fake.runtime, getURL: (path: string) => `chrome-extension://${EXTENSION_ID}/${path}` } as unknown as RuntimeLike;
@@ -114,7 +114,7 @@ test("确认启用之前：问一次启用状态，只挂一个消息监听，�
   assert.deepEqual(fake.sent.map(({ type }) => type), ["activation.get"]);
 
   // 外观、播放器指令和清除广播都不会让它动起来。
-  fake.broadcast({ type: "appearance.changed", accentTheme: "ochre", inPageCard: true, language: "auto" });
+  fake.broadcast({ type: "appearance.changed", accentTheme: "redblack", inPageCard: true, language: "auto" });
   fake.broadcast({ type: "player.getState", req: { video: "bilibili:BV1Sample001:p1" } });
   fake.broadcast({ type: "data.cleared", scope: "all" });
   await new Promise((resolve) => setImmediate(resolve));
@@ -171,7 +171,7 @@ for (const [label, message] of [
     assert.ok(await until(() => fake.attempts("activation.get") === 2));
     await new Promise((resolve) => setImmediate(resolve));
     const readsAfterLoss = pageReads.length;
-    fake.broadcast({ type: "appearance.changed", accentTheme: "ochre", inPageCard: true, language: "auto" });
+    fake.broadcast({ type: "appearance.changed", accentTheme: "redblack", inPageCard: true, language: "auto" });
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(pageReads.length, readsAfterLoss, "撤下以后不再读页面");
     assert.equal(surfaces[0]?.appearance.length, 1);

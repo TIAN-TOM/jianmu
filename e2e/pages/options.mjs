@@ -890,7 +890,6 @@ test("设置页：语言选「繁體中文」以后，标题、各节标题和�
   const sans = await page.evaluate(fontSans);
   assert.match(sans, /PingFang TC/);
   assert.doesNotMatch(sans, /PingFang SC/);
-  assert.match(await page.evaluate(`getComputedStyle(document.documentElement).getPropertyValue("--font-serif")`), /Songti TC/);
 
   // 首帧缓存记下了繁体：重新打开时一出内容就是繁体，不先画一遍简体。
   const reopened = await open(PAGE_PATHS.options, { width: WIDTH });
@@ -951,7 +950,7 @@ test("设置页：繁体下数据说明的条目、勾选框、校验提示和�
   assert.deepEqual(leftover, []);
 });
 
-test("设置页：外观里的三个主题卡片一样高，单选圆点、色块和文字都对着卡片正中；English 和两列的窄宽度下也一样", async ({ open }) => {
+test("设置页：外观里的五个主题卡片一样高，单选圆点、色块和文字都对着卡片正中；English 和两列的窄宽度下也一样", async ({ open }) => {
   const page = await freshOptions(open);
   await enable(page);
   const layout = `[...document.querySelectorAll(".theme-option")].map((card) => {
@@ -965,7 +964,7 @@ test("设置页：外观里的三个主题卡片一样高，单选圆点、色�
     for (const width of [WIDTH, 600]) {
       await page.setWidth(width);
       const cards = await page.evaluate(layout);
-      assert.equal(cards.length, 3);
+      assert.equal(cards.length, 5);
       assert.equal(new Set(cards.map((card) => card.height)).size, 1, `${language} ${width}：${JSON.stringify(cards)}`);
       for (const card of cards) assert.ok(card.offset <= 1, `${language} ${width}：${JSON.stringify(cards)}`);
     }
@@ -1053,7 +1052,7 @@ test("设置页：三档字号下输入框和下拉框都是 2rem 高；2 倍屏
   await page.evaluate(`document.getElementById("advanced").open = true`);
   const problems = [];
   for (const uiFontScale of UI_FONT_SCALES) {
-    await page.setAppearance({ accentTheme: "ink", themeMode: "light", uiFontScale });
+    await page.setAppearance({ accentTheme: "marker", themeMode: "light", uiFontScale });
     const boxes = await page.evaluate(`(() => {
       const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
       const rounds = CSS.supports("line-height", "round(1px, 1px)") && CSS.supports("line-height", "rem(1px, 1px)") && matchMedia("(min-resolution: 2dppx)").matches;

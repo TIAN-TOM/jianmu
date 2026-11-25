@@ -11,10 +11,21 @@ import { BUTTON_GAP, keepsLook, OVERLAY_INSET, placedAsInjected, pointedAt, type
 import { createReveal } from "./reveal.ts";
 import { contentText } from "./text.ts";
 
-// 主题强调色的浅色值，和设置里的主题表一致（单元测试核对）。不导入设置模块：它会把整套设置规则带进每个播放页。
-export const ACCENT_SWATCHES: Readonly<Record<string, string>> = { ink: "#2a6664", graphite: "#515d9f", ochre: "#8e5729" };
-const DEFAULT_SWATCH = "#2a6664";
-const swatchOf = (theme: unknown): string => (typeof theme === "string" && Object.hasOwn(ACCENT_SWATCHES, theme) ? ACCENT_SWATCHES[theme] : undefined) ?? DEFAULT_SWATCH;
+// 各套主题的标志色和亮起来时标志色上面的字色，和设置里的主题表一致（单元测试核对）。
+// 不导入设置模块：它会把整套设置规则带进每个播放页。
+interface Swatch {
+  readonly fill: string;
+  readonly ink: string;
+}
+export const ACCENT_SWATCHES: Readonly<Record<string, Swatch>> = {
+  timecode: { fill: "#d3382c", ink: "#ffffff" },
+  marker: { fill: "#0969da", ink: "#ffffff" },
+  band: { fill: "#4c4f69", ink: "#ffffff" },
+  pinkblue: { fill: "#ad1c5b", ink: "#ffffff" },
+  redblack: { fill: "#ff0033", ink: "#0f0f0f" },
+};
+const DEFAULT_SWATCH: Swatch = { fill: "#0969da", ink: "#ffffff" };
+const swatchOf = (theme: unknown): Swatch => (typeof theme === "string" && Object.hasOwn(ACCENT_SWATCHES, theme) ? ACCENT_SWATCHES[theme] : undefined) ?? DEFAULT_SWATCH;
 
 /** 笔记图标中文的悬停提示。 */
 export const NOTE_TITLE = contentText().noteTitle;
@@ -107,7 +118,8 @@ function rgbOf(swatch: string): string {
 
 export function createHoverIcons({ document, anchor, icons, top = OVERLAY_INSET }: HoverIconsDeps): HoverIcons {
   const view = document.defaultView;
-  let accent = rgbOf(swatchOf(undefined));
+  let accent = rgbOf(swatchOf(undefined).fill);
+  let accentInk = swatchOf(undefined).ink;
   let overlay: HTMLElement | null = null;
   let extra: HTMLElement | null = null;
   let overOverlay = false;
@@ -127,7 +139,7 @@ export function createHoverIcons({ document, anchor, icons, top = OVERLAY_INSET 
   const paint = (state: IconState): void => {
     if (!state.button) return;
     const lit = state.over || state.hinting;
-    state.button.style.cssText = `${BUTTON_BASE}background:${lit ? `rgba(${accent},.92);box-shadow:0 2px 8px rgba(0,0,0,.24)` : REST_BACKGROUND};`;
+    state.button.style.cssText = `${BUTTON_BASE}background:${lit ? `rgba(${accent},.92);box-shadow:0 2px 8px rgba(0,0,0,.24);color:${accentInk}` : REST_BACKGROUND};`;
   };
 
   function show(shown: boolean): void {
@@ -361,7 +373,8 @@ export function createHoverIcons({ document, anchor, icons, top = OVERLAY_INSET 
     },
     overlay: () => (overlay?.isConnected ? overlay : null),
     setAccent(theme) {
-      accent = rgbOf(swatchOf(theme));
+      accent = rgbOf(swatchOf(theme).fill);
+      accentInk = swatchOf(theme).ink;
       for (const state of states) paint(state);
     },
     setControls: (visible) => reveal.controls(visible),
