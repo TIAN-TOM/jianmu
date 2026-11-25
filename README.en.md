@@ -53,7 +53,7 @@ The Chrome versions tested by hand on real pages will be listed before release. 
 3. Open `chrome://extensions` in Chrome and turn on Developer mode in the top right corner.
 4. Click Load unpacked and choose that folder.
 5. Click the Jianmu icon in the toolbar to open the side panel, read the notice and click Turn on Jianmu. At first the icon sits in the puzzle-piece menu, and you can pin it to the toolbar from there. Right-click the icon to open Watch Later triage directly, or to switch the card on the video page and Verdict on open on or off.
-6. Open Jianmu's settings page, pick a provider, enter your API key, tick the box to agree to the data notice and click Save and authorise. The AI features are then ready to use.
+6. Open Jianmu's settings page, pick a provider, enter your API key, tick the box to agree to the data notice and click Save. The AI features are then ready to use.
 
 ### Update
 

@@ -31,9 +31,9 @@ export const FRAME_ERROR_TEXT: Readonly<Record<FrameErrorCode, ErrorCopy>> = {
   FRAME_RATE_LIMITED: { cause: "一分钟里点得太多了。", impact: NOT_SENT, next: "等一会儿再点。" },
   FRAME_INTERRUPTED: { cause: "简幕的后台中途停了，这次解释没做完。", impact: "如果请求已经发出去，可能照样计费。", next: "再点一次。" },
   AI_IMAGE_UNSUPPORTED: {
-    cause: "画面分析用的模型不能看图。",
+    cause: "画面解释用的模型不能看图。",
     impact: "这次没拿到结果。",
-    next: "到设置页「按功能选模型」里给画面分析换一个能看图的模型。",
+    next: "到设置页「按功能选模型」里给画面解释换一个能看图的模型。",
   },
 };
 
@@ -52,8 +52,8 @@ export const FRAME_ERROR_TEXT_EN: Readonly<Record<FrameErrorCode, ErrorCopy>> = 
   FRAME_RATE_LIMITED: { cause: "Too many clicks in one minute.", impact: NOT_SENT_EN, next: "Wait a moment, then click again." },
   FRAME_INTERRUPTED: { cause: "Jianmu's background process stopped partway, so the explanation wasn't finished.", impact: "If the request was already sent, it may still be billed.", next: "Click again." },
   AI_IMAGE_UNSUPPORTED: {
-    cause: "The model used for frame analysis can't read images.",
+    cause: "The model used for frame explanation can't read images.",
     impact: "No result this time.",
-    next: "Under “Models per feature” in settings, choose a model that can read images for frame analysis.",
+    next: "Under “Models per feature” in settings, choose a model that can read images for frame explanation.",
   },
 };

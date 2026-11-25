@@ -101,7 +101,7 @@ test("推理强度旁边那一句和用量那一行选英文时是英文，数�
 
 test("选繁体时设置页的文案是繁体那份，数字按台湾的写法分组", () => {
   assert.equal(textOf("zh-Hant"), OPTIONS_HANT);
-  assert.equal(frameText("zh-Hant").slot, "畫面分析");
+  assert.equal(frameText("zh-Hant").slot, "畫面解釋");
   assert.equal(youtubeText("zh-Hant").enable, "在 YouTube 上啟用");
   assert.equal(effortNoteText({ requested: "medium", effective: "low", note: "fallback" }, "zh-Hant"), "這個模型沒有「中」等級，實際以「低」等級執行");
   const item = { model: "m", lastUsage: { model: "old", effort: "high" as const, usage: { input: 12345, output: 2345 } } };

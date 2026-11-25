@@ -1,4 +1,4 @@
-// 设置页。确认启用之前只显示启用说明，和确认前就允许的导出备份、清除本机数据；确认之后才有外观、播放页卡片、AI 服务和打开就出结论。「关于」一节启用前后都有。
+// 设置页。确认启用之前只显示启用说明，和确认前就允许的导出备份、清除本机数据；确认之后才有 AI 服务、YouTube、打开就出结论、速读和精读、播放页卡片和外观（要先设置好才能用的排在前面）。「关于」一节启用前后都有。
 // 状态和动作都在 state.ts，这里只渲染。文字取自文案表（text.ts），跟着界面语言重画。
 import { useId, useRef, useState } from "preact/hooks";
 import type { ClearScope } from "../../core/clear-guard.ts";
@@ -260,12 +260,13 @@ export function App({
       {loadError ? <StateBlock title={t.loadFailed} impact={loadError} primary={{ label: t.retry, onClick: () => void state.load() }} /> : null}
       {enabled ? (
         <>
-          <AppearanceSection state={state} />
-          <CardSection state={state} />
-          {SiteSections ? <SiteSections /> : null}
+          {/* 要先设置好才能用的排在前面：AI 服务、YouTube；常调的开关其次；外观最少动，放在后面。 */}
           <AiSection state={state} />
+          {SiteSections ? <SiteSections /> : null}
           <AutoSection state={state} />
           <ModeSection api={api} />
+          <CardSection state={state} />
+          <AppearanceSection state={state} />
           <TriageSection />
         </>
       ) : null}

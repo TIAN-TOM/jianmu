@@ -9,12 +9,12 @@ const THINKING_EXHAUSTED = "模型把輸出額度都用在思考上了，還沒�
 const SWITCH_MODEL = "再試一次；老是這樣，就到設定頁換個模型。";
 
 export const AI_ERROR_TEXT_HANT: Readonly<Record<AiErrorCode, ErrorCopy>> = {
-  NO_AI_CONFIG: { cause: "AI 服務還沒設定好。", impact: NOT_SENT, next: "到設定頁填好服務商、金鑰和模型，再點選「儲存並授權」。" },
+  NO_AI_CONFIG: { cause: "AI 服務還沒設定好。", impact: NOT_SENT, next: "到設定頁填好服務商、金鑰和模型，再點選「儲存」。" },
   NO_DATA_CONSENT: { cause: "還沒同意資料說明。", impact: "沒有任何內容傳給模型服務。", next: "到設定頁讀一下資料說明，勾選「我已了解」。" },
   NEED_HOST_PERMISSION: {
     cause: "簡幕還沒取得存取這個 API 網址的權限。",
     impact: NOT_SENT,
-    next: "到設定頁點選「儲存並授權」，瀏覽器詢問的時候選允許。",
+    next: "到設定頁點選「儲存」，瀏覽器詢問的時候選允許。",
   },
   INVALID_BASE_URL: { cause: "API 網址不對。", impact: NOT_SENT, next: "到設定頁檢查一下 API 網址。" },
   INVALID_AI_KEY: { cause: "AI 服務不接受這把金鑰。", impact: NO_RESULT, next: "到設定頁檢查金鑰，看它和 API 網址是不是同一家服務商的。" },
@@ -55,12 +55,12 @@ export const AI_ERROR_TEXT_HANT: Readonly<Record<AiErrorCode, ErrorCopy>> = {
   AI_THINKING_EXHAUSTED: {
     cause: THINKING_EXHAUSTED,
     impact: MAYBE_BILLED,
-    next: "到設定頁「推理強度」替這項功能調低一級再試；或者在「按功能選模型」裡替它換個型號。",
+    next: "到設定頁「推理強度」替這項功能調低一級再試；或者在「按功能選模型」裡替它換個模型。",
   },
   AI_THINKING_EXHAUSTED_LOCKED: {
     cause: THINKING_EXHAUSTED,
     impact: MAYBE_BILLED,
-    next: "這個型號要想多久，簡幕調不了；到設定頁「按功能選模型」替這項功能換個型號再試。",
+    next: "這個模型要想多久，簡幕調不了；到設定頁「按功能選模型」替這項功能換個模型再試。",
   },
   TASK_CANCELED: { cause: "已經停下了。", impact: "已經發出去的請求可能照樣計費。" },
   AI_REQUEST_FAILED: { cause: "AI 請求沒有成功。", impact: NO_RESULT, next: "稍後再試。" },

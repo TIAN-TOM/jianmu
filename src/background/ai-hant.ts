@@ -5,7 +5,7 @@ import type { WiringText } from "./ai.ts";
 export const WIRING_HANT: WiringText = {
   addressChanged: "AI 還沒設定好：任務開始以後換了服務網址，請重新生成。",
   badAddress: "API 網址無效，請到設定頁檢查。",
-  noPermission: (origin) => `擴充功能還沒有存取 ${origin} 的權限。請打開設定頁，點選「儲存並授權」。`,
+  noPermission: (origin) => `簡幕還沒有存取 ${origin} 的權限。請打開設定頁，點選「儲存」。`,
   noKey: "請先在設定頁填寫 API 金鑰。",
   testPrompt: "回覆兩個字：可用",
 };

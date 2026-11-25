@@ -29,10 +29,10 @@ const OPTIONS_URL = extensionUrl("pages/options.html");
 
 test("带节名打开设置页：没开着时新开一个标签页，地址带上节名，不走只会停在顶上的打开方式", async () => {
   const { app, fake } = appOn({ manifest: OPTIONS_PAGE, contexts: [{ contextType: "SIDE_PANEL", documentUrl: extensionUrl("pages/sidepanel.html"), tabId: -1, windowId: 2 }] });
-  for (const [sender, section] of [[senders.panel(), "ai-service"], [senders.card(), "ai-service"], [senders.panel(), "youtube"]] as const) {
+  for (const [sender, section] of [[senders.panel(), "ai-service"], [senders.card(), "ai-service"], [senders.panel(), "youtube"], [senders.triage(), "ai-service"], [senders.panel(), "auto-overview"]] as const) {
     assert.deepEqual(await app.dispatch({ type: "options.open", req: { section } }, sender), { ok: true, value: {} });
   }
-  assert.deepEqual(fake.calls.tabsCreated, [`${OPTIONS_URL}#ai-service`, `${OPTIONS_URL}#ai-service`, `${OPTIONS_URL}#youtube`]);
+  assert.deepEqual(fake.calls.tabsCreated, [`${OPTIONS_URL}#ai-service`, `${OPTIONS_URL}#ai-service`, `${OPTIONS_URL}#youtube`, `${OPTIONS_URL}#ai-service`, `${OPTIONS_URL}#auto-overview`]);
   assert.equal(fake.calls.optionsOpened, 0);
   assert.deepEqual(fake.calls.tabUpdates, []);
 });

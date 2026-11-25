@@ -24,8 +24,8 @@ import { OPTIONS_ZH } from "../../../src/pages/options/text-zh.ts";
 import * as SETTINGS from "../../../src/shared/settings-schema.ts";
 
 const HTTPS_ERROR = "API 地址要以 https:// 开头。只有本机地址（localhost、127.0.0.1）可以用 http://。";
-const KEY_ERROR = "请填写 API 密钥（没选记住密钥时，浏览器重启、扩展更新后要重新填）。";
-const MODEL_ERROR = "请填写模型名称，或点击「拉取模型列表」进行选择。";
+const KEY_ERROR = "请填写 API 密钥（没选记住密钥时，浏览器重启、简幕更新后要重新填）。";
+const MODEL_ERROR = "请填写模型名称，或点「获取模型列表」从里面选。";
 const STALE_FINGERPRINT = "0000000000000000";
 const OPENAI_KEY = "sk-openai-secret";
 
@@ -732,7 +732,7 @@ test("覆盖只认已知功能下的非空字符串，去掉首尾空白", () =>
   );
 });
 
-test("功能列表就是设置页那七项，构建开关打开时多一项画面分析，id 不重复", () => {
+test("功能列表就是设置页那七项，构建开关打开时多一项画面解释，id 不重复", () => {
   assert.deepEqual(
     SETTINGS.FEATURE_MODEL_SLOTS.map((slot) => [slot.id, slotLabel(slot.id)]),
     [
@@ -743,7 +743,7 @@ test("功能列表就是设置页那七项，构建开关打开时多一项画�
       ["qa", "问答"],
       ["notes", "笔记润色"],
       ["explain", "划词解释"],
-      ...(FEATURE_FRAME_EXPLAIN ? [["frame", "画面分析"]] : []),
+      ...(FEATURE_FRAME_EXPLAIN ? [["frame", "画面解释"]] : []),
     ],
   );
 });

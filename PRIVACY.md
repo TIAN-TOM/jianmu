@@ -59,7 +59,7 @@
 - UP 主名和简介
 - 「用官方总结写结论」和粗筛写结论时用到的 B 站官方总结
 - 写一句话结论时，这次已经生成的章节标题、摘要和金句
-- 点「解释当前画面」时视频当前的一帧画面，连同这一刻前后几句字幕和视频标题，发给你在设置页「按功能选模型」里给画面分析选的模型
+- 点「解释当前画面」时视频当前的一帧画面，连同这一刻前后几句字幕和视频标题，发给你在设置页「按功能选模型」里给画面解释选的模型
 - 你的 API 密钥：每个请求都带着，服务商靠它认出是你的账户
 
 **用来做什么**：翻译、整理字幕（补标点、改明显的同音错字）、概览、一句话结论、划词解释、笔记润色、问答、粗筛时写一句话结论，以及解释当前画面。
@@ -68,7 +68,7 @@
 
 - 平时只在你操作时发，比如点「生成概览」、提问、点「解释」、点「整理字幕」、点「解释当前画面」，或者记笔记（笔记存下以后，会请模型润色那一刻的字幕）。翻译和整理字幕点了以后在后台分批发完，关掉侧边栏也继续，直到做完、你点停止，或者视频所在的标签页换了视频或关掉。
 - 「本窗口全部生成」和粗筛，你先确认数量，之后逐个发送。
-- 简幕要知道画面分析的模型能不能看图。认不出这个模型时，会发一张 64×64 的红色小图问它是什么颜色（不是视频画面），答得出才算能看。
+- 简幕要知道画面解释的模型能不能看图。认不出这个模型时，会发一张 64×64 的红色小图问它是什么颜色（不是视频画面），答得出才算能看。
 - 打开「打开就出结论」以后：在 B 站打开超过设定时长的视频，简幕会自动发送这个视频的字幕、标题和时长、UP 主名和简介，生成概览和一句话结论。这个开关新安装时是关的，打开前要先同意数据说明；设定时长默认 10 分钟，可以在 0 到 180 分钟之间调。在后台打开、还没切过去看的标签页也算，打开开关时已经开着的也算；它们排队生成，正在看的那个先生成，同时最多生成两个，10 分钟最多 40 个。一次开的标签页越多，花的 API 额度越多。已有概览的视频不再生成，同一个视频在一次浏览器会话里只自动试一次。外文字幕不自动翻译。服务商说额度用完或密钥不对时，或者本机的服务拒绝了来自浏览器扩展的请求时，自动生成会停下，等你手动生成成功一次，或者重新开一下开关，才恢复。
 
 **不会发送的**：B 站的 Cookie 和其他登录凭证，平台返回的字幕文件地址。
@@ -99,7 +99,7 @@
 所有资料都存在这台电脑上、这个 Chrome 个人资料的扩展存储里，不随浏览器账号同步。简幕不另外加密这些资料。每一项的名称见文末的「存储明细」。
 
 - **长期保存，直到你删掉**：概览和一句话结论、问答、笔记、译文、导入的字幕、按频道记住的模式、设置。
-- **缓存**：字幕、视频信息、B 站官方总结和 UP 主分段最多留 500 个视频，超过 90 天或超出条数的，在下次存新内容时删掉。粗筛读到的稍后再看列表和官方总结、各个模型能做什么（比如能不能看图）、画面分析的模型能不能看图的检测结果，过了有效期就不再使用，但要等重新读取或你清除缓存时才从存储里删掉。字幕文件的地址不存。
+- **缓存**：字幕、视频信息、B 站官方总结和 UP 主分段最多留 500 个视频，超过 90 天或超出条数的，在下次存新内容时删掉。粗筛读到的稍后再看列表和官方总结、各个模型能做什么（比如能不能看图）、画面解释的模型能不能看图的检测结果，过了有效期就不再使用，但要等重新读取或你清除缓存时才从存储里删掉。字幕文件的地址不存。
 - **只留到浏览器关闭**：正在看的视频用哪个模式、播放了多久，「打开就出结论」试过哪些视频，最近几次画面解释的文字（超过半小时就不再显示，下次打开侧边栏或解释画面时删掉），每项功能最近一次模型请求用了多少 token，以及默认方式下的 API 密钥（见「API 密钥」一节）。B 站限流以后要等多久，也只留到浏览器关闭。
 - **不存**：解释当前画面截下的画面只用于这一次请求，哪里都不存，也不进备份。
 
@@ -122,7 +122,7 @@
 | `scripting` | 装好、更新或启用以后，给已经打开的 B 站视频页补上简幕的页面脚本，不用刷新 |
 | `contextMenus` | 在工具栏图标的右键菜单里加简幕自己的几项 |
 | 访问 B 站的网页、接口和存放字幕文件的域名 | 在 B 站视频页放播放页卡片、笔记按钮和「解释当前画面」的图标，读播放状态，点那个图标时读视频当前的一帧；读视频信息、字幕、官方总结和稍后再看 |
-| 可选：访问你选的 AI 服务地址 | 点「保存并授权」时，浏览器会问你是否允许简幕访问那个域名。清单里把它声明成可选的 https 地址，加上本机的 `http://localhost` 和 `http://127.0.0.1`，实际只申请你选的那一个地址 |
+| 可选：访问你选的 AI 服务地址 | 点「保存」时，浏览器会问你是否允许简幕访问那个域名。清单里把它声明成可选的 https 地址，加上本机的 `http://localhost` 和 `http://127.0.0.1`，实际只申请你选的那一个地址 |
 
 简幕不申请 `tabs`、`activeTab`、`cookies`、`downloads`、`debugger`、`tabCapture`、`desktopCapture`，也不申请访问所有网站和麦克风。没有 `tabs` 权限，简幕只看得到已授权网站的标签页的地址和标题。
 
@@ -184,7 +184,7 @@ IndexedDB 数据库 `jianmu` 里的仓库：
 | `jianmu_model_caps` | 各个模型能做什么 | 本机 | 删 | 删 |
 | `jianmu_relaxed_params` | 模型服务不接受某些请求参数时的记录 | 会话 | 删 | 删 |
 | `jianmu_usage` | 每项功能最近一次模型请求的用量：服务回报的输入、输出、思考和合计的 token 数，加上当时的模型名和推理档位，没有请求和回复的内容 | 会话 | 删 | 删 |
-| `jianmu_image_probe` | 画面分析的模型能不能看图 | 本机 | 删 | 删 |
+| `jianmu_image_probe` | 画面解释的模型能不能看图 | 本机 | 删 | 删 |
 | `jianmu_frame_results` | 最近几次画面解释的文字，没有截图；超过半小时不再显示，下次用到时删掉 | 会话 | 删 | 删 |
 | `jianmu_transcript_modes` | 最近 50 个手动选过字幕显示方式的视频编号和所选方式 | 会话 | 留 | 删 |
 | `jianmu_watch_sessions` | 每个标签页正在看的视频用哪个模式、播放了多久、卡片展开没有 | 会话 | 留 | 删 |
@@ -203,7 +203,7 @@ IndexedDB 数据库 `jianmu` 里的仓库：
 - **读什么**：启用以后，在 YouTube 观看页上读视频信息（标题、频道名、时长、简介）和观看状态。字幕在你点「读取字幕」或卡片上的「生成概览」时读；打开「打开就出结论」以后，打开超过设定时长的视频也会读；用「本窗口全部生成」时，确认以后逐个读本窗口里的 YouTube 视频。读的是页面上文字稿里已经显示的内容；页面上没有文字稿的视频，改读播放器自己取回来的那条字幕（见下面「没有文字稿时」）。为了标出是哪种语言、是不是自动生成的，同时读播放器在页面上已有的字幕轨列表（每条轨的语言、名字和是不是自动生成），只用来认出读到的字幕是哪一条，不读字幕的地址；认不出时标成「来源未确认」。
 - **替你点开文字稿**：读字幕时文字稿面板没开的话，简幕替你点一下视频简介里打开文字稿的按钮；面板开着但停在章节那一页时，替你点文字稿那一页。只点这一下，点开以后字幕是页面自己取的。卡片上的「生成概览」、「打开就出结论」和「本窗口全部生成」点开的，读完替你点收起按钮关上；你自己开着的不关。正在播广告、文字稿的搜索框里有字时不点。
 - **没有文字稿时**：有的视频播放器里有字幕，页面上却没有文字稿，这时简幕改用播放器自己取回来的字幕。页面里那一小段脚本看着播放器取字幕的请求，把最近取回的两份字幕留在这个页面的内存里，除了字幕正文只记下是哪个视频、哪种语言、是不是自动生成、是不是机器翻译和译成哪种语言；请求的地址和别的参数不存，也不自己发请求，页面关掉或刷新就没了。这段脚本只在你启用简幕以后才装进页面，装上以后页面一打开就开始留；清除全部数据以后，新打开的页面里不再装，已经开着的页面里由简幕的内容脚本叫它清掉、停下。只有页面上没有文字稿、要读字幕时，简幕才拿这个视频最近的那一份来用，用上的字幕和文字稿读到的一样进缓存。还没取回、字幕又关着时，简幕替你点一下播放器上的字幕按钮，等播放器取回来，读完再点一下关上；你自己开着的不关。正在播广告、播放器标着没有字幕时不点。简幕不选字幕语言，用的是播放器最近取回的那一条，播放器自己选了机器翻译的也照用，记下的语言按译成的那种。
-- **解释当前画面**：播放器上同样有「解释当前画面」的图标，侧边栏里的按钮也能用。点了截视频当前的一帧，连同视频标题发给你给画面分析选的模型；已经读过这个视频的字幕时带上这一刻前后几句，没读过就只发画面，不会为此去读字幕或点开文字稿，标题这时用标签页的标题。截图只用这一次，不存。正在播广告、加密播放、视频页不在前台时不截。
+- **解释当前画面**：播放器上同样有「解释当前画面」的图标，侧边栏里的按钮也能用。点了截视频当前的一帧，连同视频标题发给你给画面解释选的模型；已经读过这个视频的字幕时带上这一刻前后几句，没读过就只发画面，不会为此去读字幕或点开文字稿，标题这时用标签页的标题。截图只用这一次，不存。正在播广告、加密播放、视频页不在前台时不截。
 - **不做的事**：简幕在 YouTube 上不向平台发任何请求，不换语言、不滚动，不读 Cookie。读字幕时不动播放器，只有没有文字稿时会替你开关一下字幕。不用平台自带的机器翻译字幕，只有一个例外：没有文字稿时，播放器自己选了机器翻译的那一条，简幕照用。
 - **发什么**：和 B 站一样，要先同意数据说明：字幕、视频标题和时长、频道名和简介，以及你的问题和选中的文字。平时只在你点按钮时发；打开「打开就出结论」以后，打开超过设定时长的 YouTube 视频也自动发，规矩和 B 站一样。
 - **存什么**：读到的字幕和视频信息和 B 站视频一样进缓存，你生成、保存的概览、问答、笔记和译文一样留在本机。
@@ -269,7 +269,7 @@ First you need to read the data notice and agree, either by ticking the box in t
 - Uploader name and video description
 - Bilibili's official summary, used by "Write a verdict from the official summary" and when triage writes verdicts
 - When writing the one-line verdict, the chapter titles, summaries and key quotes already generated for that video
-- When you click "Explain this frame", the current frame of the video with a few subtitle lines either side of that moment and the video title, sent to the model you chose for "Frame analysis" under "Models per feature" in Settings
+- When you click "Explain this frame", the current frame of the video with a few subtitle lines either side of that moment and the video title, sent to the model you chose for "Frame explanation" under "Models per feature" in Settings
 - Your API key, which goes with every request so the service knows it is your account
 
 **What it is used for**: translation, tidying subtitles (adding punctuation and fixing obvious sound-alike mistakes), overviews, one-line verdicts, explaining selected text, tidying up notes, answering questions, writing one-line verdicts during triage, and explaining the current frame.
@@ -332,7 +332,7 @@ Everything is kept in the extension storage of this Chrome profile on this compu
 | `scripting` | After installing, updating or enabling, adding Jianmu's page script to Bilibili video pages that are already open, so you don't need to reload them |
 | `contextMenus` | Adding a few of Jianmu's own items to the menu you get by right-clicking its toolbar icon |
 | Access to Bilibili's web pages, its API and the domain where it keeps subtitle files | Placing the card, the note button and the "Explain this frame" icon on Bilibili video pages, reading playback state, and reading the current frame of the video when you click that icon; reading video details, subtitles, official summaries and Watch Later |
-| Optional: access to the AI service address you chose | When you click "Save and authorise", the browser asks whether Jianmu may access that domain. The manifest declares this as an optional range of https addresses, plus `http://localhost` and `http://127.0.0.1` on your own computer, but Jianmu only ever requests the one address you chose |
+| Optional: access to the AI service address you chose | When you click "Save", the browser asks whether Jianmu may access that domain. The manifest declares this as an optional range of https addresses, plus `http://localhost` and `http://127.0.0.1` on your own computer, but Jianmu only ever requests the one address you chose |
 
 Jianmu does not request `tabs`, `activeTab`, `cookies`, `downloads`, `debugger`, `tabCapture` or `desktopCapture`, and does not request access to all websites or to the microphone. Without the `tabs` permission it can only see the addresses and titles of tabs on sites it has permission for.
 
@@ -413,7 +413,7 @@ The sections above describe Bilibili. On YouTube, Jianmu differs in these ways:
 - **What it reads**: once turned on, it reads the video details on a YouTube watch page (title, channel name, length, description) and the playback state. Subtitles are read when you click "Read subtitles" or the card's "Generate overview" button. With "Verdict on open" switched on, they are also read when you open a video longer than the set length, and when you use "Generate all in this window", the YouTube videos in the window are read one by one after you confirm. Subtitles come from the transcript as it is already shown on the page. For a video whose page has no transcript, Jianmu reads the subtitles the player loads itself instead (see "When there is no transcript" below). To record which language it is and whether it was auto-generated, Jianmu also reads the list of subtitle tracks the player already has on the page (each track's language, name and whether it was auto-generated). It uses that list only to work out which track the subtitles it read come from, and does not read subtitle addresses. When it cannot tell, it marks the source as unconfirmed.
 - **Opening the transcript for you**: when it reads subtitles and the transcript panel is not open, Jianmu clicks the button in the video description that opens the transcript. If the panel is open but showing chapters, it clicks the transcript tab. It clicks only that once, and the page itself then loads the subtitles. When the card's "Generate overview" button, "Verdict on open" or "Generate all in this window" opened the panel, Jianmu clicks its close button once it has read it. A panel you opened yourself stays open. It does not click anything while an ad is playing or while there is text in the transcript's search box.
 - **When there is no transcript**: some videos have subtitles in the player but no transcript on the page. For these, Jianmu uses the subtitles the player has loaded itself. The small script in the page watches the player's subtitle requests and keeps the two most recent subtitle responses in that page's memory. Apart from the subtitle text, it notes only which video they belong to, the language, whether they were auto-generated, and whether and into which language they were machine-translated. It does not keep the request address or any other parameters, sends no requests of its own, and the copies are gone when the page is closed or reloaded. Jianmu only adds this script to pages after you turn Jianmu on, and from then on it starts keeping subtitles as soon as a page opens. After you clear all data it is no longer added to new pages, and on pages already open Jianmu's content script tells it to clear what it holds and stop. Jianmu takes the latest copy for a video only when the page has no transcript and it is reading subtitles. Subtitles it uses go into the same cache as subtitles read from a transcript. If nothing has been loaded yet and subtitles are off, Jianmu clicks the player's subtitles button once, waits for the player to load them, then clicks again after reading to turn them off. If you turned subtitles on yourself, they stay on. It does not click while an ad is playing or when the player shows that the video has no subtitles. Jianmu does not choose the subtitle language. It uses the track the player loaded most recently, including a machine-translated one if the player picked it, and records the language it was translated into.
-- **Explaining the current frame**: the "Explain this frame" icon on the player and the button in the side panel work on YouTube too. Clicking captures the current frame of the video and sends it, with the video title, to the model you chose for "Frame analysis". If Jianmu has already read this video's subtitles, it adds the few lines either side of that moment. If not, it sends the frame on its own and does not read subtitles or open the transcript to get them, and the title comes from the tab. The frame is used for that one request and is not stored. Nothing is captured while an ad is playing, during encrypted playback, or when the video page is not in the foreground.
+- **Explaining the current frame**: the "Explain this frame" icon on the player and the button in the side panel work on YouTube too. Clicking captures the current frame of the video and sends it, with the video title, to the model you chose for "Frame explanation". If Jianmu has already read this video's subtitles, it adds the few lines either side of that moment. If not, it sends the frame on its own and does not read subtitles or open the transcript to get them, and the title comes from the tab. The frame is used for that one request and is not stored. Nothing is captured while an ad is playing, during encrypted playback, or when the video page is not in the foreground.
 - **What it does not do**: on YouTube, Jianmu sends no requests to the platform. It does not change the language or scroll, and does not read cookies. While reading subtitles it leaves the player alone, except for turning subtitles on and off when there is no transcript, as described above. It does not use the platform's machine-translated subtitles, with one exception: when there is no transcript and the player itself picks a machine-translated track, Jianmu uses that track.
 - **What it sends**: as on Bilibili, only after you agree to the data notice: the subtitles, the video title and length, the channel name and description, and your question or selected text. Normally this is sent when you click a button. With "Verdict on open" switched on, it is also sent automatically for YouTube videos longer than the set length, under the same rules as on Bilibili.
 - **What it keeps**: subtitles and video details go into the same cache as Bilibili videos. Overviews, Q&A, notes and translations you create stay on your computer in the same way.
