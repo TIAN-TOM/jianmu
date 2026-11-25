@@ -472,7 +472,8 @@ test("YouTube 代开文字稿首发带上：发行构建的后台、侧边栏和
   };
   const markers: Readonly<Record<string, readonly string[]>> = {
     "build/background.js": ["youtube.openTranscript", "src/background/routes/youtube"],
-    "build/pages/sidepanel.js": ["youtube.openTranscript", "src/pages/sidepanel/open-transcript"],
+    // generate-read 是侧边栏的一步生成：还没读到字幕时「生成概览」先经视频页读，跟着代开开关走。
+    "build/pages/sidepanel.js": ["youtube.openTranscript", "src/pages/sidepanel/open-transcript", "src/pages/sidepanel/generate-read"],
     // commands.ts 里还有读播放器字幕时开关字幕的点击，那个开关也进发行包，所以按代开用的函数体认，不按模块路径；
     // 关掉的构建里死分支还留着函数名，只有函数的定义会被裁掉。
     "build/content/youtube.js": ["youtube.openTranscript", "function createPanelOpener("],

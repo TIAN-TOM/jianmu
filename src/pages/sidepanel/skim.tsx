@@ -21,7 +21,7 @@ import { downloadText, learningExport } from "./files.ts";
 import { CreatorChapters, OfficialSummary } from "./guides.tsx";
 import type { Panel } from "./panel.ts";
 import { segmentsBetween } from "./reading.ts";
-import { readsOnClick } from "./transcript.ts";
+import { readsFirst } from "./generate-read.ts";
 import { SettingsExit } from "./settings-exit.tsx";
 import { TranscriptTab } from "./transcript-tab.tsx";
 import { needsSetup, setupAction, setupReason } from "../shared/config.ts";
@@ -197,8 +197,8 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
   const setup = needsSetup(config);
   // YouTube 上本机还没有字幕：能代开文字稿面板的构建里，点「生成概览」先经视频页读字幕。
   const { tabId } = panel.follow.target.value;
-  const readFirst = FEATURE_YOUTUBE_OPEN_PANEL && transcript.state === "failed" && transcript.failure.code === "NOT_CACHED" && readsOnClick(transcript.video) && tabId !== null;
-  // 生成完以后从本机补字幕的那一步在 panel.ts：切到精读、这个视图卸掉了也照样补。
+  const readFirst = FEATURE_YOUTUBE_OPEN_PANEL ? readsFirst(transcript, tabId) : false;
+  // 生成完以后从本机补字幕的那一步挂在侧边栏的状态上（generate-read.ts）：切到精读、这个视图卸掉了也照样补。
   const generate = (): void => void (readFirst && tabId !== null ? panel.overview.generate(false, tabId) : panel.overview.generate(false));
   const canGenerate = transcript.state === "ready" || readFirst;
   const t = panelText().skim;
