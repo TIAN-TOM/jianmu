@@ -157,15 +157,16 @@ export function createLight(deps: LightDeps): Light {
     marks: { readonly hasTranscript: boolean; readonly fromCache: boolean; readonly transcriptFingerprint?: string; readonly transcriptError?: TranscriptUnavailable },
   ): Promise<GuidesReply> {
     const overview = await overviewOf(video);
-    // 刚导入、缓存里的字幕作废了还没重读时，也认得出现在用的是导入的那份。
-    const transcriptFingerprint = (await importedOf(video)) ?? marks.transcriptFingerprint;
+    // 刚导入、缓存里的字幕作废了还没重读时，也认得出现在用的是导入的那份；导入的字幕能直接拿来生成，算本机有字幕。
+    const imported = await importedOf(video);
+    const transcriptFingerprint = imported ?? marks.transcriptFingerprint;
     const view: GuidesView = {
       mode: "light",
       video,
       info,
       ...(official ? { official } : {}),
       ...(overview ? { overview } : {}),
-      hasTranscript: marks.hasTranscript,
+      hasTranscript: marks.hasTranscript || imported !== null,
       fromCache: marks.fromCache,
       ...(transcriptFingerprint ? { transcriptFingerprint } : {}),
       ...(marks.transcriptError ? { transcriptError: marks.transcriptError } : {}),

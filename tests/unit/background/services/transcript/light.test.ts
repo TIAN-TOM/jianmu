@@ -737,6 +737,7 @@ test("导入了字幕文件：不列字幕轨，也不说没有字幕，生成�
   const imported = guides(await h.service.light(REF, TAB));
   assert.equal(imported.transcriptError, undefined);
   assert.ok(imported.transcriptFingerprint, "认得出现在用的是导入的那份");
+  assert.equal(imported.hasTranscript, true, "导入的字幕能直接生成，卡片不再挡着");
   assert.equal(count(h, "listCaptionTracks"), 1, "导入以后不再列");
   assert.equal(view(await h.service.get(REF, { mode: "full" })).transcript.ref.kind, "imported");
 

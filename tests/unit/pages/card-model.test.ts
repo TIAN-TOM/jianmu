@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { signal } from "@preact/signals";
 import { conclusionOf, PANEL_REFUSED_NOTE } from "../../../src/pages/card/glance.ts";
-import { CARD_ROWS, cardRows, chaptersInOrder, createCardModel, NEED_LOGIN_TEXT, NOT_READ_TEXT } from "../../../src/pages/card/model.ts";
+import { CARD_ROWS, cardRows, chaptersInOrder, createCardModel, NEED_LOGIN_TEXT, NO_CAPTIONS_TEXT, NOT_READ_TEXT } from "../../../src/pages/card/model.ts";
 import { CARD_HANT } from "../../../src/pages/card/text-hant.ts";
 import { cardTextOf } from "../../../src/pages/card/text.ts";
 import { createPageApi } from "../../../src/pages/shared/api.ts";
@@ -805,6 +805,19 @@ test("侧边栏给这个视频换了字幕：卡片重读，换上现在这份�
   fake.broadcast({ type: "transcript.changed", video: KEY });
   assert.ok(await until(() => model.view.value.transcriptFingerprint === "new"));
   assert.deepEqual(model.view.value.transcriptBasis, { chapters: "old", verdict: "old" }, "概览不动，页面据此标基于旧字幕");
+});
+
+test("卡片说过没有字幕、随后在侧边栏导入了字幕文件：重读以后撤下没有字幕的说明，能生成", async () => {
+  const { fake, model } = setup();
+  fake.reply("transcript.get", { value: guides(KEY, { transcriptError: "NO_CAPTIONS" }) });
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.noCaptions && model.view.value.notice?.text === NO_CAPTIONS_TEXT));
+
+  fake.reply("transcript.get", { value: guides(KEY, { hasTranscript: true, transcriptFingerprint: "imported" }) });
+  fake.broadcast({ type: "transcript.changed", video: KEY });
+  assert.ok(await until(() => !model.view.value.noCaptions));
+  assert.equal(model.view.value.notice, null);
 });
 
 const PENDING_OFFICIAL = { status: "pending", summary: "", outline: [] };
