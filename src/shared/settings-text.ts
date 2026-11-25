@@ -4,8 +4,8 @@ import { inLang, type OutputLang } from "../core/output-lang.ts";
 import { CHECK_HANT } from "./settings-text-hant.ts";
 
 const CHECK_ZH = {
-  missingKey: "请填写 API 密钥（没选记住密钥时，浏览器重启、扩展更新后要重新填）。",
-  missingModel: "请填写模型名称，或点击「拉取模型列表」进行选择。",
+  missingKey: "请填写 API 密钥（没选记住密钥时，浏览器重启、简幕更新后要重新填）。",
+  missingModel: "请填写模型名称，或点「获取模型列表」从里面选。",
 };
 
 export type SettingsCheckText = typeof CHECK_ZH;

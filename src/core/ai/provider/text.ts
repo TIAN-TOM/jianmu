@@ -11,32 +11,32 @@ const PROVIDER_ZH = {
   baseUrlIpv6: "Chrome 的权限系统不支持 IPv6 字面量地址，请改用域名。",
   baseUrlBad: "API 地址不合法，请到设置页检查。",
   redirected: (baseUrl: string) =>
-    `${baseUrl} 把请求重定向到了别的地址。为了不把 API 密钥带过去，扩展不跟随重定向。请在设置页把 API 地址改成服务实际使用的地址。`,
+    `${baseUrl} 把请求重定向到了别的地址。为了不把 API 密钥带过去，简幕不跟随重定向。请在设置页把 API 地址改成服务实际使用的地址。`,
   workspaceRequired:
-    "这把 Anthropic 密钥没有限定工作区，每个请求都要另带工作区 ID，本扩展不支持。"
+    "这把 Anthropic 密钥没有限定工作区，每个请求都要另带工作区 ID，简幕不支持。"
     + "请在 Claude Console 新建一把密钥，创建时选定一个工作区（例如 Default），再填到设置页。",
   statusOnly: (status: number) => `服务返回 ${status}`,
   streamError: "服务在返回途中报了错。",
-  reasoningOnlyLocked: "模型只输出了思考过程，没有正文。这个型号的思考关不掉，可以重试一次，或者在设置页「按功能选模型」里给这项功能另选一个型号。",
+  reasoningOnlyLocked: "模型只输出了思考过程，没有正文。这个模型的思考关不掉，可以重试一次，或者在设置页「按功能选模型」里给这项功能另选一个模型。",
   reasoningOnly: "模型只输出了思考过程，没有正文。建议在设置页换一个非推理模型。",
   anthropicGotOpenAi: "响应看起来是 OpenAI 格式，但当前选的是 Anthropic 协议。请到设置页把「API 协议」改成 OpenAI 兼容。",
   openAiGotAnthropic: "响应看起来是 Anthropic 格式，但当前选的是 OpenAI 兼容协议。请到设置页把「API 协议」改成 Anthropic。",
   noChoices: "响应里没有 choices 字段，这个地址可能不是 OpenAI 兼容接口。请到设置页核对 API 地址与协议。",
   thinkingTruncatedLocked:
-    "模型还没输出正文就到了 token 上限，思考占满了额度。已经放大预算重试过，仍然不够。这个型号的思考关不掉，扩展已经替你放大过预算。可以在设置页「按功能选模型」里给这项功能另选一个型号；生成概览时，也可以把「概览分块」改成「较短」。",
-  thinkingTruncated: "模型还没输出正文就到了 token 上限，多半是思考占满了额度。已经放大预算重试过，仍然不够，建议换一个非推理模型。",
-  truncated: "输出被 token 上限截断了，放大预算重试后仍然不够。可以换一个输出更简洁的模型试试。",
+    "模型还没输出正文就到了 token 上限，思考占满了额度。简幕已经多给了输出额度重试过一次，还是不够。这个模型的思考关不掉。可以在设置页「按功能选模型」里给这项功能另选一个模型；生成概览时，也可以把「概览分块」改成「较短」。",
+  thinkingTruncated: "模型还没输出正文就到了 token 上限，多半是思考占满了额度。简幕已经多给了输出额度重试过一次，还是不够，建议换一个非推理模型。",
+  truncated: "输出被 token 上限截断了，简幕已经多给了输出额度重试过一次，还是不够。可以换一个输出更简洁的模型试试。",
   quotaOnThinkingLocked:
-    "模型把 token 配额全用在思考上了，没能输出正文。已经放大预算重试过，仍然不够。这个型号的思考关不掉，扩展已经替你放大过预算。可以在设置页「按功能选模型」里给这项功能另选一个型号；生成概览时，也可以把「概览分块」改成「较短」。",
-  quotaOnThinking: "模型把 token 配额全用在思考上了，没能输出正文。已经放大预算重试过，仍然不够，建议换一个非推理模型。",
+    "模型把输出额度全用在思考上了，没能输出正文。简幕已经多给了输出额度重试过一次，还是不够。这个模型的思考关不掉。可以在设置页「按功能选模型」里给这项功能另选一个模型；生成概览时，也可以把「概览分块」改成「较短」。",
+  quotaOnThinking: "模型把输出额度全用在思考上了，没能输出正文。简幕已经多给了输出额度重试过一次，还是不够，建议换一个非推理模型。",
   empty: "模型返回了空内容，请重试。",
   notResponses: "响应不是 Responses 格式，这个地址可能只支持 Chat Completions 或 Anthropic。请到设置页核对「API 协议」。",
   noOutput: "响应里没有 output 字段，这个地址可能不支持 Responses 接口。请到设置页核对 API 地址与协议。",
-  quotaOnReasoning: "模型把 token 配额全用在推理上了，没能输出正文。已经放大预算重试过，仍然不够，可以换一个推理更少的型号。",
+  quotaOnReasoning: "模型把输出额度全用在推理上了，没能输出正文。简幕已经多给了输出额度重试过一次，还是不够，可以换一个推理更少的模型。",
   contentFiltered: "输出被服务方的内容过滤拦下了，没有正文。",
   generationFailed: "模型生成失败，请重试。",
   generationFailedWith: (said: string) => `模型生成失败，服务说：${said}`,
-  reasoningOnlyResponses: "模型只做了推理，没有输出正文。可以换一个推理更少的型号再试。",
+  reasoningOnlyResponses: "模型只做了推理，没有输出正文。可以换一个推理更少的模型再试。",
 };
 
 export type ProviderText = typeof PROVIDER_ZH;

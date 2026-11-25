@@ -1,5 +1,6 @@
 // 粗筛页的状态和动作。三步都经长连接 batch 交给后台做：读列表、逐个取官方总结、写一句话结论；后台做完一个推一个。
 // 页面开着连接就开着，关掉页面连接断开，后台撤掉还在排队的。开始前就地确认，写清数量、跳过规则和费用。
+// 这一页刚读完列表时直接摆出第一步的确认（第一步不花额度）；重新打开页面、本机已有列表时不自动弹。
 import { computed, signal, type ReadonlySignal } from "@preact/signals";
 import { describe, errorCopy, type ErrorCode, type Failure } from "../../core/errors.ts";
 import { hasOfficialContent, isOfficialDone, OFFICIAL_INTERVAL_MS, officialTodo, verdictTodo } from "../../core/triage/batch.ts";
@@ -8,6 +9,7 @@ import { hasVerdict, type GroupKey } from "../../core/triage/groups.ts";
 import type { OfficialRecord, TriageItem } from "../../core/triage/state.ts";
 import type { PortEvent } from "../../shared/messages.ts";
 import type { BatchFailure, TriageOut, TriageSnapshot, TriageStep, TriageStop } from "../../shared/messages/batch.ts";
+import type { OptionsSection } from "../../shared/messages/core.ts";
 import { AI_CONCURRENCY } from "../../shared/settings-schema.ts";
 import type { PageApi, PagePort } from "../shared/api.ts";
 import type { UiLang } from "../shared/ui-lang.ts";
@@ -18,6 +20,24 @@ export type Tone = "ok" | "warn" | "error";
 export interface Status {
   readonly text: string;
   readonly tone?: Tone;
+  /** 要去设置页 AI 服务那一节处理：状态行后面跟一个「打开设置」。 */
+  readonly settings?: true;
+}
+
+/** 第二步为什么没有可写的：第一步还没取完、取完了却都没有官方总结、或者都已经写过了。 */
+export type VerdictIdle = "no-official" | "none-available" | "all-written";
+
+/** 第二步这会儿有没有可写的；没有时说为什么。 */
+function idleReason(list: readonly TriageItem[], official: TriageSnapshot["official"], verdicts: TriageSnapshot["verdicts"]): VerdictIdle | null {
+  if (verdictTodo(list, official, verdicts).length) return null;
+  if (list.some((item) => hasOfficialContent(official[item.videoKey]))) return "all-written";
+  return officialTodo(list, official).length ? "no-official" : "none-available";
+}
+
+/** 第二步没有可写的视频时说的那句。 */
+export function idleText(idle: VerdictIdle, lang: UiLang = "zh"): string {
+  const t = triageTextOf(lang);
+  return idle === "all-written" ? t.allWritten : idle === "none-available" ? t.noneAvailable : t.noneToWrite;
 }
 
 /** 要用户点确认的那一步：说明几行，确认后开始。 */
@@ -55,6 +75,8 @@ export interface TriageState {
   readonly errors: ReadonlySignal<Readonly<Record<string, ItemError>>>;
   readonly filter: ReadonlySignal<Filter>;
   readonly items: ReadonlySignal<readonly TriageItem[]>;
+  /** 第二步这会儿没有可写结论的视频时说为什么，有可写的或正在写时是 null。 */
+  readonly verdictIdle: ReadonlySignal<VerdictIdle | null>;
   readonly videoUrl: (item: TriageItem) => string;
   load(): Promise<void>;
   readList(): void;
@@ -65,6 +87,8 @@ export interface TriageState {
   stop(): void;
   setFilter(filter: Filter): void;
   exportMarkdown(): void;
+  /** 打开设置页，带节名时滚到那一节；打不开时是 false。 */
+  openSettings(section?: OptionsSection): Promise<boolean>;
   /** 设置页清除了本机数据：列表和官方总结都没了。 */
   cleared(): void;
   dispose(): void;
@@ -167,7 +191,14 @@ export function createTriageState(deps: TriageDeps): TriageState {
   const errors = signal<Readonly<Record<string, ItemError>>>({});
   const filter = signal<Filter>("all");
   const items = computed(() => snapshot.value?.list?.items ?? []);
+  const verdictIdle = computed<VerdictIdle | null>(() => {
+    if (running.value === "verdict") return null;
+    const { official, verdicts } = snapshot.value ?? EMPTY;
+    return idleReason(items.value, official, verdicts);
+  });
   let port: PagePort<"batch"> | null = null;
+  /** 正在读的列表是这一页发起的：读完直接摆出第一步的确认。 */
+  let listedHere = false;
   /** 这一轮写结论里写好、失败的个数。 */
   let tally = { written: 0, failed: 0 };
   /** 正在跑的那一步一共几个。 */
@@ -222,6 +253,8 @@ export function createTriageState(deps: TriageDeps): TriageState {
     stopping.value = false;
     const status = statusOf(event.step);
     if (event.step === "list") {
+      const askNext = listedHere;
+      listedHere = false;
       if (event.failure) {
         status.value = { text: failureText(event.failure), tone: "error" };
         return;
@@ -232,6 +265,8 @@ export function createTriageState(deps: TriageDeps): TriageState {
       const dropped = event.dropped ? t().dropped(event.dropped) : "";
       status.value = { text: `${listSummary(current(), lang())}${dropped}`.trimEnd() };
       officialStatus.value = { text: officialCounts(items.peek(), current().official, lang()) };
+      // 第一步不花额度，读完就把它的确认摆出来，数量照样先给用户看。
+      if (askNext) askOfficial();
       return;
     }
     if (event.failure && event.failure.code === "TRIAGE_LIST_CLEARED") {
@@ -270,6 +305,7 @@ export function createTriageState(deps: TriageDeps): TriageState {
       case "triage.done":
         return onDone(event);
       case "triage.refused":
+        if (event.step === "list") listedHere = false;
         if (running.peek() === event.step) running.value = null;
         statusOf(event.step).value = { text: failureText(event.failure), tone: "error" };
         return;
@@ -288,6 +324,7 @@ export function createTriageState(deps: TriageDeps): TriageState {
       onEvent,
       onClose(code) {
         port = null;
+        listedHere = false;
         const step = running.peek();
         if (step) statusOf(step).value = { text: t().stepStopped(describe(code, undefined, lang())), tone: "error" };
         running.value = null;
@@ -301,9 +338,13 @@ export function createTriageState(deps: TriageDeps): TriageState {
     if (running.peek()) return;
     running.value = step;
     if (step === "verdict") tally = { written: 0, failed: 0 };
-    if (step === "list") listStatus.value = { text: t().listReading };
+    if (step === "list") {
+      listStatus.value = { text: t().listReading };
+      listedHere = true;
+    }
     const sent = ensurePort().post({ type: "triage.start", step });
     if (!sent) {
+      listedHere = false;
       running.value = null;
       statusOf(step).value = { text: t().noBackground, tone: "error" };
     }
@@ -328,16 +369,18 @@ export function createTriageState(deps: TriageDeps): TriageState {
     const list = items.peek();
     const { official, verdicts } = current();
     const todo = verdictTodo(list, official, verdicts);
-    if (!todo.length) {
-      const anyOfficial = list.some((item) => hasOfficialContent(official[item.videoKey]));
-      verdictStatus.value = { text: anyOfficial ? t().allWritten : t().noneToWrite };
+    const idle = idleReason(list, official, verdicts);
+    if (idle) {
+      verdictStatus.value = { text: idleText(idle, lang()) };
       return;
     }
     const config = await api.send("config.check", {});
     if (!config.ok || !config.value.ready) {
-      verdictStatus.value = { text: config.ok ? t().notConfigured : describe(config.code, config.detail, lang()), tone: "error" };
+      verdictStatus.value = config.ok ? { text: t().notConfigured, tone: "error", settings: true } : { text: describe(config.code, config.detail, lang()), tone: "error" };
       return;
     }
+    // 设置好以后回来再点：上次「还没设置好」的那句和「打开设置」不再留在确认旁边。
+    verdictStatus.value = null;
     const withVerdict = list.filter((item) => hasVerdict(verdicts[item.videoKey])).length;
     const withoutOfficial = list.filter((item) => !hasVerdict(verdicts[item.videoKey]) && !hasOfficialContent(official[item.videoKey])).length;
     const ask = t().askVerdict;
@@ -364,6 +407,7 @@ export function createTriageState(deps: TriageDeps): TriageState {
     errors,
     filter,
     items,
+    verdictIdle,
     videoUrl: deps.videoUrl,
     load,
     readList: () => start("list"),
@@ -396,9 +440,14 @@ export function createTriageState(deps: TriageDeps): TriageState {
       const text = toMarkdown({ items: list.items, official, verdicts, exportedAt: at }, first ? deps.videoBase(first.videoKey) : "", lang());
       deps.download(exportFileName(at, lang()), text);
     },
+    async openSettings(section) {
+      const reply = await api.send("options.open", section ? { section } : {});
+      return reply.ok;
+    },
     cleared() {
       port?.close();
       port = null;
+      listedHere = false;
       running.value = null;
       stopping.value = false;
       pending.value = null;

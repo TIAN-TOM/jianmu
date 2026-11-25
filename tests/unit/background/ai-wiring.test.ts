@@ -293,7 +293,7 @@ test("本机 http 地址没授权时照样只查不申请，一个请求都不�
   // 后台自己写的说明挂着繁体：按繁体取是繁体，错误本身可枚举的字段只有码。
   const denied = await local.ai.requestAiCompletion(EXPLAIN).catch((error: unknown) => error as TransportError);
   assert.deepEqual(Object.keys(denied), ["code"]);
-  assert.equal(AI.aiFailure(denied, "zh-Hant").detail, "擴充功能還沒有存取 http://127.0.0.1:1234/ 的權限。請打開設定頁，點選「儲存並授權」。");
+  assert.equal(AI.aiFailure(denied, "zh-Hant").detail, "簡幕還沒有存取 http://127.0.0.1:1234/ 的權限。請打開設定頁，點選「儲存」。");
 
   const LAN = { ...LOCAL, aiBaseUrl: "http://192.168.1.50:1234/v1" };
   const lan = setup({ ...keyedStorage(LAN, "http://192.168.1.50:1234/", ""), handler: () => chatReply("不该发出") });
@@ -714,7 +714,7 @@ test("设置页拉模型列表、测试连接失败时的说明跟着语言设�
       assert.doesNotMatch(tested.detail ?? "", /[\u4e00-\u9fff]/);
     } else {
       assert.equal(listed.detail, DATA_CONSENT_ERROR, language);
-      assert.equal(tested.detail, `AI 还没配置好：${DATA_CONSENT_ERROR}`, language);
+      assert.equal(tested.detail, `AI 还没设置好：${DATA_CONSENT_ERROR}`, language);
     }
   }
 });

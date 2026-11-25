@@ -363,13 +363,13 @@ test("构建标识带上开关取值：只换开关重新构建，标识跟着�
 });
 
 // 解释当前画面挂在开关下的内容：截帧代码、播放页图标、两份说明里当前一帧那几条、错误码和文案、
-// 画面分析的功能槽、看图探测、提示词、路由和侧边栏里的按钮和结果。
-const FRAME_SHARED = ["current-frame", "解释当前画面", "FRAME_PROTECTED", "AI_IMAGE_UNSUPPORTED", "画面分析", "frame.changed"];
+// 画面解释的功能槽、看图探测、提示词、路由和侧边栏里的按钮和结果。
+const FRAME_SHARED = ["current-frame", "解释当前画面", "FRAME_PROTECTED", "AI_IMAGE_UNSUPPORTED", "画面解释", "frame.changed"];
 const FRAME_MARKERS: Readonly<Record<string, readonly string[]>> = {
   "build/content/bilibili.js": ["requestVideoFrameCallback", "convertToBlob", "player.captureFrame", "解释当前画面", "frame.explainHere", "src/content/frame", "画面受保护", "Explain this frame", "Frame is protected"],
   "build/background.js": [...FRAME_SHARED, "prompts/study/frame-explain.md", "study/frame-explain.md", "frame.explain", "src/background/image-support", "src/background/services/frame-explain"],
   "build/pages/sidepanel.js": [...FRAME_SHARED, "frame.recent", "解释画面", "正在请模型看图", "Explain this frame"],
-  "build/pages/options.js": [...FRAME_SHARED, "ai.probeImage", "能不能看图", "Frame analysis", "Check image support"],
+  "build/pages/options.js": [...FRAME_SHARED, "ai.probeImage", "能不能看图", "Frame explanation", "Check image support"],
 };
 
 async function bundlesWith(features: FeatureSet): Promise<Map<string, string>> {

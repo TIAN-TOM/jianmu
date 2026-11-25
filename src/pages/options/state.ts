@@ -59,7 +59,7 @@ export interface OptionsState {
   choosePreset(presetId: string): void;
   editAddress(patch: Pick<AiForm, "aiBaseUrl"> | Pick<AiForm, "protocol">): void;
   save(): Promise<boolean>;
-  /** 即改即存：不等「保存并授权」，也不申请权限。推理强度存好以后重问实际档位。 */
+  /** 即改即存：不等「保存」，也不申请权限。推理强度存好以后重问实际档位。 */
   saveInstant(patch: SettingsPatch): Promise<void>;
   setConsent(given: boolean): Promise<void>;
   /** 打开就出结论：先同意当前的数据说明，同意存上了才打开开关。 */

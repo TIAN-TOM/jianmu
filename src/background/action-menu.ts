@@ -1,6 +1,6 @@
 // 工具栏图标的右键菜单：稍后再看粗筛的入口，和播放页卡片、打开就出结论两个开关。
 // 勾选状态跟着设置走，设置在别处变了也跟着变。浏览器点击时自己先翻转勾选，改不成就改回设置里的值。
-// 没确认启用时两个开关都不改设置，改为打开设置页；打开就出结论还要数据说明的同意齐全，不齐全也改为打开设置页，在那里同意。
+// 没确认启用时两个开关都不改设置，改为打开设置页；打开就出结论还要数据说明的同意齐全，不齐全也改为打开设置页，滚到那一节去同意。
 // 菜单项的文字跟着设置里的语言（和界面、模型写的内容同一个设置）：语言改了就按新语言重建。
 import { inLang, resolveOutputLang, type OutputLang } from "../core/output-lang.ts";
 import { MENU_HANT } from "./action-menu-hant.ts";
@@ -9,6 +9,7 @@ import { createContextMenus, type ContextMenusDeps } from "../platform/context-m
 import type { PublicSettings, SettingsStore } from "../platform/settings-store.ts";
 import type { Tabs } from "../platform/tabs.ts";
 import { dataConsentStatus } from "../shared/consent-status.ts";
+import type { OptionsSection } from "../shared/messages/core.ts";
 import { ACTION_MENU, PAGE_PATHS, SETTINGS_STORAGE_KEY } from "../shared/names.ts";
 import { normalize } from "../shared/settings-schema.ts";
 import type { StorageChange } from "./routes/appearance.ts";
@@ -31,13 +32,13 @@ const MENU_EN: ActionMenuText = {
 /** 指定语言的菜单文字。不传语言时是中文。 */
 export const actionMenuText = (lang: OutputLang = "zh"): ActionMenuText => inLang(lang, MENU_ZH, MENU_EN, MENU_HANT);
 
-/** 菜单上的两个开关各自对应的设置项。 */
-const SWITCHES = [
-  { id: ACTION_MENU.inPageCard, field: "inPageCard" },
-  { id: ACTION_MENU.autoOverview, field: "autoOverview" },
-] as const;
+/** 菜单上的两个开关各自对应的设置项，和改不成时设置页要滚到的那一节（卡片开关只在没启用时改不成，那时设置页只有启用说明，不用滚）。 */
+const SWITCHES: readonly { readonly id: string; readonly field: "inPageCard" | "autoOverview"; readonly section: OptionsSection | null }[] = [
+  { id: ACTION_MENU.inPageCard, field: "inPageCard", section: null },
+  { id: ACTION_MENU.autoOverview, field: "autoOverview", section: "auto-overview" },
+];
 
-type SwitchField = (typeof SWITCHES)[number]["field"];
+type Switch = (typeof SWITCHES)[number];
 
 export interface MenuClick {
   readonly menuItemId: string | number;
@@ -49,7 +50,7 @@ export type { ContextMenusDeps };
 
 export interface ActionMenuDeps extends ContextMenusDeps {
   readonly settings: Pick<SettingsStore, "loadPublic" | "update" | "activation">;
-  readonly tabs: Pick<Tabs, "openPage" | "openOptionsPage">;
+  readonly tabs: Pick<Tabs, "openPage" | "openOptionsPage" | "openOptionsAt" | "hasOptionsPage">;
   readonly log: Log;
   /** 浏览器的界面语言，语言选「跟随浏览器」时用；不给时按中文。 */
   readonly uiLanguage?: (() => string) | undefined;
@@ -84,18 +85,20 @@ export function createActionMenu({ settings, tabs, log, uiLanguage = () => "zh",
     }
   }
 
-  // 改不成：勾选退回设置里的值，打开设置页让用户在那里处理。
-  async function refuse(id: string, saved: PublicSettings | null, field: SwitchField) {
+  // 改不成：勾选退回设置里的值，打开设置页、滚到对应的那一节，让用户在那里处理。
+  async function refuse({ id, field, section }: Switch, saved: PublicSettings | null) {
     await setChecked(id, saved?.[field] === true);
-    await tabs.openOptionsPage();
+    if (section && tabs.hasOptionsPage()) await tabs.openOptionsAt(section);
+    else await tabs.openOptionsPage();
   }
 
-  async function toggle(id: string, field: SwitchField, wanted: boolean) {
+  async function toggle(item: Switch, wanted: boolean) {
+    const { id, field } = item;
     const saved = await settings.loadPublic().catch(() => null);
     const enabled = await settings.activation().then(({ state }) => state === "current", () => false);
-    if (!saved || !enabled) return refuse(id, saved, field);
+    if (!saved || !enabled) return refuse(item, saved);
     // 打开就出结论和设置页一样：数据说明还要同意或重新同意时不打开。关掉随时可以。
-    if (field === "autoOverview" && wanted && dataConsentStatus(saved).state === "needed") return refuse(id, saved, field);
+    if (field === "autoOverview" && wanted && dataConsentStatus(saved).state === "needed") return refuse(item, saved);
     try {
       await settings.update({ [field]: wanted });
     } catch (error) {
@@ -107,7 +110,7 @@ export function createActionMenu({ settings, tabs, log, uiLanguage = () => "zh",
   async function clicked({ menuItemId, checked }: MenuClick) {
     if (menuItemId === ACTION_MENU.triage) return tabs.openPage(PAGE_PATHS.triage);
     const item = SWITCHES.find(({ id }) => id === menuItemId);
-    if (item) await toggle(item.id, item.field, checked === true);
+    if (item) await toggle(item, checked === true);
   }
 
   async function settingsChanged(changes: Readonly<Record<string, StorageChange>>, area: string) {

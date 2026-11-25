@@ -1,5 +1,6 @@
 // 稍后再看粗筛页：读取列表、第一步取官方总结、第二步写一句话结论、按判断分组筛选、导出 Markdown。
-// 没确认启用时只说去侧边栏或设置页启用，这一页不能确认。状态和动作都在 state.ts，这里只渲染。
+// 没确认启用时给一个去设置页启用的按钮，这一页不能确认。状态和动作都在 state.ts，这里只渲染。
+// 第二步没有可写的视频时不摆按钮，只说为什么；「关掉这个页面……」是费用提示，只在第二步（写结论）在跑或在等确认时显示。
 import { hasOfficialContent, isOfficialDone } from "../../core/triage/batch.ts";
 import { formatDuration, progressText } from "../../core/triage/export.ts";
 import { GROUPS, groupItems, groupKeyOf, groupName, hasVerdict, type TriageVerdict } from "../../core/triage/groups.ts";
@@ -11,14 +12,29 @@ import { StateBlock } from "../shared/ui/state-block.tsx";
 import { stateCopy } from "../shared/ui/state.ts";
 import { VerdictBlock } from "../shared/ui/verdict-block.tsx";
 import { uiLang } from "../shared/ui-lang.ts";
-import { officialRecordText, type Filter, type Status, type TriageState } from "./state.ts";
+import type { OptionsSection } from "../../shared/messages/core.ts";
+import { idleText, officialRecordText, type Filter, type Status, type TriageState } from "./state.ts";
 import { triageText } from "./text.ts";
 
-function StatusLine({ status }: { readonly status: Status | null }) {
+/** 打开设置页；后台打不开时就在这个标签页里转过去。 */
+function openSettings(state: TriageState, optionsUrl: string, section?: OptionsSection): void {
+  void state.openSettings(section).then((opened) => {
+    if (!opened) location.assign(optionsUrl);
+  });
+}
+
+function StatusLine({ status, onSettings }: { readonly status: Status | null; readonly onSettings?: () => void }) {
   return (
-    <p class="status" role="status" data-tone={status?.tone}>
-      {status?.text ?? ""}
-    </p>
+    <>
+      <p class="status" role="status" data-tone={status?.tone}>
+        {status?.text ?? ""}
+      </p>
+      {status?.settings && onSettings ? (
+        <div class="actions">
+          <Button onClick={onSettings}>{triageText().openSettings}</Button>
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -47,8 +63,11 @@ function Confirm({ state }: { readonly state: TriageState }) {
 
 function StepActions({ state, step }: { readonly state: TriageState; readonly step: "official" | "verdict" }) {
   const running = state.running.value;
-  const busy = running !== null || state.pending.value !== null;
+  const pending = state.pending.value;
+  const busy = running !== null || pending !== null;
   const t = triageText();
+  // 这一步的确认已经摆在下面：开始按钮先不摆，免得一个灰按钮压在确认上面。
+  if (pending?.step === step && running !== step) return null;
   return (
     <div class="actions">
       {running === step ? (
@@ -64,8 +83,10 @@ function StepActions({ state, step }: { readonly state: TriageState; readonly st
   );
 }
 
-function Steps({ state }: { readonly state: TriageState }) {
+function Steps({ state, optionsUrl }: { readonly state: TriageState; readonly optionsUrl: string }) {
   const pending = state.pending.value;
+  const running = state.running.value;
+  const idle = state.verdictIdle.value;
   const t = triageText();
   return (
     <section class="card" id="triage-steps">
@@ -79,11 +100,12 @@ function Steps({ state }: { readonly state: TriageState }) {
       <div class="step" id="step-verdict">
         <h2>{t.verdict.title}</h2>
         <p class="hint">{t.verdict.hint}</p>
-        <StepActions state={state} step="verdict" />
+        {idle ? <p class="hint">{idleText(idle, uiLang.value)}</p> : <StepActions state={state} step="verdict" />}
         {pending?.step === "verdict" ? <Confirm state={state} /> : null}
-        <StatusLine status={state.verdictStatus.value} />
+        <StatusLine status={state.verdictStatus.value} onSettings={() => openSettings(state, optionsUrl, "ai-service")} />
       </div>
-      <p class="hint note">{t.closeNote}</p>
+      {/* 计费提示只跟第二步：第一步不花额度，它自己的确认里已经说了关掉页面会停。 */}
+      {running === "verdict" || pending?.step === "verdict" ? <p class="hint note">{t.closeNote}</p> : null}
     </section>
   );
 }
@@ -210,7 +232,9 @@ export function App({ state, activation, optionsUrl }: { readonly state: TriageS
       {view.state === "failed" ? (
         <StateBlock {...stateCopy(view.failure.code, view.failure.detail, uiLang.value)} primary={{ label: t.retry, onClick: () => void activation.load() }} />
       ) : null}
-      {view.state === "needed" ? <StateBlock title={t.notEnabledTitle} impact={t.notEnabledImpact} /> : null}
+      {view.state === "needed" ? (
+        <StateBlock title={t.notEnabledTitle} impact={t.notEnabledImpact} primary={{ label: t.enableInSettings, onClick: () => openSettings(state, optionsUrl) }} />
+      ) : null}
       {activation.enabled.value ? (
         <>
           {loadFailure ? <StateBlock {...stateCopy(loadFailure.code, loadFailure.detail, uiLang.value)} primary={{ label: t.retry, onClick: () => void state.load() }} /> : null}
@@ -226,7 +250,7 @@ export function App({ state, activation, optionsUrl }: { readonly state: TriageS
           </section>
           {hasList ? (
             <>
-              <Steps state={state} />
+              <Steps state={state} optionsUrl={optionsUrl} />
               <Results state={state} />
             </>
           ) : null}
