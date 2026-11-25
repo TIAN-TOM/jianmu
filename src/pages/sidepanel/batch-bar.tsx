@@ -135,7 +135,16 @@ export function BatchStart({ panel, ready }: { readonly panel: Panel; readonly r
   const notReady = ready ? {} : { disabledReason: setupReason(panel.config.state.value, uiLang.value) ?? sharedText().setup.reason.none };
   return (
     <span class="batch-start">
-      <Button variant="text" disabled={!ready} {...notReady} onClick={() => batch.count()}>
+      <Button
+        variant="text"
+        disabled={!ready}
+        {...notReady}
+        onClick={() => {
+          batch.count();
+          // 按钮在章节下面，清点和确认摆在速读最上面：把那一条滚进视野，不然看着像没点上。
+          requestAnimationFrame(() => document.querySelector(".skim .batch-bar")?.scrollIntoView({ block: "nearest" }));
+        }}
+      >
         {panelText().batch.label}
       </Button>
     </span>
