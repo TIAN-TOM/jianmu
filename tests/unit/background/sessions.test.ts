@@ -131,6 +131,25 @@ test("播满 1 分钟切到精读：只在模式变了时广播，切过以后�
   ]);
 });
 
+test("所在窗口的侧边栏开着：播满 1 分钟先不切、照样叫内容脚本接着报，侧边栏报视频信息时也不切；关上以后下一次上报才切", async () => {
+  const world = harness();
+  await world.sessions.onPlaybackInfo(TAB, VIDEO, { durationSec: LONG });
+  let last: Awaited<ReturnType<typeof world.sessions.onMilestone>> | undefined;
+  for (let played = 10; played <= 90; played += 10) {
+    world.advance(10);
+    last = await world.sessions.onMilestone(TAB, VIDEO, played, true);
+  }
+  assert.deepEqual(last, { ok: true, value: { report: true } });
+  assert.equal(world.table()[String(TAB)]?.mode, "skim");
+
+  const described = await world.sessions.describe(TAB, VIDEO, { durationSec: LONG + 60 });
+  assert.equal(described.ok && described.value.mode, "skim", "侧边栏报的：它开着");
+
+  world.advance(10);
+  assert.deepEqual(await world.sessions.onMilestone(TAB, VIDEO, 100), { ok: true, value: { report: false } });
+  assert.deepEqual([world.table()[String(TAB)]?.mode, world.table()[String(TAB)]?.modeSource], ["study", "auto"]);
+});
+
 test("撤销自动切换回到速读、不记频道，这次观看不再切；之后主动选精读才记住频道", async () => {
   const world = harness();
   await world.sessions.onPlaybackInfo(TAB, VIDEO, { durationSec: LONG, channel: CHANNEL_REF });

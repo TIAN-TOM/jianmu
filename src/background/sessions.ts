@@ -59,11 +59,11 @@ export interface SessionsDeps {
 }
 
 export interface Sessions {
-  /** 报时长和频道：换了视频开新会话，同一视频沿用原会话，回会话里的累计秒数。 */
-  readonly onPlaybackInfo: (tabId: number, video: VideoKey, info: PlaybackInfo) => Promise<Result<{ playedSec: number; report: boolean }>>;
-  /** 报累计播放秒数：只增不减、不超过真实经过的时间，满 1 分钟时可能自动切到精读。 */
-  readonly onMilestone: (tabId: number, video: VideoKey, playedSec: number) => Promise<Result<{ report: boolean }>>;
-  /** 侧边栏报适配层读到的时长和频道：以它为准，补上或改掉播放页报的；变了就按新信息重新定打开时的模式。 */
+  /** 报时长和频道：换了视频开新会话，同一视频沿用原会话，回会话里的累计秒数。panelOpen 是这个标签页所在窗口的侧边栏开着，先不自动切。 */
+  readonly onPlaybackInfo: (tabId: number, video: VideoKey, info: PlaybackInfo, panelOpen?: boolean) => Promise<Result<{ playedSec: number; report: boolean }>>;
+  /** 报累计播放秒数：只增不减、不超过真实经过的时间，满 1 分钟时可能自动切到精读；所在窗口的侧边栏开着（panelOpen）时先不切。 */
+  readonly onMilestone: (tabId: number, video: VideoKey, playedSec: number, panelOpen?: boolean) => Promise<Result<{ report: boolean }>>;
+  /** 侧边栏报适配层读到的时长和频道：以它为准，补上或改掉播放页报的；变了就按新信息重新定打开时的模式。侧边栏既然开着，这时不自动切。 */
   readonly describe: (tabId: number, video: VideoKey, info: PlaybackInfo) => Promise<Result<SessionView>>;
   readonly get: (tabId: number) => Promise<SessionView | null>;
   readonly setMode: (tabId: number, video: VideoKey, change: ModeChange) => Promise<Result<ModeOutcome>>;
@@ -119,8 +119,8 @@ function viewChanged(before: WatchSession | undefined, after: WatchSession): boo
 /** 自动切过或这次手动选过模式，内容脚本就不用再报进度。 */
 const reports = (session: WatchSession): boolean => !session.autoSwitched && !session.manualThisWatch;
 
-// 按会话现有的信息重新定模式。
-function settle(session: WatchSession): WatchSession {
+// 按会话现有的信息重新定模式。panelOpen 是这个标签页所在窗口的侧边栏开着：先不自动切。
+function settle(session: WatchSession, panelOpen = false): WatchSession {
   const decided = decideMode({
     durationSec: session.durationSec,
     channelMode: session.channelMode,
@@ -128,6 +128,7 @@ function settle(session: WatchSession): WatchSession {
     playedSec: session.playedSec,
     current: { mode: session.mode, source: session.modeSource },
     autoSwitched: session.autoSwitched,
+    panelOpen,
   });
   return {
     ...session,
@@ -201,7 +202,7 @@ export function createSessions({ storage, channels, guard, now, broadcast, log }
   }
 
   return {
-    async onPlaybackInfo(tabId, video, info) {
+    async onPlaybackInfo(tabId, video, info, panelOpen = false) {
       const result = await mutate(tabId, async (current) => {
         const base = current?.video === video ? current : fresh(video);
         if (base.reported) return ok(base);
@@ -216,19 +217,19 @@ export function createSessions({ storage, channels, guard, now, broadcast, log }
             ...(durationSec === undefined ? {} : { durationSec }),
             ...(channel === undefined ? {} : { channel }),
             ...(channelMode === undefined ? {} : { channelMode }),
-          }),
+          }, panelOpen),
         );
       });
       return result.ok ? ok({ playedSec: result.value.playedSec, report: reports(result.value) }) : result;
     },
 
-    async onMilestone(tabId, video, playedSec) {
+    async onMilestone(tabId, video, playedSec, panelOpen = false) {
       const result = await mutate(tabId, (current) => {
         // 没报过这个视频的时长和频道，先要报那一条。
         if (current?.video !== video) return fail("SESSION_NOT_FOUND");
         const elapsedSec = (now() - current.startedAt) / 1000;
         if (playedSec < current.playedSec || playedSec > elapsedSec + PLAYED_SLACK_SEC) return fail("INVALID_REQUEST");
-        return ok(playedSec === current.playedSec ? current : settle({ ...current, playedSec }));
+        return ok(playedSec === current.playedSec ? current : settle({ ...current, playedSec }, panelOpen));
       });
       return result.ok ? ok({ report: reports(result.value) }) : result;
     },
@@ -248,7 +249,7 @@ export function createSessions({ storage, channels, guard, now, broadcast, log }
             ...(durationSec === undefined ? {} : { durationSec }),
             ...(channel === undefined ? {} : { channel }),
             ...(channelMode === undefined ? {} : { channelMode }),
-          }),
+          }, true),
         );
       });
       return result.ok ? ok(sessionView(result.value)) : result;
