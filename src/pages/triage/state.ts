@@ -24,8 +24,21 @@ export interface Status {
   readonly settings?: true;
 }
 
-/** 第二步为什么没有可写的：还没有带官方总结的视频，或者都已经写过了。 */
-export type VerdictIdle = "no-official" | "all-written";
+/** 第二步为什么没有可写的：第一步还没取完、取完了却都没有官方总结、或者都已经写过了。 */
+export type VerdictIdle = "no-official" | "none-available" | "all-written";
+
+/** 第二步这会儿有没有可写的；没有时说为什么。 */
+function idleReason(list: readonly TriageItem[], official: TriageSnapshot["official"], verdicts: TriageSnapshot["verdicts"]): VerdictIdle | null {
+  if (verdictTodo(list, official, verdicts).length) return null;
+  if (list.some((item) => hasOfficialContent(official[item.videoKey]))) return "all-written";
+  return officialTodo(list, official).length ? "no-official" : "none-available";
+}
+
+/** 第二步没有可写的视频时说的那句。 */
+export function idleText(idle: VerdictIdle, lang: UiLang = "zh"): string {
+  const t = triageTextOf(lang);
+  return idle === "all-written" ? t.allWritten : idle === "none-available" ? t.noneAvailable : t.noneToWrite;
+}
 
 /** 要用户点确认的那一步：说明几行，确认后开始。 */
 export interface Pending {
@@ -181,9 +194,7 @@ export function createTriageState(deps: TriageDeps): TriageState {
   const verdictIdle = computed<VerdictIdle | null>(() => {
     if (running.value === "verdict") return null;
     const { official, verdicts } = snapshot.value ?? EMPTY;
-    const list = items.value;
-    if (verdictTodo(list, official, verdicts).length) return null;
-    return list.some((item) => hasOfficialContent(official[item.videoKey])) ? "all-written" : "no-official";
+    return idleReason(items.value, official, verdicts);
   });
   let port: PagePort<"batch"> | null = null;
   /** 正在读的列表是这一页发起的：读完直接摆出第一步的确认。 */
@@ -358,9 +369,9 @@ export function createTriageState(deps: TriageDeps): TriageState {
     const list = items.peek();
     const { official, verdicts } = current();
     const todo = verdictTodo(list, official, verdicts);
-    if (!todo.length) {
-      const anyOfficial = list.some((item) => hasOfficialContent(official[item.videoKey]));
-      verdictStatus.value = { text: anyOfficial ? t().allWritten : t().noneToWrite };
+    const idle = idleReason(list, official, verdicts);
+    if (idle) {
+      verdictStatus.value = { text: idleText(idle, lang()) };
       return;
     }
     const config = await api.send("config.check", {});
@@ -368,6 +379,8 @@ export function createTriageState(deps: TriageDeps): TriageState {
       verdictStatus.value = config.ok ? { text: t().notConfigured, tone: "error", settings: true } : { text: describe(config.code, config.detail, lang()), tone: "error" };
       return;
     }
+    // 设置好以后回来再点：上次「还没设置好」的那句和「打开设置」不再留在确认旁边。
+    verdictStatus.value = null;
     const withVerdict = list.filter((item) => hasVerdict(verdicts[item.videoKey])).length;
     const withoutOfficial = list.filter((item) => !hasVerdict(verdicts[item.videoKey]) && !hasOfficialContent(official[item.videoKey])).length;
     const ask = t().askVerdict;

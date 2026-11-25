@@ -105,6 +105,7 @@ export const TRIAGE_HANT: TriageText = {
   },
   allWritten: "有官方總結的影片都已經有結論了。",
   noneToWrite: "還沒有可以寫結論的影片：先做第一步取得官方總結。",
+  noneAvailable: "這些影片都沒有官方總結，寫不了一句話結論；可以到影片頁生成概覽。",
   notConfigured: "還沒設定好 AI 服務。",
   askVerdict: {
     count: (count) => `要替 ${count} 部有官方總結的影片寫一句話結論。`,

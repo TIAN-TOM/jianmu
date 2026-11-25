@@ -14,7 +14,9 @@ function fakeApi(snapshot: TriageSnapshot, replies: Readonly<Record<string, unkn
   const api = {
     send: async (type: string, req: unknown) => {
       sent.push({ type, req });
-      return type in replies ? replies[type] : { ok: true, value: snapshot };
+      const reply = replies[type];
+      // 回复可以是函数：同一个测试里前后两次问到的不一样。
+      return type in replies ? (typeof reply === "function" ? reply() : reply) : { ok: true, value: snapshot };
     },
     connect(_name: "batch", next: PortHandlers<"batch">) {
       handlers = next;
@@ -104,6 +106,14 @@ test("第二步没有可写结论的视频时说为什么：还没取到官方�
   const busy = createTriageState({ api: running.api as never, ...deps });
   await busy.load();
   assert.equal(busy.verdictIdle.value, null);
+
+  // 第一步取完了，可每个视频都没有官方总结：不再叫人「先做第一步」，说明写不了、可以去视频页生成概览。
+  const fetchedNone = { ...LISTED, official: Object.fromEntries(KEYS.map((key) => [key, { status: "none" }])) } as TriageSnapshot;
+  const none = createTriageState({ api: fakeApi(fetchedNone).api as never, ...deps });
+  await none.load();
+  assert.equal(none.verdictIdle.value, "none-available");
+  await none.askVerdicts();
+  assert.match(none.verdictStatus.value?.text ?? "", /都没有官方总结/);
 });
 
 test("AI 服务没设置好时第二步不弹确认，状态行带「打开设置」；打开设置时带上 AI 服务那一节", async () => {
@@ -120,4 +130,18 @@ test("AI 服务没设置好时第二步不弹确认，状态行带「打开设�
     { type: "options.open", req: { section: "ai-service" } },
     { type: "options.open", req: {} },
   ]);
+});
+
+test("设置好 AI 服务回来再点「开始写结论」：上次「还没设置好」那句不再留在确认旁边", async () => {
+  const withOfficial = { ...LISTED, official: { [KEYS[0] as string]: OFFICIAL } } as TriageSnapshot;
+  let ready = false;
+  const fake = fakeApi(withOfficial, { "config.check": () => ({ ok: true, value: { ready } }) });
+  const state = createTriageState({ api: fake.api as never, ...deps });
+  await state.load();
+  await state.askVerdicts();
+  assert.equal(state.verdictStatus.value?.settings, true);
+  ready = true;
+  await state.askVerdicts();
+  assert.equal(state.pending.value?.step, "verdict");
+  assert.equal(state.verdictStatus.value, null);
 });

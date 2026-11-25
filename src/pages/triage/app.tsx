@@ -13,7 +13,7 @@ import { stateCopy } from "../shared/ui/state.ts";
 import { VerdictBlock } from "../shared/ui/verdict-block.tsx";
 import { uiLang } from "../shared/ui-lang.ts";
 import type { OptionsSection } from "../../shared/messages/core.ts";
-import { officialRecordText, type Filter, type Status, type TriageState } from "./state.ts";
+import { idleText, officialRecordText, type Filter, type Status, type TriageState } from "./state.ts";
 import { triageText } from "./text.ts";
 
 /** 打开设置页；后台打不开时就在这个标签页里转过去。 */
@@ -100,7 +100,7 @@ function Steps({ state, optionsUrl }: { readonly state: TriageState; readonly op
       <div class="step" id="step-verdict">
         <h2>{t.verdict.title}</h2>
         <p class="hint">{t.verdict.hint}</p>
-        {idle ? <p class="hint">{idle === "all-written" ? t.allWritten : t.noneToWrite}</p> : <StepActions state={state} step="verdict" />}
+        {idle ? <p class="hint">{idleText(idle, uiLang.value)}</p> : <StepActions state={state} step="verdict" />}
         {pending?.step === "verdict" ? <Confirm state={state} /> : null}
         <StatusLine status={state.verdictStatus.value} onSettings={() => openSettings(state, optionsUrl, "ai-service")} />
       </div>

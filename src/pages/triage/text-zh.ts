@@ -105,6 +105,7 @@ export const TRIAGE_ZH = {
   },
   allWritten: "有官方总结的视频都已经有结论了。",
   noneToWrite: "还没有可以写结论的视频：先做第一步取官方总结。",
+  noneAvailable: "这些视频都没有官方总结，写不了一句话结论；可以到视频页生成概览。",
   notConfigured: "还没设置好 AI 服务。",
   askVerdict: {
     count: (count: number) => `要给 ${count} 个有官方总结的视频写一句话结论。`,

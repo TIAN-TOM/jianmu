@@ -108,6 +108,7 @@ export const TRIAGE_EN: TriageText = {
   },
   allWritten: "Every video with an official summary already has a verdict.",
   noneToWrite: "No videos are ready for a verdict yet. Do step 1 first to fetch official summaries.",
+  noneAvailable: "None of these videos has an official summary, so there's nothing to write a verdict from. You can generate an overview on the video page instead.",
   notConfigured: "The AI service isn't set up yet.",
   askVerdict: {
     count: (count) => `Jianmu will write a one-line verdict for ${videos(count)} with an official summary.`,
