@@ -7,7 +7,7 @@
 // 鼠标移上去和闪提示时用设置里的主题色，不跟扩展页面的明暗走。小窗时让开，见 mini-player.ts。
 import type { OutputLang } from "../core/output-lang.ts";
 import { INJECTED } from "../shared/names.ts";
-import { BUTTON_GAP, keepsLook, OVERLAY_INSET, placedAsInjected, pointedAt, type Box, type Look } from "./click-guard.ts";
+import { BUTTON_GAP, ICON_SIZE, keepsLook, OVERLAY_INSET, placedAsInjected, pointedAt, type Box, type Look } from "./click-guard.ts";
 import { createReveal } from "./reveal.ts";
 import { contentText } from "./text.ts";
 
@@ -104,6 +104,8 @@ interface IconState {
   label: HTMLSpanElement | null;
   /** 自己建的图标图形：点击坐标处是它（或它里面的线条）也算点在按钮上。 */
   icon: SVGSVGElement | null;
+  /** 图标里自己建的线条，从上往下。 */
+  paths: readonly SVGPathElement[];
   flashTimer: ReturnType<typeof setTimeout> | null;
   title: string;
   over: boolean;
@@ -129,6 +131,7 @@ export function createHoverIcons({ document, anchor, icons, top = OVERLAY_INSET 
     button: null,
     label: null,
     icon: null,
+    paths: [],
     flashTimer: null,
     title: entry.spec.title,
     over: false,
@@ -139,7 +142,7 @@ export function createHoverIcons({ document, anchor, icons, top = OVERLAY_INSET 
   const paint = (state: IconState): void => {
     if (!state.button) return;
     const lit = state.over || state.hinting;
-    state.button.style.cssText = `${BUTTON_BASE}background:${lit ? `rgba(${accent},.92);box-shadow:0 2px 8px rgba(0,0,0,.24);color:${accentInk}` : REST_BACKGROUND};`;
+    state.button.style.cssText = `${BUTTON_BASE}background:${lit ? `rgba(${accent},.92);box-shadow:0 2px 8px rgba(0,0,0,.24);color:${accentInk}` : `${REST_BACKGROUND};box-shadow:none`};`;
   };
 
   function show(shown: boolean): void {
@@ -202,6 +205,7 @@ export function createHoverIcons({ document, anchor, icons, top = OVERLAY_INSET 
       return {
         opacity: style.opacity,
         visibility: style.visibility,
+        display: style.display,
         position: style.position,
         filter: style.filter,
         clipPath: style.clipPath,
@@ -214,7 +218,14 @@ export function createHoverIcons({ document, anchor, icons, top = OVERLAY_INSET 
         blend: style.mixBlendMode,
         color: style.color,
         background: style.backgroundColor,
+        backgroundImage: style.backgroundImage,
+        backgroundClip: style.backgroundClip,
+        border: [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].join(" "),
+        shadow: style.boxShadow,
         stroke: style.stroke,
+        strokeOpacity: style.strokeOpacity,
+        strokeWidth: style.strokeWidth,
+        strokeDash: style.strokeDasharray,
       };
     } catch {
       return null;
@@ -235,17 +246,23 @@ export function createHoverIcons({ document, anchor, icons, top = OVERLAY_INSET 
   };
 
   // 点击时的全部核对：节点还是自己建的那几个、挂在原来的地方，样子是钉死的那个，位置是注入时的位置。
+  // 图标的线条和提示文字靠继承取色，页面能直接改它们，所以真正画出来的这几样各自拿计算样式和按钮的底色比。
   // 不放行时回一句原因，只打到控制台，日用时遇到误拦好查。
   function refusal(state: IconState, index: number): string | null {
-    const { button, label, icon } = state;
+    const { button, label, icon, paths } = state;
     const host = anchor();
     if (!button || !label || !icon || !overlay || !host) return "节点不在";
     if (button.parentElement !== overlay || overlay.parentElement !== host) return "被挪了地方";
     if (button.childNodes.length !== 2 || button.firstChild !== icon || button.lastChild !== label) return "里面被塞了别的节点";
-    if (!keepsLook(lookOf(button), "button")) return "按钮的样子被改过";
+    if (icon.childNodes.length !== paths.length || paths.some((path, at) => icon.childNodes[at] !== path) || label.children.length > 0) return "里面被塞了别的节点";
+    const buttonLook = lookOf(button);
+    if (!keepsLook(buttonLook, "button")) return "按钮的样子被改过";
     if (!keepsLook(lookOf(overlay), "overlay")) return "浮层的样子被改过";
     if (!keepsLook(lookOf(icon), "icon")) return "图标的样子被改过";
-    if (!placedAsInjected({ anchor: paddingBoxOf(host), overlay: boxOf(overlay), button: boxOf(button), index, hinting: state.hinting, top })) return "位置或大小被改过";
+    const backdrop = buttonLook?.background ?? "";
+    if (!paths.every((path) => keepsLook(lookOf(path), "path", backdrop))) return "图标的线条被改过";
+    if (state.hinting && !keepsLook(lookOf(label), "label", backdrop)) return "提示文字的样子被改过";
+    if (!placedAsInjected({ anchor: paddingBoxOf(host), overlay: boxOf(overlay), button: boxOf(button), icon: boxOf(icon), index, hinting: state.hinting, top })) return "位置或大小被改过";
     return null;
   }
 
@@ -257,18 +274,20 @@ export function createHoverIcons({ document, anchor, icons, top = OVERLAY_INSET 
     }
   };
 
-  function iconOf(spec: IconSpec): SVGSVGElement {
+  function iconOf(spec: IconSpec): { readonly svg: SVGSVGElement; readonly paths: readonly SVGPathElement[] } {
     // 逐个节点建，不用 innerHTML：页面开了 Trusted Types 时 innerHTML 会被拦。
     const svg = document.createElementNS(SVG_NS, "svg");
-    for (const [name, value] of Object.entries({ viewBox: "0 0 16 16", width: "16", height: "16", fill: "none", stroke: "currentColor", "stroke-width": "1.5", "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" })) {
+    const size = String(ICON_SIZE);
+    for (const [name, value] of Object.entries({ viewBox: `0 0 ${size} ${size}`, width: size, height: size, fill: "none", stroke: "currentColor", "stroke-width": "1.5", "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" })) {
       svg.setAttribute(name, value);
     }
-    for (const d of spec.paths) {
+    const paths = spec.paths.map((d) => {
       const path = document.createElementNS(SVG_NS, "path");
       path.setAttribute("d", d);
       svg.appendChild(path);
-    }
-    return svg;
+      return path;
+    });
+    return { svg, paths };
   }
 
   function ensureOverlay(): HTMLElement | null {
@@ -303,7 +322,7 @@ export function createHoverIcons({ document, anchor, icons, top = OVERLAY_INSET 
     const text = document.createElement("span");
     text.className = spec.labelClass;
     text.style.display = "none";
-    const icon = iconOf(spec);
+    const { svg: icon, paths } = iconOf(spec);
     node.append(icon, text);
     const own = (target: Element): boolean => target === node || target === text || target === icon || target.parentNode === icon;
     // 页面脚本能对按钮调 click() 或派发合成点击，也能把焦点挪过来等用户按键；只认鼠标真点在按钮上的那一下。
@@ -321,6 +340,7 @@ export function createHoverIcons({ document, anchor, icons, top = OVERLAY_INSET 
     state.button = node;
     state.label = text;
     state.icon = icon;
+    state.paths = paths;
     paint(state);
     return node;
   }
@@ -393,6 +413,7 @@ export function createHoverIcons({ document, anchor, icons, top = OVERLAY_INSET 
         state.button = null;
         state.label = null;
         state.icon = null;
+        state.paths = [];
       }
       reveal.stop();
       watch(null);
