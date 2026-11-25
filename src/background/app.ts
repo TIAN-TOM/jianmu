@@ -10,7 +10,7 @@ import { createPermissions, type PermissionsApi } from "../platform/permissions.
 import { createSettingsStore, type SettingsStore } from "../platform/settings-store.ts";
 import type { ExtensionStorage } from "../platform/storage.ts";
 import { createTabs, type Tabs, type TabsDeps } from "../platform/tabs.ts";
-import { analysisChunkOptions, qaChunkOptions } from "../shared/settings-schema.ts";
+import { qaChunkOptions } from "../shared/settings-schema.ts";
 import type { NoteRecord, OverviewRecord, QaRecord } from "../core/notes/records.ts";
 import type { StoreName } from "../shared/names.ts";
 import type { SiteRules } from "../sites/types.ts";
@@ -44,7 +44,8 @@ import { createNoteStore, type NoteStore } from "./stores/notes.ts";
 import { createOverviewStore, type OverviewStore } from "./stores/overviews.ts";
 import { createQaStore, type QaStore } from "./stores/qa.ts";
 import { createTranslationStore, type TranslationRecord, type TranslationStore } from "./stores/translations.ts";
-import { createOverviewService, type OverviewService } from "./services/overview/index.ts";
+import { assembleOverview } from "./assemble-overview.ts";
+import type { OverviewService } from "./services/overview/index.ts";
 import { createVerdictService, type VerdictService } from "./services/overview/verdict.ts";
 import { createExplainService, type ExplainService } from "./services/explain.ts";
 import { createNotesService, type NotesService } from "./services/notes.ts";
@@ -215,7 +216,7 @@ function assembleTranscript(deps: AppDeps, clearGuard: ClearGuard, tabs: Tabs, o
 }
 
 /** 概览和用官方总结写结论共用的部件：同一个概览仓储、同一道模型请求的并发闸门。 */
-interface OverviewParts {
+export interface OverviewParts {
   readonly settings: SettingsStore;
   readonly clearGuard: ClearGuard;
   readonly ai: AiWiring;
@@ -224,22 +225,6 @@ interface OverviewParts {
   readonly transcript: TranscriptService;
   readonly overviews: OverviewStore;
   readonly gate: Limiter;
-}
-
-// 概览：分块大小按设置；发往模型的请求几个视频、两种生成合起来不超过并发上限。
-function assembleOverview(deps: AppDeps, parts: OverviewParts): OverviewService {
-  return createOverviewService({
-    tasks: parts.tasks,
-    transcript: parts.transcript,
-    overviews: parts.overviews,
-    guard: parts.clearGuard,
-    prompt: parts.ai.prompt,
-    chunkOptions: async () => analysisChunkOptions(await parts.settings.loadPublic()),
-    gate: parts.gate,
-    broadcast: (message) => void parts.messenger.toPages(message),
-    log: deps.log,
-    now: deps.timers.now,
-  });
 }
 
 // 用官方总结写结论：和概览写进同一个仓储，排同一道并发闸门。

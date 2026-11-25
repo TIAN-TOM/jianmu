@@ -100,7 +100,8 @@ export function createAutoWiring(deps: AutoWiringDeps): AutoGenerate {
       const registered = await tasks.register({ kind: "overview", origin: "auto", video, gen, stages, followsPage: false }, {}, { send: hooks });
       if (!("task" in registered)) return { skipped: "conflict" };
       if (registered.joined) return { skipped: "joined" };
-      return { done: deps.overview.generate(registered.task.id, video, { fresh: false }) };
+      // 打开就出结论也读评论区（PRD F23）；这里不知道是哪个标签页，YouTube 上读不到就不带评论。
+      return { done: deps.overview.generate(registered.task.id, video, { fresh: false, comments: {} }) };
     },
     storage: deps.storage,
     guard: deps.guard,

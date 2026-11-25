@@ -68,6 +68,20 @@ export const PROMPTS: Readonly<Record<string, string>> = {
     "```",
     "",
   ].join("\n"),
+  "skim/verdict-comments.md": [
+    "## 系统提示词",
+    "```",
+    "结论带评论/系统",
+    "```",
+    "## 用户提示词",
+    "```",
+    "结论/用户",
+    "标题：{videoTitle}",
+    "{chaptersText}",
+    "评论区：{commentsText}",
+    "```",
+    "",
+  ].join("\n"),
 };
 
 const segment = (id: string, start: number, text: string): TranscriptSegment => ({ id, start, text, texts: [text] });
@@ -158,6 +172,8 @@ export interface OverviewHarnessOptions {
   readonly timers?: ManualTimers;
   /** 任务取定的输出语言，不给时按简体（冻结的配置里不带这一项）。 */
   readonly outputLang?: OutputLang;
+  /** 站点读取的替身，读评论区（PRD F23）用。 */
+  readonly sites?: OverviewServiceDeps["sites"];
 }
 
 export interface Logged {
@@ -187,7 +203,7 @@ export interface OverviewHarness {
   /** 登记一个概览任务，交回任务号。 */
   register(video?: VideoKey): Promise<string>;
   /** 登记并开始生成。 */
-  generate(options?: { readonly fresh?: boolean; readonly video?: VideoKey }): { readonly taskId: Promise<string>; readonly result: Promise<Result<OverviewResultView>> };
+  generate(options?: { readonly fresh?: boolean; readonly video?: VideoKey; readonly comments?: { readonly tabId?: number } }): { readonly taskId: Promise<string>; readonly result: Promise<Result<OverviewResultView>> };
   /** 登记并补失败块。 */
   retry(): { readonly taskId: Promise<string>; readonly result: Promise<Result<OverviewResultView>> };
   /** 登记一个结论任务（侧边栏的，或粗筛的），交回任务号。 */
@@ -322,6 +338,7 @@ export function overviewHarness(options: OverviewHarnessOptions = {}): OverviewH
     broadcast: (message) => void broadcasts.push(message),
     log,
     now: timers.now,
+    ...(options.sites ? { sites: options.sites } : {}),
   });
   const verdict = createVerdictService({
     tasks,
@@ -369,9 +386,9 @@ export function overviewHarness(options: OverviewHarnessOptions = {}): OverviewH
       failMode = mode;
     },
     register,
-    generate({ fresh = false, video = VIDEO } = {}) {
+    generate({ fresh = false, video = VIDEO, comments } = {}) {
       const taskId = register(video);
-      return { taskId, result: taskId.then((id) => service.generate(id, video, { fresh })) };
+      return { taskId, result: taskId.then((id) => service.generate(id, video, { fresh, ...(comments ? { comments } : {}) })) };
     },
     retry() {
       const taskId = register();
