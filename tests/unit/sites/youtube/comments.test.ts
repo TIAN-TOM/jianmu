@@ -195,6 +195,27 @@ test("滚一次：页面正在滚动时当成用户在动，不滚", async () =>
   assert.equal(page.section.scrolled, 0);
 });
 
+test("滚一次：先等的那一会儿里切到后台或开始播广告，也不滚", async () => {
+  for (const [label, change, outcome] of [
+    ["切到后台", (page: FakePage) => (page.state.visibility = "hidden"), "hidden"],
+    ["开始播广告", (page: FakePage) => page.player.classes.add("ad-showing"), "ad"],
+  ] as const) {
+    const page = fakePage();
+    const time = clock();
+    const loader = createCommentLoader({
+      document: page.document,
+      currentRef: () => REF,
+      now: time.now,
+      sleep: async (ms) => {
+        change(page);
+        await time.sleep(ms);
+      },
+    });
+    assert.equal((await loader.handle({ type: "youtube.loadComments", req: { videoId: ID } }))?.outcome, outcome, label);
+    assert.equal(page.section.scrolled, 0, `${label}：不滚`);
+  }
+});
+
 test("滚一次：等不到评论时报 timeout，照样滚回原处，不再滚第二次", async () => {
   const page = fakePage();
   const time = clock();

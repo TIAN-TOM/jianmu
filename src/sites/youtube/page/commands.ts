@@ -241,8 +241,11 @@ export function createCommentLoader({ document, currentRef, now = Date.now, slee
     if (editing()) return "busy";
     const before = { x: view.scrollX, y: view.scrollY };
     await sleep(SCROLL_SETTLE_MS);
-    if (view.scrollX !== before.x || view.scrollY !== before.y) return "busy";
-    if (!onPage(videoId) || editing()) return onPage(videoId) ? "busy" : "video-changed";
+    // 等的这一会儿里情况可能变了：换了视频、切到后台、开始播广告、用户动了页面，都在滚之前再看一遍。
+    if (!onPage(videoId)) return "video-changed";
+    if (document.visibilityState !== "visible") return "hidden";
+    if (advertising(document)) return "ad";
+    if (view.scrollX !== before.x || view.scrollY !== before.y || editing()) return "busy";
 
     let interrupted = false;
     const mark = (): void => {
