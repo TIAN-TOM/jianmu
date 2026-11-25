@@ -16,6 +16,7 @@ export const IDEMPOTENT_ROUTES: ReadonlySet<RouteName> = new Set<RouteName>([
   "ai.effortPreview",
   "appearance.get",
   "build.id",
+  "channels.count",
   "config.check",
   "notes.list",
   "overview.get",

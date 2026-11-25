@@ -1,4 +1,4 @@
-// 频道偏好仓储：频道 → 用户手动选过的模式。只在主动切换模式时写，设置页可以全部清掉。
+// 频道偏好仓储：频道 → 用户手动选过的模式。只在主动切换模式时写；侧边栏点「不记」忘掉一个，设置页可以全部清掉，也能看记了几个。
 // 读出来的行不信：模式认不出、键对不上的当作没记过。
 import type { ClearGuard } from "../../core/clear-guard.ts";
 import { isMode } from "../../core/mode/decide.ts";
@@ -23,8 +23,12 @@ export interface ChannelStore {
   readonly get: (channelKey: string) => Promise<Mode | undefined>;
   /** 记下这个频道的模式。清除过就不写，返回 false。 */
   readonly put: (channelKey: string, mode: Mode, options?: WriteOptions) => Promise<boolean>;
+  /** 忘掉这一个频道。清除过就不写，返回 false。 */
+  readonly remove: (channelKey: string, options?: WriteOptions) => Promise<boolean>;
   /** 清掉全部频道偏好。 */
   readonly clear: (options?: WriteOptions) => Promise<boolean>;
+  /** 记着几个频道：读得懂的才算。 */
+  readonly count: () => Promise<number>;
 }
 
 export function createChannelStore({ driver, guard, now }: ChannelStoreDeps): ChannelStore {
@@ -44,6 +48,13 @@ export function createChannelStore({ driver, guard, now }: ChannelStoreDeps): Ch
           return true as const;
         }),
       ),
+    remove: (channelKey, { since } = {}) =>
+      done(
+        gate(since, async () => {
+          await driver.write({ remove: [channelKey] });
+          return true as const;
+        }),
+      ),
     clear: ({ since } = {}) =>
       done(
         gate(since, async () => {
@@ -51,5 +62,9 @@ export function createChannelStore({ driver, guard, now }: ChannelStoreDeps): Ch
           return true as const;
         }),
       ),
+    async count() {
+      const rows = (await driver.getAll()) as Partial<ChannelRecord>[];
+      return rows.filter((row) => typeof row.channelKey === "string" && isMode(row.mode)).length;
+    },
   };
 }

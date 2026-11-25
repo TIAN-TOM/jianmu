@@ -247,7 +247,7 @@ export function App({
 }: {
   readonly state: OptionsState;
   readonly activation: Activation;
-  readonly api: Pick<PageApi, "send">;
+  readonly api: Pick<PageApi, "send" | "on">;
   readonly version: string;
 }) {
   const t = optionsText();
@@ -263,7 +263,7 @@ export function App({
           {/* 要先设置好才能用的排在前面：AI 服务、YouTube；常调的开关其次；外观最少动，放在后面。 */}
           <AiSection state={state} />
           {SiteSections ? <SiteSections /> : null}
-          <AutoSection state={state} />
+          <AutoSection state={state} api={api} />
           <ModeSection api={api} />
           <CardSection state={state} />
           <AppearanceSection state={state} />

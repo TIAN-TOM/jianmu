@@ -61,7 +61,7 @@ test("点「整理字幕」：带 purpose 从播放位置往后先做，显示�
   tidy.stopRunning();
   assert.deepEqual(fake.posted.at(-1), { type: "translate.stop" });
   fake.emit({ type: "translate.done", state: "canceled", totalBatches: 1, failedBatches: 0 });
-  assert.equal(tidy.state.value.message, "整理已停止");
+  assert.equal(tidy.state.value.message, "整理停了");
   tidy.bind(VIDEO, "fp2");
   assert.deepEqual(tidy.lines.value, {});
 });

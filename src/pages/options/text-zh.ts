@@ -93,6 +93,7 @@ export const OPTIONS_ZH = {
     clearConfirm: "清除",
     cleared: "已清除，之后打开视频按时长进速读或精读。",
     clearFailed: "没能清除，请稍后再试。",
+    count: (count: number) => `已记住 ${count} 个 UP 主或频道。`,
   },
 
   ai: {
