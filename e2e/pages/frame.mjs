@@ -129,6 +129,12 @@ test("解释当前画面：播放页浮层多一个图标，截帧指令的拒�
       ["固定定位铺到视频中间", `${button} { position: fixed !important; left: ${middle.x}px !important; top: ${middle.y}px !important; }`, "button"],
       ["浮层挪到视频中间", `#${INJECTED.overlay} { top: ${middle.y - 60}px !important; right: auto !important; left: ${middle.x - 16}px !important; }`, "button"],
       ["提示文字撑满视口", `.${INJECTED.frameLabel} { display: block !important; position: fixed !important; inset: 0 !important; opacity: 0 !important; }`, "middle"],
+      ["半透明白底配灰字", `${button} { background: rgba(255, 255, 255, 0.4) !important; color: rgb(102, 102, 102) !important; }`, "button"],
+      ["底色上铺一层白", `${button} { background-image: linear-gradient(#fff, #fff) !important; }`, "button"],
+      // 按钮自己的白字黑底照样看得清，只有线条和底色分不出来。
+      ["底色和图标线条都改成黑色", `${button} { background: rgb(0, 0, 0) !important; } ${button} svg { stroke: rgb(0, 0, 0) !important; }`, "button"],
+      ["图标线条透明", `${button} path { stroke: transparent !important; }`, "button"],
+      ["图标线条藏起来", `${button} path { visibility: hidden !important; }`, "button"],
       // 样式表先放好，再把按钮摘掉等它补回：补回来的按钮一插进去就是被改过的样子。
       ["摘掉按钮等它补回", `${button} { position: fixed !important; left: ${middle.x}px !important; top: ${middle.y}px !important; }`, "button", "remove"],
     ]) {
