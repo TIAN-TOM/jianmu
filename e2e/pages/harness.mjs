@@ -134,6 +134,10 @@ export function createHarness({ cdp, extensionId, extensionDir, sessions, reques
         await evaluate(sessionId, "(window.__jianmuOldPage = true, location.reload(), true)");
         await until("页面重新加载", () => evaluate(sessionId, `!window.__jianmuOldPage && document.readyState !== "loading"`));
       },
+      /** 系统设了减少动态效果；传 false 回到没设。 */
+      async setReducedMotion(on) {
+        await cdp.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: on ? "reduce" : "" }] }, sessionId);
+      },
       async setWidth(width, height = 800) {
         await cdp.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
       },

@@ -1,10 +1,11 @@
 // 问答页签：针对当前视频提问，回答里的时间点能点就跳过去，下面列出引用的原句；复制回答和删除收在每条的「⋯」菜单里，和笔记一样。
-// 换过字幕时，依据旧字幕的回答标「基于旧字幕」。
+// 换过字幕时，依据旧字幕的回答标「基于旧字幕」。删掉的那一条淡掉、收起，下面的跟着顶上来（shared/ui/list-exit.ts）。
 // 输入框和底部的提问框共用一份草稿。AI 服务没设置好时，提问按钮的位置是「打开设置」，原因写在它下面。
 import { splitAnswerByTimestamps } from "../../core/qa/citations.ts";
 import { onOldTranscript, transcriptFingerprintOf, type QaRecord } from "../../core/notes/records.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
 import { Button } from "../shared/ui/button.tsx";
+import { useListExit, type ExitRowProps } from "../shared/ui/list-exit.ts";
 import { Menu } from "../shared/ui/menu.tsx";
 import { ServiceSaid } from "../shared/ui/notice.tsx";
 import { StateBlock } from "../shared/ui/state-block.tsx";
@@ -34,17 +35,17 @@ function Answer({ panel, entry }: { readonly panel: Panel; readonly entry: QaRec
   );
 }
 
-function Entry({ panel, entry, unsaved, current }: { readonly panel: Panel; readonly entry: QaRecord; readonly unsaved: boolean; readonly current: string | null }) {
+function Entry({ panel, entry, unsaved, current, row, onDelete }: { readonly panel: Panel; readonly entry: QaRecord; readonly unsaved: boolean; readonly current: string | null; readonly row: ExitRowProps; readonly onDelete: () => void }) {
   const t = panelText().qa;
   return (
-    <li class="qa-entry" data-id={entry.id}>
+    <li class="qa-entry" data-id={entry.id} {...row}>
       <div class="qa-question">
         <span>{entry.question}</span>
         <Menu
           label={t.actions}
           items={[
             { label: t.copyAnswer, onSelect: () => void copyText(panel, answerCopyText(entry.answer)) },
-            { label: t.delete, hint: panelText().notes.deleteHint, danger: true, onSelect: () => void panel.qa.remove(entry.id).then((removed) => removed && panel.say(panelText().qa.deleted)) },
+            { label: t.delete, hint: panelText().notes.deleteHint, danger: true, onSelect: onDelete },
           ]}
         />
       </div>
@@ -86,6 +87,14 @@ export function QaTab({ panel }: { readonly panel: Panel }) {
   const t = panelText().qa;
   const reason = askReason(panel);
   const setup = needsSetup(panel.config.state.value);
+  const exit = useListExit(state.entries, (entry) => entry.id);
+  const remove = (id: string): void => {
+    exit.expect(id);
+    void panel.qa.remove(id).then((removed) => {
+      if (!removed) return exit.cancel(id);
+      panel.say(panelText().qa.deleted);
+    });
+  };
   const submit = (event: Event): void => {
     event.preventDefault();
     if (!canSend(reason, question)) return;
@@ -115,7 +124,7 @@ export function QaTab({ panel }: { readonly panel: Panel }) {
       ) : null}
       {state.error ? <ServiceSaid said={state.errorSaid} /> : null}
       {state.error ? <SettingsExit panel={panel} code={state.errorCode} /> : null}
-      <ol class="qa-list">
+      <ol class="qa-list exit-list">
         {state.pending.map((item) => (
           <li key={item.taskId} class="qa-entry" data-pending="true" role="status">
             <div class="qa-question">
@@ -124,11 +133,11 @@ export function QaTab({ panel }: { readonly panel: Panel }) {
             <p class="qa-answer">{t.answering}</p>
           </li>
         ))}
-        {state.entries.map((entry) => (
-          <Entry key={entry.id} panel={panel} entry={entry} unsaved={state.unsavedId === entry.id} current={current} />
+        {exit.rows.map((row) => (
+          <Entry key={row.key} panel={panel} entry={row.item} unsaved={state.unsavedId === row.key} current={current} row={exit.rowProps(row)} onDelete={() => remove(row.key)} />
         ))}
       </ol>
-      {state.loaded && state.entries.length === 0 && state.pending.length === 0 ? (
+      {state.loaded && exit.rows.length === 0 && state.pending.length === 0 ? (
         <StateBlock title={t.emptyTitle} />
       ) : null}
     </div>

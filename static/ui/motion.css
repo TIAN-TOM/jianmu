@@ -4,6 +4,7 @@
  *             pop-in 是浮层从 0.96 长到原大，done-pop 是「有结果了」那一下。换进来的才动，原地改字不动。
  *   换色      可点的东西悬停、选中、停用只换色，用 var(--tint)；按下去那一下不过渡，松开才回去。
  *   展开收起  .collapse > .collapse-in（组件在 shared/ui/collapse.tsx）：开 --dur-mode，收 --dur，里面跟着淡。
+ *   删掉一条  .exit-list > [data-leaving]（钩子在 shared/ui/list-exit.ts）：和收起一样，高度 --dur 收成零，里面 --dur-fast 先淡掉。
  *   浮层      抽屉和层在 overlays.css，来去都能中途反向；菜单只有进场，收起是瞬间的。
  *
  * 减少动态效果时 theme.css 把时长都归零，过渡和进场都变成当场到位；循环的呼吸要单独关，平滑滚动和换主题的淡化由脚本判断。
@@ -113,6 +114,43 @@
 
 .collapse[data-settled] > .collapse-in {
   overflow: visible;
+}
+
+/* ---------- 删掉一条 ----------
+ * 列表竖着排、条与条之间用 --list-gap 隔开。离场的那一条从删之前量好的高度（--leave-h）收成零，内边距和边框一起收；
+ * 底边距收到负的一个间距，把它下面那道缝也一起合上，下面的条目一路平滑地顶上来，最后拿掉时不再跳一下。
+ * 用关键帧而不是过渡：起点是写明的高度，不用先让浏览器画一帧固定高度。 */
+.exit-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--list-gap, 0px);
+}
+
+@keyframes row-fade {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes row-close {
+  from {
+    height: var(--leave-h);
+  }
+
+  to {
+    height: 0;
+    padding-block: 0;
+    border-block-width: 0;
+    margin-block-end: calc(-1 * var(--list-gap, 0px));
+  }
+}
+
+.exit-list > [data-leaving] {
+  box-sizing: border-box;
+  overflow: hidden;
+  animation:
+    row-fade var(--dur-fast) var(--ease-exit) forwards,
+    row-close var(--dur) var(--ease-exit) forwards;
 }
 
 /* ---------- 加载 ---------- */

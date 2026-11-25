@@ -1,9 +1,11 @@
 // 笔记页签：本视频或全部笔记，按关键词筛；点时间跳过去（别的视频的笔记在新标签页打开），能改、能删、能导出 Markdown。
+// 删掉的那一条淡掉、收起，下面的跟着顶上来（shared/ui/list-exit.ts）；筛选和换范围时照旧当场换。
 import { useState } from "preact/hooks";
 import { hasMatch, splitMatches } from "../../core/highlight.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
 import type { NoteItemView } from "../../shared/messages/notes.ts";
 import { Button } from "../shared/ui/button.tsx";
+import { useListExit, type ExitRowProps } from "../shared/ui/list-exit.ts";
 import { Menu } from "../shared/ui/menu.tsx";
 import { StateBlock } from "../shared/ui/state-block.tsx";
 import { copyText } from "./copy.ts";
@@ -25,7 +27,7 @@ function highlighted(text: string, query: string) {
   return query ? splitMatches(text, query).map((part, index) => part.hit ? <mark key={index}>{part.text}</mark> : part.text) : text;
 }
 
-function NoteItem({ panel, note, showVideo, query }: { readonly panel: Panel; readonly note: NoteItemView; readonly showVideo: boolean; readonly query: string }) {
+function NoteItem({ panel, note, showVideo, query, row, onDelete }: { readonly panel: Panel; readonly note: NoteItemView; readonly showVideo: boolean; readonly query: string; readonly row: ExitRowProps; readonly onDelete: () => void }) {
   const [draft, setDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const here = note.video === panel.follow.target.value.video;
@@ -41,7 +43,7 @@ function NoteItem({ panel, note, showVideo, query }: { readonly panel: Panel; re
     else setDraft(null);
   };
   return (
-    <li class="note" data-id={note.id}>
+    <li class="note" data-id={note.id} {...row}>
       <div class="note-head">
         {here ? (
           <button type="button" class="stamp" aria-label={sharedText().jumpTo(time)} onClick={() => void panel.seek(note.atSec)}>
@@ -61,7 +63,7 @@ function NoteItem({ panel, note, showVideo, query }: { readonly panel: Panel; re
             { label: t.copyText, onSelect: () => void copyText(panel, note.text) },
             { label: t.copyLink, onSelect: () => void copyText(panel, note.url) },
             { label: t.edit, onSelect: () => setDraft(note.text) },
-            { label: t.delete, hint: t.deleteHint, danger: true, onSelect: () => void panel.notes.remove(note.id).then((problem) => panel.say(problem || panelText().notes.deleted)) },
+            { label: t.delete, hint: t.deleteHint, danger: true, onSelect: onDelete },
           ]}
         />
       </div>
@@ -90,8 +92,16 @@ export function NotesTab({ panel }: { readonly panel: Panel }) {
   const state = panel.notes.state.value;
   const needle = query.trim();
   const shown = state.notes.filter((note) => matches(note, needle));
+  const exit = useListExit(shown, (note) => note.id);
   const p = panelText();
   const t = p.notes;
+  const remove = (id: string): void => {
+    exit.expect(id);
+    void panel.notes.remove(id).then((problem) => {
+      if (problem) exit.cancel(id);
+      panel.say(problem || panelText().notes.deleted);
+    });
+  };
   const exportNotes = (): void => {
     const title = state.scope === "video" ? (shown[0]?.snapshot.title ?? "") : t.allNotes;
     const file = notesExport(shown, { grouped: state.scope === "all", title }, uiLang.peek());
@@ -123,16 +133,16 @@ export function NotesTab({ panel }: { readonly panel: Panel }) {
           {state.error}
         </p>
       ) : null}
-      {state.loaded && shown.length === 0 ? (
+      {state.loaded && exit.rows.length === 0 ? (
         needle ? (
           <p class="empty-line">{p.notFound(needle)}</p>
         ) : (
           <StateBlock title={t.emptyTitle} impact={t.emptyImpact} />
         )
       ) : (
-        <ol class="note-list">
-          {shown.map((note) => (
-            <NoteItem key={note.id} panel={panel} note={note} showVideo={state.scope === "all"} query={needle} />
+        <ol class="note-list exit-list">
+          {exit.rows.map((row) => (
+            <NoteItem key={row.key} panel={panel} note={row.item} showVideo={state.scope === "all"} query={needle} row={exit.rowProps(row)} onDelete={() => remove(row.key)} />
           ))}
         </ol>
       )}

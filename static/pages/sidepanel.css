@@ -625,11 +625,17 @@
 .outline,
 .outline-points,
 .quotes,
-.citations,
-.note-list,
-.qa-list {
+.citations {
   display: grid;
   gap: var(--space-2);
+  padding: 0;
+  list-style: none;
+}
+
+/* 笔记和问答的列表能删掉一条，竖排和间距由 motion.css 的 .exit-list 给，这里只定间距多大。 */
+.note-list,
+.qa-list {
+  --list-gap: var(--space-2);
   padding: 0;
   list-style: none;
 }
