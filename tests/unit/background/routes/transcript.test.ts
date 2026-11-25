@@ -70,7 +70,7 @@ test("取字幕只收认得的请求形状：视频、读取方式、语言、�
   assert.equal(ok.ok, true);
 });
 
-test("卡片只能用轻量读取：只问视频信息和官方总结，回复里没有字幕；完整读取、只读缓存和多带字段的都拒", async () => {
+test("卡片只能用轻量读取：问视频信息和官方总结、列一次字幕轨，回复里没有字幕；完整读取、只读缓存和多带字段的都拒", async () => {
   const { site, send } = appOn();
   for (const req of [
     { video: VIDEO, mode: "full" },
@@ -86,7 +86,24 @@ test("卡片只能用轻量读取：只问视频信息和官方总结，回复�
   assert.equal(reply.value["mode"], "light");
   assert.equal(reply.value["hasTranscript"], false);
   for (const field of ["transcript", "tracks", "chapters"]) assert.equal(field in reply.value, false, field);
-  assert.deepEqual(site.calls.map((call) => call.method).sort(), ["readOfficialSummary", "readVideoInfo"]);
+  assert.deepEqual(site.calls.map((call) => call.method).sort(), ["listCaptionTracks", "readOfficialSummary", "readVideoInfo"]);
+});
+
+test("YouTube 卡片的轻量读取本机没有字幕时只问卡片自己所在的标签页；侧边栏和扩展页面的轻量读取不问页面", async () => {
+  const fakeSite = fakeSiteService({ noCaptions: () => true });
+  const tube = { ...fakeSite.service, rules: { ...fakeSite.service.rules, platform: "youtube" as const } };
+  const fake = createFakeChrome({ local: { [SETTINGS_STORAGE_KEY]: CONFIRMED }, site: tube });
+  const app = createApp(fake.deps({ warn() {}, error() {} }));
+  const video = videoKey({ platform: "youtube", videoId: "tube-sample" });
+  const light = async (sender: MessageSender) =>
+    ((await app.dispatch({ type: "transcript.get", req: { video, mode: "light" } }, sender)) as { ok: true; value: { transcriptError?: string } }).value.transcriptError;
+
+  assert.equal(await light(senders.card(TAB)), "NO_CAPTIONS");
+  assert.deepEqual(fakeSite.calls.map((call) => call.method), ["knownNoCaptions"]);
+  assert.deepEqual(fake.calls.siteCtxTabs, [TAB]);
+
+  for (const sender of [senders.panel(), senders.triage(TAB + 1)]) assert.equal(await light(sender), "NOT_CACHED");
+  assert.equal(fakeSite.calls.length, 1, "别处的轻量读取不问页面");
 });
 
 test("卡片开关关着时卡片的轻量读取也不收，不发平台请求", async () => {

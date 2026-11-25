@@ -11,7 +11,10 @@ export interface BilibiliServiceDeps {
   readonly now?: () => number;
 }
 
-export function createBilibiliService(deps: BilibiliServiceDeps = {}): Required<SiteService> {
+/** B 站有的几样能力都给齐；只给页面读取的站用的那项没有。 */
+export type BilibiliService = Required<Omit<SiteService, "knownNoCaptions">>;
+
+export function createBilibiliService(deps: BilibiliServiceDeps = {}): BilibiliService {
   const http = createBiliHttp(deps);
   return {
     rules: bilibiliRules,

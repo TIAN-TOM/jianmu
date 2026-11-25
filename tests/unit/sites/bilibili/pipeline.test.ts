@@ -1,5 +1,6 @@
 // 整条读取管线：真实的 B 站读取实现接上真实的取字幕服务，只替换请求。换语言、字幕文件读不成时重新列轨、
 // 选轨和去重、官方总结和 UP 主分段跟着字幕进缓存、没登录时只读视频信息、问一次登录；卡片的轻量读取没登录时也一样。
+// 卡片列过的字幕轨，随后的完整读取接着用，不再发列表请求；列表空着时卡片说没有字幕。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createTranscriptService, type TranscriptService } from "../../../../src/background/services/transcript/index.ts";
@@ -330,6 +331,9 @@ test("未登录：截帧前核对视频信息照旧要登录，只问一次登�
   );
 });
 
+/** 卡片所在的标签页：卡片来读时才列字幕轨。 */
+const CARD_TAB = 7;
+
 const CHAPTERS = [
   { type: 2, from: 0, to: 60, content: "开场" },
   { type: 2, from: 60, to: 180, content: "正题" },
@@ -381,7 +385,7 @@ test("UP 主自己只上传了英文、别人传了中文：不标原语言，�
 
 test("卡片未登录：读出视频信息摆标题，官方总结标成要登录，只问一次登录", async () => {
   const h = rig({ loggedOut: true });
-  const reply = await h.service.light(REF);
+  const reply = await h.service.light(REF, CARD_TAB);
   assert.ok(reply.ok && "mode" in reply.value, JSON.stringify(reply));
   assert.ok(reply.value.info.title);
   assert.equal(reply.value.official?.status, "need-login");
@@ -394,27 +398,85 @@ test("卡片未登录：读出视频信息摆标题，官方总结标成要登�
   assert.deepEqual(await h.rows(), []);
 });
 
-test("卡片没登录读过、随后登录：再读马上重问官方总结，不等重问间隔，视频信息用记着的", async () => {
+test("卡片没登录读过、随后登录：再读马上重问官方总结、列一次字幕轨，不等重问间隔，视频信息用记着的", async () => {
   const script = { loggedOut: true };
   const h = rig(script);
-  await h.service.light(REF);
+  await h.service.light(REF, CARD_TAB);
   script.loggedOut = false;
-  const reply = await h.service.light(REF);
+  const reply = await h.service.light(REF, CARD_TAB);
   assert.ok(reply.ok && "mode" in reply.value, JSON.stringify(reply));
   assert.notEqual(reply.value.official?.status, "need-login", "登录以后重问了官方总结");
   assert.equal(reply.value.transcriptError, undefined);
   assert.deepEqual(
     h.fake.requests.map((request) => request.endpoint),
-    [VIEW_URL, NAV_URL, NAV_URL, SUMMARY_URL],
+    [VIEW_URL, NAV_URL, NAV_URL, SUMMARY_URL, PLAYER_URL],
   );
 });
 
 test("卡片未登录、本机已有缓存：照常摆缓存里的官方总结，一个请求都不发", async () => {
   const official = { status: "ok", summary: "缓存里的官方总结", outline: [], hasCaptions: false, fetchedAt: 1_800_000_000_000 } as const;
   const h = rig({ loggedOut: true }, { seed: [cachedRow(undefined, { official }, REF)] });
-  const reply = await h.service.light(REF);
+  const reply = await h.service.light(REF, CARD_TAB);
   assert.ok(reply.ok);
   assert.equal(reply.value.hasTranscript, true);
   assert.equal(reply.value.official?.summary, "缓存里的官方总结");
   assert.deepEqual(h.fake.requests, []);
 });
+
+// ============================================================
+// 卡片列字幕轨：只看有没有，列到的完整读取接着用
+// ============================================================
+
+test("卡片列过字幕轨：随后点生成的完整读取不再发列表请求，直接读字幕文件", async () => {
+  const h = rig();
+  const card = await h.service.light(REF, CARD_TAB);
+  assert.ok(card.ok && "mode" in card.value, JSON.stringify(card));
+  assert.equal(card.value.transcriptError, undefined);
+  assert.equal(h.fake.calls(PLAYER_URL).length, 1);
+  assert.deepEqual(h.downloads(), [], "卡片不读字幕文件");
+
+  const full = view(await h.service.get(REF, { mode: "full" }));
+  assert.equal(full.transcript.ref.lang, "zh-Hans");
+  assert.equal(h.fake.calls(PLAYER_URL).length, 1, "完整读取用卡片列到的");
+  assert.deepEqual(h.downloads(), ["zh.json"]);
+});
+
+test("卡片和完整读取同时发：列表请求只发一次", async () => {
+  const h = rig();
+  const [card, full] = await Promise.all([h.service.light(REF, CARD_TAB), h.service.get(REF, { mode: "full" })]);
+  assert.ok(card.ok);
+  assert.equal(view(full).transcript.ref.lang, "zh-Hans");
+  assert.equal(h.fake.calls(PLAYER_URL).length, 1);
+});
+
+test("卡片列表空着、兜底关着：告诉卡片没有字幕，不读字幕文件；随后点生成照样报没有字幕", async () => {
+  const h = rig({ tracks: () => [] });
+  const card = await h.service.light(REF, CARD_TAB);
+  assert.ok(card.ok && "mode" in card.value, JSON.stringify(card));
+  assert.equal(card.value.transcriptError, "NO_CAPTIONS");
+  assert.deepEqual(h.downloads(), []);
+  assert.deepEqual(await h.rows(), []);
+  const full = await h.service.get(REF, { mode: "full" });
+  assert.equal(!full.ok && full.code, "NO_CAPTIONS");
+});
+
+test("卡片列表空着、兜底开着、官方总结附带 AI 字幕：不说没有字幕，生成用附带的字幕", async () => {
+  const h = rig({ tracks: () => [], summary: () => summaryEnvelope([{ content: "第一句", start_timestamp: 0, end_timestamp: 2.5 }]) }, { fallback: true });
+  const card = await h.service.light(REF, CARD_TAB);
+  assert.ok(card.ok && "mode" in card.value, JSON.stringify(card));
+  assert.equal(card.value.transcriptError, undefined);
+  assert.equal(view(await h.service.get(REF, { mode: "full" })).transcript.ref.kind, "official-ai");
+});
+
+for (const [name, listing] of [
+  ["拒绝访问", (): Response => new Response("", { status: 403 })],
+  ["回的不是该有的格式", (): Response => new Response("<html>样例验证页</html>", { status: 200 })],
+] as const) {
+  test(`卡片列轨被平台${name}：不说没有字幕，照常摆官方总结`, async () => {
+    const h = rig({ listing });
+    const card = await h.service.light(REF, CARD_TAB);
+    assert.ok(card.ok && "mode" in card.value, JSON.stringify(card));
+    assert.equal(card.value.transcriptError, undefined);
+    assert.equal(card.value.hasTranscript, false);
+  });
+}

@@ -282,3 +282,59 @@ test("小桥交回的字幕轨列表按不可信输入核对：不对就当没�
   assert.equal(snapshot?.player, null);
   assert.equal(snapshot?.cues.length, 2);
 });
+
+// ============================================================
+// 卡片问有没有字幕：只问页面播放器上已有的字幕轨列表
+// ============================================================
+
+const tracksAnswer = (player: unknown, videoId = ID): unknown => ({ videoId, player });
+const playableNone = (): PlayerTracks => playerOf([], null, { playable: true });
+
+test("卡片问有没有字幕：页面是这个视频、播放器能正常播、字幕轨列表是空的，才算确定没有字幕；只问一句，不读面板", async () => {
+  const service = createYoutubeService();
+  const { ctx, asked } = ctxWith(() => tracksAnswer(playableNone()));
+  assert.equal(await service.knownNoCaptions?.(REF, ctx), true);
+  assert.deepEqual(asked, ["youtube.tracks"]);
+});
+
+test("卡片问有没有字幕：有字幕轨、视频对不上、播放器没说能播、回答不对、没问到字幕轨，都当判断不了", async () => {
+  const service = createYoutubeService();
+  const answers: unknown[] = [
+    tracksAnswer(playerOf([AUTO_EN], null, { playable: true })),
+    tracksAnswer(playableNone(), OTHER),
+    tracksAnswer(playableNone(), ""),
+    tracksAnswer(playerOf([], null, { playable: true, videoId: OTHER })),
+    tracksAnswer(playerOf([], null, { playable: false })),
+    tracksAnswer(playerOf([])),
+    tracksAnswer(null),
+    tracksAnswer({ ...playableNone(), playable: "OK" }),
+    tracksAnswer(playableNone(), "jm/Sample"),
+    { player: playableNone() },
+    "没有字幕",
+    null,
+    undefined,
+  ];
+  for (const answer of answers) {
+    const { ctx } = ctxWith(() => answer);
+    assert.equal(await service.knownNoCaptions?.(REF, ctx), false, JSON.stringify(answer)?.slice(0, 120));
+  }
+});
+
+test("卡片问有没有字幕：没有页面通道、送不到、等不到回话，都当判断不了", async () => {
+  const service = createYoutubeService({ askTimeoutMs: 20 });
+  const { ctx } = ctxWith(() => tracksAnswer(playableNone()));
+  const { page: _page, ...noPage } = ctx;
+  assert.equal(await service.knownNoCaptions?.(REF, noPage), false);
+  const unreachable: PageChannel = { ask: () => Promise.reject(new Error("送不到")) };
+  assert.equal(await service.knownNoCaptions?.(REF, { ...ctx, page: unreachable }), false);
+  const silent: PageChannel = { ask: (_message, signal) => new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("超时")), { once: true })) };
+  assert.equal(await service.knownNoCaptions?.(REF, { ...ctx, page: silent }), false);
+});
+
+test("小桥带的能不能正常播只认真假：没带时照常能用，别的写法整份不用", () => {
+  const base = playerOf([HUMAN_EN]);
+  assert.deepEqual(playerTracksOf(base), base);
+  assert.deepEqual(playerTracksOf({ ...base, playable: true }), { ...base, playable: true });
+  assert.deepEqual(playerTracksOf({ ...base, playable: false }), { ...base, playable: false });
+  for (const playable of ["OK", 1, null]) assert.equal(playerTracksOf({ ...base, playable }), null, String(playable));
+});

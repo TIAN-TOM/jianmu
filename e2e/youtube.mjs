@@ -8,6 +8,7 @@
 // 播放页卡片插在右栏推荐视频上面、不进侧栏面板，本机没有字幕时不去读；侧边栏生成的结论卡片跟着摆出来，
 // 精读时收起、速读时展开，窗口变窄时跟着推荐视频挪到播放器下面。
 // 页面上没有文字稿、播放器有字幕的视频：点读取时简幕替用户开一下播放器的字幕，接住播放器自己取回的那份，读完关上，生成概览。
+// 确实没有字幕的视频：卡片展开时问一句页面播放器上的字幕轨，直接说没有字幕，不摆「生成概览」，页面上什么都没点。
 // 最后打开「打开就出结论」：新开的视频不用点，简幕替用户点开文字稿读完、关上，生成概览。
 // 第一个加载：装的是日用包，之后导入的产品模块按日用构建的开关取值算。
 import "../scripts/lib/daily-globals.mjs";
@@ -16,7 +17,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { videoKey } from "../src/core/video-ref.ts";
-import { NOT_READ_TEXT } from "../src/pages/card/model.ts";
+import { NO_CAPTIONS_TEXT, NOT_READ_TEXT } from "../src/pages/card/model.ts";
 import { stillFalse } from "../tests/helpers/wait-until.ts";
 import { CARD_HEIGHT } from "../src/content/card-frame.ts";
 import { INJECTED } from "../src/shared/names.ts";
@@ -448,6 +449,7 @@ async function modernFlow(launcher, panel, worker, windowId) {
   await lateEntryFlow(launcher, panel, worker, windowId);
   await cardGenerateFlow(launcher, panel, worker, windowId);
   await caughtCaptionsFlow(launcher, panel, worker, windowId);
+  await noCaptionsFlow(launcher, panel, worker, windowId);
   await autoFlow(launcher, panel, worker, windowId);
 }
 
@@ -534,6 +536,24 @@ async function caughtCaptionsFlow(launcher, panel, worker, windowId) {
   await until("生成概览可以点", () => clickIn(panel, "button", "生成概览"));
   await until("结论写好", async () => (await textOf(panel, ".verdict-text")).includes("模拟服务写的一句话结论"));
   console.log("✓ 用播放器字幕生成了概览");
+}
+
+/** 确实没有字幕的视频：卡片展开就说没有字幕，不摆「生成概览」；只问了页面，没点任何东西，也没向 YouTube 发请求。 */
+async function noCaptionsFlow(launcher, panel, worker, windowId) {
+  const NONE_ID = "jmTube00010";
+  const url = tubeWatchPage(NONE_ID);
+  const page = await openWatch(launcher, panel, worker, windowId, NONE_ID);
+  const before = mock.requests.length;
+  const card = await until("观看页的卡片", () => cardOf(url));
+  await openCard(card, await evaluate(launcher, `Boolean(chrome.sidePanel.onOpened && chrome.sidePanel.onClosed)`));
+  await until("卡片说没有字幕", async () => (await cardText(card)).includes(NO_CAPTIONS_TEXT)).catch(async (error) => {
+    throw new Error(`${error.message}；卡片上是「${await cardText(card)}」`);
+  });
+  if (await evaluate(card, `Boolean(document.getElementById("card-generate"))`)) throw new Error("没有字幕还摆着「生成概览」");
+  const panelState = await evaluate(page, `document.getElementById("e2e-open-panel")?.getAttribute("visibility") ?? ""`);
+  if (panelState !== "ENGAGEMENT_PANEL_VISIBILITY_HIDDEN") throw new Error(`页面上的面板被动过：${panelState}`);
+  if (mock.requests.slice(before).some((entry) => entry.host === TUBE_HOST && !["/watch", "/favicon.ico", QUIET_MEDIA_PATH].includes(entry.path))) throw new Error("卡片判断有没有字幕时向 YouTube 发了请求");
+  console.log("✓ 确实没有字幕的视频：卡片展开就说没有字幕，不摆「生成概览」，页面上什么都没点、没发请求");
 }
 
 /** 打开就出结论：门槛调到 0，新开的视频不用点就生成；简幕替用户点开文字稿，读完关上；YouTube 上不发请求。 */

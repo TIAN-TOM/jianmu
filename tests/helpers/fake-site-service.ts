@@ -15,7 +15,7 @@ import type {
   WatchLaterList,
 } from "../../src/sites/types.ts";
 
-export type SiteMethod = "readVideoInfo" | "listCaptionTracks" | "readCaptions" | "readOfficialSummary" | "readCreatorChapters" | "readWatchLater";
+export type SiteMethod = "readVideoInfo" | "listCaptionTracks" | "readCaptions" | "readOfficialSummary" | "readCreatorChapters" | "readWatchLater" | "knownNoCaptions";
 
 export interface SiteCall {
   readonly method: SiteMethod;
@@ -36,6 +36,7 @@ export interface SiteScript {
   chapters: (info: VideoInfo, ctx: SiteCtx, options?: { readonly fresh?: boolean }) => Reply<Chapter[]>;
   officialSummary: (info: VideoInfo, ctx: SiteCtx) => Reply<OfficialSummary>;
   watchLater: (ctx: SiteCtx) => Reply<WatchLaterList>;
+  noCaptions: (ref: VideoRef, ctx: SiteCtx) => boolean | Promise<boolean>;
 }
 
 export interface FakeSiteService {
@@ -109,6 +110,7 @@ export function fakeSiteService(overrides: Partial<SiteScript> = {}): FakeSiteSe
     chapters: () => ({ ok: true, value: [] }),
     officialSummary: () => ({ ok: true, value: { status: "none", summary: "", outline: [], cues: [] } }),
     watchLater: () => ({ ok: true, value: { total: 0, dropped: 0, items: [] } }),
+    noCaptions: () => false,
     ...overrides,
   };
   const record = (call: SiteCall): void => void calls.push(call);
@@ -137,6 +139,10 @@ export function fakeSiteService(overrides: Partial<SiteScript> = {}): FakeSiteSe
     async readWatchLater(ctx) {
       record({ method: "readWatchLater", ctx });
       return script.watchLater(ctx);
+    },
+    async knownNoCaptions(ref, ctx) {
+      record({ method: "knownNoCaptions", ctx, ref });
+      return script.noCaptions(ref, ctx);
     },
   };
   return { service, calls, script, count: (method) => calls.filter((call) => call.method === method).length };

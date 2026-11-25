@@ -8,6 +8,8 @@
 // 新式面板的页面另有播放器自己的数据：字幕轨列表和默认音轨里的默认字幕轨，交给页面主世界的小桥读。
 // 另有一个入口晚出来的视频：简介里起初没有文字稿入口，测试叫页面过一会儿再放上去，扮演页面还在加载。
 // 另有一个页面上没有文字稿的视频：播放器上有字幕按钮，点开时播放器自己取回带时间轴的字幕，页面记下取了几次、按钮现在开没开。
+// 另有一个确实没有字幕的视频：没有文字稿入口、没有字幕按钮，播放器数据说能正常播、没有字幕轨，卡片据此说没有字幕。
+// 别的视频的播放器数据不说能不能正常播：简幕判断不了，照旧摆「生成概览」。
 // 播放器右边有一栏：上面是装侧栏面板（文字稿在里面）的一层，下面是推荐视频。页面上另有一个按钮扮演窗口变窄，
 // 把推荐视频挪到播放器下面，再点一下挪回右栏；这只是简化的替身，不照着真实页面的排版逻辑写。
 import { QUIET_MEDIA_PATH } from "./watch-page.mjs";
@@ -25,6 +27,7 @@ export const TUBE_VIDEOS = Object.freeze({
   jmTube00007: { layout: "modern", title: "样例卡片上生成的视频", author: "样例频道", channel: "@sample.channel", label: "", lines: ["card line one", "card line two"] },
   jmTube00008: { layout: "modern", lateEntry: true, title: "样例入口晚出来的视频", author: "样例频道", channel: "@sample.channel", label: "", lines: ["late line one", "late line two"] },
   jmTube00009: { layout: "modern", playerOnly: true, title: "样例只有播放器字幕的视频", author: "样例频道", channel: "@sample.channel", label: "", lines: ["player line one", "player line two", "player line three"] },
+  jmTube00010: { layout: "modern", noCaptions: true, title: "样例没有字幕的视频", author: "样例频道", channel: "@sample.channel", label: "", lines: [] },
 });
 
 /** 播放器取字幕的路径和它回的正文：一个只管位置的事件、每句一个事件（第二句分成几个片段）、夹着只含换行的事件。 */
@@ -183,7 +186,7 @@ function classicPageHtml(id) {
  * 旧面板和新式面板的空壳都关着留在页面上。段落的时间、给读屏的一句和正文各占一块。
  * 入口晚出来的视频起初简介里没有入口，页面上的 e2eShowEntryLater(毫秒) 过这么久再放上去。
  * 只有播放器字幕的视频页面上没有入口也没有文字稿面板的空壳（只留一个不带标记的关着的面板），播放器上多一个字幕按钮。
- * @param {string} id @param {{ layout: string, lateEntry?: boolean, playerOnly?: boolean, title: string, author: string, channel: string, lines: readonly string[] }} video
+ * @param {string} id @param {{ layout: string, lateEntry?: boolean, playerOnly?: boolean, noCaptions?: boolean, title: string, author: string, channel: string, lines: readonly string[] }} video
  */
 function modernPageHtml(id, video) {
   const chapters = video.layout === "chapters";
@@ -226,14 +229,14 @@ function modernPageHtml(id, video) {
           <ytd-channel-name><a href="/${video.channel}">${video.author}</a></ytd-channel-name>
           <div id="description-inline-expander">样例简介</div>
         </ytd-watch-metadata>
-        ${video.lateEntry ? '<div id="e2e-entry-slot"></div>' : video.playerOnly ? "" : entry}
+        ${video.lateEntry ? '<div id="e2e-entry-slot"></div>' : video.playerOnly || video.noCaptions ? "" : entry}
         <button id="e2e-close-transcript">关上文字稿</button>
         <button id="e2e-narrow">窗口变窄</button>
         <div id="below"></div>
       </div>
       <div id="secondary"><div id="secondary-inner">
         <div id="panels">
-          ${video.playerOnly ? '<ytd-engagement-panel-section-list-renderer id="e2e-open-panel" visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN"><div id="content"></div></ytd-engagement-panel-section-list-renderer>' : `<ytd-engagement-panel-section-list-renderer target-id="engagement-panel-searchable-transcript" visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN"></ytd-engagement-panel-section-list-renderer>
+          ${video.playerOnly || video.noCaptions ? '<ytd-engagement-panel-section-list-renderer id="e2e-open-panel" visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN"><div id="content"></div></ytd-engagement-panel-section-list-renderer>' : `<ytd-engagement-panel-section-list-renderer target-id="engagement-panel-searchable-transcript" visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN"></ytd-engagement-panel-section-list-renderer>
           <ytd-engagement-panel-section-list-renderer target-id="engagement-panel-structured-description" visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN">
             <ytd-video-description-transcript-section-renderer><button id="e2e-hidden-entry">Show transcript</button></ytd-video-description-transcript-section-renderer>
           </ytd-engagement-panel-section-list-renderer>
@@ -248,16 +251,21 @@ function modernPageHtml(id, video) {
   const lines = ${lines};
   // 播放器自己的数据：页面上的方法，只在页面主世界里看得见。
   const player = ${JSON.stringify(TUBE_PLAYER_TRACKS[/** @type {keyof typeof TUBE_PLAYER_TRACKS} */ (id)] ?? { tracks: [], audioTracks: [] })};
-  document.getElementById("movie_player").getPlayerResponse = () => ({
-    videoDetails: { videoId: ${JSON.stringify(id)} },
-    captions: {
-      playerCaptionsTracklistRenderer: {
-        captionTracks: player.tracks.map((track) => ({ ...track, baseUrl: ${JSON.stringify(TUBE_TRACK_ADDRESS)} })),
-        audioTracks: player.audioTracks,
-        defaultAudioTrackIndex: 0,
-      },
-    },
-  });
+  // 确实没有字幕的视频：播放器数据说能正常播，没有字幕轨那一块。
+  const noCaptions = ${video.noCaptions ? "true" : "false"};
+  document.getElementById("movie_player").getPlayerResponse = () =>
+    noCaptions
+      ? { playabilityStatus: { status: "OK" }, videoDetails: { videoId: ${JSON.stringify(id)} } }
+      : {
+          videoDetails: { videoId: ${JSON.stringify(id)} },
+          captions: {
+            playerCaptionsTracklistRenderer: {
+              captionTracks: player.tracks.map((track) => ({ ...track, baseUrl: ${JSON.stringify(TUBE_TRACK_ADDRESS)} })),
+              audioTracks: player.audioTracks,
+              defaultAudioTrackIndex: 0,
+            },
+          },
+        };
   // 播放器的字幕按钮：打开时播放器自己去取当前视频的字幕，页面记下取过几次。
   const captions = document.getElementById("e2e-captions");
   captions?.addEventListener("click", () => {

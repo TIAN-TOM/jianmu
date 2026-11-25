@@ -1,8 +1,12 @@
-// 卡片的轻量读取：卡片摆的是官方总结、本机已有的概览和结论，用不着字幕。字幕已经缓存时照常用缓存；
-// 没缓存时只问视频信息和官方总结，不列轨、不读字幕文件，也不新建缓存条目。问到的只记在内存里（最近 10 个），
-// 同一个视频再读不再问；用户随后完整读取时，有定论的官方总结（连同附带的字幕）也接着用。
+// 卡片的轻量读取：卡片摆的是官方总结、本机已有的概览和结论，用不着字幕正文。字幕已经缓存时照常用缓存；
+// 没缓存时问视频信息和官方总结；卡片自己来读、又登录着时再列一次字幕轨，只看有没有：不读字幕文件，也不新建缓存条目。
+// 后台为「打开就出结论」问时长也走这里，那时不列：被跳过的短视频不多发一次请求。
+// 列表空着、官方总结也不会附带字幕兜底，才告诉卡片没有字幕，不摆「生成概览」；列不成、拿不准时照旧摆。
+// 问到的只记在内存里（最近 10 个），同一个视频再读不再问、不再列；用户随后完整读取时，有定论的官方总结（连同附带的字幕）
+// 也接着用，列到的字幕轨读取实现自己记着，不再列一次。
 // 同一个视频的完整读取已经在路上就并进去，最多等 4 秒；等不到就用它已经读到的视频信息和官方总结，不再多问一遍。
-// 字幕要用户点了读取才读的站（YouTube）只看本机：不向平台和页面要任何东西，也不并进完整读取。
+// 字幕要用户点了读取才读的站（YouTube）只看本机，也不并进完整读取；本机没有字幕时，再问一句卡片所在的页面：
+// 播放器上已有的字幕轨列表确定是空的，才告诉卡片没有字幕。不点、不发请求、不动播放器。
 import type { ClearGuard } from "../../../core/clear-guard.ts";
 import { fail, ok, type Failure } from "../../../core/errors.ts";
 import { videoKey, type Platform, type VideoKey, type VideoRef } from "../../../core/video-ref.ts";
@@ -18,12 +22,12 @@ import type {
   TranscriptView,
   VideoInfoView,
 } from "../../../shared/messages/transcript.ts";
-import type { SiteCtx, VideoInfo } from "../../../sites/types.ts";
+import type { SiteCtx, SiteService, VideoInfo } from "../../../sites/types.ts";
 import { errorLabel, type Log } from "../../log.ts";
 import type { OverviewStore } from "../../stores/overviews.ts";
 import { overviewView } from "../overview/view.ts";
 import type { Timers } from "../../tasks.ts";
-import { needsRetry, type OfficialRead, type Officials, type RememberedOfficial } from "./official.ts";
+import { needsRetry, settledWithoutCaptions, type OfficialRead, type Officials, type RememberedOfficial } from "./official.ts";
 import type { SiteAccess } from "./read.ts";
 import { failureOf } from "./tracks.ts";
 import { hasTranscript, infoView, officialView, type TranscriptCache, type TranscriptRecord } from "./write.ts";
@@ -60,6 +64,8 @@ export interface LightDeps {
   readonly guard: ClearGuard;
   readonly timers: Pick<Timers, "now" | "setTimeout" | "clearTimeout">;
   readonly log: Log;
+  /** 官方总结附带的 AI 字幕兜底开着没有：开着时，列表空着还要看官方总结会不会附带字幕。 */
+  readonly captionsFallback: boolean;
   readonly joinable: (video: VideoKey) => JoinableRead | undefined;
   /** 命中字幕缓存时的回复：过了重问时间的官方总结在后台重问，占位要等。 */
   readonly fromCache: (ref: VideoRef, video: VideoKey, cached: TranscriptRecord) => Promise<TranscriptReply>;
@@ -70,7 +76,8 @@ export interface LightDeps {
 }
 
 export interface Light {
-  read(ref: VideoRef, video: VideoKey): Promise<GuidesReply>;
+  /** tabId 是卡片所在的标签页，只有卡片来读时才有：只看本机的站没字幕时问这一页，别的站有它才列字幕轨。 */
+  read(ref: VideoRef, video: VideoKey, tabId?: number): Promise<GuidesReply>;
   /** 给完整读取接着用：还在读的等它读完，交回记着的官方总结；没有时是 null。 */
   remembered(video: VideoKey): Promise<RememberedOfficial | null>;
   /** 记着的视频时长：还在读的等它读完，不另发请求；不知道时是 null。 */
@@ -81,9 +88,14 @@ export interface Light {
   forget(): void;
 }
 
+/** 列字幕轨看到的：none 列表是空的，some 有字幕轨。 */
+type Listed = "none" | "some";
+
 interface Memo {
   readonly info: VideoInfo;
   readonly official?: OfficialRead | undefined;
+  /** 没列、列不成时没有。 */
+  readonly tracks?: Listed | undefined;
 }
 
 const EXPIRED = Symbol("expired");
@@ -104,7 +116,8 @@ function bareFailure({ code, detail, retryAfterSec }: Failure): Failure {
 export function createLight(deps: LightDeps): Light {
   const { cache, guard, timers, log } = deps;
   const memo = new Map<VideoKey, Memo>();
-  const requests = new Map<VideoKey, Promise<GuidesReply>>();
+  // forCard：这次读取会不会列字幕轨。后台的读取在路上时卡片并进去以后还要补列一次。
+  const requests = new Map<VideoKey, { readonly reply: Promise<GuidesReply>; readonly forCard: boolean }>();
   // 清除本机数据时加一：在这之前开始的读取回来时不再记。
   let epoch = 0;
 
@@ -199,16 +212,42 @@ export function createLight(deps: LightDeps): Light {
     return success(video, infoView(reading.info), official ? officialView(official) : undefined, { hasTranscript: false, fromCache: false });
   }
 
-  // 本机有字幕（读过、导入过）就照常摆，能生成概览；没有就告诉卡片先在侧边栏读，视频信息也只用缓存里记着的。
-  async function localOnly(ref: VideoRef, video: VideoKey): Promise<GuidesReply> {
+  // 问卡片所在的页面这个视频是不是确定没有字幕。没有标签页、站点没这项能力、问不成都当判断不了。
+  async function noCaptionsOnPage(ref: VideoRef, tabId: number | undefined): Promise<boolean> {
+    const site = deps.sites.service(ref.platform);
+    if (tabId === undefined || !site?.knownNoCaptions) return false;
+    try {
+      return (await site.knownNoCaptions(ref, deps.sites.ctx(ref.platform, { signal: new AbortController().signal, tabId }))) === true;
+    } catch (error) {
+      log.warn("问页面有没有字幕失败", errorLabel(error));
+      return false;
+    }
+  }
+
+  // 本机有字幕（读过、导入过）就照常摆，能生成概览；没有就告诉卡片先在侧边栏读，页面确定没有字幕时告诉卡片没有字幕。
+  // 视频信息只用缓存里记着的。
+  async function localOnly(ref: VideoRef, video: VideoKey, tabId: number | undefined): Promise<GuidesReply> {
     const reply = await deps.local(ref);
     if (reply.ok) return success(video, reply.value.info, undefined, { hasTranscript: true, fromCache: reply.value.fromCache, transcriptFingerprint: reply.value.transcript.ref.fingerprint });
     if (reply.code !== "NOT_CACHED") return failure(video, reply);
     const cached = await cache.load(video);
-    return success(video, cached ? infoView(cached.info) : NO_INFO, undefined, { hasTranscript: false, fromCache: false, transcriptError: "NOT_CACHED" });
+    const transcriptError = (await noCaptionsOnPage(ref, tabId)) ? "NO_CAPTIONS" : "NOT_CACHED";
+    return success(video, cached ? infoView(cached.info) : NO_INFO, undefined, { hasTranscript: false, fromCache: false, transcriptError });
   }
 
-  async function load(ref: VideoRef, video: VideoKey): Promise<GuidesReply> {
+  // 只看列表空不空，列不成（被限流、网络、超时、格式不对、要登录）都不下结论。
+  async function listedOf(site: SiteService, info: VideoInfo, ctx: SiteCtx): Promise<Listed | undefined> {
+    try {
+      const listed = await site.listCaptionTracks(info, ctx);
+      if (!listed.ok) return undefined;
+      return listed.value.length === 0 ? "none" : "some";
+    } catch (error) {
+      log.warn("卡片列字幕轨失败", errorLabel(error));
+      return undefined;
+    }
+  }
+
+  async function load(ref: VideoRef, video: VideoKey, forCard: boolean): Promise<GuidesReply> {
     const since = guard.epoch();
     const started = epoch;
     const cached = await cache.load(video);
@@ -240,15 +279,23 @@ export function createLight(deps: LightDeps): Light {
     if (ask && (!official || official.record.status === "need-login" || needsRetry(official.record, timers.now()))) {
       official = await deps.officials.lookup(video, asking, () => ask(asking, ctxOf()));
     }
-    if (!guard.clearedSince(since, "cache") && started === epoch) remember(video, { info, official });
+    const needLogin = official?.record.status === "need-login";
+    // 登录着的列一次字幕轨，和视频信息、官方总结共用读取环境。缓存里还有这个视频的记录（字幕被作废了）就不列：
+    // 读过的视频照旧不发请求，记过的字幕轨也说明它有字幕。导入了字幕文件的也不列：生成用的就是它。
+    let tracks = known?.tracks;
+    if (forCard && !tracks && !cached && site && !needLogin && (await importedOf(video)) === null) tracks = await listedOf(site, asking, ctxOf());
+    if (!guard.clearedSince(since, "cache") && started === epoch) remember(video, { info, official, tracks });
+    // 列表空着，官方总结也不会附带字幕兜底：完整读取同样读不到字幕。
+    const noCaptions = tracks === "none" && (!deps.captionsFallback || !official || settledWithoutCaptions(official));
     // 官方总结说要登录：没登录，字幕也读不到，告诉卡片，不摆「生成概览」。
-    const needLogin = official?.record.status === "need-login" ? ({ transcriptError: "NEED_LOGIN" } as const) : {};
-    return success(video, infoView(info), official ? officialView(official.record) : undefined, { hasTranscript: false, fromCache: false, ...needLogin });
+    const transcriptError = needLogin ? "NEED_LOGIN" : noCaptions ? "NO_CAPTIONS" : undefined;
+    return success(video, infoView(info), official ? officialView(official.record) : undefined, { hasTranscript: false, fromCache: false, ...(transcriptError ? { transcriptError } : {}) });
   }
 
   return {
-    async read(ref, video) {
-      if (LOCAL_ONLY.has(ref.platform)) return localOnly(ref, video);
+    async read(ref, video, tabId) {
+      if (LOCAL_ONLY.has(ref.platform)) return localOnly(ref, video, tabId);
+      const forCard = tabId !== undefined;
       // 已经有轻量读取在路上就并进它；没有时看完整读取。
       if (!requests.has(video)) {
         const full = deps.joinable(video);
@@ -256,22 +303,27 @@ export function createLight(deps: LightDeps): Light {
         if (joined) return joined;
       }
       let pending = requests.get(video);
+      // 在路上的是后台那种不列字幕轨的：等它读完，再从记着的接着读一次，只补列字幕轨。
+      if (pending && forCard && !pending.forCard) {
+        await pending.reply.catch(() => null);
+        pending = requests.get(video);
+      }
       if (!pending) {
-        const created = load(ref, video);
+        const created = { reply: load(ref, video, forCard), forCard };
         pending = created;
         requests.set(video, created);
         const settled = (): void => {
           if (requests.get(video) === created) requests.delete(video);
         };
-        created.then(settled, settled);
+        created.reply.then(settled, settled);
       }
-      const reply = await pending;
+      const reply = await pending.reply;
       return reply.ok ? { ok: true, value: { ...reply.value } } : { ...reply };
     },
 
     async remembered(video) {
       const pending = requests.get(video);
-      if (pending) await pending.catch(() => null);
+      if (pending) await pending.reply.catch(() => null);
       const entry = memo.get(video);
       if (!entry?.official) return null;
       return {
@@ -286,7 +338,7 @@ export function createLight(deps: LightDeps): Light {
 
     async durationOf(video) {
       const pending = requests.get(video);
-      if (pending) await pending.catch(() => null);
+      if (pending) await pending.reply.catch(() => null);
       const seconds = memo.get(video)?.info.durationSec;
       return typeof seconds === "number" && seconds > 0 ? seconds : null;
     },

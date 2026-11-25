@@ -6,9 +6,9 @@ import { hostRulesFor, PROBE, route, slowed } from "../../../../e2e/mock-server.
 import type { VideoRef } from "../../../../src/core/video-ref.ts";
 import { createSiteBackoff } from "../../../../src/platform/site-backoff.ts";
 import { PLAYER_URL, SUMMARY_URL, VIEW_URL, WATCH_LATER_URL } from "../../../../src/sites/bilibili/http.ts";
-import { createBilibiliService } from "../../../../src/sites/bilibili/service.ts";
+import { createBilibiliService, type BilibiliService } from "../../../../src/sites/bilibili/service.ts";
 import { signedUrl } from "../../../../src/sites/bilibili/sign.ts";
-import type { CaptionTrack, SiteCtx, SiteResult, SiteService, VideoInfo } from "../../../../src/sites/types.ts";
+import type { CaptionTrack, SiteCtx, SiteResult, VideoInfo } from "../../../../src/sites/types.ts";
 import { failure, testClock, value } from "../../../helpers/bilibili-fetch.ts";
 import { memoryStorage } from "../../../helpers/memory-storage.ts";
 
@@ -39,7 +39,7 @@ interface World {
   cookies: string;
   readonly clock: { at: number; now: () => number };
   readonly seen: Seen[];
-  readonly service: Required<SiteService>;
+  readonly service: BilibiliService;
   readonly ctx: SiteCtx;
 }
 
