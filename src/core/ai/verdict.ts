@@ -1,5 +1,6 @@
 // 一句话结论：判断档位、给模型的输入和结果校验。
 import { inLang, type OutputLang } from "../output-lang.ts";
+import { storedCommentView, type CommentView } from "./comments.ts";
 import { VERDICT_HANT } from "./verdict-hant.ts";
 import { formatTimestamp, startSecondsOf } from "../transcript/segment.ts";
 
@@ -220,6 +221,8 @@ export interface Verdict {
   /** 视频标题译成结论语言的样子；标题本来就是这种语言、或者译名不合格时不写这个字段。 */
   translatedTitle?: string;
   incomplete?: true;
+  /** 评论区怎么说（PRD F23）：只在构建开关 FEATURE_COMMENTS 打开、这次读到了评论时有。 */
+  comments?: CommentView;
 }
 
 /** 重点章节最多几个。 */
@@ -325,6 +328,7 @@ export function validateVerdict(
     readonly reason?: unknown;
     readonly keyChapters?: unknown;
     readonly translatedTitle?: unknown;
+    readonly comments?: unknown;
   };
   const clip = (value: unknown, max: number): string => String(value || "").trim().slice(0, max);
   const limits = VERDICT_CLIP[lang];
@@ -341,5 +345,9 @@ export function validateVerdict(
     ...withKeys(chapterStarts ? validKeyStarts(source.keyChapters, chapterStarts) : []),
     ...withTitle(translatedTitleOf(source.translatedTitle, title)),
     ...(incomplete ? { incomplete: true as const } : {}),
+    // 存着的评论区那一块照形状核一遍留下；模型新写的由调用方按发出去的那批评论另外核对后加上。
+    ...(FEATURE_COMMENTS && stored ? withComments(storedCommentView(source.comments)) : {}),
   };
 }
+
+const withComments = (comments: CommentView | null): { comments?: CommentView } => (comments ? { comments } : {});

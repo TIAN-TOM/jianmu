@@ -314,6 +314,21 @@ test("后台和各页面包注入的是同一个构建标识，由内容算出",
   for (const file of ["pages/sidepanel.js", "pages/options.js", "pages/triage.js", "pages/card.js"]) assert.equal(idOf(file), background, file);
 });
 
+test("带评论区写结论只进日用包：日用构建的后台里有提示词、输出格式和核对，发行构建和 build/ 里没有", async () => {
+  const option = (features: FeatureSet) => bundleOptions(features).find((candidate) => candidate.outfile === "build/background.js");
+  const text = async (features: FeatureSet): Promise<string> => {
+    const picked = option(features);
+    assert.ok(picked, "没有后台包的构建选项");
+    return (await build({ ...picked, write: false })).outputFiles.map((output) => output.text).join("\n");
+  };
+  const [release, daily] = await Promise.all([text(RELEASE_FEATURES), text(DAILY_FEATURES)]);
+  for (const marker of ["skim/verdict-comments.md", "verdict_comments", "commentLineRule", "src/core/ai/comments", "src/background/services/overview/conclude-comments"]) {
+    assert.ok(daily.includes(marker), `日用构建的后台里没有 ${marker}`);
+    assert.ok(!release.includes(marker), `发行构建的后台里有 ${marker}`);
+    assert.ok(!readBuild("background.js").includes(marker), `build/ 里的后台有 ${marker}`);
+  }
+});
+
 test("发行构建：开关记录和发行那份一样，包里没有留下没换掉的开关常量", () => {
   assert.deepEqual(readBuildFlags(), buildFlagsRecord(RELEASE_FEATURES), "build/ 不是发行构建，先跑 npm run build");
   for (const file of BUNDLES) {

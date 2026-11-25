@@ -8,7 +8,7 @@ import { groundQaAnswer } from "../../../../src/core/qa/citations.ts";
 const PROMPTS_DIR = new URL("../../../../prompts/", import.meta.url);
 const read = (file: string): string => readFileSync(new URL(file, PROMPTS_DIR), "utf8");
 // 这几份模板按输出语言填好再发；翻译另按方向取规则，整理字幕和笔记润色不分语言。
-const LOCALIZED = new Set(["skim/chapters.md", "skim/verdict.md", "common/qa.md", "study/explain.md", "study/frame-explain.md"]);
+const LOCALIZED = new Set(["skim/chapters.md", "skim/verdict.md", "skim/verdict-comments.md", "common/qa.md", "study/explain.md", "study/frame-explain.md"]);
 const readZh = (file: string): string => (LOCALIZED.has(file) ? localizePrompt(read(file), "zh") : read(file));
 
 const SAMPLE_MARKDOWN = [
@@ -141,6 +141,16 @@ const PROMPTS: Readonly<Record<string, PromptVariables>> = {
     quotesText: "[0:05] 一句金句",
     coverageNote: "章节摘要和金句覆盖了全片。",
   },
+  "skim/verdict-comments.md": {
+    videoTitle: "测试标题",
+    ownerName: "测试 UP",
+    durationFormatted: "10:00",
+    videoDescription: "测试简介",
+    chaptersText: "[0:00] 开场：讲了开场",
+    quotesText: "[0:05] 一句金句",
+    coverageNote: "章节摘要和金句覆盖了全片。",
+    commentsText: "[1] 赞 3：测试评论",
+  },
 };
 
 // 每份模板拼消息要读的小节：问答的用户消息分三块（见 services/qa.ts），其余是一段系统提示词加一段用户提示词。
@@ -221,8 +231,8 @@ test("分批/分块任务的系统提示词保持稳定前缀，服务商缓存�
 
 test("每份提示词都按模式放：速读的在 skim/，精读的在 study/，两种模式共用的在 common/，后台内联的就是这几份", () => {
   for (const file of Object.keys(PROMPTS)) assert.match(file, /^(?:skim|study|common)\/[a-z-]+\.md$/, file);
-  // 解释当前画面那一份在开关模块里登记。
-  const inlined = ["prompts.ts", "prompts-frame.ts"].map((file) => readFileSync(new URL(`../../../../src/background/${file}`, import.meta.url), "utf8")).join("\n");
+  // 解释当前画面那一份、带评论区的结论那一份在开关模块里登记。
+  const inlined = ["prompts.ts", "prompts-frame.ts", "prompts-comments.ts"].map((file) => readFileSync(new URL(`../../../../src/background/${file}`, import.meta.url), "utf8")).join("\n");
   const imported = [...inlined.matchAll(/from "prompt:([^"]+)"/g)].map((match) => match[1]);
   assert.deepEqual(imported.sort(), Object.keys(PROMPTS).sort());
 });
