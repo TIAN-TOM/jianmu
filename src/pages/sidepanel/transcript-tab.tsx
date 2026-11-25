@@ -24,7 +24,7 @@ import { copyText } from "./copy.ts";
 import { CreatorChapters, OfficialSummary } from "./guides.tsx";
 import type { Panel } from "./panel.ts";
 import { SettingsExit } from "./settings-exit.tsx";
-import { activeIndex, copyTextOf, explainable, mainBreaks, refreshLang, selectedNote, srtOf, transcriptRows } from "./reading.ts";
+import { activeIndex, copyTextOf, noteSegmentIndex, explainable, mainBreaks, refreshLang, selectedNote, srtOf, transcriptRows } from "./reading.ts";
 import { needsSetup, setupReason } from "../shared/config.ts";
 import { uiLang, type UiLang } from "../shared/ui-lang.ts";
 import { sharedText } from "../shared/text.ts";
@@ -262,7 +262,7 @@ function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: 
   // 存过笔记的那几句：有的主题把它们用荧光笔划出来。
   const notes = panel.notes.state.value;
   const saved = useMemo(
-    () => new Set(notes.scope === "video" && notes.video === view.video ? notes.notes.map((note) => activeIndex(segments, note.atSec)) : []),
+    () => new Set(notes.scope === "video" && notes.video === view.video ? notes.notes.map((note) => noteSegmentIndex(segments, note.atSec)) : []),
     [notes, segments, view.video],
   );
 
