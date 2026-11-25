@@ -5,10 +5,10 @@ import { FIRST_VIDEO, FOURTH_VIDEO, KEYS, ROTATED_KEYS, SECOND_VIDEO, THIRD_VIDE
 import { hostRulesFor, PROBE, route, slowed } from "../../../../e2e/mock-server.mjs";
 import type { VideoRef } from "../../../../src/core/video-ref.ts";
 import { createSiteBackoff } from "../../../../src/platform/site-backoff.ts";
-import { PLAYER_URL, SUMMARY_URL, VIEW_URL, WATCH_LATER_URL } from "../../../../src/sites/bilibili/http.ts";
+import { PLAYER_URL, REPLY_URL, SUMMARY_URL, VIEW_URL, WATCH_LATER_URL } from "../../../../src/sites/bilibili/http.ts";
 import { createBilibiliService, type BilibiliService } from "../../../../src/sites/bilibili/service.ts";
 import { signedUrl } from "../../../../src/sites/bilibili/sign.ts";
-import type { CaptionTrack, SiteCtx, SiteResult, VideoInfo } from "../../../../src/sites/types.ts";
+import type { CaptionTrack, SiteCtx, SiteResult, TopComment, VideoInfo } from "../../../../src/sites/types.ts";
 import { failure, testClock, value } from "../../../helpers/bilibili-fetch.ts";
 import { memoryStorage } from "../../../helpers/memory-storage.ts";
 
@@ -98,12 +98,20 @@ function assertNoStray(state: World): void {
 
 type Read = (state: World) => Promise<SiteResult<unknown>>;
 
+/** 测试构建打开了读评论，B 站服务一定有这一项。 */
+function readComments(state: World, info: VideoInfo = INFO): Promise<SiteResult<TopComment[]>> {
+  const read = state.service.readTopComments;
+  assert.ok(read, "测试构建里 B 站服务应该能读评论");
+  return read(info, state.ctx);
+}
+
 const READS: readonly (readonly [string, Read])[] = [
   ["视频信息", (state) => state.service.readVideoInfo(REF, state.ctx)],
   ["字幕轨", (state) => state.service.listCaptionTracks(INFO, state.ctx)],
   ["UP 主分段", (state) => state.service.readCreatorChapters(INFO, state.ctx)],
   ["官方总结", (state) => state.service.readOfficialSummary(INFO, state.ctx)],
   ["稍后再看", (state) => state.service.readWatchLater(state.ctx)],
+  ["评论区", (state) => readComments(state)],
 ];
 
 test("走完登录、视频信息、字幕、分段、官方总结、稍后再看，意外请求为零", async () => {
@@ -143,6 +151,25 @@ test("走完登录、视频信息、字幕、分段、官方总结、稍后再�
   assertNoStray(state);
   assert.equal(pathCount(state, PROBE.account), 1, "同一次读取操作只确认一次登录");
   assert.equal(pathCount(state, PLAYER_URL), 1, "字幕轨和分段共用一个列表请求");
+});
+
+test("评论区：置顶排前面，只交正文、点赞数和是否置顶，只发一次请求", async () => {
+  const state = loggedInWorld();
+  const comments = value(await readComments(state));
+  assert.deepEqual(comments, [
+    { text: "样例置顶：前五分钟是背景介绍。", likes: 12, pinned: true },
+    { text: "样例热评：后半段的对比讲得很清楚。", likes: 230, pinned: false },
+    { text: "样例热评：12:30 那里的数字好像写错了。", likes: 88, pinned: false },
+  ]);
+  assert.equal(pathCount(state, REPLY_URL), 1);
+  assertNoStray(state);
+});
+
+test("评论区是空的：交回空列表，不报错", async () => {
+  const state = loggedInWorld();
+  const info: VideoInfo = { ...INFO, ref: { ...REF, videoId: FOURTH_VIDEO.bvid }, siteRef: String(FOURTH_VIDEO.aid) };
+  assert.deepEqual(value(await readComments(state, info)), []);
+  assertNoStray(state);
 });
 
 test("列出来的每条字幕轨都读得到正文", async () => {

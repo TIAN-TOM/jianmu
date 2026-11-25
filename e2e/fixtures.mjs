@@ -193,6 +193,16 @@ export function watchLaterData({ paid = false } = {}) {
   return { count: list.length, list };
 }
 
+/** 评论区第一页：一条置顶，几条热评；没有官方总结的那个视频评论区是空的。 @param {Video} video */
+export function replyData(video) {
+  if (video.bvid === FOURTH_VIDEO.bvid) return { replies: [], top_replies: [] };
+  const reply = (/** @type {number} */ id, /** @type {string} */ message, /** @type {number} */ like) => ({ rpid: id, like, content: { message }, member: { uname: "样例昵称" } });
+  return {
+    top_replies: [reply(video.aid * 10 + 1, "样例置顶：前五分钟是背景介绍。", 12)],
+    replies: [reply(video.aid * 10 + 2, "样例热评：后半段的对比讲得很清楚。", 230), reply(video.aid * 10 + 3, "样例热评：12:30 那里的数字好像写错了。", 88)],
+  };
+}
+
 // 样例视频共用这一份。时间轴要和各个视频的时长都对得上（不超出最短的 10 分钟那个，也覆盖 30 分钟那个的三成以上），
 // 否则取字幕服务当它挂错了视频，不写缓存。
 export function captionFile() {

@@ -20,7 +20,7 @@ import {
   type FeatureSet,
 } from "../src/shared/features.ts";
 import { INJECTED } from "../src/shared/names.ts";
-import { FRAME_EXPLAIN_PROBE, KEEP_CONSENT_PROBE, YOUTUBE_OPEN_PANEL_PROBE, YOUTUBE_PLAYER_CAPTIONS_PROBE, YOUTUBE_PROBE } from "./fixtures/build-flags/gated.ts";
+import { COMMENTS_PROBE, FRAME_EXPLAIN_PROBE, KEEP_CONSENT_PROBE, YOUTUBE_OPEN_PANEL_PROBE, YOUTUBE_PLAYER_CAPTIONS_PROBE, YOUTUBE_PROBE } from "./fixtures/build-flags/gated.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BUILD = join(ROOT, "build");
@@ -329,6 +329,7 @@ const PROBES: Readonly<Record<FeatureName, string>> = {
   youtubeOpenPanel: YOUTUBE_OPEN_PANEL_PROBE,
   youtubeCaptionCatch: YOUTUBE_PLAYER_CAPTIONS_PROBE,
   keepConsent: KEEP_CONSENT_PROBE,
+  comments: COMMENTS_PROBE,
 };
 
 async function probeBundle(features: FeatureSet): Promise<string> {

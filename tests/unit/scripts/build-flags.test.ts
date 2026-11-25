@@ -45,6 +45,7 @@ test("开关记录写下去读得回来，构建开始前删掉旧记录", () =>
     FEATURE_YOUTUBE_OPEN_PANEL: true,
     FEATURE_YOUTUBE_CAPTION_CATCH: true,
     FEATURE_KEEP_CONSENT: false,
+    FEATURE_COMMENTS: true,
   });
   writeBuildFlags(RELEASE_FEATURES, file);
   assert.deepEqual(readBuildFlags(file), buildFlagsRecord(RELEASE_FEATURES));
