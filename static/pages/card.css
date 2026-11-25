@@ -33,8 +33,9 @@ body {
 }
 
 /* 头部那一行：左边整块点了展开收起，收起时右边另有一个打开侧边栏的入口。
- * 展开时写名字，收起时写判断记号、判断档和后面那句话；看不见的那样只藏起样子，读屏照样读到名字和判断档。
- * 收起时这一行的高度固定：上下留白加展开按钮那么高，和内容脚本载入前占位的高度一样（card-frame.ts 的 CARD_HEIGHT），载入完不跳。 */
+ * 展开时写名字，收起时有判断档就写判断记号、判断档和后面那句话，还没有判断档时照样写名字；看不见的那样只藏起样子，读屏照样读到名字和判断档。
+ * 这一行展开收起都是上下留白加展开按钮那么高：收起时和内容脚本载入前占位的高度一样（card-frame.ts 的 CARD_HEIGHT），载入完不跳；
+ * 点收起那一刻头部不变高，高度一路往下走。各套主题只改上下留白怎么分，加起来不变，画板上头部下面多出或少了的那一截挪到正文区顶上。 */
 .card-head-row {
   display: flex;
   align-items: center;
@@ -100,7 +101,7 @@ body {
 }
 
 .card[data-collapsed="false"] .card-verdict,
-.card[data-collapsed="true"] .card-brand {
+.card[data-collapsed="true"]:has(.card-verdict) .card-brand {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -500,8 +501,8 @@ body {
 
 /* 荧光笔：名字划一道荧光笔，判断是钢笔蓝的批改记号；底部一行和章节名从同一条线起，主按钮是钢笔蓝的细边框。 */
 :root[data-accent-theme="marker"] .card {
-  --card-head-pad: 0.5rem 0.375rem 0.375rem 0.875rem;
-  --card-body-top: 0.25rem;
+  --card-head-pad: 0.5rem 0.375rem 0.5rem 0.875rem;
+  --card-body-top: 0.125rem;
   /* 和章节名对齐：页边栏按五位的时间算宽，再加页边栏和正文之间那道间距。 */
   --card-foot-left: calc(var(--card-pad) + max(var(--margin-col), 2.765625rem) + var(--margin-gap));
 }
@@ -539,7 +540,7 @@ body {
  * 外框是一圈分隔线色的细线，没有投影。 */
 :root[data-accent-theme="band"] .card {
   --card-gap: 0.625rem;
-  --card-head-pad: 0.625rem 0.375rem 0.25rem 0.875rem;
+  --card-head-pad: 0.625rem 0.375rem 0.375rem 0.875rem;
   --card-mini-left: 0.875rem;
   --card-link: var(--text);
 }
@@ -580,7 +581,7 @@ body {
 
 /* 展开时判断词排在名字前面，和下面的结论句连成一整条色带。 */
 :root[data-accent-theme="band"] .card[data-collapsed="false"][data-shape] .card-head {
-  padding: 0.625rem 0.375rem 0 0.875rem;
+  padding: 0.625rem 0.375rem 0.375rem 0.875rem;
 }
 
 :root[data-accent-theme="band"] .card[data-collapsed="false"][data-shape] .card-verdict {
@@ -617,7 +618,7 @@ body {
 }
 
 :root[data-accent-theme="band"] .card[data-shape] #card-overview > .verdict:first-child {
-  padding-top: 0.375rem;
+  padding-top: 0;
 }
 
 :root[data-accent-theme="band"] .card-actions > .button[data-variant="primary"] {
@@ -628,8 +629,8 @@ body {
 /* 粉蓝：头部只写名字；判断是浅粉胶囊，「展开全部」是不带下划线的蓝字，主按钮是蓝底。圆角比侧边栏的卡片小一档。 */
 :root[data-accent-theme="pinkblue"] .card {
   --card-gap: 0.625rem;
-  --card-head-pad: 0.625rem 0.375rem 0.25rem 0.875rem;
-  --card-body-top: 0.375rem;
+  --card-head-pad: 0.625rem 0.375rem 0.375rem 0.875rem;
+  --card-body-top: 0.25rem;
   border-radius: 8px;
 }
 
@@ -655,8 +656,8 @@ body {
 /* 红黑：名字加粗，判断前是红色记号；「展开全部」是灰底胶囊，主按钮是正文色底的胶囊。 */
 :root[data-accent-theme="redblack"] .card {
   --card-gap: 0.625rem;
-  --card-head-pad: 0.625rem 0.375rem 0.125rem 0.875rem;
-  --card-body-top: 0.25rem;
+  --card-head-pad: 0.625rem 0.375rem 0.375rem 0.875rem;
+  --card-body-top: 0;
 }
 
 :root[data-accent-theme="redblack"] .card-brand {

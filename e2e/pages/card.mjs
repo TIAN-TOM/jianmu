@@ -270,6 +270,7 @@ test("卡片：五套主题、浅色深色下，头部只写「简幕」，底�
           moreText: document.getElementById("card-more")?.textContent ?? null,
           panel: box("#card-panel"),
           primary: document.getElementById("card-panel")?.dataset.variant ?? null,
+          headRow: document.querySelector(".card-head-row").getBoundingClientRect().height,
         };
       })()`);
       // 看不看那套的头部在色带里，判断词在前；别的几套头部只有名字。读屏的名称里名字和判断档都在。
@@ -295,13 +296,53 @@ test("卡片：五套主题、浅色深色下，头部只写「简幕」，底�
           glance: ${VISIBLE_TEXT}(glance),
           oneLine: glance ? glance.scrollWidth > glance.clientWidth && glance.getBoundingClientRect().height < 30 : false,
           height: Math.ceil(document.getElementById("card").getBoundingClientRect().height),
+          headRow: document.querySelector(".card-head-row").getBoundingClientRect().height,
         };
       })()`);
+      // 展开和收起时头部一样高：点收起那一刻高度不往上跳。
+      assert.equal(shown.headRow, line.headRow, `${label}：展开时头部高 ${shown.headRow}，收起时 ${line.headRow}`);
       assert.equal(line.verdict, "可以看", label);
       assert.equal(line.brand, "", `${label}：收起时不写名字`);
       assert.ok(line.glance?.startsWith("这是一段自造的样例文字"), `${label}：${line.glance}`);
       assert.equal(line.oneLine, true, `${label}：一句话结论截成一行`);
       assert.equal(line.height, CARD_HEIGHT.initial, label);
+    }
+  }
+});
+
+test("卡片：五套主题、浅色深色下，收起时还没有判断档，头部照样看得见「简幕」，底色是卡片色、高度不变；有判断档时只看得见判断词和后面那句话", async ({ open }) => {
+  for (const accentTheme of Object.keys(ACCENT_THEMES)) {
+    for (const themeMode of ["light", "dark"]) {
+      const label = `${accentTheme} ${themeMode}`;
+      const read = async (hash) => {
+        const page = await open(`${SAMPLE}${hash}`);
+        await page.setWidth(FRAME_WIDTH, CARD_HEIGHT.max);
+        await page.setAppearance({ accentTheme, themeMode, uiFontScale: Math.min(...UI_FONT_SCALES) });
+        return page.evaluate(`(() => {
+          const card = document.getElementById("card");
+          const row = getComputedStyle(document.querySelector(".card-head-row")).backgroundColor;
+          return {
+            head: ${VISIBLE_TEXT}(document.getElementById("card-toggle")),
+            name: document.querySelector(".card-name")?.textContent ?? null,
+            nameColor: getComputedStyle(document.querySelector(".card-name")).color,
+            expected: (() => { const probe = document.createElement("i"); probe.style.color = ${JSON.stringify(accentTheme === "marker" ? "var(--on-highlight)" : "var(--text)")}; document.body.append(probe); const color = getComputedStyle(probe).color; probe.remove(); return color; })(),
+            row,
+            plainRow: row === "rgba(0, 0, 0, 0)" || row === getComputedStyle(card).backgroundColor,
+            height: Math.ceil(card.getBoundingClientRect().height),
+          };
+        })()`);
+      };
+      // 还没读过：没有判断档，名字照样在，头部不铺色带，文字是正文色（荧光笔那套是划过的字色）。
+      const plain = await read("#collapsed");
+      assert.equal(plain.head, "简幕", label);
+      assert.equal(plain.height, CARD_HEIGHT.initial, label);
+      assert.equal(plain.plainRow, true, `${label}：头部底色 ${plain.row}`);
+      assert.equal(plain.nameColor, plain.expected, `${label}：名字的颜色`);
+      // 有判断档：名字只给读屏，看得见的是判断词和后面那句话。
+      const judged = await read("#collapsed-verdict");
+      assert.ok(judged.head.startsWith("可以看这是一段自造的样例文字"), `${label}：${judged.head}`);
+      assert.equal(judged.name, "简幕", label);
+      assert.equal(judged.height, CARD_HEIGHT.initial, label);
     }
   }
 });
