@@ -1,7 +1,7 @@
 // 设置页的状态和动作：设置直接经设置仓库读写（排在同一把锁里，密钥不落盘），拉模型、测试连接、备份和清除发给后台。
 // 主机权限的申请要在用户点击的同一个调用栈里发起，所以保存先同步发起申请，再等别的。
+// 密钥默认不记住；保存密钥成功、还没记住也没问过时，就地问一句要不要记在这台电脑上，答过就不再问。
 import { signal, type ReadonlySignal } from "@preact/signals";
-import { backupText, readBackup } from "../../core/backup/format.ts";
 import type { ClearScope } from "../../core/clear-guard.ts";
 import { describe, isErrorCode, type Failure } from "../../core/errors.ts";
 import { isLocalBaseUrl } from "../../core/ai/provider/index.ts";
@@ -12,8 +12,8 @@ import { SETTINGS_REVISION_KEY, SETTINGS_STORAGE_KEY, USAGE_STORAGE_KEY } from "
 import { originOf, validateForSave, type FeatureSlotId } from "../../shared/settings-schema.ts";
 import type { PageApi } from "../shared/api.ts";
 import { createAiStatus, type AiPlace, type PlacedStatus, type Status } from "./ai-status.ts";
-import { backupFailureText, importSummary, receiveBackup, withBackupImport } from "./backup-transfer.ts";
-import { chosenFeatures, formOf, settingsInput, withAddress, withPreset, type AiForm } from "./form.ts";
+import { exportBackupFile, importBackupFile } from "./backup-transfer.ts";
+import { asksRememberAfterSave, chosenFeatures, formOf, sameCredentials, settingsInput, withAddress, withPreset, type AiForm } from "./form.ts";
 import { probeFrameImage } from "./image-probe.ts";
 import type { UiLang } from "../shared/ui-lang.ts";
 import { slotLabel, textOf } from "./text.ts";
@@ -50,6 +50,8 @@ export interface OptionsState {
   readonly models: ReadonlySignal<readonly string[]>;
   /** 每项功能实际生效的推理档位，后台按已保存的服务、模型和档位算；问不到时是 null。 */
   readonly efforts: ReadonlySignal<readonly EffortPreviewItem[] | null>;
+  /** 刚保存了密钥、还没记住也没问过：就地问要不要记在这台电脑上。 */
+  readonly rememberAsk: ReadonlySignal<boolean>;
   load(): Promise<void>;
   edit(patch: Partial<Pick<AiForm, "aiModel" | "rememberApiKey">>): void;
   editKey(key: string): void;
@@ -65,6 +67,8 @@ export interface OptionsState {
   /** 打开就出结论：先同意当前的数据说明，同意存上了才打开开关。 */
   enableAuto(): Promise<void>;
   setRemember(remember: boolean): Promise<void>;
+  /** 答保存后那一问：记住等于勾上「记住密钥」再保存（要在点击里同步调用，保存要申请权限）；不用就记下问过，不再问。 */
+  answerRemember(remember: boolean): Promise<void>;
   clearKey(): Promise<void>;
   fetchModels(): Promise<void>;
   testConnection(all: boolean): Promise<void>;
@@ -113,6 +117,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
   const busy = signal<Busy>(null);
   const models = signal<readonly string[]>([]);
   const efforts = signal<readonly EffortPreviewItem[] | null>(null);
+  const rememberAsk = signal(false);
   // 表单打开时的修订号：保存时在锁里核对，即改即存后比对，别的页面改过就重新载入。
   let revision = "";
   let ownWrites = 0;
@@ -126,6 +131,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       saved.value = settings;
       form.value = formOf(settings);
       loadError.value = null;
+      rememberAsk.value = false;
       void refreshEfforts();
       const check = validateForSave(settings, lang());
       if (!check.ok) say("actions", check.errors.join(" "), "error");
@@ -193,6 +199,8 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
   deps.storageChanged?.addListener(onStorage);
 
   const setForm = (next: AiForm): void => {
+    const before = form.peek(); // 那一问问的是刚保存的那把：换了服务商、地址或密钥就收起，免得点「记住」把没保存的新密钥记上。
+    if (before && !sameCredentials(next, before)) rememberAsk.value = false;
     form.value = next;
   };
 
@@ -265,6 +273,8 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       // 回收是尽力而为：失败只是多留几条授权。
       await api.send("grants.release", {});
       saySaved(at, written);
+      // 保存收尾等后台回话的这一会儿里改过密钥、服务商或勾选框的，以眼下的表单为准，不再问。
+      rememberAsk.value = asksRememberAfterSave(form.peek(), written);
       return true;
     } finally {
       busy.value = null;
@@ -314,6 +324,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
     busy,
     models,
     efforts,
+    rememberAsk,
     load,
     edit(patch) {
       const current = form.peek();
@@ -366,6 +377,8 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
     async setRemember(remember) {
       const current = form.peek();
       if (!current) return;
+      // 自己动了勾选，那一问就不用再摆着。
+      rememberAsk.value = false;
       setForm({ ...current, rememberApiKey: remember });
       if (remember) {
         say("remember", status().rememberAfterSave, "warn");
@@ -379,10 +392,29 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
         say("remember", status().rememberOffFailed(errorText(error)), "error");
       }
     },
+    async answerRemember(remember) {
+      const current = form.peek();
+      if (!current) return;
+      rememberAsk.value = false;
+      if (remember) {
+        // 等于勾上再点保存：保存先同步申请权限，所以这里前面不能有等待。记住过的密钥由设置仓库记成问过。
+        setForm({ ...current, rememberApiKey: true });
+        await save();
+        return;
+      }
+      // 答了「不用」：勾选框也回到不记，免得留着一个没保存的勾，下次保存时把密钥记上。
+      if (current.rememberApiKey) setForm({ ...current, rememberApiKey: false });
+      try {
+        await ownWrite(() => store.update({ rememberKeyAsked: true }), "remember");
+      } catch (error) {
+        say("remember", status().notSaved(errorText(error)), "error");
+      }
+    },
     async clearKey() {
       try {
         const written = await ownWrite(() => store.update({ aiApiKey: "" }), "key");
         if (!written) return;
+        rememberAsk.value = false;
         const current = form.peek();
         if (current) setForm({ ...current, aiApiKey: "", keyTyped: false, rememberApiKey: false });
         say("key", status().keyCleared, "ok");
@@ -420,17 +452,9 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       if (busy.peek()) return;
       busy.value = "export";
       try {
-        const reply = await receiveBackup(api);
-        if (!reply.ok) {
-          dataStatus.value = { text: backupFailureText(reply, "export", failText, lang()), tone: "error" };
-          return;
-        }
         const date = (deps.now ?? (() => new Date()))();
         const stamp = `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}`;
-        deps.download(copy().backup.fileName(stamp), backupText(reply.value));
-        const { notes, overviews, qa, translations } = reply.value;
-        const counts = { notes: notes.length, overviews: overviews.length, qa: qa.length, translations: translations.length };
-        dataStatus.value = { text: copy().backup.exported(counts), tone: "ok" };
+        dataStatus.value = await exportBackupFile(api, deps.download, stamp, failText, lang());
       } finally {
         busy.value = null;
       }
@@ -440,29 +464,7 @@ export function createOptionsState(deps: OptionsDeps): OptionsState {
       // 读文件之前就占住：大文件要读一会儿，这期间不能再点导出、清除或另一次导入。
       busy.value = "import";
       try {
-        await withBackupImport(api, async (send) => {
-          let text: string;
-          try {
-            text = await readFile();
-          } catch {
-            dataStatus.value = { text: copy().backup.unreadable, tone: "error" };
-            return;
-          }
-          let payload: unknown;
-          try {
-            payload = JSON.parse(text);
-          } catch {
-            dataStatus.value = { text: copy().backup.notBackup, tone: "error" };
-            return;
-          }
-          const read = readBackup(payload);
-          if (!read.ok) {
-            dataStatus.value = { text: copy().backup.importFailed(failText(read)), tone: "error" };
-            return;
-          }
-          const reply = await send(read.value);
-          dataStatus.value = reply.ok ? { text: importSummary(reply.value, lang()), tone: "ok" } : { text: backupFailureText(reply, "import", failText, lang()), tone: "error" };
-        });
+        dataStatus.value = await importBackupFile(api, readFile, failText, lang());
       } finally {
         busy.value = null;
       }

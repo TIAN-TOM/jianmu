@@ -1,5 +1,5 @@
 // 设置页：确认启用之前只有启用说明、资料和「关于」两节，「关于」里的版本号、构建标识和四个链接都对；确认以后能保存服务商、密钥和模型，拉模型列表（状态行说已保存，框里的型号不在列表里时提醒）、测试连接对着模拟的模型服务走通，
-// 密钥只进会话存储；本机 http 地址不填密钥也能保存、拉列表和测试连接，Ollama 预设不填密钥也能保存，本机服务回 403 时报来源被拒；导出的备份清除全部数据后能再导回来，
+// 密钥只进会话存储，保存了密钥以后问一次要不要记住（答「不用」不再问，答「记住」就记下）；本机 http 地址不填密钥也能保存、拉列表和测试连接，Ollama 预设不填密钥也能保存，本机服务回 403 时报来源被拒；导出的备份清除全部数据后能再导回来，
 // 超过单条消息上限的备份也一样；清除数据的确认框同一时间只开一个。各测试开头先清除全部数据，从没启用的状态开始。
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -7,7 +7,7 @@ import { createServer } from "node:http";
 import { join } from "node:path";
 import { videoKey } from "../../src/core/video-ref.ts";
 import { BUILD_ID_FILE } from "../../src/shared/build-id.ts";
-import { API_KEY_SESSION_KEY, AUTO_LEDGER_KEY, ISSUES_URL, PAGE_PATHS, PRIVACY_POLICY_URL, RELEASES_URL, SETTINGS_STORAGE_KEY, SOURCE_URL } from "../../src/shared/names.ts";
+import { API_KEY_LOCAL_KEY, API_KEY_SESSION_KEY, AUTO_LEDGER_KEY, ISSUES_URL, PAGE_PATHS, PRIVACY_POLICY_URL, RELEASES_URL, SETTINGS_STORAGE_KEY, SOURCE_URL } from "../../src/shared/names.ts";
 import { DATA_CONSENT_TABLE, dataConsentErrorText, noticeStatus, noticeText } from "../../src/core/consent.ts";
 import { OPTIONS_EN } from "../../src/pages/options/text-en.ts";
 import { OPTIONS_HANT } from "../../src/pages/options/text-hant.ts";
@@ -174,6 +174,15 @@ test("设置页：选服务商、填密钥、勾同意后保存，拉模型列�
   // 没勾同意先保存：提示还差同意。勾上以后这句话跟着变，不留着「请勾选」。
   await clickButton(page, "保存");
   assert.match(await statusStarts(page, "ai-service", "已保存，但 AI 功能暂时用不了"), /我已了解/);
+  // 保存了密钥、没记住：按钮下面问要不要记住，下面照写不加密的说明，两个按钮一样分量；答「不用」就收起，之后再保存也不问。
+  await page.waitFor("问要不要记住密钥", `document.getElementById("rememberAsk") !== null`);
+  const ask = await page.evaluate(`(() => { const box = document.getElementById("rememberAsk"); return { question: box.querySelector(".confirm-question").textContent, hint: box.querySelector(".hint").textContent, buttons: [...box.querySelectorAll("button")].map((node) => [node.textContent.trim(), node.dataset.variant]) }; })()`);
+  assert.equal(ask.question, "要把密钥记在这台电脑上吗？");
+  assert.match(ask.hint, /不加密/);
+  assert.deepEqual(ask.buttons, [["记住", "secondary"], ["不用", "secondary"]]);
+  assert.equal(await page.evaluate(`document.getElementById("rememberApiKey").checked`), false, "默认照旧不记住");
+  await clickButton(page, "不用", "#rememberAsk");
+  await page.waitFor("那一问收起", `document.getElementById("rememberAsk") === null`);
   await page.click("#dataConsent");
   await page.waitFor("同意记下了", `document.getElementById("dataConsent").checked`);
   await page.waitFor("那句还差同意的提示换掉了", `${statusText("ai-service")} === "已保存。"`);
@@ -263,6 +272,7 @@ test("设置页：选服务商、填密钥、勾同意后保存，拉模型列�
 
   await clickButton(page, "保存");
   assert.equal(await statusStarts(page, "ai-service", "已保存"), "已保存。");
+  assert.equal(await page.evaluate(`document.getElementById("rememberAsk") === null`), true, "答过不用，不再问");
   assert.equal((await placedStatus(page, "#aiModel")).at, "actions");
   await clickButton(page, "测试连接");
   assert.equal(await statusStarts(page, "ai-service", "默认模型"), `默认模型（${ANTHROPIC.model}）连接正常，回复「可用」`);
@@ -294,6 +304,33 @@ test("设置页：选服务商、填密钥、勾同意后保存，拉模型列�
   assert.equal(await restarted.evaluate(`[...document.querySelectorAll("#ai-service button")].some((node) => node.textContent.trim() === "国内服务")`), false);
   await fill(restarted, "#aiApiKey", ANTHROPIC.key);
   await restarted.waitFor("开始填密钥，那句话收起", `${statusText("ai-service")} === ""`);
+  // 重启以后重新填好保存：答过不用，照旧不问。
+  await clickButton(restarted, "保存");
+  assert.equal(await statusStarts(restarted, "ai-service", "已保存"), "已保存。");
+  assert.equal(await restarted.evaluate(`document.getElementById("rememberAsk") === null`), true);
+});
+
+test("设置页：保存了密钥以后问要不要记住，点「记住」等于勾上再保存：密钥记在这台电脑上，勾选框勾上，不再问", async ({ open }) => {
+  const page = await freshOptions(open);
+  await enable(page);
+  await fill(page, "#preset", ANTHROPIC.presetId);
+  await fill(page, "#aiApiKey", ANTHROPIC.key);
+  await page.click("#dataConsent");
+  await page.waitFor("同意记下了", `document.getElementById("dataConsent").checked`);
+  await clickButton(page, "保存");
+  await page.waitFor("问要不要记住密钥", `document.getElementById("rememberAsk") !== null`);
+  await clickButton(page, "记住", "#rememberAsk");
+  assert.equal(await statusStarts(page, "ai-service", "已保存，密钥"), "已保存，密钥已记在这台电脑上。");
+  assert.equal(await page.evaluate(`document.getElementById("rememberApiKey").checked`), true);
+  assert.equal(await page.evaluate(`document.getElementById("rememberAsk") === null`), true);
+  const local = await page.evaluate(`chrome.storage.local.get(${JSON.stringify(API_KEY_LOCAL_KEY)})`);
+  assert.equal(local[API_KEY_LOCAL_KEY]?.key, ANTHROPIC.key);
+  // 取消记住、再保存：记住过就算问过，不再问。
+  await page.click("#rememberApiKey");
+  await statusStarts(page, "ai-service", "已不再记住密钥");
+  await clickButton(page, "保存");
+  assert.equal(await statusStarts(page, "ai-service", "已保存"), "已保存。");
+  assert.equal(await page.evaluate(`document.getElementById("rememberAsk") === null`), true);
 });
 
 /** 本机的 OpenAI 兼容服务，只开 http、不要密钥。记下每个请求的地址和认证头。models 是它列出的模型。 */

@@ -1,6 +1,7 @@
 // 设置页「AI 服务」一节：先是要点「保存」的表单（服务商、地址、密钥和记住密钥、默认模型和按功能选模型），
 // 接着数据说明和同意、保存和测试；按钮后面是即改即存的推理强度和概览分块，收在一个折叠里，值按存着的设置显示。
 // 状态行跟着控件走：清除密钥、记住密钥、拉取模型、推理强度、概览分块的结果写在各自下面，保存和测试连接的写在按钮下面。
+// 保存了密钥、还没记住也没问过时，按钮下面就地问一句要不要记在这台电脑上。
 import { useEffect, useId, useRef } from "preact/hooks";
 import { DATA_CONSENT_TABLE, noticeLines, noticeStatus, type DataConsentKind, type NoticeItem } from "../../core/consent.ts";
 import {
@@ -283,7 +284,8 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
 
       <div>
         <label class="check">
-          <input id="rememberApiKey" type="checkbox" checked={form.rememberApiKey} onChange={(event) => void state.setRemember(event.currentTarget.checked)} />
+          {/* 保存进行中不能动：保存按点击时的勾选写，中途取消会被它盖回去。 */}
+          <input id="rememberApiKey" type="checkbox" checked={form.rememberApiKey} disabled={working} onChange={(event) => void state.setRemember(event.currentTarget.checked)} />
           <span>{t.remember}</span>
         </label>
         <AiStatusLine state={state} at="remember" />
@@ -351,6 +353,21 @@ export function AiSection({ state }: { readonly state: OptionsState }) {
         ) : null}
       </div>
       <AiStatusLine state={state} at="actions" />
+      {state.rememberAsk.value ? (
+        <div class="confirm" id="rememberAsk" role="group" aria-label={t.rememberAsk.label}>
+          <p class="confirm-question">{t.rememberAsk.question}</p>
+          <p class="hint">{t.rememberHint}</p>
+          {/* 两个按钮一样分量，都不预选。 */}
+          <div class="actions">
+            <Button disabled={working} onClick={() => void state.answerRemember(true)}>
+              {t.rememberAsk.yes}
+            </Button>
+            <Button disabled={working} onClick={() => void state.answerRemember(false)}>
+              {t.rememberAsk.no}
+            </Button>
+          </div>
+        </div>
+      ) : null}
       <p class="hint">{t.hostHint}</p>
 
       <AdvancedBlock state={state} saved={saved} />

@@ -120,6 +120,7 @@ export const OPTIONS_HANT: OptionsText = {
     keyHint: "預設關掉瀏覽器就不保留了，下次要重新填寫；簡幕更新以後也一樣。",
     localKeyHint: "本機的服務不需要金鑰時可以留空。",
     remember: "在這台電腦上記住金鑰",
+    rememberAsk: { label: "要不要記住金鑰", question: "要把金鑰記在這台電腦上嗎？", yes: "記住", no: "不用" },
     rememberHint: "金鑰會以未加密的方式存在這台電腦上，重新啟動瀏覽器後還能用。能看到這台電腦瀏覽器資料的人或程式可能拿到它，公用的電腦不要勾選。取消勾選會馬上刪掉。金鑰不會放進備份，也不會跟瀏覽器帳號同步。",
     model: "模型",
     modelPlaceholder: "填模型名稱，或點右邊的按鈕取得",
