@@ -3,6 +3,7 @@
 // 密钥随浏览器重启清空时，说明直说要重新填（说法的规则在 pages/shared/config.ts，由单元测试守）；
 // YouTube 上没有官方总结那一块，本机还没有字幕时不摆「生成概览」，请用户先在侧边栏读。
 // 换过字幕时，依据旧字幕的结论标出来。
+// 正文区什么都没有时不空出一块，按钮行接在头部下面。
 // 官方总结晚到时，「生成概览」等它有了结果才摆，摆出来以后不被顶走；一直没结果时等够了照样摆。
 // 收起的一行写着判断档和一句话结论（没有结论时写播放到的章节），放不下就截断、不撑高，旁边是打开侧边栏的入口；侧边栏开着时不摆打开侧边栏的入口和按钮。
 // 五套主题各自的版面下：头部只写「简幕」，底部的「展开全部」和主按钮在同一行两端，收起的一行有判断词和一句话结论。
@@ -425,6 +426,26 @@ test("卡片（YouTube）：有概览时结论在最前、只露前几章，没�
 
   const ready = await open(`${SAMPLE}#youtube-ready`);
   assert.deepEqual((await read(ready)).buttons, ["card-generate", "card-panel"]);
+});
+
+test("卡片：正文区什么都没有时（还没有概览、也没有官方总结）不空出一块，五套主题下按钮行和头部之间都只隔正文区顶上那一截", async ({ open }) => {
+  const page = await open(`${SAMPLE}#youtube-ready`);
+  await page.setWidth(FRAME_WIDTH, CARD_HEIGHT.max);
+  for (const accentTheme of Object.keys(ACCENT_THEMES)) {
+    await page.setAppearance({ accentTheme, themeMode: "light", uiFontScale: Math.min(...UI_FONT_SCALES) });
+    const measured = await page.evaluate(`(() => {
+      const body = document.getElementById("card-body");
+      return {
+        empty: body.childElementCount === 0,
+        bodyHeight: body.getBoundingClientRect().height,
+        gap: document.getElementById("card-generate").getBoundingClientRect().top - document.querySelector(".card-head-row").getBoundingClientRect().bottom,
+        bodyTop: parseFloat(getComputedStyle(body).paddingTop),
+      };
+    })()`);
+    assert.equal(measured.empty, true, `${accentTheme}：这个样例的正文区本来就是空的`);
+    assert.equal(measured.bodyHeight, 0, `${accentTheme}：空的正文区不占地方`);
+    assert.ok(Math.abs(measured.gap - measured.bodyTop) < 1, `${accentTheme}：按钮行离头部 ${measured.gap}，应当和正文区顶上留的 ${measured.bodyTop} 一样`);
+  }
 });
 
 test("卡片：官方总结晚到时，「生成概览」从第一次露出来到官方总结摆好，位置不变", async ({ open }) => {
