@@ -472,6 +472,16 @@ body {
   padding-bottom: var(--card-gap);
 }
 
+/* 正文区一样东西都没有（还没有概览、也没有官方总结）时不占地方，底部一行直接接在头部下面，
+ * 和头部隔开的那一截跟正文区顶上留的一样。 */
+.card-body:empty {
+  display: none;
+}
+
+.card-body:empty + .card-actions {
+  padding-top: var(--card-body-top, 0.75rem);
+}
+
 .card-progress + .card-actions {
   padding-top: var(--space-2);
 }
