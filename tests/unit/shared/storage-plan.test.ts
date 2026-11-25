@@ -39,7 +39,7 @@ function seeded() {
   return {
     stores: new Set<string>(["notes", "overviews", "qa", "cache", "translations", "imports", "channels"]),
     local: memoryStorage({
-      jianmu_settings: { accent: "ochre" },
+      jianmu_settings: { accent: "redblack" },
       jianmu_triage: { items: [] },
       jianmu_model_caps: { models: {} },
       jianmu_api_key_local: { version: 1, key: "test-key" },
@@ -84,7 +84,7 @@ test("清除缓存：只清字幕缓存、粗筛、模型能力、放宽记录�
     "jianmu_transcript_modes",
     "jianmu_watch_sessions",
   ]);
-  assert.deepEqual(world.local.data["jianmu_settings"], { accent: "ochre" });
+  assert.deepEqual(world.local.data["jianmu_settings"], { accent: "redblack" });
   assert.deepEqual(targets.renew, [], "清除缓存不换修订号");
 });
 

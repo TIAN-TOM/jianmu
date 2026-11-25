@@ -191,7 +191,6 @@
 
 .verdict-text {
   color: var(--text-strong);
-  font-family: var(--font-serif);
   font-size: var(--fs-verdict);
   font-weight: var(--fw-semibold);
   line-height: var(--lh-verdict);
@@ -293,7 +292,7 @@
   width: 7px;
   height: 7px;
   border-radius: var(--radius-pill);
-  background: var(--mark);
+  background: var(--mark-key);
 }
 
 /* 章节列表里，重点的圆点放在时间和章节名之间的空里、对着第一行：不占章节名的位置，重点和不是重点的章节名对得齐。

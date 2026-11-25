@@ -40,6 +40,8 @@ const RAW = [
   "accent-text-strong",
   "on-accent",
   "mark",
+  "key",
+  "verdict",
 ];
 
 // 默认主题写在 :root 上，其余主题各有一块覆盖。
@@ -77,6 +79,7 @@ test("每套主题都是完整的：浅色、深色两组原始色值一个不�
 });
 
 // 页面上会出现的文字色，和它们会落在的四种底色。
+// 当前句和按下去的底色（--bg-active）上只有正文和时间戳，状态色不会落在上面，单独查。
 const TEXTS = [
   "--text",
   "--text-strong",
@@ -99,28 +102,35 @@ test("每套主题、每种明暗下，文字色和主按钮上的字都过 WCAG
     for (const surface of SURFACES) {
       for (const text of TEXTS) assertContrast(`${label}：${text} 在 ${surface} 上`, color(text), color(surface), 4.5);
     }
+    for (const text of ["--text", "--text-strong", "--accent-text", "--accent-text-strong"]) {
+      assertContrast(`${label}：${text} 在 --bg-active 上`, color(text), color("--bg-active"), 4.5);
+    }
+    // 输入框里的字和占位字（次要文字色）落在输入框自己的底色上。
+    for (const text of ["--text", "--text-muted"]) assertContrast(`${label}：${text} 在 --input 上`, color(text), color("--input"), 4.5);
     for (const fill of ["--accent", "--accent-strong"]) assertContrast(`${label}：--on-accent 在 ${fill} 上`, color("--on-accent"), color(fill), 4.5);
   });
 });
 
-test("叠在底色上的当前句、提示行、警告行、危险行，播放头、重点和时间轨，三套主题乘两种明暗都够对比度", () => {
+test("叠在底色上的选中文字、提示行、警告徽标，播放头、重点、时间轨和控件边框，五套主题乘两种明暗都够对比度", () => {
   // 半透明的行底色先叠到页面底色和卡片上再算；播放头、重点圆点、章节段这类图形要 3:1。
+  // 只查页面上真会出现的组合：带底色的状态徽标只有「信息不足」的警告一种，危险和完成的淡底上没有同色的字。
   const rows: readonly (readonly [string, string])[] = [
     ["--text-strong", "--accent-soft-strong"],
-    ["--accent-text", "--accent-soft-strong"],
+    ["--accent-text", "--accent-soft"],
     ["--accent-text-strong", "--accent-soft"],
     ["--warn", "--warn-soft"],
-    ["--danger", "--danger-soft"],
-    ["--ok", "--ok-soft"],
+    ["--accent-text", "--warn-soft"],
   ];
   eachLook((_theme, _mode, color, label) => {
     for (const base of ["--bg", "--card"]) {
       for (const [text, row] of rows) assertContrast(`${label}：${text} 在 ${row} 叠 ${base} 上`, color(text), over(color(row), color(base)), 4.5);
     }
     for (const base of ["--bg", "--card", "--bg-hover"]) {
-      for (const shape of ["--mark", "--rail-key", "--rail-played"]) assertContrast(`${label}：${shape} 在 ${base} 上`, color(shape), color(base), 3);
+      for (const shape of ["--mark", "--mark-key", "--rail-key", "--rail-played"]) assertContrast(`${label}：${shape} 在 ${base} 上`, color(shape), color(base), 3);
       assertContrast(`${label}：--rail-seg 叠 ${base}`, over(color("--rail-seg"), color(base)), color(base), 3);
     }
+    // 输入框、下拉框的边框：和框里的底色、框所在的卡片都差 3:1。
+    for (const base of ["--input", "--card"]) assertContrast(`${label}：--border-strong 在 ${base} 上`, color("--border-strong"), color(base), 3);
   });
 });
 
@@ -128,7 +138,11 @@ test("设置页的主题预览和播放页按钮用的颜色，和 theme.css 一
   for (const theme of THEMES) {
     const values = rawValues(theme);
     const info = ACCENT_THEMES[theme as keyof typeof ACCENT_THEMES];
-    assert.equal(info.swatch, values["--l-accent"], `${theme} 的 swatch 是浅色强调色`);
+    // 标志色和它上面的字色都取自这套主题的原始色值；播放页按钮亮起来时是字色配标志色，带一句提示字，要 4.5:1。
+    const own = (color: string): boolean => Object.values(values).includes(color);
+    assert.ok(own(info.swatch), `${theme} 的 swatch 是这套主题自己的颜色`);
+    assert.ok(own(info.onSwatch), `${theme} 的 onSwatch 是这套主题自己的颜色`);
+    assertContrast(`${theme} 的 onSwatch 配 swatch`, evaluateColor({}, info.onSwatch), evaluateColor({}, info.swatch), 4.5);
     for (const [mode, prefix] of Object.entries(PREFIX)) {
       assert.deepEqual(
         { ...info.preview[mode as ThemeModeName] },
@@ -153,7 +167,7 @@ test("深色的两套选择器写的是同一份语义变量", () => {
   assert.match(ruleBody(RULES, ':root:not([data-theme-mode="light"])', "@media (prefers-color-scheme: dark)"), /color-scheme:\s*dark;/);
 });
 
-test("滚动条跟着主题：拇指在三套主题、两种明暗下和底色、卡片、凹陷层、悬停底色都差 ≥ 3:1", () => {
+test("滚动条跟着主题：拇指在五套主题、两种明暗下和底色、卡片、凹陷层、悬停底色都差 ≥ 3:1", () => {
   const root = ruleBody(RULES, ":where(html)");
   assert.match(root, /accent-color:\s*var\(--accent\);/, "复选框、单选、进度条用主题的强调色");
   assert.match(root, /scrollbar-color:\s*var\(--scrollbar-thumb\) transparent;/, "写在根上，所有滚动区域继承");
@@ -201,13 +215,32 @@ test("界面字号只改根字号，默认是标准一档；减少动态效果�
   for (const value of Object.values(reduced)) assert.equal(value, "0ms");
 });
 
-test("字体跟着界面语言：简体和英文用简体字形的字体，繁体界面（html lang 是 zh-Hant）换成繁体字形的", () => {
+test("字体跟着界面语言：简体和英文用简体字形的字体，繁体界面（html lang 是 zh-Hant）换成繁体字形的；五套主题都只用无衬线", () => {
   const base = propertiesOf(RULES, ":root");
   assert.match(base["--font-sans"] ?? "", /"PingFang SC".*"Microsoft YaHei"/);
-  assert.match(base["--font-serif"] ?? "", /"Songti SC"/);
   const hant = propertiesOf(RULES, ":root:lang(zh-Hant)");
-  assert.deepEqual(Object.keys(hant).sort(), ["--font-sans", "--font-serif"]);
+  assert.deepEqual(Object.keys(hant), ["--font-sans"]);
   assert.match(hant["--font-sans"] ?? "", /"PingFang TC".*"Microsoft JhengHei"/);
-  assert.match(hant["--font-serif"] ?? "", /^"Songti TC", "Noto Serif CJK TC", "Source Han Serif TC", var\(--font-sans\)$/);
-  assert.doesNotMatch(`${hant["--font-sans"]} ${hant["--font-serif"]}`, /\bSC\b|YaHei|Hiragino Sans GB/);
+  assert.doesNotMatch(hant["--font-sans"] ?? "", /\bSC\b|YaHei|Hiragino Sans GB/);
+  assert.doesNotMatch(CSS, /--font-serif|Songti|Serif/, "不再有宋体");
+});
+
+test("圆角跟着主题：每套主题写全小、中、大三档", () => {
+  const radii: Readonly<Record<string, readonly [string, string, string]>> = {
+    timecode: ["2px", "4px", "10px"],
+    marker: ["4px", "6px", "12px"],
+    band: ["6px", "8px", "16px"],
+    pinkblue: ["4px", "6px", "12px"],
+    redblack: ["4px", "8px", "12px"],
+  };
+  assert.deepEqual(Object.keys(radii).sort(), [...THEMES].sort());
+  for (const theme of THEMES) {
+    const values = rawValues(theme);
+    assert.deepEqual([values["--radius-sm"], values["--radius-md"], values["--radius-lg"]], radii[theme], theme);
+  }
+});
+
+test("判断档位四档同一个颜色，靠形状和文字区分", () => {
+  const root = propertiesOf(RULES, ":root");
+  for (const name of ["--verdict-go", "--verdict-fair", "--verdict-skip", "--verdict-unknown"]) assert.equal(root[name], "var(--verdict)", name);
 });

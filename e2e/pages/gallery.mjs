@@ -1,5 +1,5 @@
 // 共用组件的样张：章节和时间轨、判断标记、状态块、一行提示、模式切换、抽屉层菜单、首次启用说明，
-// 以及两档宽度乘三套主题、两种明暗、三档字号下不出横向滚动条、关键文字对比度达标，有边框的按钮里文字行上下留整像素的空。
+// 以及两档宽度乘五套主题、两种明暗、三档字号下不出横向滚动条、关键文字对比度达标，有边框的按钮里文字行上下留整像素的空。
 import assert from "node:assert/strict";
 import { ACTIVATION_TABLE } from "../../src/core/consent.ts";
 import { errorCopy } from "../../src/core/errors.ts";
@@ -339,7 +339,6 @@ const CONTRAST_TARGETS = [
   "#controls .button[data-variant='text']",
   "#controls .control-reason",
   "#controls .badge[data-tone='warn']",
-  "#controls .badge[data-tone='ok']",
   "#controls .badge[data-tone='line']",
   "#modes-demo [role='radio'][aria-checked='false']",
   "#activation-fresh .activation-heading",
@@ -348,7 +347,7 @@ const CONTRAST_TARGETS = [
   "#activation-updated summary",
 ];
 
-test("组件样张：320 和 360 宽、三套主题、两种明暗、三档字号下都不出横向滚动条，关键文字对比度达 AA", async ({ open }) => {
+test("组件样张：320 和 360 宽、五套主题、两种明暗、三档字号下都不出横向滚动条，关键文字对比度达 AA", async ({ open }) => {
   const page = await open(GALLERY);
   const problems = [];
   for (const width of PANEL_WIDTHS) {
@@ -371,7 +370,7 @@ test("组件样张：三档字号下有边框的按钮都是 2rem 高；1 倍屏
   const page = await open(GALLERY);
   const problems = [];
   for (const uiFontScale of UI_FONT_SCALES) {
-    await page.setAppearance({ accentTheme: "ink", themeMode: "light", uiFontScale });
+    await page.setAppearance({ accentTheme: "marker", themeMode: "light", uiFontScale });
     const buttons = await page.evaluate(`(() => {
       const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
       const supported = CSS.supports("line-height", "round(1px, 1px)") && CSS.supports("line-height", "rem(1px, 1px)");

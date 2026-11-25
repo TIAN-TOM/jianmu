@@ -91,14 +91,14 @@ test("点粗筛项在新标签页打开粗筛页，没确认启用时也一样�
 });
 
 test("卡片开关经设置仓库关上再打开，存储变化把开关广播给视频页", async () => {
-  const { fake, app, stored, checked } = setup(enabled({ aiModel: "test-model", accentTheme: "ochre" }));
+  const { fake, app, stored, checked } = setup(enabled({ aiModel: "test-model", accentTheme: "redblack" }));
   await app.onInstalled("install");
   const broadcasts = () => fake.calls.tabMessages.filter(({ message }) => (message as { type?: string }).type === "appearance.changed");
 
   fake.fireMenuClicked(ACTION_MENU.inPageCard);
   assert.ok(await until(() => stored()?.["inPageCard"] === false));
   assert.ok(await until(() => broadcasts().length === 1));
-  assert.deepEqual(broadcasts()[0], { tabId: 7, message: { type: "appearance.changed", accentTheme: "ochre", inPageCard: false, language: "auto" } });
+  assert.deepEqual(broadcasts()[0], { tabId: 7, message: { type: "appearance.changed", accentTheme: "redblack", inPageCard: false, language: "auto" } });
   assert.equal(checked(ACTION_MENU.inPageCard), false);
   // 只改这一项，别的设置原样。
   assert.equal(stored()?.["aiModel"], "test-model");
@@ -107,7 +107,7 @@ test("卡片开关经设置仓库关上再打开，存储变化把开关广播�
   fake.fireMenuClicked(ACTION_MENU.inPageCard);
   assert.ok(await until(() => stored()?.["inPageCard"] === true));
   assert.ok(await until(() => broadcasts().length === 2));
-  assert.deepEqual(broadcasts()[1]?.message, { type: "appearance.changed", accentTheme: "ochre", inPageCard: true, language: "auto" });
+  assert.deepEqual(broadcasts()[1]?.message, { type: "appearance.changed", accentTheme: "redblack", inPageCard: true, language: "auto" });
   assert.equal(checked(ACTION_MENU.inPageCard), true);
   assert.equal(fake.calls.optionsOpened, 0);
 });

@@ -27,7 +27,7 @@ const FRAME_WIDTH = 320;
 test("卡片：全部展开、框架高度到顶、最大字号、内容很长时，正文区滚动，进度行、「停止」和「打开侧边栏」都露在框架里", async ({ open }) => {
   const page = await open(`${SAMPLE}#full`);
   await page.setWidth(FRAME_WIDTH, CARD_HEIGHT.max);
-  await page.setAppearance({ accentTheme: "ink", themeMode: "light", uiFontScale: Math.max(...UI_FONT_SCALES) });
+  await page.setAppearance({ accentTheme: "marker", themeMode: "light", uiFontScale: Math.max(...UI_FONT_SCALES) });
   const measured = await page.evaluate(`(() => {
     const bottom = (selector) => document.querySelector(selector)?.getBoundingClientRect().bottom ?? Infinity;
     const body = document.querySelector(".card-body");
@@ -109,13 +109,13 @@ test("卡片：官方总结的正文真被截了才给「展开全部」，按�
   // 宽窄故意差得很开：测试机器上的字体和字宽不一定一样，这两档在哪套字体下结论都不变。
   // 很宽的卡片、标准字号：三行放得下，没有藏着的字，也就没有按钮。
   await page.setWidth(900, CARD_HEIGHT.max);
-  await page.setAppearance({ accentTheme: "ink", themeMode: "light", uiFontScale: Math.min(...UI_FONT_SCALES) });
+  await page.setAppearance({ accentTheme: "marker", themeMode: "light", uiFontScale: Math.min(...UI_FONT_SCALES) });
   await page.waitFor("量完", `!document.querySelector("#card-official .card-more")`);
   assert.deepEqual(await read(), { more: null, hidden: false, clamp: "true" });
 
   // 很窄的卡片、最大字号：同样的字三行放不下，按钮出现。
   await page.setWidth(200, CARD_HEIGHT.max);
-  await page.setAppearance({ accentTheme: "ink", themeMode: "light", uiFontScale: Math.max(...UI_FONT_SCALES) });
+  await page.setAppearance({ accentTheme: "marker", themeMode: "light", uiFontScale: Math.max(...UI_FONT_SCALES) });
   await page.waitFor("按钮出现", `document.querySelector("#card-official .card-more")?.textContent === "展开全部"`);
   assert.equal((await read()).hidden, true);
 

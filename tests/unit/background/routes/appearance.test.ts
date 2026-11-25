@@ -17,14 +17,14 @@ test("外观读取同时带回播放页总结卡片的开关和语言选项，�
   const defaults = appOn();
   assert.deepEqual(await defaults.app.dispatch({ type: "appearance.get", req: {} }, senders.content()), {
     ok: true,
-    value: { accentTheme: "ink", inPageCard: true, language: "auto" },
+    value: { accentTheme: "marker", inPageCard: true, language: "auto" },
   });
 
-  const off = appOn({ local: { [SETTINGS_STORAGE_KEY]: { accentTheme: "ochre", inPageCard: false, language: "en" } } });
+  const off = appOn({ local: { [SETTINGS_STORAGE_KEY]: { accentTheme: "redblack", inPageCard: false, language: "en" } } });
   for (const sender of [senders.content(), senders.content(tubeUrl()), senders.panel(), senders.triage()]) {
     assert.deepEqual(await off.app.dispatch({ type: "appearance.get", req: {} }, sender), {
       ok: true,
-      value: { accentTheme: "ochre", inPageCard: false, language: "en" },
+      value: { accentTheme: "redblack", inPageCard: false, language: "en" },
     });
   }
 
@@ -48,12 +48,12 @@ test("设置变更广播给播放页时带上卡片开关，关掉后已打开�
   const { app, fake } = appOn({ local: { [SETTINGS_STORAGE_KEY]: CONFIRMED }, openTabs: [1] });
 
   await app.onStorageChanged(
-    { [SETTINGS_STORAGE_KEY]: { oldValue: CONFIRMED, newValue: { ...CONFIRMED, accentTheme: "graphite", inPageCard: false } } },
+    { [SETTINGS_STORAGE_KEY]: { oldValue: CONFIRMED, newValue: { ...CONFIRMED, accentTheme: "pinkblue", inPageCard: false } } },
     "local",
   );
 
   assert.deepEqual(fake.calls.tabMessages, [
-    { tabId: 1, message: { type: "appearance.changed", accentTheme: "graphite", inPageCard: false, language: "auto" } },
+    { tabId: 1, message: { type: "appearance.changed", accentTheme: "pinkblue", inPageCard: false, language: "auto" } },
   ]);
 });
 
@@ -62,7 +62,7 @@ test("只有语言选项变了也广播，带上新的语言选项，播放页�
 
   await app.onStorageChanged({ [SETTINGS_STORAGE_KEY]: { oldValue: CONFIRMED, newValue: { ...CONFIRMED, language: "en" } } }, "local");
 
-  assert.deepEqual(fake.calls.tabMessages, [{ tabId: 1, message: { type: "appearance.changed", accentTheme: "ink", inPageCard: true, language: "en" } }]);
+  assert.deepEqual(fake.calls.tabMessages, [{ tabId: 1, message: { type: "appearance.changed", accentTheme: "marker", inPageCard: true, language: "en" } }]);
 });
 
 test("确认启用之后，发过消息的内容脚本和按清单匹配规则查到的标签页都收到，同一个标签页只发一次", async () => {
@@ -71,7 +71,7 @@ test("确认启用之后，发过消息的内容脚本和按清单匹配规则�
   await app.dispatch({ type: "appearance.get", req: {} }, senders.content(undefined, 31));
   await app.dispatch({ type: "appearance.get", req: {} }, senders.content(tubeUrl(), 32));
 
-  await app.onStorageChanged({ [SETTINGS_STORAGE_KEY]: { oldValue: CONFIRMED, newValue: { ...CONFIRMED, accentTheme: "ochre" } } }, "local");
+  await app.onStorageChanged({ [SETTINGS_STORAGE_KEY]: { oldValue: CONFIRMED, newValue: { ...CONFIRMED, accentTheme: "redblack" } } }, "local");
 
   assert.deepEqual(fake.calls.tabMessages.map(({ tabId }) => tabId).sort(), [1, 31, 32]);
 });
@@ -81,7 +81,7 @@ test("确认前设置变了不查标签页、不广播给内容脚本，从没�
     const { app, fake } = appOn({ local: { [SETTINGS_STORAGE_KEY]: stamp }, openTabs: [1] });
     await app.dispatch({ type: "appearance.get", req: {} }, senders.content(undefined, 31));
 
-    await app.onStorageChanged({ [SETTINGS_STORAGE_KEY]: { oldValue: stamp, newValue: { ...stamp, accentTheme: "ochre", inPageCard: false } } }, "local");
+    await app.onStorageChanged({ [SETTINGS_STORAGE_KEY]: { oldValue: stamp, newValue: { ...stamp, accentTheme: "redblack", inPageCard: false } } }, "local");
 
     assert.deepEqual(fake.calls.tabQueries, [], JSON.stringify(stamp));
     assert.deepEqual(fake.calls.tabMessages, [], JSON.stringify(stamp));
@@ -98,12 +98,12 @@ test("外观、卡片开关和语言选项都没变、不是本机存储区、�
   assert.equal(changed(CONFIRMED, { ...CONFIRMED, language: "fr" }), null);
   assert.equal(changed(CONFIRMED, { ...CONFIRMED, language: "zh-TW" }), null);
   // 从简体换成繁体要广播，带上繁体这个选项。
-  assert.deepEqual(changed({ ...CONFIRMED, language: "zh" }, { ...CONFIRMED, language: "zh-Hant" }), { type: "appearance.changed", accentTheme: "ink", inPageCard: true, language: "zh-Hant" });
-  assert.equal(changed(CONFIRMED, { ...CONFIRMED, accentTheme: "ochre" }, "session"), null);
-  assert.equal(changed(CONFIRMED, { ...CONFIRMED, accentTheme: "ochre" }, "local", "jianmu_triage"), null);
+  assert.deepEqual(changed({ ...CONFIRMED, language: "zh" }, { ...CONFIRMED, language: "zh-Hant" }), { type: "appearance.changed", accentTheme: "marker", inPageCard: true, language: "zh-Hant" });
+  assert.equal(changed(CONFIRMED, { ...CONFIRMED, accentTheme: "redblack" }, "session"), null);
+  assert.equal(changed(CONFIRMED, { ...CONFIRMED, accentTheme: "redblack" }, "local", "jianmu_triage"), null);
   assert.deepEqual(changed(CONFIRMED, { ...CONFIRMED, accentTheme: "unknown-theme", inPageCard: false }), {
     type: "appearance.changed",
-    accentTheme: "ink",
+    accentTheme: "marker",
     inPageCard: false,
     language: "auto",
   });

@@ -13,7 +13,7 @@ type Listener = Parameters<NonNullable<WatchAppearanceDeps["onChanged"]>["addLis
 const cacheWith = (value: unknown) => memoryLocalStorage({ [APPEARANCE_CACHE_KEY]: JSON.stringify(value) });
 
 test("启动时按首帧缓存里的语言选项同步定下界面语言：选了哪种就用哪种，跟随浏览器时看浏览器的界面语言", () => {
-  assert.equal(initUiLang(cacheWith({ accentTheme: "ink", language: "en" }), "zh-CN"), "en");
+  assert.equal(initUiLang(cacheWith({ accentTheme: "marker", language: "en" }), "zh-CN"), "en");
   assert.equal(uiLang.value, "en");
   assert.equal(initUiLang(cacheWith({ language: "zh" }), "en-US"), "zh");
   assert.equal(uiLang.value, "zh");

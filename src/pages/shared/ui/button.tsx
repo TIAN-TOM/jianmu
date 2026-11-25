@@ -59,7 +59,7 @@ export function IconButton({ icon, label, onClick, disabled = false, pressed }: 
   );
 }
 
-export type BadgeTone = "neutral" | "warn" | "danger" | "ok" | "line";
+export type BadgeTone = "neutral" | "warn" | "line";
 
 export function Badge({ tone = "neutral", children }: { readonly tone?: BadgeTone; readonly children: ComponentChildren }) {
   return (

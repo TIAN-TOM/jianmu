@@ -228,7 +228,7 @@ test("会话写不进去：这次保存整次不动，设置、修订号、本�
 
 test("清除密钥时会话里那份删不掉：整次报错，设置不写，密钥也不会显示成已清除", async () => {
   const world = areas();
-  await storeOn(world).save({ ...DEEPSEEK, aiApiKey: "sk-ds", accentTheme: "ochre" }, NO_REVISION);
+  await storeOn(world).save({ ...DEEPSEEK, aiApiKey: "sk-ds", accentTheme: "redblack" }, NO_REVISION);
   const settingsBefore = structuredClone(savedSettings(world));
 
   await assert.rejects(storeOn(sessionFails(world, "remove")).update({ aiApiKey: "" }), /IO error/);
@@ -240,14 +240,26 @@ test("清除密钥时会话里那份删不掉：整次报错，设置不写，�
 
 test("会话清空以后（浏览器重启、扩展更新）其余设置还在，密钥要重填", async () => {
   const world = areas();
-  await storeOn(world).save({ ...DEEPSEEK, aiApiKey: "sk-ds", accentTheme: "ochre" }, NO_REVISION);
+  await storeOn(world).save({ ...DEEPSEEK, aiApiKey: "sk-ds", accentTheme: "redblack" }, NO_REVISION);
 
   const restarted = storeOn({ local: world.local, session: memoryStorage() });
   const loaded = await restarted.load();
   assert.equal(loaded.presetId, "deepseek");
-  assert.equal(loaded.accentTheme, "ochre");
+  assert.equal(loaded.accentTheme, "redblack");
   assert.equal(loaded.aiApiKey, "");
   assert.deepEqual(validate(loaded).errors, [KEY_ERROR], "数据说明的确认留着，只差密钥");
+});
+
+test("存储里留着早先版本的主题名：读出来是默认主题，改别的设置时写回去的也是默认主题，旧值不留", async () => {
+  for (const old of ["ink", "graphite", "ochre"]) {
+    const world = areas({ [SETTINGS_STORAGE_KEY]: { accentTheme: old, inPageCard: false } }, {});
+    assert.equal((await storeOn(world).load()).accentTheme, "marker", old);
+    await storeOn(world).update({ themeMode: "dark" });
+    const local = savedSettings(world);
+    assert.equal(local["accentTheme"], "marker", old);
+    assert.equal(local["inPageCard"], false, "别的设置照旧");
+    assert.ok(!JSON.stringify(local).includes(old), `存储里不再有 ${old}`);
+  }
 });
 
 test("改外观这类即改即存的设置，不会把旧密钥写回 storage.local", async () => {
@@ -255,10 +267,10 @@ test("改外观这类即改即存的设置，不会把旧密钥写回 storage.lo
     { [SETTINGS_STORAGE_KEY]: WITH_STRAY_KEY },
     { [API_KEY_SESSION_KEY]: { key: "sk-ds", origin: DEEPSEEK_ORIGIN } },
   );
-  await storeOn(world).update({ accentTheme: "graphite", themeMode: "dark", uiFontScale: 125, inPageCard: false, autoOverview: true, autoOverviewMinutes: 25 });
+  await storeOn(world).update({ accentTheme: "pinkblue", themeMode: "dark", uiFontScale: 125, inPageCard: false, autoOverview: true, autoOverviewMinutes: 25 });
 
   const local = savedSettings(world);
-  assert.equal(local["accentTheme"], "graphite");
+  assert.equal(local["accentTheme"], "pinkblue");
   assert.equal(local["themeMode"], "dark");
   assert.equal(local["uiFontScale"], 125);
   assert.equal(local["inPageCard"], false);
@@ -308,7 +320,7 @@ test("本机设置里多出来的密钥不认也不迁移：读到的是空的�
   assert.equal((await store.load()).aiApiKey, "");
   assert.deepEqual(world.session.data, {});
 
-  await store.update({ accentTheme: "ochre" });
+  await store.update({ accentTheme: "redblack" });
   assertNoKeyFields(savedSettings(world));
   assert.deepEqual(world.session.data, {});
 });
@@ -755,13 +767,13 @@ test("记住时改外观、开关卡片：不重写那份密钥，也不重新�
   };
   const store = storeOn(watched);
 
-  await store.update({ accentTheme: "ochre" });
+  await store.update({ accentTheme: "redblack" });
   await store.update({ inPageCard: false });
 
   assert.deepEqual(writes, [[SETTINGS_STORAGE_KEY], [SETTINGS_STORAGE_KEY]]);
   assert.deepEqual(world.accessLevels, []);
   assert.deepEqual(world.local.data[API_KEY_LOCAL_KEY], REMEMBERED_RECORD);
-  assert.equal((await storeOn(restarted(world)).load()).accentTheme, "ochre");
+  assert.equal((await storeOn(restarted(world)).load()).accentTheme, "redblack");
 });
 
 test("记住时换密钥：重写本机记录，重新申请访问限制，修订号换新", async () => {
@@ -841,7 +853,7 @@ test("没选记住时改外观、开关卡片、改数据说明的确认：都�
   const store = storeOn(world);
   await store.save({ ...DEEPSEEK, aiApiKey: "sk-ds" }, NO_REVISION);
 
-  await store.update({ accentTheme: "ochre" });
+  await store.update({ accentTheme: "redblack" });
   await store.update({ inPageCard: false });
   await store.setDataConsent(false);
 
@@ -1106,7 +1118,7 @@ test("设置修订号：换密钥、开关记住、改数据说明的确认时�
 
   const steps: readonly (readonly [string, () => Promise<WrittenSettings>, boolean])[] = [
     ["改模型", () => resave({ aiModel: "deepseek-v4-pro" }), false],
-    ["改外观", () => store.update({ accentTheme: "graphite" }), false],
+    ["改外观", () => store.update({ accentTheme: "pinkblue" }), false],
     ["换密钥", () => resave({ aiApiKey: "sk-ds-2" }), true],
     ["换来源", () => resave({ presetId: "anthropic", aiApiKeyOrigin: ANTHROPIC_ORIGIN }), true],
     ["打开记住", () => resave({ rememberApiKey: true }), true],
@@ -1304,7 +1316,7 @@ test("数据同意单独写入：勾上记下当前的版本和指纹，取消�
   const world = restrictable();
   const store = storeOn(world);
   await store.save(
-    { presetId: "deepseek", aiModel: "deepseek-v4-flash", aiApiKey: "sk-ds", accentTheme: "ochre" },
+    { presetId: "deepseek", aiModel: "deepseek-v4-flash", aiApiKey: "sk-ds", accentTheme: "redblack" },
     NO_REVISION,
   );
 
@@ -1317,7 +1329,7 @@ test("数据同意单独写入：勾上记下当前的版本和指纹，取消�
   assert.equal(withdrawn.dataConsentVersion, 0);
   assert.equal(withdrawn.dataConsentFingerprint, "");
   assert.equal(withdrawn.aiApiKey, "sk-ds");
-  assert.equal(withdrawn.accentTheme, "ochre");
+  assert.equal(withdrawn.accentTheme, "redblack");
   assert.equal(savedSettings(world)["dataConsentVersion"], 0);
 });
 
@@ -1384,14 +1396,14 @@ test("两个页面同时改不同的即改即存设置：两项都留下，不�
   const held = holdLocalRead(world.local, 1);
   const storage = { ...world, local: held.local };
 
-  const theme = storeOn(storage).update({ accentTheme: "ochre" });
+  const theme = storeOn(storage).update({ accentTheme: "redblack" });
   const card = storeOn(storage).update({ inPageCard: false });
   await held.reading;
   held.release();
   await Promise.all([theme, card]);
 
   const loaded = await storeOn(world).load();
-  assert.equal(loaded.accentTheme, "ochre");
+  assert.equal(loaded.accentTheme, "redblack");
   assert.equal(loaded.inPageCard, false);
 });
 
@@ -1401,7 +1413,7 @@ test("有 Web Locks 时保存和改设置都在同一把锁里做", async () => 
   const store = storeOn(world, locks);
 
   await store.save({ ...DEEPSEEK, aiApiKey: "sk-ds" }, NO_REVISION);
-  await store.update({ accentTheme: "ochre" });
+  await store.update({ accentTheme: "redblack" });
   await store.setDataConsent(true);
   await store.confirmActivation();
   await store.clearAll();
@@ -1552,7 +1564,7 @@ test("启用确认和数据同意分开记：确认启用不算同意，也不�
   const world = areas();
   const store = storeOn(world);
   await store.save(
-    { presetId: "deepseek", aiModel: "deepseek-v4-flash", aiApiKey: "sk-ds", accentTheme: "ochre" },
+    { presetId: "deepseek", aiModel: "deepseek-v4-flash", aiApiKey: "sk-ds", accentTheme: "redblack" },
     NO_REVISION,
   );
 
@@ -1561,7 +1573,7 @@ test("启用确认和数据同意分开记：确认启用不算同意，也不�
 
   assert.equal(confirmed.dataConsentVersion, 0);
   assert.equal(confirmed.aiApiKey, "sk-ds");
-  assert.equal(confirmed.accentTheme, "ochre");
+  assert.equal(confirmed.accentTheme, "redblack");
   assert.deepEqual(world.session.data[API_KEY_SESSION_KEY], { key: "sk-ds", origin: DEEPSEEK_ORIGIN });
   assertNoKeyFields(savedSettings(world));
 });
@@ -1636,7 +1648,7 @@ test("保存不带启用字段的表单不会抹掉确认", async () => {
   await store.confirmActivation();
 
   await store.save({ ...DEEPSEEK, aiApiKey: "sk-ds" }, NO_REVISION);
-  await store.update({ accentTheme: "ochre" });
+  await store.update({ accentTheme: "redblack" });
 
   assert.deepEqual(await store.activation(), { state: "current" });
 });
@@ -1666,7 +1678,7 @@ test("答了「不用」记成问过：修订号和密钥都不动，改外观�
   assert.equal(revisionOf(world), revision);
   assert.equal(answered.aiApiKey, "sk-ds");
   assert.equal(answered.rememberApiKey, false, "不改记住开关");
-  assert.equal((await storeOn(world).update({ accentTheme: "ochre" })).rememberKeyAsked, true);
+  assert.equal((await storeOn(world).update({ accentTheme: "redblack" })).rememberKeyAsked, true);
   const reopened = await storeOn(restarted(world)).load();
   assert.equal(reopened.aiApiKey, "", "密钥照旧随重启清空");
   assert.equal(reopened.rememberKeyAsked, true, "重启以后不再问");
@@ -1681,7 +1693,7 @@ test("删空密钥再保存：和清除密钥一样回到没问过；重启以�
   await storeOn(world).save({ ...DEEPSEEK, aiApiKey: "sk-ds" }, NO_REVISION);
   await storeOn(world).update({ rememberKeyAsked: true });
   const afterRestart = restarted(world);
-  assert.equal((await storeOn(afterRestart).update({ accentTheme: "ochre" })).rememberKeyAsked, true, "重启以后改外观不复位");
+  assert.equal((await storeOn(afterRestart).update({ accentTheme: "redblack" })).rememberKeyAsked, true, "重启以后改外观不复位");
   const emptied = await storeOn(world).save({ ...DEEPSEEK, aiApiKey: "" }, revisionOf(world));
   assert.equal(emptied.aiApiKey, "");
   assert.equal(emptied.rememberKeyAsked, false);

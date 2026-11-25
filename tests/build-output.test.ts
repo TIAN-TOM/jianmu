@@ -142,13 +142,13 @@ test("四个扩展页面都在 <head> 里、样式表之前同步加载主题启
   // 打出来的是经典脚本：在一个假的页面里求值，按缓存同步写好 <html>
   const dataset: Record<string, string> = {};
   const style: Record<string, string> = {};
-  const cache = JSON.stringify({ accentTheme: "ochre", themeMode: "dark", uiFontScale: 112 });
+  const cache = JSON.stringify({ accentTheme: "redblack", themeMode: "dark", uiFontScale: 112 });
   vm.runInNewContext(readBuild("pages/theme-boot.js"), {
     document: { documentElement: { dataset, style: { setProperty: (name: string, value: string) => (style[name] = value) } } },
     localStorage: { getItem: (key: string) => (key === "jianmu_appearance" ? cache : null) },
     matchMedia: () => ({ matches: false }),
   });
-  assert.deepEqual({ dataset, style }, { dataset: { accentTheme: "ochre", themeMode: "dark" }, style: { "--ui-font-zoom": "1.12" } });
+  assert.deepEqual({ dataset, style }, { dataset: { accentTheme: "redblack", themeMode: "dark" }, style: { "--ui-font-zoom": "1.12" } });
 });
 
 test("扩展页面紧跟着主题样式表加载共用组件的样式表，组件样式都进包", () => {

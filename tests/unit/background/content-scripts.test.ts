@@ -88,6 +88,6 @@ test("从没确认、原本就过期、确认没变的设置变化都不算启�
   assert.equal(dropped(CONFIRMED, undefined), true);
   assert.equal(dropped({}, {}), false);
   assert.equal(dropped(STALE_CONFIRMATION, {}), false);
-  assert.equal(dropped(CONFIRMED, { ...CONFIRMED, accentTheme: "ochre" }), false);
+  assert.equal(dropped(CONFIRMED, { ...CONFIRMED, accentTheme: "redblack" }), false);
   assert.equal(dropped(CONFIRMED, {}, "session"), false);
 });

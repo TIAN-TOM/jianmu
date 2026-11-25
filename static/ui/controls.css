@@ -188,16 +188,6 @@
   color: var(--warn);
 }
 
-.badge[data-tone="danger"] {
-  background: var(--danger-soft);
-  color: var(--danger);
-}
-
-.badge[data-tone="ok"] {
-  background: var(--ok-soft);
-  color: var(--ok);
-}
-
 .badge[data-tone="line"] {
   background: transparent;
   box-shadow: inset 0 0 0 1px var(--border-strong);
@@ -383,7 +373,6 @@
 }
 
 .activation-title {
-  font-family: var(--font-serif);
   font-size: var(--fs-heading);
   font-weight: var(--fw-semibold);
   line-height: var(--lh-tight);

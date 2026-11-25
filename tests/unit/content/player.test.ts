@@ -93,6 +93,9 @@ test("标签页在后台时播放器先换上了新视频，回到前台才发�
   assert.equal(player.handle({ type: "player.getState", req: { video: videoKey(SECOND) } })?.ok, true);
 });
 
-test("笔记图标抄的主题色和设置里的主题表一致", () => {
-  assert.deepEqual(ACCENT_SWATCHES, Object.fromEntries(Object.entries(ACCENT_THEMES).map(([name, theme]) => [name, theme.swatch])));
+test("笔记图标抄的主题色和字色和设置里的主题表一致", () => {
+  assert.deepEqual(
+    ACCENT_SWATCHES,
+    Object.fromEntries(Object.entries(ACCENT_THEMES).map(([name, theme]) => [name, { fill: theme.swatch, ink: theme.onSwatch }])),
+  );
 });

@@ -107,7 +107,7 @@ test("启用确认不经路由、直接写进存储变得算数：存储变化�
   await app.onStorageChanged({ [SETTINGS_STORAGE_KEY]: { oldValue: undefined, newValue: CONFIRMED } }, "local");
   assert.deepEqual([...fake.registered.keys()].sort(), [SCRIPT_ID, BRIDGE_ID]);
   const before = fake.calls.registrations.length;
-  await app.onStorageChanged({ [SETTINGS_STORAGE_KEY]: { oldValue: CONFIRMED, newValue: { ...CONFIRMED, accentTheme: "ochre" } } }, "local");
+  await app.onStorageChanged({ [SETTINGS_STORAGE_KEY]: { oldValue: CONFIRMED, newValue: { ...CONFIRMED, accentTheme: "redblack" } } }, "local");
   assert.equal(fake.calls.registrations.length, before);
 });
 
