@@ -12,6 +12,7 @@ import type { OfficialSummaryView, OutlineSectionView } from "../../shared/messa
 import { keyChapterStarts, verdictName } from "../../core/ai/verdict.ts";
 import { ChapterList, type ChapterItem } from "../shared/ui/chapter-list.tsx";
 import { Collapse } from "../shared/ui/collapse.tsx";
+import { CommentLine, commentViewOfVerdict } from "../shared/ui/comment-block.tsx";
 import { Icon, VerdictMark } from "../shared/ui/icon.tsx";
 import { ServiceSaid } from "../shared/ui/notice.tsx";
 import { StaleTranscriptLine, VerdictBlock } from "../shared/ui/verdict-block.tsx";
@@ -20,6 +21,10 @@ import { uiLang } from "../shared/ui-lang.ts";
 import { cardRows, chaptersInOrder, hasOverview, type CardView, type TaskProgress } from "./model.ts";
 import { conclusionOf } from "./glance.ts";
 import { cardText } from "./text.ts";
+
+// 评论区那一行（PRD F23）：关掉开关的构建里连同组件和文案一起裁掉。
+const CardComments = FEATURE_COMMENTS ? CommentLine : null;
+const commentsOf = FEATURE_COMMENTS ? commentViewOfVerdict : null;
 
 type ClickEvent = { readonly isTrusted: boolean };
 
@@ -142,6 +147,7 @@ function Overview({
 }) {
   const verdict = analysis.verdict;
   const summary = text(verdict?.summary);
+  const comments = commentsOf?.(verdict) ?? null;
   // 卡片上等过它（先是「正在写结论」）：写好了进来时淡一下，标记有「有结果了」那一下。
   const waited = useRef(false);
   if (pending) waited.current = true;
@@ -162,6 +168,7 @@ function Overview({
       ) : summary ? (
         <VerdictBlock label={text(verdict?.verdict)} text={summary} basis={basisOf(analysis)} staleTranscript={stale.verdict} incomplete={verdict?.incomplete === true} fresh={waited.current} />
       ) : null}
+      {CardComments && comments && summary && !pending ? <CardComments view={comments} /> : null}
       {stale.chapters && shown.length ? <StaleTranscriptLine /> : null}
       {shown.length ? <ChapterList chapters={shown} keyStarts={keyChapterStarts(analysis)} heading={false} onSeek={onSeek} /> : null}
     </section>

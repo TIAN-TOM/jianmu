@@ -86,7 +86,11 @@ function resultOf(kind, prompt) {
   if (kind === "verdict") {
     // 重点章节标第一章：照提示词的要求抄它开头的时间点。标题译名一律给空串，侧边栏顶上照旧是原标题，测试按原标题认视频；显示译名的样子在页面测试里核对。
     const first = /^\[(\d+:\d{2})\]/m.exec(prompt)?.[1];
-    return { summary: "模拟服务写的一句话结论", value: "样例价值", verdict: videoOf(prompt) === SKIPPED_VIDEO ? "可跳过" : "可以看", reason: "样例理由", keyChapters: first ? [first] : [], translatedTitle: "" };
+    const base = { summary: "模拟服务写的一句话结论", value: "样例价值", verdict: videoOf(prompt) === SKIPPED_VIDEO ? "可跳过" : "可以看", reason: "样例理由", keyChapters: first ? [first] : [], translatedTitle: "" };
+    // 带了评论区（日用、测试构建读到了评论）：照提示词的格式写评论区那一块，要点挂前两条评论，第一章标「精彩」。
+    if (!prompt.includes("评论区（按热度排的第一批）")) return base;
+    const comments = { tag: "有人指出错误", line: "模拟服务写的评论区一句话", points: [{ text: "样例要点：后半段讲得清楚", refs: [2] }, { text: "有评论指出样例数字写错了", refs: [3] }], marks: first ? [{ at: first, kind: "精彩" }] : [] };
+    return { ...base, comments };
   }
   if (kind === "qa") {
     const row = /^\[(\d+:\d{2})\] (.+)$/m.exec(prompt);

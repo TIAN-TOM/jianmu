@@ -13,6 +13,7 @@ import type { CueView } from "../../shared/messages/transcript.ts";
 import { useMemo, useRef, useState } from "preact/hooks";
 import { Button } from "../shared/ui/button.tsx";
 import { ChapterList } from "../shared/ui/chapter-list.tsx";
+import { CommentBlock, commentNotes, commentViewOfVerdict } from "../shared/ui/comment-block.tsx";
 import { ServiceSaid } from "../shared/ui/notice.tsx";
 import { StaleTranscriptLine, VerdictBlock } from "../shared/ui/verdict-block.tsx";
 import { staleOverviewMarks, type BasisSource } from "../shared/ui/verdict.ts";
@@ -83,6 +84,11 @@ function ChapterTranscript({ panel, segments, breaks }: { readonly panel: Panel;
   );
 }
 
+// 评论区那一块（PRD F23）：关掉开关的构建里连同组件和文案一起裁掉。
+const Comments = FEATURE_COMMENTS ? CommentBlock : null;
+const notesOf = FEATURE_COMMENTS ? commentNotes : null;
+const commentsOf = FEATURE_COMMENTS ? commentViewOfVerdict : null;
+
 function Chapters({
   panel,
   analysis,
@@ -102,11 +108,14 @@ function Chapters({
   const quotes = (analysis.keyQuotes ?? []).filter((quote) => text(quote.quote));
   const { grouped, orphans: loose } = groupQuotesIntoChapters(chapters, quotes);
   const groups = grouped.map((group) => group.quotes);
+  const comments = commentsOf?.(analysis.verdict) ?? null;
+  const notes = notesOf && comments ? notesOf(comments, chapters.map((chapter) => chapter.timestampSeconds)) : undefined;
   return (
     <>
       {chapters.length > 0 ? (
         <ChapterList
           keyStarts={keyChapterStarts(analysis)}
+          notes={notes}
           totalSec={totalSec}
           chapters={chapters.map((chapter) => ({ startSec: chapter.timestampSeconds, title: text(chapter.title) || formatTimestamp(chapter.timestampSeconds) }))}
           expanded={expanded}
@@ -125,6 +134,7 @@ function Chapters({
           )}
         />
       ) : null}
+      {Comments && comments ? <Comments view={comments} /> : null}
       {loose.length > 0 ? (
         <section class="guide" aria-label={panelText().skim.quotes}>
           <h2 class="section-title">{panelText().skim.quotes}</h2>
