@@ -4,7 +4,7 @@ import type { CardText } from "./text-zh.ts";
 
 export const CARD_EN: CardText = {
   title: "Jianmu summary card",
-  name: (label) => `Jianmu · ${label || "Summary"}`,
+  name: "Jianmu",
   expand: "Expand summary card",
   collapse: "Collapse summary card",
   headPanel: "Side panel",

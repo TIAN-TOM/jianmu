@@ -148,6 +148,7 @@ const OWN_PAIRS: Readonly<Record<string, readonly (readonly [string, string, num
   marker: [
     ["--on-highlight", "--highlight", 4.5], // 荧光笔划过的字
     ["--on-highlight", "--panel-bg", 4.5], // 只划下半截，字的上半截落在底色上
+    ["--accent", "--card", 3], // 播放页卡片底部主按钮的钢笔蓝细边框
   ],
   band: [
     ...["go", "fair", "skip", "unknown"].flatMap((band) => [
@@ -171,6 +172,8 @@ const OWN_PAIRS: Readonly<Record<string, readonly (readonly [string, string, num
     ["--panel-bg", "--text", 4.5], // 当前句反显的时间码、选中的模式
     ["--mark", "--panel-bg", 3], // 判断前的红色记号、播放进度
     ["--mark", "--bg-subtle", 3], // 播放进度挨着它的轨道
+    ["--text", "--chip", 4.5], // 播放页卡片底部灰底胶囊上的「展开全部」
+    ["--text", "--bg-active", 4.5], // 同一个胶囊悬停时
   ],
 };
 

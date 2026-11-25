@@ -89,10 +89,12 @@ export function createWatchSteps({ cdp, until, evaluate, findSession, url }) {
   /**
    * 卡片换了内容会变高，框架跟着卡片报的高度变，卡片的视口和画出来的那一块要晚一两帧才跟上：没跟上的那一截按下去落在页面上。
    * 等卡片里没有在跑的过渡、视口和框架一样大、按钮整个露在视口里且中心点到的就是它，连着两次量到的一样，再点。
+   * 测试窗口比右栏窄时卡片右半截在页面视口外面，先把框架滚进视口，点的位置也要落在页面视口里。
    */
   async function clickInCard(card, selector) {
     let previous = "";
     const { frame, spot } = await until(`卡片里的 ${selector} 停住了`, async () => {
+      await evaluate(page, `(document.getElementById(${JSON.stringify(INJECTED.cardFrame)})?.scrollIntoView({ block: "nearest", inline: "nearest" }), true)`);
       const frame = await rectOf(page, `#${INJECTED.cardFrame}`);
       const spot = await evaluate(
         card,
@@ -102,7 +104,9 @@ export function createWatchSteps({ cdp, until, evaluate, findSession, url }) {
       const steady = now === previous;
       previous = now;
       if (!frame || !spot || spot.moving || !spot.hit || !steady) return null;
-      const fits = Math.abs(spot.viewWidth - frame.width) < 1 && Math.abs(spot.viewHeight - frame.height) < 1 && spot.top >= 0 && spot.bottom <= spot.viewHeight;
+      const view = await evaluate(page, "({ width: innerWidth, height: innerHeight })");
+      const inPage = frame.x + spot.x < view.width && frame.y + spot.y < view.height;
+      const fits = inPage && Math.abs(spot.viewWidth - frame.width) < 1 && Math.abs(spot.viewHeight - frame.height) < 1 && spot.top >= 0 && spot.bottom <= spot.viewHeight;
       return fits ? { frame, spot } : null;
     });
     await click(frame.x + spot.x, frame.y + spot.y);

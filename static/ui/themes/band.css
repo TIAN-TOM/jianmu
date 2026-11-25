@@ -5,32 +5,32 @@
   --hit: 2rem;
 }
 
-/* 每一档的色带：底、判断词和记号、结论句。认不出的档位和旧档位用凹下去那一层灰。 */
-:root[data-accent-theme="band"] :is(.verdict, .chapter-bar) {
+/* 每一档的色带：底、判断词和记号、结论句。认不出的档位和旧档位用凹下去那一层灰。播放页卡片的头部和收起的一行也铺这条色带。 */
+:root[data-accent-theme="band"] :is(.verdict, .chapter-bar, .card) {
   --band-bg: var(--bg-subtle);
   --band-ink: var(--text);
   --band-say: var(--text);
 }
 
-:root[data-accent-theme="band"] :is(.verdict, .chapter-bar)[data-shape="go"] {
+:root[data-accent-theme="band"] :is(.verdict, .chapter-bar, .card)[data-shape="go"] {
   --band-bg: var(--band-go);
   --band-ink: var(--band-go-ink);
   --band-say: var(--band-go-say);
 }
 
-:root[data-accent-theme="band"] :is(.verdict, .chapter-bar)[data-shape="fair"] {
+:root[data-accent-theme="band"] :is(.verdict, .chapter-bar, .card)[data-shape="fair"] {
   --band-bg: var(--band-fair);
   --band-ink: var(--band-fair-ink);
   --band-say: var(--band-fair-say);
 }
 
-:root[data-accent-theme="band"] :is(.verdict, .chapter-bar)[data-shape="skip"] {
+:root[data-accent-theme="band"] :is(.verdict, .chapter-bar, .card)[data-shape="skip"] {
   --band-bg: var(--band-skip);
   --band-ink: var(--band-skip-ink);
   --band-say: var(--band-skip-say);
 }
 
-:root[data-accent-theme="band"] :is(.verdict, .chapter-bar)[data-shape="unknown"] {
+:root[data-accent-theme="band"] :is(.verdict, .chapter-bar, .card)[data-shape="unknown"] {
   --band-bg: repeating-linear-gradient(135deg, var(--band-unknown) 0 6px, var(--band-unknown-alt) 6px 12px);
   --band-ink: var(--band-unknown-ink);
   --band-say: var(--band-unknown-say);
@@ -68,7 +68,7 @@
 }
 
 :root[data-accent-theme="band"] .card .verdict {
-  --bleed: var(--space-3);
+  --bleed: var(--card-pad);
   border-radius: 0;
 }
 
@@ -225,8 +225,10 @@
 }
 
 :root[data-accent-theme="band"] .chapter-bar-verdict {
+  /* 判断词不截断：窄的时候章节名先让出去，还放不下就按词换行。 */
   display: inline-flex;
-  flex: none;
+  flex: 0 1 auto;
+  min-width: min-content;
   align-items: center;
   gap: var(--space-2);
   font-weight: 800;

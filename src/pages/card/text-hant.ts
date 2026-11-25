@@ -4,7 +4,7 @@ import type { CardText } from "./text-zh.ts";
 
 export const CARD_HANT: CardText = {
   title: "簡幕總結卡片",
-  name: (label) => `簡幕 · ${label || "總結"}`,
+  name: "簡幕",
   expand: "展開總結卡片",
   collapse: "收合總結卡片",
   headPanel: "側邊欄",

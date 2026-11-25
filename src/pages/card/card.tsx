@@ -1,6 +1,7 @@
-// 卡片的界面：标题栏（展开收起）、提示、AI 概览（结论在最前，章节默认只露前几章）、B 站官方总结（有概览时收成一行）、进度和按钮。
-// 收起时标题栏那一行写着判断档和播放到的章节（或者临时的一句话），旁边是打开侧边栏的入口；侧边栏开着时不摆这个入口。
-// 按钮行在内容还在来时先不摆（规则在 model.ts），摆出来以后不被晚到的内容顶走。
+// 卡片的界面：标题栏（展开收起）、提示、AI 概览（结论在最前，章节默认只露前几章）、B 站官方总结（有概览时收成一行）、进度和底部一行。
+// 标题栏展开时写名字，收起时写判断记号、判断档和播放到的章节（不知道播到哪时写一句话结论，或者临时的一句话），旁边是打开侧边栏的入口；侧边栏开着时不摆这个入口。
+// 底部一行左边是章节的「展开全部」，右边是按钮。按钮在内容还在来时先不摆（规则在 model.ts），摆出来以后不被晚到的内容顶走。
+// 各套主题的版面差异都在样式表里，标记不分主题。
 // 规则在 model.ts。视频标题不在卡片里再写一遍：页面顶上就是。
 // 展开收起有过渡：标题栏下面那一整块的高度从零长到内容那么高，卡片把每一帧的高度报给页面，外面的框架跟着走。
 import type { ComponentChildren, RefObject } from "preact";
@@ -11,9 +12,10 @@ import type { OfficialSummaryView, OutlineSectionView } from "../../shared/messa
 import { keyChapterStarts, verdictName } from "../../core/ai/verdict.ts";
 import { ChapterList, type ChapterItem } from "../shared/ui/chapter-list.tsx";
 import { Collapse } from "../shared/ui/collapse.tsx";
+import { Icon, VerdictMark } from "../shared/ui/icon.tsx";
 import { ServiceSaid } from "../shared/ui/notice.tsx";
 import { StaleTranscriptLine, VerdictBlock } from "../shared/ui/verdict-block.tsx";
-import { staleOverviewMarks, type BasisSource } from "../shared/ui/verdict.ts";
+import { markOf, staleOverviewMarks, type BasisSource } from "../shared/ui/verdict.ts";
 import { uiLang } from "../shared/ui-lang.ts";
 import { cardRows, chaptersInOrder, hasOverview, type CardView, type TaskProgress } from "./model.ts";
 import { cardText } from "./text.ts";
@@ -63,9 +65,9 @@ function OutlineItem({ part, index, onSeek }: { readonly part: OutlineSectionVie
   );
 }
 
-function More({ open, label, onToggle }: { readonly open: boolean; readonly label: string; readonly onToggle: () => void }) {
+function More({ open, label, onToggle, id }: { readonly open: boolean; readonly label: string; readonly onToggle: () => void; readonly id?: string }) {
   return (
-    <button type="button" class="card-more" aria-expanded={open} onClick={onToggle}>
+    <button type="button" class="card-more" id={id} aria-expanded={open} onClick={onToggle}>
       {open ? cardText().less : label}
     </button>
   );
@@ -129,7 +131,6 @@ function Overview({
   pending,
   showAll,
   onSeek,
-  onToggleAll,
 }: {
   readonly analysis: LearningAnalysis;
   /** 换过字幕：结论块里标结论的，章节的单独一行。 */
@@ -137,7 +138,6 @@ function Overview({
   readonly pending: boolean | string;
   readonly showAll: boolean;
   readonly onSeek: (atSec: number) => void;
-  readonly onToggleAll: () => void;
 }) {
   const verdict = analysis.verdict;
   const summary = text(verdict?.summary);
@@ -151,7 +151,6 @@ function Overview({
     return { startSec: chapter.timestampSeconds, title: text(chapter.title), ...(next === undefined ? {} : { endSec: next }) };
   });
   const shown = cardRows(chapters, showAll);
-  const cut = cardRows(chapters, false).length < chapters.length;
   const t = cardText();
   return (
     <section class="card-block" id="card-overview" aria-label={t.overview}>
@@ -164,7 +163,6 @@ function Overview({
       ) : null}
       {stale.chapters && shown.length ? <StaleTranscriptLine /> : null}
       {shown.length ? <ChapterList chapters={shown} keyStarts={keyChapterStarts(analysis)} heading={false} onSeek={onSeek} /> : null}
-      {cut ? <More open={showAll} label={t.showAllChapters(chapters.length)} onToggle={onToggleAll} /> : null}
     </section>
   );
 }
@@ -177,15 +175,32 @@ function progressText(task: TaskProgress): string {
   return text || t.preparing;
 }
 
-/** 收起的那一行：有结论时写判断档；后面是临时的一句话，没有的话写播放到的章节，和侧边栏精读顶上那一条同一个写法。 */
+/**
+ * 标题栏上的判断档和后面那句话。判断档有结论时就有（展开时只给读屏和看不看那套的色带用）；那句话只在收起时有：
+ * 临时的一句话，没有的话写播放到的章节（和侧边栏精读顶上那一条同一个写法），不知道播到哪时写一句话结论。
+ */
 export function glanceOf(view: CardView): { readonly label: string; readonly text: string } {
-  if (!view.collapsed) return { label: "", text: "" };
   const verdict = view.verdictPending ? undefined : view.analysis?.verdict;
-  const label = text(verdict?.summary) ? text(verdict?.verdict) : "";
+  const summary = text(verdict?.summary);
+  const label = summary ? text(verdict?.verdict) : "";
+  if (!view.collapsed) return { label, text: "" };
   if (view.headNote) return { label, text: view.headNote };
   const chapters = chaptersInOrder(view.analysis);
   const now = view.chapterNow === null ? undefined : chapters[view.chapterNow];
-  return { label, text: now && view.chapterNow !== null ? `${view.chapterNow + 1}/${chapters.length} ${now.title || formatTimestamp(now.startSec)}` : "" };
+  if (now && view.chapterNow !== null) return { label, text: `${view.chapterNow + 1}/${chapters.length} ${now.title || formatTimestamp(now.startSec)}` };
+  return { label, text: label ? summary : "" };
+}
+
+/** 头部名字前的小记号：只有时间码那套显示，别的主题由样式表藏起来。 */
+function BrandMark() {
+  return (
+    <svg class="card-brand-mark" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+      <rect x="1" y="4" width="6" height="3" rx="1" fill="currentColor" />
+      <rect x="8" y="4" width="7" height="3" rx="1" fill="currentColor" opacity="0.45" />
+      <rect x="1" y="9" width="10" height="3" rx="1" fill="currentColor" opacity="0.45" />
+      <rect class="card-brand-head" x="5" y="1" width="1.6" height="14" />
+    </svg>
+  );
 }
 
 export interface CardActions {
@@ -238,23 +253,41 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
   const task = view.task;
   const percent = task && task.total > 0 ? Math.round((task.done / task.total) * 100) : 0;
   const glance = glanceOf(view);
+  const shape = markOf(glance.label);
+  const verdictLabel = glance.label ? verdictName(glance.label, uiLang.value) : "";
+  // 章节默认只露前几章：放不下的，底部一行左边摆「展开全部」。
+  const chapterCount = analysis?.chapters?.length ?? 0;
+  const chaptersCut = chapterCount > 0 && cardRows(analysis?.chapters ?? [], false).length < chapterCount;
   const showGenerate = canGenerate && !needsSetup;
   const showSettings = needsSetup || (canGenerate && view.settingsError);
   const showRetry = (view.phase === "failed" || view.needLogin || retryRead) && !task;
-  // 侧边栏已经开着：不摆打开它的按钮。别的按钮也都没有时，这一行整个不摆。
+  // 侧边栏已经开着：不摆打开它的按钮。别的按钮也都没有、章节也不用「展开全部」时，底部一行整个不摆。
   const showActions = !view.holdActions && (showGenerate || showSettings || showRetry || !view.panelOpen);
+  // 「打开侧边栏」是底部一行的主按钮，同一行已经有别的主按钮时退成普通按钮。
+  const panelPrimary = !showGenerate && !needsSetup;
   return (
-    <div class="card" id="card" data-collapsed={view.collapsed ? "true" : "false"}>
+    <div class="card" id="card" data-collapsed={view.collapsed ? "true" : "false"} data-shape={shape ?? undefined}>
       <div class="card-head-row">
         <button type="button" class="card-head" id="card-toggle" aria-expanded={!view.collapsed} aria-controls="card-body" title={view.collapsed ? t.expand : t.collapse} onClick={actions.toggle}>
-          <span class="card-dot" aria-hidden="true" />
-          <span class="card-name">{t.name(verdictName(glance.label, uiLang.value))}</span>
+          {/* 名字和判断档两样都在读屏的名称里；看不见的那样由样式表只藏起样子。 */}
+          <span class="card-brand">
+            <BrandMark />
+            <span class="card-name">{t.name}</span>
+          </span>
+          {verdictLabel ? (
+            <span class="card-verdict">
+              {shape ? <VerdictMark shape={shape} /> : null}
+              <span class="card-verdict-name">{verdictLabel}</span>
+            </span>
+          ) : null}
           {glance.text ? (
             <span class="card-glance" id="card-glance" role={view.headNote ? "status" : undefined}>
               {glance.text}
             </span>
           ) : null}
-          <span class="card-chevron" aria-hidden="true" />
+          <span class="card-collapse" aria-hidden="true">
+            <Icon name="chevron" />
+          </span>
         </button>
         {view.collapsed && !view.panelOpen ? (
           <button type="button" class="card-head-panel" id="card-head-panel" title={t.openPanel} onClick={actions.openPanel}>
@@ -274,9 +307,9 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
             <Overview
               analysis={analysis}
               stale={staleOverviewMarks(view.transcriptBasis ?? undefined, view.transcriptFingerprint, !view.verdictPending && text(analysis.verdict?.summary) !== "")}
-              pending={view.verdictPending}               showAll={view.showAll}
+              pending={view.verdictPending}
+              showAll={view.showAll}
               onSeek={actions.seek}
-              onToggleAll={actions.toggleShowAll}
             />
           ) : null}
           {official && analysis ? (
@@ -315,25 +348,26 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
             </button>
           </div>
         ) : null}
-        {showActions ? (
+        {showActions || chaptersCut ? (
           <div class="card-actions">
-            {showGenerate ? (
+            {chaptersCut ? <More id="card-more" open={view.showAll} label={t.showAllChapters(chapterCount)} onToggle={actions.toggleShowAll} /> : null}
+            {showActions && showGenerate ? (
               <button type="button" class="button" data-variant="primary" id="card-generate" onClick={actions.generate}>
                 {t.generate}
               </button>
             ) : null}
-            {showSettings ? (
+            {showActions && showSettings ? (
               <button type="button" class="button" data-variant={needsSetup ? "primary" : "secondary"} id="card-settings" onClick={actions.openSettings}>
                 {t.openSettings}
               </button>
             ) : null}
-            {showRetry ? (
+            {showActions && showRetry ? (
               <button type="button" class="button" id="card-retry" onClick={actions.retry}>
                 {t.retry}
               </button>
             ) : null}
-            {view.panelOpen ? null : (
-              <button type="button" class="button" id="card-panel" onClick={actions.openPanel}>
+            {!showActions || view.panelOpen ? null : (
+              <button type="button" class="button" data-variant={panelPrimary ? "primary" : undefined} id="card-panel" onClick={actions.openPanel}>
                 {t.openPanel}
               </button>
             )}

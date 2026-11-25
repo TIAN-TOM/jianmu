@@ -4,7 +4,8 @@
 // YouTube 上没有官方总结那一块，本机还没有字幕时不摆「生成概览」，请用户先在侧边栏读。
 // 换过字幕时，依据旧字幕的结论标出来。
 // 官方总结晚到时，「生成概览」等它有了结果才摆，摆出来以后不被顶走；一直没结果时等够了照样摆。
-// 收起的一行写着判断档和播放到的章节，放不下就截断、不撑高，旁边是打开侧边栏的入口；侧边栏开着时不摆打开侧边栏的入口和按钮。
+// 收起的一行写着判断档和播放到的章节（不知道播到哪时写一句话结论），放不下就截断、不撑高，旁边是打开侧边栏的入口；侧边栏开着时不摆打开侧边栏的入口和按钮。
+// 五套主题各自的版面下：头部只写「简幕」，底部的「展开全部」和主按钮在同一行两端，收起的一行有判断词和一句话结论。
 // 展开收起有过渡：收起时内容留到过渡走完才拿掉，没有过渡时马上拿掉。
 // 语言选 English 以后卡片自己的字、报错和没设置好时的说明是英文，切回中文马上恢复；选繁体时同几处是繁体，判断档写繁体名。
 import assert from "node:assert/strict";
@@ -17,12 +18,15 @@ import { PAGE_PATHS, SETTINGS_STORAGE_KEY } from "../../src/shared/names.ts";
 import { UI_FONT_SCALES } from "../../src/shared/settings-schema.ts";
 import { VERDICT_HANT } from "../../src/core/ai/verdict-hant.ts";
 import { charsIn, SIMPLIFIED_ONLY } from "../../tests/helpers/hant-chars.ts";
+import { ACCENT_THEMES } from "../../src/shared/settings-schema.ts";
 import { scenario } from "./harness.mjs";
 
 const test = scenario(import.meta.url);
 const SAMPLE = "pages/card-sample.html";
 // 右栏里卡片的宽度：和播放页右栏差不多，窄一点更容易撑高。
 const FRAME_WIDTH = 320;
+// 卡片实际会有的最窄宽度：播放页右栏收到最窄时。
+const NARROWEST = 300;
 
 test("卡片：全部展开、框架高度到顶、最大字号、内容很长时，正文区滚动，进度行、「停止」和「打开侧边栏」都露在框架里", async ({ open }) => {
   const page = await open(`${SAMPLE}#full`);
@@ -62,8 +66,8 @@ test("卡片：刚打开只露结论和前几章，结论在官方总结前面�
         text: document.getElementById("card").innerText,
         height: document.getElementById("card").getBoundingClientRect().height,
         chapters: document.querySelectorAll("#card-overview .chapter").length,
-        more: document.querySelector("#card-overview .card-more")?.textContent ?? null,
-        moreExpanded: document.querySelector("#card-overview .card-more")?.getAttribute("aria-expanded") ?? null,
+        more: document.getElementById("card-more")?.textContent ?? null,
+        moreExpanded: document.getElementById("card-more")?.getAttribute("aria-expanded") ?? null,
         verdictTop: top("#card-overview .verdict"),
         officialTop: top("#card-official"),
         foldExpanded: fold?.getAttribute("aria-expanded") ?? null,
@@ -81,7 +85,7 @@ test("卡片：刚打开只露结论和前几章，结论在官方总结前面�
   assert.ok(!first.text.includes("样例长视频"), "卡片里不再写视频标题");
   assert.ok(first.text.includes("B 站官方总结"));
 
-  await page.click("#card-overview .card-more");
+  await page.click("#card-more");
   await page.waitFor("章节全露出来", `document.querySelectorAll("#card-overview .chapter").length === 16`);
   const all = await read();
   assert.equal(all.more, "收起");
@@ -94,7 +98,7 @@ test("卡片：刚打开只露结论和前几章，结论在官方总结前面�
   await page.waitFor("官方总结点开", `document.querySelectorAll("#card-official .outline-item").length === 12`);
   assert.equal((await read()).foldExpanded, "true");
 
-  await page.click("#card-overview .card-more");
+  await page.click("#card-more");
   await page.waitFor("章节收回前几章", `document.querySelectorAll("#card-overview .chapter").length === ${CARD_ROWS}`);
 });
 
@@ -179,7 +183,7 @@ test("卡片：展开收起有过渡，收起时内容留到过渡走完才拿�
   assert.deepEqual(instant, { body: false, height: CARD_HEIGHT.initial });
 });
 
-test("卡片：收起的一行写判断档和播放到的章节，放不下就截断、不撑高；旁边是打开侧边栏的入口，侧边栏开着时没有", async ({ open }) => {
+test("卡片：收起的一行写判断档和播放到的章节，不知道播到哪时写一句话结论，放不下就截断、不撑高；旁边是打开侧边栏的入口，侧边栏开着时没有", async ({ open }) => {
   const read = async (hash) => {
     const page = await open(`${SAMPLE}${hash}`);
     await page.setWidth(FRAME_WIDTH, CARD_HEIGHT.max);
@@ -189,13 +193,14 @@ test("卡片：收起的一行写判断档和播放到的章节，放不下就�
       return {
         height: Math.ceil(document.getElementById("card").getBoundingClientRect().height),
         name: document.querySelector(".card-name")?.textContent ?? "",
+        verdict: document.querySelector(".card-verdict-name")?.textContent ?? null,
         glance: glance?.textContent ?? null,
         cut: glance ? glance.scrollWidth > glance.clientWidth : false,
         card: box("#card"),
-        chevron: box("#card-toggle .card-chevron"),
+        chevron: box("#card-toggle .card-collapse"),
         panel: box("#card-head-panel"),
         panelText: document.getElementById("card-head-panel")?.textContent ?? null,
-        actions: Boolean(document.querySelector(".card-actions")),
+        buttons: document.querySelectorAll(".card-actions .button").length,
         openPanel: Boolean(document.getElementById("card-panel")),
       };
     })()`);
@@ -203,15 +208,21 @@ test("卡片：收起的一行写判断档和播放到的章节，放不下就�
 
   // 还没读过：只有名字，入口照样在。
   const plain = await read("#collapsed");
-  assert.deepEqual([plain.name, plain.glance, plain.panelText, plain.height], ["简幕 · 总结", null, "侧边栏", CARD_HEIGHT.initial]);
+  assert.deepEqual([plain.name, plain.verdict, plain.glance, plain.panelText, plain.height], ["简幕", null, null, "侧边栏", CARD_HEIGHT.initial]);
 
   // 读过、知道播到哪：判断档加「第几章 章节名」，章节名很长，截断成一行，卡片不变高；箭头和入口都在卡片里、不叠在一起。
   const glance = await read("#collapsed-glance");
-  assert.equal(glance.name, "简幕 · 可以看");
+  assert.equal(glance.verdict, "可以看");
   assert.match(glance.glance, /^11\/16 样例章节 11：/);
   assert.equal(glance.cut, true, "放不下的章节名截断");
   assert.equal(glance.height, CARD_HEIGHT.initial);
   assert.ok(glance.chevron.right <= glance.panel.left && glance.panel.right <= glance.card.right, JSON.stringify(glance));
+
+  // 读过、不知道播到哪：判断档后面是一句话结论，截断成一行，卡片不变高。
+  const summary = await read("#collapsed-verdict");
+  assert.equal(summary.verdict, "可以看");
+  assert.ok(summary.glance?.startsWith("这是一段自造的样例文字"), summary.glance);
+  assert.deepEqual([summary.cut, summary.height], [true, CARD_HEIGHT.initial]);
 
   // 收起那一行上临时说一句话（打不开侧边栏时说的那句）：换掉章节，卡片不变高。
   const note = await read("#collapsed-note");
@@ -222,9 +233,120 @@ test("卡片：收起的一行写判断档和播放到的章节，放不下就�
   assert.equal(yielded.panel, null);
   assert.ok(yielded.card.right - yielded.chevron.right < 24, JSON.stringify(yielded));
 
-  // 侧边栏开着时手动点开的：已有概览，按钮行只剩「打开侧边栏」一个按钮，它不摆，这一行就整个不摆。
+  // 侧边栏开着时手动点开的：已有概览，按钮只剩「打开侧边栏」一个，它不摆，底部一行只剩章节的「展开全部」。
   const opened = await read("#open-yield");
-  assert.deepEqual([opened.actions, opened.openPanel], [false, false]);
+  assert.deepEqual([opened.buttons, opened.openPanel], [0, false]);
+});
+
+/** 一个元素里看得见的字：只给读屏的（剪成 1 像素的）不算。 */
+const VISIBLE_TEXT = `((root) => {
+  if (!root) return null;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let text = "";
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    let shown = getComputedStyle(node.parentElement).visibility !== "hidden";
+    for (let item = node.parentElement; shown && item && item !== root.parentElement; item = item.parentElement) {
+      const box = item.getBoundingClientRect();
+      if (box.width <= 2 || box.height <= 2) shown = false;
+    }
+    if (shown) text += node.textContent;
+  }
+  return text;
+})`;
+
+test("卡片：五套主题、浅色深色下，头部只写「简幕」，底部「展开全部」和主按钮在同一行两端；收起的一行有判断词和一句话结论", async ({ open }) => {
+  for (const accentTheme of Object.keys(ACCENT_THEMES)) {
+    for (const themeMode of ["light", "dark"]) {
+      const label = `${accentTheme} ${themeMode}`;
+      const page = await open(SAMPLE);
+      await page.setWidth(FRAME_WIDTH, CARD_HEIGHT.max);
+      await page.setAppearance({ accentTheme, themeMode, uiFontScale: Math.min(...UI_FONT_SCALES) });
+      const shown = await page.evaluate(`(() => {
+        const box = (selector) => { const node = document.querySelector(selector); if (!node) return null; const rect = node.getBoundingClientRect(); return { left: rect.left, right: rect.right, middle: (rect.top + rect.bottom) / 2 }; };
+        return {
+          head: ${VISIBLE_TEXT}(document.getElementById("card-toggle")),
+          headName: document.getElementById("card-toggle").textContent,
+          verdictFirst: document.querySelector(".card-verdict").getBoundingClientRect().left < document.querySelector(".card-brand").getBoundingClientRect().left,
+          card: box("#card"),
+          more: box("#card-more"),
+          moreText: document.getElementById("card-more")?.textContent ?? null,
+          panel: box("#card-panel"),
+          primary: document.getElementById("card-panel")?.dataset.variant ?? null,
+          headRow: document.querySelector(".card-head-row").getBoundingClientRect().height,
+        };
+      })()`);
+      // 看不看那套的头部在色带里，判断词在前；别的几套头部只有名字。读屏的名称里名字和判断档都在。
+      // 文字按标记的顺序连起来；看不看那套的判断词由样式表排到名字前面。
+      assert.equal(shown.head, accentTheme === "band" ? "简幕可以看" : "简幕", label);
+      if (accentTheme === "band") assert.equal(shown.verdictFirst, true, `${label}：判断词排在名字前面`);
+      assert.ok(shown.headName.includes("简幕") && shown.headName.includes("可以看"), `${label}：${shown.headName}`);
+      assert.ok(!shown.head.includes("总结") && !shown.head.includes("·"), `${label}：${shown.head}`);
+      assert.equal(shown.moreText, "展开全部 16 章", label);
+      assert.equal(shown.primary, "primary", label);
+      assert.ok(Math.abs(shown.more.middle - shown.panel.middle) < 2, `${label}：「展开全部」和「打开侧边栏」不在同一行 ${JSON.stringify(shown)}`);
+      assert.ok(shown.more.right < shown.panel.left, `${label}：「展开全部」在左、按钮在右 ${JSON.stringify(shown)}`);
+      assert.ok(shown.card.right - shown.panel.right < 20, `${label}：按钮靠右 ${JSON.stringify(shown)}`);
+
+      const mini = await open(`${SAMPLE}#collapsed-verdict`);
+      await mini.setWidth(FRAME_WIDTH, CARD_HEIGHT.max);
+      await mini.setAppearance({ accentTheme, themeMode, uiFontScale: Math.min(...UI_FONT_SCALES) });
+      const line = await mini.evaluate(`(() => {
+        const glance = document.getElementById("card-glance");
+        return {
+          verdict: ${VISIBLE_TEXT}(document.querySelector(".card-verdict")),
+          brand: ${VISIBLE_TEXT}(document.querySelector(".card-brand")),
+          glance: ${VISIBLE_TEXT}(glance),
+          oneLine: glance ? glance.scrollWidth > glance.clientWidth && glance.getBoundingClientRect().height < 30 : false,
+          height: Math.ceil(document.getElementById("card").getBoundingClientRect().height),
+          headRow: document.querySelector(".card-head-row").getBoundingClientRect().height,
+        };
+      })()`);
+      // 展开和收起时头部一样高：点收起那一刻高度不往上跳。
+      assert.equal(shown.headRow, line.headRow, `${label}：展开时头部高 ${shown.headRow}，收起时 ${line.headRow}`);
+      assert.equal(line.verdict, "可以看", label);
+      assert.equal(line.brand, "", `${label}：收起时不写名字`);
+      assert.ok(line.glance?.startsWith("这是一段自造的样例文字"), `${label}：${line.glance}`);
+      assert.equal(line.oneLine, true, `${label}：一句话结论截成一行`);
+      assert.equal(line.height, CARD_HEIGHT.initial, label);
+    }
+  }
+});
+
+test("卡片：五套主题、浅色深色下，收起时还没有判断档，头部照样看得见「简幕」，底色是卡片色、高度不变；有判断档时只看得见判断词和后面那句话", async ({ open }) => {
+  for (const accentTheme of Object.keys(ACCENT_THEMES)) {
+    for (const themeMode of ["light", "dark"]) {
+      const label = `${accentTheme} ${themeMode}`;
+      const read = async (hash) => {
+        const page = await open(`${SAMPLE}${hash}`);
+        await page.setWidth(FRAME_WIDTH, CARD_HEIGHT.max);
+        await page.setAppearance({ accentTheme, themeMode, uiFontScale: Math.min(...UI_FONT_SCALES) });
+        return page.evaluate(`(() => {
+          const card = document.getElementById("card");
+          const row = getComputedStyle(document.querySelector(".card-head-row")).backgroundColor;
+          return {
+            head: ${VISIBLE_TEXT}(document.getElementById("card-toggle")),
+            name: document.querySelector(".card-name")?.textContent ?? null,
+            nameColor: getComputedStyle(document.querySelector(".card-name")).color,
+            expected: (() => { const probe = document.createElement("i"); probe.style.color = ${JSON.stringify(accentTheme === "marker" ? "var(--on-highlight)" : "var(--text)")}; document.body.append(probe); const color = getComputedStyle(probe).color; probe.remove(); return color; })(),
+            row,
+            plainRow: row === "rgba(0, 0, 0, 0)" || row === getComputedStyle(card).backgroundColor,
+            height: Math.ceil(card.getBoundingClientRect().height),
+          };
+        })()`);
+      };
+      // 还没读过：没有判断档，名字照样在，头部不铺色带，文字是正文色（荧光笔那套是划过的字色）。
+      const plain = await read("#collapsed");
+      assert.equal(plain.head, "简幕", label);
+      assert.equal(plain.height, CARD_HEIGHT.initial, label);
+      assert.equal(plain.plainRow, true, `${label}：头部底色 ${plain.row}`);
+      assert.equal(plain.nameColor, plain.expected, `${label}：名字的颜色`);
+      // 有判断档：名字只给读屏，看得见的是判断词和后面那句话。
+      const judged = await read("#collapsed-verdict");
+      assert.ok(judged.head.startsWith("可以看这是一段自造的样例文字"), `${label}：${judged.head}`);
+      assert.equal(judged.name, "简幕", label);
+      assert.equal(judged.height, CARD_HEIGHT.initial, label);
+    }
+  }
 });
 
 test("卡片：时间一列定宽，章节名从同一条线起，重点的圆点不把章节名顶歪；官方提纲的标题也对齐", async ({ open }) => {
@@ -276,7 +398,7 @@ test("卡片（YouTube）：有概览时结论在最前、只露前几章，没�
       chapters: document.querySelectorAll("#card-overview .chapter").length,
       verdict: Boolean(document.querySelector("#card-overview .verdict")),
       official: Boolean(document.getElementById("card-official")),
-      buttons: [...document.querySelectorAll(".card-actions button")].map((button) => button.id),
+      buttons: [...document.querySelectorAll(".card-actions .button")].map((button) => button.id),
     }))()`);
 
   const known = await open(`${SAMPLE}#youtube`);
@@ -343,9 +465,9 @@ test("卡片：语言选 English 以后，打开的卡片第一帧就是英文�
         lang: document.documentElement.lang,
         title: document.title,
         name: document.querySelector(".card-name")?.textContent ?? "",
-        more: document.querySelector("#card-overview .card-more")?.textContent ?? null,
+        more: document.getElementById("card-more")?.textContent ?? null,
         official: document.querySelector("#card-official .card-fold-head span")?.textContent ?? null,
-        buttons: [...document.querySelectorAll(".card-actions button")].map((button) => button.textContent.trim()),
+        buttons: [...document.querySelectorAll(".card-actions .button")].map((button) => button.textContent.trim()),
         toggle: document.getElementById("card-toggle")?.title ?? "",
       }))()`);
     const page = await open(SAMPLE);
@@ -353,14 +475,14 @@ test("卡片：语言选 English 以后，打开的卡片第一帧就是英文�
     assert.deepEqual(await read(page), {
       lang: "en",
       title: "Jianmu summary card",
-      name: "Jianmu · Summary",
+      name: "Jianmu",
       more: "Show all 16 chapters",
       official: "Bilibili official summary",
       buttons: ["Open side panel"],
       toggle: "Collapse summary card",
     });
     const glance = await open(`${SAMPLE}#collapsed-glance`);
-    assert.equal(await glance.evaluate(`document.querySelector(".card-name").textContent`), "Jianmu · Watch the key parts");
+    assert.equal(await glance.evaluate(`document.querySelector(".card-verdict-name").textContent`), "Watch the key parts");
     assert.equal(await glance.evaluate(`document.getElementById("card-head-panel").textContent`), "Side panel");
 
     // 报错和没设置好时的说法也是英文：读不到时的原因、影响、下一步，密钥清空时的说明。
@@ -378,13 +500,55 @@ test("卡片：语言选 English 以后，打开的卡片第一帧就是英文�
     assert.deepEqual(await read(page), {
       lang: "zh-CN",
       title: "简幕总结卡片",
-      name: "简幕 · 总结",
+      name: "简幕",
       more: "展开全部 16 章",
       official: "B 站官方总结",
       buttons: ["打开侧边栏"],
       toggle: "收起总结卡片",
     });
-    await glance.waitFor("收起的一行换回中文", `document.querySelector(".card-name").textContent === "简幕 · 可以看"`);
+    await glance.waitFor("收起的一行换回中文", `document.querySelector(".card-verdict-name").textContent === "可以看"`);
+  } finally {
+    await setLanguage(options, "zh");
+  }
+});
+
+test("卡片：英文界面、看不看、最大字号、右栏最窄时，最长的判断词在展开的头部里完整显示、换行不截断，收起按钮整个在卡片里；收起的一行高度不变，按钮和入口都露着、不叠", async ({ open }) => {
+  const options = await open(PAGE_PATHS.options);
+  await setLanguage(options, "en");
+  await options.waitFor("设置页换成英文", `document.documentElement.lang === "en"`);
+  try {
+    // 四档加旧档位里英文最长的是「可以看」那一档。
+    const longest = "Watch the key parts";
+    for (const hash of ["", "#collapsed-verdict"]) {
+      const page = await open(`pages/card-sample.html?verdict=${encodeURIComponent("可以看")}${hash}`);
+      await page.setWidth(NARROWEST, CARD_HEIGHT.max);
+      await page.setAppearance({ accentTheme: "band", themeMode: "light", uiFontScale: Math.max(...UI_FONT_SCALES) });
+      const at = await page.evaluate(`(() => {
+        const box = (selector) => { const node = document.querySelector(selector); if (!node) return null; const r = node.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, height: r.height }; };
+        const name = document.querySelector(".card-verdict-name");
+        return {
+          text: name?.textContent ?? "",
+          clipped: name ? name.scrollWidth > name.clientWidth + 1 : true,
+          ellipsis: name ? getComputedStyle(name).textOverflow === "ellipsis" : true,
+          name: box(".card-verdict-name"),
+          card: box("#card"),
+          chevron: box(".card-collapse"),
+          panel: box("#card-head-panel"),
+          row: box(".card-head-row"),
+          rowRem: 2.875 * parseFloat(getComputedStyle(document.documentElement).fontSize),
+        };
+      })()`);
+      const label = `${hash || "展开"}：${JSON.stringify(at)}`;
+      assert.equal(at.text, longest, label);
+      assert.deepEqual([at.clipped, at.ellipsis], [false, false], `判断词没有被裁、没有省略号 ${label}`);
+      assert.ok(at.chevron.left >= at.card.left && at.chevron.right <= at.card.right, `收起按钮整个在卡片里 ${label}`);
+      assert.ok(at.name.right <= at.chevron.left + 0.5, `判断词不压在按钮上 ${label}`);
+      if (hash) {
+        assert.ok(Math.abs(at.row.height - at.rowRem) < 0.6, `收起的一行高度不变 ${label}`);
+        assert.ok(at.name.top >= at.row.top - 0.5 && at.name.bottom <= at.row.bottom + 0.5, `判断词在这一行里 ${label}`);
+        assert.ok(at.panel && at.chevron.right <= at.panel.left + 0.5 && at.panel.right <= at.card.right, `「侧边栏」入口整个露着、不和按钮叠 ${label}`);
+      }
+    }
   } finally {
     await setLanguage(options, "zh");
   }
@@ -401,9 +565,9 @@ test("卡片：语言选繁体以后，打开的卡片第一帧就是繁体、<h
         lang: document.documentElement.lang,
         title: document.title,
         name: document.querySelector(".card-name")?.textContent ?? "",
-        more: document.querySelector("#card-overview .card-more")?.textContent ?? null,
+        more: document.getElementById("card-more")?.textContent ?? null,
         official: document.querySelector("#card-official .card-fold-head span")?.textContent ?? null,
-        buttons: [...document.querySelectorAll(".card-actions button")].map((button) => button.textContent.trim()),
+        buttons: [...document.querySelectorAll(".card-actions .button")].map((button) => button.textContent.trim()),
         toggle: document.getElementById("card-toggle")?.title ?? "",
       }))()`);
     const page = await open(SAMPLE);
@@ -412,7 +576,7 @@ test("卡片：语言选繁体以后，打开的卡片第一帧就是繁体、<h
     assert.deepEqual(await read(page), {
       lang: "zh-Hant",
       title: "簡幕總結卡片",
-      name: "簡幕 · 總結",
+      name: "簡幕",
       more: "展開全部 16 章",
       official: "B 站官方總結",
       buttons: ["打開側邊欄"],
@@ -420,7 +584,7 @@ test("卡片：语言选繁体以后，打开的卡片第一帧就是繁体、<h
     });
     assert.match(await page.evaluate(`getComputedStyle(document.documentElement).getPropertyValue("--font-sans")`), /PingFang TC/);
     const glance = await open(`${SAMPLE}#collapsed-glance`);
-    assert.equal(await glance.evaluate(`document.querySelector(".card-name").textContent`), `簡幕 · ${VERDICT_HANT.fair}`);
+    assert.equal(await glance.evaluate(`document.querySelector(".card-verdict-name").textContent`), VERDICT_HANT.fair);
     assert.deepEqual(simplifiedIn(await glance.evaluate(`document.getElementById("card-head-panel").textContent`)), []);
 
     const failed = await open(`${SAMPLE}#load-failed`);
@@ -434,8 +598,8 @@ test("卡片：语言选繁体以后，打开的卡片第一帧就是繁体、<h
 
     await setLanguage(options, "zh");
     await page.waitFor("卡片换回简体", `document.documentElement.lang === "zh-CN"`);
-    assert.equal(await page.evaluate(`document.querySelector(".card-name")?.textContent`), "简幕 · 总结");
-    await glance.waitFor("收起的一行换回简体", `document.querySelector(".card-name").textContent === "简幕 · 可以看"`);
+    assert.equal(await page.evaluate(`document.querySelector(".card-name")?.textContent`), "简幕");
+    await glance.waitFor("收起的一行换回简体", `document.querySelector(".card-verdict-name").textContent === "可以看"`);
   } finally {
     await setLanguage(options, "zh");
   }
