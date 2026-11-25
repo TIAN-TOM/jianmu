@@ -10,7 +10,7 @@ import { errorCopy } from "../../src/core/errors.ts";
 import { translationId } from "../../src/core/notes/records.ts";
 import { textFingerprint } from "../../src/core/transcript/fingerprint.ts";
 import { channelKey, videoKey } from "../../src/core/video-ref.ts";
-import { API_KEY_SESSION_KEY, AUTO_LEDGER_KEY, DATABASE_NAME, SETTINGS_STORAGE_KEY, TRANSCRIPT_MODES_KEY, WATCH_SESSIONS_KEY } from "../../src/shared/names.ts";
+import { API_KEY_SESSION_KEY, AUTO_LEDGER_KEY, DATABASE_NAME, OPEN_PANELS_KEY, SETTINGS_STORAGE_KEY, TRANSCRIPT_MODES_KEY, WATCH_SESSIONS_KEY } from "../../src/shared/names.ts";
 import { ANTHROPIC, BRIEF_SAMPLE, PLAYING_SAMPLE, VIDEOS } from "../fixtures.mjs";
 import { playingWatchPage, PROBE, watchPage } from "../mock-server.mjs";
 import { storedSettings } from "../settings.mjs";
@@ -1123,7 +1123,7 @@ test("侧边栏：主动切到精读立刻换、说一声记住了、旁边给�
 });
 
 // 要真的播满 1 分钟，这个测试要一分多钟。
-test("侧边栏：长视频在速读里连续播满 1 分钟切到精读，问答抽屉和草稿都留着；顶上一行「已切到精读」，点一下回速读、这次不再切", async (ctx) => {
+test("侧边栏：长视频在速读里播满 1 分钟，侧边栏开着就不切；报不出侧边栏开关的浏览器里照样切，问答抽屉和草稿都留着；顶上一行「已切到精读」，点一下回速读、这次不再切", async (ctx) => {
   await withVideo(
     ctx,
     async (panel, _from, tabId) => {
@@ -1131,7 +1131,15 @@ test("侧边栏：长视频在速读里连续播满 1 分钟切到精读，问�
       await tap(panel, ".dock [aria-label='问答记录']");
       await waitIn(panel, "问答抽屉打开", `${qaSheet}?.open === true`);
       await panel.evaluate(`(() => { const input = document.querySelector(".qa-form input"); input.value = "还没发出去的草稿"; input.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
-      await waitIn(panel, "播满 1 分钟切到精读", `document.querySelector(".mode-view")?.getAttribute("aria-label") === "精读"`, 120_000);
+      const watched = `chrome.storage.session.get(${JSON.stringify(WATCH_SESSIONS_KEY)}).then((items) => items[${JSON.stringify(WATCH_SESSIONS_KEY)}]?.[${JSON.stringify(String(tabId))}] ?? null)`;
+      // 侧边栏是真的开着的（浏览器报了开）：播过 1 分钟也留在速读。
+      await waitIn(panel, "播满 1 分钟多", `${watched}.then((session) => (session?.playedSec ?? 0) >= 70)`, 120_000);
+      assert.equal(await panel.evaluate(`document.querySelector(".mode-view")?.getAttribute("aria-label")`), "速读", "侧边栏开着不切");
+      assert.deepEqual(await panel.evaluate(`${watched}.then((session) => [session?.modeSource, session?.autoSwitched])`), ["default", false]);
+
+      // 报不出侧边栏开关的老版本浏览器里，后台记的开着的窗口一直是空的：清空它，下一次上报就切。
+      await panel.evaluate(`chrome.storage.session.set({ ${JSON.stringify(OPEN_PANELS_KEY)}: [] }).then(() => true)`);
+      await waitIn(panel, "下一次上报切到精读", `document.querySelector(".mode-view")?.getAttribute("aria-label") === "精读"`, 30_000);
       assert.equal(await panel.evaluate(`${qaSheet}?.open`), true, "切模式不关抽屉");
       assert.equal(await panel.evaluate(`document.querySelector(".qa-form input").value`), "还没发出去的草稿", "草稿留着");
       const stored = await panel.evaluate(`chrome.storage.session.get(${JSON.stringify(WATCH_SESSIONS_KEY)})`);
@@ -1150,7 +1158,7 @@ test("侧边栏：长视频在速读里连续播满 1 分钟切到精读，问�
     PLAYING_SAMPLE.id,
     playingWatchPage(PLAYING_SAMPLE.id),
   );
-}, { timeoutMs: 150_000 });
+}, { timeoutMs: 180_000 });
 
 /** 把设置里的语言改成这一项，回改之前存着的设置（没有时是 null）。 */
 async function setLanguage(panel, language) {
