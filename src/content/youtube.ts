@@ -3,8 +3,9 @@
 // 同一页面再注入一份时（启用、更新后的补注入），新的一份把旧的整套撤下再接手，找旧一份的办法和 B 站一样。播放页卡片和解释当前画面的图标都和 B 站一样挂。
 import { INJECTED, PAGE_PATHS } from "../shared/names.ts";
 import { switchCaptionCatch } from "../sites/youtube/page/caption-ask.ts";
-import { createCaptionToggle, createPanelOpener } from "../sites/youtube/page/commands.ts";
+import { createCaptionToggle, createCommentLoader, createPanelOpener } from "../sites/youtube/page/commands.ts";
 import { askPlayerTracks } from "../sites/youtube/page/player-tracks.ts";
+import { createCommentReader } from "../sites/youtube/page/read-comments.ts";
 import { createPanelReader } from "../sites/youtube/page/read-panel.ts";
 import { createYoutubePage } from "../sites/youtube/page.ts";
 import { createContentApp, pageSuperseded, type ContentApp, type SiteReader } from "./app.ts";
@@ -25,17 +26,23 @@ const opener = FEATURE_YOUTUBE_OPEN_PANEL ? createPanelOpener : null;
 // 页面上没有文字稿时读播放器取回的字幕：关掉开关的构建里这一支连同开关字幕的代码一起裁掉。
 const captionToggle = FEATURE_YOUTUBE_CAPTION_CATCH ? createCaptionToggle : null;
 const captionSwitch = FEATURE_YOUTUBE_CAPTION_CATCH ? switchCaptionCatch : null;
+// 读评论区和替用户滚到评论区（PRD F23）：关掉开关的构建里这两支一起裁掉。
+const commentReader = FEATURE_COMMENTS ? createCommentReader : null;
+const commentLoader = FEATURE_COMMENTS ? createCommentLoader : null;
 function withOpener(reader: SiteReader): SiteReader {
   const open = opener?.({ document, currentRef: () => page.currentRef() });
   const captions = captionToggle?.({ document, currentRef: () => page.currentRef() });
-  const handle = (message: unknown): Promise<unknown> | null => reader.handle(message) ?? open?.handle(message) ?? captions?.handle(message) ?? null;
+  const comments = commentReader?.({ document, currentRef: () => page.currentRef() });
+  const load = commentLoader?.({ document, currentRef: () => page.currentRef() });
+  const handle = (message: unknown): Promise<unknown> | null =>
+    reader.handle(message) ?? open?.handle(message) ?? captions?.handle(message) ?? comments?.handle(message) ?? load?.handle(message) ?? null;
   // 接上时叫小桥接着字幕；撤下时（用户收回授权、被新的一份顶替）叫它停下、清掉接住的。
   captionSwitch?.(document, true);
   const stop = (): void => {
     captionSwitch?.(document, false);
     reader.stop();
   };
-  return open || captions ? { handle, stop } : reader;
+  return open || captions || comments ? { handle, stop } : reader;
 }
 
 const app = createContentApp({

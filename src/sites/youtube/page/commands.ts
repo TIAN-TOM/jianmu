@@ -4,9 +4,11 @@
 import type { VideoRef } from "../../../core/video-ref.ts";
 import { askPlayerCaption } from "./caption-ask.ts";
 import type { CaptionOutcome, CaptionReply, CaptionRequest, PlayerCaption } from "./caption-types.ts";
+import type { CommentRequest, LoadOutcome, LoadReply } from "./comment-types.ts";
 import { advertising, ENTRY, expanded, openPanelOf, PANEL_CLOSE, PANELS, searching, SEGMENTS, TABS, videoOnPage } from "./panel-dom.ts";
 import type { CloseTranscriptOutcome, OpenTranscriptOutcome, PlayerTracks } from "./panel-types.ts";
 import { askPlayerTracks } from "./player-tracks.ts";
+import { COMMENT_SECTION, loadedComments } from "./read-comments.ts";
 
 // 点了以后最多等这么久看面板开没开、段落出没出来，每隔这么久看一次。
 const OPEN_WAIT_MS = 6000;
@@ -194,6 +196,92 @@ export function createCaptionToggle({
       const request = message as Partial<CaptionRequest> | null;
       const videoId = request?.req?.videoId;
       return request?.type === "youtube.caughtCaptions" && typeof videoId === "string" ? read(videoId) : null;
+    },
+  };
+}
+
+// 替用户滚到评论区（PRD 第 8.2 节第 9 条）：等页面自己加载出第一批评论，最多等这么久，每隔这么久看一次。
+export const COMMENT_WAIT_MS = 6000;
+const COMMENT_POLL_MS = 200;
+// 先隔这么久看一下页面在不在滚：在滚就是用户正在动，不去抢。
+const SCROLL_SETTLE_MS = 150;
+// 等的时候这些操作说明用户自己接手了页面，就不再滚回去。
+const USER_EVENTS = ["wheel", "touchstart", "keydown", "mousedown"] as const;
+const EDITABLE = "input, textarea, select, [contenteditable=''], [contenteditable='true']";
+
+export interface CommentLoaderDeps {
+  readonly document: Document;
+  readonly currentRef: () => VideoRef | null;
+  readonly now?: () => number;
+  readonly sleep?: (ms: number) => Promise<void>;
+}
+
+export interface CommentLoader {
+  /** 认得的请求回 Promise，认不出的回 null。 */
+  readonly handle: (message: unknown) => Promise<LoadReply> | null;
+}
+
+/**
+ * 评论区还没加载时替用户滚过去一次（只在构建开关 FEATURE_COMMENTS 打开时进包）：只在标签页在前台时滚，
+ * 正在播广告、视频对不上、用户正在打字或滚动时不滚；不往下翻更多，不换排序，不展开回复，不点任何东西。
+ * 读完滚回原来的位置；等的时候用户自己动了页面或者换了视频，就不滚回去。
+ */
+export function createCommentLoader({ document, currentRef, now = Date.now, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }: CommentLoaderDeps): CommentLoader {
+  const view = document.defaultView;
+  const onPage = (videoId: string): boolean => videoOnPage(document, currentRef()) === videoId;
+  const editing = (): boolean => document.activeElement?.matches(EDITABLE) === true;
+
+  async function load(videoId: string): Promise<LoadOutcome> {
+    if (!onPage(videoId)) return "video-changed";
+    if (document.visibilityState !== "visible" || !view) return "hidden";
+    if (advertising(document)) return "ad";
+    const section = document.querySelector<HTMLElement>(COMMENT_SECTION);
+    if (!section) return "no-section";
+    if (loadedComments(document).length > 0) return "loaded";
+    if (editing()) return "busy";
+    const before = { x: view.scrollX, y: view.scrollY };
+    await sleep(SCROLL_SETTLE_MS);
+    // 等的这一会儿里情况可能变了：换了视频、切到后台、开始播广告、用户动了页面，都在滚之前再看一遍。
+    if (!onPage(videoId)) return "video-changed";
+    if (document.visibilityState !== "visible") return "hidden";
+    if (advertising(document)) return "ad";
+    if (view.scrollX !== before.x || view.scrollY !== before.y || editing()) return "busy";
+
+    let interrupted = false;
+    const mark = (): void => {
+      interrupted = true;
+    };
+    for (const type of USER_EVENTS) document.addEventListener(type, mark, { capture: true, passive: true });
+    let outcome: LoadOutcome = "timeout";
+    try {
+      section.scrollIntoView({ block: "start" });
+      const begun = now();
+      while (now() - begun < COMMENT_WAIT_MS) {
+        await sleep(COMMENT_POLL_MS);
+        if (!onPage(videoId)) {
+          outcome = "video-changed";
+          break;
+        }
+        if (loadedComments(document).length > 0) {
+          outcome = "loaded";
+          break;
+        }
+      }
+    } finally {
+      for (const type of USER_EVENTS) document.removeEventListener(type, mark, { capture: true });
+    }
+    if (outcome === "video-changed") return outcome;
+    if (interrupted) return outcome === "loaded" ? "loaded" : "interrupted";
+    view.scrollTo(before.x, before.y);
+    return outcome;
+  }
+
+  return {
+    handle(message) {
+      const request = message as Partial<CommentRequest> | null;
+      const videoId = request?.req?.videoId;
+      if (request?.type !== "youtube.loadComments" || typeof videoId !== "string") return null;
+      return load(videoId).then((outcome) => ({ videoId: videoOnPage(document, currentRef()), outcome }));
     },
   };
 }

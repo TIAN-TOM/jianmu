@@ -511,3 +511,24 @@ test("读播放器取回的字幕进发行包：发行构建和 build/ 的后台
     }
   }
 });
+
+test("读评论区只进日用包：日用构建的后台和 YouTube 内容脚本里有这段代码，发行构建和 build/ 里没有", async () => {
+  const files = ["build/background.js", "build/content/youtube.js"];
+  const pick = async (features: FeatureSet) => {
+    const options = bundleOptions(features).filter((option) => files.includes(String(option.outfile)));
+    const built = await Promise.all(options.map(async (option) => [String(option.outfile), (await build({ ...option, write: false })).outputFiles.map((output) => output.text).join("\n")] as const));
+    return new Map(built);
+  };
+  const markers: Readonly<Record<string, readonly string[]>> = {
+    "build/background.js": ["src/sites/bilibili/comments", "youtube.loadComments", "src/sites/youtube/comments", "src/sites/youtube/page/comment-types"],
+    "build/content/youtube.js": ["youtube.loadComments", "ytd-comment-thread-renderer", "src/sites/youtube/page/read-comments", "src/sites/youtube/page/comment-types"],
+  };
+  const [release, daily] = await Promise.all([pick(RELEASE_FEATURES), pick(DAILY_FEATURES)]);
+  for (const [file, list] of Object.entries(markers)) {
+    for (const marker of list) {
+      assert.ok(daily.get(file)?.includes(marker), `日用构建的 ${file} 里没有 ${marker}`);
+      assert.ok(!release.get(file)?.includes(marker), `发行构建的 ${file} 里有 ${marker}`);
+      assert.ok(!readBuild(file.replace(/^build\//, "")).includes(marker), `build/ 里的 ${file} 有 ${marker}`);
+    }
+  }
+});
