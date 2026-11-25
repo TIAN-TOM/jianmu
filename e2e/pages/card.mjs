@@ -4,7 +4,7 @@
 // YouTube 上没有官方总结那一块，本机还没有字幕时不摆「生成概览」，请用户先在侧边栏读。
 // 换过字幕时，依据旧字幕的结论标出来。
 // 官方总结晚到时，「生成概览」等它有了结果才摆，摆出来以后不被顶走；一直没结果时等够了照样摆。
-// 收起的一行写着判断档和播放到的章节（不知道播到哪时写一句话结论），放不下就截断、不撑高，旁边是打开侧边栏的入口；侧边栏开着时不摆打开侧边栏的入口和按钮。
+// 收起的一行写着判断档和一句话结论（没有结论时写播放到的章节），放不下就截断、不撑高，旁边是打开侧边栏的入口；侧边栏开着时不摆打开侧边栏的入口和按钮。
 // 五套主题各自的版面下：头部只写「简幕」，底部的「展开全部」和主按钮在同一行两端，收起的一行有判断词和一句话结论。
 // 展开收起有过渡：收起时内容留到过渡走完才拿掉，没有过渡时马上拿掉。
 // 语言选 English 以后卡片自己的字、报错和没设置好时的说明是英文，切回中文马上恢复；选繁体时同几处是繁体，判断档写繁体名。
@@ -183,7 +183,7 @@ test("卡片：展开收起有过渡，收起时内容留到过渡走完才拿�
   assert.deepEqual(instant, { body: false, height: CARD_HEIGHT.initial });
 });
 
-test("卡片：收起的一行写判断档和播放到的章节，不知道播到哪时写一句话结论，放不下就截断、不撑高；旁边是打开侧边栏的入口，侧边栏开着时没有", async ({ open }) => {
+test("卡片：收起的一行写判断档和一句话结论，没有结论时写播放到的章节，放不下就截断、不撑高；旁边是打开侧边栏的入口，侧边栏开着时没有", async ({ open }) => {
   const read = async (hash) => {
     const page = await open(`${SAMPLE}${hash}`);
     await page.setWidth(FRAME_WIDTH, CARD_HEIGHT.max);
@@ -210,21 +210,27 @@ test("卡片：收起的一行写判断档和播放到的章节，不知道播�
   const plain = await read("#collapsed");
   assert.deepEqual([plain.name, plain.verdict, plain.glance, plain.panelText, plain.height], ["简幕", null, null, "侧边栏", CARD_HEIGHT.initial]);
 
-  // 读过、知道播到哪：判断档加「第几章 章节名」，章节名很长，截断成一行，卡片不变高；箭头和入口都在卡片里、不叠在一起。
+  // 有结论、也知道播到哪：判断档后面写一句话结论，不写章节；很长，截断成一行，卡片不变高；箭头和入口都在卡片里、不叠在一起。
   const glance = await read("#collapsed-glance");
   assert.equal(glance.verdict, "可以看");
-  assert.match(glance.glance, /^11\/16 样例章节 11：/);
-  assert.equal(glance.cut, true, "放不下的章节名截断");
+  assert.ok(glance.glance?.startsWith("这是一段自造的样例文字"), glance.glance);
+  assert.equal(glance.cut, true, "放不下的结论截断");
   assert.equal(glance.height, CARD_HEIGHT.initial);
   assert.ok(glance.chevron.right <= glance.panel.left && glance.panel.right <= glance.card.right, JSON.stringify(glance));
 
-  // 读过、不知道播到哪：判断档后面是一句话结论，截断成一行，卡片不变高。
+  // 有结论、不知道播到哪：同样是一句话结论，截断成一行，卡片不变高。
   const summary = await read("#collapsed-verdict");
   assert.equal(summary.verdict, "可以看");
   assert.ok(summary.glance?.startsWith("这是一段自造的样例文字"), summary.glance);
   assert.deepEqual([summary.cut, summary.height], [true, CARD_HEIGHT.initial]);
 
-  // 收起那一行上临时说一句话（打不开侧边栏时说的那句）：换掉章节，卡片不变高。
+  // 只有章节、还没有结论：写「第几章 章节名」，没有判断档，章节名截断成一行。
+  const chapters = await read("#collapsed-chapters");
+  assert.equal(chapters.verdict, null);
+  assert.match(chapters.glance, /^11\/16 样例章节 11：/);
+  assert.deepEqual([chapters.cut, chapters.height], [true, CARD_HEIGHT.initial]);
+
+  // 收起那一行上临时说一句话（打不开侧边栏时说的那句）：换掉结论，卡片不变高。
   const note = await read("#collapsed-note");
   assert.deepEqual([note.glance, note.height], [PANEL_REFUSED_NOTE, CARD_HEIGHT.initial]);
 

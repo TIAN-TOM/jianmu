@@ -1,5 +1,5 @@
 // 卡片的界面：标题栏（展开收起）、提示、AI 概览（结论在最前，章节默认只露前几章）、B 站官方总结（有概览时收成一行）、进度和底部一行。
-// 标题栏展开时写名字，收起时写判断记号、判断档和播放到的章节（不知道播到哪时写一句话结论，或者临时的一句话），旁边是打开侧边栏的入口；侧边栏开着时不摆这个入口。
+// 标题栏展开时写名字，收起时写判断记号、判断档和一句话结论（没有结论时写播放到的章节，或者临时的一句话），旁边是打开侧边栏的入口；侧边栏开着时不摆这个入口。
 // 底部一行左边是章节的「展开全部」，右边是按钮。按钮在内容还在来时先不摆（规则在 model.ts），摆出来以后不被晚到的内容顶走。
 // 各套主题的版面差异都在样式表里，标记不分主题。
 // 规则在 model.ts。视频标题不在卡片里再写一遍：页面顶上就是。
@@ -18,6 +18,7 @@ import { StaleTranscriptLine, VerdictBlock } from "../shared/ui/verdict-block.ts
 import { markOf, staleOverviewMarks, type BasisSource } from "../shared/ui/verdict.ts";
 import { uiLang } from "../shared/ui-lang.ts";
 import { cardRows, chaptersInOrder, hasOverview, type CardView, type TaskProgress } from "./model.ts";
+import { conclusionOf } from "./glance.ts";
 import { cardText } from "./text.ts";
 
 type ClickEvent = { readonly isTrusted: boolean };
@@ -177,18 +178,18 @@ function progressText(task: TaskProgress): string {
 
 /**
  * 标题栏上的判断档和后面那句话。判断档有结论时就有（展开时只给读屏和看不看那套的色带用）；那句话只在收起时有：
- * 临时的一句话，没有的话写播放到的章节（和侧边栏精读顶上那一条同一个写法），不知道播到哪时写一句话结论。
+ * 临时的一句话最优先，其次是一句话结论；没有结论时写播放到的章节（和侧边栏精读顶上那一条同一个写法）。
  */
 export function glanceOf(view: CardView): { readonly label: string; readonly text: string } {
-  const verdict = view.verdictPending ? undefined : view.analysis?.verdict;
-  const summary = text(verdict?.summary);
-  const label = summary ? text(verdict?.verdict) : "";
+  const conclusion = conclusionOf(view);
+  const label = conclusion?.label ?? "";
   if (!view.collapsed) return { label, text: "" };
   if (view.headNote) return { label, text: view.headNote };
+  if (conclusion) return { label, text: conclusion.summary };
   const chapters = chaptersInOrder(view.analysis);
   const now = view.chapterNow === null ? undefined : chapters[view.chapterNow];
   if (now && view.chapterNow !== null) return { label, text: `${view.chapterNow + 1}/${chapters.length} ${now.title || formatTimestamp(now.startSec)}` };
-  return { label, text: label ? summary : "" };
+  return { label, text: "" };
 }
 
 /** 头部名字前的小记号：只有时间码那套显示，别的主题由样式表藏起来。 */

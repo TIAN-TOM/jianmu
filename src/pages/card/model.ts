@@ -1,7 +1,7 @@
 // 卡片的状态和操作。认哪个视频只看所在标签页的地址；读数据只用轻量读取（官方总结和本机已有的概览，YouTube 只有后者）；
 // 生成概览只认真实点击，登记时换到一次性令牌才开始；侧边栏为同一视频起的、打开就出结论自动起的任务就跟着看进度。
 // 没启用、卡片关着时什么都不显示。展开收起的规则在 fold.ts（跟会话的模式、本窗口的侧边栏和手动展开收起）；
-// 收起时不读，后台打开的标签页第一次到前台才读。收起的那一行写什么在 glance.ts（播放到的章节、打不开侧边栏时临时说的一句话）。
+// 收起时不读，后台打开的标签页第一次到前台才读。收起的那一行写什么在 glance.ts（没有结论时播放到的章节、打不开侧边栏时临时说的一句话）。
 import { computed, signal, type ReadonlySignal } from "@preact/signals";
 import { describe, type ErrorCode } from "../../core/errors.ts";
 import { fixedInSettings } from "../../core/errors/settings-codes.ts";
@@ -14,7 +14,7 @@ import type { PageApi } from "../shared/api.ts";
 import type { ConfigState } from "../shared/config.ts";
 import type { UiLang } from "../shared/ui-lang.ts";
 import { createFold } from "./fold.ts";
-import { createGlance } from "./glance.ts";
+import { conclusionOf, createGlance } from "./glance.ts";
 import { cardTextOf } from "./text.ts";
 import { CARD_ZH } from "./text-zh.ts";
 import { createActionHold, realTimers, type CardTimers } from "./timers.ts";
@@ -180,7 +180,7 @@ export function createCardModel(deps: CardDeps) {
     timers,
     visible: () => deps.page?.visible() ?? true,
     position: position ? () => (tab && video ? position(tab.id, video) : Promise.resolve(null)) : null,
-    wanted: () => view.peek().visible && view.peek().collapsed && !view.peek().panelOpen,
+    wanted: () => view.peek().visible && view.peek().collapsed && !view.peek().panelOpen && conclusionOf(view.peek()) === null,
     chapters: () => chaptersInOrder(view.peek().analysis),
     state: () => view.peek(),
     set: (next) => patch(next),

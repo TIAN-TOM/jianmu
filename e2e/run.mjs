@@ -208,10 +208,10 @@ async function panelFlow(launcher, panelUrl, videoId) {
   await keyChapterOnCard();
   await evaluate(launcher, `chrome.sidePanel.open({ windowId: ${windowId} }).then(() => true)`, true);
   await until("再打开侧边栏，卡片又让位收起", async () => (await cardCollapsed()) === "true");
-  // 让位收起的那一行：读到过结论，写着判断档；侧边栏开着，不摆打开它的入口。
-  const line = await evaluate(card, `JSON.stringify([document.querySelector(".card-verdict-name")?.textContent ?? "", document.getElementById("card-head-panel") === null])`);
-  if (line !== JSON.stringify(["可以看", true])) throw new Error(`让位收起的那一行不对：${line}`);
-  console.log("✓ 卡片给侧边栏让位：关上侧边栏卡片展开、重点章节标着，再打开又收起，收起的那一行写着判断档、没有打开侧边栏的入口");
+  // 让位收起的那一行：读到过结论，写着判断档和一句话结论，不写播放到的章节；侧边栏开着，不摆打开它的入口。
+  const line = await evaluate(card, `JSON.stringify([document.querySelector(".card-verdict-name")?.textContent ?? "", document.getElementById("card-glance")?.textContent ?? "", document.getElementById("card-head-panel") === null])`);
+  if (line !== JSON.stringify(["可以看", "模拟服务写的一句话结论", true])) throw new Error(`让位收起的那一行不对：${line}`);
+  console.log("✓ 卡片给侧边栏让位：关上侧边栏卡片展开、重点章节标着，再打开又收起，收起的那一行写着判断档和一句话结论、没有打开侧边栏的入口");
 }
 
 let failed = false;

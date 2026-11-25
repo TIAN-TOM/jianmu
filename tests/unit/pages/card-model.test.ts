@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { signal } from "@preact/signals";
-import { PANEL_REFUSED_NOTE } from "../../../src/pages/card/glance.ts";
+import { conclusionOf, PANEL_REFUSED_NOTE } from "../../../src/pages/card/glance.ts";
 import { CARD_ROWS, cardRows, chaptersInOrder, createCardModel, NEED_LOGIN_TEXT, NOT_READ_TEXT } from "../../../src/pages/card/model.ts";
 import { CARD_HANT } from "../../../src/pages/card/text-hant.ts";
 import { cardTextOf } from "../../../src/pages/card/text.ts";
@@ -467,10 +467,21 @@ test("章节按开始时间排好再数第几章；时间不是数的不算", ()
   assert.deepEqual(chaptersInOrder(null), []);
 });
 
-test("收着、有章节、侧边栏关着时才问播放位置，写出播到第几章；展开、侧边栏开着、没有章节时不问", async () => {
+// 只有章节、还没写结论的概览：收起那一行写播放到的章节。
+const CHAPTERS_ONLY = { chapters: THREE.chapters };
+
+test("一句话结论：判断词和那句话都有、结论不在写时才算", () => {
+  assert.deepEqual(conclusionOf({ analysis: THREE, verdictPending: false }), { label: "可以看", summary: "样例结论" });
+  assert.equal(conclusionOf({ analysis: THREE, verdictPending: true }), null, "结论还在写");
+  assert.equal(conclusionOf({ analysis: CHAPTERS_ONLY, verdictPending: false }), null);
+  assert.equal(conclusionOf({ analysis: { verdict: { verdict: "可以看", summary: "  " } }, verdictPending: false }), null, "只有判断词");
+  assert.equal(conclusionOf({ analysis: null, verdictPending: false }), null);
+});
+
+test("收着、有章节、没有结论、侧边栏关着时才问播放位置，写出播到第几章；展开、侧边栏开着、没有章节时不问", async () => {
   const { fake, model, tick, player } = setup();
   fake.reply("session.get", { value: { ok: true, value: { session: session() } } });
-  fake.reply("transcript.get", { value: guides(KEY, { overview: { analysis: THREE, analysisFailures: [] } }) });
+  fake.reply("transcript.get", { value: guides(KEY, { overview: { analysis: CHAPTERS_ONLY, analysisFailures: [] } }) });
   fake.reply("card.setOverride", { value: { ok: true, value: { session: {} } } });
   model.configChanged();
   await model.start();
@@ -515,6 +526,48 @@ test("收着、有章节、侧边栏关着时才问播放位置，写出播到�
   await bare.model.toggle();
   bare.tick();
   assert.equal(bare.player.asked, 0);
+});
+
+test("本机有一句话结论时收着也不问播放位置：收起那一行写结论，不写章节", async () => {
+  const { fake, model, tick, player } = setup();
+  fake.reply("session.get", { value: { ok: true, value: { session: session() } } });
+  fake.reply("transcript.get", { value: guides(KEY, { overview: { analysis: THREE, analysisFailures: [] } }) });
+  fake.reply("card.setOverride", { value: { ok: true, value: { session: {} } } });
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  player.at = 130;
+  await model.toggle();
+  assert.ok(await until(() => model.view.value.collapsed));
+  tick();
+  tick();
+  assert.ok(await stillFalse(() => player.asked > 0), "有结论不问");
+  assert.equal(model.view.value.chapterNow, null);
+});
+
+test("收着时结论写好了：不再问播放位置，抹掉当前章节", async () => {
+  const { fake, model, tick, player } = setup();
+  fake.reply("session.get", { value: { ok: true, value: { session: session() } } });
+  fake.reply("card.setOverride", { value: { ok: true, value: { session: {} } } });
+  let finish: (value: unknown) => void = () => undefined;
+  fake.reply("task.start", { value: { ok: true, value: { task: task("t1"), joined: false, token: "one-time" } } });
+  fake.reply("overview.start", () => new Promise((resolve) => (finish = resolve)));
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  void model.generate(true);
+  assert.ok(await until(() => fake.attempts("overview.start") === 1));
+  fake.broadcast({ type: "overview.preview", taskId: "t1", video: KEY, analysis: CHAPTERS_ONLY, done: 1, total: 2 });
+  assert.ok(await until(() => model.view.value.verdictPending !== false));
+  player.at = 130;
+  await model.toggle();
+  assert.ok(await until(() => model.view.value.chapterNow === 1), "章节先到、结论还在写：照旧问");
+
+  finish({ ok: true, value: { video: KEY, analysis: THREE, analysisFailures: [], fromCache: false, failedChunks: 0 } });
+  assert.ok(await until(() => conclusionOf(model.view.value) !== null && model.view.value.chapterNow === null));
+  const asked = player.asked;
+  tick();
+  assert.ok(await stillFalse(() => player.asked > asked), "结论到了就不问");
 });
 
 test("播满时长自动切到的精读不收卡片：照速读摆，侧边栏开了让位、关上又展开；自己选的精读照样收；刷新时已经是自动切过的精读也展开着", async () => {
