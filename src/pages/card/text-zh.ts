@@ -4,8 +4,8 @@ import type { OfficialSummaryView } from "../../shared/messages/transcript.ts";
 
 export const CARD_ZH = {
   title: "简幕总结卡片",
-  /** 收起那一行最前面的名字：有结论时跟着判断档的显示名，没有时写「总结」。 */
-  name: (label: string) => `简幕 · ${label || "总结"}`,
+  /** 头部写的名字。 */
+  name: "简幕",
   expand: "展开总结卡片",
   collapse: "收起总结卡片",
   headPanel: "侧边栏",

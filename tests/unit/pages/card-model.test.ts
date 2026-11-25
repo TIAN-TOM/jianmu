@@ -819,5 +819,5 @@ test("按钮行：官方总结一直没结果时，等够了照样摆；没有�
 
 test("选繁体时卡片的文案是繁体那份", () => {
   assert.equal(cardTextOf("zh-Hant"), CARD_HANT);
-  assert.equal(cardTextOf("zh-Hant").name(""), "簡幕 · 總結");
+  assert.equal(cardTextOf("zh-Hant").name, "簡幕");
 });

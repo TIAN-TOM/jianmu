@@ -278,8 +278,10 @@
   --l-key: #ff0033;
   --l-verdict: #0f0f0f;
   --l-shadow: 15 15 15;
-  /* key-tint 是「重点」小标签的淡红底；深色的侧边栏铺页面底色（panel），不铺卡片色 */
+  /* key-tint 是「重点」小标签的淡红底；chip 是灰底胶囊按钮的底（播放页卡片的「展开全部」）；
+   * 深色的侧边栏铺页面底色（panel），不铺卡片色 */
   --l-key-tint: #ffe6eb;
+  --l-chip: #f2f2f2;
 
   --d-bg: #0f0f0f;
   --d-surface: #212121;
@@ -300,6 +302,7 @@
   --d-key: #ff0033;
   --d-verdict: #f1f1f1;
   --d-key-tint: #350d15;
+  --d-chip: #373737;
   --d-panel: #0f0f0f;
 
   --radius-sm: 4px;
@@ -341,7 +344,7 @@
   /* 侧边栏的底：卡片色；只有红黑的深色铺页面底色 */
   --panel-bg: var(--l-surface);
   /* 下面这些只在用到它的那套主题里有值：刻度的空格、时长条和红底上的字（时间码），荧光笔（荧光笔），
-   * 四档色带（看不看；ink 是判断词，say 是色带上的结论句），重点和当前句的淡底（粉蓝、红黑）。 */
+   * 四档色带（看不看；ink 是判断词，say 是色带上的结论句），重点和当前句的淡底（粉蓝、红黑），灰底胶囊按钮（红黑）。 */
   --meter-off: var(--l-off);
   --length-bar: var(--l-bar);
   --on-mark: var(--l-on-mark);
@@ -362,6 +365,7 @@
   --band-unknown-say: var(--l-band-unknown-ink);
   --key-tint: var(--l-key-tint);
   --now-tint: var(--l-now-tint);
+  --chip: var(--l-chip);
 }
 
 :root[data-theme-mode="dark"] {
@@ -412,6 +416,7 @@
   --band-unknown-say: var(--d-text);
   --key-tint: var(--d-key-tint);
   --now-tint: var(--d-now-tint);
+  --chip: var(--d-chip);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -463,6 +468,7 @@
     --band-unknown-say: var(--d-text);
     --key-tint: var(--d-key-tint);
     --now-tint: var(--d-now-tint);
+    --chip: var(--d-chip);
   }
 }
 
