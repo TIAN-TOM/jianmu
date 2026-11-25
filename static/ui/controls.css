@@ -21,6 +21,12 @@
   color: inherit;
 }
 
+/* 占位字用次要文字色，浏览器默认的灰在输入框底色上对比度不够。 */
+:where(input, textarea)::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
 :where(button, summary, a):focus-visible {
   outline: var(--focus-ring);
   outline-offset: 2px;

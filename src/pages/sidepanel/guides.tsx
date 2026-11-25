@@ -27,9 +27,9 @@ export function OfficialSummary({ official, onSeek }: { readonly official: Offic
   }
   return (
     <section class="guide" aria-labelledby="official-title">
-      <h3 class="section-title" id="official-title">
+      <h2 class="section-title" id="official-title">
         {t.official}
-      </h3>
+      </h2>
       {official.summary ? <p class="guide-summary">{official.summary}</p> : null}
       {official.outline.length > 0 ? (
         <ol class="outline">
@@ -61,9 +61,9 @@ export function CreatorChapters({ chapters, onSeek }: { readonly chapters: reado
   if (!chapters?.length) return null;
   return (
     <section class="guide" aria-labelledby="creator-title">
-      <h3 class="section-title" id="creator-title">
+      <h2 class="section-title" id="creator-title">
         {panelText().guides.creator}
-      </h3>
+      </h2>
       <ChapterList chapters={chapters.map((chapter) => ({ startSec: chapter.start, title: chapter.title }))} onSeek={onSeek} heading={false} />
     </section>
   );

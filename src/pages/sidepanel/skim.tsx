@@ -114,7 +114,7 @@ function Chapters({ panel, analysis, segments, cues }: { readonly panel: Panel; 
       ) : null}
       {loose.length > 0 ? (
         <section class="guide" aria-label={panelText().skim.quotes}>
-          <h3 class="section-title">{panelText().skim.quotes}</h3>
+          <h2 class="section-title">{panelText().skim.quotes}</h2>
           <ul class="quotes">
             {loose.map((quote) => (
               <Quote key={quote.quote} panel={panel} quote={quote} />
