@@ -9,7 +9,7 @@ import type { OverviewRecord } from "../../src/core/notes/records.ts";
 import { videoKey, type VideoKey, type VideoRef } from "../../src/core/video-ref.ts";
 import type { ObjectStoreDriver } from "../../src/platform/idb.ts";
 import type { TranscriptReply, TranscriptView } from "../../src/shared/messages/transcript.ts";
-import type { CaptionTrack, SiteCtx } from "../../src/sites/types.ts";
+import type { CaptionTrack, SiteCtx, SiteService } from "../../src/sites/types.ts";
 import { EN, fakeSiteService, SAMPLE_ID, sampleCues, sampleInfo, ZH, type FakeSiteService, type SiteScript } from "./fake-site-service.ts";
 import { manualTimers, type ManualTimers } from "./manual-timers.ts";
 import { createMemoryDriver } from "./memory-driver.ts";
@@ -51,6 +51,8 @@ export interface HarnessOptions {
   readonly tabTitles?: Readonly<Record<number, string>>;
   /** 官方总结附带的字幕兜底。生产里开着；这里默认关，用到它的测试才打开，别的测试不受它影响。 */
   readonly officialCaptionsFallback?: boolean;
+  /** 另一个站的替身（比如 YouTube 的）：按它自己规则里的站认。 */
+  readonly other?: SiteService;
 }
 
 export interface Harness {
@@ -64,6 +66,8 @@ export interface Harness {
   readonly service: TranscriptService;
   /** 服务建过的读取环境，按建的先后。 */
   readonly ctxs: SiteCtx[];
+  /** 建读取环境时带的标签页，和 ctxs 一一对应。 */
+  readonly ctxTabs: (number | undefined)[];
   /** 读过哪些标签页的标题。 */
   readonly titleReads: number[];
   readonly rows: () => Promise<Row[]>;
@@ -79,17 +83,19 @@ export function harness(options: HarnessOptions = {}): Harness {
   const importsDriver = createMemoryDriver<ImportRecord>("imports", options.imports ?? []);
   const overviewsDriver = createMemoryDriver<OverviewRecord>("overviews", options.overviews ?? []);
   const ctxs: SiteCtx[] = [];
+  const ctxTabs: (number | undefined)[] = [];
   const titleReads: number[] = [];
   const deps: TranscriptDeps = {
     sites: {
-      service: (platform) => (platform === site.service.rules.platform ? site.service : undefined),
-      ctx(_platform, { signal }) {
+      service: (platform) => (platform === site.service.rules.platform ? site.service : platform === options.other?.rules.platform ? options.other : undefined),
+      ctx(_platform, { signal, tabId }) {
         const ctx: SiteCtx = {
           fetch: () => Promise.reject(new Error("替身不发请求")),
           signal,
           backoff: { admit: async () => ({ ok: true }), trip: async () => {}, clear: async () => {} },
         };
         ctxs.push(ctx);
+        ctxTabs.push(tabId);
         return ctx;
       },
     },
@@ -105,7 +111,7 @@ export function harness(options: HarnessOptions = {}): Harness {
     log: { warn() {}, error() {} },
     officialCaptionsFallback: options.officialCaptionsFallback ?? false,
   };
-  return { site, timers, guard, driver, importsDriver, overviewsDriver, service: createTranscriptService(deps), ctxs, titleReads, rows: () => driver.getAll() };
+  return { site, timers, guard, driver, importsDriver, overviewsDriver, service: createTranscriptService(deps), ctxs, ctxTabs, titleReads, rows: () => driver.getAll() };
 }
 
 /** 成功的回复。 */

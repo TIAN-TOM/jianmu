@@ -1,4 +1,4 @@
-// YouTube 页面主世界的只读小桥：内容脚本问一句，交回播放器上已有的字幕轨列表（语言、类别、显示名、编号）、默认轨和视频编号。
+// YouTube 页面主世界的只读小桥：内容脚本问一句，交回播放器上已有的字幕轨列表（语言、类别、显示名、编号）、默认轨、视频编号，以及播放器拿到的数据说不说这个视频能正常播。
 // 只读不改：不调会改播放器的方法，不交字幕地址，不发请求，没有扩展接口。新注入的一份先叫旧的停下。
 // 问答走带随机标记的页面事件；网页也看得见这些事件，内容脚本那头按不可信输入核对。
 import { INJECTED } from "../../../shared/names.ts";
@@ -6,6 +6,7 @@ import { PANEL_LIMITS, type PlayerTrack, type PlayerTracks } from "./panel-types
 
 const PLAYER = "movie_player";
 const AUTO_KIND = "asr";
+const PLAYABLE = "OK";
 const TOKEN = /^[\w-]{8,64}$/;
 
 type Fields = Readonly<Record<string, unknown>>;
@@ -53,7 +54,9 @@ export function readPlayerTracks(document: Pick<Document, "getElementById">): Pl
     const audio = audioIndex === null ? null : fields(audios[audioIndex]);
     const defaultIndex = indexOf(audio?.defaultCaptionTrackIndex);
     const hasDefault = typeof audio?.hasDefaultTrack === "boolean" ? audio.hasDefaultTrack : null;
-    return { videoId, tracks, defaultIndex: defaultIndex !== null && defaultIndex < tracks.length ? defaultIndex : null, hasDefault };
+    // 播不了的视频（要登录、地区限制、还没开播这些）数据不全，列表空着不说明没有字幕。
+    const playable = fields(response?.playabilityStatus)?.status === PLAYABLE;
+    return { videoId, tracks, defaultIndex: defaultIndex !== null && defaultIndex < tracks.length ? defaultIndex : null, hasDefault, playable };
   } catch {
     return null;
   }

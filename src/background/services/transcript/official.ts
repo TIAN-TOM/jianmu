@@ -90,6 +90,11 @@ export function needsRetry(official: StoredOfficial, now: number): boolean {
   return RETRY_STATUSES.has(official.status) && now - official.fetchedAt >= OFFICIAL_RETRY_MS;
 }
 
+/** 这次问到的官方总结已有定论、也没附带字幕：之后的完整读取不会拿它兜底。 */
+export function settledWithoutCaptions(read: OfficialRead): boolean {
+  return SETTLED_STATUSES.has(read.record.status) && !read.record.hasCaptions && read.cues.length === 0;
+}
+
 // 问询和回填按「视频、媒体版本」记：换过内容的分 P 不并进旧版本的那次。
 const slotOf = (video: VideoKey, info: Pick<VideoInfo, "mediaVersion">): string => JSON.stringify([video, info.mediaVersion ?? ""]);
 

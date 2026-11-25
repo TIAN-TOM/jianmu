@@ -1,4 +1,5 @@
 // 取字幕和查原视频还在不在。卡片只能用轻量读取，而且只带视频和读取方式；轻量读取不看语言、刷新和标签页，带了也拒。
+// 卡片的轻量读取要问页面时只问卡片自己所在的那个标签页，按发送方认，不由消息指定。
 import { ok } from "../../core/errors.ts";
 import { parseVideoKey, type VideoRef } from "../../core/video-ref.ts";
 import { isTranscriptMode, type TranscriptGetRequest, type TranscriptModeRequest, type VideoCheckRequest } from "../../shared/messages/transcript.ts";
@@ -57,8 +58,10 @@ export function transcriptRoutes({ transcript, sessionStorage, clearGuard }: Tra
       pages: ["options", "triage"],
       idempotent: true,
       validate: isGetRequest,
-      handler: ({ video, mode, lang, fresh, tabId }) =>
-        mode === "light" ? transcript.light(refOf(video)) : transcript.get(refOf(video), { mode, lang, fresh, tabId }),
+      handler: ({ video, mode, lang, fresh, tabId }, { sender }) =>
+        mode === "light"
+          ? transcript.light(refOf(video), sender.kind === "card" ? sender.tabId : undefined)
+          : transcript.get(refOf(video), { mode, lang, fresh, tabId }),
     },
     "transcript.displayMode": {
       senders: ["panel"],

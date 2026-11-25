@@ -188,6 +188,8 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     pings: 0,
     /** 后台建的站点读取环境。 */
     siteCtxs: [] as SiteCtx[],
+    /** 建读取环境时带的标签页，和 siteCtxs 一一对应。 */
+    siteCtxTabs: [] as (number | undefined)[],
     /** 动态注册和注销内容脚本，按先后记。 */
     registrations: [] as Call<{ readonly action: "register" | "unregister"; readonly ids: readonly string[]; readonly matches?: readonly string[]; readonly js?: readonly string[] }>[],
   };
@@ -489,7 +491,8 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
       siteRules,
       sites: {
         service: (platform) => (options.site && options.site.rules.platform === platform ? options.site : undefined),
-        ctx(_platform, { signal }) {
+        ctx(_platform, { signal, tabId }) {
+          calls.siteCtxTabs.push(tabId);
           const ctx: SiteCtx = {
             fetch: () => Promise.reject(new Error("测试里的读取环境不发请求")),
             signal,

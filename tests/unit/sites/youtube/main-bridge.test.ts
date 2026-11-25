@@ -9,8 +9,9 @@ import { askPlayerTracks } from "../../../../src/sites/youtube/page/player-track
 const ID = "jmSample0001";
 const TOKEN = "jm-sample-token-0001";
 
-/** 自造的播放器数据：两条轨，默认音轨里默认第二条。另带几样小桥不该交的字段。 */
+/** 自造的播放器数据：能正常播，两条轨，默认音轨里默认第二条。另带几样小桥不该交的字段。 */
 const RESPONSE = {
+  playabilityStatus: { status: "OK", reason: "不该交的说明" },
   videoDetails: { videoId: ID, title: "不该交的标题" },
   captions: {
     playerCaptionsTracklistRenderer: {
@@ -39,7 +40,7 @@ function pageWith(response: unknown): EventTarget & { getElementById: (id: strin
   return Object.assign(new EventTarget(), { calls, getElementById: (id: string) => (id === "movie_player" ? player : null) });
 }
 
-test("小桥只交视频编号、每条轨的语言、类别、显示名和编号，以及默认轨；不交字幕地址，不碰会改播放器的方法", () => {
+test("小桥只交视频编号、每条轨的语言、类别、显示名和编号、默认轨，以及能不能正常播；不交字幕地址，不碰会改播放器的方法", () => {
   const page = pageWith(RESPONSE);
   const tracks = readPlayerTracks(page as unknown as Document);
   assert.deepEqual(tracks, {
@@ -50,8 +51,10 @@ test("小桥只交视频编号、每条轨的语言、类别、显示名和编�
     ],
     defaultIndex: 1,
     hasDefault: true,
+    playable: true,
   });
   assert.ok(!JSON.stringify(tracks).includes("example.invalid"));
+  assert.ok(!JSON.stringify(tracks).includes("不该交"));
   assert.deepEqual(page.calls, ["getPlayerResponse"]);
 });
 
@@ -63,12 +66,22 @@ test("读不到时：没有播放器、没有视频编号、读的时候出错�
   const many = { videoDetails: { videoId: ID }, captions: { playerCaptionsTracklistRenderer: { captionTracks: Array.from({ length: 201 }, () => ({ languageCode: "en" })) } } };
   assert.equal(readPlayerTracks(pageWith(many) as unknown as Document), null);
   const none = readPlayerTracks(pageWith({ videoDetails: { videoId: ID } }) as unknown as Document);
-  assert.deepEqual(none, { videoId: ID, tracks: [], defaultIndex: null, hasDefault: null });
+  assert.deepEqual(none, { videoId: ID, tracks: [], defaultIndex: null, hasDefault: null, playable: false }, "没说能播就不算能播");
   const renderer = RESPONSE.captions.playerCaptionsTracklistRenderer;
   const twoAudio = { ...RESPONSE, captions: { playerCaptionsTracklistRenderer: { ...renderer, audioTracks: [...renderer.audioTracks, ...renderer.audioTracks], defaultAudioTrackIndex: undefined } } };
   assert.equal(readPlayerTracks(pageWith(twoAudio) as unknown as Document)?.defaultIndex, null);
   const outside = { ...RESPONSE, captions: { playerCaptionsTracklistRenderer: { ...renderer, audioTracks: [{ defaultCaptionTrackIndex: 5 }] } } };
   assert.equal(readPlayerTracks(pageWith(outside) as unknown as Document)?.defaultIndex, null);
+});
+
+test("播放器说这个视频播不了（要登录、还没开播这些）时标成不能正常播：列表空着不说明没有字幕", () => {
+  for (const status of ["LOGIN_REQUIRED", "UNPLAYABLE", "LIVE_STREAM_OFFLINE", "ERROR", ""]) {
+    const read = readPlayerTracks(pageWith({ playabilityStatus: { status }, videoDetails: { videoId: ID } }) as unknown as Document);
+    assert.equal(read?.playable, false, status);
+    assert.deepEqual(read?.tracks, []);
+  }
+  const blank = readPlayerTracks(pageWith({ playabilityStatus: { status: "OK" }, videoDetails: { videoId: ID } }) as unknown as Document);
+  assert.deepEqual(blank, { videoId: ID, tracks: [], defaultIndex: null, hasDefault: null, playable: true });
 });
 
 test("一问一答：内容脚本问完当场拿到核对过的列表；没有小桥是 null", () => {
@@ -100,6 +113,8 @@ test("内容脚本只认带着这次标记、形状对的第一份回答：网�
   forged({ token: TOKEN, tracks: { videoId: ID, tracks: [], defaultIndex: null, hasDefault: null } });
   assert.equal(askPlayerTracks(page, TOKEN), null);
   forged(JSON.stringify({ token: TOKEN, tracks: { videoId: ID, tracks: [], defaultIndex: 0, hasDefault: null } }));
+  assert.equal(askPlayerTracks(page, TOKEN), null);
+  forged(JSON.stringify({ token: TOKEN, tracks: { videoId: ID, tracks: [], defaultIndex: null, hasDefault: null, playable: "OK" } }));
   assert.equal(askPlayerTracks(page, TOKEN), null);
   forged(`${JSON.stringify({ token: TOKEN, tracks: null })}${" ".repeat(200_001)}`);
   assert.equal(askPlayerTracks(page, TOKEN), null);

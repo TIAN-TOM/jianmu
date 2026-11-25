@@ -118,4 +118,6 @@ export interface SiteService {
   readOfficialSummary?(info: VideoInfo, ctx: SiteCtx): R<OfficialSummary>;
   readCreatorChapters?(info: VideoInfo, ctx: SiteCtx, options?: { fresh?: boolean }): R<Chapter[]>; // 和列轨一起带 fresh，分段跟着新的列表走
   readWatchLater?(ctx: SiteCtx): R<WatchLaterList>;
+  // 字幕要用户点了读取才读的站：只看页面上已经有的，不点、不发请求、不动播放器。确定这个视频没有字幕时是 true，有字幕或判断不了都是 false。
+  knownNoCaptions?(ref: VideoRef, ctx: SiteCtx): Promise<boolean>;
 }

@@ -272,7 +272,8 @@ export function createCardModel(deps: CardDeps) {
       notRead,
       transcriptFingerprint: value.transcriptFingerprint ?? null,
       ...(following && !quiet ? {} : { ...shownSaved(), verdictPending: false }),
-      ...(quiet ? {} : notice(blocked)),
+      // 安静重读不动提示，只有原来挡着的「没有字幕」这次不成立了（比如刚导入了字幕文件）才撤下。
+      ...(quiet ? (view.peek().noCaptions && !noCaptions ? notice("") : {}) : notice(blocked)),
     });
     // 没登录、本机还没有字幕：登录或在侧边栏读过以后，重试、收起再展开都要能重读，不当成已经读过。
     if (needLogin || notRead) loadedTicket = -1;
