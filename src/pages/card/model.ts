@@ -1,7 +1,7 @@
 // 卡片的状态和操作。认哪个视频只看所在标签页的地址；读数据只用轻量读取（官方总结和本机已有的概览，YouTube 只有后者）；
 // 生成概览只认真实点击，登记时换到一次性令牌才开始；侧边栏为同一视频起的、打开就出结论自动起的任务就跟着看进度。
 // 没启用、卡片关着时什么都不显示。展开收起的规则在 fold.ts（跟会话的模式、本窗口的侧边栏和手动展开收起）；
-// 收起时不读，后台打开的标签页第一次到前台才读。收起的那一行写什么在 glance.ts（播放到的章节、临时的一句话）。
+// 收起时不读，后台打开的标签页第一次到前台才读。收起的那一行写什么在 glance.ts（播放到的章节、打不开侧边栏时临时说的一句话）。
 import { computed, signal, type ReadonlySignal } from "@preact/signals";
 import { describe, type ErrorCode } from "../../core/errors.ts";
 import { fixedInSettings } from "../../core/errors/settings-codes.ts";
@@ -193,10 +193,10 @@ export function createCardModel(deps: CardDeps) {
     video: () => video,
     windowId: () => tab?.windowId ?? null,
     collapsed: () => view.peek().collapsed,
-    place(collapsed, auto) {
+    place(collapsed) {
       patch({ collapsed });
-      // 展开着的卡片因为播满时长自己收起：在收起的那一行上说一句为什么。
-      glance.say(collapsed && auto ? t().autoFoldNote : "");
+      // 重新摆过，收起那一行上之前说的那句话就不留了。
+      glance.say("");
       if (!collapsed) void load();
     },
     panel: (open) => patch({ panelOpen: open }),
@@ -473,8 +473,6 @@ export function createCardModel(deps: CardDeps) {
     generate,
     cancel,
     toggle: () => fold.toggle(),
-    /** 鼠标进了卡片或离开了卡片：播满时长自动收起要等它离开。 */
-    hover: (inside: boolean): void => fold.use(inside),
     /** 浏览器没让卡片直接打开侧边栏：展开着时在正文里说，收着时在那一行上说。 */
     panelRefused(): void {
       patch({ notice: { text: t().panelRefused, tone: "error" } });

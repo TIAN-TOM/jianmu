@@ -51,7 +51,6 @@ export const CARD_ZH = {
   noTab: "没能确认卡片所在的标签页，可以打开侧边栏看总结。",
   panelRefused: "浏览器没让卡片直接打开侧边栏，请点浏览器工具栏里的简幕图标。",
   /** 收起那一行上临时说的话。 */
-  autoFoldNote: "开始看了，先收起",
   panelRefusedNote: "请点工具栏上的简幕图标",
 };
 

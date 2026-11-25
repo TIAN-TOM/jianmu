@@ -47,6 +47,5 @@ export const CARD_HANT: CardText = {
   chaptersFirst: "章節還在生成，結論最後寫。",
   noTab: "沒能確認卡片所在的分頁，可以打開側邊欄看總結。",
   panelRefused: "瀏覽器沒讓卡片直接打開側邊欄，請點選瀏覽器工具列裡的簡幕圖示。",
-  autoFoldNote: "開始看了，先收合",
   panelRefusedNote: "請點選工具列上的簡幕圖示",
 };

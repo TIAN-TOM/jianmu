@@ -47,6 +47,5 @@ export const CARD_EN: CardText = {
   chaptersFirst: "Chapters are still being written. The verdict comes last.",
   noTab: "Couldn't tell which tab this card is in. Open the side panel to see the summary.",
   panelRefused: "The browser didn't let the card open the side panel. Click the Jianmu icon in the browser toolbar.",
-  autoFoldNote: "Collapsed while you watch",
   panelRefusedNote: "Click the Jianmu icon in the toolbar",
 };

@@ -1,4 +1,4 @@
-// 卡片收起的那一行上写什么：播放到的章节（隔一会儿问一次本页的播放器），和临时说的一句话（播满时长自动收起时说为什么）。
+// 卡片收起的那一行上写什么：播放到的章节（隔一会儿问一次本页的播放器），和临时说的一句话（浏览器没让卡片打开侧边栏时说怎么办）。
 // 只在收着、侧边栏关着、已经有章节时才问播放位置，标签页不在前台时不问；那句话只在看得见时计时。
 import { chapterAt, type ChapterStart } from "../shared/ui/chapters.ts";
 import { CARD_ZH } from "./text-zh.ts";
@@ -8,8 +8,7 @@ import type { CardTimers } from "./timers.ts";
 export const GLANCE_POLL_MS = 2_000;
 /** 收起那一行上的一句话留多久。 */
 export const HEAD_NOTE_MS = 6_000;
-/** 中文的那两句；说什么由卡片模型按界面语言从文案表取。 */
-export const AUTO_FOLD_NOTE = CARD_ZH.autoFoldNote;
+/** 中文的那一句；说什么由卡片模型按界面语言从文案表取。 */
 export const PANEL_REFUSED_NOTE = CARD_ZH.panelRefusedNote;
 
 export interface GlanceState {
