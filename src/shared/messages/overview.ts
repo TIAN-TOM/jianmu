@@ -14,6 +14,11 @@ export interface OverviewStartRequest {
   readonly token?: string;
   /** 已有概览时重新生成。卡片不能带。 */
   readonly fresh?: boolean;
+  /**
+   * 侧边栏在要经页面读字幕的站（YouTube）上、本机还没有字幕时带上视频所在的标签页：后台先经这个标签页读到字幕再生成，
+   * 和卡片上的「生成概览」同一条路。卡片不带，按它自己所在的标签页算。
+   */
+  readonly tabId?: number;
 }
 
 export interface OverviewRetryRequest {

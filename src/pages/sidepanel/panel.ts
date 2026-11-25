@@ -22,6 +22,7 @@ import { createOverviewStore, type OverviewStore } from "./overview.ts";
 import { createPlayer, playerFailureText, type Player } from "./player.ts";
 import { createQaStore, type QaStore } from "./qa.ts";
 import { createTranscriptStore, readsOnClick, type TranscriptStore } from "./transcript.ts";
+import { refillAfterGenerate } from "./generate-read.ts";
 import { createTidy, createTranslation, type Tidy, type Translation } from "./translate.ts";
 import type { OptionsSection } from "../../shared/messages/core.ts";
 
@@ -157,6 +158,8 @@ export function createPanel(api: PageApi, storageChanged?: Parameters<typeof cre
       if (active) void transcript.load(active, tabId, readsOnClick(active) ? { localOnly: true } : {});
       else transcript.clear();
     }),
+    // YouTube 一步生成：概览任务结束以后把生成路上读到的字幕从本机摆出来（generate-read.ts）。关掉代开开关的构建里整块裁掉。
+    ...(FEATURE_YOUTUBE_OPEN_PANEL ? [refillAfterGenerate(overview, transcript, follow)] : []),
     // 字幕换了版本，译文和整理结果跟着作废；整理过的这一版打开就用上。
     effect(() => {
       const now = transcript.state.value;

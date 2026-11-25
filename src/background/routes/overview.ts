@@ -1,7 +1,8 @@
 // 概览：开始生成、补失败块、读本机已有的概览。生成和补块认领的是先经任务登记的任务，服务核对任务的种类和视频；
 // 卡片只能开始生成，只认登记时拿到的一次性令牌，不能重新生成，登记时已经过了卡片开关和限频。
 // 手动生成或补失败块成功一次，打开就出结论就从额度用完、密钥不对的暂停里恢复。卡片在要经页面读字幕的站（YouTube）上点生成时，
-// 任务认领以后先经卡片所在的标签页读到字幕（本机有就不碰页面），读不成就按页面报的原因收尾。
+// 任务认领以后先经卡片所在的标签页读到字幕（本机有就不碰页面），读不成就按页面报的原因收尾；侧边栏在那里还没读到字幕时
+// 带上视频所在的标签页，走同一条路。
 import { fail, type Failure } from "../../core/errors.ts";
 import { parseVideoKey, type VideoKey } from "../../core/video-ref.ts";
 import type { OverviewGetRequest, OverviewResultView, OverviewRetryRequest, OverviewStartRequest } from "../../shared/messages/overview.ts";
@@ -31,9 +32,12 @@ const onlyKeys = (value: Readonly<Record<string, unknown>>, allowed: readonly st
 
 const isId = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= MAX_ID;
 
+const isTabId = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0;
+
 function isStartRequest(req: unknown): req is OverviewStartRequest {
-  if (!isPlainObject(req) || !onlyKeys(req, ["video", "taskId", "token", "fresh"]) || !isVideoKey(req.video)) return false;
+  if (!isPlainObject(req) || !onlyKeys(req, ["video", "taskId", "token", "fresh", "tabId"]) || !isVideoKey(req.video)) return false;
   if (req.fresh !== undefined && typeof req.fresh !== "boolean") return false;
+  if (req.tabId !== undefined && !isTabId(req.tabId)) return false;
   // 任务号和令牌恰好带一个。
   return Object.hasOwn(req, "taskId") ? isId(req.taskId) && !Object.hasOwn(req, "token") : isId(req.token);
 }
@@ -75,15 +79,17 @@ export function overviewRoutes({ overview, cardLimits, auto, pageTranscript }: O
       validate: isStartRequest,
       async handler(req, { sender }) {
         if (sender.kind === "card") {
-          // 卡片不收任务号、不能重新生成：只认登记时换到的令牌，用一次就作废。
-          if (req.taskId !== undefined || req.token === undefined || req.fresh) return fail("FORBIDDEN");
+          // 卡片不收任务号、不能重新生成、不点名标签页：只认登记时换到的令牌，用一次就作废。
+          if (req.taskId !== undefined || req.token === undefined || req.fresh || req.tabId !== undefined) return fail("FORBIDDEN");
           const taskId = cardLimits.redeemToken(req.token);
           if (!taskId) return fail("TASK_NOT_FOUND");
           const prepare = readInPage(req.video, sender.tabId);
           return generated(overview.generate(taskId, req.video, { fresh: false, ...(prepare ? { prepare } : {}) }));
         }
         if (req.taskId === undefined) return fail("FORBIDDEN");
-        return generated(overview.generate(req.taskId, req.video, { fresh: req.fresh === true }));
+        // 侧边栏在 YouTube 上还没读到字幕时点生成：和卡片一样，先经视频所在的标签页读到字幕。
+        const prepare = req.tabId === undefined ? null : readInPage(req.video, req.tabId);
+        return generated(overview.generate(req.taskId, req.video, { fresh: req.fresh === true, ...(prepare ? { prepare } : {}) }));
       },
     },
     "overview.retryFailed": {
