@@ -4,11 +4,14 @@
 import type { VideoRef } from "../../core/video-ref.ts";
 import type { CaptionTrack, Cue, PageChannel, SiteCtx, SiteFailure, SiteResult, SiteService, VideoInfo } from "../types.ts";
 import { panelCurrentOf, panelSnapshotOf, panelTracksOf, type PanelCue, type PanelSnapshot, type PlayerTrack, type PlayerTracks } from "./page/panel-types.ts";
+import { pageCommentReader } from "./comments.ts";
 import { readCaughtCaptions, type PlayerFallback, type PlayerRead } from "./player-fallback.ts";
 import { TRACK_PREFIX, UNCONFIRMED_TRACK, UNNAMED_TRACK, youtubeRules } from "./url.ts";
 
 // 页面上没有文字稿时读播放器取回的字幕：关掉开关的构建里这一支连同后备的代码一起裁掉。
 const playerFallback = FEATURE_YOUTUBE_CAPTION_CATCH ? readCaughtCaptions : null;
+// 读评论区（PRD F23）：关掉开关的构建里连同页面上读评论、替用户滚动的代码一起裁掉。
+const commentReader = FEATURE_COMMENTS ? pageCommentReader : null;
 
 // 等页面回话的上限：面板还在加载时页面那头最多等几秒。
 const ASK_TIMEOUT_MS = 10_000;
@@ -321,5 +324,7 @@ export function createYoutubeService({ askTimeoutMs = ASK_TIMEOUT_MS, caughtCapt
       const changed = await stillSame(info.ref, ctx, snapshot, askTimeoutMs);
       return changed ?? { ok: true, value: cuesOf(snapshot) };
     },
+
+    ...(commentReader ? { readTopComments: commentReader(ask) } : {}),
   };
 }

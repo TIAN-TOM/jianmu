@@ -15,6 +15,8 @@ const HANT_FILE = /-hant\.ts$/;
 const ALLOWED_TRADITIONAL: Readonly<Record<string, string>> = {
   // 认 YouTube 页面上自动字幕的标注，要连繁体和日文的写法一起认。
   "src/sites/youtube/service.ts": "動產",
+  // 认 YouTube 评论区上缩写过的点赞数，繁体界面的单位要一起认。
+  "src/sites/youtube/page/comment-types.ts": "萬億",
 };
 
 function sourceFiles(dir: string): string[] {
