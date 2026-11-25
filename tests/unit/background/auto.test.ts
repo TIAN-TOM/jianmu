@@ -1,7 +1,7 @@
 // 打开就出结论接进后台：标签页和窗口事件经 App 交给自动生成。走真实的后台装配、任务表、取字幕和概览服务，
 // 窗口、标签页、站点读取和模型服务是替身。确认前、开关关着时不问窗口、不读地址；开着时开着的长视频都排进来，前台的先，
 // 每个只生成一次；授权了的 YouTube 观看页也排进来，经视频页点开文字稿面板读、读完关上；关掉的标签页撤掉；被限流整批停下；侧边栏再点「生成概览」接上同一个任务；额度用完停下，
-// 配置检查和广播带出来，重开开关或手动成功一次后恢复。
+// 配置检查和广播带出来，重开开关、手动成功一次、点「恢复」后恢复；密钥被拒停着时，设置页保存了新的密钥自己恢复。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createApp } from "../../../src/background/app.ts";
@@ -9,7 +9,7 @@ import { stopsReading } from "../../../src/background/auto.ts";
 import { AUTO_READ_GAP_MS } from "../../../src/background/services/auto-generate.ts";
 import { PROTOCOLS } from "../../../src/core/ai/provider/index.ts";
 import { videoKey } from "../../../src/core/video-ref.ts";
-import { AUTO_LEDGER_KEY, SETTINGS_STORAGE_KEY } from "../../../src/shared/names.ts";
+import { AUTO_LEDGER_KEY, SETTINGS_REVISION_KEY, SETTINGS_STORAGE_KEY } from "../../../src/shared/names.ts";
 import { readFileSync } from "node:fs";
 import { createFakeChrome, senders, TUBE_ORIGIN, watchUrl, tubeUrl } from "../../helpers/chrome.ts";
 import { chatReply, keyedStorage, modelService, reply, type SentRequest } from "../../helpers/fake-model-service.ts";
@@ -276,4 +276,45 @@ test("手动成功生成一次概览：从暂停里恢复；本机已有的直�
   const result = await ask("overview.start", { video: other, taskId: task.value.task.id });
   assert.equal(result.ok, true, JSON.stringify(result));
   assert.equal((await ask("config.check")).value?.autoPaused, undefined);
+});
+
+test("额度用完停着时点「恢复」：只收侧边栏和设置页，解除暂停、广播给页面，接着把开着的视频页排进来", async () => {
+  let fail = true;
+  const quota = reply({ error: { message: "insufficient balance", type: "insufficient_quota" } }, 429);
+  const { app, ask, fake, ai, pumped } = appOn({ handler: (request) => (fail ? quota : answer(request)) });
+  app.onTabActivated();
+  assert.ok(await until(async () => (await ask("config.check")).value?.autoPaused === "quota"));
+
+  for (const sender of [senders.card(), senders.triage(), senders.content(), senders.otherPage()]) {
+    assert.deepEqual(await ask("auto.resume", {}, sender), { ok: false, code: "FORBIDDEN" });
+  }
+  assert.deepEqual(await ask("auto.resume", { now: true }), { ok: false, code: "INVALID_REQUEST" });
+  assert.equal((await ask("config.check")).value?.autoPaused, "quota", "被拒的请求不算数");
+
+  fail = false;
+  const posts = ai.posts().length;
+  assert.deepEqual(await ask("auto.resume", {}, senders.options()), { ok: true, value: {} });
+  assert.equal((await ask("config.check")).value?.autoPaused, undefined);
+  assert.ok(fake.calls.broadcasts.some((message) => JSON.stringify(message) === JSON.stringify({ type: "auto.changed", paused: null })));
+  assert.ok(await pumped(() => ai.posts().length > posts), "恢复以后不等下一个标签页事件，开着的另一个视频接着生成");
+  assert.deepEqual(await ask("auto.resume"), { ok: true, value: {} }, "没停着时再点也没事");
+});
+
+test("密钥被拒停着：设置页保存了新的密钥或地址就自己恢复；额度用完停着时保存不恢复，要用户自己点", async () => {
+  const rejected = reply({ error: { message: "invalid api key" } }, 401);
+  const keyed = appOn({ handler: () => rejected });
+  keyed.app.onTabActivated();
+  assert.ok(await until(async () => (await keyed.ask("config.check")).value?.autoPaused === "key"));
+  // 只换了外观、模型这类写入：修订号不变，不恢复。
+  await keyed.app.onStorageChanged({ [SETTINGS_STORAGE_KEY]: { oldValue: {}, newValue: {} } }, "local");
+  assert.equal((await keyed.ask("config.check")).value?.autoPaused, "key");
+  await keyed.app.onStorageChanged({ [SETTINGS_REVISION_KEY]: { oldValue: "旧的修订号", newValue: "新的修订号" } }, "local");
+  assert.equal((await keyed.ask("config.check")).value?.autoPaused, undefined);
+
+  const quota = reply({ error: { message: "insufficient balance", type: "insufficient_quota" } }, 429);
+  const broke = appOn({ handler: () => quota });
+  broke.app.onTabActivated();
+  assert.ok(await until(async () => (await broke.ask("config.check")).value?.autoPaused === "quota"));
+  await broke.app.onStorageChanged({ [SETTINGS_REVISION_KEY]: { oldValue: "旧的修订号", newValue: "新的修订号" } }, "local");
+  assert.equal((await broke.ask("config.check")).value?.autoPaused, "quota");
 });

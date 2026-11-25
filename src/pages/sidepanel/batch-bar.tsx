@@ -1,6 +1,7 @@
-// 本窗口全部生成那一条：窗口级的，切视频时不跟着换，排在概览页签最上面。
-// 平时一个按钮；清点完写清本窗口几个视频、跳过几个、要新生成几个，等用户确认；生成中有进度条和「全部停止」，
-// 失败和停掉的逐个列出、可以单独重试，做完可以收起。
+// 本窗口全部生成：窗口级的，切视频时不跟着换。
+// 平时只是速读里那排按钮中的一个（BatchStart），和「重新生成」「导出学习稿」放在一起，AI 服务没设置好时不摆；
+// 清点中、等确认、生成中、有失败要列出时，这一条（BatchBar）回到速读最上面：写清本窗口几个视频、跳过几个、要新生成几个，等用户确认；
+// 生成中有进度条和「全部停止」，失败和停掉的逐个列出、可以单独重试，做完点「知道了」收掉。
 import { describe as describeFailure } from "../../core/errors.ts";
 import { AI_CONCURRENCY } from "../../shared/settings-schema.ts";
 import { Button } from "../shared/ui/button.tsx";
@@ -21,14 +22,12 @@ export function BatchBar({ panel, ready }: { readonly panel: Panel; readonly rea
   const notReady = ready ? {} : { disabledReason: setupReason(panel.config.state.value, lang) ?? sharedText().setup.reason.none };
 
   if (state.phase === "idle") {
-    return (
+    // 平时按钮在速读那排按钮里；这里只在上一次没做成时说一句。
+    return error ? (
       <section key="idle" class="batch-bar" data-phase="idle" aria-label={t.label}>
-        <Button disabled={!ready} {...notReady} onClick={() => batch.count()}>
-          {t.label}
-        </Button>
-        {error ? <p class="batch-error" role="alert">{error}</p> : null}
+        <p class="batch-error" role="alert">{error}</p>
       </section>
-    );
+    ) : null;
   }
 
   if (state.phase === "counting") {
@@ -89,7 +88,7 @@ export function BatchBar({ panel, ready }: { readonly panel: Panel; readonly rea
           </Button>
         ) : (
           <Button variant="text" onClick={() => batch.dismiss()}>
-            {t.collapse}
+            {t.gotIt}
           </Button>
         )}
       </div>
@@ -126,5 +125,28 @@ export function BatchBar({ panel, ready }: { readonly panel: Panel; readonly rea
       ) : null}
       {error ? <p class="batch-error" role="alert">{error}</p> : null}
     </section>
+  );
+}
+
+/** 平时的入口：速读那排按钮里的一个。只在空闲时摆，清点、确认和生成中都在上面那一条里。 */
+export function BatchStart({ panel, ready }: { readonly panel: Panel; readonly ready: boolean }) {
+  const { batch } = panel;
+  if (batch.state.value.phase !== "idle") return null;
+  const notReady = ready ? {} : { disabledReason: setupReason(panel.config.state.value, uiLang.value) ?? sharedText().setup.reason.none };
+  return (
+    <span class="batch-start">
+      <Button
+        variant="text"
+        disabled={!ready}
+        {...notReady}
+        onClick={() => {
+          batch.count();
+          // 按钮在章节下面，清点和确认摆在速读最上面：把那一条滚进视野，不然看着像没点上。
+          requestAnimationFrame(() => document.querySelector(".skim .batch-bar")?.scrollIntoView({ block: "nearest" }));
+        }}
+      >
+        {panelText().batch.label}
+      </Button>
+    </span>
   );
 }

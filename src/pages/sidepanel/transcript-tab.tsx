@@ -23,8 +23,9 @@ import { downloadText, safeFileName } from "./files.ts";
 import { copyText } from "./copy.ts";
 import { CreatorChapters, OfficialSummary } from "./guides.tsx";
 import type { Panel } from "./panel.ts";
+import { SettingsExit } from "./settings-exit.tsx";
 import { activeIndex, copyTextOf, explainable, mainBreaks, refreshLang, selectedNote, srtOf, transcriptRows } from "./reading.ts";
-import { setupReason } from "../shared/config.ts";
+import { needsSetup, setupReason } from "../shared/config.ts";
 import { uiLang, type UiLang } from "../shared/ui-lang.ts";
 import { sharedText } from "../shared/text.ts";
 import { panelText, panelTextOf } from "./text.ts";
@@ -143,10 +144,10 @@ const tidiedOf = (panel: Panel): Readonly<Record<string, string>> => (panel.tidy
 
 /**
  * 整理字幕那一行：没整理过时是按钮，写明要花额度；整理中显示进度和停止；整理过以后能在整理后和原始字幕之间切换，
- * 没整理完的可以接着整理。只在用户点的时候做，不自动做。
+ * 没整理完的可以接着整理。只在用户点的时候做，不自动做。AI 服务没设置好时先不摆这两个按钮，顶上那一行带人去设置。
  */
 function TidyRow({ panel, segments }: { readonly panel: Panel; readonly segments: number }) {
-  const { phase, done, total, message, said } = panel.tidy.state.value;
+  const { phase, done, total, message, said, code } = panel.tidy.state.value;
   const count = Object.keys(panel.tidy.lines.value).length;
   const show = panel.tidy.show.value;
   const p = panelText();
@@ -165,21 +166,26 @@ function TidyRow({ panel, segments }: { readonly panel: Panel; readonly segments
       </div>
     );
   }
-  const ready = panel.config.state.value.state === "checked" && panel.config.state.value.view.ready;
-  const reason = ready ? undefined : setupReason(panel.config.state.value, uiLang.value);
+  const config = panel.config.state.value;
+  const ready = config.state === "checked" && config.view.ready;
+  const reason = ready ? undefined : setupReason(config, uiLang.value);
+  const offer = !needsSetup(config);
+  if (count === 0 && !offer && !message) return null;
   return (
     <div class="tidy-row">
       {count === 0 ? (
-        <Button onClick={start} disabled={!ready} {...(reason ? { disabledReason: reason } : {})} note={t.tidyNote}>
-          {t.tidy}
-        </Button>
+        offer ? (
+          <Button onClick={start} disabled={!ready} {...(reason ? { disabledReason: reason } : {})} note={t.tidyNote}>
+            {t.tidy}
+          </Button>
+        ) : null
       ) : (
         <>
           <Button variant="text" onClick={() => panel.tidy.setShow(!show)}>
             {show ? t.showOriginal : t.showTidied}
           </Button>
-          {count < segments ? (
-            <Button variant="text" onClick={start} disabled={!ready} {...(reason ? { disabledReason: reason } : {})}>
+          {count < segments && offer ? (
+            <Button variant="text" onClick={start} disabled={!ready} {...(reason ? { disabledReason: reason } : {})} note={t.tidyNote}>
               {t.continueTidy}
             </Button>
           ) : null}
@@ -187,15 +193,19 @@ function TidyRow({ panel, segments }: { readonly panel: Panel; readonly segments
       )}
       {message ? <p class="note-line">{message}</p> : null}
       {message ? <ServiceSaid said={said} /> : null}
+      {message ? <SettingsExit panel={panel} code={code} /> : null}
     </div>
   );
 }
 
-function TranslateRow({ panel }: { readonly panel: Panel }) {
-  const { phase, done, total, message, said } = panel.translation.state.value;
-  if (panel.translation.mode.value === "original" && phase !== "running") return null;
+/** 翻译那一行：翻译中显示进度和停止；停了、没译完或出错时说一句，还有没译的段就给「接着翻译」，从播放到的地方接着译。 */
+function TranslateRow({ panel, view }: { readonly panel: Panel; readonly view: TranscriptView }) {
+  const state = panel.translation.state.value;
+  const { phase, done, total, message, said, code } = state;
+  const mode = panel.translation.mode.value;
+  const p = panelText();
+  if (mode === "original" && phase !== "running") return null;
   if (phase === "running") {
-    const p = panelText();
     return (
       <div class="progress-row" role="status">
         <span>{total > 0 ? p.transcript.translating(done, total) : p.transcript.translatingPlain}</span>
@@ -205,12 +215,25 @@ function TranslateRow({ panel }: { readonly panel: Panel }) {
       </div>
     );
   }
-  return message ? (
+  const lines = panel.translation.lines.value;
+  const more = canStartTranslation(state) && !needsSetup(panel.config.state.value) && view.transcript.segments.some(({ id }) => !lines[id]);
+  // 停下的说明只在这次打开里有；关掉侧边栏再开，显示方式还在、有没译的段时照样给「接着翻译」。点了花额度，旁边写明。
+  const text = message || (more ? p.transcript.translateUnfinished : "");
+  if (!text) return null;
+  return (
     <>
-      <p class="progress-row">{message}</p>
-      <ServiceSaid said={said} />
+      <div class="progress-row" role="status">
+        <span>{text}</span>
+        {more ? (
+          <Button variant="text" note={p.transcript.translateHint} onClick={() => panel.translation.setMode(mode, panel.player.position.peek()?.atSec)}>
+            {p.transcript.continueTranslate}
+          </Button>
+        ) : null}
+      </div>
+      {message ? <ServiceSaid said={said} /> : null}
+      {message ? <SettingsExit panel={panel} code={code} /> : null}
     </>
-  ) : null;
+  );
 }
 
 function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: TranscriptView; readonly follow: boolean }) {
@@ -254,6 +277,13 @@ function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: 
     if (searching) searchInput.current?.focus();
   }, [searching]);
 
+  // 别处要把视野留给别的内容：停下跟随，「回到当前句」接着能点回来。
+  const hold = panel.followHold.value;
+  const holdAtStart = useRef(hold);
+  useEffect(() => {
+    if (hold !== holdAtStart.current) setFollowing(false);
+  }, [hold]);
+
   // 跟着播放滚：下一句就在附近时滑过去，看得出是往下走了一句；刚进来、隔得远（拖了进度条）或者系统要求减少动态效果时直接到位。
   const settled = useRef(false);
   useEffect(() => {
@@ -281,30 +311,33 @@ function Ready({ panel, view, follow }: { readonly panel: Panel; readonly view: 
 
   return (
     <>
-      <Toolbar panel={panel} view={view} searching={searching} onSearch={() => { setSearching(!searching); setQuery(""); }} onImport={() => fileInput.current?.click()} />
-      <ImportInput panel={panel} inputRef={fileInput} />
-      {searching ? (
-        <div class="search-row">
-          <input
-            ref={searchInput}
-            class="search-input"
-            type="search"
-            placeholder={t.searchPlaceholder}
-            aria-label={t.search}
-            value={query}
-            onInput={(event) => setQuery(event.currentTarget.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Escape" && !event.isComposing) {
-                event.preventDefault();
-                setQuery("");
-                setSearching(false);
-              }
-            }}
-          />
-          <span class="search-count">{needle ? t.matches(shown.length) : ""}</span>
-        </div>
-      ) : null}
-      <TranslateRow panel={panel} />
+      {/* 工具行、搜索框和翻译进度：精读里吸在当前章节下面。 */}
+      <div class="cue-tools">
+        <Toolbar panel={panel} view={view} searching={searching} onSearch={() => { setSearching(!searching); setQuery(""); }} onImport={() => fileInput.current?.click()} />
+        <ImportInput panel={panel} inputRef={fileInput} />
+        {searching ? (
+          <div class="search-row">
+            <input
+              ref={searchInput}
+              class="search-input"
+              type="search"
+              placeholder={t.searchPlaceholder}
+              aria-label={t.search}
+              value={query}
+              onInput={(event) => setQuery(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape" && !event.isComposing) {
+                  event.preventDefault();
+                  setQuery("");
+                  setSearching(false);
+                }
+              }}
+            />
+            <span class="search-count">{needle ? t.matches(shown.length) : ""}</span>
+          </div>
+        ) : null}
+        <TranslateRow panel={panel} view={view} />
+      </div>
       <TidyRow panel={panel} segments={segments.length} />
       <ol class="cues" ref={list} onWheel={() => setFollowing(false)} onTouchMove={() => setFollowing(false)} onMouseUp={onSelectEnd} onKeyUp={onSelectEnd}>
         {shown.map(({ segment, index, main, sub, extra }) => (

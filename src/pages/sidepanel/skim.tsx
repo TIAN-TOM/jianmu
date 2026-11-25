@@ -1,6 +1,8 @@
-// 速读：一句话结论在最上面，然后是模型生成的章节，每章展开看要点、金句和这一段的字幕，再是视频网站的官方总结和 UP 主分段。
-// 还没有概览时先摆官方总结和 UP 主分段，下面是「生成概览」和字幕。长视频边生成边显示，能停止、补失败块、重新生成；
+// 速读：一句话结论在最上面，然后是模型生成的章节，每章展开看要点、金句和这一段的字幕，再是 B 站的官方总结和 UP 主分段。
+// 还没有概览时先摆官方总结和 UP 主分段，下面是「生成概览」和字幕。长视频边生成边显示，能停止、补上缺的部分、重新生成；
 // 没有结论时可以只用官方总结写一句。换过字幕时，依据旧字幕写的结论和章节标「基于旧字幕」，不删不改。
+// AI 服务没设置好时，「生成概览」的位置是一个去设置页的主按钮，按缺什么写；本窗口全部生成这时不摆。
+// 「导出学习稿」有东西可导才摆。
 import { groupQuotesIntoChapters, type ChapterPart, type QuotePart } from "../../core/ai/chunking.ts";
 import { keyChapterStarts } from "../../core/ai/verdict.ts";
 import type { LearningAnalysis } from "../../core/notes/markdown.ts";
@@ -13,13 +15,14 @@ import { ChapterList } from "../shared/ui/chapter-list.tsx";
 import { ServiceSaid } from "../shared/ui/notice.tsx";
 import { StaleTranscriptLine, VerdictBlock } from "../shared/ui/verdict-block.tsx";
 import { staleOverviewMarks, type BasisSource } from "../shared/ui/verdict.ts";
-import { BatchBar } from "./batch-bar.tsx";
+import { BatchBar, BatchStart } from "./batch-bar.tsx";
 import { downloadText, learningExport } from "./files.ts";
 import { CreatorChapters, OfficialSummary } from "./guides.tsx";
 import type { Panel } from "./panel.ts";
 import { segmentsBetween } from "./reading.ts";
+import { SettingsExit } from "./settings-exit.tsx";
 import { TranscriptTab } from "./transcript-tab.tsx";
-import { setupReason } from "../shared/config.ts";
+import { needsSetup, setupAction, setupReason } from "../shared/config.ts";
 import { sharedText } from "../shared/text.ts";
 import { uiLang } from "../shared/ui-lang.ts";
 import { noteStored, panelText } from "./text.ts";
@@ -189,6 +192,7 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
   const hasChapters = Boolean(analysis?.chapters?.length);
   const hasOverview = Boolean(analysis && (hasChapters || analysis.keyQuotes?.length));
   const notReady = ready ? undefined : setupReason(config, uiLang.value);
+  const setup = needsSetup(config);
   const t = panelText().skim;
   const verdictShown = !state.verdictTask && text(state.saved?.analysis.verdict?.summary) !== "";
   const stale = staleOverviewMarks(state.saved?.transcriptBasis, view?.transcript.ref.fingerprint, verdictShown);
@@ -200,22 +204,22 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
     </>
   );
 
+  const notes = panel.notes.state.value;
+  const learning = (exportedAt: number) => ({
+    title: info?.title ?? "",
+    author: info?.author ?? "",
+    ...(state.video ? { videoKey: state.video } : {}),
+    exportedAt,
+    analysis: state.saved?.analysis ?? null,
+    analysisFailures: state.saved?.analysisFailures ?? [],
+    officialSummary: official?.status === "ok" ? official : null,
+    creatorChapters: chapters ?? [],
+    notes: notes.scope === "video" ? notes.notes : [],
+  });
+  // 有东西可导才摆按钮：概览、官方总结、UP 主分段、本视频的笔记，一样都没有时导出是空的。
+  const canExport = useMemo(() => learningExport(learning(0), "zh") !== null, [state.saved, official, chapters, notes]);
   const exportLearning = (): void => {
-    const notes = panel.notes.state.peek();
-    const file = learningExport(
-      {
-        title: info?.title ?? "",
-        author: info?.author ?? "",
-        ...(state.video ? { videoKey: state.video } : {}),
-        exportedAt: Date.now(),
-        analysis: state.saved?.analysis ?? null,
-        analysisFailures: state.saved?.analysisFailures ?? [],
-        officialSummary: official?.status === "ok" ? official : null,
-        creatorChapters: chapters ?? [],
-        notes: notes.scope === "video" ? notes.notes : [],
-      },
-      uiLang.peek(),
-    );
+    const file = learningExport(learning(Date.now()), uiLang.peek());
     if (!file) return panel.say(t.nothingToExport);
     downloadText(file.fileName, file.markdown, "text/markdown");
   };
@@ -238,16 +242,18 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
         </p>
       ) : null}
       {state.error ? <ServiceSaid said={state.errorSaid} /> : null}
-      {state.result?.failedChunks ? <p class="note-line">{t.failedChunks(state.result.failedChunks)}</p> : null}
+      {state.error ? <SettingsExit panel={panel} code={state.errorCode} /> : null}
+      {state.result?.failedChunks ? <p class="note-line">{t.failedChunks}</p> : null}
       {state.result?.saveFailed ? <p class="note-line">{t.saveFailed}</p> : null}
-      {state.result?.canceled ? <p class="note-line">{t.canceled(state.result.savedChunks ?? 0)}</p> : null}
+      {state.result?.canceled ? <p class="note-line">{t.canceled}</p> : null}
       {hasOverview ? null : guides}
       <section class="ai-overview" aria-label={t.overviewLabel}>
         {stale.chapters && hasOverview && !running ? <StaleTranscriptLine /> : null}
         {analysis && hasOverview ? <Chapters panel={panel} analysis={analysis} segments={view?.transcript.segments ?? NO_SEGMENTS} cues={view?.transcript.cues ?? NO_CUES} /> : null}
-        {!running && state.loaded ? (
+        {/* 这个视频正在生成时，这排只留「本窗口全部生成」：别的视频照样能一起清点。 */}
+        {state.loaded && (!running || (!setup && panel.batch.state.value.phase === "idle")) ? (
           <div class="state-actions">
-            {hasChapters ? (
+            {running ? null : hasChapters ? (
               <>
                 {failures > 0 ? (
                   <Button onClick={() => void panel.overview.retryFailed()} disabled={!ready} {...(notReady ? { disabledReason: notReady } : {})}>
@@ -258,14 +264,21 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
                   {t.regenerate}
                 </Button>
               </>
+            ) : setup ? (
+              <Button variant="primary" onClick={() => panel.openSettingsAt("ai-service")}>
+                {setupAction(config, uiLang.value)}
+              </Button>
             ) : (
               <Button variant="primary" onClick={() => void panel.overview.generate(false)} disabled={!ready || transcript.state !== "ready"} {...(notReady ? { disabledReason: notReady } : transcript.state !== "ready" ? { disabledReason: t.needTranscript } : {})}>
                 {t.generate}
               </Button>
             )}
-            <Button variant="text" onClick={exportLearning}>
-              {t.exportStudy}
-            </Button>
+            {setup ? null : <BatchStart panel={panel} ready={ready} />}
+            {!running && canExport ? (
+              <Button variant="text" onClick={exportLearning}>
+                {t.exportStudy}
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </section>

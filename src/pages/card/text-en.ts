@@ -43,7 +43,7 @@ export const CARD_EN: CardText = {
   wrongVideo: "What came back wasn't for this video.",
   stopped: "Stopped generating.",
   saveFailed: "The overview was generated but couldn't be saved on this computer, so you may need to generate it again later.",
-  stoppedSaved: (saved, total) => `Stopped generating. ${saved}/${total} parts were saved. You can fill in the failed parts in the side panel.`,
+  stoppedSaved: (saved, total) => `Stopped generating. ${saved}/${total} parts were saved. You can fill in the rest in the side panel.`,
   chaptersFirst: "Chapters are still being written. The verdict comes last.",
   noTab: "Couldn't tell which tab this card is in. Open the side panel to see the summary.",
   panelRefused: "The browser didn't let the card open the side panel. Click the Jianmu icon in the browser toolbar.",

@@ -7,7 +7,7 @@ import { createServer } from "node:http";
 import { join } from "node:path";
 import { videoKey } from "../../src/core/video-ref.ts";
 import { BUILD_ID_FILE } from "../../src/shared/build-id.ts";
-import { API_KEY_LOCAL_KEY, API_KEY_SESSION_KEY, ISSUES_URL, PAGE_PATHS, PRIVACY_POLICY_URL, RELEASES_URL, SETTINGS_STORAGE_KEY, SOURCE_URL } from "../../src/shared/names.ts";
+import { API_KEY_LOCAL_KEY, API_KEY_SESSION_KEY, AUTO_LEDGER_KEY, ISSUES_URL, PAGE_PATHS, PRIVACY_POLICY_URL, RELEASES_URL, SETTINGS_STORAGE_KEY, SOURCE_URL } from "../../src/shared/names.ts";
 import { DATA_CONSENT_TABLE, dataConsentErrorText, noticeStatus, noticeText } from "../../src/core/consent.ts";
 import { OPTIONS_EN } from "../../src/pages/options/text-en.ts";
 import { OPTIONS_HANT } from "../../src/pages/options/text-hant.ts";
@@ -554,7 +554,7 @@ test("设置页：本机服务回 403 时，拉模型列表和测试连接都说
   }
 });
 
-test("设置页：打开就出结论默认关；没同意时勾开关先列出说明，同意并打开后才开；关掉、改时长不用同意；时长写明范围，填的数被改了就地说一句", async ({ open }) => {
+test("设置页：打开就出结论默认关；没同意时勾开关先列出说明，同意并打开后才开；停着时开关下面写明原因、点「恢复」接着做；关掉、改时长不用同意；时长写明范围，填的数被改了就地说一句", async ({ open }) => {
   const { AUTO_OVERVIEW_MINUTES } = await import("../../src/shared/settings-schema.ts");
   const page = await freshOptions(open);
   await enable(page);
@@ -577,6 +577,15 @@ test("设置页：打开就出结论默认关；没同意时勾开关先列出�
   const on = await stored();
   assert.equal(on.autoOverview, true);
   assert.ok(on.dataConsentVersion > 0, "同意一起存下");
+
+  // 额度用完停着：重新打开设置页，开关下面写明原因，旁边是「恢复」；点了后台恢复，这一行消失。
+  const paused = { tried: [], sent: [], paused: { reason: "quota", at: Date.now() } };
+  await page.evaluate(`chrome.storage.session.set(${JSON.stringify({ [AUTO_LEDGER_KEY]: paused })}).then(() => true)`);
+  await page.evaluate("(location.reload(), true)");
+  await page.waitFor("停着的那一行", `document.querySelector("#auto-overview .auto-paused .status")?.textContent === "额度用完了，「打开就出结论」先停了"`);
+  await clickButton(page, "恢复", "#auto-overview");
+  await page.waitFor("恢复以后这一行消失", `!document.querySelector("#auto-overview .auto-paused")`);
+  assert.equal((await page.evaluate(`chrome.storage.session.get(${JSON.stringify(AUTO_LEDGER_KEY)})`))[AUTO_LEDGER_KEY]?.paused, undefined);
 
   const max = AUTO_OVERVIEW_MINUTES.max;
   const minutesNote = `document.querySelector("#auto-overview .status[role=status]").textContent`;

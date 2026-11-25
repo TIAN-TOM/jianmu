@@ -1,10 +1,12 @@
 // 精读：上面一条当前章节，跟着播放走；下面是跟着播放滚动、高亮当前句的字幕，能搜索、翻译、划词解释。
+// 当前章节和字幕的工具行都吸在顶上那一层下面，看到哪都够得着。
 // 章节用模型生成的概览（结论标了重点的这一章前面一个圆点），没有时用 UP 主分段，都没有时不显示这一条。
 import { keyChapterStarts } from "../../core/ai/verdict.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
 import { sharedText } from "../shared/text.ts";
 import type { Panel } from "./panel.ts";
 import { chapterAt } from "./reading.ts";
+import { useStickyHeight } from "./sticky.ts";
 import { panelText } from "./text.ts";
 import { TranscriptTab } from "./transcript-tab.tsx";
 
@@ -39,11 +41,12 @@ function ChapterBar({ panel }: { readonly panel: Panel }) {
   const at = position && position.video === video ? position.atSec : null;
   const index = chapterAt(chapters, at);
   const chapter = chapters[index];
+  const ref = useStickyHeight<HTMLDivElement>("--chapter-bar-h", Boolean(chapter));
   if (!chapter) return null;
   const time = formatTimestamp(chapter.startSec);
   const t = panelText().study;
   return (
-    <div class="chapter-bar" aria-label={t.currentChapter}>
+    <div class="chapter-bar" ref={ref} aria-label={t.currentChapter}>
       <span class="chapter-bar-count">
         {index + 1}/{chapters.length}
       </span>

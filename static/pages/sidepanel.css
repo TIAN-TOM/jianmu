@@ -1,6 +1,9 @@
 /* 侧边栏自己的版面：头部和模式切换、速读、精读、底部工具条、字幕列表、笔记和问答。共用组件的样式在 ui/ 下，这里只用 theme.css 的变量。 */
 
 .panel {
+  /* 吸顶的几层各自的高度，由页面量好写进来：模式切换和提示一层，精读的章节条一层。 */
+  --panel-top-h: 40px;
+  --chapter-bar-h: 0px;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
@@ -75,11 +78,13 @@
   overflow-wrap: anywhere;
 }
 
+/* 作者和字幕轨还没读到时也占着一行，读到以后下面的内容不往下跳：高度按换字幕语言那个按钮的最小高度留。 */
 .video-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
+  min-height: 2rem;
   margin-top: var(--space-1);
   color: var(--text-muted);
   font-size: var(--fs-meta);
@@ -91,24 +96,31 @@
   border-radius: var(--radius-pill);
 }
 
-/* 模式切换压在头部的分隔线上，滚动时吸顶。 */
-.mode-row {
-  --mode-row-h: 40px;
+/* 模式切换压在头部的分隔线上，和下面那一行提示一起吸顶，铺满侧边栏的宽。 */
+.panel-top {
   position: sticky;
   top: 0;
   z-index: 2;
+  margin: var(--space-2) calc(-1 * var(--panel-pad)) 0;
+  background: var(--bg);
+}
+
+.mode-row {
+  --mode-row-h: 40px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
   min-height: var(--mode-row-h);
-  margin: var(--space-2) calc(-1 * var(--panel-pad)) 0;
   padding: 0 var(--panel-pad);
   border-bottom: 1px solid var(--border);
-  background: var(--bg);
 }
 
 .layer-toast {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
   margin: 0 0 var(--space-2);
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-md);
@@ -143,7 +155,7 @@
 
 .chapter-bar {
   position: sticky;
-  top: 40px;
+  top: var(--panel-top-h);
   z-index: 1;
   display: flex;
   align-items: center;
@@ -230,6 +242,25 @@
   gap: var(--space-1);
 }
 
+/* 字幕上面那几行：工具行、搜索框、翻译进度。 */
+.cue-tools {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* 精读里吸在当前章节下面，看到哪都够得着；速读里的字幕不跟着播放滚，不吸。 */
+.study .cue-tools {
+  position: sticky;
+  top: calc(var(--panel-top-h) + var(--chapter-bar-h));
+  z-index: 1;
+  gap: var(--space-2);
+  margin: 0 calc(-1 * var(--panel-pad));
+  padding: var(--space-2) var(--panel-pad);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
 .search-row {
   display: flex;
   align-items: center;
@@ -293,6 +324,12 @@
   font-size: var(--fs-meta);
 }
 
+/* 包着按钮只为了让测试和样式认得出是哪一个，排版上不占一层。 */
+.batch-start,
+.settings-exit {
+  display: contents;
+}
+
 /* ---------- 本窗口全部生成：窗口级的一条，切视频时不跟着换 ---------- */
 
 /* 有话要说（清点、确认、进度）时才铺成卡片；空闲时只是一个按钮。 */
@@ -300,6 +337,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  /* 从章节下面的按钮滚过来时，停在吸顶的那一层下面，不被它盖住。 */
+  scroll-margin-top: calc(var(--panel-top-h) + var(--space-2));
   padding: var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -741,6 +780,8 @@
 }
 
 .frame-card {
+  /* 新的一条滚进视野时，不压在吸顶那一层下面。 */
+  scroll-margin-top: calc(var(--panel-top-h) + var(--space-2));
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);

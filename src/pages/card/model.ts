@@ -4,6 +4,7 @@
 // 收起时不读，后台打开的标签页第一次到前台才读。收起的那一行写什么在 glance.ts（播放到的章节、临时的一句话）。
 import { computed, signal, type ReadonlySignal } from "@preact/signals";
 import { describe, type ErrorCode } from "../../core/errors.ts";
+import { fixedInSettings } from "../../core/errors/settings-codes.ts";
 import type { LearningAnalysis } from "../../core/notes/markdown.ts";
 import type { OverviewTranscriptBasis } from "../../core/notes/records.ts";
 import type { TaskView } from "../../core/tasks.ts";
@@ -127,7 +128,6 @@ const INITIAL: CardView = {
 const LOAD_TIMEOUT_MS = 30_000;
 const EXTERNAL_CHECK_MS = 15_000;
 const HIDDEN_CODES: ReadonlySet<ErrorCode> = new Set(["NOT_ENABLED", "CARD_DISABLED"]);
-const SETTINGS_CODES: ReadonlySet<ErrorCode> = new Set(["NO_AI_CONFIG", "NO_DATA_CONSENT", "INVALID_AI_KEY", "INVALID_BASE_URL", "NEED_HOST_PERMISSION", "MODEL_OR_ENDPOINT_NOT_FOUND", "ANTHROPIC_WORKSPACE_REQUIRED"]);
 // 中文的这几句，测试拿来对照。
 export const NO_CAPTIONS_TEXT = CARD_ZH.noCaptions;
 export const NEED_LOGIN_TEXT = CARD_ZH.needLogin;
@@ -363,7 +363,7 @@ export function createCardModel(deps: CardDeps) {
       task: null,
       ...(analysis ? { analysis, transcriptBasis: null } : shownSaved()),
       verdictPending: false,
-      settingsError: SETTINGS_CODES.has(code),
+      settingsError: fixedInSettings(code),
       noCaptions: view.peek().noCaptions || code === "NO_CAPTIONS",
       ...(code === "TASK_CANCELED" ? notice(text) : notice(text, "error", said)),
     });

@@ -80,6 +80,7 @@ export const OPTIONS_EN: OptionsText = {
     clearConfirm: "Forget",
     cleared: "Done. Videos now open in Skim or Study based on their length.",
     clearFailed: "Couldn't forget them. Try again later.",
+    count: (count) => `${count} ${count === 1 ? "creator" : "creators"} remembered.`,
   },
 
   ai: {

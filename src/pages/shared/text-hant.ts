@@ -46,6 +46,15 @@ export const SHARED_HANT: SharedText = {
     note: "開著的簡幕頁面會關掉，再打開就好",
   },
 
+  autoPaused: {
+    reasons: {
+      quota: "額度用完了，「打開就出結論」先停了",
+      key: "金鑰被拒，「打開就出結論」先停了",
+      "local-origin": "本機的服務不接受瀏覽器擴充功能的請求，「打開就出結論」先停了",
+    },
+    resume: "恢復",
+  },
+
   setup: {
     notice: {
       key: "API 金鑰隨瀏覽器重新啟動或擴充功能更新清空了，要在設定頁重新填寫；勾選「在這台電腦上記住金鑰」就不用每次填",
@@ -61,6 +70,11 @@ export const SHARED_HANT: SharedText = {
       key: "API 金鑰隨瀏覽器重新啟動或擴充功能更新清空了，生成概覽要先到設定頁重新填寫；勾選「在這台電腦上記住金鑰」就不用每次填。",
       consent: "生成概覽要先到設定頁勾選資料說明。",
       none: "還沒設定 AI 服務，生成概覽要先填寫服務商和金鑰。",
+    },
+    action: {
+      key: "重新填寫金鑰",
+      consent: "去看資料說明",
+      none: "設定 AI 服務",
     },
   },
 };

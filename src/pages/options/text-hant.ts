@@ -78,6 +78,7 @@ export const OPTIONS_HANT: OptionsText = {
     clearConfirm: "清除",
     cleared: "已清除，之後打開影片會按長度進速讀或精讀。",
     clearFailed: "沒能清除，請稍後再試。",
+    count: (count) => `已記住 ${count} 位 UP 主或頻道。`,
   },
 
   ai: {

@@ -1,5 +1,6 @@
 // 端到端里的本窗口全部生成：在侧边栏所在的窗口里再开两个视频页，清点跳过已有概览的两个；确认后新生成的出结果，
-// 生成中关掉侧边栏再打开，接上这一批，点「全部停止」停下在途的那个；失败或停掉的单条重试，最后收起。
+// 生成中关掉侧边栏再打开，接上这一批，点「全部停止」停下在途的那个；失败或停掉的单条重试，最后点「知道了」收掉。
+// 平时「本窗口全部生成」在速读那排按钮里，清点、确认、生成中回到速读最上面。
 // 要在侧边栏主流程之后跑：那时已登录、配好模型服务，侧边栏开着，窗口里有两个已经生成过概览的视频页。
 import { videoKey } from "../src/core/video-ref.ts";
 import { FOURTH_VIDEO, THIRD_VIDEO, VIDEOS } from "./fixtures.mjs";
@@ -35,8 +36,8 @@ export async function windowFlow({ until, evaluate, cdp, sessions, launcher, pan
   // 第四个视频的概览请求挂住，等会儿在它生成中途停下。
   mock.models.hold(fourth);
 
-  await until("速读里的批量那一条", () => evaluate(panel, `Boolean(document.querySelector(".skim .batch-bar"))`));
-  await click("本窗口全部生成");
+  await until("速读那排按钮里的本窗口全部生成", () => evaluate(panel, `Boolean(document.querySelector(".skim .batch-start"))`));
+  await click("本窗口全部生成", ".skim .batch-start .button");
   const counted = await until("清点完给出确认", async () => ((await status()).includes("要新生成") ? status() : null));
   // 窗口里还有前面播放页步骤和侧边栏主流程打开的两个视频页，它们都已经有概览。
   if (counted !== "本窗口有 4 个视频，跳过 2 个已有概览的，要新生成 2 个。") throw new Error(`确认提示不对：${counted}`);
@@ -68,7 +69,7 @@ export async function windowFlow({ until, evaluate, cdp, sessions, launcher, pan
   await until("重试的那条出结果", async () => (await status()).startsWith("本窗口：已完成 2 / 2"));
   const overview = await evaluate(panel, `chrome.runtime.sendMessage({ type: "overview.get", req: { video: ${JSON.stringify(videoKey({ platform: "bilibili", videoId: fourth }))} } })`);
   if (!overview?.ok || !overview.value.overview?.analysis?.chapters?.length) throw new Error(`重试以后没有存下概览：${JSON.stringify(overview)}`);
-  await click("收起");
-  await until("收起以后回到按钮", async () => (await text(".batch-bar .button")).includes("本窗口全部生成"));
-  console.log("✓ 本窗口全部生成：停掉的单条重试出了结果，收起");
+  await click("知道了");
+  await until("收掉以后回到那排按钮", async () => (await text(".skim .batch-start .button")).includes("本窗口全部生成"));
+  console.log("✓ 本窗口全部生成：停掉的单条重试出了结果，点「知道了」收掉");
 }
