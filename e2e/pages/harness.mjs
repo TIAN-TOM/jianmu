@@ -126,6 +126,14 @@ export function createHarness({ cdp, extensionId, extensionDir, sessions, reques
       /** 调用一个写成字符串的函数，参数按 JSON 传进去。 */
       call: (fnSource, ...args) => evaluate(sessionId, `(${fnSource})(...${JSON.stringify(args)})`),
       waitFor: (label, expression, timeoutMs) => until(label, () => evaluate(sessionId, expression), timeoutMs),
+      /**
+       * 重新加载页面，等到确实换成新页面再往下：location.reload() 一返回，旧页面还在，紧接着的等待会先在旧页面上成立，
+       * 再去点的时候新页面还没画出来。旧页面上留个记号，记号没了才算新页面。
+       */
+      async reload() {
+        await evaluate(sessionId, "(window.__jianmuOldPage = true, location.reload(), true)");
+        await until("页面重新加载", () => evaluate(sessionId, `!window.__jianmuOldPage && document.readyState !== "loading"`));
+      },
       async setWidth(width, height = 800) {
         await cdp.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
       },

@@ -235,7 +235,7 @@ test("侧边栏：搜索字幕时，译文、整理后的字幕和原始字幕�
     const records = [record("en", "A painted moon"), record("tidy", "样例旁白。")];
     await editDatabase(panel, { translations: records });
     try {
-      await panel.evaluate("location.reload(), true");
+      await panel.reload();
       await waitIn(panel, "缓存的整理结果显示", `${textOf(".cue-text")}.includes("样例旁白。")`);
       await pressAtFocus(panel, "/");
       await waitIn(panel, "搜索框打开", `document.activeElement.matches(".search-row input")`);
@@ -281,7 +281,7 @@ test("侧边栏：重开后恢复这个视频的双语显示，缺译文的段�
         id: recordId, video: VIDEO, transcript: ref, target: "en", segments: { [hash]: translated },
         derived: { basis: { source: "transcript", transcript: ref }, gen: { feature: "rewrite", promptVersion: "p", model: "sample", effort: "off" } }, updatedAt: 1,
       }] });
-      await panel.evaluate("location.reload(), true");
+      await panel.reload();
       // 工具栏可能比字幕晚一拍渲染出来，点之前连按钮一起等。
       await waitIn(panel, "样例的两段字幕和视图按钮出现", `${textOf(".cue-text")} === ${JSON.stringify(first + "\n" + second)} && Boolean(document.querySelector(${JSON.stringify(button)}))`);
       await tap(panel, button);
@@ -294,7 +294,7 @@ test("侧边栏：重开后恢复这个视频的双语显示，缺译文的段�
       assert.equal(await panel.evaluate(`${textOf(".cue-tools .progress-row .button")}.includes("接着翻译")`), false);
       await panel.evaluate(`Promise.all([chrome.storage.local.set(${JSON.stringify({ [SETTINGS_STORAGE_KEY]: stored.local[SETTINGS_STORAGE_KEY] })}), chrome.storage.session.set(${JSON.stringify(stored.session)})]).then(() => true)`);
       const since = ctx.requests.length;
-      await panel.evaluate("location.reload(), true");
+      await panel.reload();
       await waitIn(panel, "双语恢复，只有第一段显示译文，第二段保留原文", `${textOf(button)} === "双语" && ${textOf(".cue:first-child .cue-sub")} === ${JSON.stringify(translated)} && ${textOf(".cue:nth-child(2) .cue-text")} === ${JSON.stringify(second)} && !document.querySelector(".cue:nth-child(2) .cue-sub")`);
       await tap(panel, button);
       await waitIn(panel, "再次点双语会用额度", `[...document.querySelectorAll(${JSON.stringify(list + " .menu-item")})].some((item) => item.querySelector(".menu-label")?.textContent === "双语" && item.querySelector(".menu-hint")?.textContent.includes("额度"))`);
@@ -333,7 +333,7 @@ test("侧边栏：字幕选区能直接存笔记，保留选中文字和所在�
     assert.equal((await send("imports.add", { video: VIDEO, fileName: "选区.srt", text: srt })).ok, true);
     try {
       await panel.evaluate(`Promise.all([chrome.storage.local.set(${JSON.stringify({ [SETTINGS_STORAGE_KEY]: stored.local[SETTINGS_STORAGE_KEY] })}), chrome.storage.session.set(${JSON.stringify(stored.session)})]).then(() => true)`);
-      await panel.evaluate("location.reload(), true");
+      await panel.reload();
       await waitIn(panel, "选区样例显示", `${textOf(".cue-text")} === ${JSON.stringify(sample)}`);
       await selectWords();
       await waitIn(panel, "选区有解释和存笔记", `Boolean(${action("解释")} && ${action("存笔记")})`);
