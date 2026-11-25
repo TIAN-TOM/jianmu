@@ -38,9 +38,9 @@ export function ChapterList({ chapters, keyStarts, expanded = [], onToggle, onSe
   return (
     <section class="chapters" aria-labelledby={heading ? `${id}-heading` : undefined} aria-label={heading ? undefined : t.chapters.label}>
       {heading ? (
-        <h3 class="section-title" id={`${id}-heading`}>
+        <h2 class="section-title" id={`${id}-heading`}>
           {chapterHeading(chapters.length, keyCount, uiLang.value)}
-        </h3>
+        </h2>
       ) : null}
       <ol class="chapter-list" style={`--time-ch:${timeChars}`} onMouseLeave={onHover ? () => onHover(null) : undefined}>
         {chapters.map((chapter, index) => {
