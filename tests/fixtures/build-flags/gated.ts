@@ -4,6 +4,7 @@ export const YOUTUBE_PROBE = "flag-probe:site-youtube";
 export const YOUTUBE_OPEN_PANEL_PROBE = "flag-probe:youtubeOpenPanel";
 export const YOUTUBE_PLAYER_CAPTIONS_PROBE = "flag-probe:youtubeCaptionCatch";
 export const KEEP_CONSENT_PROBE = "flag-probe:keepConsent";
+export const COMMENTS_PROBE = "flag-probe:comments";
 
 export function frameExplainRoute(): string {
   return `${FRAME_EXPLAIN_PROBE}:route`;

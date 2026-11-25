@@ -8,4 +8,5 @@ declare global {
   const FEATURE_YOUTUBE_OPEN_PANEL: boolean;
   const FEATURE_YOUTUBE_CAPTION_CATCH: boolean;
   const FEATURE_KEEP_CONSENT: boolean;
+  const FEATURE_COMMENTS: boolean;
 }

@@ -8,13 +8,15 @@ export const VIEW_URL = "https://api.bilibili.com/x/web-interface/view";
 export const SUMMARY_URL = "https://api.bilibili.com/x/web-interface/view/conclusion/get";
 export const PLAYER_URL = "https://api.bilibili.com/x/player/wbi/v2";
 export const WATCH_LATER_URL = "https://api.bilibili.com/x/v2/history/toview";
+export const REPLY_URL = "https://api.bilibili.com/x/v2/reply/main";
 
 export type BiliApiUrl =
   | typeof NAV_URL
   | typeof VIEW_URL
   | typeof SUMMARY_URL
   | typeof PLAYER_URL
-  | typeof WATCH_LATER_URL;
+  | typeof WATCH_LATER_URL
+  | typeof REPLY_URL;
 
 export interface GetRequest {
   url: BiliApiUrl;
