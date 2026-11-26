@@ -17,7 +17,7 @@
 > [!NOTE]
 > The first version hasn't been released yet. The package will go on the [Releases](https://github.com/TIAN-TOM/jianmu/releases) page. To hear about it first, click Watch at the top right of this page and tick Releases under Custom.
 
-![Skim view: a one-line verdict with a recommendation, timestamped chapters with the key ones marked, and an expanded chapter showing its summary and subtitles](.github/assets/skim.png)
+![Demo: the card beside the player shows a recommendation and a one-line verdict; the side panel opens and a key chapter expands to its summary and subtitles; in Study, a question gets an answer with timestamps, and clicking one jumps the video there](.github/assets/demo-en.gif)
 
 Jianmu is a Chrome extension (Manifest V3). Open a long video and it tells you first whether it's worth your time and where the key parts are. If you decide to watch, the subtitles follow playback and you can ask questions or take notes as you go. There is no developer backend and no account. You use your own API key, notes and overviews stay on your computer, and subtitles and similar content only go to the model service you choose.
 
@@ -37,10 +37,12 @@ Jianmu is a Chrome extension (Manifest V3). Open a long video and it tells you f
 
 ## Screenshots
 
-The video, channel and subtitles in these screenshots were made up for the demo. The screenshots show the Chinese interface.
+The video, channel and subtitles in the animation and screenshots were made up for the demo. The made-up lecture is in Chinese, so its title, subtitles and quoted lines stay in Chinese in the animation above, which otherwise shows the English interface. The screenshots below show the Chinese interface.
 
-![Close reading: subtitles highlighted as the video plays, and an answer with timestamps and the subtitle lines it cites](.github/assets/study-qa.png)
-
+<p>
+  <img src=".github/assets/skim.png" width="49%" alt="Skim view: a one-line verdict with a recommendation, timestamped chapters with the key ones marked, and an expanded chapter showing its summary and subtitles">
+  <img src=".github/assets/study-qa.png" width="49%" alt="Close reading: subtitles highlighted as the video plays, and an answer with timestamps and the subtitle lines it cites">
+</p>
 <p>
   <img src=".github/assets/card.png" width="49%" alt="The card beside the player: verdict, chapters and a button that opens the side panel">
   <img src=".github/assets/settings-ai.png" width="49%" alt="Settings: choose the AI service and model, and set the reasoning effort for each feature">

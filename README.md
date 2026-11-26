@@ -17,7 +17,7 @@
 > [!NOTE]
 > 第一个版本还没发布，安装包会放在 [Releases](https://github.com/TIAN-TOM/jianmu/releases)。想第一时间知道，可以点本页右上角的 Watch，在 Custom 里勾上 Releases。
 
-![速读：一句话结论带观看判断，加带时间点的章节，重点章节标出来；展开一章能读这一段的摘要和字幕](.github/assets/skim.png)
+![演示：播放页卡片上出现「可以看」和一句话结论；打开侧边栏，展开重点章节读这一段的摘要和字幕；切到精读提问，回答带时间点，点一下视频就跳过去](.github/assets/demo-zh.gif)
 
 简幕是一个 Chrome 扩展（Manifest V3）。打开一个长视频，它先告诉你值不值得看、重点在哪几段；决定看了，字幕跟着播放走，随时能提问、记笔记。没有开发者后端，不要账号；用你自己的 API 密钥，笔记和概览存在这台电脑上，字幕等内容只发给你自己选的模型服务。
 
@@ -37,10 +37,12 @@
 
 ## 界面
 
-截图里的视频、频道和字幕都是为演示自造的，截的是中文界面。
+动图和截图里的视频、频道和字幕都是为演示自造的，截的是中文界面。
 
-![精读：字幕跟着播放高亮；问答的回答带时间点，下面列着引用的字幕原文](.github/assets/study-qa.png)
-
+<p>
+  <img src=".github/assets/skim.png" width="49%" alt="速读：一句话结论带观看判断，加带时间点的章节，重点章节标出来；展开一章能读这一段的摘要和字幕">
+  <img src=".github/assets/study-qa.png" width="49%" alt="精读：字幕跟着播放高亮；问答的回答带时间点，下面列着引用的字幕原文">
+</p>
 <p>
   <img src=".github/assets/card.png" width="49%" alt="播放页右边的卡片：结论、章节和打开侧边栏的入口">
   <img src=".github/assets/settings-ai.png" width="49%" alt="设置页：选 AI 服务和模型，每个功能单独调推理强度">
