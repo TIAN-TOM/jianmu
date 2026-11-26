@@ -14,10 +14,10 @@ export function chaptersInOrder(analysis: LearningAnalysis | null): readonly { r
     .sort((a, b) => a.startSec - b.startSec);
 }
 
-/** 章节和官方提纲默认露几条：卡片嵌在右栏里，太高会把下面的选集和推荐顶下去。 */
+/** 章节列表露出几章那么高（其余在列表里滚动）、官方提纲默认露几段：卡片嵌在右栏里，太高会把下面的选集和推荐顶下去。 */
 export const CARD_ROWS = 5;
 
-/** 默认露出来的那几条。只多出一条时不藏：为一条去点「展开全部」不值当。 */
+/** 默认露出来的那几条。只多出一条时不藏：为一条去滚动或点「展开全部」不值当。 */
 export function cardRows<T>(rows: readonly T[], showAll: boolean): readonly T[] {
   return showAll || rows.length <= CARD_ROWS + 1 ? rows : rows.slice(0, CARD_ROWS);
 }

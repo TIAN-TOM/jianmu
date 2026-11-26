@@ -21,7 +21,7 @@ export const CARD_EN: CardText = {
   less: "Show less",
   showAll: "Show all",
   showAllSections: (count) => `Show all ${count} sections`,
-  showAllChapters: (count) => `Show all ${count} chapters`,
+  chapterCount: (count) => `${count} chapters`,
   writingVerdict: "Writing the one-line verdict…",
   stopping: "Stopping…",
   chunksDone: (done, total) => `${done}/${total} parts done`,
