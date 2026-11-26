@@ -1,32 +1,39 @@
-# Jianmu (简幕): Watch or Skip, Then Study
+<p align="center">
+  <img src="static/icons/icon-128.png" width="96" height="96" alt="Jianmu icon">
+</p>
 
-[中文](README.md)
+<h1 align="center">Jianmu (简幕): Watch or Skip, Then Study</h1>
 
-Jianmu helps you work out within a few minutes whether a long Bilibili or YouTube video is worth watching and which parts matter. Once you decide to watch, it helps you read along closely.
+<p align="center">Work out in a few minutes whether a long Bilibili or YouTube video is worth watching and which parts matter.<br>Once you decide to watch, it helps you study it closely.</p>
 
-> **Status: not released yet, and there is no package to download.** On Bilibili, the main flow (reading subtitles, generating overviews, Q&A with citations, taking notes, the card on the video page and the settings page), Watch Later triage, Generate all in this window, Verdict on open and the features listed below are on the main branch, and automated tests run them against locally simulated pages. The developer now uses it day to day on Bilibili. On YouTube, turning it on per site, reading subtitles and opening the transcript for you are on the main branch too. The developer uses them day to day on YouTube as well, and they will be in the first version. The first version goes out on GitHub once both sites work end to end ([PRD](notes/product-prd.md), section 1, in Chinese).
+<p align="center">
+  <a href="https://github.com/TIAN-TOM/jianmu/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/TIAN-TOM/jianmu/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/license-MIT-blue"></a>
+  <img alt="Requires Chrome 116 or later" src="https://img.shields.io/badge/Chrome-116%2B-4285F4?logo=googlechrome&amp;logoColor=white">
+</p>
+
+<p align="center"><a href="README.md">简体中文</a> · English</p>
+
+> [!NOTE]
+> The first version hasn't been released yet. The package will go on the [Releases](https://github.com/TIAN-TOM/jianmu/releases) page. To hear about it first, click Watch at the top right of this page and tick Releases under Custom.
 
 ![Skim view: a one-line verdict with a recommendation, timestamped chapters with the key ones marked, and an expanded chapter showing its summary and subtitles](.github/assets/skim.png)
 
-Jianmu is a Chrome extension (Manifest V3). There is no developer backend and no account. You need your own API key. Notes and overviews are kept on your computer, and subtitles and similar content only go to the model service you choose. The interface and what the model writes can be in Simplified Chinese, Traditional Chinese or English.
+Jianmu is a Chrome extension (Manifest V3). Open a long video and it tells you first whether it's worth your time and where the key parts are. If you decide to watch, the subtitles follow playback and you can ask questions or take notes as you go. There is no developer backend and no account. You use your own API key, notes and overviews stay on your computer, and subtitles and similar content only go to the model service you choose.
 
-## Planned features
+## Features
 
-This describes where the project is heading. Only part of it is built so far, and the [PRD](notes/product-prd.md) (in Chinese) is what defines the scope. The first version will support both Bilibili and YouTube.
-
-- **Verdict on open**: once you switch it on, any video on Bilibili, or on YouTube once it's turned on, longer than a set length (10 minutes by default) gets an overview and a one-line verdict as soon as you open it, shown right on the card on the video page with no clicking. Tabs opened in the background are queued too, with the one you are watching going first, so the more tabs you open, the more of your API quota it uses. The switch is off on a new install, and you have to agree to the data notice before turning it on. While it is on, the video's subtitles, title and length, creator or channel name, and description are sent automatically to the model service you chose. Foreign-language videos are not translated automatically.
-- **Skim**: a one-line verdict with a recommendation (Worth watching, Watch the key parts, Skip, Not enough info), plus timestamped chapters. Expand a chapter to read its subtitles.
+- **Verdict on open**: once you switch it on, any video longer than a set length (10 minutes by default) gets an overview and a one-line verdict as soon as you open it, shown on the card beside the player with no clicking.
+- **Skim**: a one-line verdict with a recommendation (Worth watching, Watch the key parts, Skip, Not enough info), plus timestamped chapters with the key ones marked. Expand a chapter to read its subtitles.
 - **Study**: subtitles follow playback, and you can ask questions, get selected text explained and take timestamped notes at any time. Long videos switch here automatically after a minute of continuous playback.
+- **Q&A with citations**: answers come with timestamps and the subtitle lines they quote. Click one to jump back to the video and check. Citations are verified, and when the evidence is thin the answer says so.
 - **Explain this frame**: click the icon on the player and Jianmu sends that frame, with a few subtitle lines either side, to a model that can read images, so it can explain the slide, formula, code or chart on screen. The screenshot is used once and never stored.
-- **Q&A**: answers come with timestamps and the subtitle lines they quote. Click one to jump back to the video and check. Citations are verified, and when the evidence is thin the answer says so.
-- **Translation**: subtitles are translated with your own model and shown beside the original. With the language set to English, English subtitles are translated into Simplified Chinese and everything else into English. With it set to Simplified or Traditional Chinese, Chinese subtitles in either script go into English and everything else into the Chinese you chose. Once started, the whole video is translated in the background, even after you close the side panel, and keeps using your quota until it finishes or you stop it.
-- **Tidy up subtitles**: speech-recognised subtitles have no punctuation. One click has your own model add punctuation and fix obvious sound-alike mistakes, and nothing else; any line it rewrites is shown as the original. Like translation, it runs to the end in the background once started.
-- **Batch decisions**: Generate all in this window writes overviews for every Bilibili video open in the current window in one go, and Watch Later triage runs a quick first pass over your saved videos.
+- **Translation**: subtitles are translated with your own model and shown beside the original.
+- **Tidy up subtitles**: speech-recognised subtitles have no punctuation. One click has your own model add punctuation and fix obvious sound-alike mistakes, and nothing else. Any line it rewrites is shown as the original.
+- **Batch decisions**: Generate all in this window writes overviews for every video open in the current window in one go, and Watch Later triage runs a quick first pass over your Bilibili Watch Later list.
 - **Your own model**: use as strong a model as you like, and set the reasoning effort for each feature separately. New installs start on the cheap settings.
-- **Three languages**: the interface and what the model writes (overviews, verdicts, answers and explanations) can be in Simplified Chinese, Traditional Chinese or English. Choose under Language in the Appearance section of Settings. By default it matches the browser: Traditional Chinese if the browser uses Chinese as written in Taiwan, Hong Kong or Macao, Simplified Chinese for other Chinese, and English otherwise. Traditional Chinese follows Taiwanese usage. Anything already generated stays in the language it was written in.
-- **Two sites, one tool**: Bilibili and YouTube share one side panel for verdicts, chapters and subtitles. Before release, the final package is checked on real pages. On YouTube you first click Turn on for YouTube in the side panel or in Settings, and Jianmu runs on YouTube pages only after you grant access. On a video, click Read subtitles in the side panel, and Jianmu opens the transcript on the page for you and reads it. If the page has no transcript, Jianmu reads the subtitles in the player instead, turning them on for you if needed and off again afterwards. Verdict on open and Generate all in this window work on YouTube too and read subtitles the same way. A transcript Jianmu opened for you is closed again afterwards.
-
-On Bilibili, Jianmu reads subtitles and official summaries only for signed-in users (while signed out it reads just the video details such as title and length), never downloads audio or video, and leaves content confirmed as paid alone. The rules are in section 8.1 of the [PRD](notes/product-prd.md) (in Chinese). On YouTube, Jianmu sends no requests to the platform. It reads what the transcript already shows, plus the list of subtitle tracks the player already has (to mark the language and whether it was auto-generated). When the page has no transcript, it reads the subtitles the player has loaded itself. While reading, it leaves the player alone, except for turning subtitles on and off in that case. The rules are in section 8.2.
+- **Two sites, one tool**: Bilibili and YouTube share one side panel for verdicts, chapters and subtitles.
+- **Three languages**: the interface and what the model writes (overviews, verdicts, answers and explanations) can be in Simplified Chinese, Traditional Chinese or English.
 
 ## Screenshots
 
@@ -34,9 +41,19 @@ The video, channel and subtitles in these screenshots were made up for the demo.
 
 ![Close reading: subtitles highlighted as the video plays, and an answer with timestamps and the subtitle lines it cites](.github/assets/study-qa.png)
 
-![The card beside the player: verdict, chapters and a button that opens the side panel](.github/assets/card.png)
+<p>
+  <img src=".github/assets/card.png" width="49%" alt="The card beside the player: verdict, chapters and a button that opens the side panel">
+  <img src=".github/assets/settings-ai.png" width="49%" alt="Settings: choose the AI service and model, and set the reasoning effort for each feature">
+</p>
 
-![Settings: choose the AI service and model, and set the reasoning effort for each feature](.github/assets/settings-ai.png)
+## Before you start
+
+- **Key and costs**: you need your own API key, and you pay the model service for what you use.
+- **Verdict on open**: the switch is off on a new install, and you have to agree to the data notice before turning it on. While it is on, for videos on Bilibili and on YouTube once it's turned on, the video's subtitles, title and length, creator or channel name, and description are sent automatically to the model service you chose. Tabs opened in the background are queued too, with the one you are watching going first, so the more tabs you open, the more of your API quota it uses. Foreign-language videos are not translated automatically.
+- **Translation and tidying**: once started, the whole video is done in the background, even after you close the side panel, and keeps using your quota until it finishes or you stop it. Translation follows the language setting. With it set to English, English subtitles are translated into Simplified Chinese and everything else into English. With it set to Simplified or Traditional Chinese, Chinese subtitles in either script go into English and everything else into the Chinese you chose.
+- **Language**: choose under Language in the Appearance section of Settings. By default it matches the browser: Traditional Chinese if the browser uses Chinese as written in Taiwan, Hong Kong or Macao, Simplified Chinese for other Chinese, and English otherwise. Traditional Chinese follows Taiwanese usage. Anything already generated stays in the language it was written in.
+- **Bilibili**: Jianmu reads subtitles and official summaries only for signed-in users (while signed out it reads just the video details such as title and length), never downloads audio or video, and leaves content confirmed as paid alone. The rules are in section 8.1 of the [PRD](notes/product-prd.md) (in Chinese).
+- **YouTube**: you first click Turn on for YouTube in the side panel or in Settings, and Jianmu runs on YouTube pages only after you grant access. On a video, click Read subtitles in the side panel, and Jianmu opens the transcript on the page for you, reads it and closes it again. If the page has no transcript, Jianmu reads the subtitles in the player instead, turning them on for you if needed and off again afterwards. Verdict on open and Generate all in this window work on YouTube too and read subtitles the same way. On YouTube, Jianmu sends no requests to the platform. It reads what the transcript already shows, plus the list of subtitle tracks the player already has (to mark the language and whether it was auto-generated). When the page has no transcript, it reads the subtitles the player has loaded itself. While reading, it leaves the player alone, except for turning subtitles on and off in that case. The rules are in section 8.2.
 
 ## Install and update
 
@@ -68,9 +85,7 @@ Your notes, overviews, Q&A and settings are kept. Unless you ticked Remember the
 
 There is no developer server. Notes, overviews, Q&A, settings and caches are all kept in the browser on your computer. Content such as subtitles, the title and description, your questions, and the frame you ask Jianmu to explain is only sent to the model service you chose after you agree to the data notice. Normally it is sent when you use an AI feature, and with Verdict on open switched on it is also sent automatically. See the [privacy policy](PRIVACY.md#english) for details.
 
-## Key design choices
-
-The design below is settled. The code is still being ported.
+## Why it's built this way
 
 - **No backend.** The developer never receives users' content, so there are no accounts, no analytics and no server costs. The trade-off is that you bring your own key and pay for your own usage.
 - **Site differences stay in the adapter layer.** Overviews, Q&A, tasks and storage are shared by both sites. Site-specific features are optional methods in the contract: when a site lacks one it simply isn't shown, and no data is faked.
@@ -81,12 +96,11 @@ The design below is settled. The code is still being ported.
 
 For how the code is organised and why, see the [architecture design](notes/architecture.md) (in Chinese).
 
-## Documents
+## Contributing
 
 - [PRD](notes/product-prd.md) (in Chinese): what is being built, for whom, the release plan and what counts as done at each step.
 - [Architecture design](notes/architecture.md) (in Chinese): code structure, data, testing and build order.
-
-## Development
+- [Contributing guide](.github/CONTRIBUTING.md#contributing-to-jianmu): how to report a problem and how to send a pull request. Development conventions are in [AGENTS.md](AGENTS.md) (in Chinese), and how to report a security issue is in [SECURITY.md](SECURITY.md) (in Chinese).
 
 Requires Node 24.12 or later and npm 11.10 or later.
 
@@ -94,8 +108,6 @@ Requires Node 24.12 or later and npm 11.10 or later.
 npm ci
 npm run check
 ```
-
-Development conventions are in [AGENTS.md](AGENTS.md) (in Chinese). For how to report a security issue, see [SECURITY.md](SECURITY.md) (in Chinese).
 
 ## Licence and acknowledgements
 
