@@ -201,6 +201,40 @@ test("侧边栏正在为这个视频用官方总结写结论：卡片接上它�
   assert.equal(model.view.value.task?.external, true);
 });
 
+test("已有概览：缺了分块才能补，凭令牌补；重新生成要先点一下摆出确认，确认那一下才凭令牌重新生成", async () => {
+  const { fake, model } = setup();
+  const failure = { index: 1, startSeconds: 600, endSeconds: 1200 };
+  fake.reply("transcript.get", { value: guides(KEY, { overview: { analysis: ANALYSIS, analysisFailures: [failure] } }) });
+  fake.reply("task.start", { value: { ok: true, value: { task: task("t9"), joined: false, token: "once" } } });
+  fake.reply("overview.retryFailed", { value: { ok: true, value: { video: KEY, analysis: ANALYSIS, analysisFailures: [], fromCache: false, failedChunks: 0, recoveredChunks: 1 } } });
+  fake.reply("overview.start", { value: { ok: true, value: { video: KEY, analysis: ANALYSIS, analysisFailures: [], fromCache: false, failedChunks: 0 } } });
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  assert.equal(model.view.value.failedParts, 1);
+
+  await model.generate(true);
+  assert.equal(fake.attempts("task.start"), 0, "已有概览时不新生成");
+  await model.retryFailed(false);
+  assert.equal(fake.attempts("task.start"), 0, "合成的点击不算");
+  await model.retryFailed(true);
+  assert.deepEqual(fake.sent.find(({ type }) => type === "overview.retryFailed")?.req, { video: KEY, token: "once" });
+  assert.equal(model.view.value.failedParts, 0, "补上以后不再摆");
+  await model.retryFailed(true);
+  assert.equal(fake.attempts("overview.retryFailed"), 1, "没有缺的分块就不补");
+
+  await model.regenerate(true);
+  assert.equal(fake.attempts("overview.start"), 0, "没确认不重新生成");
+  model.askRegenerate();
+  assert.equal(model.view.value.confirmRegenerate, true);
+  await model.regenerate(false);
+  assert.equal(fake.attempts("overview.start"), 0, "合成的点击不算");
+  await model.regenerate(true);
+  assert.deepEqual(fake.sent.find(({ type }) => type === "overview.start")?.req, { video: KEY, token: "once", fresh: true });
+  assert.equal(model.view.value.confirmRegenerate, false);
+  assert.equal(model.view.value.task, null);
+});
+
 test("同一视频已经有任务在跑：接上它看进度，结束后重读", async () => {
   const { fake, model } = setup();
   fake.reply("task.list", { value: { ok: true, value: { tasks: [task("side", "running")] } } });

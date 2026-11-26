@@ -28,6 +28,10 @@ export interface CardView {
   readonly analysis: LearningAnalysis | null;
   /** 摆着的概览里章节和结论各自依据的字幕指纹；生成中的临时概览没有。 */
   readonly transcriptBasis: OverviewTranscriptBasis | null;
+  /** 本机这份概览里没生成出来的分块数。 */
+  readonly failedParts: number;
+  /** 点了「重新生成」、正等着确认。 */
+  readonly confirmRegenerate: boolean;
   /** 本机有字幕时，现在用的那份的指纹：和上面的对不上就标「基于旧字幕」。 */
   readonly transcriptFingerprint: string | null;
   /** 结论还没写好：true 写「正在写」，字符串原样显示。 */
@@ -65,6 +69,8 @@ export const INITIAL: CardView = {
   official: null,
   analysis: null,
   transcriptBasis: null,
+  failedParts: 0,
+  confirmRegenerate: false,
   transcriptFingerprint: null,
   verdictPending: false,
   noCaptions: false,

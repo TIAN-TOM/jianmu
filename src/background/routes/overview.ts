@@ -1,5 +1,5 @@
 // 概览：开始生成、补失败块、读本机已有的概览。生成和补块认领的是先经任务登记的任务，服务核对任务的种类和视频；
-// 卡片只能开始生成，只认登记时拿到的一次性令牌，不能重新生成，登记时已经过了卡片开关和限频。
+// 卡片能开始生成、重新生成和补失败块，只认登记时拿到的一次性令牌，登记时已经过了卡片开关和限频。
 // 手动生成或补失败块成功一次，打开就出结论就从额度用完、密钥不对的暂停里恢复。卡片在要经页面读字幕的站（YouTube）上点生成时，
 // 任务认领以后先经卡片所在的标签页读到字幕（本机有就不碰页面），读不成就按页面报的原因收尾；侧边栏在那里还没读到字幕时
 // 带上视频所在的标签页，走同一条路。
@@ -43,7 +43,8 @@ function isStartRequest(req: unknown): req is OverviewStartRequest {
 }
 
 function isRetryRequest(req: unknown): req is OverviewRetryRequest {
-  return isPlainObject(req) && onlyKeys(req, ["video", "taskId"]) && isVideoKey(req.video) && isId(req.taskId);
+  if (!isPlainObject(req) || !onlyKeys(req, ["video", "taskId", "token"]) || !isVideoKey(req.video)) return false;
+  return Object.hasOwn(req, "taskId") ? isId(req.taskId) && !Object.hasOwn(req, "token") : isId(req.token);
 }
 
 function isGetRequest(req: unknown): req is OverviewGetRequest {
@@ -79,12 +80,12 @@ export function overviewRoutes({ overview, cardLimits, auto, pageTranscript }: O
       validate: isStartRequest,
       async handler(req, { sender }) {
         if (sender.kind === "card") {
-          // 卡片不收任务号、不能重新生成、不点名标签页：只认登记时换到的令牌，用一次就作废。
-          if (req.taskId !== undefined || req.token === undefined || req.fresh || req.tabId !== undefined) return fail("FORBIDDEN");
+          // 卡片不收任务号、不点名标签页：只认登记时换到的令牌，用一次就作废。重新生成在卡片上先确认一次才发。
+          if (req.taskId !== undefined || req.token === undefined || req.tabId !== undefined) return fail("FORBIDDEN");
           const taskId = cardLimits.redeemToken(req.token);
           if (!taskId) return fail("TASK_NOT_FOUND");
           const prepare = readInPage(req.video, sender.tabId);
-          return generated(overview.generate(taskId, req.video, { fresh: false, ...(prepare ? { prepare } : {}), comments: { tabId: sender.tabId } }));
+          return generated(overview.generate(taskId, req.video, { fresh: req.fresh === true, ...(prepare ? { prepare } : {}), comments: { tabId: sender.tabId } }));
         }
         if (req.taskId === undefined) return fail("FORBIDDEN");
         // 侧边栏在 YouTube 上还没读到字幕时点生成：和卡片一样，先经视频所在的标签页读到字幕。
@@ -93,10 +94,17 @@ export function overviewRoutes({ overview, cardLimits, auto, pageTranscript }: O
       },
     },
     "overview.retryFailed": {
-      senders: ["panel", "page"],
+      senders: ["panel", "page", "card"],
       pages: ["options", "triage"],
       validate: isRetryRequest,
-      handler: (req) => retried(overview.retryFailed(req.taskId, req.video)),
+      handler(req, { sender }) {
+        if (sender.kind === "card") {
+          if (req.taskId !== undefined || req.token === undefined) return Promise.resolve(fail("FORBIDDEN"));
+          const taskId = cardLimits.redeemToken(req.token);
+          return taskId ? retried(overview.retryFailed(taskId, req.video)) : Promise.resolve(fail("TASK_NOT_FOUND"));
+        }
+        return req.taskId === undefined ? Promise.resolve(fail("FORBIDDEN")) : retried(overview.retryFailed(req.taskId, req.video));
+      },
     },
     "overview.get": {
       senders: ["panel", "page"],

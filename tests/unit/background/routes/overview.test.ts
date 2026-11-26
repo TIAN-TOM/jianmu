@@ -72,17 +72,38 @@ test("侧边栏凭登记的任务号开始生成；别的视频登记的任务�
   assert.ok(ai.posts().length > 0);
 });
 
-test("卡片只认登记时换到的一次性令牌：用过一次就作废，不收任务号，不能重新生成", async () => {
-  const { ask, register } = appOn();
+test("卡片只认登记时换到的一次性令牌：用过一次就作废，不收任务号；凭令牌也能重新生成", async () => {
+  const { ask, register, ai } = appOn();
   const card = senders.card();
   const first = await register(card);
   assert.ok(first.token);
   assert.equal((await ask("overview.start", { video: KEY, taskId: first.id }, card)).code, "FORBIDDEN");
-  assert.equal((await ask("overview.start", { video: KEY, token: first.token, fresh: true }, card)).code, "FORBIDDEN");
+  assert.equal((await ask("overview.start", { video: KEY, token: first.token, tabId: 3 }, card)).code, "FORBIDDEN", "卡片不点名标签页");
   const done = await ask("overview.start", { video: KEY, token: first.token }, card);
   assert.equal(done.ok, true, JSON.stringify(done));
   assert.equal((await ask("overview.start", { video: KEY, token: first.token }, card)).code, "TASK_NOT_FOUND", "令牌用一次就作废");
   assert.equal((await ask("overview.get", { video: KEY }, card)).code, "FORBIDDEN", "卡片不读这条，它的概览经轻量读取带回");
+
+  const sent = ai.posts().length;
+  const again = await register(card);
+  const fresh = (await ask("overview.start", { video: KEY, token: again.token, fresh: true }, card)) as { ok: boolean; value?: { fromCache: boolean } };
+  assert.ok(fresh.ok && fresh.value?.fromCache === false, JSON.stringify(fresh));
+  assert.ok(ai.posts().length > sent, "重新生成真的发了请求");
+});
+
+test("卡片补失败块：只认登记时换到的令牌，不收任务号；侧边栏不收令牌；令牌用一次就作废", async () => {
+  const { ask, register } = appOn();
+  const card = senders.card();
+  for (const req of [{ video: KEY, taskId: "t", token: "k" }, { video: KEY, token: "" }, { video: KEY, token: "k", extra: 1 }]) {
+    assert.equal((await ask("overview.retryFailed", req, card)).code, "INVALID_REQUEST", JSON.stringify(req));
+  }
+  const mine = await register(card);
+  assert.equal((await ask("overview.retryFailed", { video: KEY, taskId: mine.id }, card)).code, "FORBIDDEN", "卡片不收任务号");
+  assert.equal((await ask("overview.retryFailed", { video: KEY, token: mine.token })).code, "FORBIDDEN", "侧边栏不收令牌");
+  const retried = await ask("overview.retryFailed", { video: KEY, token: mine.token }, card);
+  assert.notEqual(retried.code, "FORBIDDEN", JSON.stringify(retried));
+  assert.notEqual(retried.code, "TASK_NOT_FOUND", JSON.stringify(retried));
+  assert.equal((await ask("overview.retryFailed", { video: KEY, token: mine.token }, card)).code, "TASK_NOT_FOUND", "令牌用一次就作废");
 });
 
 test("读概览只给生效中的那份：重新生成写到一半的草稿和各部分的来历都不给页面", async () => {
@@ -107,7 +128,7 @@ test("手动补失败块至少补上一块：打开就出结论从暂停里恢�
   let value: { fromCache: boolean; recoveredChunks?: number; canceled?: true } = { fromCache: false, recoveredChunks: 1 };
   const overview = { retryFailed: async () => ({ ok: true, value }) } as unknown as OverviewService;
   const routes = overviewRoutes({ overview, cardLimits: { redeemToken: () => null }, auto: { resume: async () => void (resumed += 1) } });
-  const retry = () => routes["overview.retryFailed"].handler({ taskId: "t", video: KEY }, {} as Parameters<(typeof routes)["overview.retryFailed"]["handler"]>[1]);
+  const retry = () => routes["overview.retryFailed"].handler({ taskId: "t", video: KEY }, { sender: senders.panel() } as unknown as Parameters<(typeof routes)["overview.retryFailed"]["handler"]>[1]);
 
   assert.equal((await retry()).ok, true);
   assert.equal(resumed, 1);

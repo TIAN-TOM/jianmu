@@ -36,6 +36,12 @@ export const CARD_ZH = {
   verdictFromOfficialNote: "只发一次小请求，不通读字幕",
   openSettings: "打开设置",
   retry: "重试",
+  failedParts: "有一部分没生成出来，可以只补这部分。",
+  retryFailed: "补上缺的部分",
+  regenerate: "重新生成",
+  regenerateCost: "重新生成会再花一次 API 额度。",
+  regenerateConfirm: "确认重新生成",
+  cancel: "取消",
   openSettingsFailed: "没能打开设置页。可以打开侧边栏，点右上角的设置按钮。",
 
   // 卡片模型写的状态，按写出来那一刻的界面语言写。
@@ -48,7 +54,7 @@ export const CARD_ZH = {
   wrongVideo: "读到的不是当前视频的数据。",
   stopped: "已停止生成。",
   saveFailed: "概览已生成，但没能保存到本机，以后打开可能要重新生成。",
-  stoppedSaved: (saved: number, total: number) => `已停止，做完的 ${saved}/${total} 存下了，剩下的可以在侧边栏补上。`,
+  stoppedSaved: (saved: number, total: number) => `已停止，做完的 ${saved}/${total} 存下了，剩下的可以点「补上缺的部分」。`,
   chaptersFirst: "章节还在生成，结论最后写。",
   noTab: "没能确认卡片所在的标签页，可以打开侧边栏看总结。",
   panelRefused: "浏览器没让卡片直接打开侧边栏，请点浏览器工具栏里的简幕图标。",

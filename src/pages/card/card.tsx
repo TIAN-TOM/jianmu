@@ -221,6 +221,10 @@ export interface CardActions {
   readonly toggle: () => void;
   readonly generate: (event: ClickEvent) => void;
   readonly fromOfficial: (event: ClickEvent) => void;
+  readonly retryFailed: (event: ClickEvent) => void;
+  /** 点「重新生成」或确认那一行的「取消」：摆出或收起确认。 */
+  readonly askRegenerate: () => void;
+  readonly regenerate: (event: ClickEvent) => void;
   readonly cancel: () => void;
   readonly retry: () => void;
   readonly openPanel: (event: ClickEvent) => void;
@@ -277,8 +281,13 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
   const showGenerate = canGenerate && !needsSetup;
   const showSettings = needsSetup || (canGenerate && view.settingsError);
   const showRetry = (view.phase === "failed" || view.needLogin || retryRead) && !task;
+  // 已经有概览：能补上缺的部分、能重新生成（先确认一次）。读不到字幕的时候两样都用不了。
+  const canRedo = view.phase === "loaded" && aiReady === true && !task && hasOverview(view.analysis) && !view.noCaptions && !view.needLogin && !view.notRead;
+  const showRetryFailed = canRedo && view.failedParts > 0;
+  // 「重新生成」是个少用的文字按钮：底部左边写着「展开全部 N 章」时一行放不下三样，等章节全露了才摆。
+  const showRegenerate = canRedo && !view.confirmRegenerate && !(chaptersCut && !view.showAll);
   // 侧边栏已经开着：不摆打开它的按钮。别的按钮也都没有、章节也不用「展开全部」时，底部一行整个不摆。
-  const showActions = !view.holdActions && (showGenerate || showSettings || showRetry || !view.panelOpen);
+  const showActions = !view.holdActions && (showGenerate || showSettings || showRetry || showRegenerate || !view.panelOpen);
   // 「打开侧边栏」是底部一行的主按钮，同一行已经有别的主按钮时退成普通按钮。
   const panelPrimary = !showGenerate && !needsSetup;
   return (
@@ -362,6 +371,26 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
           ) : officialNote ? (
             <p class="card-note">{officialNote}</p>
           ) : null}
+          {showRetryFailed ? (
+            <div class="card-offer" id="card-failed-parts">
+              <span class="card-offer-note">{t.failedParts}</span>
+              <button type="button" class="button" data-variant="secondary" onClick={actions.retryFailed}>
+                {t.retryFailed}
+              </button>
+            </div>
+          ) : null}
+          {canRedo && view.confirmRegenerate ? (
+            // 重新生成要再花一整份额度：先问一句，确认的按钮和刚点的不在同一个位置。
+            <div class="card-offer" id="card-regenerate-confirm">
+              <span class="card-offer-note">{t.regenerateCost}</span>
+              <button type="button" class="button" data-variant="primary" onClick={actions.regenerate}>
+                {t.regenerateConfirm}
+              </button>
+              <button type="button" class="button" data-variant="text" onClick={actions.askRegenerate}>
+                {t.cancel}
+              </button>
+            </div>
+          ) : null}
           {needsSetup ? <p class="card-note" id="card-setup">{setupHint}</p> : null}
         </div>
         {task ? (
@@ -386,6 +415,11 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
             {showActions && showSettings ? (
               <button type="button" class="button" data-variant={needsSetup ? "primary" : "secondary"} id="card-settings" onClick={actions.openSettings}>
                 {t.openSettings}
+              </button>
+            ) : null}
+            {showActions && showRegenerate ? (
+              <button type="button" class="button" data-variant="text" id="card-regenerate" onClick={actions.askRegenerate}>
+                {t.regenerate}
               </button>
             ) : null}
             {showActions && showRetry ? (

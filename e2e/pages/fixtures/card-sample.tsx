@@ -2,7 +2,7 @@
 // 地址带 #full 时是全部展开、正在生成的样子（进度行、「停止」和「打开侧边栏」都在），带 #collapsed 时是收起的一行，
 // 带 #official 时是还没有概览、只有一段不长的官方总结，带 #setup-key 时是还没有概览、以前配好过 AI 服务但密钥清空了（说明用产品里的 cardSetupHint），
 // 带 #youtube 时是 YouTube 上已有概览、本机没有字幕（没有官方总结），带 #youtube-unread 时是没有代开文字稿的构建里，YouTube 上本机既没有概览也没有字幕，
-// 带 #youtube-ready 时是 YouTube 上还没有概览、字幕已经读过；带 #comments 时结论带着评论区；不带时是刚打开的默认样子；
+// 带 #youtube-ready 时是 YouTube 上还没有概览、字幕已经读过；带 #comments 时结论带着评论区；带 #failed-parts 时概览有两块没生成出来；不带时是刚打开的默认样子；
 // 「展开全部」和官方总结那一行点得动。卡片的界面组件原样用，样式用产品的 card.css。界面语言照卡片入口那样跟着设置。
 // 带 #official-late、#official-never 时接上真实的卡片模型，后台换成本页的替身：官方总结先回「还在读」，
 // 前者过一会儿读到、照后台的做法广播一次重读，后者一直读不到。带 #load-failed 时也接上真实的卡片模型，后台说被平台限流，
@@ -71,6 +71,8 @@ const view = signal<CardView>({
     ...(chaptersOnly ? {} : { verdict: { verdict: new URLSearchParams(location.search).get("verdict") || "可以看", summary: LONG.repeat(2), keyStarts: [90, 900], ...(withComments ? { comments: SAMPLE_COMMENTS } : {}) } }),
   },
   transcriptBasis: stale ? { chapters: "old-sample", verdict: "old-sample" } : null,
+  failedParts: location.hash === "#failed-parts" ? 2 : 0,
+  confirmRegenerate: false,
   transcriptFingerprint: stale ? "new-sample" : null,
   verdictPending: false,
   noCaptions: false,
@@ -94,6 +96,9 @@ const actions: CardActions = {
   toggle: () => void (view.value = { ...view.value, collapsed: !view.value.collapsed }),
   generate: noop,
   fromOfficial: noop,
+  retryFailed: noop,
+  askRegenerate: () => void (view.value = { ...view.value, confirmRegenerate: !view.value.confirmRegenerate }),
+  regenerate: noop,
   cancel: noop,
   retry: noop,
   openPanel: noop,

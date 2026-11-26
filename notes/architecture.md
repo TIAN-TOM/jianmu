@@ -652,8 +652,9 @@ export const ROUTES: { [K in keyof Api]: Route<K> } = { /* … */ };   // 漏一
 | `transcript.displayMode` | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | 不放 |
 | `video.checkAvailable` | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ | 不放 |
 | `imports.add`、`imports.remove` | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | 不放 |
-| `overview.start` | ✓（YouTube 上可带标签页号，先经页面读字幕） | ✗ | ✗ | ✗ | ✓（只认登记过的令牌） | ✗ | 不放 |
-| `overview.retryFailed`、`overview.get` | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ | 不放 |
+| `overview.start` | ✓（YouTube 上可带标签页号，先经页面读字幕） | ✗ | ✗ | ✗ | ✓（只认登记过的令牌，重新生成在卡片上先确认一次） | ✗ | 不放 |
+| `overview.retryFailed` | ✓ | ✓ | ✓ | ✗ | ✓（只认登记过的令牌） | ✗ | 不放 |
+| `overview.get` | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ | 不放 |
 | `verdict.fromOfficial` | ✓ | ✗ | ✗ | ✗ | ✓（只认登记过的令牌） | ✗ | 不放 |
 | `qa.ask`、`qa.history`、`qa.delete`、`explain.selection` | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ | 不放 |
 | 端口 `translate` | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | 不放 |
@@ -692,7 +693,7 @@ export const ROUTES: { [K in keyof Api]: Route<K> } = { /* … */ };   // 漏一
 
 | 入口 | 规则 |
 | --- | --- |
-| 卡片生成概览、用官方总结写结论 | 两样合起来每分钟 3 次；只认真实点击；登记过的任务号用一次就删（照搬） |
+| 卡片生成概览、重新生成、补失败块、用官方总结写结论 | 合起来每分钟 3 次；只认真实点击；登记过的任务号用一次就删（照搬）；重新生成要再点一次确认，确认按钮不在刚点的位置 |
 | 播放页笔记润色 | 每分钟 6 次；超出只存原文（照搬） |
 | 悬停图标解释画面 | 每标签页每分钟 6 次（初值）；鼠标真点在图标上加样子核对（第 9.5 节）；截图核对 |
 | `playback.info` | 每个视频一条，换视频才发下一条；视频必须等于发送方标签页地址上的视频；时长、频道编号过一遍形状和大小核对，只用来定模式 |
