@@ -39,6 +39,9 @@ export const CARD_HANT: CardText = {
   regenerate: "重新生成",
   regenerateCost: "重新生成會再花一次 API 額度。",
   regenerateConfirm: "確認重新生成",
+  regenerateTooSoon: "這部影片十分鐘內在卡片上重新生成過了，這次沒有生成，不花額度。過一會兒再點，或者打開側邊欄重新生成。",
+  regenerateKept: "重新生成沒寫成一句話結論，原來的概覽還留著，沒有換掉。",
+  regenerateStopped: "已停止，原來的概覽還留著，沒有換掉。",
   cancel: "取消",
   openSettingsFailed: "沒能打開設定頁。可以打開側邊欄，點選右上角的設定按鈕。",
 

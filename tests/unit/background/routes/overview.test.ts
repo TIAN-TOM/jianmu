@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createApp } from "../../../../src/background/app.ts";
+import { CARD_REGENERATE_WINDOW_MS } from "../../../../src/background/limits.ts";
 import { overviewRoutes } from "../../../../src/background/routes/overview.ts";
 import type { OverviewService } from "../../../../src/background/services/overview/index.ts";
 import { PROTOCOLS } from "../../../../src/core/ai/provider/index.ts";
@@ -91,6 +92,23 @@ test("卡片只认登记时换到的一次性令牌：用过一次就作废，�
   assert.ok(ai.posts().length > sent, "重新生成真的发了请求");
 });
 
+test("卡片对同一个视频重新生成十分钟一次：第二次认领下任务、按太频繁收尾，不发请求；别的视频、过了十分钟照常；侧边栏不受限", async () => {
+  const { ask, register, ai, fake } = appOn();
+  const card = senders.card();
+  const fresh = async (video = KEY) => ask("overview.start", { video, token: (await register(card, video)).token, fresh: true }, card) as Promise<{ ok: boolean; code?: string; detail?: string }>;
+  assert.equal((await fresh()).ok, true);
+  const sent = ai.posts().length;
+  const again = await fresh();
+  assert.deepEqual([again.ok, again.code, again.detail], [false, "CARD_RATE_LIMITED", "regenerate"]);
+  assert.equal(ai.posts().length, sent, "第二次不发请求");
+  const listed = (await ask("task.list", {})) as unknown as { ok: true; value: { tasks: readonly unknown[] } };
+  assert.deepEqual(listed.value.tasks, [], "被拦下的任务也收了尾，不挂着");
+  const panel = await register(senders.panel());
+  assert.equal((await ask("overview.start", { video: KEY, taskId: panel.id, fresh: true })).ok, true, "侧边栏不受这一条限制");
+  fake.timers.advance(CARD_REGENERATE_WINDOW_MS);
+  assert.equal((await fresh()).ok, true, "过了十分钟又能在卡片上重新生成");
+});
+
 test("卡片补失败块：只认登记时换到的令牌，不收任务号；侧边栏不收令牌；令牌用一次就作废", async () => {
   const { ask, register } = appOn();
   const card = senders.card();
@@ -127,7 +145,7 @@ test("手动补失败块至少补上一块：打开就出结论从暂停里恢�
   let resumed = 0;
   let value: { fromCache: boolean; recoveredChunks?: number; canceled?: true } = { fromCache: false, recoveredChunks: 1 };
   const overview = { retryFailed: async () => ({ ok: true, value }) } as unknown as OverviewService;
-  const routes = overviewRoutes({ overview, cardLimits: { redeemToken: () => null }, auto: { resume: async () => void (resumed += 1) } });
+  const routes = overviewRoutes({ overview, cardLimits: { redeemToken: () => null, admitRegenerate: () => true }, auto: { resume: async () => void (resumed += 1) } });
   const retry = () => routes["overview.retryFailed"].handler({ taskId: "t", video: KEY }, { sender: senders.panel() } as unknown as Parameters<(typeof routes)["overview.retryFailed"]["handler"]>[1]);
 
   assert.equal((await retry()).ok, true);
@@ -146,7 +164,7 @@ test("手动生成或补失败块在结论那一步被停：不算成功，不�
   let resumed = 0;
   const stopped = { fromCache: false, recoveredChunks: 1, verdictCanceled: true };
   const overview = { generate: async () => ({ ok: true, value: stopped }), retryFailed: async () => ({ ok: true, value: stopped }) } as unknown as OverviewService;
-  const routes = overviewRoutes({ overview, cardLimits: { redeemToken: () => null }, auto: { resume: async () => void (resumed += 1) } });
+  const routes = overviewRoutes({ overview, cardLimits: { redeemToken: () => null, admitRegenerate: () => true }, auto: { resume: async () => void (resumed += 1) } });
   const ctx = { sender: { kind: "panel" } } as unknown as Parameters<(typeof routes)["overview.start"]["handler"]>[1];
   await routes["overview.start"].handler({ video: KEY, taskId: "t" }, ctx);
   await routes["overview.retryFailed"].handler({ taskId: "t", video: KEY }, ctx);
@@ -172,7 +190,7 @@ test("卡片和侧边栏在 YouTube 上点生成、卡片补失败块：交给�
   } as unknown as OverviewService;
   const routes = overviewRoutes({
     overview,
-    cardLimits: { redeemToken: (token: string) => token },
+    cardLimits: { redeemToken: (token: string) => token, admitRegenerate: () => true },
     pageTranscript: {
       duration: async () => null,
       async read(ref, tabId) {

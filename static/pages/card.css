@@ -494,7 +494,29 @@ body {
   padding: 0 var(--card-pad) var(--card-pad) var(--card-foot-left, var(--card-pad));
 }
 
-.card-sheet-in:has(> .card-actions) > .card-body {
+/* 「重新生成」的确认：顶替底部一行，说明在上，按钮在下一行靠右。 */
+.card-confirm {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0 var(--card-pad) var(--card-pad);
+  animation: appear var(--dur) var(--ease);
+}
+
+.card-confirm-note {
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+}
+
+.card-confirm-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.card-sheet-in:has(> .card-actions) > .card-body,
+.card-sheet-in:has(> .card-confirm) > .card-body {
   padding-bottom: var(--card-gap);
 }
 

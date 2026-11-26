@@ -235,6 +235,29 @@ export interface CardActions {
   readonly toggleComments: () => void;
 }
 
+/**
+ * 「重新生成」的确认，摆在底部一行原来的位置上，不进会滚动的正文区，摆出来就看得见。说明独占底部那一行原来的高度，
+ * 按钮在它下面一行：连点两下时第二下落在说明上，不落在确认上（模型另外让确认摆出来一会儿才认）。焦点挪到「取消」上。
+ */
+function RegenerateConfirm({ onConfirm, onCancel }: { readonly onConfirm: (event: ClickEvent) => void; readonly onCancel: () => void }) {
+  const cancel = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => cancel.current?.focus(), []);
+  const t = cardText();
+  return (
+    <div class="card-confirm" id="card-regenerate-confirm" role="group" aria-label={t.regenerate}>
+      <p class="card-confirm-note">{t.regenerateCost}</p>
+      <div class="card-confirm-buttons">
+        <button type="button" class="button" data-variant="text" ref={cancel} onClick={onCancel}>
+          {t.cancel}
+        </button>
+        <button type="button" class="button" data-variant="primary" onClick={onConfirm}>
+          {t.regenerateConfirm}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** 点了展开而内容还在读：最多等这么久再打开，读到了就直接从标题栏长到内容那么高，不先露一行「正在读取」。 */
 export const OPEN_HOLD_MS = 500;
 
@@ -379,18 +402,6 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
               </button>
             </div>
           ) : null}
-          {canRedo && view.confirmRegenerate ? (
-            // 重新生成要再花一整份额度：先问一句，确认的按钮和刚点的不在同一个位置。
-            <div class="card-offer" id="card-regenerate-confirm">
-              <span class="card-offer-note">{t.regenerateCost}</span>
-              <button type="button" class="button" data-variant="primary" onClick={actions.regenerate}>
-                {t.regenerateConfirm}
-              </button>
-              <button type="button" class="button" data-variant="text" onClick={actions.askRegenerate}>
-                {t.cancel}
-              </button>
-            </div>
-          ) : null}
           {needsSetup ? <p class="card-note" id="card-setup">{setupHint}</p> : null}
         </div>
         {task ? (
@@ -404,7 +415,9 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
             </button>
           </div>
         ) : null}
-        {showActions || chaptersCut ? (
+        {canRedo && view.confirmRegenerate ? (
+          <RegenerateConfirm onConfirm={actions.regenerate} onCancel={actions.askRegenerate} />
+        ) : showActions || chaptersCut ? (
           <div class="card-actions">
             {chaptersCut ? <More id="card-more" open={view.showAll} label={t.showAllChapters(chapterCount)} onToggle={actions.toggleShowAll} /> : null}
             {showActions && showGenerate ? (

@@ -39,6 +39,9 @@ export const CARD_EN: CardText = {
   regenerate: "Regenerate",
   regenerateCost: "Regenerating uses your API quota again.",
   regenerateConfirm: "Regenerate now",
+  regenerateTooSoon: "This video was regenerated from the card in the last ten minutes, so nothing was generated and no API credit was used. Try again later, or open the side panel and regenerate there.",
+  regenerateKept: "Regenerating couldn't write the one-line verdict, so the original overview is still in place.",
+  regenerateStopped: "Stopped. The original overview is still in place.",
   cancel: "Cancel",
   openSettingsFailed: "Couldn't open settings. Open the side panel and click the settings button in the top corner.",
 

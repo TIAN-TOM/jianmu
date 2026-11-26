@@ -15,7 +15,7 @@ import { isVideoKey } from "./validate.ts";
 
 export interface OverviewRouteDeps {
   readonly overview: OverviewService;
-  readonly cardLimits: Pick<CardLimits, "redeemToken">;
+  readonly cardLimits: Pick<CardLimits, "redeemToken" | "admitRegenerate">;
   readonly auto?: Pick<AutoGenerate, "resume">;
   /** 经页面读字幕的站怎么读；构建里没有代开文字稿面板时没有。 */
   readonly pageTranscript?: PageTranscript | null;
@@ -84,6 +84,10 @@ export function overviewRoutes({ overview, cardLimits, auto, pageTranscript }: O
           if (req.taskId !== undefined || req.token === undefined || req.tabId !== undefined) return fail("FORBIDDEN");
           const taskId = cardLimits.redeemToken(req.token);
           if (!taskId) return fail("TASK_NOT_FOUND");
+          // 同一视频十分钟内在卡片上重新生成过：认领下这个任务、按太频繁收尾，不花额度。
+          if (req.fresh && !cardLimits.admitRegenerate(req.video)) {
+            return overview.generate(taskId, req.video, { fresh: true, prepare: async () => fail("CARD_RATE_LIMITED", "regenerate") });
+          }
           const prepare = readInPage(req.video, sender.tabId);
           return generated(overview.generate(taskId, req.video, { fresh: req.fresh === true, ...(prepare ? { prepare } : {}), comments: { tabId: sender.tabId } }));
         }

@@ -41,6 +41,9 @@ export const CARD_ZH = {
   regenerate: "重新生成",
   regenerateCost: "重新生成会再花一次 API 额度。",
   regenerateConfirm: "确认重新生成",
+  regenerateTooSoon: "这个视频十分钟内在卡片上重新生成过了，这次没有生成，不花额度。过一会儿再点，或者打开侧边栏重新生成。",
+  regenerateKept: "重新生成没写成一句话结论，原来的概览还留着，没有换掉。",
+  regenerateStopped: "已停止，原来的概览还留着，没有换掉。",
   cancel: "取消",
   openSettingsFailed: "没能打开设置页。可以打开侧边栏，点右上角的设置按钮。",
 
