@@ -2,7 +2,8 @@
 // 地址带 #full 时是全部展开、正在生成的样子（进度行、「停止」和「打开侧边栏」都在），带 #collapsed 时是收起的一行，
 // 带 #official 时是还没有概览、只有一段不长的官方总结，带 #setup-key 时是还没有概览、以前配好过 AI 服务但密钥清空了（说明用产品里的 cardSetupHint），
 // 带 #youtube 时是 YouTube 上已有概览、本机没有字幕（没有官方总结），带 #youtube-unread 时是没有代开文字稿的构建里，YouTube 上本机既没有概览也没有字幕，
-// 带 #youtube-ready 时是 YouTube 上还没有概览、字幕已经读过；带 #comments 时结论带着评论区；带 #failed-parts 时概览有两块没生成出来；不带时是刚打开的默认样子；
+// 带 #youtube-ready 时是 YouTube 上还没有概览、字幕已经读过；带 #comments 时结论带着评论区；带 #failed-parts 时概览有两块没生成出来；
+// 带 #ask 时能提问，提问接上真实的提问状态（ask.ts），后台换成本页的替身，回答带一个能点的时间点；不带时是刚打开的默认样子；
 // 「展开全部」和官方总结那一行点得动。卡片的界面组件原样用，样式用产品的 card.css。界面语言照卡片入口那样跟着设置。
 // 带 #official-late、#official-never 时接上真实的卡片模型，后台换成本页的替身：官方总结先回「还在读」，
 // 前者过一会儿读到、照后台的做法广播一次重读，后者一直读不到。带 #load-failed 时也接上真实的卡片模型，后台说被平台限流，
@@ -10,6 +11,7 @@
 import { signal } from "@preact/signals";
 import { render } from "preact";
 import { videoKey } from "../../../src/core/video-ref.ts";
+import { createCardAsk } from "../../../src/pages/card/ask.ts";
 import { Card, type CardActions } from "../../../src/pages/card/card.tsx";
 import { PANEL_REFUSED_NOTE } from "../../../src/pages/card/glance.ts";
 import { createCardModel, NOT_READ_TEXT, type CardView } from "../../../src/pages/card/model.ts";
@@ -78,6 +80,7 @@ const view = signal<CardView>({
   noCaptions: false,
   needLogin: false,
   notRead: unread,
+  canAsk: location.hash === "#ask",
   task: full ? { id: "sample", external: false, auto: false, canceling: false, done: 3, total: 8, message: "" } : null,
   settingsError: false,
   notice: full ? { text: LONG, tone: "" } : location.hash === "#youtube-unread" ? { text: NOT_READ_TEXT, tone: "" } : null,
@@ -99,6 +102,8 @@ const actions: CardActions = {
   retryFailed: noop,
   askRegenerate: () => void (view.value = { ...view.value, confirmRegenerate: !view.value.confirmRegenerate }),
   regenerate: noop,
+  ask: noop,
+  cancelAsk: noop,
   cancel: noop,
   retry: noop,
   openPanel: noop,
@@ -109,8 +114,31 @@ const actions: CardActions = {
   toggleComments: () => void (view.value = { ...view.value, commentsOpen: !view.value.commentsOpen }),
 };
 
+// #ask：提问的状态原样用，后台的两条回复在这里现编；点了回答里的时间点，记在 window.__seeked 上给测试看。
+const askRuntime: PageRuntime = {
+  id: "card-sample",
+  sendMessage: async (message) => {
+    const { type, req } = message as { readonly type: string; readonly req: { readonly question?: string } };
+    if (type === "task.start") return { ok: true, value: { task: { id: "ask-1", kind: "qa", origin: "card", video: videoKey(SAMPLE_REF), state: "running", done: 0, total: 0, phase: "", message: "", createdAt: 1, updatedAt: 1 }, joined: false, token: "ask-token" } };
+    if (type === "qa.ask") return { ok: true, value: { entry: { id: "qa-1", video: videoKey(SAMPLE_REF), question: "样例问题", answer: "样例回答在 [1:30] 讲到。", citations: [], clickable: [90], derived: {}, createdAt: 1 }, retrievalMode: "full" } };
+    return { ok: false, code: "UNKNOWN_ROUTE", req };
+  },
+  onMessage: { addListener: noop, removeListener: noop },
+  connect: () => {
+    throw new Error("样张不开长连接");
+  },
+};
+const sampleAsk = createCardAsk({ api: createPageApi({ runtime: askRuntime }), video: () => videoKey(SAMPLE_REF), lang: () => uiLang.value });
+const askActions: CardActions = {
+  ...actions,
+  ask: (question, event) => void sampleAsk.ask(question, event.isTrusted),
+  cancelAsk: () => void sampleAsk.cancel(),
+  seek: (atSec) => void ((window as unknown as { __seeked?: number }).__seeked = atSec),
+};
+
 function App() {
-  return <Card view={view.value} aiReady={!keyCleared} setupHint={keyCleared ? cardSetupHint(KEY_CLEARED, uiLang.value) : ""} actions={actions} />;
+  const asking = location.hash === "#ask";
+  return <Card view={view.value} aiReady={!keyCleared} setupHint={keyCleared ? cardSetupHint(KEY_CLEARED, uiLang.value) : ""} actions={asking ? askActions : actions} ask={asking ? sampleAsk.state.value : undefined} />;
 }
 
 /** 官方总结晚到多久。 */

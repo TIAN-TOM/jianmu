@@ -13,6 +13,7 @@ import type { GuidesFailure } from "../../shared/messages/transcript.ts";
 import type { PageApi } from "../shared/api.ts";
 import type { ConfigState } from "../shared/config.ts";
 import type { UiLang } from "../shared/ui-lang.ts";
+import { createCardAsk } from "./ask.ts";
 import { createFold } from "./fold.ts";
 import { INITIAL, type CardView, type TaskProgress, type Tone } from "./view.ts";
 import { canWriteFromOfficial, writeFromOfficial } from "./official-verdict.ts";
@@ -75,6 +76,7 @@ export function createCardModel(deps: CardDeps) {
   const { api, timers = realTimers, position, lang = (): UiLang => "zh" } = deps;
   const view = signal<CardView>(INITIAL);
   const t = () => cardTextOf(lang());
+  const ask = createCardAsk({ api, video: () => video, lang });
   let tab: CardTab | null = null;
   let video: VideoKey | null = null;
   // 换视频、关掉卡片就加一：迟到的结果对不上就不渲染。
@@ -145,7 +147,8 @@ export function createCardModel(deps: CardDeps) {
     savedFailures = 0;
     actionRow.reset();
     glance.say("");
-    patch({ phase, title: "", official: null, analysis: null, transcriptBasis: null, failedParts: 0, confirmRegenerate: false, transcriptFingerprint: null, verdictPending: false, noCaptions: false, notRead: false, task: null, settingsError: false, notice: null, showAll: false, officialOpen: false, commentsOpen: false, holdActions: false });
+    ask.reset();
+    patch({ phase, title: "", official: null, analysis: null, transcriptBasis: null, failedParts: 0, confirmRegenerate: false, transcriptFingerprint: null, verdictPending: false, noCaptions: false, notRead: false, canAsk: false, task: null, settingsError: false, notice: null, showAll: false, officialOpen: false, commentsOpen: false, holdActions: false });
   }
 
   function syncVideo(url: string): void {
@@ -196,6 +199,8 @@ export function createCardModel(deps: CardDeps) {
       noCaptions,
       needLogin,
       notRead,
+      // 问答要整份字幕：B 站登录着时后台自己去读，YouTube 只用本机已有的。
+      canAsk: !noCaptions && !needLogin && (value.hasTranscript || current.startsWith("bilibili:")),
       transcriptFingerprint: value.transcriptFingerprint ?? null,
       ...(following && !quiet ? {} : { ...shownSaved(), verdictPending: false }),
       // 安静重读不动提示，只有原来挡着的「没有字幕」这次不成立了（比如刚导入了字幕文件）才撤下。
@@ -437,6 +442,7 @@ export function createCardModel(deps: CardDeps) {
     },
     regenerate: (trusted: boolean) => generate(trusted, "fresh"),
     fromOfficial,
+    ask,
     cancel,
     toggle: () => fold.toggle(),
     /** 浏览器没让卡片直接打开侧边栏：展开着时在正文里说，收着时在那一行上说。 */

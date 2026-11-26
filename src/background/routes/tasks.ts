@@ -1,5 +1,5 @@
 // 任务：列出、登记、取消。能登记概览、用官方总结写结论、问答和划词解释；问答和解释的输入随登记一起交，进等价键：
-// 同一个问题连点两下接上同一个任务。卡片只能登记概览和写结论，新起的要过每分钟 3 次的限频，凭一次性令牌开始；
+// 同一个问题连点两下接上同一个任务。卡片只能登记概览、写结论和问答，新起的要过每分钟 3 次的限频，凭一次性令牌开始；
 // 接上已经在跑的同一个任务不算一次。卡片开关在分发时已经查过。
 import { fail, ok, type Result } from "../../core/errors.ts";
 import type { TaskCancelRequest, TaskStartRequest, StartableTaskKind } from "../../shared/messages/tasks.ts";
@@ -30,7 +30,7 @@ const STAGES_OF: Readonly<Record<StartableTaskKind, readonly FeatureSlotId[]>> =
 const RAW_TEXT_MAX = 20_000;
 
 /** 卡片只能登记的种类。 */
-const CARD_KINDS: ReadonlySet<string> = new Set<StartableTaskKind>(["overview", "verdict"]);
+const CARD_KINDS: ReadonlySet<string> = new Set<StartableTaskKind>(["overview", "verdict", "qa"]);
 
 const MAX_TASK_ID = 100;
 

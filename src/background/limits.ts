@@ -18,7 +18,7 @@ export function createRateLimit({ limit, windowMs, now }: RateLimitDeps): () => 
   };
 }
 
-// 卡片发起的概览和用官方总结写结论，两样合起来每分钟最多 3 次。正常用的人在卡片上点一次「生成概览」要等几十秒到几分钟，
+// 卡片发起的概览、重新生成、补失败块、用官方总结写结论和提问，合起来每分钟最多 3 次。正常用的人在卡片上点一次「生成概览」要等几十秒到几分钟，
 // 一分钟里连开三个视频已经很多；卡片被劫持时用户每点一下视频就是一个新视频的概览，这里把它压住。
 export const CARD_GENERATE_LIMIT = 3;
 export const CARD_GENERATE_WINDOW_MS = 60_000;
@@ -28,7 +28,7 @@ export const CARD_GENERATE_WINDOW_MS = 60_000;
 export const CARD_REGENERATE_WINDOW_MS = 10 * 60_000;
 
 export interface CardLimits {
-  /** 卡片要新起一个任务（概览或写结论，不分种类共用一个计数）：额度够就记一次、放行。接上已经在跑的不问这里。 */
+  /** 卡片要新起一个任务（不分种类共用一个计数）：额度够就记一次、放行。接上已经在跑的不问这里。 */
   readonly admitGenerate: () => boolean;
   /** 卡片要重新生成这个视频的概览：同一视频十分钟内放行过就不放行，放行一次记一次。 */
   readonly admitRegenerate: (video: string) => boolean;

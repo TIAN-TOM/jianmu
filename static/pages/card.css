@@ -360,6 +360,70 @@ body {
   font-size: var(--fs-meta);
 }
 
+/* 提问（正文最后一块）：上面是这一次的问题和回答，下面一行输入框加「提问」。 */
+.card-ask {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.card-ask-form {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.card-ask-input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--input);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-meta);
+}
+
+.card-question {
+  font-weight: var(--fw-medium);
+}
+
+.card-answer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.card-answer-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* 回答里能点的时间点，样子同章节前面的时间。 */
+.card-stamp {
+  padding: 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--accent-text);
+  font: inherit;
+  cursor: pointer;
+  transition: var(--tint);
+}
+
+.card-stamp:hover {
+  background: var(--bg-hover);
+}
+
+.card-asking {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+}
+
 .card-status[data-tone="error"] {
   color: var(--danger);
 }
