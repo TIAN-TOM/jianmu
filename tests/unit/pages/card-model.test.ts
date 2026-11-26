@@ -171,6 +171,36 @@ test("用官方总结写结论：登记的回答回来之前就点了停止，�
   assert.equal(model.view.value.task, null);
 });
 
+test("用官方总结写结论：写好但没能存进本机时照样摆出来，说一句没存上；别处给这个视频写好结论时卡片安静重读", async () => {
+  const { fake, model } = setup();
+  const VERDICT_ONLY = { chapters: [], verdict: { verdict: "可以看", summary: "官方总结写的结论", source: "official" } };
+  fake.reply("task.start", { value: { ok: true, value: { task: { ...task("v3"), kind: "verdict" }, joined: false, token: "t3" } } });
+  fake.reply("verdict.fromOfficial", { value: { ok: true, value: { video: KEY, analysis: VERDICT_ONLY, analysisFailures: [], fromCache: false, failedChunks: 0, saveFailed: true } } });
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  await model.fromOfficial(true);
+  assert.deepEqual(model.view.value.analysis, VERDICT_ONLY);
+  assert.deepEqual(model.view.value.notice, { text: cardTextOf("zh").saveFailed, tone: "warn" });
+
+  fake.reply("transcript.get", { value: guides(KEY, { overview: { analysis: ANALYSIS, analysisFailures: [] } }) });
+  const before = fake.attempts("transcript.get");
+  fake.broadcast({ type: "overview.updated", video: KEY, verdictPending: false });
+  assert.ok(await until(() => model.view.value.analysis?.verdict?.summary === "样例结论"));
+  assert.equal(fake.attempts("transcript.get"), before + 1);
+});
+
+test("侧边栏正在为这个视频用官方总结写结论：卡片接上它的进度，写「正在写一句话结论」", async () => {
+  const { fake, model } = setup();
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  fake.broadcast({ type: "task.changed", task: { ...task("side-verdict"), kind: "verdict", origin: "user" } });
+  assert.ok(await until(() => model.view.value.task?.id === "side-verdict"));
+  assert.equal(model.view.value.task?.verdict, true);
+  assert.equal(model.view.value.task?.external, true);
+});
+
 test("同一视频已经有任务在跑：接上它看进度，结束后重读", async () => {
   const { fake, model } = setup();
   fake.reply("task.list", { value: { ok: true, value: { tasks: [task("side", "running")] } } });

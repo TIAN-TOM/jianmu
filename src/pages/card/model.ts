@@ -52,6 +52,8 @@ export { CARD_ROWS, cardRows, chaptersInOrder, hasOverview } from "./rows.ts";
 export type { CardView, TaskProgress, Tone } from "./view.ts";
 
 const LOAD_TIMEOUT_MS = 30_000;
+/** 卡片跟着看进度的任务种类：生成概览和用官方总结写结论。 */
+const FOLLOWED: ReadonlySet<string> = new Set(["overview", "verdict"]);
 const EXTERNAL_CHECK_MS = 15_000;
 const HIDDEN_CODES: ReadonlySet<ErrorCode> = new Set(["NOT_ENABLED", "CARD_DISABLED"]);
 // 中文的这几句，测试拿来对照。
@@ -206,12 +208,12 @@ export function createCardModel(deps: CardDeps) {
     return { id: task.id, external, auto: task.origin === "auto", ...(task.kind === "verdict" ? { verdict: true as const } : {}), canceling, done: task.done, total: task.total, message: task.message };
   }
 
-  // 侧边栏可能正在为这个视频生成概览：接上它的进度，不摆一个点了会被拦下的按钮。
+  // 侧边栏可能正在为这个视频生成概览或用官方总结写结论：接上它的进度，不摆一个点了会被拦下的按钮。
   async function followRunning(asked: number): Promise<void> {
     if (view.peek().task) return;
     const reply = await api.send("task.list", {});
     if (!reply.ok || asked !== ticket || view.peek().task) return;
-    const running = reply.value.tasks.find((task) => task.kind === "overview" && task.video === video && task.state === "running");
+    const running = reply.value.tasks.find((task) => FOLLOWED.has(task.kind) && task.video === video && task.state === "running");
     if (running) follow(running);
   }
 
@@ -299,7 +301,7 @@ export function createCardModel(deps: CardDeps) {
     if (outcome.kind === "joined") return void (patch({ task: null }), follow(outcome.task));
     if (outcome.kind === "failed") return finishOwn(null, outcome.code, outcome.code === "TASK_CANCELED" ? t().stopped : describe(outcome.code, outcome.detail, lang()), outcome.said);
     [saved, savedBasis] = [outcome.value.analysis, outcome.value.transcriptBasis ?? null];
-    patch({ task: null, ...shownSaved(), verdictPending: false, ...notice("") });
+    patch({ task: null, ...shownSaved(), verdictPending: false, ...(outcome.value.saveFailed ? notice(t().saveFailed, "warn") : notice("")) });
   }
 
   async function cancel(): Promise<void> {
@@ -321,7 +323,7 @@ export function createCardModel(deps: CardDeps) {
     if (task.video !== video) return;
     const own = view.peek().task;
     if (!own) {
-      if (task.kind === "overview" && task.state === "running") follow(task);
+      if (FOLLOWED.has(task.kind) && task.state === "running") follow(task);
       return;
     }
     if (own.id !== task.id) return;
@@ -338,9 +340,10 @@ export function createCardModel(deps: CardDeps) {
   const subscriptions = [
     api.on("task.changed", ({ task }) => onTask(task)),
     api.on("overview.preview", onPreview),
-    // 章节落库了、结论还在写：重读一次，把存好的章节摆出来。
+    // 章节落库了、结论还在写：重读一次，把存好的章节摆出来。没跟着任务时（比如别处刚写好结论）也安静重读一次。
     api.on("overview.updated", (message) => {
-      if (message.video !== video || !view.peek().task) return;
+      if (message.video !== video) return;
+      if (!view.peek().task) return void load(true);
       void load(true).then(() => {
         if (view.peek().task && message.verdictPending) patch({ ...shownSaved(), verdictPending: true });
       });

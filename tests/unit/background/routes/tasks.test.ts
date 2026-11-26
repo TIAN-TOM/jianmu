@@ -1,4 +1,4 @@
-// 任务的三条路由：登记的请求形状，卡片新起的生成每分钟最多 3 次、凭一次性令牌开始，接上在跑的不算一次。
+// 任务的三条路由：登记的请求形状，卡片新起的概览和写结论合起来每分钟最多 3 次、凭一次性令牌开始，接上在跑的不算一次。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createApp } from "../../../../src/background/app.ts";
@@ -76,6 +76,16 @@ test("卡片发起的生成每分钟最多 3 次：同一视频已在生成不�
 
   fake.timers.advance(CARD_GENERATE_WINDOW_MS);
   assert.equal((await start(tubeVideo(6))).ok, true, "过了一分钟又能生成");
+});
+
+test("卡片的生成概览和用官方总结写结论共用每分钟 3 次：两次概览加一次写结论以后，哪一种都登记不了", async () => {
+  const { app, start } = appOn();
+  const verdict = (video: VideoKey) => app.dispatch({ type: "task.start", req: { kind: "verdict", video } }, senders.card()) as Promise<Started>;
+  assert.equal((await start(tubeVideo(1))).ok, true);
+  assert.equal((await start(tubeVideo(2))).ok, true);
+  assert.equal((await verdict(tubeVideo(3))).ok, true);
+  assert.deepEqual(await verdict(tubeVideo(4)), { ok: false, code: "CARD_RATE_LIMITED" });
+  assert.deepEqual(await start(tubeVideo(5)), { ok: false, code: "CARD_RATE_LIMITED" });
 });
 
 test("卡片新起的任务带一次性令牌，来源记成卡片；侧边栏起的记成用户发起", async () => {
