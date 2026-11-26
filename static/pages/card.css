@@ -238,8 +238,7 @@ body {
   max-height: 34rem;
   padding: var(--card-body-top, 0.75rem) var(--card-pad) var(--card-pad);
   overflow-y: auto;
-  /* 滚到头不带着播放页一起滚。 */
-  overscroll-behavior: contain;
+  /* 滚到头接着滚播放页，不拦着：里面的章节列表滚到底也要能一路滚出去（PRD 第 6.5 节）。 */
   /* 上面或下面还有内容时，那一边压一道淡影，滚到头就没了：前两层跟着内容走、盖住影子，后两层钉在边上。 */
   background:
     linear-gradient(var(--card) 40%, transparent) center top / 100% 1.25rem no-repeat local,
