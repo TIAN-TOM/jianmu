@@ -29,6 +29,8 @@ export const CARD_HANT: CardText = {
   autoStarting: "正在自動生成概覽…",
   preparing: "正在準備…",
   stop: "停止",
+  verdictFromOfficial: "用官方總結寫結論",
+  verdictFromOfficialNote: "只傳送一次小請求，不通讀字幕",
   generate: "生成概覽",
   openSettings: "打開設定",
   retry: "重試",

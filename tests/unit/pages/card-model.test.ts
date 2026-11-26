@@ -10,6 +10,7 @@ import { test } from "node:test";
 import { signal } from "@preact/signals";
 import { conclusionOf, PANEL_REFUSED_NOTE } from "../../../src/pages/card/glance.ts";
 import { CARD_ROWS, cardRows, chaptersInOrder, createCardModel, NEED_LOGIN_TEXT, NO_CAPTIONS_TEXT, NOT_READ_TEXT } from "../../../src/pages/card/model.ts";
+import { canWriteFromOfficial } from "../../../src/pages/card/official-verdict.ts";
 import { CARD_HANT } from "../../../src/pages/card/text-hant.ts";
 import { cardTextOf } from "../../../src/pages/card/text.ts";
 import { createPageApi } from "../../../src/pages/shared/api.ts";
@@ -126,6 +127,78 @@ test("生成概览只认真实点击，登记换到令牌后凭令牌开始，�
   assert.deepEqual(fake.sent.find(({ type }) => type === "overview.start")?.req, { video: KEY, token: "one-time" });
   assert.deepEqual(model.view.value.analysis, ANALYSIS);
   assert.equal(model.view.value.task, null);
+});
+
+test("用官方总结写结论：有官方总结、还没有结论、AI 服务设置好时才能点，只认真实点击，凭令牌开始，写好的结论摆出来；写的时候点停止就取消", async () => {
+  const { fake, model } = setup();
+  const verdictTask = { ...task("v1"), kind: "verdict" };
+  const VERDICT_ONLY = { chapters: [], verdict: { verdict: "可以看", summary: "官方总结写的结论", source: "official" } };
+  fake.reply("task.start", { value: { ok: true, value: { task: verdictTask, joined: false, token: "verdict-token" } } });
+  fake.reply("verdict.fromOfficial", { value: { ok: true, value: { video: KEY, analysis: VERDICT_ONLY, analysisFailures: [], fromCache: false, failedChunks: 0 } } });
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  assert.equal(canWriteFromOfficial(model.view.value, true), true);
+  assert.equal(canWriteFromOfficial(model.view.value, false), false, "AI 服务没设置好不摆");
+  assert.equal(canWriteFromOfficial({ ...model.view.value, official: null }, true), false, "没有官方总结不摆");
+
+  await model.fromOfficial(false);
+  assert.equal(fake.attempts("task.start"), 0, "合成的点击不算");
+  await model.fromOfficial(true);
+  assert.deepEqual(fake.sent.find(({ type }) => type === "task.start")?.req, { kind: "verdict", video: KEY });
+  assert.deepEqual(fake.sent.find(({ type }) => type === "verdict.fromOfficial")?.req, { video: KEY, token: "verdict-token" });
+  assert.deepEqual(model.view.value.analysis, VERDICT_ONLY);
+  assert.equal(model.view.value.task, null);
+  assert.equal(canWriteFromOfficial(model.view.value, true), false, "有了结论就不再摆");
+});
+
+test("用官方总结写结论：登记的回答回来之前就点了停止，登记上了再取消一次，不开始写", async () => {
+  const { fake, model } = setup();
+  let release = (): void => undefined;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  fake.reply("task.start", async () => (await gate, { ok: true, value: { task: { ...task("v2"), kind: "verdict" }, joined: false, token: "late" } }));
+  fake.reply("task.cancel", { value: { ok: true, value: { task: { ...task("v2", "canceled"), kind: "verdict" } } } });
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  const pending = model.fromOfficial(true);
+  assert.ok(await until(() => model.view.value.task?.verdict === true));
+  await model.cancel();
+  release();
+  await pending;
+  assert.deepEqual(fake.sent.find(({ type }) => type === "task.cancel")?.req, { taskId: "v2" });
+  assert.equal(fake.attempts("verdict.fromOfficial"), 0);
+  assert.equal(model.view.value.task, null);
+});
+
+test("用官方总结写结论：写好但没能存进本机时照样摆出来，说一句没存上；别处给这个视频写好结论时卡片安静重读", async () => {
+  const { fake, model } = setup();
+  const VERDICT_ONLY = { chapters: [], verdict: { verdict: "可以看", summary: "官方总结写的结论", source: "official" } };
+  fake.reply("task.start", { value: { ok: true, value: { task: { ...task("v3"), kind: "verdict" }, joined: false, token: "t3" } } });
+  fake.reply("verdict.fromOfficial", { value: { ok: true, value: { video: KEY, analysis: VERDICT_ONLY, analysisFailures: [], fromCache: false, failedChunks: 0, saveFailed: true } } });
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  await model.fromOfficial(true);
+  assert.deepEqual(model.view.value.analysis, VERDICT_ONLY);
+  assert.deepEqual(model.view.value.notice, { text: cardTextOf("zh").saveFailed, tone: "warn" });
+
+  fake.reply("transcript.get", { value: guides(KEY, { overview: { analysis: ANALYSIS, analysisFailures: [] } }) });
+  const before = fake.attempts("transcript.get");
+  fake.broadcast({ type: "overview.updated", video: KEY, verdictPending: false });
+  assert.ok(await until(() => model.view.value.analysis?.verdict?.summary === "样例结论"));
+  assert.equal(fake.attempts("transcript.get"), before + 1);
+});
+
+test("侧边栏正在为这个视频用官方总结写结论：卡片接上它的进度，写「正在写一句话结论」", async () => {
+  const { fake, model } = setup();
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  fake.broadcast({ type: "task.changed", task: { ...task("side-verdict"), kind: "verdict", origin: "user" } });
+  assert.ok(await until(() => model.view.value.task?.id === "side-verdict"));
+  assert.equal(model.view.value.task?.verdict, true);
+  assert.equal(model.view.value.task?.external, true);
 });
 
 test("同一视频已经有任务在跑：接上它看进度，结束后重读", async () => {

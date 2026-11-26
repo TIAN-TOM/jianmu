@@ -9,11 +9,13 @@ import type { LearningAnalysis } from "../../core/notes/markdown.ts";
 import type { OverviewTranscriptBasis } from "../../core/notes/records.ts";
 import type { TaskView } from "../../core/tasks.ts";
 import { videoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
-import type { GuidesFailure, OfficialSummaryView } from "../../shared/messages/transcript.ts";
+import type { GuidesFailure } from "../../shared/messages/transcript.ts";
 import type { PageApi } from "../shared/api.ts";
 import type { ConfigState } from "../shared/config.ts";
 import type { UiLang } from "../shared/ui-lang.ts";
 import { createFold } from "./fold.ts";
+import { INITIAL, type CardView, type TaskProgress, type Tone } from "./view.ts";
+import { canWriteFromOfficial, writeFromOfficial } from "./official-verdict.ts";
 import { chaptersInOrder, hasOverview } from "./rows.ts";
 import { conclusionOf, createGlance } from "./glance.ts";
 import { cardTextOf } from "./text.ts";
@@ -47,83 +49,11 @@ export interface CardDeps {
 
 export { CARD_ROWS, cardRows, chaptersInOrder, hasOverview } from "./rows.ts";
 
-export type Tone = "" | "warn" | "error";
-
-export interface TaskProgress {
-  readonly id: string;
-  readonly external: boolean;
-  /** 打开就出结论自动起的。 */
-  readonly auto: boolean;
-  readonly canceling: boolean;
-  readonly done: number;
-  readonly total: number;
-  readonly message: string;
-}
-
-export interface CardView {
-  /** 没启用、卡片关着、还没问到：整张卡片不显示。 */
-  readonly visible: boolean;
-  readonly collapsed: boolean;
-  readonly phase: "waiting" | "not-video" | "loading" | "loaded" | "failed";
-  readonly title: string;
-  readonly official: OfficialSummaryView | null;
-  readonly analysis: LearningAnalysis | null;
-  /** 摆着的概览里章节和结论各自依据的字幕指纹；生成中的临时概览没有。 */
-  readonly transcriptBasis: OverviewTranscriptBasis | null;
-  /** 本机有字幕时，现在用的那份的指纹：和上面的对不上就标「基于旧字幕」。 */
-  readonly transcriptFingerprint: string | null;
-  /** 结论还没写好：true 写「正在写」，字符串原样显示。 */
-  readonly verdictPending: boolean | string;
-  readonly noCaptions: boolean;
-  /** 没登录 B 站：读得到视频信息，字幕要登录才读得到。 */
-  readonly needLogin: boolean;
-  /** 字幕要用户在侧边栏点读取才读的站（YouTube），本机还没有字幕：卡片不去读，先请用户在侧边栏读。 */
-  readonly notRead: boolean;
-  readonly task: TaskProgress | null;
-  readonly settingsError: boolean;
-  readonly notice: { readonly text: string; readonly tone: Tone; /** 模型服务报错时自己说的话。 */ readonly said?: string } | null;
-  /** 章节（还没有概览时是官方提纲）默认只露前几条，点了「展开全部」才全露。换了视频回到默认。 */
-  readonly showAll: boolean;
-  /** 有 AI 概览时 B 站官方总结收成一行，点开才露。换了视频回到收着。 */
-  readonly officialOpen: boolean;
-  /** 评论区那一行点开了，露出要点。换了视频回到收着。 */
-  readonly commentsOpen: boolean;
-  /** 这个视频的内容还在来：按钮行先不摆。 */
-  readonly holdActions: boolean;
-  /** 本窗口的侧边栏开着：卡片上不摆打开侧边栏的入口。 */
-  readonly panelOpen: boolean;
-  /** 收着时播放到的那一章，在 chaptersInOrder 里的序号；不知道时是 null。 */
-  readonly chapterNow: number | null;
-  /** 收起的那一行上临时说的一句话，没有时是空串。 */
-  readonly headNote: string;
-}
-
-const INITIAL: CardView = {
-  visible: false,
-  collapsed: false,
-  phase: "waiting",
-  title: "",
-  official: null,
-  analysis: null,
-  transcriptBasis: null,
-  transcriptFingerprint: null,
-  verdictPending: false,
-  noCaptions: false,
-  needLogin: false,
-  notRead: false,
-  task: null,
-  settingsError: false,
-  notice: null,
-  showAll: false,
-  officialOpen: false,
-  commentsOpen: false,
-  holdActions: false,
-  panelOpen: false,
-  chapterNow: null,
-  headNote: "",
-};
+export type { CardView, TaskProgress, Tone } from "./view.ts";
 
 const LOAD_TIMEOUT_MS = 30_000;
+/** 卡片跟着看进度的任务种类：生成概览和用官方总结写结论。 */
+const FOLLOWED: ReadonlySet<string> = new Set(["overview", "verdict"]);
 const EXTERNAL_CHECK_MS = 15_000;
 const HIDDEN_CODES: ReadonlySet<ErrorCode> = new Set(["NOT_ENABLED", "CARD_DISABLED"]);
 // 中文的这几句，测试拿来对照。
@@ -275,15 +205,15 @@ export function createCardModel(deps: CardDeps) {
   }
 
   function progressOf(task: TaskView, external: boolean, canceling = false): TaskProgress {
-    return { id: task.id, external, auto: task.origin === "auto", canceling, done: task.done, total: task.total, message: task.message };
+    return { id: task.id, external, auto: task.origin === "auto", ...(task.kind === "verdict" ? { verdict: true as const } : {}), canceling, done: task.done, total: task.total, message: task.message };
   }
 
-  // 侧边栏可能正在为这个视频生成概览：接上它的进度，不摆一个点了会被拦下的按钮。
+  // 侧边栏可能正在为这个视频生成概览或用官方总结写结论：接上它的进度，不摆一个点了会被拦下的按钮。
   async function followRunning(asked: number): Promise<void> {
     if (view.peek().task) return;
     const reply = await api.send("task.list", {});
     if (!reply.ok || asked !== ticket || view.peek().task) return;
-    const running = reply.value.tasks.find((task) => task.kind === "overview" && task.video === video && task.state === "running");
+    const running = reply.value.tasks.find((task) => FOLLOWED.has(task.kind) && task.video === video && task.state === "running");
     if (running) follow(running);
   }
 
@@ -356,6 +286,24 @@ export function createCardModel(deps: CardDeps) {
     if (code === "NO_AI_CONFIG") void deps.recheckConfig();
   }
 
+  async function fromOfficial(trusted: boolean): Promise<void> {
+    // 花的是用户的额度：和「生成概览」一样只认真实点击。
+    if (!trusted || !visible.peek() || !video || !canWriteFromOfficial(view.peek(), aiReady.peek())) return;
+    const asked = ticket;
+    patch({ task: { id: "", external: false, auto: false, verdict: true, canceling: false, done: 0, total: 0, message: "" }, settingsError: false, ...notice("") });
+    const outcome = await writeFromOfficial(api, video, (task) => {
+      const canceling = asked === ticket && (view.peek().task?.canceling ?? false);
+      if (asked === ticket) patch({ task: progressOf(task, false, canceling) });
+      return asked === ticket && !canceling;
+    });
+    if (outcome.kind !== "joined" && outcome.taskId) settled.add(outcome.taskId);
+    if (asked !== ticket) return;
+    if (outcome.kind === "joined") return void (patch({ task: null }), follow(outcome.task));
+    if (outcome.kind === "failed") return finishOwn(null, outcome.code, outcome.code === "TASK_CANCELED" ? t().stopped : describe(outcome.code, outcome.detail, lang()), outcome.said);
+    [saved, savedBasis] = [outcome.value.analysis, outcome.value.transcriptBasis ?? null];
+    patch({ task: null, ...shownSaved(), verdictPending: false, ...(outcome.value.saveFailed ? notice(t().saveFailed, "warn") : notice("")) });
+  }
+
   async function cancel(): Promise<void> {
     const task = view.peek().task;
     if (!task || task.canceling) return;
@@ -372,10 +320,10 @@ export function createCardModel(deps: CardDeps) {
   }
 
   function onTask(task: TaskView): void {
-    if (task.video !== video || task.kind !== "overview") return;
+    if (task.video !== video) return;
     const own = view.peek().task;
     if (!own) {
-      if (task.state === "running") follow(task);
+      if (FOLLOWED.has(task.kind) && task.state === "running") follow(task);
       return;
     }
     if (own.id !== task.id) return;
@@ -392,9 +340,10 @@ export function createCardModel(deps: CardDeps) {
   const subscriptions = [
     api.on("task.changed", ({ task }) => onTask(task)),
     api.on("overview.preview", onPreview),
-    // 章节落库了、结论还在写：重读一次，把存好的章节摆出来。
+    // 章节落库了、结论还在写：重读一次，把存好的章节摆出来。没跟着任务时（比如别处刚写好结论）也安静重读一次。
     api.on("overview.updated", (message) => {
-      if (message.video !== video || !view.peek().task) return;
+      if (message.video !== video) return;
+      if (!view.peek().task) return void load(true);
       void load(true).then(() => {
         if (view.peek().task && message.verdictPending) patch({ ...shownSaved(), verdictPending: true });
       });
@@ -457,6 +406,7 @@ export function createCardModel(deps: CardDeps) {
     recheck,
     retry: () => void load(),
     generate,
+    fromOfficial,
     cancel,
     toggle: () => fold.toggle(),
     /** 浏览器没让卡片直接打开侧边栏：展开着时在正文里说，收着时在那一行上说。 */

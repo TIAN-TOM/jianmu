@@ -216,6 +216,7 @@ body {
 .card-status,
 .card-note,
 .card-pending,
+.card-offer,
 .card-progress,
 .card-actions,
 .card-glance,
@@ -342,6 +343,19 @@ body {
 .card-status,
 .card-note,
 .card-pending {
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+}
+
+/* 还没有结论时「用官方总结写结论」那一行：按钮在前，旁边一句说只发一次小请求，放不下就折到下一行。 */
+.card-offer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.card-offer-note {
   color: var(--text-muted);
   font-size: var(--fs-meta);
 }

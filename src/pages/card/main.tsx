@@ -141,6 +141,7 @@ function start(root: HTMLElement, api: PageApi): void {
   const actions = {
     toggle: () => void model.toggle(),
     generate: (event: { readonly isTrusted: boolean }) => void model.generate(trusted(event)),
+    fromOfficial: (event: { readonly isTrusted: boolean }) => void model.fromOfficial(trusted(event)),
     cancel: () => void model.cancel(),
     retry: model.retry,
     openPanel(event: { readonly isTrusted: boolean }) {

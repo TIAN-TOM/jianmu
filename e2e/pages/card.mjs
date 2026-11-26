@@ -404,6 +404,20 @@ test("卡片：结论带着评论区时，口碑那一行默认收着、点开�
   assert.equal(await page.evaluate(`document.querySelector("#card-comment-points .comment-quote-meta")?.textContent ?? ""`), "置顶 · 赞 120");
 });
 
+test("卡片：有官方总结、还没有结论时，结论该在的地方摆「用官方总结写结论」，排在官方总结前面；已经有结论、AI 服务没设置好时不摆", async ({ open }) => {
+  const read = (page) => page.evaluate(`(() => {
+    const offer = document.getElementById("card-official-verdict");
+    const official = document.getElementById("card-official");
+    return {
+      text: offer?.textContent ?? "",
+      before: Boolean(offer && official && offer.getBoundingClientRect().top < official.getBoundingClientRect().top),
+    };
+  })()`);
+  assert.deepEqual(await read(await open(`${SAMPLE}#official`)), { text: "用官方总结写结论只发一次小请求，不通读字幕", before: true });
+  assert.equal((await read(await open(SAMPLE))).text, "", "已经有结论");
+  assert.equal((await read(await open(`${SAMPLE}#setup-key`))).text, "", "AI 服务没设置好");
+});
+
 test("卡片：配好过、密钥随浏览器重启清空时，说明直说要到设置页重新填密钥、提一句记住密钥，「打开设置」是主按钮，不摆「生成概览」", async ({ open }) => {
   const page = await open(`${SAMPLE}#setup-key`);
   const shown = await page.evaluate(`(() => ({

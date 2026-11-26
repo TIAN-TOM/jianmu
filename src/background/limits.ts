@@ -18,15 +18,15 @@ export function createRateLimit({ limit, windowMs, now }: RateLimitDeps): () => 
   };
 }
 
-// 卡片发起的概览每分钟最多 3 次。正常用的人在卡片上点一次「生成概览」要等几十秒到几分钟，
+// 卡片发起的概览和用官方总结写结论，两样合起来每分钟最多 3 次。正常用的人在卡片上点一次「生成概览」要等几十秒到几分钟，
 // 一分钟里连开三个视频已经很多；卡片被劫持时用户每点一下视频就是一个新视频的概览，这里把它压住。
 export const CARD_GENERATE_LIMIT = 3;
 export const CARD_GENERATE_WINDOW_MS = 60_000;
 
 export interface CardLimits {
-  /** 卡片要新起一个生成：额度够就记一次、放行。接上已经在跑的不问这里。 */
+  /** 卡片要新起一个任务（概览或写结论，不分种类共用一个计数）：额度够就记一次、放行。接上已经在跑的不问这里。 */
   readonly admitGenerate: () => boolean;
-  /** 卡片登记成功的任务换一个令牌，卡片凭它开始生成。 */
+  /** 卡片登记成功的任务换一个令牌，卡片凭它开始。 */
   readonly issueToken: (taskId: string) => string;
   /** 凭令牌换回登记的任务号，用一次就作废；过期、认不出的回 null。不登记直接生成，就绕过了开关和限频。 */
   readonly redeemToken: (token: string) => string | null;

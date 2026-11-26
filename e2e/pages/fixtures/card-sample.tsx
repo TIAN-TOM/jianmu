@@ -93,6 +93,7 @@ const noop = (): void => undefined;
 const actions: CardActions = {
   toggle: () => void (view.value = { ...view.value, collapsed: !view.value.collapsed }),
   generate: noop,
+  fromOfficial: noop,
   cancel: noop,
   retry: noop,
   openPanel: noop,

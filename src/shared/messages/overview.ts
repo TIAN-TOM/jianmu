@@ -1,5 +1,5 @@
 // 概览这几条消息的请求和回复：开始生成、补失败块、读本机已有的概览、用官方总结写结论。生成、补块和写结论都要先经任务登记拿到任务号，
-// 卡片只能开始生成，凭登记时拿到的一次性令牌。回复里的概览是生效中的那份，重新生成写到一半的草稿不给页面。
+// 卡片只能开始生成和用官方总结写结论，凭登记时拿到的一次性令牌。回复里的概览是生效中的那份，重新生成写到一半的草稿不给页面。
 import type { FailureRange } from "../../core/ai/chunking.ts";
 import type { LearningAnalysis } from "../../core/notes/markdown.ts";
 import type { OverviewTranscriptBasis } from "../../core/notes/records.ts";
@@ -30,10 +30,11 @@ export interface OverviewGetRequest {
   readonly video: VideoKey;
 }
 
-/** 用官方总结写一句话结论：侧边栏先登记结论任务，凭任务号开始。 */
+/** 用官方总结写一句话结论：侧边栏先登记结论任务，凭任务号开始；卡片凭登记时拿到的一次性令牌开始。两样恰好带一个。 */
 export interface VerdictFromOfficialRequest {
   readonly video: VideoKey;
-  readonly taskId: string;
+  readonly taskId?: string;
+  readonly token?: string;
 }
 
 export interface OverviewResultView {

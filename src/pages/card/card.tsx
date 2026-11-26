@@ -19,6 +19,7 @@ import { StaleTranscriptLine, VerdictBlock } from "../shared/ui/verdict-block.ts
 import { markOf, staleOverviewMarks, type BasisSource } from "../shared/ui/verdict.ts";
 import { uiLang } from "../shared/ui-lang.ts";
 import { cardRows, chaptersInOrder, hasOverview, type CardView, type TaskProgress } from "./model.ts";
+import { canWriteFromOfficial } from "./official-verdict.ts";
 import { conclusionOf } from "./glance.ts";
 import { cardText } from "./text.ts";
 
@@ -182,6 +183,7 @@ function Overview({
 function progressText(task: TaskProgress): string {
   const t = cardText();
   if (task.canceling) return t.stopping;
+  if (task.verdict) return t.writingVerdict;
   const text = task.message || (task.total > 0 ? t.chunksDone(task.done, task.total) : "");
   if (task.auto) return text ? t.auto(text) : t.autoStarting;
   return text || t.preparing;
@@ -218,6 +220,7 @@ function BrandMark() {
 export interface CardActions {
   readonly toggle: () => void;
   readonly generate: (event: ClickEvent) => void;
+  readonly fromOfficial: (event: ClickEvent) => void;
   readonly cancel: () => void;
   readonly retry: () => void;
   readonly openPanel: (event: ClickEvent) => void;
@@ -316,6 +319,15 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
             </p>
           ) : null}
           <ServiceSaid said={view.notice?.said} />
+          {canWriteFromOfficial(view, aiReady) ? (
+            // 还没有一句话结论、有官方总结：结论该在的地方先摆一个便宜的入口。
+            <div class="card-offer" id="card-official-verdict">
+              <button type="button" class="button" data-variant="secondary" onClick={actions.fromOfficial}>
+                {t.verdictFromOfficial}
+              </button>
+              <span class="card-offer-note">{t.verdictFromOfficialNote}</span>
+            </div>
+          ) : null}
           {analysis ? (
             <Overview
               analysis={analysis}

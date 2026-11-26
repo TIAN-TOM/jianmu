@@ -1,4 +1,4 @@
-// 任务的三条路由：登记的请求形状，卡片新起的生成每分钟最多 3 次、凭一次性令牌开始，接上在跑的不算一次。
+// 任务的三条路由：登记的请求形状，卡片新起的概览和写结论合起来每分钟最多 3 次、凭一次性令牌开始，接上在跑的不算一次。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createApp } from "../../../../src/background/app.ts";
@@ -46,13 +46,20 @@ test("登记的请求按种类核对：概览和写结论只收种类和视频�
   assert.deepEqual(await app.dispatch({ type: "task.list", req: {} }, senders.panel()), { ok: true, value: { tasks: [] } });
 });
 
-test("用官方总结写结论能登记，取定结论那项的配置；卡片登记不了这一种", async () => {
+test("用官方总结写结论能登记，取定结论那项的配置；卡片也能登记，新起的换到一次性令牌", async () => {
   const { app } = appOn();
   const panel = (await app.dispatch({ type: "task.start", req: { kind: "verdict", video: VIDEO } }, senders.panel())) as Started;
   assert.ok(panel.ok && panel.value.task.kind === "verdict" && !("token" in panel.value), JSON.stringify(panel));
   const again = (await app.dispatch({ type: "task.start", req: { kind: "verdict", video: VIDEO } }, senders.panel())) as Started;
   assert.ok(again.ok && again.value.joined && again.value.task.id === panel.value.task.id, "同一视频再点一次接上同一个任务");
-  assert.deepEqual(await app.dispatch({ type: "task.start", req: { kind: "verdict", video: VIDEO } }, senders.card()), { ok: false, code: "FORBIDDEN" });
+  const card = (await app.dispatch({ type: "task.start", req: { kind: "verdict", video: VIDEO } }, senders.card())) as Started;
+  assert.ok(card.ok && card.value.joined && !("token" in card.value), "卡片接上侧边栏在跑的同一个任务，不换令牌");
+  const other = (await app.dispatch({ type: "task.start", req: { kind: "verdict", video: tubeVideo(1) } }, senders.card())) as Started;
+  assert.ok(other.ok && !other.value.joined && other.value.task.origin === "card" && typeof other.value.token === "string", JSON.stringify(other));
+  for (const kind of ["qa", "explain"]) {
+    const req = kind === "qa" ? { kind, video: VIDEO, question: "问题" } : { kind, video: VIDEO, selection: "选中的字" };
+    assert.deepEqual(await app.dispatch({ type: "task.start", req }, senders.card()), { ok: false, code: "FORBIDDEN" }, kind);
+  }
 });
 
 test("卡片发起的生成每分钟最多 3 次：同一视频已在生成不算一次，超出的说明原因；侧边栏不受限", async () => {
@@ -69,6 +76,16 @@ test("卡片发起的生成每分钟最多 3 次：同一视频已在生成不�
 
   fake.timers.advance(CARD_GENERATE_WINDOW_MS);
   assert.equal((await start(tubeVideo(6))).ok, true, "过了一分钟又能生成");
+});
+
+test("卡片的生成概览和用官方总结写结论共用每分钟 3 次：两次概览加一次写结论以后，哪一种都登记不了", async () => {
+  const { app, start } = appOn();
+  const verdict = (video: VideoKey) => app.dispatch({ type: "task.start", req: { kind: "verdict", video } }, senders.card()) as Promise<Started>;
+  assert.equal((await start(tubeVideo(1))).ok, true);
+  assert.equal((await start(tubeVideo(2))).ok, true);
+  assert.equal((await verdict(tubeVideo(3))).ok, true);
+  assert.deepEqual(await verdict(tubeVideo(4)), { ok: false, code: "CARD_RATE_LIMITED" });
+  assert.deepEqual(await start(tubeVideo(5)), { ok: false, code: "CARD_RATE_LIMITED" });
 });
 
 test("卡片新起的任务带一次性令牌，来源记成卡片；侧边栏起的记成用户发起", async () => {

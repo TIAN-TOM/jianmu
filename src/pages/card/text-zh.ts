@@ -32,6 +32,8 @@ export const CARD_ZH = {
   preparing: "正在准备…",
   stop: "停止",
   generate: "生成概览",
+  verdictFromOfficial: "用官方总结写结论",
+  verdictFromOfficialNote: "只发一次小请求，不通读字幕",
   openSettings: "打开设置",
   retry: "重试",
   openSettingsFailed: "没能打开设置页。可以打开侧边栏，点右上角的设置按钮。",
