@@ -45,6 +45,13 @@ export const CARD_ZH = {
   regenerateKept: "重新生成没写成一句话结论，原来的概览还留着，没有换掉。",
   regenerateStopped: "已停止，原来的概览还留着，没有换掉。",
   cancel: "取消",
+  ask: "提问",
+  askLabel: "针对这个视频提问",
+  askPlaceholder: "针对这个视频提问，Enter 发送",
+  answering: "正在字幕里找相关内容并回答…",
+  askJoined: "这个问题已经在回答了，答完可以在侧边栏的问答记录里看。",
+  answerTruncated: "回答被截断了，可能不完整。",
+  answerUnsaved: "这条回答没能存进问答历史。",
   openSettingsFailed: "没能打开设置页。可以打开侧边栏，点右上角的设置按钮。",
 
   // 卡片模型写的状态，按写出来那一刻的界面语言写。

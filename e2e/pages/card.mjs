@@ -451,6 +451,31 @@ test("卡片：已有概览、章节全露时底部有「重新生成」，和�
   assert.equal(await page.evaluate(`Boolean(document.getElementById("card-failed-parts"))`), false, "没缺分块时不摆");
 });
 
+test("卡片：能提问时底部有提问框；合成的提交不发，真实按 Enter 才问，回答摆在框上面，回答里的时间点点了跳过去；不能提问时不摆", async ({ open }) => {
+  assert.equal(await (await open(SAMPLE)).evaluate(`Boolean(document.getElementById("card-ask-input"))`), false, "不能提问的样张不摆");
+  const page = await open(`${SAMPLE}#ask`);
+  assert.equal(await page.evaluate(`document.getElementById("card-ask-input")?.placeholder ?? ""`), "针对这个视频提问，Enter 发送");
+  await page.evaluate(`(() => {
+    const input = document.getElementById("card-ask-input");
+    input.value = "合成的问题";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    // 自己派发的提交事件才是合成的；requestSubmit() 发出的提交浏览器照样标成真实事件。
+    input.form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    return true;
+  })()`);
+  // 真实的提交在派发的同一刻就进了「正在回答」，所以这时没有它、框里的字也还在，就是没发。
+  assert.deepEqual(await page.evaluate(`[document.getElementById("card-ask-input").value, Boolean(document.querySelector(".card-asking, #card-answer"))]`), ["合成的问题", false], "合成的提交不发");
+  await page.evaluate(`(() => { const input = document.getElementById("card-ask-input"); input.value = ""; input.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+
+  await page.click("#card-ask-input");
+  await page.insertText("样例问题");
+  await page.pressEnter();
+  await page.waitFor("回答摆出来", `document.querySelector("#card-answer .card-answer-text")?.textContent === "样例回答在 1:30 讲到。"`);
+  assert.equal(await page.evaluate(`document.querySelector("#card-answer .card-question")?.textContent ?? ""`), "样例问题");
+  await page.click("#card-answer .card-stamp");
+  await page.waitFor("跳到回答里的时间点", `window.__seeked === 90`);
+});
+
 test("卡片：配好过、密钥随浏览器重启清空时，说明直说要到设置页重新填密钥、提一句记住密钥，「打开设置」是主按钮，不摆「生成概览」", async ({ open }) => {
   const page = await open(`${SAMPLE}#setup-key`);
   const shown = await page.evaluate(`(() => ({

@@ -41,6 +41,8 @@ export interface CardView {
   readonly needLogin: boolean;
   /** 字幕要用户在侧边栏点读取才读的站（YouTube），本机还没有字幕：卡片不去读，先请用户在侧边栏读。 */
   readonly notRead: boolean;
+  /** 这个视频能提问：有字幕可用（B 站登录着时后台自己读，YouTube 要本机已有）。 */
+  readonly canAsk: boolean;
   readonly task: TaskProgress | null;
   readonly settingsError: boolean;
   readonly notice: { readonly text: string; readonly tone: Tone; /** 模型服务报错时自己说的话。 */ readonly said?: string } | null;
@@ -76,6 +78,7 @@ export const INITIAL: CardView = {
   noCaptions: false,
   needLogin: false,
   notRead: false,
+  canAsk: false,
   task: null,
   settingsError: false,
   notice: null,

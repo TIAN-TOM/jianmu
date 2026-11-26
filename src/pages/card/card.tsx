@@ -20,6 +20,8 @@ import { markOf, staleOverviewMarks, type BasisSource } from "../shared/ui/verdi
 import { uiLang } from "../shared/ui-lang.ts";
 import { cardRows, chaptersInOrder, hasOverview, type CardView, type TaskProgress } from "./model.ts";
 import { canWriteFromOfficial } from "./official-verdict.ts";
+import { ASK_IDLE, type AskState } from "./ask.ts";
+import { CardAskBox } from "./ask-view.tsx";
 import { conclusionOf } from "./glance.ts";
 import { cardText } from "./text.ts";
 
@@ -225,6 +227,8 @@ export interface CardActions {
   /** 点「重新生成」或确认那一行的「取消」：摆出或收起确认。 */
   readonly askRegenerate: () => void;
   readonly regenerate: (event: ClickEvent) => void;
+  readonly ask: (question: string, event: ClickEvent) => void;
+  readonly cancelAsk: () => void;
   readonly cancel: () => void;
   readonly retry: () => void;
   readonly openPanel: (event: ClickEvent) => void;
@@ -281,7 +285,20 @@ function Fold({ collapsed, waiting, children }: { readonly collapsed: boolean; r
 }
 
 /** setupHint 是 AI 服务没设置好时生成概览按钮旁的说明，按缺什么说。 */
-export function Card({ view, aiReady, setupHint, actions }: { readonly view: CardView; readonly aiReady: boolean | null; readonly setupHint: string; readonly actions: CardActions }) {
+/** ask 是这一次提问的状态（ask.ts），不给时当没问过。 */
+export function Card({
+  view,
+  aiReady,
+  setupHint,
+  actions,
+  ask = ASK_IDLE,
+}: {
+  readonly view: CardView;
+  readonly aiReady: boolean | null;
+  readonly setupHint: string;
+  readonly actions: CardActions;
+  readonly ask?: AskState;
+}) {
   if (!view.visible) return null;
   const canGenerate = view.phase === "loaded" && !view.noCaptions && !view.needLogin && !view.notRead && !hasOverview(view.analysis) && !view.task;
   // 本机还没有字幕：在侧边栏读过以后点重试，不用刷新页面就能生成。已经有概览时用不着。
@@ -403,6 +420,7 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
             </div>
           ) : null}
           {needsSetup ? <p class="card-note" id="card-setup">{setupHint}</p> : null}
+          {(view.phase === "loaded" && aiReady === true && view.canAsk) || ask.phase !== "idle" ? <CardAskBox state={ask} onAsk={actions.ask} onCancel={actions.cancelAsk} onSeek={actions.seek} /> : null}
         </div>
         {task ? (
           <div class="card-progress" id="card-progress" role="status">

@@ -56,10 +56,7 @@ test("用官方总结写结论能登记，取定结论那项的配置；卡片�
   assert.ok(card.ok && card.value.joined && !("token" in card.value), "卡片接上侧边栏在跑的同一个任务，不换令牌");
   const other = (await app.dispatch({ type: "task.start", req: { kind: "verdict", video: tubeVideo(1) } }, senders.card())) as Started;
   assert.ok(other.ok && !other.value.joined && other.value.task.origin === "card" && typeof other.value.token === "string", JSON.stringify(other));
-  for (const kind of ["qa", "explain"]) {
-    const req = kind === "qa" ? { kind, video: VIDEO, question: "问题" } : { kind, video: VIDEO, selection: "选中的字" };
-    assert.deepEqual(await app.dispatch({ type: "task.start", req }, senders.card()), { ok: false, code: "FORBIDDEN" }, kind);
-  }
+  assert.deepEqual(await app.dispatch({ type: "task.start", req: { kind: "explain", video: VIDEO, selection: "选中的字" } }, senders.card()), { ok: false, code: "FORBIDDEN" }, "卡片不能划词解释");
 });
 
 test("卡片发起的生成每分钟最多 3 次：同一视频已在生成不算一次，超出的说明原因；侧边栏不受限", async () => {

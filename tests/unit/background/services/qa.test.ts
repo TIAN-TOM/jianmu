@@ -13,12 +13,15 @@ import { videoKey } from "../../../../src/core/video-ref.ts";
 import type { QaAnswerView, QaHistoryView } from "../../../../src/shared/messages/qa.ts";
 import { chatReply, type ServiceReply } from "../../../helpers/fake-model-service.ts";
 import { SAMPLE_ID } from "../../../helpers/fake-site-service.ts";
+import { senders } from "../../../helpers/chrome.ts";
 import { studyBackground } from "../../../helpers/study-background.ts";
 import { cue, OTHER, studyHarness, VIDEO } from "../../../helpers/study-service.ts";
 import { until } from "../../../helpers/wait-until.ts";
 
 // 测引用边界的几条用例按放宽前的 12000 字预算造样例，字数不用跟着正式预算涨。
 const OLD_BUDGET = { chars: 12_000, fallbackChars: 12_000 };
+
+const codeOf = (result: Result<unknown>): string => (result.ok ? "ok" : result.code);
 
 const answerOf = (result: Result<QaAnswerView>): QaRecord => {
   assert.ok(result.ok, JSON.stringify(result));
@@ -79,6 +82,27 @@ test("问答端到端：检索、生成、引用校验、历史落库与删除",
   );
   const listed = await bg.send<{ readonly tasks: readonly TaskView[] }>("task.list", {});
   assert.deepEqual(listed.ok && listed.value.tasks, [], "问答任务跑完就收尾");
+});
+
+test("卡片提问：登记换到一次性令牌，凭令牌开始，用一次就作废；卡片不收任务号，侧边栏不收令牌；卡片读不了问答历史", async () => {
+  const bg = studyBackground({
+    cues: [{ start: 0, duration: 60, text: "字幕原句" }],
+    handler: () => chatReply(JSON.stringify({ answer: "结论 【0:00|字幕原句】" })),
+  });
+  const card = senders.card();
+  const started = await bg.send<{ readonly task: TaskView; readonly joined: boolean; readonly token?: string }>("task.start", { kind: "qa", video: FIRST, question: "卡片上的问题" }, card);
+  assert.ok(started.ok && started.value.token, JSON.stringify(started));
+  const token = started.value.token;
+  assert.equal(codeOf(await bg.send("qa.ask", { video: FIRST, taskId: started.value.task.id }, card)), "FORBIDDEN", "卡片不收任务号");
+  assert.equal(codeOf(await bg.send("qa.ask", { video: FIRST, token })), "FORBIDDEN", "侧边栏不收令牌");
+  for (const req of [{ video: FIRST, taskId: "t", token }, { video: FIRST, token: "" }, { video: FIRST, token, extra: 1 }]) {
+    assert.equal(codeOf(await bg.send("qa.ask", req, card)), "INVALID_REQUEST", JSON.stringify(req));
+  }
+  const entry = answerOf(await bg.send<QaAnswerView>("qa.ask", { video: FIRST, token }, card));
+  assert.equal(entry.question, "卡片上的问题");
+  assert.equal(codeOf(await bg.send("qa.ask", { video: FIRST, token }, card)), "TASK_NOT_FOUND", "令牌用一次就作废");
+  assert.equal(codeOf(await bg.send("qa.history", { video: FIRST }, card)), "FORBIDDEN");
+  assert.equal(codeOf(await bg.send("explain.selection", { video: FIRST, taskId: "t" }, card)), "FORBIDDEN");
 });
 
 test("再次提问的时间写成了开头时，用实际问句和答句定位；找不到独立依据的补充不显示", async () => {

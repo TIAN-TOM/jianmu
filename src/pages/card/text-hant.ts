@@ -43,6 +43,13 @@ export const CARD_HANT: CardText = {
   regenerateKept: "重新生成沒寫成一句話結論，原來的概覽還留著，沒有換掉。",
   regenerateStopped: "已停止，原來的概覽還留著，沒有換掉。",
   cancel: "取消",
+  ask: "提問",
+  askLabel: "針對這部影片提問",
+  askPlaceholder: "針對這部影片提問，按 Enter 傳送",
+  answering: "正在字幕裡找相關內容並回答…",
+  askJoined: "這個問題已經在回答了，答完可以在側邊欄的問答紀錄裡看。",
+  answerTruncated: "回答被截斷了，可能不完整。",
+  answerUnsaved: "這則回答沒能存進問答紀錄。",
   openSettingsFailed: "沒能打開設定頁。可以打開側邊欄，點選右上角的設定按鈕。",
 
   noCaptions: "這部影片沒有 CC 字幕，無法生成概覽。",

@@ -145,6 +145,8 @@ function start(root: HTMLElement, api: PageApi): void {
     retryFailed: (event: { readonly isTrusted: boolean }) => void model.retryFailed(trusted(event)),
     askRegenerate: model.askRegenerate,
     regenerate: (event: { readonly isTrusted: boolean }) => void model.regenerate(trusted(event)),
+    ask: (question: string, event: { readonly isTrusted: boolean }) => void model.ask.ask(question, trusted(event)),
+    cancelAsk: () => void model.ask.cancel(),
     cancel: () => void model.cancel(),
     retry: model.retry,
     openPanel(event: { readonly isTrusted: boolean }) {
@@ -167,7 +169,7 @@ function start(root: HTMLElement, api: PageApi): void {
   };
 
   function App() {
-    return <Card view={model.view.value} aiReady={model.aiReady.value} setupHint={cardSetupHint(config.state.value, uiLang.value)} actions={actions} />;
+    return <Card view={model.view.value} aiReady={model.aiReady.value} setupHint={cardSetupHint(config.state.value, uiLang.value)} actions={actions} ask={model.ask.state.value} />;
   }
   render(<App />, root);
 
