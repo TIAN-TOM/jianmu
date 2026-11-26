@@ -664,6 +664,29 @@ test("用官方总结写结论的路由只收形状对的请求、只认登记�
   assert.equal(bg.ai.posts().length, 0);
 });
 
+test("卡片凭登记时换到的一次性令牌写结论：用过一次就作废，不收任务号；概览的令牌开始不了写结论，写结论的令牌也开始不了生成", async () => {
+  const bg = background(() => VERDICT_ANSWER);
+  const register = async (kind: "verdict" | "overview"): Promise<{ readonly id: string; readonly token: string }> => {
+    const started = (await bg.ask("task.start", { kind, video: TRANSCRIPT_KEY }, senders.card())) as unknown as { ok: true; value: { task: { id: string }; token: string } };
+    assert.ok(started.ok && started.value.token, JSON.stringify(started));
+    return { id: started.value.task.id, token: started.value.token };
+  };
+  const overview = await register("overview");
+  assert.equal((await bg.ask("verdict.fromOfficial", { video: TRANSCRIPT_KEY, token: overview.token }, senders.card())).code, "TASK_NOT_FOUND", "概览的令牌不认");
+  await bg.ask("task.cancel", { taskId: overview.id });
+  const verdict = await register("verdict");
+  assert.equal((await bg.ask("overview.start", { video: TRANSCRIPT_KEY, token: verdict.token }, senders.card())).code, "TASK_NOT_FOUND", "写结论的令牌开始不了生成");
+  await bg.ask("task.cancel", { taskId: verdict.id });
+  const again = await register("verdict");
+  assert.equal((await bg.ask("verdict.fromOfficial", { video: TRANSCRIPT_KEY, taskId: again.id }, senders.card())).code, "FORBIDDEN", "卡片不收任务号");
+  assert.equal((await bg.ask("verdict.fromOfficial", { video: TRANSCRIPT_KEY, token: again.token })).code, "FORBIDDEN", "侧边栏不收令牌");
+  const result = await bg.ask("verdict.fromOfficial", { video: TRANSCRIPT_KEY, token: again.token }, senders.card());
+  assert.ok(result.ok, JSON.stringify(result));
+  assert.equal((result.value as unknown as OverviewResultView).analysis.verdict?.source, "official");
+  assert.equal((await bg.ask("verdict.fromOfficial", { video: TRANSCRIPT_KEY, token: again.token }, senders.card())).code, "TASK_NOT_FOUND", "令牌用一次就作废");
+  assert.equal(bg.ai.posts().length, 1);
+});
+
 test("两个侧边栏同时点：也只发一次", async (t) => {
   const gate = deferred();
   t.after(() => gate.resolve());

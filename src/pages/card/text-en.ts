@@ -29,6 +29,8 @@ export const CARD_EN: CardText = {
   autoStarting: "Generating the overview automatically…",
   preparing: "Getting ready…",
   stop: "Stop",
+  verdictFromOfficial: "Write a verdict from the official summary",
+  verdictFromOfficialNote: "Sends one small request without reading the subtitles",
   generate: "Generate overview",
   openSettings: "Open settings",
   retry: "Try again",
