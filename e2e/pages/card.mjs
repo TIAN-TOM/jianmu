@@ -377,12 +377,15 @@ test("卡片：时间一列定宽，章节名从同一条线起，重点的圆�
   assert.equal(edges.outline.length, 1, `官方提纲标题的左边不齐：${edges.outline}`);
 });
 
-test("卡片：换过字幕时结论块标「基于旧字幕」，章节和结论同一份依据只标一次；没换过时不标", async ({ open }) => {
+test("卡片：换过字幕时结论块标「基于旧字幕」，章节和结论同一份依据只标一次；没换过时不标，也不写「依据字幕」", async ({ open }) => {
   const read = (page) => page.evaluate(`(() => ({ basis: document.querySelector("#card-overview .verdict-basis")?.textContent ?? "", marks: (document.getElementById("card").innerText.match(/基于旧字幕/g) ?? []).length }))()`);
   const stale = await read(await open(`${SAMPLE}#stale`));
   assert.ok(stale.basis.includes("基于旧字幕"), stale.basis);
   assert.equal(stale.marks, 1);
-  assert.equal((await read(await open(SAMPLE))).marks, 0);
+  assert.ok(!stale.basis.includes("依据字幕"), stale.basis);
+  const fresh = await read(await open(SAMPLE));
+  assert.equal(fresh.marks, 0);
+  assert.equal(fresh.basis, "", "依据字幕是常态，卡片不标");
 });
 
 test("卡片：配好过、密钥随浏览器重启清空时，说明直说要到设置页重新填密钥、提一句记住密钥，「打开设置」是主按钮，不摆「生成概览」", async ({ open }) => {
