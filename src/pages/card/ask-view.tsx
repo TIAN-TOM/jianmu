@@ -1,6 +1,6 @@
 // 卡片底部的提问：一行输入框，Enter 或「提问」发出；上面摆这一次的问题和回答，回答里落在送给模型的范围内的时间点能点着跳。
 // 正在答时可以停止；规则在 ask.ts。
-import { useRef, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { splitAnswerByTimestamps } from "../../core/qa/citations.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
 import { ServiceSaid } from "../shared/ui/notice.tsx";
@@ -49,6 +49,10 @@ export function CardAskBox({
   const [draft, setDraft] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const t = cardText();
+  // 没发出去（限频、没设置好、别处在答）：把问题放回框里，不用重打。
+  useEffect(() => {
+    if (state.phase === "failed" && state.question) setDraft((now) => now || state.question);
+  }, [state.phase, state.question]);
   const asking = state.phase === "asking";
   return (
     <section class="card-ask" aria-label={t.askLabel}>

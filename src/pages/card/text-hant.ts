@@ -47,6 +47,7 @@ export const CARD_HANT: CardText = {
   askLabel: "針對這部影片提問",
   askPlaceholder: "針對這部影片提問，按 Enter 傳送",
   answering: "正在字幕裡找相關內容並回答…",
+  askTooFast: "卡片上提問得太頻繁，這次沒有傳送，不花額度。過一分鐘再問，或者打開側邊欄提問。",
   askJoined: "這個問題已經在回答了，答完可以在側邊欄的問答紀錄裡看。",
   answerTruncated: "回答被截斷了，可能不完整。",
   answerUnsaved: "這則回答沒能存進問答紀錄。",

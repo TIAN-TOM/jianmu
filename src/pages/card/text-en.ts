@@ -47,6 +47,7 @@ export const CARD_EN: CardText = {
   askLabel: "Ask about this video",
   askPlaceholder: "Ask about this video, then press Enter",
   answering: "Searching the subtitles and answering…",
+  askTooFast: "Too many questions from the card, so this one wasn't sent and no API credit was used. Wait a minute and ask again, or open the side panel and ask there.",
   askJoined: "This question is already being answered. When it's done, you can read it in the side panel's Q&A history.",
   answerTruncated: "The answer was cut off and may be incomplete.",
   answerUnsaved: "This answer couldn't be saved to your Q&A history.",

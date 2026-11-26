@@ -73,5 +73,20 @@ test("别处正在答同一个问题：接不上结果，照实说去侧边栏�
   fake.reply("task.start", { value: { ok: false, code: "CARD_RATE_LIMITED" } });
   await ask.ask("另一个问题", true);
   assert.equal(ask.state.value.phase, "failed");
-  assert.ok(ask.state.value.error.length > 0);
+  assert.equal(ask.state.value.error, cardTextOf("zh").askTooFast, "限频用提问自己的说法");
+  assert.equal(ask.state.value.question, "另一个问题", "问题留着，界面放回框里");
+});
+
+test("登记期间换了视频：新登记上的任务取消掉，不留没人认领的", async () => {
+  const { fake, ask } = setup();
+  let release = (): void => undefined;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  fake.reply("task.start", async () => (await gate, { ok: true, value: { task: task("q5"), joined: false, token: "t5" } }));
+  fake.reply("task.cancel", { value: { ok: true, value: { task: task("q5") } } });
+  const pending = ask.ask("样例问题", true);
+  ask.reset();
+  release();
+  await pending;
+  assert.deepEqual(fake.sent.find(({ type }) => type === "task.cancel")?.req, { taskId: "q5" });
+  assert.equal(fake.attempts("qa.ask"), 0);
 });

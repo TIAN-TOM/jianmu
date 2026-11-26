@@ -49,6 +49,7 @@ export const CARD_ZH = {
   askLabel: "针对这个视频提问",
   askPlaceholder: "针对这个视频提问，Enter 发送",
   answering: "正在字幕里找相关内容并回答…",
+  askTooFast: "卡片上提问得太频繁，这次没有发，不花额度。过一分钟再问，或者打开侧边栏提问。",
   askJoined: "这个问题已经在回答了，答完可以在侧边栏的问答记录里看。",
   answerTruncated: "回答被截断了，可能不完整。",
   answerUnsaved: "这条回答没能存进问答历史。",

@@ -36,7 +36,9 @@ export function createCardAsk({ api, video, lang }: CardAskDeps) {
   const state = signal<AskState>(ASK_IDLE);
   let generation = 0;
   const failed = (question: string, code: Parameters<typeof describe>[0], detail?: string, said?: string): void => {
-    state.value = { ...ASK_IDLE, phase: "failed", question, error: describe(code, detail, lang()), said: said ?? "" };
+    // 限频的通用说法写的是「生成」，提问这里换成提问自己的一句。
+    const error = code === "CARD_RATE_LIMITED" ? cardTextOf(lang()).askTooFast : describe(code, detail, lang());
+    state.value = { ...ASK_IDLE, phase: "failed", question, error, said: said ?? "" };
   };
 
   return {
@@ -55,7 +57,11 @@ export function createCardAsk({ api, video, lang }: CardAskDeps) {
       const mine = generation;
       state.value = { ...ASK_IDLE, phase: "asking", question };
       const started = await api.send("task.start", { kind: "qa", video: current, question });
-      if (mine !== generation) return;
+      // 登记期间换了视频：新登记上的就取消掉，不留一个没人认领的任务。
+      if (mine !== generation) {
+        if (started.ok && !started.value.joined && started.value.token) await api.send("task.cancel", { taskId: started.value.task.id });
+        return;
+      }
       if (!started.ok) return failed(question, started.code, started.detail, started.said);
       const { task, joined, token } = started.value;
       if (joined || !token) {
