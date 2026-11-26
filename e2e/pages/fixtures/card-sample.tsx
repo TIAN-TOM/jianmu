@@ -2,7 +2,7 @@
 // 地址带 #full 时是全部展开、正在生成的样子（进度行、「停止」和「打开侧边栏」都在），带 #collapsed 时是收起的一行，
 // 带 #official 时是还没有概览、只有一段不长的官方总结，带 #setup-key 时是还没有概览、以前配好过 AI 服务但密钥清空了（说明用产品里的 cardSetupHint），
 // 带 #youtube 时是 YouTube 上已有概览、本机没有字幕（没有官方总结），带 #youtube-unread 时是没有代开文字稿的构建里，YouTube 上本机既没有概览也没有字幕，
-// 带 #youtube-ready 时是 YouTube 上还没有概览、字幕已经读过；不带时是刚打开的默认样子；
+// 带 #youtube-ready 时是 YouTube 上还没有概览、字幕已经读过；带 #comments 时结论带着评论区；不带时是刚打开的默认样子；
 // 「展开全部」和官方总结那一行点得动。卡片的界面组件原样用，样式用产品的 card.css。界面语言照卡片入口那样跟着设置。
 // 带 #official-late、#official-never 时接上真实的卡片模型，后台换成本页的替身：官方总结先回「还在读」，
 // 前者过一会儿读到、照后台的做法广播一次重读，后者一直读不到。带 #load-failed 时也接上真实的卡片模型，后台说被平台限流，
@@ -37,6 +37,17 @@ const unread = location.hash === "#youtube" || location.hash === "#youtube-unrea
 const noOverview = location.hash === "#youtube-unread" || location.hash === "#youtube-ready";
 // 换过字幕：结论和章节都依据旧的那份。
 const stale = location.hash === "#stale";
+// 结论带着评论区：口碑一行，两条要点，各挂一条原评论。
+const withComments = location.hash === "#comments";
+const SAMPLE_COMMENTS = {
+  tag: "有争议",
+  line: "样例评论区的一句话",
+  points: [
+    { text: "样例要点一", quotes: [{ text: "样例原评论一", likes: 120, pinned: true }] },
+    { text: "样例要点二", quotes: [{ text: "样例原评论二", likes: 8 }] },
+  ],
+  marks: [],
+};
 const KEY_CLEARED: ConfigState = { state: "checked", view: { ready: false, errors: [], missing: "key" } };
 const SHORT_SUMMARY = "这是一段自造的官方总结，一共一百来个字，用来看正文被截成三行以后，底下还有没有藏着的字。卡片很宽的时候三行放得下，一个字都不藏；卡片很窄、字号又调大的时候三行放不下，后面的字就被截掉了，这时候要有地方点开看全。";
 
@@ -57,7 +68,7 @@ const view = signal<CardView>({
   analysis: officialOnly || keyCleared || noOverview || location.hash === "#collapsed" ? null : {
     chapters: Array.from({ length: 16 }, (_, index) => ({ title: `样例章节 ${index + 1}：${LONG}`, timestampSeconds: index * 90 })),
     // 重点是第 2 章和第 11 章：一个时间四位、一个五位，章节名要和别的章对齐。
-    ...(chaptersOnly ? {} : { verdict: { verdict: new URLSearchParams(location.search).get("verdict") || "可以看", summary: LONG.repeat(2), keyStarts: [90, 900] } }),
+    ...(chaptersOnly ? {} : { verdict: { verdict: new URLSearchParams(location.search).get("verdict") || "可以看", summary: LONG.repeat(2), keyStarts: [90, 900], ...(withComments ? { comments: SAMPLE_COMMENTS } : {}) } }),
   },
   transcriptBasis: stale ? { chapters: "old-sample", verdict: "old-sample" } : null,
   transcriptFingerprint: stale ? "new-sample" : null,
@@ -70,6 +81,7 @@ const view = signal<CardView>({
   notice: full ? { text: LONG, tone: "" } : location.hash === "#youtube-unread" ? { text: NOT_READ_TEXT, tone: "" } : null,
   showAll: full,
   officialOpen: full,
+  commentsOpen: false,
   holdActions: false,
   panelOpen: location.hash === "#collapsed-yield" || location.hash === "#open-yield",
   // 播放到第 11 章（有结论时收起那一行不写它）；#collapsed-note 时临时说一句话（打不开侧边栏时说的那句）；#collapsed-verdict 时不知道播到哪。
@@ -88,6 +100,7 @@ const actions: CardActions = {
   seek: noop,
   toggleShowAll: () => void (view.value = { ...view.value, showAll: !view.value.showAll }),
   toggleOfficial: () => void (view.value = { ...view.value, officialOpen: !view.value.officialOpen }),
+  toggleComments: () => void (view.value = { ...view.value, commentsOpen: !view.value.commentsOpen }),
 };
 
 function App() {
@@ -139,7 +152,7 @@ function lateOfficial(root: HTMLElement, arrives: boolean, failed = false): void
     seek: noop,
     lang: () => uiLang.value,
   });
-  const live: CardActions = { ...actions, retry: model.retry, toggleShowAll: model.toggleShowAll, toggleOfficial: model.toggleOfficial };
+  const live: CardActions = { ...actions, retry: model.retry, toggleShowAll: model.toggleShowAll, toggleOfficial: model.toggleOfficial, toggleComments: model.toggleComments };
   render(<LiveApp model={model} actions={live} />, root);
   model.configChanged();
   void model.start();

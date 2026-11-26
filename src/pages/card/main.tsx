@@ -159,6 +159,7 @@ function start(root: HTMLElement, api: PageApi): void {
     seek: (atSec: number) => model.seek(atSec),
     toggleShowAll: model.toggleShowAll,
     toggleOfficial: model.toggleOfficial,
+    toggleComments: model.toggleComments,
   };
 
   function App() {
