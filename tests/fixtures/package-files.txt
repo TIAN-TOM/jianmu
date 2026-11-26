@@ -10,6 +10,7 @@ content/youtube-bridge.js
 content/youtube.js
 icons/icon-128.png
 icons/icon-16.png
+icons/icon-32.png
 icons/icon-48.png
 manifest.json
 pages/card.css
@@ -28,5 +29,11 @@ pages/triage.js
 theme.css
 ui.css
 ui/controls.css
+ui/motion.css
 ui/overlays.css
 ui/reading.css
+ui/themes/band.css
+ui/themes/marker.css
+ui/themes/pinkblue.css
+ui/themes/redblack.css
+ui/themes/timecode.css

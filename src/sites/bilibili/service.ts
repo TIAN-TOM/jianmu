@@ -1,6 +1,7 @@
 // 把 B 站的各块读取拼成站点服务，这里只拼装。
 import type { SiteService } from "../types.ts";
 import { createCaptions } from "./captions.ts";
+import { commentReader } from "./comments.ts";
 import { createBiliHttp } from "./http.ts";
 import { readOfficialSummary } from "./official-summary.ts";
 import { bilibiliRules } from "./url.ts";
@@ -11,7 +12,10 @@ export interface BilibiliServiceDeps {
   readonly now?: () => number;
 }
 
-export function createBilibiliService(deps: BilibiliServiceDeps = {}): Required<SiteService> {
+/** B 站有的几样能力都给齐；只给页面读取的站用的那项没有，读评论只在构建开关打开时有。 */
+export type BilibiliService = Required<Omit<SiteService, "knownNoCaptions" | "readTopComments">> & Pick<SiteService, "readTopComments">;
+
+export function createBilibiliService(deps: BilibiliServiceDeps = {}): BilibiliService {
   const http = createBiliHttp(deps);
   return {
     rules: bilibiliRules,
@@ -19,5 +23,6 @@ export function createBilibiliService(deps: BilibiliServiceDeps = {}): Required<
     ...createCaptions(http, deps),
     readOfficialSummary: (info, ctx) => readOfficialSummary(http, info, ctx),
     readWatchLater: (ctx) => readWatchLater(http, ctx),
+    ...(FEATURE_COMMENTS ? { readTopComments: commentReader(http) } : {}),
   };
 }

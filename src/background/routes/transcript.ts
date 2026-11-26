@@ -1,17 +1,23 @@
 // 取字幕和查原视频还在不在。卡片只能用轻量读取，而且只带视频和读取方式；轻量读取不看语言、刷新和标签页，带了也拒。
+// 卡片的轻量读取要问页面时只问卡片自己所在的那个标签页，按发送方认，不由消息指定。
 import { ok } from "../../core/errors.ts";
 import { parseVideoKey, type VideoRef } from "../../core/video-ref.ts";
-import type { TranscriptGetRequest, VideoCheckRequest } from "../../shared/messages/transcript.ts";
+import { isTranscriptMode, type TranscriptGetRequest, type TranscriptModeRequest, type VideoCheckRequest } from "../../shared/messages/transcript.ts";
 import type { Route } from "../router.ts";
 import type { SenderCtx } from "../senders.ts";
 import type { TranscriptService } from "../services/transcript/index.ts";
+import type { ClearGuard } from "../../core/clear-guard.ts";
+import type { StorageArea } from "../../platform/storage.ts";
+import { createTranscriptModes } from "../stores/transcript-modes.ts";
 import { isVideoKey } from "./validate.ts";
 
 export interface TranscriptRouteDeps {
+  readonly sessionStorage: StorageArea;
+  readonly clearGuard: ClearGuard;
   readonly transcript: Pick<TranscriptService, "get" | "light" | "checkAvailable">;
 }
 
-type TranscriptRoutes = { readonly [K in "transcript.get" | "video.checkAvailable"]: Route<K> };
+type TranscriptRoutes = { readonly [K in "transcript.get" | "transcript.displayMode" | "video.checkAvailable"]: Route<K> };
 
 const MODES: ReadonlySet<unknown> = new Set(["full", "cache-only", "local", "light"]);
 // 语言码只用来在列出的字幕轨里找同名的那条。
@@ -44,15 +50,24 @@ function isCheckRequest(req: unknown): req is VideoCheckRequest {
 // 形状核对时已经确认解析得出。
 const refOf = (video: string): VideoRef => parseVideoKey(video) as VideoRef;
 
-export function transcriptRoutes({ transcript }: TranscriptRouteDeps): TranscriptRoutes {
+export function transcriptRoutes({ transcript, sessionStorage, clearGuard }: TranscriptRouteDeps): TranscriptRoutes {
+  const transcriptModes = createTranscriptModes({ storage: sessionStorage, guard: clearGuard });
   return {
     "transcript.get": {
       senders: ["panel", "page", "card"],
       pages: ["options", "triage"],
       idempotent: true,
       validate: isGetRequest,
-      handler: ({ video, mode, lang, fresh, tabId }) =>
-        mode === "light" ? transcript.light(refOf(video)) : transcript.get(refOf(video), { mode, lang, fresh, tabId }),
+      handler: ({ video, mode, lang, fresh, tabId }, { sender }) =>
+        mode === "light"
+          ? transcript.light(refOf(video), sender.kind === "card" ? sender.tabId : undefined)
+          : transcript.get(refOf(video), { mode, lang, fresh, tabId }),
+    },
+    "transcript.displayMode": {
+      senders: ["panel"],
+      validate: (req: unknown): req is TranscriptModeRequest =>
+        isPlainObject(req) && keysWithin(req, ["video"], ["mode"]) && isVideoKey(req.video) && (!Object.hasOwn(req, "mode") || isTranscriptMode(req.mode)),
+      handler: ({ video, mode }, { since }) => transcriptModes.displayMode(video, mode, since),
     },
     "video.checkAvailable": {
       senders: ["panel", "page"],

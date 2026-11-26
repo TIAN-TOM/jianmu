@@ -3,7 +3,7 @@
 // 实际档位和选的不一样时才说。
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { effortNoteText, formOf, serviceChanged, settingsInput, showsRegionChooser, usageText, withAddress, withPreset } from "../../../../src/pages/options/form.ts";
+import { asksRememberAfterSave, effortNoteText, formOf, serviceChanged, settingsInput, showsRegionChooser, usageText, withAddress, withPreset } from "../../../../src/pages/options/form.ts";
 import { frameText } from "../../../../src/pages/options/frame-text.ts";
 import { OPTIONS_HANT } from "../../../../src/pages/options/text-hant.ts";
 import { textOf } from "../../../../src/pages/options/text.ts";
@@ -16,6 +16,18 @@ function savedWith(input: Record<string, unknown>): LoadedSettings {
 }
 
 const DEEPSEEK = savedWith({ presetId: "deepseek", aiApiKey: "sk-deep", featureModels: { qa: "deepseek-reasoner" } });
+
+test("保存完要不要问记住密钥：眼下的表单还是刚存的那一把、勾选框没被勾上才问", () => {
+  const form = formOf(DEEPSEEK);
+  assert.equal(asksRememberAfterSave(form, DEEPSEEK), true);
+  assert.equal(asksRememberAfterSave(null, DEEPSEEK), false);
+  assert.equal(asksRememberAfterSave({ ...form, aiModel: "deepseek-chat" }, DEEPSEEK), true, "只改模型照样问");
+  assert.equal(asksRememberAfterSave({ ...form, aiApiKey: "sk-other", keyTyped: true }, DEEPSEEK), false, "收尾时改了密钥");
+  assert.equal(asksRememberAfterSave(withPreset(form, "openai", DEEPSEEK), DEEPSEEK), false, "收尾时换了服务商");
+  assert.equal(asksRememberAfterSave({ ...form, rememberApiKey: true }, DEEPSEEK), false, "收尾时自己勾了记住");
+  assert.equal(asksRememberAfterSave(form, savedWith({ presetId: "deepseek", aiApiKey: "sk-deep", rememberKeyAsked: true })), false, "问过");
+  assert.equal(asksRememberAfterSave(formOf(savedWith({ presetId: "deepseek" })), savedWith({ presetId: "deepseek" })), false, "没有密钥");
+});
 
 test("换到别家服务商：密钥和按功能选的模型清空，换回来时已存的密钥填回去", () => {
   const form = formOf(DEEPSEEK);
@@ -101,7 +113,7 @@ test("推理强度旁边那一句和用量那一行选英文时是英文，数�
 
 test("选繁体时设置页的文案是繁体那份，数字按台湾的写法分组", () => {
   assert.equal(textOf("zh-Hant"), OPTIONS_HANT);
-  assert.equal(frameText("zh-Hant").slot, "畫面分析");
+  assert.equal(frameText("zh-Hant").slot, "畫面解釋");
   assert.equal(youtubeText("zh-Hant").enable, "在 YouTube 上啟用");
   assert.equal(effortNoteText({ requested: "medium", effective: "low", note: "fallback" }, "zh-Hant"), "這個模型沒有「中」等級，實際以「低」等級執行");
   const item = { model: "m", lastUsage: { model: "old", effort: "high" as const, usage: { input: 12345, output: 2345 } } };

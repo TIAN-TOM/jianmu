@@ -5,7 +5,9 @@
 export const CACHE_KEY = "jianmu_appearance";
 /** 卡片嵌在视频页里时，内容脚本把页面的明暗写在卡片地址 # 后面的这个参数里。 */
 export const TONE_PARAM = "tone";
-export const THEMES = Object.freeze(["ink", "graphite", "ochre"] as const);
+export const THEMES = Object.freeze(["timecode", "marker", "band", "pinkblue", "redblack"] as const);
+/** 默认主题：没有缓存时也写到 html 上，各套主题的版面规则都按这个属性写。 */
+export const DEFAULT_THEME: (typeof THEMES)[number] = "marker";
 export const MODES = Object.freeze(["system", "light", "dark"] as const);
 export const FONT_SCALES = Object.freeze([100, 112, 125] as const);
 
@@ -46,11 +48,11 @@ export function toneOf(hash: string): "light" | "dark" | null {
 }
 
 /**
- * 写法和 theme.ts 落地外观时一样：「跟随系统」按系统明暗解析成具体的一种。缺的项不写，交给样式表的默认。
- * 给了所在页面的明暗（只有卡片有），明暗跟它，不跟缓存的设置。
+ * 写法和 theme.ts 落地外观时一样：「跟随系统」按系统明暗解析成具体的一种。主题总写上，没有缓存就是默认主题；
+ * 明暗和字号缺了不写，交给样式表的默认。给了所在页面的明暗（只有卡片有），明暗跟它，不跟缓存的设置。
  */
 export function applyCache(cached: CachedAppearance, root: BootRoot, prefersDark: boolean, tone: "light" | "dark" | null = null): void {
-  if (cached.accentTheme) root.dataset.accentTheme = cached.accentTheme;
+  root.dataset.accentTheme = cached.accentTheme ?? DEFAULT_THEME;
   if (tone) root.dataset.themeMode = tone;
   else if (cached.themeMode) root.dataset.themeMode = cached.themeMode === "system" ? (prefersDark ? "dark" : "light") : cached.themeMode;
   if (cached.uiFontScale) root.style.setProperty("--ui-font-zoom", String(cached.uiFontScale / 100));

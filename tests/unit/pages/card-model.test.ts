@@ -1,15 +1,16 @@
 // 卡片：没启用、卡片关着时不显示也不读；读数据只用轻量读取；生成概览只认真实点击，凭登记换到的令牌开始；
 // 侧边栏为同一视频起的任务就跟着看进度，结束后重读；换了视频，迟到的结果不渲染。
-// 展开收起跟着模式（PRD 6.5）：速读展开、精读收起，手动展开收起过的为准；收起时不读，后台标签页第一次到前台才读。
+// 展开收起跟着模式（PRD 6.5）：速读展开、精读收起（播满时长自动切到的精读不算），手动展开收起过的为准；收起时不读，后台标签页第一次到前台才读。
 // 新视频的会话还没有时先收着等它定模式，等不到才按速读展开。
 // 本窗口的侧边栏开着时让位收起，关上再回来；手动展开收起过的不跟，别的窗口的不算。
-// 收着、有章节、侧边栏关着时隔一会儿问一次播放位置，写出播到第几章；播满时长自动收起的那一下在收起的一行上说一句，只在看得见时计时。
+// 收着、有章节、侧边栏关着时隔一会儿问一次播放位置，写出播到第几章；打不开侧边栏时在收起的一行上说一句，只在看得见时计时。
 // 按钮行在每个视频第一次读完、官方总结有了结果才摆，等不到也有上限；摆出来以后不再收回。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { signal } from "@preact/signals";
-import { AUTO_FOLD_NOTE, PANEL_REFUSED_NOTE } from "../../../src/pages/card/glance.ts";
-import { CARD_ROWS, cardRows, chaptersInOrder, createCardModel, NEED_LOGIN_TEXT, NOT_READ_TEXT } from "../../../src/pages/card/model.ts";
+import { conclusionOf, PANEL_REFUSED_NOTE } from "../../../src/pages/card/glance.ts";
+import { CARD_ROWS, cardRows, chaptersInOrder, createCardModel, NEED_LOGIN_TEXT, NO_CAPTIONS_TEXT, NOT_READ_TEXT } from "../../../src/pages/card/model.ts";
+import { canWriteFromOfficial } from "../../../src/pages/card/official-verdict.ts";
 import { CARD_HANT } from "../../../src/pages/card/text-hant.ts";
 import { cardTextOf } from "../../../src/pages/card/text.ts";
 import { createPageApi } from "../../../src/pages/shared/api.ts";
@@ -126,6 +127,168 @@ test("生成概览只认真实点击，登记换到令牌后凭令牌开始，�
   assert.deepEqual(fake.sent.find(({ type }) => type === "overview.start")?.req, { video: KEY, token: "one-time" });
   assert.deepEqual(model.view.value.analysis, ANALYSIS);
   assert.equal(model.view.value.task, null);
+});
+
+test("用官方总结写结论：有官方总结、还没有结论、AI 服务设置好时才能点，只认真实点击，凭令牌开始，写好的结论摆出来；写的时候点停止就取消", async () => {
+  const { fake, model } = setup();
+  const verdictTask = { ...task("v1"), kind: "verdict" };
+  const VERDICT_ONLY = { chapters: [], verdict: { verdict: "可以看", summary: "官方总结写的结论", source: "official" } };
+  fake.reply("task.start", { value: { ok: true, value: { task: verdictTask, joined: false, token: "verdict-token" } } });
+  fake.reply("verdict.fromOfficial", { value: { ok: true, value: { video: KEY, analysis: VERDICT_ONLY, analysisFailures: [], fromCache: false, failedChunks: 0 } } });
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  assert.equal(canWriteFromOfficial(model.view.value, true), true);
+  assert.equal(canWriteFromOfficial(model.view.value, false), false, "AI 服务没设置好不摆");
+  assert.equal(canWriteFromOfficial({ ...model.view.value, official: null }, true), false, "没有官方总结不摆");
+
+  await model.fromOfficial(false);
+  assert.equal(fake.attempts("task.start"), 0, "合成的点击不算");
+  await model.fromOfficial(true);
+  assert.deepEqual(fake.sent.find(({ type }) => type === "task.start")?.req, { kind: "verdict", video: KEY });
+  assert.deepEqual(fake.sent.find(({ type }) => type === "verdict.fromOfficial")?.req, { video: KEY, token: "verdict-token" });
+  assert.deepEqual(model.view.value.analysis, VERDICT_ONLY);
+  assert.equal(model.view.value.task, null);
+  assert.equal(canWriteFromOfficial(model.view.value, true), false, "有了结论就不再摆");
+});
+
+test("用官方总结写结论：登记的回答回来之前就点了停止，登记上了再取消一次，不开始写", async () => {
+  const { fake, model } = setup();
+  let release = (): void => undefined;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  fake.reply("task.start", async () => (await gate, { ok: true, value: { task: { ...task("v2"), kind: "verdict" }, joined: false, token: "late" } }));
+  fake.reply("task.cancel", { value: { ok: true, value: { task: { ...task("v2", "canceled"), kind: "verdict" } } } });
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  const pending = model.fromOfficial(true);
+  assert.ok(await until(() => model.view.value.task?.verdict === true));
+  await model.cancel();
+  release();
+  await pending;
+  assert.deepEqual(fake.sent.find(({ type }) => type === "task.cancel")?.req, { taskId: "v2" });
+  assert.equal(fake.attempts("verdict.fromOfficial"), 0);
+  assert.equal(model.view.value.task, null);
+});
+
+test("用官方总结写结论：写好但没能存进本机时照样摆出来，说一句没存上；别处给这个视频写好结论时卡片安静重读", async () => {
+  const { fake, model } = setup();
+  const VERDICT_ONLY = { chapters: [], verdict: { verdict: "可以看", summary: "官方总结写的结论", source: "official" } };
+  fake.reply("task.start", { value: { ok: true, value: { task: { ...task("v3"), kind: "verdict" }, joined: false, token: "t3" } } });
+  fake.reply("verdict.fromOfficial", { value: { ok: true, value: { video: KEY, analysis: VERDICT_ONLY, analysisFailures: [], fromCache: false, failedChunks: 0, saveFailed: true } } });
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  await model.fromOfficial(true);
+  assert.deepEqual(model.view.value.analysis, VERDICT_ONLY);
+  assert.deepEqual(model.view.value.notice, { text: cardTextOf("zh").saveFailed, tone: "warn" });
+
+  fake.reply("transcript.get", { value: guides(KEY, { overview: { analysis: ANALYSIS, analysisFailures: [] } }) });
+  const before = fake.attempts("transcript.get");
+  fake.broadcast({ type: "overview.updated", video: KEY, verdictPending: false });
+  assert.ok(await until(() => model.view.value.analysis?.verdict?.summary === "样例结论"));
+  assert.equal(fake.attempts("transcript.get"), before + 1);
+});
+
+test("侧边栏正在为这个视频用官方总结写结论：卡片接上它的进度，写「正在写一句话结论」", async () => {
+  const { fake, model } = setup();
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  fake.broadcast({ type: "task.changed", task: { ...task("side-verdict"), kind: "verdict", origin: "user" } });
+  assert.ok(await until(() => model.view.value.task?.id === "side-verdict"));
+  assert.equal(model.view.value.task?.verdict, true);
+  assert.equal(model.view.value.task?.external, true);
+});
+
+test("已有概览：缺了分块才能补，凭令牌补；重新生成要先点一下摆出确认，确认那一下才凭令牌重新生成", async () => {
+  const { fake, model } = setup();
+  const failure = { index: 1, startSeconds: 600, endSeconds: 1200 };
+  fake.reply("transcript.get", { value: guides(KEY, { overview: { analysis: ANALYSIS, analysisFailures: [failure] } }) });
+  fake.reply("task.start", { value: { ok: true, value: { task: task("t9"), joined: false, token: "once" } } });
+  fake.reply("overview.retryFailed", { value: { ok: true, value: { video: KEY, analysis: ANALYSIS, analysisFailures: [], fromCache: false, failedChunks: 0, recoveredChunks: 1 } } });
+  fake.reply("overview.start", { value: { ok: true, value: { video: KEY, analysis: ANALYSIS, analysisFailures: [], fromCache: false, failedChunks: 0 } } });
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  assert.equal(model.view.value.failedParts, 1);
+
+  await model.generate(true);
+  assert.equal(fake.attempts("task.start"), 0, "已有概览时不新生成");
+  await model.retryFailed(false);
+  assert.equal(fake.attempts("task.start"), 0, "合成的点击不算");
+  await model.retryFailed(true);
+  assert.deepEqual(fake.sent.find(({ type }) => type === "overview.retryFailed")?.req, { video: KEY, token: "once" });
+  assert.equal(model.view.value.failedParts, 0, "补上以后不再摆");
+  await model.retryFailed(true);
+  assert.equal(fake.attempts("overview.retryFailed"), 1, "没有缺的分块就不补");
+
+  await model.regenerate(true);
+  assert.equal(fake.attempts("overview.start"), 0, "没确认不重新生成");
+  model.askRegenerate();
+  assert.equal(model.view.value.confirmRegenerate, true);
+  await model.regenerate(true);
+  assert.equal(fake.attempts("overview.start"), 0, "确认刚摆出来就点的不算：连点两下的第二下");
+  await new Promise((resolve) => setImmediate(resolve));
+  await model.regenerate(false);
+  assert.equal(fake.attempts("overview.start"), 0, "合成的点击不算");
+  await model.regenerate(true);
+  assert.deepEqual(fake.sent.find(({ type }) => type === "overview.start")?.req, { video: KEY, token: "once", fresh: true });
+  assert.equal(model.view.value.confirmRegenerate, false);
+  assert.equal(model.view.value.task, null);
+});
+
+test("重新生成的确认：取消以后马上再点开，上一次的计时不算，要从头等", async () => {
+  const { fake, model, elapse, waiting } = setup(READY, undefined, { manualWait: true });
+  fake.reply("transcript.get", { value: guides(KEY, { overview: { analysis: ANALYSIS, analysisFailures: [] } }) });
+  fake.reply("task.start", { value: { ok: true, value: { task: task("r2"), joined: false, token: "once" } } });
+  fake.reply("overview.start", { value: { ok: true, value: { video: KEY, analysis: ANALYSIS, analysisFailures: [], fromCache: false, failedChunks: 0 } } });
+  model.configChanged();
+  await model.start();
+  elapse();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  elapse();
+  const before = waiting();
+  model.askRegenerate();
+  model.askRegenerate();
+  model.askRegenerate();
+  assert.equal(waiting(), before + 1, "撤掉的计时不再挂着，只剩最新一次");
+  await model.regenerate(true);
+  assert.equal(fake.attempts("overview.start"), 0);
+  elapse();
+  await model.regenerate(true);
+  assert.equal(fake.attempts("overview.start"), 1);
+});
+
+test("重新生成：结论没写成或被停时说原来的概览还留着；同一视频十分钟内重新生成过，说清楚；跟上别处的任务、收起时撤掉确认", async () => {
+  const { fake, model } = setup();
+  fake.reply("transcript.get", { value: guides(KEY, { overview: { analysis: ANALYSIS, analysisFailures: [] } }) });
+  fake.reply("task.start", { value: { ok: true, value: { task: task("r1"), joined: false, token: "once" } } });
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  const regenerate = async (): Promise<void> => {
+    model.askRegenerate();
+    await new Promise((resolve) => setImmediate(resolve));
+    await model.regenerate(true);
+  };
+  const t = cardTextOf("zh");
+  for (const [extra, text, tone] of [
+    [{ draftKept: true }, t.regenerateKept, "warn"],
+    [{ draftKept: true, verdictCanceled: true }, t.regenerateStopped, ""],
+  ] as const) {
+    fake.reply("overview.start", { value: { ok: true, value: { video: KEY, analysis: ANALYSIS, analysisFailures: [], fromCache: false, failedChunks: 0, ...extra } } });
+    await regenerate();
+    assert.deepEqual(model.view.value.notice, { text, tone }, JSON.stringify(extra));
+  }
+  fake.reply("overview.start", { value: { ok: false, code: "CARD_RATE_LIMITED", detail: "regenerate" } });
+  await regenerate();
+  assert.equal(model.view.value.notice?.text, t.regenerateTooSoon);
+
+  model.askRegenerate();
+  fake.broadcast({ type: "task.changed", task: task("side") });
+  assert.ok(await until(() => model.view.value.task?.id === "side"));
+  assert.equal(model.view.value.confirmRegenerate, false, "跟上别处的任务就撤掉确认");
 });
 
 test("同一视频已经有任务在跑：接上它看进度，结束后重读", async () => {
@@ -296,7 +459,7 @@ test("这个视频里手动展开收起过的为准：精读时手动展开的�
   assert.equal(closed.fake.attempts("transcript.get"), 0);
 });
 
-test("自动切到精读：卡片跟着收起；手动展开过的不动；别的标签页同一视频切了不算", async () => {
+test("在侧边栏切到精读：卡片跟着收起；手动展开过的不动；别的标签页同一视频切了不算", async () => {
   const { fake, model } = setup();
   let mine = session();
   fake.reply("session.get", () => ({ ok: true, value: { session: mine } }));
@@ -306,11 +469,11 @@ test("自动切到精读：卡片跟着收起；手动展开过的不动；别�
   assert.ok(await until(() => model.view.value.phase === "loaded"));
 
   // 别的标签页同一视频切到精读：广播里的视频一样，但自己标签页的会话还是速读。
-  fake.broadcast({ type: "session.changed", tabId: 99, session: session({ mode: "study", modeSource: "auto", autoSwitched: true }) });
+  fake.broadcast({ type: "session.changed", tabId: 99, session: session({ mode: "study", modeSource: "manual" }) });
   assert.ok(await until(() => fake.attempts("session.get") === 2));
   assert.ok(await stillFalse(() => model.view.value.collapsed));
 
-  mine = session({ mode: "study", modeSource: "auto", autoSwitched: true });
+  mine = session({ mode: "study", modeSource: "manual" });
   fake.broadcast({ type: "session.changed", tabId: 3, session: mine });
   assert.ok(await until(() => model.view.value.collapsed), "跟着收起");
 
@@ -467,10 +630,21 @@ test("章节按开始时间排好再数第几章；时间不是数的不算", ()
   assert.deepEqual(chaptersInOrder(null), []);
 });
 
-test("收着、有章节、侧边栏关着时才问播放位置，写出播到第几章；展开、侧边栏开着、没有章节时不问", async () => {
+// 只有章节、还没写结论的概览：收起那一行写播放到的章节。
+const CHAPTERS_ONLY = { chapters: THREE.chapters };
+
+test("一句话结论：判断词和那句话都有、结论不在写时才算", () => {
+  assert.deepEqual(conclusionOf({ analysis: THREE, verdictPending: false }), { label: "可以看", summary: "样例结论" });
+  assert.equal(conclusionOf({ analysis: THREE, verdictPending: true }), null, "结论还在写");
+  assert.equal(conclusionOf({ analysis: CHAPTERS_ONLY, verdictPending: false }), null);
+  assert.equal(conclusionOf({ analysis: { verdict: { verdict: "可以看", summary: "  " } }, verdictPending: false }), null, "只有判断词");
+  assert.equal(conclusionOf({ analysis: null, verdictPending: false }), null);
+});
+
+test("收着、有章节、没有结论、侧边栏关着时才问播放位置，写出播到第几章；展开、侧边栏开着、没有章节时不问", async () => {
   const { fake, model, tick, player } = setup();
   fake.reply("session.get", { value: { ok: true, value: { session: session() } } });
-  fake.reply("transcript.get", { value: guides(KEY, { overview: { analysis: THREE, analysisFailures: [] } }) });
+  fake.reply("transcript.get", { value: guides(KEY, { overview: { analysis: CHAPTERS_ONLY, analysisFailures: [] } }) });
   fake.reply("card.setOverride", { value: { ok: true, value: { session: {} } } });
   model.configChanged();
   await model.start();
@@ -517,49 +691,52 @@ test("收着、有章节、侧边栏关着时才问播放位置，写出播到�
   assert.equal(bare.player.asked, 0);
 });
 
-test("播满时长自动切到精读时鼠标正停在卡片上：先不收，离开又回来的接着等，离开够久才收、照样说一句；等的时候打开侧边栏就按让位收，不说", async () => {
-  const auto = () => session({ mode: "study", modeSource: "auto", autoSwitched: true });
-  const open = async () => {
-    const made = setup(READY, undefined, { manualWait: true });
-    let mine = session();
-    made.fake.reply("session.get", () => ({ ok: true, value: { session: mine } }));
-    made.model.configChanged();
-    await made.model.start();
-    assert.ok(await until(() => made.model.view.value.phase === "loaded"));
-    made.elapse();
-    made.model.hover(true);
-    mine = auto();
-    made.fake.broadcast({ type: "session.changed", tabId: 3, session: mine });
-    assert.ok(await stillFalse(() => made.model.view.value.collapsed), "鼠标在卡片上，不收");
-    return made;
-  };
-
-  const { model, elapse } = await open();
-  model.hover(false);
-  model.hover(true);
-  elapse();
-  assert.equal(model.view.value.collapsed, false, "离开一下又回来，不收");
-  model.hover(false);
-  assert.equal(model.view.value.collapsed, false, "刚离开，还没到点");
-  elapse();
-  assert.deepEqual([model.view.value.collapsed, model.view.value.headNote], [true, AUTO_FOLD_NOTE]);
-
-  const yielded = await open();
-  yielded.fake.broadcast({ type: "panel.changed", windowId: WINDOW, open: true });
-  assert.ok(await until(() => yielded.model.view.value.collapsed));
-  assert.equal(yielded.model.view.value.headNote, "");
-  yielded.fake.broadcast({ type: "panel.changed", windowId: WINDOW, open: false });
-  yielded.model.hover(false);
-  yielded.elapse();
-  assert.equal(yielded.model.view.value.collapsed, true, "精读，侧边栏关了也收着");
-  assert.equal(yielded.model.view.value.headNote, "");
+test("本机有一句话结论时收着也不问播放位置：收起那一行写结论，不写章节", async () => {
+  const { fake, model, tick, player } = setup();
+  fake.reply("session.get", { value: { ok: true, value: { session: session() } } });
+  fake.reply("transcript.get", { value: guides(KEY, { overview: { analysis: THREE, analysisFailures: [] } }) });
+  fake.reply("card.setOverride", { value: { ok: true, value: { session: {} } } });
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  player.at = 130;
+  await model.toggle();
+  assert.ok(await until(() => model.view.value.collapsed));
+  tick();
+  tick();
+  assert.ok(await stillFalse(() => player.asked > 0), "有结论不问");
+  assert.equal(model.view.value.chapterNow, null);
 });
 
-test("播满时长自动切到精读：展开着的卡片收起时在那一行说一句，过一会儿收回；手动收起、让位收起、一打开就是精读的不说", async () => {
+test("收着时结论写好了：不再问播放位置，抹掉当前章节", async () => {
+  const { fake, model, tick, player } = setup();
+  fake.reply("session.get", { value: { ok: true, value: { session: session() } } });
+  fake.reply("card.setOverride", { value: { ok: true, value: { session: {} } } });
+  let finish: (value: unknown) => void = () => undefined;
+  fake.reply("task.start", { value: { ok: true, value: { task: task("t1"), joined: false, token: "one-time" } } });
+  fake.reply("overview.start", () => new Promise((resolve) => (finish = resolve)));
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  void model.generate(true);
+  assert.ok(await until(() => fake.attempts("overview.start") === 1));
+  fake.broadcast({ type: "overview.preview", taskId: "t1", video: KEY, analysis: CHAPTERS_ONLY, done: 1, total: 2 });
+  assert.ok(await until(() => model.view.value.verdictPending !== false));
+  player.at = 130;
+  await model.toggle();
+  assert.ok(await until(() => model.view.value.chapterNow === 1), "章节先到、结论还在写：照旧问");
+
+  finish({ ok: true, value: { video: KEY, analysis: THREE, analysisFailures: [], fromCache: false, failedChunks: 0 } });
+  assert.ok(await until(() => conclusionOf(model.view.value) !== null && model.view.value.chapterNow === null));
+  const asked = player.asked;
+  tick();
+  assert.ok(await stillFalse(() => player.asked > asked), "结论到了就不问");
+});
+
+test("播满时长自动切到的精读不收卡片：照速读摆，侧边栏开了让位、关上又展开；自己选的精读照样收；刷新时已经是自动切过的精读也展开着", async () => {
   const { fake, model, elapse } = setup(READY, undefined, { manualWait: true });
   let mine = session();
   fake.reply("session.get", () => ({ ok: true, value: { session: mine } }));
-  fake.reply("card.setOverride", { value: { ok: true, value: { session: {} } } });
   model.configChanged();
   await model.start();
   assert.ok(await until(() => model.view.value.phase === "loaded"));
@@ -567,54 +744,46 @@ test("播满时长自动切到精读：展开着的卡片收起时在那一行�
 
   mine = session({ mode: "study", modeSource: "auto", autoSwitched: true });
   fake.broadcast({ type: "session.changed", tabId: 3, session: mine });
-  assert.ok(await until(() => model.view.value.collapsed));
-  assert.equal(model.view.value.headNote, AUTO_FOLD_NOTE);
-  elapse();
-  assert.equal(model.view.value.headNote, "", "到点收回");
+  assert.ok(await until(() => fake.attempts("session.get") === 2));
+  assert.ok(await stillFalse(() => model.view.value.collapsed), "自动切到精读，不收");
 
-  // 手动点开再手动收起：不说。
-  await model.toggle();
-  await model.toggle();
-  assert.deepEqual([model.view.value.collapsed, model.view.value.headNote], [true, ""]);
+  fake.broadcast({ type: "panel.changed", windowId: WINDOW, open: true });
+  assert.ok(await until(() => model.view.value.collapsed), "侧边栏开着照样让位");
+  fake.broadcast({ type: "panel.changed", windowId: WINDOW, open: false });
+  assert.ok(await until(() => !model.view.value.collapsed), "关上又展开");
 
-  // 侧边栏开着让位收起的不说；一打开会话就已经是自动切过的精读（比如刷新了页面），卡片本来就收着，也不说。
-  const yielded = setup(READY, undefined, { manualWait: true });
-  yielded.fake.reply("session.get", { value: { ok: true, value: { session: session() } } });
-  yielded.model.configChanged();
-  await yielded.model.start();
-  assert.ok(await until(() => yielded.model.view.value.phase === "loaded"));
-  yielded.fake.broadcast({ type: "panel.changed", windowId: WINDOW, open: true });
-  assert.ok(await until(() => yielded.model.view.value.collapsed));
-  assert.equal(yielded.model.view.value.headNote, "");
+  mine = session({ mode: "study", modeSource: "manual", autoSwitched: true });
+  fake.broadcast({ type: "session.changed", tabId: 3, session: mine });
+  assert.ok(await until(() => model.view.value.collapsed), "自己选的精读照样收");
 
   const reloaded = setup(READY, undefined, { manualWait: true });
   reloaded.fake.reply("session.get", { value: { ok: true, value: { session: session({ mode: "study", modeSource: "auto", autoSwitched: true }) } } });
   reloaded.model.configChanged();
   await reloaded.model.start();
   assert.ok(await until(() => reloaded.waiting() === 0));
-  assert.deepEqual([reloaded.model.view.value.collapsed, reloaded.model.view.value.headNote], [true, ""]);
+  assert.equal(reloaded.model.view.value.collapsed, false);
 });
 
-test("那一句话说出来以后标签页切到后台：到点不收，回到前台从头数，再到点才收回", async () => {
+test("收起那一行上那句话说出来以后标签页切到后台：到点不收，回到前台从头数，再到点才收回", async () => {
   let visible = true;
   let shown: () => void = () => undefined;
   const page = { visible: () => visible, onVisible: (run: () => void) => ((shown = run), () => undefined) };
   const { fake, model, elapse, waiting } = setup(READY, page, { manualWait: true });
-  let mine = session();
-  fake.reply("session.get", () => ({ ok: true, value: { session: mine } }));
+  fake.reply("session.get", { value: { ok: true, value: { session: session() } } });
+  fake.reply("card.setOverride", { value: { ok: true, value: { session: {} } } });
   model.configChanged();
   await model.start();
   assert.ok(await until(() => model.view.value.phase === "loaded"));
   elapse();
 
-  mine = session({ mode: "study", modeSource: "auto", autoSwitched: true });
-  fake.broadcast({ type: "session.changed", tabId: 3, session: mine });
-  assert.ok(await until(() => model.view.value.headNote === AUTO_FOLD_NOTE));
+  await model.toggle();
+  model.panelRefused();
+  assert.equal(model.view.value.headNote, PANEL_REFUSED_NOTE);
   assert.equal(waiting(), 1, "看得见，开始数");
 
   visible = false;
   elapse();
-  assert.equal(model.view.value.headNote, AUTO_FOLD_NOTE, "到点时在后台，不收");
+  assert.equal(model.view.value.headNote, PANEL_REFUSED_NOTE, "到点时在后台，不收");
   assert.equal(waiting(), 0);
 
   visible = true;
@@ -624,26 +793,26 @@ test("那一句话说出来以后标签页切到后台：到点不收，回到�
   assert.equal(model.view.value.headNote, "");
 });
 
-test("那一句话只在看得见时计时：标签页不在前台时自动收起，回到前台才开始数；换了视频马上收回", async () => {
+test("收起那一行上那句话只在看得见时计时：标签页不在前台时说的，回到前台才开始数；换了视频马上收回", async () => {
   let visible = true;
   let shown: () => void = () => undefined;
   const page = { visible: () => visible, onVisible: (run: () => void) => ((shown = run), () => undefined) };
   const { fake, model, elapse, waiting } = setup(READY, page, { manualWait: true });
-  let mine = session();
-  fake.reply("session.get", () => ({ ok: true, value: { session: mine } }));
+  fake.reply("session.get", { value: { ok: true, value: { session: session() } } });
+  fake.reply("card.setOverride", { value: { ok: true, value: { session: {} } } });
   model.configChanged();
   await model.start();
   assert.ok(await until(() => model.view.value.phase === "loaded"));
   elapse();
+  await model.toggle();
   assert.equal(waiting(), 0);
 
   visible = false;
-  mine = session({ mode: "study", modeSource: "auto", autoSwitched: true });
-  fake.broadcast({ type: "session.changed", tabId: 3, session: mine });
-  assert.ok(await until(() => model.view.value.headNote === AUTO_FOLD_NOTE));
+  model.panelRefused();
+  assert.equal(model.view.value.headNote, PANEL_REFUSED_NOTE);
   assert.equal(waiting(), 0, "看不见时不计时");
   elapse();
-  assert.equal(model.view.value.headNote, AUTO_FOLD_NOTE);
+  assert.equal(model.view.value.headNote, PANEL_REFUSED_NOTE);
 
   visible = true;
   shown();
@@ -688,7 +857,7 @@ test("后台打开的标签页：第一次切到前台才读", async () => {
   assert.equal(fake.attempts("transcript.get"), 1);
 });
 
-test("默认只露前几条、官方总结收着：点了才全露，换了视频回到默认；生成中的提示不重复进度行上的块数", async () => {
+test("默认只露前几条、官方总结和评论区要点收着：点了才全露，换了视频回到默认；生成中的提示不重复进度行上的块数", async () => {
   assert.equal(CARD_ROWS, 5);
   // 多出两条以上才藏；只多一条时全露，不为一条去点「展开全部」。
   const rows = (count: number) => Array.from({ length: count }, (_, index) => index);
@@ -701,10 +870,11 @@ test("默认只露前几条、官方总结收着：点了才全露，换了视�
   model.configChanged();
   await model.start();
   assert.ok(await until(() => model.view.value.phase === "loaded"));
-  assert.deepEqual([model.view.value.showAll, model.view.value.officialOpen], [false, false]);
+  assert.deepEqual([model.view.value.showAll, model.view.value.officialOpen, model.view.value.commentsOpen], [false, false, false]);
   model.toggleShowAll();
   model.toggleOfficial();
-  assert.deepEqual([model.view.value.showAll, model.view.value.officialOpen], [true, true]);
+  model.toggleComments();
+  assert.deepEqual([model.view.value.showAll, model.view.value.officialOpen, model.view.value.commentsOpen], [true, true, true]);
   model.toggleShowAll();
   assert.equal(model.view.value.showAll, false);
   model.toggleShowAll();
@@ -712,7 +882,7 @@ test("默认只露前几条、官方总结收着：点了才全露，换了视�
   fake.reply("transcript.get", { value: guides(videoKey(SECOND)) });
   model.urlChanged("https://www.bilibili.com/video/BV1Sample002");
   assert.ok(await until(() => model.view.value.phase === "loaded"));
-  assert.deepEqual([model.view.value.showAll, model.view.value.officialOpen], [false, false]);
+  assert.deepEqual([model.view.value.showAll, model.view.value.officialOpen, model.view.value.commentsOpen], [false, false, false]);
 
   // 跟着一个在跑的任务，章节一块块到：结论那一行只说还没写，块数留给进度行。
   fake.broadcast({ type: "task.changed", task: task("side", "running", videoKey(SECOND)) });
@@ -801,6 +971,19 @@ test("侧边栏给这个视频换了字幕：卡片重读，换上现在这份�
   assert.deepEqual(model.view.value.transcriptBasis, { chapters: "old", verdict: "old" }, "概览不动，页面据此标基于旧字幕");
 });
 
+test("卡片说过没有字幕、随后在侧边栏导入了字幕文件：重读以后撤下没有字幕的说明，能生成", async () => {
+  const { fake, model } = setup();
+  fake.reply("transcript.get", { value: guides(KEY, { transcriptError: "NO_CAPTIONS" }) });
+  model.configChanged();
+  await model.start();
+  assert.ok(await until(() => model.view.value.noCaptions && model.view.value.notice?.text === NO_CAPTIONS_TEXT));
+
+  fake.reply("transcript.get", { value: guides(KEY, { hasTranscript: true, transcriptFingerprint: "imported" }) });
+  fake.broadcast({ type: "transcript.changed", video: KEY });
+  assert.ok(await until(() => !model.view.value.noCaptions));
+  assert.equal(model.view.value.notice, null);
+});
+
 const PENDING_OFFICIAL = { status: "pending", summary: "", outline: [] };
 const skim = (video = KEY) => ({ value: { ok: true, value: { session: { video, mode: "skim", modeSource: "default", autoSwitched: false, playedSec: 0 } } } });
 
@@ -866,5 +1049,5 @@ test("按钮行：官方总结一直没结果时，等够了照样摆；没有�
 
 test("选繁体时卡片的文案是繁体那份", () => {
   assert.equal(cardTextOf("zh-Hant"), CARD_HANT);
-  assert.equal(cardTextOf("zh-Hant").name(""), "簡幕 · 總結");
+  assert.equal(cardTextOf("zh-Hant").name, "簡幕");
 });

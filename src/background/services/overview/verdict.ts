@@ -167,7 +167,7 @@ export function createVerdictService(deps: VerdictServiceDeps): VerdictService {
       const canceled = (error as { readonly code?: unknown } | null)?.code === "TASK_CANCELED" || queue.aborted || cleared(since);
       if (canceled) return fail("TASK_CANCELED");
       log.error("用官方总结写结论失败", errorLabel(error));
-      return aiFailure(error);
+      return aiFailure(error, outputLangOf(run.gen));
     }
     if (!verdict) return fail("EMPTY_VERDICT");
     if (cleared(since)) return fail("TASK_CANCELED");

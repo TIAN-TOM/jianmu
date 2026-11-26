@@ -14,6 +14,7 @@ import { ok, type ErrorCode, type Failure, type Result } from "../../src/core/er
 import type { ClearEpoch } from "../../src/core/clear-guard.ts";
 import type { OverviewRecord } from "../../src/core/notes/records.ts";
 import type { FrozenGen, TaskKind, TaskOrigin, TaskView } from "../../src/core/tasks.ts";
+import type { OutputLang } from "../../src/core/output-lang.ts";
 import type { TranscriptSegment } from "../../src/core/transcript/segment.ts";
 import { videoKey, type VideoKey, type VideoRef } from "../../src/core/video-ref.ts";
 import { createKeepAlive, type KeepAlive } from "../../src/platform/keepalive.ts";
@@ -64,6 +65,20 @@ export const PROMPTS: Readonly<Record<string, string>> = {
     "覆盖：{coverageNote}",
     "{chaptersText}",
     "金句：{quotesText}",
+    "```",
+    "",
+  ].join("\n"),
+  "skim/verdict-comments.md": [
+    "## 系统提示词",
+    "```",
+    "结论带评论/系统",
+    "```",
+    "## 用户提示词",
+    "```",
+    "结论/用户",
+    "标题：{videoTitle}",
+    "{chaptersText}",
+    "评论区：{commentsText}",
     "```",
     "",
   ].join("\n"),
@@ -155,6 +170,10 @@ export interface OverviewHarnessOptions {
   readonly wrapDriver?: (inner: ObjectStoreDriver<OverviewRecord>) => ObjectStoreDriver<OverviewRecord>;
   readonly keepAlive?: KeepAlive;
   readonly timers?: ManualTimers;
+  /** 任务取定的输出语言，不给时按简体（冻结的配置里不带这一项）。 */
+  readonly outputLang?: OutputLang;
+  /** 站点读取的替身，读评论区（PRD F23）用。 */
+  readonly sites?: OverviewServiceDeps["sites"];
 }
 
 export interface Logged {
@@ -184,7 +203,7 @@ export interface OverviewHarness {
   /** 登记一个概览任务，交回任务号。 */
   register(video?: VideoKey): Promise<string>;
   /** 登记并开始生成。 */
-  generate(options?: { readonly fresh?: boolean; readonly video?: VideoKey }): { readonly taskId: Promise<string>; readonly result: Promise<Result<OverviewResultView>> };
+  generate(options?: { readonly fresh?: boolean; readonly video?: VideoKey; readonly comments?: { readonly tabId?: number } }): { readonly taskId: Promise<string>; readonly result: Promise<Result<OverviewResultView>> };
   /** 登记并补失败块。 */
   retry(): { readonly taskId: Promise<string>; readonly result: Promise<Result<OverviewResultView>> };
   /** 登记一个结论任务（侧边栏的，或粗筛的），交回任务号。 */
@@ -319,6 +338,7 @@ export function overviewHarness(options: OverviewHarnessOptions = {}): OverviewH
     broadcast: (message) => void broadcasts.push(message),
     log,
     now: timers.now,
+    ...(options.sites ? { sites: options.sites } : {}),
   });
   const verdict = createVerdictService({
     tasks,
@@ -334,7 +354,8 @@ export function overviewHarness(options: OverviewHarnessOptions = {}): OverviewH
   });
 
   const register = async (video: VideoKey = VIDEO): Promise<string> => {
-    const registered = await tasks.register({ kind: "overview", origin: "user", video, gen: ANALYSIS_GEN, stages: [VERDICT_GEN], followsPage: false }, {});
+    const lang = options.outputLang ? { outputLang: options.outputLang } : {};
+    const registered = await tasks.register({ kind: "overview", origin: "user", video, gen: { ...ANALYSIS_GEN, ...lang }, stages: [{ ...VERDICT_GEN, ...lang }], followsPage: false }, {});
     if (!("task" in registered)) throw new Error(`登记失败：${JSON.stringify(registered)}`);
     return registered.task.id;
   };
@@ -365,9 +386,9 @@ export function overviewHarness(options: OverviewHarnessOptions = {}): OverviewH
       failMode = mode;
     },
     register,
-    generate({ fresh = false, video = VIDEO } = {}) {
+    generate({ fresh = false, video = VIDEO, comments } = {}) {
       const taskId = register(video);
-      return { taskId, result: taskId.then((id) => service.generate(id, video, { fresh })) };
+      return { taskId, result: taskId.then((id) => service.generate(id, video, { fresh, ...(comments ? { comments } : {}) })) };
     },
     retry() {
       const taskId = register();

@@ -55,6 +55,22 @@ export interface SessionSetModeReply extends SessionChangedReply {
   readonly remembered: boolean;
 }
 
+/** 侧边栏点「不记」：忘掉这个标签页上视频所在的频道。频道按后台记在会话里的算，不收页面报的。 */
+export interface ChannelForgetRequest {
+  readonly tabId: number;
+  readonly video: VideoKey;
+}
+
+export interface ChannelForgetReply {
+  /** 真的忘掉了一个频道；会话里没记频道时是 false。 */
+  readonly forgotten: boolean;
+}
+
+/** 设置页「速读和精读」一节写记住了几个。 */
+export interface ChannelCountReply {
+  readonly count: number;
+}
+
 /** 卡片在自己所在的标签页上手动展开或收起，换视频即失效。 */
 export interface CardOverrideRequest {
   readonly video: VideoKey;
@@ -69,4 +85,6 @@ export interface SessionApi {
   "session.setMode": { req: SessionSetModeRequest; res: SessionSetModeReply };
   "card.setOverride": { req: CardOverrideRequest; res: SessionChangedReply };
   "channels.clear": { req: EmptyRequest; res: EmptyRequest };
+  "channels.forget": { req: ChannelForgetRequest; res: ChannelForgetReply };
+  "channels.count": { req: EmptyRequest; res: ChannelCountReply };
 }

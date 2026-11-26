@@ -1,5 +1,5 @@
 // 内容脚本的启用闸门：确认启用之前不读页面、不挂任何界面，只挂一个收后台消息的监听；确认以后才等页面激活、挂界面。
-// 清除全部数据（启用失效）以后整套撤下，重新等确认；再确认一次又挂上。问不到后台时隔一会儿再问。
+// 清除全部数据（启用失效）以后整套撤下，重新等确认；再确认一次又挂上。问不到后台时隔一会儿再问。每次没放行都叫一声。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createContentApp, pageSuperseded, type Surface } from "../../../src/content/app.ts";
@@ -12,18 +12,20 @@ import type { SitePage } from "../../../src/sites/page-types.ts";
 import { EXTENSION_ID } from "../../helpers/chrome.ts";
 import { fakeRuntime } from "../../helpers/fake-runtime.ts";
 import { manualTimers } from "../../helpers/manual-timers.ts";
-import { until } from "../../helpers/wait-until.ts";
+import { stillFalse, until } from "../../helpers/wait-until.ts";
 
 const VIDEO: VideoRef = { platform: "bilibili", videoId: "BV1Sample001", segment: 1 };
 const NEEDED = { ok: true, value: { state: "needed", updated: false, items: [] } };
 const CURRENT = { ok: true, value: { state: "current" } };
 
 /** page 是几份内容脚本共用的页面：扩展重新加载前后注入的两份只共用它。 */
-function setup(options: { readonly frame?: (identity: FrameIdentity) => FrameTool; readonly site?: VideoRef["platform"]; readonly durationSec?: number; readonly page?: EventTarget } = {}) {
+function setup(
+  options: { readonly frame?: (identity: FrameIdentity) => FrameTool; readonly site?: VideoRef["platform"]; readonly durationSec?: number; readonly page?: EventTarget; readonly onHeld?: () => void; readonly onRevoked?: () => void } = {},
+) {
   const fake = fakeRuntime();
   let activation: unknown = NEEDED;
   fake.reply("activation.get", (_req) => activation);
-  fake.reply("appearance.get", { value: { ok: true, value: { accentTheme: "ink", inPageCard: true, language: "auto" } } });
+  fake.reply("appearance.get", { value: { ok: true, value: { accentTheme: "marker", inPageCard: true, language: "auto" } } });
   fake.reply("playback.info", { value: { ok: true, value: { playedSec: 0, report: true } } });
   // 页面那一头的替身也能当内容脚本这一头用：广播的监听多收一个回复函数，替身不给。
   const like = { ...fake.runtime, getURL: (path: string) => `chrome-extension://${EXTENSION_ID}/${path}` } as unknown as RuntimeLike;
@@ -82,6 +84,8 @@ function setup(options: { readonly frame?: (identity: FrameIdentity) => FrameToo
     gateTimers: { set: (run, ms) => timers.setTimeout(run, ms), clear: (timer) => timers.clearTimeout(timer) },
     ...(options.frame ? { frame: options.frame } : {}),
     ...(options.site ? { site: options.site } : {}),
+    ...(options.onHeld ? { onHeld: options.onHeld } : {}),
+    ...(options.onRevoked ? { onRevoked: options.onRevoked } : {}),
   });
   return {
     fake,
@@ -110,7 +114,7 @@ test("确认启用之前：问一次启用状态，只挂一个消息监听，�
   assert.deepEqual(fake.sent.map(({ type }) => type), ["activation.get"]);
 
   // 外观、播放器指令和清除广播都不会让它动起来。
-  fake.broadcast({ type: "appearance.changed", accentTheme: "ochre", inPageCard: true, language: "auto" });
+  fake.broadcast({ type: "appearance.changed", accentTheme: "redblack", inPageCard: true, language: "auto" });
   fake.broadcast({ type: "player.getState", req: { video: "bilibili:BV1Sample001:p1" } });
   fake.broadcast({ type: "data.cleared", scope: "all" });
   await new Promise((resolve) => setImmediate(resolve));
@@ -167,7 +171,7 @@ for (const [label, message] of [
     assert.ok(await until(() => fake.attempts("activation.get") === 2));
     await new Promise((resolve) => setImmediate(resolve));
     const readsAfterLoss = pageReads.length;
-    fake.broadcast({ type: "appearance.changed", accentTheme: "ochre", inPageCard: true, language: "auto" });
+    fake.broadcast({ type: "appearance.changed", accentTheme: "redblack", inPageCard: true, language: "auto" });
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(pageReads.length, readsAfterLoss, "撤下以后不再读页面");
     assert.equal(surfaces[0]?.appearance.length, 1);
@@ -206,6 +210,26 @@ test("问不到后台时隔一会儿再问，几次以后只等广播", async ()
   assert.deepEqual(pageReads, []);
 });
 
+test("没放行时每次都叫一声：问到没启用、清除全部数据以后、问不到都叫；放行了不叫", async () => {
+  let held = 0;
+  const { fake, app, setActivation } = setup({ onHeld: () => void (held += 1) });
+  app.start();
+  assert.ok(await until(() => held === 1), "一开始问到没启用");
+  setActivation(CURRENT);
+  fake.broadcast({ type: "activation.changed", confirmed: true });
+  assert.ok(await until(() => fake.attempts("activation.get") === 2));
+  assert.ok(await stillFalse(() => held !== 1), "放行了不叫");
+  setActivation(NEEDED);
+  fake.broadcast({ type: "data.cleared", scope: "all" });
+  assert.ok(await until(() => held === 2), "清除全部数据以后");
+
+  let unknown = 0;
+  const offline = setup({ onHeld: () => void (unknown += 1) });
+  offline.fake.reply("activation.get", () => Promise.reject(new Error("Could not establish connection. Receiving end does not exist.")));
+  offline.app.start();
+  assert.ok(await until(() => unknown === 1), "问不到后台");
+});
+
 test("新注入的一份接手时，旧的一份整套撤下、不再响应广播", async () => {
   const { fake, app, pageReads, surfaces, setActivation, pageReady } = setup();
   setActivation(CURRENT);
@@ -215,6 +239,22 @@ test("新注入的一份接手时，旧的一份整套撤下、不再响应广�
   assert.ok(await until(() => surfaces.length === 1));
   app.stop();
   assert.equal(surfaces[0]?.removed, true);
+  assert.equal(fake.listeners(), 0);
+});
+
+test("撤了自己这个站的授权：还没问到启用状态也先叫一声再撤下；别的站的撤权、启用的通知不叫", async () => {
+  let revoked = 0;
+  const { fake, app } = setup({ site: "youtube", onRevoked: () => void (revoked += 1) });
+  // 后台一直不回启用状态：闸门从没放行过。
+  fake.reply("activation.get", () => new Promise(() => {}));
+  app.start();
+  assert.ok(await until(() => fake.attempts("activation.get") === 1));
+  fake.broadcast({ type: "site.changed", platform: "bilibili", enabled: false });
+  fake.broadcast({ type: "site.changed", platform: "youtube", enabled: true });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(revoked, 0);
+  fake.broadcast({ type: "site.changed", platform: "youtube", enabled: false });
+  assert.ok(await until(() => revoked === 1));
   assert.equal(fake.listeners(), 0);
 });
 

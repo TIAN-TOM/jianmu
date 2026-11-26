@@ -76,7 +76,7 @@ function cleanNote(note: NoteRecord): NoteRecord {
 const readable = (rows: readonly NoteRecord[]): NoteRecord[] => rows.filter(isValidNote).map(cleanNote);
 
 export function createNoteStore({ driver, guard, canonicalUrl }: NoteStoreDeps): NoteStore {
-  const gate = createWriteGate(guard, "all");
+  const gate = createWriteGate(guard, "notes");
 
   const withUrl = (note: NoteRecord): NoteView => ({
     ...note,

@@ -1,7 +1,8 @@
 // 要用户另外授权的站（YouTube）：授权在就注册内容脚本，不在就注销。授权本身就是「启用」，设置里不另记一份。
+// 主世界的小桥一加载就接播放器取回的字幕，另外要首次启用确认算数才注册：确认前、清除全部数据以后都撤掉，确认以后再补上。
 // 只从 app.ts 的构建开关分支引用，开关关着时整个模块不进包。同步一次一次排着做，不交叉。
 // 「上一次的状态」看浏览器持久保存的注册：没注册而授权在是新给的，往已开页面补注入；注册着而授权没了是撤掉的，
-// 通知发过消息的页面和扩展页面，删掉这个站的观看会话（注销撤不回已经注入的脚本）。安装、更新后浏览器清掉注册，先撤再注册。
+// 按编号通知全部已开标签页和扩展页面，删掉这个站的观看会话（注销撤不回已经注入的脚本）。安装、更新后浏览器清掉注册，先撤再注册。
 import type { Platform } from "../core/video-ref.ts";
 import type { Messenger } from "../platform/messaging.ts";
 import type { Permissions } from "../platform/permissions.ts";
@@ -16,14 +17,16 @@ interface SiteScript {
   readonly file: string;
   readonly world?: "MAIN";
   readonly runAt?: "document_start";
+  /** 首次启用确认算数时才注册。 */
+  readonly afterEnable?: true;
 }
 
 // 各站动态注册的内容脚本：编号、产物里的文件，跑在页面主世界的、页面一开始加载就要跑的另外标出来。
 const SCRIPTS: Readonly<Partial<Record<Platform, readonly SiteScript[]>>> = {
   youtube: [
     { id: "jianmu-youtube", file: "content/youtube.js" },
-    // 只读的小桥：内容脚本问它播放器上已有哪些字幕轨。页面一开始加载就装上，播放器最早取回的字幕也接得住。
-    { id: "jianmu-youtube-bridge", file: "content/youtube-bridge.js", world: "MAIN", runAt: "document_start" },
+    // 小桥：内容脚本问它播放器上已有哪些字幕轨。页面一开始加载就装上，播放器最早取回的字幕也接得住；所以确认启用以后才注册。
+    { id: "jianmu-youtube-bridge", file: "content/youtube-bridge.js", world: "MAIN", runAt: "document_start", afterEnable: true },
   ],
 };
 
@@ -31,7 +34,7 @@ export interface SiteSwitchDeps {
   readonly rules: readonly SiteRules[];
   readonly permissions: Pick<Permissions, "containsAll">;
   readonly scripts: RegisteredScripts;
-  readonly tabs: Pick<Tabs, "tabsMatching" | "inject">;
+  readonly tabs: Pick<Tabs, "tabsMatching" | "inject" | "allTabIds">;
   readonly messenger: Pick<Messenger, "toTabs" | "toPages">;
   readonly contentTabs: Pick<ContentTabs, "list">;
   /** 撤权时删掉这个站的观看会话。 */
@@ -44,7 +47,7 @@ export interface SiteSwitchDeps {
 export interface SiteSwitch {
   /** 这个站授权了没有。不用另外授权的站一律算授权了。 */
   readonly granted: (platform: Platform) => Promise<boolean>;
-  /** 按当前授权补上或撤掉注册。fresh：安装、更新以后，原来的注册不一定还在，先撤再注册。 */
+  /** 按当前授权和启用确认补上或撤掉注册。fresh：安装、更新以后，原来的注册不一定还在，先撤再注册。 */
   readonly sync: (options?: { readonly fresh?: boolean }) => Promise<void>;
   /** 授权有增减：同步注册，新授权的站往已开页面补注入，撤掉的站通知页面停下。 */
   readonly permissionsChanged: () => Promise<void>;
@@ -93,15 +96,17 @@ export function createSiteSwitch({ rules, permissions, scripts, tabs, messenger,
 
   async function syncSite(site: OptionalSite, fresh: boolean): Promise<Synced> {
     const granted = await isGranted(site);
+    // 读不到启用状态按没确认算：要确认才注册的那几份宁可先不注册。
+    const active = granted && site.scripts.some(({ afterEnable }) => afterEnable) ? await enabled().catch(() => false) : false;
+    const wanted = granted ? site.scripts.filter(({ afterEnable }) => !afterEnable || active) : [];
     let present = false;
     try {
       const found = await scripts.registered(site.scripts.map(({ id }) => id));
       present = found.length > 0;
-      if (present && (fresh || !granted)) await scripts.unregister(found);
-      const missing = fresh ? site.scripts : site.scripts.filter(({ id }) => !found.includes(id));
-      if (granted) {
-        for (const { id, file, world, runAt } of missing) await scripts.register({ id, matches: site.rules.scriptMatches, js: [file], ...(world ? { world } : {}), ...(runAt ? { runAt } : {}) });
-      }
+      const stale = fresh ? found : found.filter((id) => !wanted.some((script) => script.id === id));
+      if (stale.length > 0) await scripts.unregister(stale);
+      const missing = fresh ? wanted : wanted.filter(({ id }) => !found.includes(id));
+      for (const { id, file, world, runAt } of missing) await scripts.register({ id, matches: site.rules.scriptMatches, js: [file], ...(world ? { world } : {}), ...(runAt ? { runAt } : {}) });
     } catch (error) {
       log.error("同步站点的内容脚本注册失败", errorLabel(error));
     }
@@ -127,7 +132,12 @@ export function createSiteSwitch({ rules, permissions, scripts, tabs, messenger,
       log.error("删掉撤权站点的观看会话失败", errorLabel(error));
     }
     const message = { type: "site.changed", platform, enabled: false } as const;
-    await Promise.all([messenger.toTabs(contentTabs.list(), message), messenger.toPages(message)]);
+    // 授权已经没了，不能再按地址找这个站的页面；后台重启过以后内存里登记的又是空的，一直没出声的页面会漏。
+    // 所以不按地址筛选查全部已开标签页、只取编号发：别的站的内容脚本不理这个站的撤权，没有内容脚本的标签页收不到也不报错。
+    const tabIds = [...new Set([...contentTabs.list(), ...(await tabs.allTabIds())])];
+    // 不等页面回话：冻结的标签页要解冻才收消息，等它会拖住这条同步队列，连重新授权也排不上。
+    void messenger.toTabs(tabIds, message);
+    await messenger.toPages(message);
   }
 
   const syncAll = (fresh: boolean): Promise<readonly Synced[]> => Promise.all(sites.map((site) => syncSite(site, fresh)));

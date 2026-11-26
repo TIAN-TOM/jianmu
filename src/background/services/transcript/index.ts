@@ -75,8 +75,8 @@ export interface TranscriptService {
    * 同一视频在途的读取合并，卡片轻量读取记着的官方总结接着用。
    */
   ensure(ref: VideoRef): Promise<Result<TranscriptSnapshot>>;
-  /** 卡片的轻量读取：视频信息、官方总结和本机已有的概览，不读字幕。 */
-  light(ref: VideoRef): Promise<GuidesReply>;
+  /** 卡片的轻量读取：视频信息、官方总结和本机已有的概览，不读字幕正文。tabId 是卡片所在的标签页。 */
+  light(ref: VideoRef, tabId?: number): Promise<GuidesReply>;
   /** 后台自己读到过的视频时长：只看缓存、内存和轻量读取记着的，不发请求；不知道时是 null。 */
   knownDuration(ref: VideoRef): Promise<number | null>;
   /** 原视频还在不在：只有平台明确说找不到才算不在，别的失败都放行。 */
@@ -189,6 +189,7 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
     guard,
     timers,
     log,
+    captionsFallback: deps.officialCaptionsFallback,
     joinable,
     fromCache: (ref, video, cached) => fromCache(ref, video, cached),
     local: (ref) => service.get(ref, { mode: "local" }),
@@ -415,12 +416,12 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
       return reply.ok ? ok({ view: reply.value, generation }) : reply;
     },
 
-    async light(ref) {
+    async light(ref, tabId) {
       const video = keyOf(ref);
       if (!video) return fail("INVALID_REQUEST");
       const changing = imports.pending(video);
       if (changing) await changing;
-      return light.read(ref, video);
+      return light.read(ref, video, tabId);
     },
 
     async knownDuration(ref) {

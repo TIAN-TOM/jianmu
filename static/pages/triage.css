@@ -16,13 +16,15 @@
   font-size: var(--fs-ui);
   font-weight: var(--fw-medium);
   color: var(--accent-text);
-  text-decoration: none;
+  text-decoration-line: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
   white-space: nowrap;
+  transition: var(--tint);
 }
 
 .back-link:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  text-decoration-color: currentColor;
 }
 
 .lede {
@@ -75,10 +77,13 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition:
-    color var(--dur) var(--ease),
-    border-color var(--dur) var(--ease),
-    background-color var(--dur) var(--ease);
+  transition: var(--tint);
+}
+
+/* 按下去当场变色，松开才用 --dur-fast 回去。 */
+.filter:active {
+  background: var(--bg-active);
+  transition-duration: 0ms;
 }
 
 /* 行高取偶数像素、上下留白取整像素，文字落在标签的正中。只在正好 1 倍和正好 2 倍的屏上生效，
@@ -169,6 +174,7 @@
   line-height: var(--lh-snug);
   color: var(--text);
   text-decoration: none;
+  transition: var(--tint);
 }
 
 .video-title:hover {

@@ -1,6 +1,6 @@
 // 响应信封的解析：正常响应走截断补齐，强制流式的拼回普通响应，错误响应只求别丢状态码。
 import { repairTruncatedJson } from "../parse.ts";
-import { assembleEventStream, looksLikeEventStream, redactSecret, withEnglish, type Protocol } from "../provider/index.ts";
+import { assembleEventStream, looksLikeEventStream, parseErrorText, withEnglish, type Protocol } from "../provider/index.ts";
 import { transportBoth } from "./text.ts";
 import type { TransportError } from "./types.ts";
 
@@ -75,19 +75,7 @@ function parseEventStream(protocol: Protocol, text: string): unknown {
   return assembled.data;
 }
 
-/**
- * 错误响应的 body：JSON 照常解析；纯文本先脱敏再取前 200 字当报错原文，
- * 否则跨过截断线的密钥只剩前半截，后面的脱敏认不出来；
- * HTML 错误页和空 body 只留状态码（parseErrorMessage 会写成「服务返回 502」）。
- * 不走截断修复：错误响应里没有值得补齐的正文。
- */
+/** 错误响应的 body，解析规则见 provider/keyed.ts 的 parseErrorText。不走截断修复：错误响应里没有值得补齐的正文。 */
 export function parseErrorEnvelope(text: string, secret?: unknown): unknown {
-  const raw = String(text || "").trim();
-  if (!raw) return {};
-  try {
-    return JSON.parse(raw);
-  } catch {
-    if (raw.startsWith("<")) return {};
-    return { error: { message: redactSecret(raw, secret).slice(0, 200) } };
-  }
+  return parseErrorText(text, secret);
 }

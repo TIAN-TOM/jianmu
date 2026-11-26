@@ -18,8 +18,8 @@ export const FRAME_ERROR_TEXT_HANT: Readonly<Record<FrameErrorCode, ErrorCopy>> 
   FRAME_RATE_LIMITED: { cause: "一分鐘裡點得太多次了。", impact: NOT_SENT, next: "等一下再點。" },
   FRAME_INTERRUPTED: { cause: "簡幕的背景程式中途停了，這次解釋沒做完。", impact: "如果請求已經發出去，可能照樣計費。", next: "再點一次。" },
   AI_IMAGE_UNSUPPORTED: {
-    cause: "畫面分析用的模型不能看圖。",
+    cause: "畫面解釋用的模型不能看圖。",
     impact: "這次沒拿到結果。",
-    next: "到設定頁「按功能選模型」裡替畫面分析換一個能看圖的模型。",
+    next: "到設定頁「按功能選模型」裡替畫面解釋換一個能看圖的模型。",
   },
 };

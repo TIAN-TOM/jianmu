@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { safeFileName } from "../../../../src/pages/sidepanel/files.ts";
-import { activeIndex, chapterAt, explainable, linesOf, mainBreaks, MAX_SELECTION, refreshLang, segmentsBetween, srtOf } from "../../../../src/pages/sidepanel/reading.ts";
+import { activeIndex, chapterAt, copyTextOf, explainable, linesOf, mainBreaks, MAX_SELECTION, noteSegmentIndex, refreshLang, segmentsBetween, selectedNote, srtOf, transcriptRows } from "../../../../src/pages/sidepanel/reading.ts";
 import { fileProblem } from "../../../../src/pages/sidepanel/transcript.ts";
 
 const segment = (id: string, start: number, text: string) => ({ id, start, text, texts: [text] });
@@ -26,6 +26,40 @@ test("原文、译文、双语：译文没到的段落先显示原文；导出 S
   const srt = srtOf(SEGMENTS, [], 30, "bilingual", translated);
   assert.match(srt, /^1\n00:00:00,000 --> 00:00:10,000\n第一句\nFirst\n/);
   assert.match(srt, /\n3\n00:00:20,000 --> /);
+});
+
+test("搜索字幕：原文、译文和整理后的文字都能找到，只在可见行没命中时补行", () => {
+  const translated = { s0: "First line", s2: "Third line" };
+  const tidied = { s0: "首句。", s2: "Third line" };
+  const rows = (query: string, mode: "original" | "translated" | "bilingual", showTidied: boolean) =>
+    transcriptRows(SEGMENTS, mode, translated, tidied, showTidied, query).map(({ index, main, sub, extra }) => [index, main, sub, extra]);
+  assert.deepEqual(rows(" 首句 ", "original", false), [[0, "第一句", "", ["首句。"]]]);
+  assert.deepEqual(rows("第一句", "bilingual", true), [[0, "首句。", "First line", ["第一句"]]]);
+  assert.deepEqual(rows("首句", "translated", true), [[0, "First line", "", ["首句。"]]]);
+  assert.deepEqual(rows("FIRST", "bilingual", true), [[0, "首句。", "First line", []]]);
+  assert.deepEqual(rows("line", "original", false), [[0, "第一句", "", ["First line"]], [2, "第三句", "", ["Third line"]]]);
+  assert.deepEqual(rows("第二", "translated", true), [[1, "第二句", "", []]]);
+  assert.deepEqual(rows("无此句", "original", false), []);
+  assert.deepEqual(rows("  ", "translated", false), [[0, "First line", "", []], [1, "第二句", "", []], [2, "Third line", "", []]]);
+});
+
+test("复制全部字幕：原文和译文视图每段一行，对照视图有译文的段落紧跟一行译文、没译到的只有主文", () => {
+  const translated = { s0: "First", s2: "Third" };
+  assert.equal(copyTextOf(SEGMENTS, "original", translated), "[0:00] 第一句\n[0:10] 第二句\n[0:20] 第三句");
+  assert.equal(copyTextOf(SEGMENTS, "translated", translated), "[0:00] First\n[0:10] 第二句\n[0:20] Third");
+  assert.equal(copyTextOf(SEGMENTS, "bilingual", translated), "[0:00] 第一句\nFirst\n[0:10] 第二句\n[0:20] 第三句\nThird");
+  assert.equal(copyTextOf(SEGMENTS, "bilingual", {}), "[0:00] 第一句\n[0:10] 第二句\n[0:20] 第三句");
+});
+
+test("复制全部字幕：有整理结果时主文用整理后的", () => {
+  assert.equal(copyTextOf([SEGMENTS[0]!], "bilingual", { s0: "First" }, { s0: "第一句。" }), "[0:00] 第一句。\nFirst");
+});
+
+test("划词存笔记取选中文字和所在段的起点，空选区或找不到段落时不保存", () => {
+  assert.deepEqual(selectedNote(" 第二 ", SEGMENTS[1]), { text: "第二", atSec: 10 });
+  assert.deepEqual(selectedNote("字".repeat(MAX_SELECTION + 1), SEGMENTS[0]), { text: "字".repeat(MAX_SELECTION + 1), atSec: 0 });
+  assert.equal(selectedNote("  ", SEGMENTS[1]), null);
+  assert.equal(selectedNote("第二", undefined), null);
 });
 
 test("划词解释：空白和太长的选区不弹「解释」", () => {
@@ -83,4 +117,20 @@ test("重新读取字幕：平台的字幕点名现在的语言，导入的和�
   assert.equal(refreshLang({ ref: { kind: "human" } }), true);
   assert.equal(refreshLang({ fileName: "样例.srt", ref: { kind: "imported" } }), false);
   assert.equal(refreshLang({ ref: { kind: "official-ai" } }), false);
+});
+
+test("笔记对到哪一段：存下来的时间是整秒，开始时间带小数的那一段照样对得上；在一段中途存的按播放位置找", () => {
+  const starts = (...list: number[]) => list.map((start) => ({ start }));
+  // 37.5 秒开始的那一段存成 37：标到这一段，不标到前一段
+  assert.equal(noteSegmentIndex(starts(30, 37.5, 45), 37), 1);
+  assert.equal(activeIndex(starts(30, 37.5, 45), 37), 0, "只按播放位置找会标到前一段");
+  // 第一段带小数：0.4 秒开始的段存成 0，照样标第一段
+  assert.equal(noteSegmentIndex(starts(0.4, 6.2), 0), 0);
+  // 在一段中途存的：没有正好对上的段，按播放位置找
+  assert.equal(noteSegmentIndex(starts(30, 37.5, 45), 41), 1);
+  assert.equal(noteSegmentIndex(starts(30, 37.5, 45), 50), 2);
+  // 笔记时间早于所有段：一段都不标
+  assert.equal(noteSegmentIndex(starts(5, 9), 2), -1);
+  // 同一秒里开始的两段分不清，标第一段
+  assert.equal(noteSegmentIndex(starts(10, 12.1, 12.7, 15), 12), 1);
 });

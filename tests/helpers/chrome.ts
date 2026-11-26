@@ -61,6 +61,8 @@ export interface FakeChromeOptions {
   readonly openTabs?: readonly number[];
   /** 按地址规则查时回的标签页：编号到地址。给了它，按地址查时不再回 openTabs。 */
   readonly urlTabs?: Readonly<Record<number, string>>;
+  /** 按地址查标签页时照匹配规则筛 urlTabs。 */
+  readonly matchUrlTabs?: boolean;
   /** sidePanel.open 被浏览器拒绝。 */
   readonly panelOpenRefused?: boolean;
   /** 老一些的浏览器：sidePanel 没有开了、关了这两个事件。 */
@@ -117,6 +119,15 @@ export interface FakePort {
   send(message: unknown): boolean;
   /** 页面关掉：后台收到断开。 */
   close(): void;
+}
+
+/** 扩展匹配规则的简化版：* 匹配任意一段，其余原样比。 */
+function matchesPattern(pattern: string, url: string): boolean {
+  const source = pattern
+    .split("*")
+    .map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&"))
+    .join(".*");
+  return new RegExp(`^${source}$`).test(url);
 }
 
 export function createFakeChrome(options: FakeChromeOptions = {}) {
@@ -177,6 +188,8 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     pings: 0,
     /** 后台建的站点读取环境。 */
     siteCtxs: [] as SiteCtx[],
+    /** 建读取环境时带的标签页，和 siteCtxs 一一对应。 */
+    siteCtxTabs: [] as (number | undefined)[],
     /** 动态注册和注销内容脚本，按先后记。 */
     registrations: [] as Call<{ readonly action: "register" | "unregister"; readonly ids: readonly string[]; readonly matches?: readonly string[]; readonly js?: readonly string[] }>[],
   };
@@ -231,7 +244,10 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
         const tab = info.windowId === undefined ? undefined : options.activeTabs?.[info.windowId];
         return tab ? [{ ...tab, windowId: info.windowId, active: true }] : [];
       }
-      if (info.url && options.urlTabs) return Object.entries(options.urlTabs).map(([id, url]) => ({ id: Number(id), url }));
+      const patterns = info.url;
+      // 打开 matchUrlTabs 时和浏览器一样按匹配规则筛；默认不筛，查什么都给全部 urlTabs。
+      const hit = (url: string) => options.matchUrlTabs !== true || (patterns ?? []).some((pattern) => matchesPattern(pattern, url));
+      if (patterns && options.urlTabs) return Object.entries(options.urlTabs).filter(([, url]) => hit(url)).map(([id, url]) => ({ id: Number(id), url }));
       return (options.openTabs ?? []).map((id) => ({ id }));
     },
     async get(tabId: number) {
@@ -475,7 +491,8 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
       siteRules,
       sites: {
         service: (platform) => (options.site && options.site.rules.platform === platform ? options.site : undefined),
-        ctx(_platform, { signal }) {
+        ctx(_platform, { signal, tabId }) {
+          calls.siteCtxTabs.push(tabId);
           const ctx: SiteCtx = {
             fetch: () => Promise.reject(new Error("测试里的读取环境不发请求")),
             signal,

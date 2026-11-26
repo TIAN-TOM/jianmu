@@ -5,7 +5,7 @@ import type { ImportedBackup } from "../../../../src/core/backup/records.ts";
 import { fail, type ErrorCode } from "../../../../src/core/errors.ts";
 import type { NoteRecord } from "../../../../src/core/notes/records.ts";
 import { videoKey } from "../../../../src/core/video-ref.ts";
-import { backupFailureText, importSummary, receiveBackup, sendBackup } from "../../../../src/pages/options/backup-transfer.ts";
+import { backupFailureText, importSummary, receiveBackup, withBackupImport } from "../../../../src/pages/options/backup-transfer.ts";
 import type { PageApi, PortHandlers } from "../../../../src/pages/shared/api.ts";
 
 const VIDEO = videoKey({ platform: "bilibili", videoId: "BV1Sample000", segment: 1 });
@@ -127,7 +127,7 @@ test("导入：一段回了才发下一段；计数按主键去重，页面读�
     },
   });
   const notes = Array.from({ length: 3 }, (_, index) => ({ ...note(1), text: "很长的笔记".repeat(2_000_000) + index }));
-  const result = await sendBackup(fake.api, imported(notes));
+  const result = await withBackupImport(fake.api, (send) => send(imported(notes)));
   assert.ok(result.ok, JSON.stringify(result));
   assert.ok(fake.posted.length > 1, "切成了好几段");
   assert.deepEqual(fake.posted.map((message) => (message as { seq: number }).seq), [...fake.posted.keys()]);
@@ -145,14 +145,14 @@ test("导入：后台说了原因、中途断开、回的段号不对，都判�
   ];
   for (const [label, onPost, code] of cases) {
     const fake = fakeApi({ onPost });
-    assert.deepEqual(await sendBackup(fake.api, imported(notes)), { ok: false, code }, label);
+    assert.deepEqual(await withBackupImport(fake.api, (send) => send(imported(notes))), { ok: false, code }, label);
     assert.equal(fake.posted.length, 1, `${label}：不再发下一段`);
   }
 });
 
-test("导入：文件里一条都没有就不连后台，计数是读文件时跳过的", async () => {
-  const fake = fakeApi({ onPost: () => assert.fail("不该连后台") });
-  const result = await sendBackup(fake.api, imported([]));
+test("导入：文件里一条都没有就不发记录，计数是读文件时跳过的", async () => {
+  const fake = fakeApi({ onPost: () => assert.fail("不该发记录") });
+  const result = await withBackupImport(fake.api, (send) => send(imported([])));
   assert.deepEqual(result.ok && result.value.counts.notes, { added: 0, updated: 0, skipped: 1 });
 });
 

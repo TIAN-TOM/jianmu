@@ -18,6 +18,7 @@ import {
   type TransportError,
   type TransportResponse,
 } from "../../../src/core/ai/transport/index.ts";
+import { COMMENT_ACTIVATION_ITEMS, COMMENT_DATA_ITEMS } from "../../../src/core/consent-comments.ts";
 import {
   ACTIVATION_FINGERPRINT,
   ACTIVATION_TABLE,
@@ -94,6 +95,11 @@ const ids = (items: readonly NoticeItem<string>[]): string[] => items.map(({ id 
 
 const versionMap = (table: NoticeTable<string>): Record<string, string> =>
   Object.fromEntries(versionStamps(table).map(({ version, fingerprint }) => [String(version), fingerprint]));
+
+// 评论区那几条只在日用包里（构建开关 FEATURE_COMMENTS，发行构建关着），单独成第 2 版；测试构建打开了它。去掉它们就是发行包的说明。
+const COMMENT_KEYS: ReadonlySet<string> = new Set([...COMMENT_DATA_ITEMS, ...COMMENT_ACTIVATION_ITEMS].map(({ kind, id }) => `${kind}:${id}`));
+const releaseOf = <Kind extends string>(table: NoticeTable<Kind>): NoticeTable<Kind> =>
+  table.map((row) => ({ ...row, items: row.items.filter(({ kind, id }) => !COMMENT_KEYS.has(`${kind}:${id}`)) })).filter((row) => row.items.length > 0);
 
 test("有密钥但没确认数据说明时校验不过，AI 请求一个都不发", async () => {
   const fetched: string[] = [];
@@ -252,8 +258,8 @@ test("「版本 → 指纹」快照：改了条目没升版就失败", () => {
     readFileSync(new URL("../../fixtures/consent-fingerprints.json", import.meta.url), "utf8"),
   ) as { dataConsent: Record<string, string>; activation: Record<string, string> };
 
-  assert.deepEqual(versionMap(DATA_CONSENT_TABLE), snapshot.dataConsent);
-  assert.deepEqual(versionMap(ACTIVATION_TABLE), snapshot.activation);
+  assert.deepEqual(versionMap(releaseOf(DATA_CONSENT_TABLE)), snapshot.dataConsent);
+  assert.deepEqual(versionMap(releaseOf(ACTIVATION_TABLE)), snapshot.activation);
 });
 
 const entryKeys = (items: readonly NoticeItem<string>[]): string[] => items.map(({ kind, id }) => `${kind}:${id}`);
@@ -261,12 +267,13 @@ const lines = (items: readonly NoticeItem<string>[]) => noticeLines(items).map((
 
 // 首发前的版本号是开发期间留下的，首发的包从第 1 版算起，开发期间加过的条目都算第 1 版的内容（PRD 第 7.2、7.3 节）。
 test("首发的两份说明都是第 1 版，表里只有这一版，开发期间加过的条目都在里面", () => {
-  assert.deepEqual(currentStamp(DATA_CONSENT_TABLE), { version: 1, fingerprint: "7c550f58c5fddf7f" });
-  assert.deepEqual(currentStamp(ACTIVATION_TABLE), { version: 1, fingerprint: "372b4707b69fb4f1" });
-  assert.equal(DATA_CONSENT_VERSION, 1);
-  assert.equal(ACTIVATION_VERSION, 1);
-  assert.deepEqual(DATA_CONSENT_TABLE.map(({ version }) => version), [1]);
-  assert.deepEqual(ACTIVATION_TABLE.map(({ version }) => version), [1]);
+  assert.deepEqual(currentStamp(releaseOf(DATA_CONSENT_TABLE)), { version: 1, fingerprint: "7c550f58c5fddf7f" });
+  assert.deepEqual(currentStamp(releaseOf(ACTIVATION_TABLE)), { version: 1, fingerprint: "372b4707b69fb4f1" });
+  assert.deepEqual(releaseOf(DATA_CONSENT_TABLE).map(({ version }) => version), [1]);
+  assert.deepEqual(releaseOf(ACTIVATION_TABLE).map(({ version }) => version), [1]);
+  // 测试构建开着评论区，多出只在日用包里的第 2 版。
+  assert.equal(DATA_CONSENT_VERSION, 2);
+  assert.equal(ACTIVATION_VERSION, 2);
   assert.deepEqual(entryKeys(DATA_CONSENT_TABLE.flatMap((row) => row.items)), [
     "category:transcript",
     "category:selection",
@@ -285,6 +292,7 @@ test("首发的两份说明都是第 1 版，表里只有这一版，开发期�
     "trigger:keep-running",
     "category:current-frame",
     "purpose:frame-explain",
+    "category:top-comments",
   ]);
   assert.deepEqual(entryKeys(ACTIVATION_TABLE.flatMap((row) => row.items)), [
     "read:video-info",
@@ -303,7 +311,20 @@ test("首发的两份说明都是第 1 版，表里只有这一版，开发期�
     "read:watch-later-progress",
     "read:open-tabs",
     "read:current-frame",
+    "read:top-comments",
   ]);
+});
+
+test("评论区只在日用包里：两份说明各多一版，只有评论这一条，第 1 版的指纹不变；发行构建没有这一版", () => {
+  const keys = (table: NoticeTable<string>): string[] => table.flatMap((row) => row.items.filter(({ id }) => id === "top-comments").map(({ kind, id }) => `${row.version} ${kind}:${id}`));
+  assert.deepEqual(keys(DATA_CONSENT_TABLE), ["2 category:top-comments"]);
+  assert.deepEqual(keys(ACTIVATION_TABLE), ["2 read:top-comments"]);
+  assert.deepEqual(DATA_CONSENT_TABLE[1]?.items.length, 1);
+  assert.deepEqual(ACTIVATION_TABLE[1]?.items.length, 1);
+  assert.deepEqual(versionStamps(DATA_CONSENT_TABLE)[0], currentStamp(releaseOf(DATA_CONSENT_TABLE)), "第 1 版的指纹和发行包一样");
+  assert.deepEqual(versionStamps(ACTIVATION_TABLE)[0], currentStamp(releaseOf(ACTIVATION_TABLE)));
+  const shown = noticeLines(DATA_CONSENT_TABLE.flatMap((row) => row.items)).find((line) => line.ids.includes("top-comments"));
+  assert.ok(shown?.text.includes("不含昵称"));
 });
 
 test("解释当前画面首发带上：两份说明的第 1 版各多几条；截图这一条和划词解释那些功能并成一行显示", () => {
@@ -369,11 +390,12 @@ test("指纹只看条目：改措辞、调顺序不变，增删或改 id、kind 
 
 // 以后扩大范围升到第 2 版时的样子：在当前的表后面加一版。
 const NEXT_ITEM = item("category", "next-thing");
-const NEXT: NoticeTable<string> = [...DATA_CONSENT_TABLE, { version: 2, items: [NEXT_ITEM] }];
+const BASE: NoticeTable<string> = releaseOf(DATA_CONSENT_TABLE);
+const NEXT: NoticeTable<string> = [...BASE, { version: 2, items: [NEXT_ITEM] }];
 
 test("每一版的指纹覆盖到这一版为止的全部条目，加新版不改旧版的指纹", () => {
   const [first, second] = versionStamps(NEXT);
-  assert.deepEqual(first, currentStamp(DATA_CONSENT_TABLE));
+  assert.deepEqual(first, currentStamp(BASE));
   assert.deepEqual(versionStamps(NEXT.slice(0, 1)), [first]);
   assert.notEqual(first?.fingerprint, second?.fingerprint);
 });
@@ -393,7 +415,7 @@ test("存过当前版本和指纹的放行，这才算确认过", () => {
 });
 
 test("说明更新时只列新增的内容：同意过第 1 版的，升到第 2 版只看到第 2 版加的条目，模型请求不放行", () => {
-  const status = noticeStatus(NEXT, currentStamp(DATA_CONSENT_TABLE));
+  const status = noticeStatus(NEXT, currentStamp(BASE));
   assert.ok(status.state === "needed" && status.updated, "提示说明有更新");
   assert.deepEqual(status.state === "needed" ? status.items : [], [NEXT_ITEM]);
   const next = currentStamp(NEXT);

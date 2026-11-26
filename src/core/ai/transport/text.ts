@@ -6,7 +6,7 @@ import type { LangMessages } from "../provider/text.ts";
 import { TRANSPORT_HANT } from "./text-hant.ts";
 
 const TRANSPORT_ZH = {
-  notConfigured: (reasons: string) => `AI 还没配置好：${reasons}`,
+  notConfigured: (reasons: string) => `AI 还没设置好：${reasons}`,
   idleTimeout: "响应传到一半断了，请重试。",
   hardTimeout: (seconds: number) => `请求超过 ${seconds} 秒上限，可能是服务繁忙或这一段太长。概览可以在设置页把「概览分块」改成「较短」再试。`,
   network: (baseUrl: string) => `连不上 ${baseUrl}。请检查地址是否正确、服务是否在运行，以及是否已在设置页授权。`,
@@ -16,6 +16,8 @@ const TRANSPORT_ZH = {
   refusedWith: (reason: string) => `模型拒绝了这次请求：${reason}`,
   refused: "模型拒绝了这次请求。可以换一个模型再试。",
   badKey: "服务拒绝了这个密钥，请在设置里检查密钥和地址是否匹配。",
+  localOriginRejected:
+    "本机的服务拒绝了来自浏览器扩展的请求，多半不是密钥的问题。用的是 Ollama 的话，在启动它的环境里把 OLLAMA_ORIGINS 设成 chrome-extension://*，再重启 Ollama。",
   notFound: "服务返回 404，多半是模型名写错或 API 地址不对，请到设置页核对。",
   rateLimited: "服务限流了，稍等一会儿再试。",
   serviceError: (status: number, detail: string) => `AI 服务出错（HTTP ${status}）：${detail}`,
@@ -37,6 +39,8 @@ const TRANSPORT_EN: TransportText = {
   refusedWith: (reason) => `The model refused this request: ${reason}`,
   refused: "The model refused this request. Try a different model.",
   badKey: "The service rejected this key. Check in settings that the key and address match.",
+  localOriginRejected:
+    "The service on this computer refused requests from the browser extension. This usually isn't a key problem. If you use Ollama, set OLLAMA_ORIGINS to chrome-extension://* where Ollama starts, then restart Ollama.",
   notFound: "The service returned 404. The model name or API address is most likely wrong, so check them in settings.",
   rateLimited: "The service is limiting requests. Wait a moment and try again.",
   serviceError: (status, detail) => `The AI service ran into an error (HTTP ${status}): ${detail}`,

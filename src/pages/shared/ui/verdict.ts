@@ -10,7 +10,7 @@ export type MarkShape = "go" | "fair" | "skip" | "unknown" | "square";
 /** 全部标记形状。 */
 export const MARK_SHAPES: readonly MarkShape[] = Object.freeze(["go", "fair", "skip", "unknown", "square"]);
 
-// 新四档是一条线上的圆：实心、半实心、空心、问号。旧版的「看概览就够」不在这条线上，用方块，形状上不混进去。
+// 四档各一种形状，具体怎么画由主题挑（三套画法见 icons.ts 的 MARK_SETS）。旧版的「看概览就够」单独一种，形状上不混进四档。
 const MARKS: Readonly<Record<string, MarkShape>> = Object.freeze({
   推荐看: "go",
   可以看: "fair",

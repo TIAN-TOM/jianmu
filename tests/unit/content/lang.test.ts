@@ -15,8 +15,8 @@ test("外观到之前按浏览器的界面语言定", () => {
 
 test("外观里的语言选项：选了就按它，跟随浏览器时看界面语言；变了才回 true", () => {
   const lang = createContentLang(() => "zh-CN");
-  assert.equal(lang.update({ accentTheme: "ink", inPageCard: true, language: "zh" }), false);
-  assert.equal(lang.update({ accentTheme: "ink", inPageCard: true, language: "en" }), true);
+  assert.equal(lang.update({ accentTheme: "marker", inPageCard: true, language: "zh" }), false);
+  assert.equal(lang.update({ accentTheme: "marker", inPageCard: true, language: "en" }), true);
   assert.equal(lang.current(), "en");
   assert.equal(lang.update({ language: "en" }), false);
   assert.equal(lang.update({ language: "auto" }), true);
@@ -37,12 +37,12 @@ test("繁体：选了繁体就按它；跟随浏览器时台湾、香港、澳�
 });
 
 test("没带语言选项、选项认不出时按跟随浏览器", () => {
-  assert.equal(languageSettingOf({ accentTheme: "ink", inPageCard: true }), "auto");
+  assert.equal(languageSettingOf({ accentTheme: "marker", inPageCard: true }), "auto");
   assert.equal(languageSettingOf({ language: "fr" }), "auto");
   assert.equal(languageSettingOf(null), "auto");
   assert.equal(languageSettingOf({ language: "en" }), "en");
   const lang = createContentLang(() => "en-US");
-  assert.equal(lang.update({ accentTheme: "ink", inPageCard: true }), false);
+  assert.equal(lang.update({ accentTheme: "marker", inPageCard: true }), false);
   assert.equal(lang.current(), "en");
 });
 
@@ -60,4 +60,14 @@ test("播放页上的字：繁体是繁体那份", () => {
   assert.equal(contentText("zh-Hant").noteTitle, "在目前時間點記一則筆記（快速鍵 n）");
   assert.equal(noteIcon("zh-Hant").title, contentText("zh-Hant").noteTitle);
   assert.equal(frameIcon("zh-Hant").title, "解釋目前畫面");
+});
+
+test("记笔记以后图标旁闪的字：简体、繁体都不超过 8 个字，图标旁放得下", () => {
+  for (const lang of ["zh", "zh-Hant"] as const) {
+    const text = contentText(lang);
+    const flashes = [text.saving, text.duplicate, text.savedUnpolished, text.saved, text.saveFailed, ...Object.values(text.shortFailures)];
+    for (const flash of flashes) assert.ok([...flash].length <= 8, `${lang}：「${flash}」太长`);
+  }
+  assert.equal(contentText().duplicate, "这里已经记过了");
+  assert.equal(contentText("zh-Hant").shortFailures.NEED_LOGIN, "要先登入");
 });

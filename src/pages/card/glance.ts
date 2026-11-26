@@ -1,5 +1,6 @@
-// 卡片收起的那一行上写什么：播放到的章节（隔一会儿问一次本页的播放器），和临时说的一句话（播满时长自动收起时说为什么）。
-// 只在收着、侧边栏关着、已经有章节时才问播放位置，标签页不在前台时不问；那句话只在看得见时计时。
+// 卡片收起的那一行上写什么：没有一句话结论时写播放到的章节（隔一会儿问一次本页的播放器），和临时说的一句话（浏览器没让卡片打开侧边栏时说怎么办）。
+// 只在收着、侧边栏关着、没有结论、已经有章节时才问播放位置，标签页不在前台时不问；那句话只在看得见时计时。
+import type { LearningAnalysis } from "../../core/notes/markdown.ts";
 import { chapterAt, type ChapterStart } from "../shared/ui/chapters.ts";
 import { CARD_ZH } from "./text-zh.ts";
 import type { CardTimers } from "./timers.ts";
@@ -8,9 +9,18 @@ import type { CardTimers } from "./timers.ts";
 export const GLANCE_POLL_MS = 2_000;
 /** 收起那一行上的一句话留多久。 */
 export const HEAD_NOTE_MS = 6_000;
-/** 中文的那两句；说什么由卡片模型按界面语言从文案表取。 */
-export const AUTO_FOLD_NOTE = CARD_ZH.autoFoldNote;
+/** 中文的那一句；说什么由卡片模型按界面语言从文案表取。 */
 export const PANEL_REFUSED_NOTE = CARD_ZH.panelRefusedNote;
+
+const trimmed = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
+
+/** 本机已有的一句话结论（判断词和那句话），结论还在写或者没有时是 null。收起那一行有它就写它，不写播放到的章节。 */
+export function conclusionOf(view: { readonly analysis: LearningAnalysis | null; readonly verdictPending: boolean | string }): { readonly label: string; readonly summary: string } | null {
+  const verdict = view.verdictPending ? undefined : view.analysis?.verdict;
+  const summary = trimmed(verdict?.summary);
+  const label = summary ? trimmed(verdict?.verdict) : "";
+  return label ? { label, summary } : null;
+}
 
 export interface GlanceState {
   /** 播放到的那一章在按开始时间排好的章节里的序号；不知道时是 null。 */
@@ -25,7 +35,7 @@ export interface GlanceDeps {
   readonly visible: () => boolean;
   /** 本页的播放器播到第几秒；问不到时是 null。不给就不写当前章节。 */
   readonly position: (() => Promise<number | null>) | null;
-  /** 这会儿要不要写当前章节：收着、侧边栏关着。 */
+  /** 这会儿要不要写当前章节：收着、侧边栏关着、还没有一句话结论。 */
   readonly wanted: () => boolean;
   /** 按开始时间排好的章节。 */
   readonly chapters: () => readonly ChapterStart[];

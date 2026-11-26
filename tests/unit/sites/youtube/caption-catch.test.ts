@@ -188,3 +188,19 @@ test("内容脚本撤下时叫小桥停下：接住的清掉、之后的不接�
   assert.equal(askPlayerCaption(w.document, ID, TOKEN)?.videoId, ID);
   stop();
 });
+
+test("停之前发出、停了以后才回来的请求：再接上时也不记", () => {
+  const w = pageWith();
+  const stop = startCaptionCatch(w.scope);
+  const early = new w.Request();
+  early.open("GET", address(`v=${ID}&lang=en`));
+  early.send();
+  switchCaptionCatch(w.document, false);
+  switchCaptionCatch(w.document, true);
+  early.finish(200, BODY);
+  assert.equal(askPlayerCaption(w.document, ID, TOKEN), null);
+  // 接上以后才发出的照常记。
+  w.request(address(`v=${ID}&lang=en`));
+  assert.equal(askPlayerCaption(w.document, ID, TOKEN)?.videoId, ID);
+  stop();
+});

@@ -4,9 +4,11 @@ import type { QaRecord } from "../../core/notes/records.ts";
 import type { VideoKey } from "../../core/video-ref.ts";
 import type { EmptyRequest } from "./core.ts";
 
+/** 侧边栏凭任务号，卡片凭登记时拿到的一次性令牌，两样恰好带一个。 */
 export interface QaAskRequest {
   readonly video: VideoKey;
-  readonly taskId: string;
+  readonly taskId?: string;
+  readonly token?: string;
 }
 
 export interface QaAnswerView {

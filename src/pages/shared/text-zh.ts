@@ -1,6 +1,7 @@
 // 几个页面共用的界面文案（ui/ 下的共用组件、配置检查的说法），简体这份。它定下文案表的形状（SharedText），
 // 英文那份（text-en.ts）和繁体那份（text-hant.ts）必须满足同一个类型。模块顶层只放字面量和函数。带变量的文案写成函数。
 import type { ActivationKind } from "../../core/consent.ts";
+import type { AutoPauseReason } from "../../shared/messages/ai.ts";
 import type { Basis } from "../../core/notes/records.ts";
 
 export const SHARED_ZH = {
@@ -15,6 +16,7 @@ export const SHARED_ZH = {
     label: "章节",
     key: "重点",
     heading: (count: number, keyCount: number) => (keyCount > 0 ? `章节 ${count}，重点 ${keyCount}` : `章节 ${count}`),
+    total: (time: string) => `全长 ${time}`,
   },
 
   verdict: {
@@ -47,6 +49,16 @@ export const SHARED_ZH = {
     note: "开着的简幕页面会关掉，再打开就好",
   },
 
+  // 打开就出结论停着时的说法：侧边栏顶上那一行和设置页那一节都用。额度用完、本机服务拒绝的给「恢复」，密钥被拒的去设置页改。
+  autoPaused: {
+    reasons: {
+      quota: "额度用完了，「打开就出结论」先停了",
+      key: "密钥被拒，「打开就出结论」先停了",
+      "local-origin": "本机的服务不接浏览器扩展的请求，「打开就出结论」先停了",
+    } satisfies Readonly<Record<AutoPauseReason, string>>,
+    resume: "恢复",
+  },
+
   // 没设置好 AI 服务时的说法：缺密钥、缺数据同意，其余按从没配过说。
   setup: {
     notice: {
@@ -63,6 +75,12 @@ export const SHARED_ZH = {
       key: "API 密钥随浏览器重启或扩展更新清空了，生成概览要先到设置页重新填；勾选「在这台电脑上记住密钥」就不用每次填。",
       consent: "生成概览要先到设置页勾选数据说明。",
       none: "还没设置 AI 服务，生成概览要先填服务商和密钥。",
+    },
+    // 没设置好时侧边栏摆在「生成概览」位置上的那个按钮，点了去设置页。
+    action: {
+      key: "重新填密钥",
+      consent: "去看数据说明",
+      none: "设置 AI 服务",
     },
   },
 };

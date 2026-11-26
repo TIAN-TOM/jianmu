@@ -1,6 +1,7 @@
-// 设置页。确认启用之前只显示启用说明，和确认前就允许的导出备份、清除本机数据；确认之后才有外观、播放页卡片、AI 服务和打开就出结论。「关于」一节启用前后都有。
+// 设置页。确认启用之前只显示启用说明，和确认前就允许的导出备份、清除本机数据；确认之后才有 AI 服务、YouTube、打开就出结论、速读和精读、播放页卡片和外观（要先设置好才能用的排在前面）。「关于」一节启用前后都有。
 // 状态和动作都在 state.ts，这里只渲染。文字取自文案表（text.ts），跟着界面语言重画。
-import { useId, useRef } from "preact/hooks";
+import { useId, useRef, useState } from "preact/hooks";
+import type { ClearScope } from "../../core/clear-guard.ts";
 import { ACTIVATION_TABLE, noticeLines, noticeStatus, type ActivationKind, type NoticeItem } from "../../core/consent.ts";
 import { describe } from "../../core/errors.ts";
 import { LANGUAGE_SETTINGS, type LanguageSetting } from "../../core/output-lang.ts";
@@ -168,6 +169,14 @@ function DataSection({ state, enabled }: { readonly state: OptionsState; readonl
   const file = useRef<HTMLInputElement>(null);
   const busy = state.busy.value;
   const working = busy !== null;
+  // 三个清除按钮同一时间只开一个确认框，免得一个收回后下面的上移，连点落到另一个的「确认」上。
+  const [asking, setAsking] = useState<ClearScope | null>(null);
+  const confirmFor = (scope: ClearScope) => ({
+    open: asking === scope,
+    onOpenChange: (open: boolean) => setAsking(open ? scope : null),
+    disabled: working,
+    onConfirm: () => void state.clearData(scope),
+  });
   return (
     <section class="card" id="learning-data">
       <h2>{t.title}</h2>
@@ -205,16 +214,21 @@ function DataSection({ state, enabled }: { readonly state: OptionsState; readonl
           label={t.clearCache}
           question={t.clearCacheQuestion}
           confirmLabel={t.clearCacheConfirm}
-          disabled={working}
-          onConfirm={() => void state.clearData("cache")}
+          {...confirmFor("cache")}
+        />
+        <Confirmable
+          label={t.clearNotes}
+          question={t.clearNotesQuestion}
+          confirmLabel={t.clearNotesConfirm}
+          danger
+          {...confirmFor("notes")}
         />
         <Confirmable
           label={t.clearAll}
           question={t.clearAllQuestion}
           confirmLabel={t.clearAllConfirm}
           danger
-          disabled={working}
-          onConfirm={() => void state.clearData("all")}
+          {...confirmFor("all")}
         />
       </div>
       <StatusLine status={state.dataStatus.value} />
@@ -233,7 +247,7 @@ export function App({
 }: {
   readonly state: OptionsState;
   readonly activation: Activation;
-  readonly api: Pick<PageApi, "send">;
+  readonly api: Pick<PageApi, "send" | "on">;
   readonly version: string;
 }) {
   const t = optionsText();
@@ -246,12 +260,13 @@ export function App({
       {loadError ? <StateBlock title={t.loadFailed} impact={loadError} primary={{ label: t.retry, onClick: () => void state.load() }} /> : null}
       {enabled ? (
         <>
-          <AppearanceSection state={state} />
-          <CardSection state={state} />
-          {SiteSections ? <SiteSections /> : null}
+          {/* 要先设置好才能用的排在前面：AI 服务、YouTube；常调的开关其次；外观最少动，放在后面。 */}
           <AiSection state={state} />
-          <AutoSection state={state} />
+          {SiteSections ? <SiteSections /> : null}
+          <AutoSection state={state} api={api} />
           <ModeSection api={api} />
+          <CardSection state={state} />
+          <AppearanceSection state={state} />
           <TriageSection />
         </>
       ) : null}

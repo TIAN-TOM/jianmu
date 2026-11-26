@@ -1,6 +1,7 @@
-// 卡片的界面：标题栏（展开收起）、提示、AI 概览（结论在最前，章节默认只露前几章）、B 站官方总结（有概览时收成一行）、进度和按钮。
-// 收起时标题栏那一行写着判断档和播放到的章节（或者临时的一句话），旁边是打开侧边栏的入口；侧边栏开着时不摆这个入口。
-// 按钮行在内容还在来时先不摆（规则在 model.ts），摆出来以后不被晚到的内容顶走。
+// 卡片的界面：标题栏（展开收起）、提示、AI 概览（结论在最前，评论区那一行点开露出要点，章节默认只露前几章）、B 站官方总结（有概览时收成一行）、进度和底部一行。
+// 标题栏展开时写名字，收起时写判断记号、判断档和一句话结论（没有结论时写播放到的章节，或者临时的一句话），旁边是打开侧边栏的入口；侧边栏开着时不摆这个入口。
+// 底部一行左边是章节的「展开全部」，右边是按钮。按钮在内容还在来时先不摆（规则在 model.ts），摆出来以后不被晚到的内容顶走。
+// 各套主题的版面差异都在样式表里，标记不分主题。
 // 规则在 model.ts。视频标题不在卡片里再写一遍：页面顶上就是。
 // 展开收起有过渡：标题栏下面那一整块的高度从零长到内容那么高，卡片把每一帧的高度报给页面，外面的框架跟着走。
 import type { ComponentChildren, RefObject } from "preact";
@@ -9,13 +10,25 @@ import type { LearningAnalysis } from "../../core/notes/markdown.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
 import type { OfficialSummaryView, OutlineSectionView } from "../../shared/messages/transcript.ts";
 import { keyChapterStarts, verdictName } from "../../core/ai/verdict.ts";
-import { ChapterList, type ChapterItem } from "../shared/ui/chapter-list.tsx";
+import type { ChapterItem } from "../shared/ui/chapter-list.tsx";
+import { Collapse } from "../shared/ui/collapse.tsx";
+import { CommentFold, commentViewOfVerdict } from "../shared/ui/comment-block.tsx";
+import { Icon, VerdictMark } from "../shared/ui/icon.tsx";
 import { ServiceSaid } from "../shared/ui/notice.tsx";
 import { StaleTranscriptLine, VerdictBlock } from "../shared/ui/verdict-block.tsx";
-import { staleOverviewMarks, type BasisSource } from "../shared/ui/verdict.ts";
+import { markOf, staleOverviewMarks, type BasisSource } from "../shared/ui/verdict.ts";
 import { uiLang } from "../shared/ui-lang.ts";
+import { CardChapters } from "./chapters.tsx";
 import { cardRows, chaptersInOrder, hasOverview, type CardView, type TaskProgress } from "./model.ts";
+import { canWriteFromOfficial } from "./official-verdict.ts";
+import { ASK_IDLE, type AskState } from "./ask.ts";
+import { CardAskBox } from "./ask-view.tsx";
+import { conclusionOf } from "./glance.ts";
 import { cardText } from "./text.ts";
+
+// 评论区那一行（PRD F23），有要点时点开才露：关掉开关的构建里连同组件和文案一起裁掉。
+const CardComments = FEATURE_COMMENTS ? CommentFold : null;
+const commentsOf = FEATURE_COMMENTS ? commentViewOfVerdict : null;
 
 type ClickEvent = { readonly isTrusted: boolean };
 
@@ -62,9 +75,9 @@ function OutlineItem({ part, index, onSeek }: { readonly part: OutlineSectionVie
   );
 }
 
-function More({ open, label, onToggle }: { readonly open: boolean; readonly label: string; readonly onToggle: () => void }) {
+function More({ open, label, onToggle, id }: { readonly open: boolean; readonly label: string; readonly onToggle: () => void; readonly id?: string }) {
   return (
-    <button type="button" class="card-more" aria-expanded={open} onClick={onToggle}>
+    <button type="button" class="card-more" id={id} aria-expanded={open} onClick={onToggle}>
       {open ? cardText().less : label}
     </button>
   );
@@ -116,33 +129,40 @@ function OfficialBody({ official, limited, onSeek, onToggleAll }: { readonly off
   );
 }
 
+// 卡片地方小，依据字幕是常态不标；只有没读字幕、靠官方总结写的结论才提醒一句。
 function basisOf(analysis: LearningAnalysis): BasisSource | null {
   const source = text(analysis.verdict?.source);
-  if (source === "official" || source === "official-summary") return "official-summary";
-  return hasOverview(analysis) ? "transcript" : null;
+  return source === "official" || source === "official-summary" ? "official-summary" : null;
 }
 
 function Overview({
   analysis,
   stale,
   pending,
-  showAll,
+  commentsOpen,
+  onToggleComments,
   onSeek,
-  onToggleAll,
 }: {
   readonly analysis: LearningAnalysis;
   /** 换过字幕：结论块里标结论的，章节的单独一行。 */
   readonly stale: { readonly verdict: boolean; readonly chapters: boolean };
   readonly pending: boolean | string;
-  readonly showAll: boolean;
+  readonly commentsOpen: boolean;
+  readonly onToggleComments: () => void;
   readonly onSeek: (atSec: number) => void;
-  readonly onToggleAll: () => void;
 }) {
   const verdict = analysis.verdict;
   const summary = text(verdict?.summary);
-  const chapters: ChapterItem[] = (analysis.chapters ?? []).map((chapter) => ({ startSec: chapter.timestampSeconds, title: text(chapter.title) }));
-  const shown = cardRows(chapters, showAll);
-  const cut = cardRows(chapters, false).length < chapters.length;
+  const comments = commentsOf?.(verdict) ?? null;
+  // 卡片上等过它（先是「正在写结论」）：写好了进来时淡一下，标记有「有结果了」那一下。
+  const waited = useRef(false);
+  if (pending) waited.current = true;
+  // 每一章都到下一章为止：时长条按整份章节算。
+  const all = analysis.chapters ?? [];
+  const chapters: ChapterItem[] = all.map((chapter, index) => {
+    const next = all[index + 1]?.timestampSeconds;
+    return { startSec: chapter.timestampSeconds, title: text(chapter.title), ...(next === undefined ? {} : { endSec: next }) };
+  });
   const t = cardText();
   return (
     <section class="card-block" id="card-overview" aria-label={t.overview}>
@@ -151,11 +171,11 @@ function Overview({
           {typeof pending === "string" ? pending : t.writingVerdict}
         </p>
       ) : summary ? (
-        <VerdictBlock label={text(verdict?.verdict)} text={summary} basis={basisOf(analysis)} staleTranscript={stale.verdict} incomplete={verdict?.incomplete === true} />
+        <VerdictBlock label={text(verdict?.verdict)} text={summary} basis={basisOf(analysis)} staleTranscript={stale.verdict} incomplete={verdict?.incomplete === true} fresh={waited.current} />
       ) : null}
-      {stale.chapters && shown.length ? <StaleTranscriptLine /> : null}
-      {shown.length ? <ChapterList chapters={shown} keyStarts={keyChapterStarts(analysis)} heading={false} onSeek={onSeek} /> : null}
-      {cut ? <More open={showAll} label={t.showAllChapters(chapters.length)} onToggle={onToggleAll} /> : null}
+      {CardComments && comments && summary && !pending ? <CardComments view={comments} open={commentsOpen} onToggle={onToggleComments} /> : null}
+      {stale.chapters && chapters.length ? <StaleTranscriptLine /> : null}
+      {chapters.length ? <CardChapters chapters={chapters} keyStarts={keyChapterStarts(analysis)} onSeek={onSeek} /> : null}
     </section>
   );
 }
@@ -163,25 +183,50 @@ function Overview({
 function progressText(task: TaskProgress): string {
   const t = cardText();
   if (task.canceling) return t.stopping;
+  if (task.verdict) return t.writingVerdict;
   const text = task.message || (task.total > 0 ? t.chunksDone(task.done, task.total) : "");
   if (task.auto) return text ? t.auto(text) : t.autoStarting;
   return text || t.preparing;
 }
 
-/** 收起的那一行：有结论时写判断档；后面是临时的一句话，没有的话写播放到的章节，和侧边栏精读顶上那一条同一个写法。 */
+/**
+ * 标题栏上的判断档和后面那句话。判断档有结论时就有（展开时只给读屏和看不看那套的色带用）；那句话只在收起时有：
+ * 临时的一句话最优先，其次是一句话结论；没有结论时写播放到的章节（和侧边栏精读顶上那一条同一个写法）。
+ */
 export function glanceOf(view: CardView): { readonly label: string; readonly text: string } {
-  if (!view.collapsed) return { label: "", text: "" };
-  const verdict = view.verdictPending ? undefined : view.analysis?.verdict;
-  const label = text(verdict?.summary) ? text(verdict?.verdict) : "";
+  const conclusion = conclusionOf(view);
+  const label = conclusion?.label ?? "";
+  if (!view.collapsed) return { label, text: "" };
   if (view.headNote) return { label, text: view.headNote };
+  if (conclusion) return { label, text: conclusion.summary };
   const chapters = chaptersInOrder(view.analysis);
   const now = view.chapterNow === null ? undefined : chapters[view.chapterNow];
-  return { label, text: now && view.chapterNow !== null ? `${view.chapterNow + 1}/${chapters.length} ${now.title || formatTimestamp(now.startSec)}` : "" };
+  if (now && view.chapterNow !== null) return { label, text: `${view.chapterNow + 1}/${chapters.length} ${now.title || formatTimestamp(now.startSec)}` };
+  return { label, text: "" };
+}
+
+/** 头部名字前的小记号：只有时间码那套显示，别的主题由样式表藏起来。 */
+function BrandMark() {
+  return (
+    <svg class="card-brand-mark" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+      <rect x="1" y="4" width="6" height="3" rx="1" fill="currentColor" />
+      <rect x="8" y="4" width="7" height="3" rx="1" fill="currentColor" opacity="0.45" />
+      <rect x="1" y="9" width="10" height="3" rx="1" fill="currentColor" opacity="0.45" />
+      <rect class="card-brand-head" x="5" y="1" width="1.6" height="14" />
+    </svg>
+  );
 }
 
 export interface CardActions {
   readonly toggle: () => void;
   readonly generate: (event: ClickEvent) => void;
+  readonly fromOfficial: (event: ClickEvent) => void;
+  readonly retryFailed: (event: ClickEvent) => void;
+  /** 点「重新生成」或确认那一行的「取消」：摆出或收起确认。 */
+  readonly askRegenerate: () => void;
+  readonly regenerate: (event: ClickEvent) => void;
+  readonly ask: (question: string, event: ClickEvent) => void;
+  readonly cancelAsk: () => void;
   readonly cancel: () => void;
   readonly retry: () => void;
   readonly openPanel: (event: ClickEvent) => void;
@@ -189,48 +234,69 @@ export interface CardActions {
   readonly seek: (atSec: number) => void;
   readonly toggleShowAll: () => void;
   readonly toggleOfficial: () => void;
+  readonly toggleComments: () => void;
+}
+
+/**
+ * 「重新生成」的确认，摆在底部一行原来的位置上，不进会滚动的正文区，摆出来就看得见。说明独占底部那一行原来的高度，
+ * 按钮在它下面一行：连点两下时第二下落在说明上，不落在确认上（模型另外让确认摆出来一会儿才认）。焦点挪到「取消」上。
+ */
+function RegenerateConfirm({ onConfirm, onCancel }: { readonly onConfirm: (event: ClickEvent) => void; readonly onCancel: () => void }) {
+  const cancel = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => cancel.current?.focus(), []);
+  const t = cardText();
+  return (
+    <div class="card-confirm" id="card-regenerate-confirm" role="group" aria-label={t.regenerate}>
+      <p class="card-confirm-note">{t.regenerateCost}</p>
+      <div class="card-confirm-buttons">
+        <button type="button" class="button" data-variant="text" ref={cancel} onClick={onCancel}>
+          {t.cancel}
+        </button>
+        <button type="button" class="button" data-variant="primary" onClick={onConfirm}>
+          {t.regenerateConfirm}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 /** 点了展开而内容还在读：最多等这么久再打开，读到了就直接从标题栏长到内容那么高，不先露一行「正在读取」。 */
 export const OPEN_HOLD_MS = 500;
 
 /**
- * 标题栏下面那一整块，展开收起时高度有过渡。收起时内容留到过渡走完才拿掉，这期间点不到、读屏也读不到；
- * 没有过渡（系统设了减少动效）就马上拿掉。已经开着时换内容不关，高度照旧直接变。
+ * 标题栏下面那一整块，展开收起用共用的 Collapse：高度有过渡，收起时内容留到过渡走完才拿掉。
+ * 点了展开而内容还在读时先等一会儿。已经开着时换内容不关，高度照旧直接变：不是用户点出来的高度变化不逐帧报给播放页。
  */
 function Fold({ collapsed, waiting, children }: { readonly collapsed: boolean; readonly waiting: boolean; readonly children: ComponentChildren }) {
-  const ref = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(!collapsed && !waiting);
-  const [gone, setGone] = useState(!open);
   useLayoutEffect(() => {
     if (collapsed) return setOpen(false);
     if (!waiting) return setOpen(true);
     const timer = setTimeout(() => setOpen(true), OPEN_HOLD_MS);
     return () => clearTimeout(timer);
   }, [collapsed, waiting]);
-  useLayoutEffect(() => {
-    if (open) return setGone(false);
-    const node = ref.current;
-    if (!node || !(parseFloat(getComputedStyle(node).transitionDuration) > 0)) setGone(true);
-  }, [open]);
   return (
-    <div
-      ref={ref}
-      class="card-sheet"
-      data-open={open ? "true" : "false"}
-      onTransitionEnd={(event) => {
-        if (event.target === event.currentTarget && !open) setGone(true);
-      }}
-    >
-      <div class="card-sheet-in" inert={!open}>
-        {open || !gone ? children : null}
-      </div>
-    </div>
+    <Collapse open={open} outerClass="card-sheet" innerClass="card-sheet-in">
+      {children}
+    </Collapse>
   );
 }
 
 /** setupHint 是 AI 服务没设置好时生成概览按钮旁的说明，按缺什么说。 */
-export function Card({ view, aiReady, setupHint, actions }: { readonly view: CardView; readonly aiReady: boolean | null; readonly setupHint: string; readonly actions: CardActions }) {
+/** ask 是这一次提问的状态（ask.ts），不给时当没问过。 */
+export function Card({
+  view,
+  aiReady,
+  setupHint,
+  actions,
+  ask = ASK_IDLE,
+}: {
+  readonly view: CardView;
+  readonly aiReady: boolean | null;
+  readonly setupHint: string;
+  readonly actions: CardActions;
+  readonly ask?: AskState;
+}) {
   if (!view.visible) return null;
   const canGenerate = view.phase === "loaded" && !view.noCaptions && !view.needLogin && !view.notRead && !hasOverview(view.analysis) && !view.task;
   // 本机还没有字幕：在侧边栏读过以后点重试，不用刷新页面就能生成。已经有概览时用不着。
@@ -245,23 +311,42 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
   const task = view.task;
   const percent = task && task.total > 0 ? Math.round((task.done / task.total) * 100) : 0;
   const glance = glanceOf(view);
+  const shape = markOf(glance.label);
+  const verdictLabel = glance.label ? verdictName(glance.label, uiLang.value) : "";
   const showGenerate = canGenerate && !needsSetup;
   const showSettings = needsSetup || (canGenerate && view.settingsError);
   const showRetry = (view.phase === "failed" || view.needLogin || retryRead) && !task;
-  // 侧边栏已经开着：不摆打开它的按钮。别的按钮也都没有时，这一行整个不摆。
-  const showActions = !view.holdActions && (showGenerate || showSettings || showRetry || !view.panelOpen);
+  // 已经有概览：能补上缺的部分、能重新生成（先确认一次）。读不到字幕的时候两样都用不了。
+  const canRedo = view.phase === "loaded" && aiReady === true && !task && hasOverview(view.analysis) && !view.noCaptions && !view.needLogin && !view.notRead;
+  const showRetryFailed = canRedo && view.failedParts > 0;
+  const showRegenerate = canRedo && !view.confirmRegenerate;
+  // 侧边栏已经开着：不摆打开它的按钮。别的按钮也都没有、章节也不用「展开全部」时，底部一行整个不摆。
+  const showActions = !view.holdActions && (showGenerate || showSettings || showRetry || showRegenerate || !view.panelOpen);
+  // 「打开侧边栏」是底部一行的主按钮，同一行已经有别的主按钮时退成普通按钮。
+  const panelPrimary = !showGenerate && !needsSetup;
   return (
-    <div class="card" id="card" data-collapsed={view.collapsed ? "true" : "false"}>
+    <div class="card" id="card" data-collapsed={view.collapsed ? "true" : "false"} data-shape={shape ?? undefined}>
       <div class="card-head-row">
         <button type="button" class="card-head" id="card-toggle" aria-expanded={!view.collapsed} aria-controls="card-body" title={view.collapsed ? t.expand : t.collapse} onClick={actions.toggle}>
-          <span class="card-dot" aria-hidden="true" />
-          <span class="card-name">{t.name(verdictName(glance.label, uiLang.value))}</span>
+          {/* 名字和判断档两样都在读屏的名称里；看不见的那样由样式表只藏起样子。 */}
+          <span class="card-brand">
+            <BrandMark />
+            <span class="card-name">{t.name}</span>
+          </span>
+          {verdictLabel ? (
+            <span class="card-verdict">
+              {shape ? <VerdictMark shape={shape} /> : null}
+              <span class="card-verdict-name">{verdictLabel}</span>
+            </span>
+          ) : null}
           {glance.text ? (
             <span class="card-glance" id="card-glance" role={view.headNote ? "status" : undefined}>
               {glance.text}
             </span>
           ) : null}
-          <span class="card-chevron" aria-hidden="true" />
+          <span class="card-collapse" aria-hidden="true">
+            <Icon name="chevron" />
+          </span>
         </button>
         {view.collapsed && !view.panelOpen ? (
           <button type="button" class="card-head-panel" id="card-head-panel" title={t.openPanel} onClick={actions.openPanel}>
@@ -277,13 +362,23 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
             </p>
           ) : null}
           <ServiceSaid said={view.notice?.said} />
+          {canWriteFromOfficial(view, aiReady) ? (
+            // 还没有一句话结论、有官方总结：结论该在的地方先摆一个便宜的入口。
+            <div class="card-offer" id="card-official-verdict">
+              <button type="button" class="button" data-variant="secondary" onClick={actions.fromOfficial}>
+                {t.verdictFromOfficial}
+              </button>
+              <span class="card-offer-note">{t.verdictFromOfficialNote}</span>
+            </div>
+          ) : null}
           {analysis ? (
             <Overview
               analysis={analysis}
               stale={staleOverviewMarks(view.transcriptBasis ?? undefined, view.transcriptFingerprint, !view.verdictPending && text(analysis.verdict?.summary) !== "")}
-              pending={view.verdictPending}               showAll={view.showAll}
+              pending={view.verdictPending}
+              commentsOpen={view.commentsOpen}
+              onToggleComments={actions.toggleComments}
               onSeek={actions.seek}
-              onToggleAll={actions.toggleShowAll}
             />
           ) : null}
           {official && analysis ? (
@@ -293,11 +388,13 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
                 <span>{t.official}</span>
                 <span class="card-chevron" aria-hidden="true" />
               </button>
-              {view.officialOpen ? (
-                <div class="card-fold-body" id="card-official-body">
-                  <OfficialBody official={official} limited={false} onSeek={actions.seek} />
-                </div>
-              ) : null}
+              <Collapse open={view.officialOpen}>
+                {() => (
+                  <div class="card-fold-body" id="card-official-body">
+                    <OfficialBody official={official} limited={false} onSeek={actions.seek} />
+                  </div>
+                )}
+              </Collapse>
             </section>
           ) : official ? (
             <section class="card-block" id="card-official" aria-label={t.official}>
@@ -307,12 +404,21 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
           ) : officialNote ? (
             <p class="card-note">{officialNote}</p>
           ) : null}
+          {showRetryFailed ? (
+            <div class="card-offer" id="card-failed-parts">
+              <span class="card-offer-note">{t.failedParts}</span>
+              <button type="button" class="button" data-variant="secondary" onClick={actions.retryFailed}>
+                {t.retryFailed}
+              </button>
+            </div>
+          ) : null}
           {needsSetup ? <p class="card-note" id="card-setup">{setupHint}</p> : null}
+          {(view.phase === "loaded" && aiReady === true && view.canAsk) || ask.phase !== "idle" ? <CardAskBox state={ask} onAsk={actions.ask} onCancel={actions.cancelAsk} onSeek={actions.seek} /> : null}
         </div>
         {task ? (
           <div class="card-progress" id="card-progress" role="status">
             <div class="card-track">
-              <div class="card-bar" style={{ width: `${percent}%` }} />
+              <div class="card-bar" style={{ transform: `scaleX(${percent / 100})` }} />
             </div>
             <span class="card-progress-text">{progressText(task)}</span>
             <button type="button" class="button" data-variant="text" disabled={task.canceling} onClick={actions.cancel}>
@@ -320,7 +426,9 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
             </button>
           </div>
         ) : null}
-        {showActions ? (
+        {canRedo && view.confirmRegenerate ? (
+          <RegenerateConfirm onConfirm={actions.regenerate} onCancel={actions.askRegenerate} />
+        ) : showActions ? (
           <div class="card-actions">
             {showGenerate ? (
               <button type="button" class="button" data-variant="primary" id="card-generate" onClick={actions.generate}>
@@ -332,13 +440,18 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
                 {t.openSettings}
               </button>
             ) : null}
+            {showRegenerate ? (
+              <button type="button" class="button" data-variant="text" id="card-regenerate" onClick={actions.askRegenerate}>
+                {t.regenerate}
+              </button>
+            ) : null}
             {showRetry ? (
               <button type="button" class="button" id="card-retry" onClick={actions.retry}>
                 {t.retry}
               </button>
             ) : null}
             {view.panelOpen ? null : (
-              <button type="button" class="button" id="card-panel" onClick={actions.openPanel}>
+              <button type="button" class="button" data-variant={panelPrimary ? "primary" : undefined} id="card-panel" onClick={actions.openPanel}>
                 {t.openPanel}
               </button>
             )}

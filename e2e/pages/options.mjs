@@ -1,19 +1,19 @@
 // 设置页：确认启用之前只有启用说明、资料和「关于」两节，「关于」里的版本号、构建标识和四个链接都对；确认以后能保存服务商、密钥和模型，拉模型列表（状态行说已保存，框里的型号不在列表里时提醒）、测试连接对着模拟的模型服务走通，
-// 密钥只进会话存储；本机 http 地址不填密钥也能保存、拉列表和测试连接；导出的备份清除全部数据后能再导回来，
-// 超过单条消息上限的备份也一样。各测试开头先清除全部数据，从没启用的状态开始。
+// 密钥只进会话存储，保存了密钥以后问一次要不要记住（答「不用」不再问，答「记住」就记下）；本机 http 地址不填密钥也能保存、拉列表和测试连接，Ollama 预设不填密钥也能保存，本机服务回 403 时报来源被拒；导出的备份清除全部数据后能再导回来，
+// 超过单条消息上限的备份也一样；清除数据的确认框同一时间只开一个。各测试开头先清除全部数据，从没启用的状态开始。
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { videoKey } from "../../src/core/video-ref.ts";
 import { BUILD_ID_FILE } from "../../src/shared/build-id.ts";
-import { API_KEY_SESSION_KEY, ISSUES_URL, PAGE_PATHS, PRIVACY_POLICY_URL, RELEASES_URL, SETTINGS_STORAGE_KEY, SOURCE_URL, SPONSOR_URLS } from "../../src/shared/names.ts";
+import { API_KEY_LOCAL_KEY, API_KEY_SESSION_KEY, AUTO_LEDGER_KEY, ISSUES_URL, PAGE_PATHS, PRIVACY_POLICY_URL, RELEASES_URL, SETTINGS_STORAGE_KEY, SOURCE_URL, SPONSOR_URLS } from "../../src/shared/names.ts";
 import { DATA_CONSENT_TABLE, dataConsentErrorText, noticeStatus, noticeText } from "../../src/core/consent.ts";
 import { OPTIONS_EN } from "../../src/pages/options/text-en.ts";
 import { OPTIONS_HANT } from "../../src/pages/options/text-hant.ts";
 import { OPTIONS_ZH } from "../../src/pages/options/text-zh.ts";
 import { FEATURE_MODEL_SLOTS, UI_FONT_SCALES } from "../../src/shared/settings-schema.ts";
-import { charsIn, SIMPLIFIED_ONLY } from "../../tests/helpers/hant-chars.ts";
+import { charsIn, SIMPLIFIED_ONLY, TRADITIONAL_ONLY } from "../../tests/helpers/hant-chars.ts";
 import { ANTHROPIC, VIDEOS } from "../fixtures.mjs";
 import { scenario } from "./harness.mjs";
 
@@ -114,10 +114,10 @@ test("设置页：确认启用之前只有启用说明和资料一节，确认�
   })`);
   assert.equal(before.hasPreset, false);
   assert.deepEqual(before.sections, ["学习资料", "关于"]);
-  assert.deepEqual(before.buttons, ["导出备份", "清除缓存", "清除全部数据"], "确认前不能恢复备份");
+  assert.deepEqual(before.buttons, ["导出备份", "清除缓存", "删除全部笔记", "清除全部数据"], "确认前不能恢复备份");
   await enable(page);
   const after = await page.evaluate(`[...document.querySelectorAll(".card > h2")].map((node) => node.textContent)`);
-  assert.deepEqual(after, ["外观", "播放页", "YouTube", "AI 服务", "打开就出结论", "速读和精读", "稍后再看粗筛", "学习资料", "关于"]);
+  assert.deepEqual(after, ["AI 服务", "YouTube", "打开就出结论", "速读和精读", "播放页", "外观", "稍后再看粗筛", "学习资料", "关于"]);
   // 测试构建里 YouTube 开关打开；没给过授权，这一节只有启用按钮。
   await page.waitFor("YouTube 的启用按钮", `[...document.querySelectorAll("#youtube button")].map((node) => node.textContent.trim()).join() === "在 YouTube 上启用"`);
   assert.equal(await page.overflowsX(), false);
@@ -165,25 +165,39 @@ test("设置页：「关于」一节显示清单里的版本号和这次构建�
   assert.equal(await page.overflowsX(), false);
 });
 
+/** 密钥框下面那行说明。 */
+const KEY_HINT = `document.getElementById("aiApiKey").closest(".field").querySelector(":scope > .field-hint")?.textContent ?? ""`;
+
 test("设置页：选服务商、填密钥、勾同意后保存，拉模型列表和测试连接对着模拟服务走通，密钥只进会话", async ({ open }) => {
   const page = await freshOptions(open);
   await enable(page);
   await fill(page, "#preset", ANTHROPIC.presetId);
   await fill(page, "#aiApiKey", ANTHROPIC.key);
+  // 云端服务一定要密钥：密钥下面不提「可以留空」。
+  assert.doesNotMatch(await page.evaluate(KEY_HINT), /可以留空/);
   // 没勾同意先保存：提示还差同意。勾上以后这句话跟着变，不留着「请勾选」。
-  await clickButton(page, "保存并授权");
-  assert.match(await statusStarts(page, "ai-service", "已保存并授权，但 AI 功能暂时用不了"), /我已了解/);
+  await clickButton(page, "保存");
+  assert.match(await statusStarts(page, "ai-service", "已保存，但 AI 功能暂时用不了"), /我已了解/);
+  // 保存了密钥、没记住：按钮下面问要不要记住，下面照写不加密的说明，两个按钮一样分量；答「不用」就收起，之后再保存也不问。
+  await page.waitFor("问要不要记住密钥", `document.getElementById("rememberAsk") !== null`);
+  const ask = await page.evaluate(`(() => { const box = document.getElementById("rememberAsk"); return { question: box.querySelector(".confirm-question").textContent, hint: box.querySelector(".hint").textContent, buttons: [...box.querySelectorAll("button")].map((node) => [node.textContent.trim(), node.dataset.variant]) }; })()`);
+  assert.equal(ask.question, "要把密钥记在这台电脑上吗？");
+  assert.match(ask.hint, /不加密/);
+  assert.deepEqual(ask.buttons, [["记住", "secondary"], ["不用", "secondary"]]);
+  assert.equal(await page.evaluate(`document.getElementById("rememberApiKey").checked`), false, "默认照旧不记住");
+  await clickButton(page, "不用", "#rememberAsk");
+  await page.waitFor("那一问收起", `document.getElementById("rememberAsk") === null`);
   await page.click("#dataConsent");
   await page.waitFor("同意记下了", `document.getElementById("dataConsent").checked`);
-  await page.waitFor("那句还差同意的提示换掉了", `${statusText("ai-service")} === "已保存并授权。"`);
+  await page.waitFor("那句还差同意的提示换掉了", `${statusText("ai-service")} === "已保存。"`);
 
   // 状态行跟着点的那个控件走：拉取的结果紧挨在模型框下面，不用滚到这一节最底下找。
   // 拉取先保存过，状态行说出来；框里预填的型号不在拉到的列表里，多提醒一句。
   const prefilled = await page.evaluate(`document.getElementById("aiModel").value`);
-  await clickButton(page, "拉取模型列表");
+  await clickButton(page, "获取模型列表");
   assert.equal(
-    await statusStarts(page, "ai-service", "已保存并授权，拉到"),
-    `已保存并授权，拉到 1 个模型，可以在模型框里直接选。模型框里的「${prefilled}」不在列表里，可能是旧名字或打错了，核对一下；有的服务也认列表外的别名。`,
+    await statusStarts(page, "ai-service", "已保存，找到"),
+    `已保存，找到 1 个模型，可以在模型框里直接选。模型框里的「${prefilled}」不在列表里，可能是旧名字或打错了，核对一下；有的服务也认列表外的别名。`,
   );
   const fetched = await placedStatus(page, "#aiModel");
   assert.deepEqual({ at: fetched.at, inView: fetched.inView, shown: fetched.shown }, { at: "model", inView: true, shown: 1 });
@@ -252,7 +266,7 @@ test("设置页：选服务商、填密钥、勾同意后保存，拉模型列�
 
   // 勾记住密钥：要点保存才算数的那句话写在勾选框下面；取消以后也写在那里。没保存过，密钥还是只在会话里。
   await page.click("#rememberApiKey");
-  assert.equal(await statusStarts(page, "ai-service", "点「保存并授权」以后"), "点「保存并授权」以后，密钥才会记在这台电脑上。");
+  assert.equal(await statusStarts(page, "ai-service", "点「保存」以后"), "点「保存」以后，密钥才会记在这台电脑上。");
   const remembering = await placedStatus(page, "#rememberApiKey");
   assert.deepEqual({ at: remembering.at, inView: remembering.inView, shown: remembering.shown }, { at: "remember", inView: true, shown: 1 });
   assert.ok(remembering.gap >= 0 && remembering.gap <= 16, `离勾选框 ${remembering.gap} 像素`);
@@ -260,15 +274,16 @@ test("设置页：选服务商、填密钥、勾同意后保存，拉模型列�
   await statusStarts(page, "ai-service", "已不再记住密钥");
   assert.equal((await placedStatus(page, "#rememberApiKey")).at, "remember");
 
-  await clickButton(page, "保存并授权");
-  assert.equal(await statusStarts(page, "ai-service", "已保存"), "已保存并授权。");
+  await clickButton(page, "保存");
+  assert.equal(await statusStarts(page, "ai-service", "已保存"), "已保存。");
+  assert.equal(await page.evaluate(`document.getElementById("rememberAsk") === null`), true, "答过不用，不再问");
   assert.equal((await placedStatus(page, "#aiModel")).at, "actions");
   await clickButton(page, "测试连接");
   assert.equal(await statusStarts(page, "ai-service", "默认模型"), `默认模型（${ANTHROPIC.model}）连接正常，回复「可用」`);
   assert.deepEqual((({ at, shown }) => ({ at, shown }))(await placedStatus(page, "#aiModel")), { at: "actions", shown: 1 });
   // 框里换成列表里有的型号以后再拉，不再提醒。
-  await clickButton(page, "拉取模型列表");
-  await page.waitFor("再拉一次只说已保存和拉到几个", `${statusText("ai-service")} === "已保存并授权，拉到 1 个模型，可以在模型框里直接选。"`);
+  await clickButton(page, "获取模型列表");
+  await page.waitFor("再拉一次只说已保存和拉到几个", `${statusText("ai-service")} === "已保存，找到 1 个模型，可以在模型框里直接选。"`);
 
   const stored = await page.evaluate(`Promise.all([chrome.storage.local.get(null), chrome.storage.session.get(${JSON.stringify(API_KEY_SESSION_KEY)})])`);
   const [local, session] = stored;
@@ -293,15 +308,48 @@ test("设置页：选服务商、填密钥、勾同意后保存，拉模型列�
   assert.equal(await restarted.evaluate(`[...document.querySelectorAll("#ai-service button")].some((node) => node.textContent.trim() === "国内服务")`), false);
   await fill(restarted, "#aiApiKey", ANTHROPIC.key);
   await restarted.waitFor("开始填密钥，那句话收起", `${statusText("ai-service")} === ""`);
+  // 重启以后重新填好保存：答过不用，照旧不问。
+  await clickButton(restarted, "保存");
+  assert.equal(await statusStarts(restarted, "ai-service", "已保存"), "已保存。");
+  assert.equal(await restarted.evaluate(`document.getElementById("rememberAsk") === null`), true);
+});
+
+test("设置页：保存了密钥以后问要不要记住，点「记住」等于勾上再保存：密钥记在这台电脑上，勾选框勾上，不再问", async ({ open }) => {
+  const page = await freshOptions(open);
+  await enable(page);
+  await fill(page, "#preset", ANTHROPIC.presetId);
+  await fill(page, "#aiApiKey", ANTHROPIC.key);
+  await page.click("#dataConsent");
+  await page.waitFor("同意记下了", `document.getElementById("dataConsent").checked`);
+  await clickButton(page, "保存");
+  await page.waitFor("问要不要记住密钥", `document.getElementById("rememberAsk") !== null`);
+  await clickButton(page, "记住", "#rememberAsk");
+  assert.equal(await statusStarts(page, "ai-service", "已保存，密钥"), "已保存，密钥已记在这台电脑上。");
+  assert.equal(await page.evaluate(`document.getElementById("rememberApiKey").checked`), true);
+  assert.equal(await page.evaluate(`document.getElementById("rememberAsk") === null`), true);
+  const local = await page.evaluate(`chrome.storage.local.get(${JSON.stringify(API_KEY_LOCAL_KEY)})`);
+  assert.equal(local[API_KEY_LOCAL_KEY]?.key, ANTHROPIC.key);
+  // 取消记住、再保存：记住过就算问过，不再问。
+  await page.click("#rememberApiKey");
+  await statusStarts(page, "ai-service", "已不再记住密钥");
+  await clickButton(page, "保存");
+  assert.equal(await statusStarts(page, "ai-service", "已保存"), "已保存。");
+  assert.equal(await page.evaluate(`document.getElementById("rememberAsk") === null`), true);
 });
 
 /** 本机的 OpenAI 兼容服务，只开 http、不要密钥。记下每个请求的地址和认证头。models 是它列出的模型。 */
-async function startLocalService(models = ["local-model"]) {
+async function startLocalService(models = ["local-model"], { rejectOrigin = false } = {}) {
   const seen = [];
   const server = createServer((req, res) => {
     seen.push({ path: req.url ?? "", authorization: req.headers.authorization ?? null, apiKey: req.headers["x-api-key"] ?? null });
     req.resume();
     req.on("end", () => {
+      // 不接受浏览器扩展这个来源的本机服务：一律空着回 403。
+      if (rejectOrigin) {
+        res.writeHead(403);
+        res.end();
+        return;
+      }
       res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
       if (req.url?.endsWith("/models")) res.end(JSON.stringify({ object: "list", data: models.map((id) => ({ id, object: "model" })) }));
       else res.end(JSON.stringify({ id: "local", object: "chat.completion", choices: [{ index: 0, message: { role: "assistant", content: "可用" }, finish_reason: "stop" }] }));
@@ -340,8 +388,8 @@ test("设置页：拉到很多模型时，候选列表自己滚、长名字折�
     await fill(page, "#aiBaseUrl", local.base);
     await page.click("#dataConsent");
     await page.waitFor("同意记下了", `document.getElementById("dataConsent").checked`);
-    await clickButton(page, "拉取模型列表");
-    await statusStarts(page, "ai-service", `已保存并授权，拉到 ${MANY_MODELS.length} 个模型`);
+    await clickButton(page, "获取模型列表");
+    await statusStarts(page, "ai-service", `已保存，找到 ${MANY_MODELS.length} 个模型`);
 
     const list = () =>
       page.evaluate(`(() => {
@@ -436,18 +484,20 @@ test("设置页：自定义填本机 http 地址、密钥留空，保存、拉�
     await enable(page);
     await fill(page, "#preset", "custom");
     await page.waitFor("出现地址框", `document.getElementById("aiBaseUrl") !== null`);
+    // 自定义可能是本机的服务：密钥下面说可以留空。
+    assert.match(await page.evaluate(KEY_HINT), /本机的服务不要密钥时可以留空/);
     await fill(page, "#protocol", "openai");
     await fill(page, "#aiBaseUrl", local.base);
     await page.click("#dataConsent");
     await page.waitFor("同意记下了", `document.getElementById("dataConsent").checked`);
 
     // 模型还没填，先保存拿到授权；提示只说缺模型，不要密钥。
-    await clickButton(page, "保存并授权");
-    assert.equal(await statusStarts(page, "ai-service", "已保存"), "已保存并授权，但 AI 功能暂时用不了：请填写模型名称，或点击「拉取模型列表」进行选择。");
-    await clickButton(page, "拉取模型列表");
-    assert.equal(await statusStarts(page, "ai-service", "已保存并授权，拉到"), "已保存并授权，拉到 1 个模型，在模型框里选一个，再点「保存并授权」。");
+    await clickButton(page, "保存");
+    assert.equal(await statusStarts(page, "ai-service", "已保存"), "已保存，但 AI 功能暂时用不了：请填写模型名称，或点「获取模型列表」从里面选。");
+    await clickButton(page, "获取模型列表");
+    assert.equal(await statusStarts(page, "ai-service", "已保存，找到"), "已保存，找到 1 个模型，在模型框里选一个，再点「保存」。");
     await fill(page, "#aiModel", "local-model");
-    await clickButton(page, "保存并授权");
+    await clickButton(page, "保存");
     await page.waitFor("模型存下", `chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)}).then((items) => items[${JSON.stringify(SETTINGS_STORAGE_KEY)}]?.aiModel === "local-model")`);
     await clickButton(page, "测试连接");
     assert.equal(await statusStarts(page, "ai-service", "默认模型"), "默认模型（local-model）连接正常，回复「可用」");
@@ -461,7 +511,54 @@ test("设置页：自定义填本机 http 地址、密钥留空，保存、拉�
   }
 });
 
-test("设置页：打开就出结论默认关；没同意时勾开关先列出说明，同意并打开后才开；关掉、改时长不用同意；时长写明范围，填的数被改了就地说一句", async ({ open }) => {
+test("设置页：选 Ollama 预设，地址和协议跟着预设走、不显示地址框，密钥留空也能保存", async ({ open }) => {
+  const page = await freshOptions(open);
+  await enable(page);
+  await page.waitFor("服务商里有 Ollama", `document.querySelector('#preset option[value="ollama"]')?.textContent === ${JSON.stringify(OPTIONS_ZH.ai.presets.ollama)}`);
+  await fill(page, "#preset", "ollama");
+  await page.waitFor("选上 Ollama", `document.getElementById("preset").value === "ollama"`);
+  assert.equal(await page.evaluate(`document.getElementById("aiBaseUrl") === null && document.getElementById("protocol") === null`), true);
+  assert.equal(await page.evaluate(`document.getElementById("aiApiKey").value`), "");
+  await page.click("#dataConsent");
+  await page.waitFor("同意记下了", `document.getElementById("dataConsent").checked`);
+
+  // 只保存、不拉模型列表也不测试连接：保存不访问本机服务。提示只说缺模型，不要密钥。
+  await clickButton(page, "保存");
+  assert.equal(await statusStarts(page, "ai-service", "已保存"), "已保存，但 AI 功能暂时用不了：请填写模型名称，或点「获取模型列表」从里面选。");
+  const stored = await page.evaluate(`chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)}).then((items) => items[${JSON.stringify(SETTINGS_STORAGE_KEY)}])`);
+  assert.deepEqual([stored.presetId, stored.protocol, stored.aiBaseUrl], ["ollama", "openai", "http://localhost:11434/v1"]);
+  const session = await page.evaluate(`chrome.storage.session.get(${JSON.stringify(API_KEY_SESSION_KEY)}).then((items) => items[${JSON.stringify(API_KEY_SESSION_KEY)}]?.key ?? "")`);
+  assert.equal(session, "");
+});
+
+test("设置页：本机服务回 403 时，拉模型列表和测试连接都说是来源被拒、多半不是密钥的问题", async ({ open }) => {
+  const local = await startLocalService(["local-model"], { rejectOrigin: true });
+  try {
+    const page = await freshOptions(open);
+    await enable(page);
+    await fill(page, "#preset", "custom");
+    await page.waitFor("出现地址框", `document.getElementById("aiBaseUrl") !== null`);
+    await fill(page, "#protocol", "openai");
+    await fill(page, "#aiBaseUrl", local.base);
+    await fill(page, "#aiModel", "local-model");
+    await page.click("#dataConsent");
+    await page.waitFor("同意记下了", `document.getElementById("dataConsent").checked`);
+
+    await clickButton(page, "获取模型列表");
+    await page.waitFor("拉列表报来源被拒", `${statusText("ai-service")}.includes("OLLAMA_ORIGINS")`);
+    assert.match(await statusOf(page, "ai-service"), /多半不是密钥的问题/);
+    await clickButton(page, "测试连接");
+    await page.waitFor("测试连接的提示换了一次", `${statusText("ai-service")}.startsWith("默认模型")`);
+    const tested = await statusOf(page, "ai-service");
+    assert.match(tested, /多半不是密钥的问题.*OLLAMA_ORIGINS/);
+    assert.doesNotMatch(tested, /检查密钥/);
+    assert.deepEqual(local.seen.map(({ path }) => path), ["/v1/models", "/v1/chat/completions"]);
+  } finally {
+    await local.close();
+  }
+});
+
+test("设置页：打开就出结论默认关；没同意时勾开关先列出说明，同意并打开后才开；停着时开关下面写明原因、点「恢复」接着做；关掉、改时长不用同意；时长写明范围，填的数被改了就地说一句", async ({ open }) => {
   const { AUTO_OVERVIEW_MINUTES } = await import("../../src/shared/settings-schema.ts");
   const page = await freshOptions(open);
   await enable(page);
@@ -484,6 +581,15 @@ test("设置页：打开就出结论默认关；没同意时勾开关先列出�
   const on = await stored();
   assert.equal(on.autoOverview, true);
   assert.ok(on.dataConsentVersion > 0, "同意一起存下");
+
+  // 额度用完停着：重新打开设置页，开关下面写明原因，旁边是「恢复」；点了后台恢复，这一行消失。
+  const paused = { tried: [], sent: [], paused: { reason: "quota", at: Date.now() } };
+  await page.evaluate(`chrome.storage.session.set(${JSON.stringify({ [AUTO_LEDGER_KEY]: paused })}).then(() => true)`);
+  await page.reload();
+  await page.waitFor("停着的那一行", `document.querySelector("#auto-overview .auto-paused .status")?.textContent === "额度用完了，「打开就出结论」先停了"`);
+  await clickButton(page, "恢复", "#auto-overview");
+  await page.waitFor("恢复以后这一行消失", `!document.querySelector("#auto-overview .auto-paused")`);
+  assert.equal((await page.evaluate(`chrome.storage.session.get(${JSON.stringify(AUTO_LEDGER_KEY)})`))[AUTO_LEDGER_KEY]?.paused, undefined);
 
   const max = AUTO_OVERVIEW_MINUTES.max;
   const minutesNote = `document.querySelector("#auto-overview .status[role=status]").textContent`;
@@ -532,6 +638,64 @@ async function clearAllAndEnable(page) {
   assert.deepEqual((await send(page, "notes.list", {})).code, "NOT_ENABLED");
   await enable(page);
 }
+
+test("设置页：删除全部笔记需要确认，取消保留笔记，确认后仍可恢复备份", async ({ open }) => {
+  const page = await freshOptions(open);
+  await enable(page);
+  await keepDownloads(page);
+  assert.ok((await send(page, "notes.save", { video: VIDEO, atSec: 31, text: "要备份的笔记" })).ok);
+  const clickDataButton = async (label) => {
+    await page.waitFor(label, `[...document.querySelectorAll("#learning-data button")].some(button => !button.disabled && button.textContent.trim() === ${JSON.stringify(label)})`);
+    await clickButton(page, label, "#learning-data");
+  };
+  await clickDataButton("导出备份");
+  await statusStarts(page, "learning-data", "已导出 1 条笔记");
+  await clickDataButton("删除全部笔记");
+  await clickDataButton("取消");
+  assert.equal((await send(page, "notes.list", {})).value.notes.length, 1);
+
+  await clickDataButton("删除全部笔记");
+  await clickDataButton("确认删除");
+  await statusStarts(page, "learning-data", "已删除全部笔记");
+  assert.deepEqual((await send(page, "notes.list", {})).value.notes, []);
+  await chooseBackup(page, `window.__downloads.at(-1)`);
+  assert.match(await statusStarts(page, "learning-data", "合并完成"), /笔记新增 1 条/);
+  assert.deepEqual((await send(page, "notes.list", {})).value.notes.map((note) => note.text), ["要备份的笔记"]);
+});
+
+test("设置页：清除数据的确认框同一时间只开一个；开着删除笔记再去清缓存，笔记的收回成按钮，在原处连点两下清缓存的确认也删不到笔记", async ({ open }) => {
+  const page = await freshOptions(open);
+  await enable(page);
+  assert.ok((await send(page, "notes.save", { video: VIDEO, atSec: 12, text: "连点也不该删掉的笔记" })).ok);
+  const clickDataButton = async (label) => {
+    await page.waitFor(label, `[...document.querySelectorAll("#learning-data button")].some(button => !button.disabled && button.textContent.trim() === ${JSON.stringify(label)})`);
+    await clickButton(page, label, "#learning-data");
+  };
+  const confirmBoxes = () =>
+    page.evaluate(`[...document.querySelectorAll("#learning-data .confirm")].map((node) => node.getAttribute("aria-label"))`);
+
+  await clickDataButton("删除全部笔记");
+  await page.waitFor("删除笔记的确认框", `document.querySelector('#learning-data .confirm[aria-label="删除全部笔记"]') !== null`);
+  await clickDataButton("清除缓存");
+  await page.waitFor("清缓存的确认框", `document.querySelector('#learning-data .confirm[aria-label="清除缓存"]') !== null`);
+  assert.deepEqual(await confirmBoxes(), ["清除缓存"], "只开着一个确认框");
+  const buttons = await page.evaluate(`[...document.querySelectorAll("#learning-data button")].map((button) => button.textContent.trim())`);
+  assert.ok(buttons.includes("删除全部笔记"), "删除笔记的确认框收回成按钮");
+  assert.ok(!buttons.includes("确认删除"), "页面上没有删除笔记的确认按钮");
+
+  // 清缓存的确认按钮和取消按钮都叫得出来，按位置找确认那一个，在同一点连点两下。
+  const box = await page.evaluate(`(() => {
+    const node = document.querySelector('#learning-data .confirm[aria-label="清除缓存"] button');
+    node.scrollIntoView({ block: "center" });
+    const rect = node.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  })()`);
+  await page.clickAt(box.x, box.y);
+  await page.clickAt(box.x, box.y);
+  await statusStarts(page, "learning-data", "已清除缓存");
+  await page.waitFor("清除结束，按钮可点", `[...document.querySelectorAll("#learning-data button")].every((button) => !button.disabled)`);
+  assert.deepEqual((await send(page, "notes.list", {})).value.notes.map((note) => note.text), ["连点也不该删掉的笔记"]);
+});
 
 test("设置页：导出的备份清除全部数据后能再导回来", async ({ open }) => {
   const page = await freshOptions(open);
@@ -661,16 +825,16 @@ test("设置页：语言选 English 以后，标题、各节标题和按钮马�
     lang: "en",
     title: "Jianmu settings",
     heading: "Jianmu settings",
-    sections: ["Appearance", "Video page", "YouTube", "AI service", "Verdict on open", "Skim and Study", "Watch Later triage", "Saved data", "About"],
-    buttons: ["Save and authorise", "Test connection", "Export backup", "Restore backup", "Clear cache", "Clear all data"],
+    sections: ["AI service", "YouTube", "Verdict on open", "Skim and Study", "Video page", "Appearance", "Watch Later triage", "Saved data", "About"],
+    buttons: ["Save", "Test connection", "Export backup", "Restore backup", "Clear cache", "Delete all notes", "Clear all data"],
     languages: ["Match browser", "简体中文", "繁體中文", "English"],
   };
   const chinese = {
     lang: "zh-CN",
     title: "简幕设置",
     heading: "简幕设置",
-    sections: ["外观", "播放页", "YouTube", "AI 服务", "打开就出结论", "速读和精读", "稍后再看粗筛", "学习资料", "关于"],
-    buttons: ["保存并授权", "测试连接", "导出备份", "恢复备份", "清除缓存", "清除全部数据"],
+    sections: ["AI 服务", "YouTube", "打开就出结论", "速读和精读", "播放页", "外观", "稍后再看粗筛", "学习资料", "关于"],
+    buttons: ["保存", "测试连接", "导出备份", "恢复备份", "清除缓存", "删除全部笔记", "清除全部数据"],
     languages: ["跟随浏览器", "简体中文", "繁體中文", "English"],
   };
   assert.deepEqual(await page.evaluate(view), chinese);
@@ -708,16 +872,16 @@ test("设置页：语言选「繁體中文」以后，标题、各节标题和�
     lang: "zh-Hant",
     title: "簡幕設定",
     heading: "簡幕設定",
-    sections: ["外觀", "播放頁", "YouTube", "AI 服務", "打開就出結論", "速讀和精讀", "稍後再看粗篩", "學習資料", "關於"],
-    buttons: ["儲存並授權", "測試連線", "匯出備份", "還原備份", "清除快取", "清除全部資料"],
+    sections: ["AI 服務", "YouTube", "打開就出結論", "速讀和精讀", "播放頁", "外觀", "稍後再看粗篩", "學習資料", "關於"],
+    buttons: ["儲存", "測試連線", "匯出備份", "還原備份", "清除快取", "刪除全部筆記", "清除全部資料"],
     languages: ["跟隨瀏覽器", "简体中文", "繁體中文", "English"],
   };
   const chinese = {
     lang: "zh-CN",
     title: "简幕设置",
     heading: "简幕设置",
-    sections: ["外观", "播放页", "YouTube", "AI 服务", "打开就出结论", "速读和精读", "稍后再看粗筛", "学习资料", "关于"],
-    buttons: ["保存并授权", "测试连接", "导出备份", "恢复备份", "清除缓存", "清除全部数据"],
+    sections: ["AI 服务", "YouTube", "打开就出结论", "速读和精读", "播放页", "外观", "稍后再看粗筛", "学习资料", "关于"],
+    buttons: ["保存", "测试连接", "导出备份", "恢复备份", "清除缓存", "删除全部笔记", "清除全部数据"],
     languages: ["跟随浏览器", "简体中文", "繁體中文", "English"],
   };
   const fontSans = `getComputedStyle(document.documentElement).getPropertyValue("--font-sans")`;
@@ -730,7 +894,6 @@ test("设置页：语言选「繁體中文」以后，标题、各节标题和�
   const sans = await page.evaluate(fontSans);
   assert.match(sans, /PingFang TC/);
   assert.doesNotMatch(sans, /PingFang SC/);
-  assert.match(await page.evaluate(`getComputedStyle(document.documentElement).getPropertyValue("--font-serif")`), /Songti TC/);
 
   // 首帧缓存记下了繁体：重新打开时一出内容就是繁体，不先画一遍简体。
   const reopened = await open(PAGE_PATHS.options, { width: WIDTH });
@@ -746,7 +909,7 @@ test("设置页：语言选「繁體中文」以后，标题、各节标题和�
   assert.deepEqual(await reopened.evaluate(view), chinese);
 });
 
-test("设置页：繁体下数据说明的条目、勾选框和校验提示都是繁体，打开就出结论列出的说明也是繁体；整页可见文字里没有简体专用字，语言下拉里的「简体中文」除外", async ({ open }) => {
+test("设置页：繁体下数据说明的条目、勾选框、校验提示和测试连接的结果都是繁体，打开就出结论列出的说明也是繁体；整页可见文字里没有简体专用字，语言下拉里的「简体中文」除外", async ({ open }) => {
   const page = await freshOptions(open);
   await enable(page);
   await fill(page, "#language", "zh-Hant");
@@ -761,13 +924,13 @@ test("设置页：繁体下数据说明的条目、勾选框和校验提示都�
   await fill(page, "#preset", "custom");
   await page.waitFor("出现地址框", `document.getElementById("aiBaseUrl") !== null`);
   await fill(page, "#aiBaseUrl", "http://service.example/v1");
-  await clickButton(page, "儲存並授權");
+  await clickButton(page, "儲存");
   const badAddress = await statusStarts(page, "ai-service", "API 網址");
   assert.deepEqual(simplified(badAddress), [], badAddress);
   await fill(page, "#preset", ANTHROPIC.presetId);
   await fill(page, "#aiApiKey", ANTHROPIC.key);
-  await clickButton(page, "儲存並授權");
-  const notReady = await statusStarts(page, "ai-service", "已儲存並授權，但");
+  await clickButton(page, "儲存");
+  const notReady = await statusStarts(page, "ai-service", "已儲存，但");
   assert.ok(notReady.includes(dataConsentErrorText("zh-Hant")), notReady);
 
   await page.click("#autoOverview");
@@ -776,12 +939,22 @@ test("设置页：繁体下数据说明的条目、勾选框和校验提示都�
   assert.deepEqual(simplified(listed), [], listed);
   assert.ok(listed.includes(DATA_CONSENT_HANT_FIRST), listed);
 
+  // 测试连接（放在整页检查之前，状态行也算在整页里）：发给模型的是繁体那句，模型回的词显示在状态行里。
+  await page.click("#dataConsent");
+  await clickButton(page, "儲存");
+  assert.equal(await statusStarts(page, "ai-service", OPTIONS_HANT.status.saved), OPTIONS_HANT.status.saved);
+  await clickButton(page, OPTIONS_HANT.ai.test);
+  // 这里没选型号，用的是服务商预设的默认型号。
+  const connected = await statusStarts(page, "ai-service", OPTIONS_HANT.ai.defaultModel);
+  assert.match(connected, /^預設模型（[^）]+）連線正常，回覆「可用」$/);
+  assert.deepEqual(simplified(connected), [], connected);
+
   const visible = await page.evaluate(`document.body.innerText`);
   const leftover = visible.split("\n").filter((line) => simplified(line).length > 0);
   assert.deepEqual(leftover, []);
 });
 
-test("设置页：外观里的三个主题卡片一样高，单选圆点、色块和文字都对着卡片正中；English 和两列的窄宽度下也一样", async ({ open }) => {
+test("设置页：外观里的五个主题卡片一样高，单选圆点、色块和文字都对着卡片正中；English 和两列的窄宽度下也一样", async ({ open }) => {
   const page = await freshOptions(open);
   await enable(page);
   const layout = `[...document.querySelectorAll(".theme-option")].map((card) => {
@@ -795,7 +968,7 @@ test("设置页：外观里的三个主题卡片一样高，单选圆点、色�
     for (const width of [WIDTH, 600]) {
       await page.setWidth(width);
       const cards = await page.evaluate(layout);
-      assert.equal(cards.length, 3);
+      assert.equal(cards.length, 5);
       assert.equal(new Set(cards.map((card) => card.height)).size, 1, `${language} ${width}：${JSON.stringify(cards)}`);
       for (const card of cards) assert.ok(card.offset <= 1, `${language} ${width}：${JSON.stringify(cards)}`);
     }
@@ -819,12 +992,12 @@ test("设置页：English 下数据说明的条目、勾选框和校验提示都
   await fill(page, "#preset", "custom");
   await page.waitFor("出现地址框", `document.getElementById("aiBaseUrl") !== null`);
   await fill(page, "#aiBaseUrl", "http://service.example/v1");
-  await clickButton(page, "Save and authorise");
+  await clickButton(page, "Save");
   assert.equal(await statusStarts(page, "ai-service", "The API address"), "The API address must start with https://. Only local addresses (localhost, 127.0.0.1) can use http://.");
   await fill(page, "#preset", ANTHROPIC.presetId);
   await fill(page, "#aiApiKey", ANTHROPIC.key);
-  await clickButton(page, "Save and authorise");
-  const notReady = await statusStarts(page, "ai-service", "Saved and authorised, but");
+  await clickButton(page, "Save");
+  const notReady = await statusStarts(page, "ai-service", "Saved, but");
   assert.ok(notReady.includes(dataConsentErrorText("en")), notReady);
 
   // 打开就出结论：没同意时勾开关，就地列出的说明是英文。
@@ -834,10 +1007,44 @@ test("设置页：English 下数据说明的条目、勾选框和校验提示都
   assert.doesNotMatch(listed, han, listed);
   assert.ok(listed.includes(DATA_CONSENT_EN_FIRST), listed);
 
+  // 测试连接（放在整页检查之前，状态行也算在整页里）：发给模型的那句话是英文，模型回的词显示在状态行里，也是英文。
+  await page.click("#dataConsent");
+  await clickButton(page, "Save");
+  assert.equal(await statusStarts(page, "ai-service", "Saved"), "Saved.");
+  await clickButton(page, "Test connection");
+  // 这里没选型号，用的是服务商预设的默认型号。
+  assert.match(await statusStarts(page, "ai-service", "Default model"), /^Default model \([^)]+\) is connected\. Reply: “OK”$/);
+
   // 整页：语言下拉里「简体中文」「繁體中文」两项用自己的语言写，别处不该有汉字。
   const visible = await page.evaluate(`document.body.innerText`);
   const leftover = visible.replaceAll("简体中文", "").replaceAll("繁體中文", "").split("\n").filter((line) => han.test(line));
   assert.deepEqual(leftover, []);
+});
+
+test("设置页：简体下测试连接的结果是简体；整页可见文字里没有繁体专用字，也没有整行英文，语言下拉里的「繁體中文」「English」、YouTube 和服务商的名字除外", async ({ open, extensionDir }) => {
+  const page = await freshOptions(open);
+  await enable(page);
+  await fill(page, "#language", "zh");
+  await page.waitFor("界面是简体", `document.documentElement.lang === "zh-CN"`);
+
+  await fill(page, "#preset", ANTHROPIC.presetId);
+  await fill(page, "#aiApiKey", ANTHROPIC.key);
+  await page.click("#dataConsent");
+  await page.waitFor("同意记下了", `document.getElementById("dataConsent").checked`);
+  await clickButton(page, "保存");
+  assert.equal(await statusStarts(page, "ai-service", OPTIONS_ZH.status.saved), OPTIONS_ZH.status.saved);
+  await clickButton(page, OPTIONS_ZH.ai.test);
+  // 这里没选型号，用的是服务商预设的默认型号。
+  assert.match(await statusStarts(page, "ai-service", OPTIONS_ZH.ai.defaultModel), /^默认模型（[^）]+）连接正常，回复「可用」$/);
+
+  const visible = await page.evaluate(`document.body.innerText`);
+  const lines = visible.split("\n").map((line) => line.trim()).filter(Boolean);
+  assert.deepEqual(lines.filter((line) => line !== "繁體中文" && charsIn(line, TRADITIONAL_ONLY).length > 0), []);
+  // 整行都是英文的只许是专名：语言下拉里的 English、YouTube 一节的标题、服务商的名字。
+  // 「关于」一节的构建标识是十六进制，里面碰巧连着两个字母也不算英文：它随源码变，不排除的话这条时过时不过。
+  const build = readFileSync(join(extensionDir, BUILD_ID_FILE), "utf8").trim();
+  const names = new Set(["English", "YouTube", build, ...Object.values(OPTIONS_ZH.ai.presets)]);
+  assert.deepEqual(lines.filter((line) => /[A-Za-z]{2,}/.test(line) && !/\p{Script=Han}/u.test(line) && !names.has(line)), []);
 });
 
 // 只看几何关系，不看字体：2 倍及以上的屏上框高是整像素时，文字行上下留的空也是整像素，文字才跟边框一起对齐到像素；
@@ -849,7 +1056,7 @@ test("设置页：三档字号下输入框和下拉框都是 2rem 高；2 倍屏
   await page.evaluate(`document.getElementById("advanced").open = true`);
   const problems = [];
   for (const uiFontScale of UI_FONT_SCALES) {
-    await page.setAppearance({ accentTheme: "ink", themeMode: "light", uiFontScale });
+    await page.setAppearance({ accentTheme: "marker", themeMode: "light", uiFontScale });
     const boxes = await page.evaluate(`(() => {
       const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
       const rounds = CSS.supports("line-height", "round(1px, 1px)") && CSS.supports("line-height", "rem(1px, 1px)") && matchMedia("(min-resolution: 2dppx)").matches;
@@ -888,9 +1095,9 @@ test("设置页：推理强度新安装全关；每项功能单独选，改了�
     await page.evaluate(`(() => { const fold = document.getElementById("advanced"); return [fold.open, fold.querySelector("summary").textContent, fold.contains(document.getElementById("featureEfforts")), fold.contains(document.getElementById("analysisChunkMode"))]; })()`),
     [false, "高级（推理强度、概览分块）", true, true],
   );
-  // 推理强度和概览分块不归「保存并授权」管，排在那个按钮后面。
+  // 推理强度和概览分块不归「保存」管，排在那个按钮后面。
   const afterSave = await page.evaluate(`(() => {
-    const save = [...document.querySelectorAll("#ai-service button")].find((node) => node.textContent.trim() === "保存并授权");
+    const save = [...document.querySelectorAll("#ai-service button")].find((node) => node.textContent.trim() === "保存");
     const follows = (id) => Boolean(save.compareDocumentPosition(document.getElementById(id)) & Node.DOCUMENT_POSITION_FOLLOWING);
     return [follows("featureEfforts"), follows("analysisChunkMode"), follows("dataConsent")];
   })()`);
@@ -902,10 +1109,10 @@ test("设置页：推理强度新安装全关；每项功能单独选，改了�
   await page.evaluate(`document.querySelector("#featureModels").open = true`);
   await fill(page, '[data-feature="notes"]', "claude-haiku-4-5");
   await page.waitFor("改了模型还没保存时先不标", `document.getElementById("featureEfforts").textContent.includes("保存以后再标")`);
-  await clickButton(page, "保存并授权");
+  await clickButton(page, "保存");
   await statusStarts(page, "ai-service", "已保存");
 
-  // 连着改两项，都不点「保存并授权」：改了就存下，后改的不把先改的盖掉。
+  // 连着改两项，都不点「保存」：改了就存下，后改的不把先改的盖掉。
   await fill(page, '[data-effort="qa"]', "high");
   await fill(page, '[data-effort="notes"]', "high");
   const stored = (field) => `chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)}).then((items) => items[${JSON.stringify(SETTINGS_STORAGE_KEY)}].${field})`;

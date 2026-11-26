@@ -427,6 +427,22 @@ test("后台读取模型能力同样不跟随重定向", async () => {
   assert.deepEqual(inits.map((init) => init.redirect), ["manual"]);
 });
 
+test("拉模型列表：本机地址回空的 403 算来源被拒；带说明的 403（JSON 或纯文本）仍按密钥错误，和模型请求的判断一致", async () => {
+  const local: AiSettings = { protocol: PROTOCOLS.OPENAI, aiBaseUrl: "http://localhost:11434/v1", aiApiKey: "", aiModel: "local-model" };
+  const request = { url: "http://localhost:11434/v1/models", headers: {} };
+  const failed = (body: string) =>
+    CAPS.createJsonGetter(async () => ({ ok: false, status: 403, json: async () => JSON.parse(body), text: async () => body }))(request, local).then(
+      () => assert.fail("应当报错"),
+      (error: ProviderError) => error,
+    );
+  assert.equal((await failed("")).code, "AI_LOCAL_ORIGIN_REJECTED");
+  assert.equal((await failed("<html>403</html>")).code, "AI_LOCAL_ORIGIN_REJECTED");
+  const plain = await failed("this key cannot use the model");
+  assert.equal(plain.code, undefined);
+  assert.equal(plain.message, "this key cannot use the model");
+  assert.equal((await failed(JSON.stringify({ error: { message: "no access" } }))).code, undefined);
+});
+
 test("模型能力的报错同样脱敏", async () => {
   const settings = gatewaySettings("https://relay.example.com");
   const send = CAPS.createJsonGetter(async () => ({

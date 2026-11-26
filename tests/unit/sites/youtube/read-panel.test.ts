@@ -162,6 +162,22 @@ test("读到面板时才问一次播放器上的字幕轨列表，原样放进�
   assert.equal(asked, 1);
 });
 
+test("后台只问字幕轨：回页面现在的视频和播放器上的字幕轨列表，面板关着也照答，不碰面板", async () => {
+  const w = world();
+  const player: PlayerTracks = { videoId: ID, tracks: [], defaultIndex: null, hasDefault: null, playable: true };
+  let asked = 0;
+  const reader = w.makeReader(() => ((asked += 1), player));
+  const panel = w.addPanel();
+  const tracks = async (videoId = ID) => reader.handle({ type: "youtube.tracks", req: { videoId } });
+  assert.deepEqual(await tracks(), { videoId: ID, player });
+  assert.equal(asked, 1);
+  assert.equal(panel.getAttribute("visibility"), "ENGAGEMENT_PANEL_VISIBILITY_HIDDEN", "面板照旧关着");
+  w.go(OTHER);
+  assert.deepEqual(await tracks(), { videoId: OTHER, player }, "照实回页面现在的视频，后台据此不认");
+  assert.equal(reader.handle({ type: "youtube.tracks", req: {} }), null);
+  assert.deepEqual(await w.makeReader().handle({ type: "youtube.tracks", req: { videoId: ID } }), { videoId: OTHER, player: null }, "没有小桥时字幕轨是 null");
+});
+
 test("新式段落没有类名：时间是开头那一截，剩下的是文字；时间认不出的段落不要", async () => {
   const w = world();
   const panel = w.addPanel();
@@ -368,7 +384,7 @@ test("问的视频不是页面上的视频、或者最后一句比视频时长�
   assert.equal((await w.ask(reader)).state, "stale");
 });
 
-test("只回认得的两种问话；current 只回视频和内容换过几次", async () => {
+test("只回认得的三种问话；current 只回视频和内容换过几次", async () => {
   const w = world();
   const reader = w.makeReader();
   assert.equal(reader.handle({ type: "player.seek", req: { videoId: ID } }), null);

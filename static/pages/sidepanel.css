@@ -1,6 +1,15 @@
-/* 侧边栏自己的版面：头部和模式切换、速读、精读、底部工具条、字幕列表、笔记和问答。共用组件的样式在 ui/ 下，这里只用 theme.css 的变量。 */
+/* 侧边栏自己的版面：头部和模式切换、速读、精读、底部工具条、字幕列表、笔记和问答。共用组件的样式在 ui/ 下，这里只用 theme.css 的变量。
+ * 各套主题在版面上的差异写在 ui/themes/ 下各自的文件里，这里是共同的部分。 */
+
+/* 侧边栏的底是卡片色（--panel-bg），吸顶和吸底的几层跟它一样。 */
+body {
+  background: var(--panel-bg);
+}
 
 .panel {
+  /* 吸顶的几层各自的高度，由页面量好写进来：模式切换和提示一层，精读的章节条一层。 */
+  --panel-top-h: 40px;
+  --chapter-bar-h: 0px;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
@@ -14,6 +23,44 @@
 .panel-loading {
   padding: var(--space-6) 0;
   color: var(--text-muted);
+}
+
+/* ---------- 动效 ----------
+ * 写法统一在 ui/motion.css。这里只挑侧边栏里哪些东西用哪一种：
+ *   换样子、换模式、换视频：整块淡进来（模式内容里有固定定位的「回到当前句」，只淡不移）；
+ *   等结果的那几行（进度、报错、提示）和新到的问答：淡进来，高度一步到位；
+ *   结论在这一屏上写好：从下面升上来，标记有「有结果了」那一下。 */
+.panel,
+.mode-view > *,
+.cues,
+.chapter-bar-title,
+.chapter-list > .chapter,
+.progress-row,
+.error-line,
+.note-line,
+.empty-line,
+.search-row,
+.note-edit,
+.layer-toast,
+.qa-entry,
+.frame-card,
+.batch-bar:not([data-phase="idle"]),
+.batch-error {
+  animation: appear var(--dur) var(--ease);
+}
+
+/* 读字幕的骨架屏晚 150ms 才露面，读得快就根本看不到。 */
+.loading,
+.panel-loading {
+  animation: appear var(--dur) var(--ease) 150ms backwards;
+}
+
+.verdict[data-fresh] {
+  animation: appear-up var(--dur-mode) var(--ease);
+}
+
+.verdict[data-fresh] .verdict-mark {
+  animation: done-pop var(--dur-mode) var(--ease-pop) 60ms backwards;
 }
 
 /* ---------- 头部和页签 ---------- */
@@ -37,11 +84,13 @@
   overflow-wrap: anywhere;
 }
 
+/* 作者和字幕轨还没读到时也占着一行，读到以后下面的内容不往下跳：高度按换字幕语言那个按钮的最小高度留。 */
 .video-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
+  min-height: 2rem;
   margin-top: var(--space-1);
   color: var(--text-muted);
   font-size: var(--fs-meta);
@@ -53,24 +102,36 @@
   border-radius: var(--radius-pill);
 }
 
-/* 模式切换压在头部的分隔线上，滚动时吸顶。 */
-.mode-row {
-  --mode-row-h: 40px;
+/* 模式切换压在头部的分隔线上，和下面那一行提示一起吸顶，铺满侧边栏的宽。 */
+.panel-top {
   position: sticky;
   top: 0;
   z-index: 2;
+  margin: var(--space-2) calc(-1 * var(--panel-pad)) 0;
+  background: var(--panel-bg);
+}
+
+.mode-row {
+  --mode-row-h: 40px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
   min-height: var(--mode-row-h);
-  margin: var(--space-2) calc(-1 * var(--panel-pad)) 0;
   padding: 0 var(--panel-pad);
   border-bottom: 1px solid var(--border);
-  background: var(--bg);
+}
+
+/* 问答抽屉和侧边栏同一个底。 */
+.panel .sheet {
+  background: var(--panel-bg);
 }
 
 .layer-toast {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
   margin: 0 0 var(--space-2);
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-md);
@@ -101,20 +162,29 @@
   border-top: 1px solid var(--border);
 }
 
-/* ---------- 精读的当前章节 ---------- */
+/* ---------- 精读的当前章节 ----------
+ * 同一份标记里带着各套主题要用的部分：判断档（.chapter-bar-verdict）、「第几章，共几章，几点开始」那一行（.chapter-bar-place）、
+ * 按章节时长分段的进度条（.chapter-strip）、播放进度条（.chapter-progress），这里默认都不显示，由主题的版面规则挑。 */
 
 .chapter-bar {
   position: sticky;
-  top: 40px;
+  top: var(--panel-top-h);
   z-index: 1;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: var(--space-2);
   margin: 0 calc(-1 * var(--panel-pad));
   padding: var(--space-2) var(--panel-pad);
   border-bottom: 1px solid var(--border);
-  background: var(--bg);
+  background: var(--panel-bg);
   font-size: var(--fs-meta);
+}
+
+.chapter-bar-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 .chapter-bar-count {
@@ -122,14 +192,42 @@
   color: var(--text-muted);
 }
 
-.chapter-bar-title {
+.chapter-bar-main {
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.chapter-bar-title {
   min-width: 0;
   overflow: hidden;
   color: var(--text);
   font-weight: var(--fw-medium);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.chapter-bar-verdict,
+.chapter-bar-place,
+.chapter-strip,
+.chapter-progress {
+  display: none;
+}
+
+.chapter-bar-place {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+  text-align: start;
+  cursor: pointer;
+}
+
+.chapter-bar-place:hover {
+  color: var(--text);
 }
 
 /* ---------- 速读里一章的字幕 ---------- */
@@ -157,6 +255,7 @@
   bottom: 0;
   z-index: 2;
   margin: 0 calc(-1 * var(--panel-pad));
+  background: var(--panel-bg);
 }
 
 .ask-entry {
@@ -190,6 +289,25 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1);
+}
+
+/* 字幕上面那几行：工具行、搜索框、翻译进度。 */
+.cue-tools {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* 精读里吸在当前章节下面，看到哪都够得着；速读里的字幕不跟着播放滚，不吸。 */
+.study .cue-tools {
+  position: sticky;
+  top: calc(var(--panel-top-h) + var(--chapter-bar-h));
+  z-index: 1;
+  gap: var(--space-2);
+  margin: 0 calc(-1 * var(--panel-pad));
+  padding: var(--space-2) var(--panel-pad);
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-bg);
 }
 
 .search-row {
@@ -255,6 +373,12 @@
   font-size: var(--fs-meta);
 }
 
+/* 包着按钮只为了让测试和样式认得出是哪一个，排版上不占一层。 */
+.batch-start,
+.settings-exit {
+  display: contents;
+}
+
 /* ---------- 本窗口全部生成：窗口级的一条，切视频时不跟着换 ---------- */
 
 /* 有话要说（清点、确认、进度）时才铺成卡片；空闲时只是一个按钮。 */
@@ -262,6 +386,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  /* 从章节下面的按钮滚过来时，停在吸顶的那一层下面，不被它盖住。 */
+  scroll-margin-top: calc(var(--panel-top-h) + var(--space-2));
   padding: var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -287,9 +413,29 @@
 }
 
 .batch-progress {
-  width: 100%;
-  height: 6px;
-  accent-color: var(--accent);
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--rail-track);
+  overflow: hidden;
+}
+
+/* 进度往前走一截时滑过去，不是一格一格跳。只动 transform，不重排。 */
+.batch-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transform-origin: left;
+  transition: transform var(--dur-mode) var(--ease);
+}
+
+/* 系统强制配色时背景色会被换掉：轨道画一圈边，填充用系统的高亮色，分得清走到哪了。 */
+@media (forced-colors: active) {
+  .batch-progress {
+    border: 1px solid CanvasText;
+  }
+
+  .batch-progress-fill {
+    background: Highlight;
+  }
 }
 
 .batch-actions {
@@ -362,6 +508,14 @@
   cursor: pointer;
 }
 
+.stamp,
+.cue-time,
+.segment,
+.frame-card-close,
+.follow-pill {
+  transition: var(--tint);
+}
+
 .stamp:hover {
   background: var(--bg-hover);
 }
@@ -376,16 +530,19 @@
   list-style: none;
 }
 
+/* 当前句的底色亮得快、灭得慢：上一句的底色还留一点尾巴，看得出是从上一句挪下来的。几百条上都写着过渡也没有代价，每次真在动的只有两条。 */
 .cue {
   display: grid;
   grid-template-columns: auto 1fr;
   column-gap: var(--space-2);
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-md);
+  transition: background-color var(--dur-mode) var(--ease);
 }
 
 .cue[data-active="true"] {
   background: var(--bg-active);
+  transition-duration: var(--dur-fast);
 }
 
 .cue-time {
@@ -401,7 +558,8 @@
   cursor: pointer;
 }
 
-.cue-time:hover {
+.cue-time:hover,
+.segment:hover:not([aria-pressed="true"]) {
   background: var(--bg-hover);
 }
 
@@ -428,19 +586,27 @@
   line-height: var(--lh-body);
 }
 
-.cue mark {
+.cue mark,
+.note mark {
   border-radius: 2px;
   background: color-mix(in oklab, var(--mark) 35%, transparent);
   color: inherit;
 }
 
+/* 选中字以后在选区下面长出来的两个按钮：从右上角长出来，点了就走，不留离场。 */
 .explain-pick {
+  display: flex;
+  gap: var(--space-1);
   position: absolute;
   right: 0;
   z-index: 1;
   list-style: none;
+  transform-origin: top right;
+  animation: pop-in var(--dur-fast) var(--ease);
 }
 
+/* 「回到当前句」一直挂着：离开当前句时从下面浮上来，点了或者又跟上时沉下去；藏着时不进 Tab 顺序也不进读屏。
+ * 居中用 translate，浮上沉下用 transform，两者互不覆盖。 */
 .follow-pill {
   position: fixed;
   bottom: calc(var(--dock-h) + var(--space-3));
@@ -455,7 +621,29 @@
   background: var(--card);
   box-shadow: var(--shadow-md);
   cursor: pointer;
-  transform: translateX(-50%);
+  translate: -50% 0;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(0.5rem);
+  transition:
+    var(--tint),
+    transform var(--dur-fast) var(--ease-exit),
+    visibility 0s linear var(--dur-fast);
+}
+
+.follow-pill[data-shown] {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition:
+    var(--tint),
+    opacity var(--dur) var(--ease),
+    transform var(--dur) var(--ease),
+    visibility 0s;
+}
+
+.follow-pill:hover {
+  background: var(--bg-hover);
 }
 
 .explain-body {
@@ -486,11 +674,17 @@
 .outline,
 .outline-points,
 .quotes,
-.citations,
-.note-list,
-.qa-list {
+.citations {
   display: grid;
   gap: var(--space-2);
+  padding: 0;
+  list-style: none;
+}
+
+/* 笔记和问答的列表能删掉一条，竖排和间距由 motion.css 的 .exit-list 给，这里只定间距多大。 */
+.note-list,
+.qa-list {
+  --list-gap: var(--space-2);
   padding: 0;
   list-style: none;
 }
@@ -572,14 +766,19 @@
   gap: var(--space-2);
 }
 
-.note-video {
-  flex: 1;
+.note-video,
+.note-author {
   min-width: 0;
   overflow: hidden;
   color: var(--text-muted);
   font-size: var(--fs-meta);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.note-author {
+  flex: 0 0 auto;
+  max-width: 40%;
 }
 
 .note-head .menu-anchor {
@@ -636,6 +835,8 @@
 }
 
 .frame-card {
+  /* 新的一条滚进视野时，不压在吸顶那一层下面。 */
+  scroll-margin-top: calc(var(--panel-top-h) + var(--space-2));
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -690,4 +891,10 @@
 .carried-title {
   margin: 0;
   font-weight: 600;
+}
+
+/* 按下去当场变色，松开才用 --dur-fast 回去。写在最后、权重压过各处的悬停，按住时看得到按下的颜色。 */
+:is(.stamp, .cue-time, .segment, .follow-pill):active:not(:disabled) {
+  background: var(--bg-active);
+  transition-duration: 0ms;
 }

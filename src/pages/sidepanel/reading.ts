@@ -1,9 +1,10 @@
 // 字幕列表的规则：播放到哪一段、导出 SRT 时每段写原文、译文还是双语、划词解释取多长。
-import type { TranscriptSegment } from "../../core/transcript/segment.ts";
+import { hasMatch, splitMatches } from "../../core/highlight.ts";
+import { formatTimestamp, type TranscriptSegment } from "../../core/transcript/segment.ts";
 import { breaksToShow } from "../../core/transcript/lines.ts";
 import { buildSrt } from "../../core/transcript/srt.ts";
 import type { CueView } from "../../shared/messages/transcript.ts";
-import type { TranscriptMode } from "./translate.ts";
+import type { TranscriptMode } from "../../shared/messages/transcript.ts";
 
 export { chapterAt } from "../shared/ui/chapters.ts";
 
@@ -25,6 +26,15 @@ export function activeIndex(segments: readonly Pick<TranscriptSegment, "start">[
   return found;
 }
 
+/**
+ * 笔记对到哪一段：存笔记时时间向下取整到整秒，所以先找开始时间取整后正好等于笔记时间的第一段；
+ * 没有这样的段（笔记是在一段中途存的）再按播放位置找。同一秒里开始的几段分不清是哪一段，取舍是标第一段。
+ */
+export function noteSegmentIndex(segments: readonly Pick<TranscriptSegment, "start">[], atSec: number): number {
+  const exact = segments.findIndex((segment) => Math.floor(segment.start) === atSec);
+  return exact >= 0 ? exact : activeIndex(segments, atSec);
+}
+
 /** 一段在当前视图下显示的文字：译文还没到的段落先显示原文；有整理结果时原文用整理后的（tidied 只在用户没切回原始字幕时给）。 */
 export function linesOf(
   segment: TranscriptSegment,
@@ -37,6 +47,30 @@ export function linesOf(
   if (mode === "translated") return { main: translation || original, sub: "" };
   if (mode === "bilingual") return { main: original, sub: translation };
   return { main: original, sub: "" };
+}
+
+/** 字幕搜索保留整段。当前显示的两行都没命中时，补上其他版本里命中的文字。 */
+export function transcriptRows(
+  segments: readonly TranscriptSegment[],
+  mode: TranscriptMode,
+  translated: Readonly<Record<string, string>>,
+  tidied: Readonly<Record<string, string>>,
+  showTidied: boolean,
+  query: string,
+) {
+  const needle = query.trim();
+  const matches = (line: string): boolean => hasMatch(splitMatches(line, needle));
+  const displayedTidy = showTidied ? tidied : {};
+  return segments.flatMap((segment, index) => {
+    const { main, sub } = linesOf(segment, mode, translated, displayedTidy);
+    let extra: string[] = [];
+    if (needle && !matches(main) && !matches(sub)) {
+      const candidates = new Set([segment.text, translated[segment.id] ?? "", tidied[segment.id] ?? ""]);
+      extra = [...candidates].filter((line) => line && line !== main && line !== sub && matches(line));
+      if (!extra.length) return [];
+    }
+    return [{ segment, index, main, sub, extra }];
+  });
 }
 
 /** 导出 SRT：内容跟着当前的原文（整理过就是整理后的）、译文或双语视图。 */
@@ -53,6 +87,25 @@ export function srtOf(
     return { start: segment.start, text: sub ? `${main}\n${sub}` : main };
   });
   return buildSrt(items, { entries: cues, duration: durationSec });
+}
+
+/** 复制全部字幕：每段一行「[时间] 主文」，对照视图里有译文的段落紧跟一行不带时间的译文。 */
+export function copyTextOf(
+  segments: readonly TranscriptSegment[],
+  mode: TranscriptMode,
+  translated: Readonly<Record<string, string>>,
+  tidied: Readonly<Record<string, string>> = {},
+): string {
+  return segments.map((segment) => {
+    const { main, sub } = linesOf(segment, mode, translated, tidied);
+    const line = `[${formatTimestamp(segment.start)}] ${main}`;
+    return sub ? `${line}\n${sub}` : line;
+  }).join("\n");
+}
+
+export function selectedNote(raw: string, segment: Pick<TranscriptSegment, "start"> | undefined): { text: string; atSec: number } | null {
+  const text = raw.trim();
+  return text && segment ? { text, atSec: segment.start } : null;
 }
 
 /** 划词解释最多交这么长的选区，再长就不弹「解释」。 */

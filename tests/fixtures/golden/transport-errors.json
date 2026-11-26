@@ -152,7 +152,7 @@
     },
     "response": {
      "error": "ANTHROPIC_WORKSPACE_REQUIRED",
-     "message": "这把 Anthropic 密钥没有限定工作区，每个请求都要另带工作区 ID，本扩展不支持。请在 Claude Console 新建一把密钥，创建时选定一个工作区（例如 Default），再填到设置页。",
+     "message": "这把 Anthropic 密钥没有限定工作区，每个请求都要另带工作区 ID，简幕不支持。请在 Claude Console 新建一把密钥，创建时选定一个工作区（例如 Default），再填到设置页。",
      "success": false
     }
    },
@@ -779,7 +779,7 @@
     },
     "response": {
      "error": "ANTHROPIC_WORKSPACE_REQUIRED",
-     "message": "这把 Anthropic 密钥没有限定工作区，每个请求都要另带工作区 ID，本扩展不支持。请在 Claude Console 新建一把密钥，创建时选定一个工作区（例如 Default），再填到设置页。",
+     "message": "这把 Anthropic 密钥没有限定工作区，每个请求都要另带工作区 ID，简幕不支持。请在 Claude Console 新建一把密钥，创建时选定一个工作区（例如 Default），再填到设置页。",
      "success": false
     }
    },
@@ -1411,7 +1411,7 @@
     },
     "response": {
      "error": "ANTHROPIC_WORKSPACE_REQUIRED",
-     "message": "这把 Anthropic 密钥没有限定工作区，每个请求都要另带工作区 ID，本扩展不支持。请在 Claude Console 新建一把密钥，创建时选定一个工作区（例如 Default），再填到设置页。",
+     "message": "这把 Anthropic 密钥没有限定工作区，每个请求都要另带工作区 ID，简幕不支持。请在 Claude Console 新建一把密钥，创建时选定一个工作区（例如 Default），再填到设置页。",
      "success": false
     }
    },
@@ -1901,12 +1901,12 @@
    "args": [
     {
      "code": "NO_AI_CONFIG",
-     "message": "AI 还没配置好"
+     "message": "AI 还没设置好"
     }
    ],
    "result": {
     "error": "NO_AI_CONFIG",
-    "message": "AI 还没配置好",
+    "message": "AI 还没设置好",
     "success": false
    },
    "note": "入参是带 code 的 Error"
@@ -1918,13 +1918,13 @@
    "args": [
     {
      "code": "NO_AI_CONFIG",
-     "message": "AI 还没配置好",
+     "message": "AI 还没设置好",
      "noAutoRetry": true
     }
    ],
    "result": {
     "error": "NO_AI_CONFIG",
-    "message": "AI 还没配置好",
+    "message": "AI 还没设置好",
     "noAutoRetry": true,
     "success": false
    },

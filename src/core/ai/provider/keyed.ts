@@ -1,5 +1,6 @@
 // 带密钥的请求：模型调用、模型能力、设置页的测试连接和模型列表共用这几条约定。
-import { errorBodyOf, parseErrorMessage } from "./response.ts";
+import { isLocalBaseUrl } from "./endpoint.ts";
+import { errorBodyOf, errorMessageOf, parseErrorMessage } from "./response.ts";
 import { bothLangs, HIDDEN_SECRET, withEnglish } from "./text.ts";
 import type { AiSettings, ProviderError } from "./types.ts";
 
@@ -42,6 +43,23 @@ export function redactSecret(text: unknown, secret: unknown): string {
   return key.length < MIN_REDACTED_SECRET_LENGTH ? value : value.split(key).join(HIDDEN_SECRET);
 }
 
+/**
+ * 错误响应的 body：JSON 照常解析；纯文本先脱敏再取前 200 字当报错原文，
+ * 否则跨过截断线的密钥只剩前半截，后面的脱敏认不出来；
+ * HTML 错误页和空 body 只留状态码（parseErrorMessage 会写成「服务返回 502」）。
+ * 模型请求和拉模型列表都用这一份，两边对「服务有没有说明」的判断才一致。
+ */
+export function parseErrorText(text: unknown, secret?: unknown): unknown {
+  const raw = String(text || "").trim();
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    if (raw.startsWith("<")) return {};
+    return { error: { message: redactSecret(raw, secret).slice(0, 200) } };
+  }
+}
+
 // Anthropic 的个人密钥创建时可以不限定工作区，这种密钥的每个请求都要带 anthropic-workspace-id，
 // 不带就回 400。扩展没有这个设置项，只能请用户换一把限定了工作区的密钥。
 const WORKSPACE_REQUIRED = /not scoped to a workspace|anthropic-workspace-id/i;
@@ -57,10 +75,18 @@ interface ParamBody {
 export function keyedHttpError(
   data: unknown,
   status: number,
-  settings: Partial<Pick<AiSettings, "aiApiKey">> | null | undefined,
+  settings: Partial<Pick<AiSettings, "aiApiKey" | "aiBaseUrl">> | null | undefined,
 ): ProviderError {
   const secret = settings?.aiApiKey;
   const raw = redactSecret(parseErrorMessage(data, status), secret);
+  // 本机的服务回 403 又什么都没说，多半是它不接受浏览器扩展这个来源，不是密钥的问题：单独一个码，回执换成对应的说明。
+  // 带着说明的 403（本机网关转回的后端报错、流里报的权限错误）照旧按密钥错误处理。
+  if (status === 403 && isLocalBaseUrl(settings?.aiBaseUrl) && !String(errorMessageOf(data) ?? "").trim()) {
+    const error: ProviderError = new Error(raw);
+    error.status = status;
+    error.code = "AI_LOCAL_ORIGIN_REJECTED";
+    return error;
+  }
   if (status === 400 && WORKSPACE_REQUIRED.test(raw)) {
     const { message, messageEn, messageHant } = bothLangs((text) => text.workspaceRequired);
     const error: ProviderError = withEnglish(new Error(message), messageEn, messageHant);

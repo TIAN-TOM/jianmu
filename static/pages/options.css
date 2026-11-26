@@ -10,6 +10,13 @@
   gap: var(--space-5);
 }
 
+/* 动效的写法在 ui/motion.css。设置页启用以后各节一起淡进来，不错开；状态行换了一句话、就地确认打开时新的那块淡进来。 */
+.page > .card,
+.status-text,
+.confirm {
+  animation: appear var(--dur) var(--ease);
+}
+
 .page h1 {
   font-size: var(--fs-display);
   font-weight: var(--fw-semibold);
@@ -157,6 +164,7 @@ input.input {
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
+  transition: var(--tint);
 }
 
 .model-toggle:hover,
@@ -165,7 +173,7 @@ input.input {
 }
 
 .model-toggle .icon {
-  transition: transform var(--dur-fast) var(--ease);
+  transition: transform var(--dur) var(--ease);
 }
 
 .model-field[data-open] .model-toggle .icon {
@@ -188,6 +196,8 @@ input.input {
   border-radius: var(--radius-lg);
   background: var(--card);
   box-shadow: var(--shadow-lg);
+  /* 贴着输入框、和它一样宽，只淡进来，不缩放。 */
+  animation: appear var(--dur-fast) var(--ease);
 }
 
 .model-field[data-side="top"] .model-list {
@@ -313,6 +323,7 @@ details.field[open] {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   cursor: pointer;
+  transition: var(--tint);
 }
 
 .theme-option input {
@@ -341,10 +352,8 @@ details.field[open] {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-subtle);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
 }
 
 .consent-title {
@@ -401,6 +410,11 @@ details.field[open] {
 /* 跟在控件下面的状态行：空着的时候不占地方，有内容时和上面的控件隔开一点。 */
 .status-inline {
   min-height: 0;
+}
+
+/* 打开就出结论停着：原因和「恢复」排在一行。 */
+.auto-paused {
+  align-items: center;
 }
 
 .status-inline:not(:empty) {

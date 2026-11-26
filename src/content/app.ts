@@ -44,6 +44,10 @@ export interface ContentAppDeps {
   readonly superseded: Superseded;
   /** 站点自己的页面读取（YouTube 的文字稿面板）：过了启用闸门才建，撤下时停；认得的后台问话由它回。 */
   readonly siteReader?: () => SiteReader;
+  /** 闸门没放行（问到没启用、问不到）时调：页面主世界里先于闸门装上的东西靠它停下、清掉。 */
+  readonly onHeld?: () => void;
+  /** 撤了这个站的授权、整套撤下之前调，闸门开没开都调：页面主世界里不归闸门管的东西（YouTube 的小桥）靠它退场。 */
+  readonly onRevoked?: () => void;
   /** 截帧工具的工厂，构建开关打开时才传：挂界面时建，撤下时停。 */
   readonly frame?: (identity: FrameIdentity) => FrameTool;
   readonly every?: (ms: number, run: () => void) => () => void;
@@ -198,6 +202,7 @@ export function createContentApp(deps: ContentAppDeps): ContentApp {
     },
     open: () => void open(),
     close,
+    ...(deps.onHeld ? { held: deps.onHeld } : {}),
     ...(deps.gateTimers ? { timers: deps.gateTimers } : {}),
   });
 
@@ -208,7 +213,10 @@ export function createContentApp(deps: ContentAppDeps): ContentApp {
       if (broadcast.scope === "all") gate.notify("lost");
     } else if (broadcast?.type === "site.changed") {
       // 撤了这个站的授权：整套撤下，不再响应任何消息。再启用时后台补注入新的一份。
-      if (broadcast.platform === deps.site && !broadcast.enabled) stop();
+      if (broadcast.platform === deps.site && !broadcast.enabled) {
+        deps.onRevoked?.();
+        stop();
+      }
     } else if (broadcast?.type === "appearance.changed") {
       appearanceVersion += 1;
       // 语言选项原样带过去，播放页上的字跟着换；取值认不出时 lang.ts 按跟随浏览器算。

@@ -2,6 +2,8 @@
 // 闸门之前不读网页地址、不查标签页；卡片和内容脚本收到的回复和广播里没有密钥。
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { NO_CLEAR_GUARD } from "../../../src/core/clear-guard.ts";
+import { memoryStorage } from "../../helpers/memory-storage.ts";
 import { createApp } from "../../../src/background/app.ts";
 import type { MessageSender } from "../../../src/background/senders.ts";
 import { createRoutes } from "../../../src/background/routes/index.ts";
@@ -57,7 +59,7 @@ const realRoutes = (): Readonly<Record<string, AnyRoute>> =>
       freeze: async () => assert.fail(),
     },
     tasks: { register: async () => assert.fail(), cancel: () => assert.fail(), list: () => assert.fail() },
-    cardLimits: { admitGenerate: () => assert.fail(), issueToken: () => assert.fail(), redeemToken: () => assert.fail() },
+    cardLimits: { admitGenerate: () => assert.fail(), admitRegenerate: () => assert.fail(), issueToken: () => assert.fail(), redeemToken: () => assert.fail() },
     reinject: async () => assert.fail(),
     grants: { releaseUnused: async () => assert.fail() },
     data: { openExport: () => assert.fail(), openImport: () => assert.fail(), clear: async () => assert.fail(), busy: () => false },
@@ -70,9 +72,12 @@ const realRoutes = (): Readonly<Record<string, AnyRoute>> =>
       setCardOverride: async () => assert.fail(),
       onTabRemoved: async () => assert.fail(),
       forgetPlatform: async () => assert.fail(),
+      forgetChannel: async () => assert.fail(),
     },
-    channels: { clear: async () => assert.fail() },
+    channels: { clear: async () => assert.fail(), count: async () => assert.fail() },
     playbackLimits: { admitMilestone: () => assert.fail() },
+    sessionStorage: memoryStorage(),
+    clearGuard: NO_CLEAR_GUARD,
     transcript: {
       get: async () => assert.fail(),
       light: async () => assert.fail(),

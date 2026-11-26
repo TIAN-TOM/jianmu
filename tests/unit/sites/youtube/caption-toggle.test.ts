@@ -1,11 +1,12 @@
 // 替用户开关播放器的字幕：页面用结构替身代替，小桥接住的字幕由测试给。看小桥里已经有就不点；字幕关着时点一下、等到接住、
-// 读完只关这次点开的；开着却没接住、在播广告、视频对不上、按钮不在或标着不可用时都不点；一次只点一下，不连点、不重试。样例全是自造的。
+// 读完只关这次点开的，关的时候在播广告就等广告播完；开着却没接住、在播广告、视频对不上、按钮不在或标着不可用时都不点；一次只点一下，不连点、不重试。样例全是自造的。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { VideoRef } from "../../../../src/core/video-ref.ts";
 import type { PlayerCaption } from "../../../../src/sites/youtube/page/caption-types.ts";
-import { CAPTION_WAIT_MS, createCaptionToggle } from "../../../../src/sites/youtube/page/commands.ts";
+import { CAPTION_WAIT_MS, CLOSE_AD_WAIT_MS, createCaptionToggle } from "../../../../src/sites/youtube/page/commands.ts";
 import type { PlayerTracks } from "../../../../src/sites/youtube/page/panel-types.ts";
+import { stillFalse, until } from "../../../helpers/wait-until.ts";
 
 const ID = "jmSample0001";
 const OTHER = "jmSample0002";
@@ -135,6 +136,43 @@ test("等的时候换了视频：报视频已换，不替新视频关字幕；�
   closed.after(400, () => closed.button.attributes.set("aria-pressed", "false"));
   assert.equal((await closed.ask())?.outcome, "caught");
   assert.equal(closed.button.clicks, 1);
+});
+
+test("读完要关时正在播广告：先交回字幕，广告播完才关上", async () => {
+  const w = world();
+  w.after(300, () => w.player.classes.add("ad-showing"));
+  w.after(60_000, () => w.player.classes.delete("ad-showing"));
+  assert.deepEqual(await w.ask(), { outcome: "caught", caption: CAPTION, player: TRACKS });
+  assert.equal(w.button.clicks, 1, "广告还在播，先不关");
+  assert.ok(await until(() => w.button.clicks === 2));
+  assert.ok(w.elapsed() >= 60_000);
+  assert.equal(w.button.getAttribute("aria-pressed"), "false");
+});
+
+test("广告一直没播完：等够了就不关了，只点开过那一下", async () => {
+  const w = world();
+  w.after(300, () => w.player.classes.add("ad-showing"));
+  assert.equal((await w.ask())?.outcome, "caught");
+  assert.ok(await until(() => w.elapsed() >= CLOSE_AD_WAIT_MS));
+  assert.ok(await stillFalse(() => w.button.clicks !== 1));
+  assert.equal(w.button.getAttribute("aria-pressed"), "true");
+});
+
+test("等广告的时候按钮标成不可用、换了视频或者用户自己关了：广告完了也不点", async () => {
+  const changes: ((w: ReturnType<typeof world>) => void)[] = [
+    (w) => w.button.attributes.set("aria-disabled", "true"),
+    (w) => w.navigate(OTHER),
+    (w) => w.button.attributes.set("aria-pressed", "false"),
+  ];
+  for (const change of changes) {
+    const w = world();
+    w.after(300, () => w.player.classes.add("ad-showing"));
+    w.after(5_000, () => change(w));
+    w.after(10_000, () => w.player.classes.delete("ad-showing"));
+    assert.equal((await w.ask())?.outcome, "caught");
+    assert.ok(await until(() => w.elapsed() >= 10_000));
+    assert.ok(await stillFalse(() => w.button.clicks !== 1));
+  }
 });
 
 test("认不出的请求不管", () => {

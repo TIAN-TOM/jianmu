@@ -1,6 +1,7 @@
 /// <reference types="chrome" />
 // 侧边栏跟着本窗口当前的标签页走：切标签页、标签页换地址、后台的跟随广播都重新认一次视频。
-// 视频身份按站点规则从标签页地址解析；读不到地址时，退到这个标签页的观看会话（启用以后才问）。
+// 视频身份按站点规则从标签页地址解析。读不到地址就当没有视频：标签页去了简幕没有访问权限的网站（比如还没启用的 YouTube），
+// 这个标签页的观看会话记的还是之前那个视频，不能拿来认。
 import { signal, type ReadonlySignal } from "@preact/signals";
 import { videoKey, type VideoKey } from "../../core/video-ref.ts";
 import { siteRules } from "../../sites/rules.ts";
@@ -27,7 +28,7 @@ interface ChromeEvent<L> {
 }
 
 type ActivatedListener = (info: { readonly tabId: number; readonly windowId: number }) => void;
-type UpdatedListener = (tabId: number, change: { readonly url?: string; readonly title?: string }, tab: TabInfo) => void;
+type UpdatedListener = (tabId: number, change: { readonly url?: string; readonly title?: string; readonly status?: string }, tab: TabInfo) => void;
 
 /** 用到的 chrome.tabs 和 chrome.windows，测试注入替身。 */
 export interface FollowBrowser {
@@ -39,8 +40,7 @@ export interface FollowBrowser {
 }
 
 export interface FollowDeps {
-  readonly api: Pick<PageApi, "send" | "on">;
-  readonly enabled: ReadonlySignal<boolean>;
+  readonly api: Pick<PageApi, "on">;
   readonly browser?: FollowBrowser;
 }
 
@@ -73,7 +73,7 @@ function browserFollow(): FollowBrowser {
   };
 }
 
-export function createFollow({ api, enabled, browser = browserFollow() }: FollowDeps): Follow {
+export function createFollow({ api, browser = browserFollow() }: FollowDeps): Follow {
   const target = signal<FollowTarget>(NONE);
   let windowId: number | null = null;
   /** 正在认的标签页：认的途中它换了地址，要再认一次。 */
@@ -81,7 +81,7 @@ export function createFollow({ api, enabled, browser = browserFollow() }: Follow
   let generation = 0;
   let stopped = false;
 
-  async function settle(tab: TabInfo | null, asked: number): Promise<void> {
+  function settle(tab: TabInfo | null): void {
     if (!tab || typeof tab.id !== "number") {
       watching = null;
       target.value = NONE;
@@ -89,13 +89,7 @@ export function createFollow({ api, enabled, browser = browserFollow() }: Follow
     }
     const tabId = tab.id;
     watching = tabId;
-    let video = videoOfUrl(tab.url);
-    // 只在读不到地址时退到观看会话：地址明明不是播放页时，会话里记的是之前那个视频。
-    if (video === null && !tab.url && enabled.peek()) {
-      const reply = await api.send("session.get", { tabId });
-      if (stopped || asked !== generation) return;
-      video = reply.ok ? (reply.value.session?.video ?? null) : null;
-    }
+    const video = videoOfUrl(tab.url);
     const next: FollowTarget = { tabId, video, title: tab.title ?? "" };
     const now = target.peek();
     // 同一个标签页、同一个视频只改标题，不换对象，免得各页签以为换了视频重新读取。
@@ -113,7 +107,7 @@ export function createFollow({ api, enabled, browser = browserFollow() }: Follow
     const tab = await lookup();
     if (stopped || asked !== generation) return;
     if (!accept(tab)) return refresh();
-    await settle(tab, asked);
+    settle(tab);
   }
 
   function refresh(): Promise<void> {
@@ -130,7 +124,10 @@ export function createFollow({ api, enabled, browser = browserFollow() }: Follow
     void follow(() => browser.getTab(tabId));
   };
   const onUpdated: UpdatedListener = (tabId, change, tab) => {
-    if (stopped || tabId !== watching || (change.url === undefined && change.title === undefined)) return;
+    if (stopped || tabId !== watching) return;
+    // 去了没有访问权限的网站时，地址和标题都看不到，只收得到加载状态：这时也重新认一次，按没有视频处理。
+    const unseen = change.status !== undefined && !tab.url;
+    if (change.url === undefined && change.title === undefined && !unseen) return;
     void follow(async () => tab);
   };
   browser.onActivated.addListener(onActivated);
@@ -144,11 +141,7 @@ export function createFollow({ api, enabled, browser = browserFollow() }: Follow
         (tab) => tab?.windowId === windowId,
       );
     }),
-    // 启用以后再认一次：地址里认不出的视频这时才问得了观看会话。
-    api.on("activation.changed", ({ confirmed }) => {
-      if (confirmed) void refresh();
-    }),
-    // 撤了某个站的授权：那个站的标签页地址看不到了，观看会话也删了，重新认一次。
+    // 撤了某个站的授权：那个站的标签页地址看不到了，重新认一次，按没有视频处理。
     api.on("site.changed", () => void refresh()),
   ];
 

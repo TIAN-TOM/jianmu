@@ -20,6 +20,7 @@ import {
   accountImages,
   captionFile,
   playerData,
+  replyData,
   summaryData,
   untrustedTracks,
   viewData,
@@ -201,12 +202,21 @@ function readSummary(request) {
   return signedRead(request, (video) => ok(video.bvid === FOURTH_VIDEO.bvid ? NO_SUMMARY : summaryData()));
 }
 
+/** 评论区第一页：视频按 av 号认，只认视频评论、按热度排的那种。 @param {Read} request */
+function readReplies({ query, scenario }) {
+  if (isPaid(scenario)) return unexpected();
+  const video = Object.values(VIDEOS).find((candidate) => String(candidate.aid) === query.get("oid"));
+  if (!video || query.get("type") !== "1" || query.get("mode") !== "3" || query.has("next")) return unexpected();
+  return ok(replyData(video));
+}
+
 /** @param {Read} request */
 const readWatchLater = ({ scenario }) => ok(watchLaterData({ paid: scenario === "paid" }));
 
 const VIEW_PATH = "/x/web-interface/view";
 const SUMMARY_PATH = "/x/web-interface/view/conclusion/get";
 const WATCH_LATER_PATH = "/x/v2/history/toview";
+const REPLY_PATH = "/x/v2/reply/main";
 
 /** @type {Readonly<Record<string, (request: Read) => MockResponse>>} */
 const CONTENT_ROUTES = {
@@ -214,12 +224,15 @@ const CONTENT_ROUTES = {
   "/x/player/wbi/v2": readPlayer,
   [SUMMARY_PATH]: readSummary,
   [WATCH_LATER_PATH]: readWatchLater,
+  [REPLY_PATH]: readReplies,
 };
 
 /** 读官方总结的请求。 @param {{ host: string, path: string }} entry */
 export const officialRead = ({ host, path }) => apiHost(host) && path === SUMMARY_PATH;
 /** 读稍后再看列表的请求。 @param {{ host: string, path: string }} entry */
 export const watchLaterRead = ({ host, path }) => apiHost(host) && path === WATCH_LATER_PATH;
+/** 读评论区的请求。 @param {{ host: string, path: string }} entry */
+export const replyRead = ({ host, path }) => apiHost(host) && path === REPLY_PATH;
 
 /** @param {string} cookie @param {string} scenario */
 function isLoggedIn(cookie, scenario) {

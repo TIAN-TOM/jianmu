@@ -103,10 +103,11 @@ function run(flags: string): Record<string, unknown> {
   return JSON.parse(output.trim().split("\n").at(-1) ?? "{}");
 }
 
-test("日用包：首发前存下的确认和同意照旧沿用，条目一样就什么都不列、不打断；清除全部数据以后照旧要走一遍", () => {
+test("日用包：首发前存下的确认和同意照旧沿用，只把多出的评论区那一条交给侧边栏、不打断；清除全部数据以后照旧要走一遍", () => {
   const daily = run("./tests/helpers/daily-build-flags.ts");
-  assert.deepEqual(daily.legacy, { state: "current", carried: [] }, "启用照旧算数，侧边栏顶上不出那一行");
-  assert.deepEqual(daily.consentLegacy, { state: "current", carried: [] });
+  // 第 1 版的条目和存着的一样，日用包多出只有评论区那一条的第 2 版：两份说明各列这一条。
+  assert.deepEqual(daily.legacy, { state: "current", carried: ["top-comments", "top-comments"] }, "启用照旧算数，侧边栏顶上只列评论区那一条");
+  assert.deepEqual(daily.consentLegacy, { state: "current", carried: ["top-comments"] });
   assert.equal(daily.givenLegacy, true, "模型请求照常发");
   assert.equal(daily.autoLegacy, true, "打开就出结论照常跑");
   assert.equal(daily.validLegacy, false, "设置校验不报没同意");
@@ -130,8 +131,8 @@ test("发行包：首发前存下的确认和同意不算数，按第一次处�
 test("日用包：确认过、同意过的照旧算数，多出来的条目交给侧边栏；从没确认、没同意的照旧要走一遍；看过以后两份都记成当前这一版", () => {
   const daily = run("./tests/helpers/daily-build-flags.ts");
   // 指纹认不出确认的是哪一版、版本号又比表里的都大：条目全列出来，宁可多列。
-  const activationAll = ["video-info", "transcript", "official-summary", "watch-state", "window-tabs", "watch-later", "display", "pick-mode", "material", "cache", "triage", "saved", "bili-login-state", "watch-later-progress", "open-tabs", "current-frame"];
-  const consentAll = ["transcript", "selection", "question", "video-title", "uploader-and-description", "official-summary", "api-key", "ai-features", "chosen-provider", "on-click", "imported-transcript", "video-duration", "auto-on-open-tabs", "tidy-transcript", "keep-running", "current-frame", "frame-explain"];
+  const activationAll = ["video-info", "transcript", "official-summary", "watch-state", "window-tabs", "watch-later", "display", "pick-mode", "material", "cache", "triage", "saved", "bili-login-state", "watch-later-progress", "open-tabs", "current-frame", "top-comments"];
+  const consentAll = ["transcript", "selection", "question", "video-title", "uploader-and-description", "official-summary", "api-key", "ai-features", "chosen-provider", "on-click", "imported-transcript", "video-duration", "auto-on-open-tabs", "tidy-transcript", "keep-running", "current-frame", "frame-explain", "top-comments"];
   assert.deepEqual(daily.stale, { state: "current", carried: [...activationAll, ...consentAll] });
   assert.deepEqual(daily.staleGroups, { activation: activationAll, consent: consentAll }, "在本机读的和发给模型的分开放");
   assert.deepEqual(daily.never, { state: "needed", updated: false });

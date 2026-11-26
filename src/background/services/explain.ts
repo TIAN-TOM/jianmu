@@ -92,7 +92,7 @@ export function createExplainService(deps: ExplainServiceDeps): ExplainService {
         } catch (error) {
           if (run.signal.aborted || (error as { readonly code?: unknown } | null)?.code === "TASK_CANCELED") return fail("TASK_CANCELED");
           deps.log.error("划词解释失败", errorLabel(error));
-          return aiFailure(error);
+          return aiFailure(error, lang);
         }
       });
     },

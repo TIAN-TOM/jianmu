@@ -33,6 +33,7 @@ import {
   SAMPLE_KEY,
   type ModelService,
   type ServiceHandler,
+  type ServiceReply,
 } from "../../helpers/fake-model-service.ts";
 import { until } from "../../helpers/wait-until.ts";
 
@@ -263,6 +264,27 @@ test("本机 http 地址不填密钥：配置检查算设置好，拉模型列�
   }
 });
 
+test("Ollama 预设不填密钥就算设置好；本机服务回 403 时拉模型列表、测试连接和正式请求都报来源被拒，不报密钥错误", async () => {
+  const OLLAMA = { presetId: "ollama", aiModel: "local-model" };
+  const { ai, ask, service } = setup({
+    ...keyedStorage(OLLAMA, "http://localhost:11434/", ""),
+    granted: ["http://localhost:11434/"],
+    handler: () => reply({}, 403),
+  });
+  assert.deepEqual(await ask("config.check"), { ok: true, value: { ready: true, errors: [] } });
+  const listed = (await ask("models.list", senders.options())) as { ok: boolean; code?: string; detail?: string };
+  assert.equal(listed.code, "AI_LOCAL_ORIGIN_REJECTED");
+  assert.match(listed.detail ?? "", /OLLAMA_ORIGINS/);
+  const tested = (await ask("ai.testConnection", senders.options())) as { ok: boolean; code?: string };
+  assert.equal(tested.code, "AI_LOCAL_ORIGIN_REJECTED");
+  await rejectsWith(ai.requestAiCompletion(EXPLAIN), "AI_LOCAL_ORIGIN_REJECTED");
+  assert.deepEqual(service.sent.map((request) => request.url), [
+    "http://localhost:11434/v1/models",
+    "http://localhost:11434/v1/chat/completions",
+    "http://localhost:11434/v1/chat/completions",
+  ]);
+});
+
 test("本机 http 地址没授权时照样只查不申请，一个请求都不发；别的 http 地址按配置错误收尾", async () => {
   const LOCAL = { presetId: "custom", protocol: PROTOCOLS.OPENAI, aiBaseUrl: "http://127.0.0.1:1234/v1", aiModel: "m" };
   const local = setup({ ...keyedStorage(LOCAL, "http://127.0.0.1:1234/", ""), granted: [], handler: () => chatReply("不该发出") });
@@ -271,7 +293,7 @@ test("本机 http 地址没授权时照样只查不申请，一个请求都不�
   // 后台自己写的说明挂着繁体：按繁体取是繁体，错误本身可枚举的字段只有码。
   const denied = await local.ai.requestAiCompletion(EXPLAIN).catch((error: unknown) => error as TransportError);
   assert.deepEqual(Object.keys(denied), ["code"]);
-  assert.equal(AI.aiFailure(denied, "zh-Hant").detail, "擴充功能還沒有存取 http://127.0.0.1:1234/ 的權限。請打開設定頁，點選「儲存並授權」。");
+  assert.equal(AI.aiFailure(denied, "zh-Hant").detail, "簡幕還沒有存取 http://127.0.0.1:1234/ 的權限。請打開設定頁，點選「儲存」。");
 
   const LAN = { ...LOCAL, aiBaseUrl: "http://192.168.1.50:1234/v1" };
   const lan = setup({ ...keyedStorage(LAN, "http://192.168.1.50:1234/", ""), handler: () => chatReply("不该发出") });
@@ -640,21 +662,21 @@ test("后台：配置检查分得清缺什么：只是密钥没了回 missing �
 
 test("模型服务的失败带上服务的原话；鉴权失败、取消不带", () => {
   const http = (status: number, message: string) => Object.assign(new Error(message), { status });
-  assert.deepEqual(AI.aiFailure(http(404, "model sample-old was retired, use sample-new")), {
+  assert.deepEqual(AI.aiFailure(http(404, "model sample-old was retired, use sample-new"), "zh"), {
     ok: false,
     code: "MODEL_OR_ENDPOINT_NOT_FOUND",
     detail: "服务返回 404，多半是模型名写错或 API 地址不对，请到设置页核对。",
     said: "model sample-old was retired, use sample-new",
   });
-  assert.equal(AI.aiFailure(http(400, "unsupported parameter: sample")).said, "unsupported parameter: sample", "认不出的错误也带原话");
-  assert.equal(AI.aiFailure(http(400, "unsupported parameter: sample")).code, "AI_REQUEST_FAILED");
-  assert.equal("said" in AI.aiFailure(http(401, "Incorrect API key provided: sk-test-abcd****wxyz")), false);
-  assert.equal("said" in AI.aiFailure(Object.assign(new Error("任务已取消。"), { code: "TASK_CANCELED" })), false);
+  assert.equal(AI.aiFailure(http(400, "unsupported parameter: sample"), "zh").said, "unsupported parameter: sample", "认不出的错误也带原话");
+  assert.equal(AI.aiFailure(http(400, "unsupported parameter: sample"), "zh").code, "AI_REQUEST_FAILED");
+  assert.equal("said" in AI.aiFailure(http(401, "Incorrect API key provided: sk-test-abcd****wxyz"), "zh"), false);
+  assert.equal("said" in AI.aiFailure(Object.assign(new Error("任务已取消。"), { code: "TASK_CANCELED" }), "zh"), false);
 });
 
 test("服务的原话里遮掉密钥的占位字按语言写：英文是英文，中文照旧", () => {
   const error = Object.assign(new Error("model sample-x refused [已隐藏的密钥], token 9f8e7d6c5b4a39281706f5e4d3c2b1a0"), { status: 404 });
-  assert.equal(AI.aiFailure(error).said, "model sample-x refused [已隐藏的密钥], token [已隐藏]");
+  assert.equal(AI.aiFailure(error, "zh").said, "model sample-x refused [已隐藏的密钥], token [已隐藏]");
   assert.equal(AI.aiFailure(error, "en").said, "model sample-x refused [key hidden], token [hidden]");
 });
 
@@ -670,7 +692,7 @@ test("错误链：挂着繁体说明的错误经回执和结果出来是繁体�
   const expected = providerText("zh-Hant").redirected("https://api.example.test/v1?k=[已隱藏的金鑰]");
   assert.equal(aiErrorResponse(error, "zh-Hant").message, expected);
   assert.deepEqual(AI.aiFailure(error, "zh-Hant"), { ok: false, code: "AI_REDIRECT_BLOCKED", detail: expected });
-  assert.equal(AI.aiFailure(error).detail, text.message, "不传语言还是简体");
+  assert.equal(AI.aiFailure(error, "zh").detail, text.message, "简体照旧");
   assert.deepEqual(Object.keys(error), ["code"]);
   assert.equal(JSON.stringify({ ...error }), before);
   assert.equal(error.message, text.message);
@@ -692,7 +714,34 @@ test("设置页拉模型列表、测试连接失败时的说明跟着语言设�
       assert.doesNotMatch(tested.detail ?? "", /[\u4e00-\u9fff]/);
     } else {
       assert.equal(listed.detail, DATA_CONSENT_ERROR, language);
-      assert.equal(tested.detail, `AI 还没配置好：${DATA_CONSENT_ERROR}`, language);
+      assert.equal(tested.detail, `AI 还没设置好：${DATA_CONSENT_ERROR}`, language);
     }
   }
+});
+
+test("测试连接发给模型的那句话跟着语言设置：选英文发英文、要模型回英文的词，设置页原样显示回的词", async () => {
+  const sentPrompt = (service: ModelService): unknown => (service.posts()[0]?.body?.["messages"] as { content?: unknown }[] | undefined)?.[0]?.content;
+  const english = setup({ ...keyedStorage({ ...DEEPSEEK, language: "en" }, DEEPSEEK_ORIGIN), handler: () => chatReply("OK") });
+  assert.deepEqual(await english.ask("ai.testConnection", senders.options()), { ok: true, value: { model: "deepseek-v4-flash", reply: "OK" } });
+  assert.equal(sentPrompt(english.service), "Reply with one word: OK");
+  for (const language of ["zh", "zh-Hant"] as const) {
+    const { ask, service } = setup({ ...keyedStorage({ ...DEEPSEEK, language }, DEEPSEEK_ORIGIN), handler: () => chatReply("可用") });
+    assert.equal(((await ask("ai.testConnection", senders.options())) as { ok: boolean }).ok, true, language);
+    const prompt = String(sentPrompt(service));
+    assert.match(prompt, /可用$/, language);
+    assert.equal(prompt === "回复两个字：可用", language === "zh", `${language}：${prompt}`);
+  }
+});
+
+test("任务里的请求没写语言时按冻结的语言写：英文任务被限流重发时的进度是英文", async () => {
+  let sends = 0;
+  const limited: ServiceReply = { ...reply({ error: { message: "rate limited" } }, 429), headers: new Headers({ "retry-after": "1" }) };
+  const { ai } = setup({ ...keyedStorage(DEEPSEEK, DEEPSEEK_ORIGIN), handler: () => (++sends === 1 ? limited : chatReply("done")) });
+  const notices: string[] = [];
+  const frozen: FrozenGen = { ...frozenFor("deepseek-v4-flash", "https://api.deepseek.com"), outputLang: "en" };
+  const { text } = await ai.forTask(frozen).requestAiCompletion({ ...EXPLAIN, onRetry: ({ message }) => notices.push(message) });
+  assert.equal(text, "done");
+  assert.equal(notices.length, 1);
+  const [notice = ""] = notices;
+  assert.doesNotMatch(notice, /[一-鿿]/, notice);
 });

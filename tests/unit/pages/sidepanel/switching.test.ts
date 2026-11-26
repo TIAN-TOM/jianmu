@@ -2,7 +2,6 @@
 // 换了视频以后，旧视频的字幕和问答回复都不串到新视频上；接上别处在跑的概览只跟着广播，不再认领一次。
 // 同一个视频换了标签页，概览和问答只重读本机、接上在跑的任务，眼下的状态不清。
 import assert from "node:assert/strict";
-import { signal } from "@preact/signals";
 import { test } from "node:test";
 import type { TaskView } from "../../../../src/core/tasks.ts";
 import { videoKey } from "../../../../src/core/video-ref.ts";
@@ -49,6 +48,15 @@ function fakeBrowser(tabs: Map<number, { windowId: number; url?: string; title?:
       if (tab) tab.url = url;
       for (const listener of updated) (listener as (t: number, c: { url: string }, tab: unknown) => void)(id, { url }, info(id));
     },
+    /** 标签页去了没有访问权限的网站：地址和标题都看不到，只报加载状态。 */
+    leave(id: number) {
+      const tab = tabs.get(id);
+      if (tab) {
+        delete tab.url;
+        delete tab.title;
+      }
+      for (const listener of updated) (listener as (t: number, c: { status: string }, tab: unknown) => void)(id, { status: "loading" }, info(id));
+    },
   };
 }
 
@@ -58,24 +66,38 @@ test("认视频：B 站播放页认得出，别的地址认不出", () => {
   assert.equal(videoOfUrl(undefined), null);
 });
 
-test("跟随：新开的标签页地址还没到就先问观看会话，问的途中地址到了，照样认出视频", async () => {
+test("跟随：新开的标签页地址还没到时先当没有视频，地址到了认出视频", async () => {
   const { fake, api } = setup();
   const tabs = new Map<number, { windowId: number; url?: string }>([[5, { windowId: 1 }]]);
   const page = fakeBrowser(tabs, { id: 5 });
-  const gate = deferred();
-  fake.reply("session.get", async () => {
-    await gate.promise;
-    return { ok: true, value: { session: null } };
-  });
-  const follow = createFollow({ api, enabled: signal(true), browser: page.browser });
-  const first = follow.refresh();
-  await until(() => fake.attempts("session.get") === 1);
+  const follow = createFollow({ api, browser: page.browser });
+  await follow.refresh();
+  assert.deepEqual(follow.target.value, { tabId: 5, video: null, title: "" });
   page.navigate(5, WATCH);
-  gate.resolve();
-  await first;
   await until(() => follow.target.value.video === FIRST);
   assert.equal(follow.target.value.tabId, 5);
+  assert.equal(fake.attempts("session.get"), 0, "不问观看会话");
   follow.stop();
+});
+
+test("跟随：同一个标签页去了读不到地址的网站，不再显示上一个视频，重开侧边栏也一样，不问观看会话", async () => {
+  const { fake, api } = setup();
+  const tabs = new Map<number, { windowId: number; url?: string; title?: string }>([[5, { windowId: 1, url: WATCH, title: "上一个视频" }]]);
+  const page = fakeBrowser(tabs, { id: 5 });
+  // 观看会话还记着上一个视频：后台看不到标签页去了哪里，不会替它删。
+  fake.reply("session.get", { value: { ok: true, value: { session: { video: FIRST } } } });
+  const follow = createFollow({ api, browser: page.browser });
+  await follow.refresh();
+  assert.equal(follow.target.value.video, FIRST);
+  page.leave(5);
+  await until(() => follow.target.value.video === null);
+  assert.equal(follow.target.value.tabId, 5);
+  follow.stop();
+  const reopened = createFollow({ api, browser: page.browser });
+  await reopened.refresh();
+  assert.deepEqual(reopened.target.value, { tabId: 5, video: null, title: "" });
+  assert.equal(fake.attempts("session.get"), 0);
+  reopened.stop();
 });
 
 test("跟随：别的窗口来的跟随广播不理，本窗口切到别的标签页就跟过去", async () => {
@@ -86,7 +108,7 @@ test("跟随：别的窗口来的跟随广播不理，本窗口切到别的标�
     [7, { windowId: 1, url: "https://www.bilibili.com/video/BV1Sample002" }],
   ]);
   const page = fakeBrowser(tabs, { id: 5 });
-  const follow = createFollow({ api, enabled: signal(true), browser: page.browser });
+  const follow = createFollow({ api, browser: page.browser });
   await follow.refresh();
   assert.equal(follow.target.value.video, FIRST);
   fake.broadcast({ type: "panel.follow", tabId: 6 });
@@ -191,7 +213,7 @@ test("跟随：地址明确不是播放页时不退到观看会话，不把上�
   const tabs = new Map([[5, { windowId: 1, url: WATCH }]]);
   const page = fakeBrowser(tabs, { id: 5 });
   fake.reply("session.get", { value: { ok: true, value: { session: { video: FIRST } } } });
-  const follow = createFollow({ api, enabled: signal(true), browser: page.browser });
+  const follow = createFollow({ api, browser: page.browser });
   await follow.refresh();
   assert.equal(follow.target.value.video, FIRST);
   page.navigate(5, "https://www.bilibili.com/");
@@ -217,7 +239,7 @@ test("跟随：连着切两次标签页，先发的查询晚回来也不把目�
     onActivated: { addListener: (l: Listener) => void activated.add(l), removeListener: (l: Listener) => void activated.delete(l) },
     onUpdated: { addListener: () => {}, removeListener: () => {} },
   } as unknown as FollowBrowser;
-  const follow = createFollow({ api, enabled: signal(true), browser });
+  const follow = createFollow({ api, browser });
   await follow.refresh();
   for (const tabId of [6, 7]) for (const listener of activated) listener({ tabId, windowId: 1 });
   await until(() => follow.target.value.tabId === 7);
@@ -275,7 +297,7 @@ test("跟随：切到新标签页、还没查完时旧标签页改了标题，�
     onActivated: { addListener: (l: Activated) => void activated.add(l), removeListener: (l: Activated) => void activated.delete(l) },
     onUpdated: { addListener: (l: Updated) => void updated.add(l), removeListener: (l: Updated) => void updated.delete(l) },
   } as unknown as FollowBrowser;
-  const follow = createFollow({ api, enabled: signal(true), browser });
+  const follow = createFollow({ api, browser });
   await follow.refresh();
   for (const listener of activated) listener({ tabId: 6, windowId: 1 });
   for (const listener of updated) listener(5, { title: "旧标签页的新标题" }, { id: 5, windowId: 1, url: WATCH, title: "旧标签页的新标题" });
@@ -289,7 +311,7 @@ test("跟随：同一个标签页、同一个视频再确认一次，目标不�
   const { fake, api } = setup();
   const tabs = new Map([[5, { windowId: 1, url: WATCH, title: "标题" }]]);
   const page = fakeBrowser(tabs, { id: 5 });
-  const follow = createFollow({ api, enabled: signal(true), browser: page.browser });
+  const follow = createFollow({ api, browser: page.browser });
   await follow.refresh();
   const first = follow.target.value;
   let changes = 0;

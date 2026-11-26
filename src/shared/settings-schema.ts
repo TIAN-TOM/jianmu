@@ -1,6 +1,7 @@
 // 设置的结构和规则：默认值、规整、校验、按功能选模型。读写存储在设置仓库里，这里不碰 chrome.*。
 // 协议和地址只写在 core/ai/provider/endpoint.ts，这里按 id 补给界面用的内容，依赖方向是这里导入那边。
 import { ANALYSIS_CHUNK_CHARS, ANALYSIS_SINGLE_CHARS } from "../core/ai/chunking.ts";
+import { ACCENT_THEMES, type AccentTheme } from "./accent-themes.ts";
 import {
   CUSTOM_PRESET_ID,
   DEFAULT_PRESET as DEFAULT_ENDPOINT,
@@ -58,6 +59,8 @@ const PRESET_DETAILS: Readonly<Record<PresetId, PresetDetail>> = {
   dashscope: { model: "", docsUrl: "https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key" },
   siliconflow: { model: "", docsUrl: "https://cloud.siliconflow.cn/account/ak" },
   openrouter: { model: "", docsUrl: "https://openrouter.ai/keys" },
+  // 本机服务没有密钥页。
+  ollama: { model: "", docsUrl: "" },
   [CUSTOM_PRESET_ID]: { model: "", docsUrl: "" },
 };
 
@@ -106,46 +109,7 @@ export const ANALYSIS_CHUNK_MODES = Object.freeze({
 });
 export type AnalysisChunkMode = keyof typeof ANALYSIS_CHUNK_MODES;
 
-interface ThemeColors {
-  readonly bg: string;
-  readonly card: string;
-  readonly text: string;
-  readonly accent: string;
-}
-
-// 主题的名字和一句话说明在设置页的文案表里，按 id 取。
-interface AccentThemeInfo {
-  /** 浅色的强调色填充，播放页上的按钮落在平台的浅色页面上，从这取值。 */
-  readonly swatch: string;
-  /** 设置页主题卡片上的小预览，明暗各一组。 */
-  readonly preview: { readonly light: ThemeColors; readonly dark: ThemeColors };
-}
-
-// 三套完整配色共用同一套排版。完整色值在主题样式表里，按 html 的 data 属性切换，这里只留脚本要用的颜色，两边要一致。
-export const ACCENT_THEMES = Object.freeze({
-  ink: {
-    swatch: "#2a6664",
-    preview: {
-      light: { bg: "#f6f3ed", card: "#fdfbf8", text: "#1d2428", accent: "#2a6664" },
-      dark: { bg: "#141818", card: "#1b201f", text: "#e3dfd7", accent: "#76b9b6" },
-    },
-  },
-  graphite: {
-    swatch: "#515d9f",
-    preview: {
-      light: { bg: "#f2f4f8", card: "#ffffff", text: "#1f232b", accent: "#515d9f" },
-      dark: { bg: "#15171c", card: "#1c1f23", text: "#dde0e5", accent: "#9daae4" },
-    },
-  },
-  ochre: {
-    swatch: "#8e5729",
-    preview: {
-      light: { bg: "#f8f3ee", card: "#fdfbf9", text: "#29211d", accent: "#8e5729" },
-      dark: { bg: "#1a1614", card: "#221e1b", text: "#e5ded7", accent: "#dea77e" },
-    },
-  },
-} as const satisfies Readonly<Record<string, AccentThemeInfo>>);
-export type AccentTheme = keyof typeof ACCENT_THEMES;
+export { ACCENT_THEMES, type AccentTheme } from "./accent-themes.ts";
 
 export const THEME_MODES = Object.freeze({ SYSTEM: "system", LIGHT: "light", DARK: "dark" } as const);
 export type ThemeMode = (typeof THEME_MODES)[keyof typeof THEME_MODES];
@@ -189,6 +153,7 @@ export interface SettingsInput {
   readonly autoOverview?: unknown;
   readonly autoOverviewMinutes?: unknown;
   readonly rememberApiKey?: unknown;
+  readonly rememberKeyAsked?: unknown;
   readonly dataConsentVersion?: unknown;
   readonly dataConsentFingerprint?: unknown;
   readonly activationVersion?: unknown;
@@ -218,6 +183,8 @@ export interface NormalizedSettings extends AiSettings {
   readonly autoOverviewMinutes: number;
   /** 「在这台电脑上记住密钥」。默认关，打开只走设置页的保存，见 settings-store。 */
   readonly rememberApiKey: boolean;
+  /** 保存密钥以后问过要不要记在这台电脑上：答了「不用」或者记住过就不再问，清除密钥或全部数据以后回到没问过。不进备份。 */
+  readonly rememberKeyAsked: boolean;
   /** 用户确认过的数据说明版本和指纹，0 和空串是还没确认。 */
   readonly dataConsentVersion: number;
   readonly dataConsentFingerprint: string;
@@ -238,13 +205,14 @@ export const DEFAULTS: NormalizedSettings = Object.freeze({
   featureEfforts: normalizeFeatureEfforts(undefined),
   analysisChunkMode: "auto",
   uiFontScale: UI_FONT_SCALES[0],
-  accentTheme: "ink",
+  accentTheme: "marker",
   themeMode: THEME_MODES.SYSTEM,
   language: "auto",
   inPageCard: true,
   autoOverview: false,
   autoOverviewMinutes: AUTO_OVERVIEW_MINUTES.default,
   rememberApiKey: false,
+  rememberKeyAsked: false,
   dataConsentVersion: 0,
   dataConsentFingerprint: "",
   activationVersion: 0,
@@ -391,10 +359,10 @@ export function normalize(input: unknown = {}): NormalizedSettings {
     // 花额度的开关只认 true：没有这一项、或写成别的值，都按关着。
     autoOverview: source.autoOverview === true,
     autoOverviewMinutes: normalizeAutoMinutes(source.autoOverviewMinutes),
-    // 只认 true：没有这一项、或写成别的值，都按没选记住。
+    // 这两项只认 true：没有这一项（旧设置没有「问过」）、或写成别的值，都按没选记住、没问过，下次保存密钥时问一次。
     rememberApiKey: source.rememberApiKey === true,
-    // 同意和启用的版本、指纹只核对形状就存下：对不对得上当前说明由校验和 activationStatus 判断，
-    // 认得出确认过哪一版，才能只列之后新增的内容。
+    rememberKeyAsked: source.rememberKeyAsked === true,
+    // 同意和启用的版本、指纹只核对形状就存下：对不对得上当前说明由校验和 activationStatus 判断，认得出确认过哪一版，才能只列之后新增的内容。
     dataConsentVersion: positiveInteger(source.dataConsentVersion),
     dataConsentFingerprint: stringOrEmpty(source.dataConsentFingerprint),
     activationVersion: positiveInteger(source.activationVersion),

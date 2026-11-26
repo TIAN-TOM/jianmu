@@ -15,7 +15,7 @@ export interface Status {
 
 /**
  * 状态行落在哪个控件下面，不用滚到这一节最底下找。
- * actions 是「保存并授权」「测试连接」那一排按钮下面，也是别处没有专门位置时的落点。
+ * actions 是「保存」「测试连接」那一排按钮下面，也是别处没有专门位置时的落点。
  */
 export type AiPlace = "key" | "remember" | "model" | "probe" | "efforts" | "chunk" | "actions";
 

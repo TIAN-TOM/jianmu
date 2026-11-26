@@ -41,9 +41,9 @@ export function parseFailed(sends: number): TransportError {
   return error;
 }
 
-export function failureOf(error: unknown): TranslateFailure {
+export function failureOf(error: unknown, lang: OutputLang): TranslateFailure {
   if ((error as { readonly code?: unknown } | null)?.code === "TRANSLATE_PARSE_FAILED") return { code: "TRANSLATE_PARSE_FAILED" };
-  return bare(aiFailure(error));
+  return bare(aiFailure(error, lang));
 }
 
 export const bare = ({ code, detail, said }: Failure): TranslateFailure => ({ code, ...(detail === undefined ? {} : { detail }), ...(said ? { said } : {}) });

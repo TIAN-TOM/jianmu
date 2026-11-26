@@ -1,5 +1,5 @@
 // 概览这几条消息的请求和回复：开始生成、补失败块、读本机已有的概览、用官方总结写结论。生成、补块和写结论都要先经任务登记拿到任务号，
-// 卡片只能开始生成，凭登记时拿到的一次性令牌。回复里的概览是生效中的那份，重新生成写到一半的草稿不给页面。
+// 卡片能开始生成、重新生成、补失败块和用官方总结写结论，都凭登记时拿到的一次性令牌。回复里的概览是生效中的那份，重新生成写到一半的草稿不给页面。
 import type { FailureRange } from "../../core/ai/chunking.ts";
 import type { LearningAnalysis } from "../../core/notes/markdown.ts";
 import type { OverviewTranscriptBasis } from "../../core/notes/records.ts";
@@ -12,23 +12,31 @@ export interface OverviewStartRequest {
   readonly taskId?: string;
   /** 卡片登记任务时拿到的一次性令牌，卡片只认它。 */
   readonly token?: string;
-  /** 已有概览时重新生成。卡片不能带。 */
+  /** 已有概览时重新生成。卡片也能带，界面上先确认一次。 */
   readonly fresh?: boolean;
+  /**
+   * 侧边栏在要经页面读字幕的站（YouTube）上、本机还没有字幕时带上视频所在的标签页：后台先经这个标签页读到字幕再生成，
+   * 和卡片上的「生成概览」同一条路。卡片不带，按它自己所在的标签页算。
+   */
+  readonly tabId?: number;
 }
 
+/** 补失败块：侧边栏凭任务号，卡片凭登记时拿到的一次性令牌，两样恰好带一个。 */
 export interface OverviewRetryRequest {
   readonly video: VideoKey;
-  readonly taskId: string;
+  readonly taskId?: string;
+  readonly token?: string;
 }
 
 export interface OverviewGetRequest {
   readonly video: VideoKey;
 }
 
-/** 用官方总结写一句话结论：侧边栏先登记结论任务，凭任务号开始。 */
+/** 用官方总结写一句话结论：侧边栏先登记结论任务，凭任务号开始；卡片凭登记时拿到的一次性令牌开始。两样恰好带一个。 */
 export interface VerdictFromOfficialRequest {
   readonly video: VideoKey;
-  readonly taskId: string;
+  readonly taskId?: string;
+  readonly token?: string;
 }
 
 export interface OverviewResultView {

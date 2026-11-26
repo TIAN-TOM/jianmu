@@ -20,7 +20,7 @@ import {
   type FeatureSet,
 } from "../src/shared/features.ts";
 import { INJECTED } from "../src/shared/names.ts";
-import { FRAME_EXPLAIN_PROBE, KEEP_CONSENT_PROBE, YOUTUBE_OPEN_PANEL_PROBE, YOUTUBE_PLAYER_CAPTIONS_PROBE, YOUTUBE_PROBE } from "./fixtures/build-flags/gated.ts";
+import { COMMENTS_PROBE, FRAME_EXPLAIN_PROBE, KEEP_CONSENT_PROBE, YOUTUBE_OPEN_PANEL_PROBE, YOUTUBE_PLAYER_CAPTIONS_PROBE, YOUTUBE_PROBE } from "./fixtures/build-flags/gated.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BUILD = join(ROOT, "build");
@@ -142,13 +142,13 @@ test("四个扩展页面都在 <head> 里、样式表之前同步加载主题启
   // 打出来的是经典脚本：在一个假的页面里求值，按缓存同步写好 <html>
   const dataset: Record<string, string> = {};
   const style: Record<string, string> = {};
-  const cache = JSON.stringify({ accentTheme: "ochre", themeMode: "dark", uiFontScale: 112 });
+  const cache = JSON.stringify({ accentTheme: "redblack", themeMode: "dark", uiFontScale: 112 });
   vm.runInNewContext(readBuild("pages/theme-boot.js"), {
     document: { documentElement: { dataset, style: { setProperty: (name: string, value: string) => (style[name] = value) } } },
     localStorage: { getItem: (key: string) => (key === "jianmu_appearance" ? cache : null) },
     matchMedia: () => ({ matches: false }),
   });
-  assert.deepEqual({ dataset, style }, { dataset: { accentTheme: "ochre", themeMode: "dark" }, style: { "--ui-font-zoom": "1.12" } });
+  assert.deepEqual({ dataset, style }, { dataset: { accentTheme: "redblack", themeMode: "dark" }, style: { "--ui-font-zoom": "1.12" } });
 });
 
 test("扩展页面紧跟着主题样式表加载共用组件的样式表，组件样式都进包", () => {
@@ -168,7 +168,7 @@ test("扩展页面紧跟着主题样式表加载共用组件的样式表，组�
   }
 });
 
-const ICON_SIZES = [16, 48, 128];
+const ICON_SIZES = [16, 32, 48, 128];
 const PNG_SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
 
 /** PNG 里每一块的类型，按出现顺序。 */
@@ -178,7 +178,7 @@ function pngChunks(png: Buffer): string[] {
   return types;
 }
 
-test("扩展图标是 16、48、128 三档 PNG：尺寸对得上，工具栏用同一套，都进包，不带文字信息块", () => {
+test("扩展图标是 16、32、48、128 四档 PNG：尺寸对得上，工具栏用同一套，都进包，不带文字信息块", () => {
   const manifest = JSON.parse(readBuild("manifest.json"));
   const icons = Object.fromEntries(ICON_SIZES.map((size) => [String(size), `icons/icon-${size}.png`]));
   assert.deepEqual(manifest.icons, icons);
@@ -314,6 +314,39 @@ test("后台和各页面包注入的是同一个构建标识，由内容算出",
   for (const file of ["pages/sidepanel.js", "pages/options.js", "pages/triage.js", "pages/card.js"]) assert.equal(idOf(file), background, file);
 });
 
+test("带评论区写结论只进日用包：日用构建的后台里有提示词、输出格式和核对，发行构建和 build/ 里没有", async () => {
+  const option = (features: FeatureSet) => bundleOptions(features).find((candidate) => candidate.outfile === "build/background.js");
+  const text = async (features: FeatureSet): Promise<string> => {
+    const picked = option(features);
+    assert.ok(picked, "没有后台包的构建选项");
+    return (await build({ ...picked, write: false })).outputFiles.map((output) => output.text).join("\n");
+  };
+  const [release, daily] = await Promise.all([text(RELEASE_FEATURES), text(DAILY_FEATURES)]);
+  for (const marker of ["skim/verdict-comments.md", "verdict_comments", "commentLineRule", "src/core/ai/comments", "src/background/services/overview/conclude-comments"]) {
+    assert.ok(daily.includes(marker), `日用构建的后台里没有 ${marker}`);
+    assert.ok(!release.includes(marker), `发行构建的后台里有 ${marker}`);
+    assert.ok(!readBuild("background.js").includes(marker), `build/ 里的后台有 ${marker}`);
+  }
+});
+
+test("评论区的界面只进日用包：日用构建的侧边栏和卡片里有，发行构建和 build/ 里没有", async () => {
+  const files = ["build/pages/sidepanel.js", "build/pages/card.js"];
+  const pick = async (features: FeatureSet) => {
+    const options = bundleOptions(features).filter((option) => files.includes(String(option.outfile)));
+    const built = await Promise.all(options.map(async (option) => [String(option.outfile), (await build({ ...option, write: false })).outputFiles.map((output) => output.text).join("\n")] as const));
+    return new Map(built);
+  };
+  const markers = ["评论说有误", "Called clickbait", "說是標題黨", "comment-line", "src/pages/shared/ui/comment-text"];
+  const [release, daily] = await Promise.all([pick(RELEASE_FEATURES), pick(DAILY_FEATURES)]);
+  for (const file of files) {
+    for (const marker of markers) {
+      assert.ok(daily.get(file)?.includes(marker), `日用构建的 ${file} 里没有 ${marker}`);
+      assert.ok(!release.get(file)?.includes(marker), `发行构建的 ${file} 里有 ${marker}`);
+      assert.ok(!readBuild(file.replace(/^build\//, "")).includes(marker), `build/ 里的 ${file} 有 ${marker}`);
+    }
+  }
+});
+
 test("发行构建：开关记录和发行那份一样，包里没有留下没换掉的开关常量", () => {
   assert.deepEqual(readBuildFlags(), buildFlagsRecord(RELEASE_FEATURES), "build/ 不是发行构建，先跑 npm run build");
   for (const file of BUNDLES) {
@@ -329,6 +362,7 @@ const PROBES: Readonly<Record<FeatureName, string>> = {
   youtubeOpenPanel: YOUTUBE_OPEN_PANEL_PROBE,
   youtubeCaptionCatch: YOUTUBE_PLAYER_CAPTIONS_PROBE,
   keepConsent: KEEP_CONSENT_PROBE,
+  comments: COMMENTS_PROBE,
 };
 
 async function probeBundle(features: FeatureSet): Promise<string> {
@@ -352,6 +386,24 @@ test("构建开关：关着的开关保护的内容整段裁掉，打开哪个�
   }
 });
 
+test("评论区那几条说明只进日用包：日用构建的后台、设置页和侧边栏里有，发行构建和 build/ 里没有", async () => {
+  const files = ["build/background.js", "build/pages/options.js", "build/pages/sidepanel.js"];
+  const pick = async (features: FeatureSet) => {
+    const options = bundleOptions(features).filter((option) => files.includes(String(option.outfile)));
+    const built = await Promise.all(options.map(async (option) => [String(option.outfile), (await build({ ...option, write: false })).outputFiles.map((output) => output.text).join("\n")] as const));
+    return new Map(built);
+  };
+  const markers = ["第一批热评", "first batch of top comments", "第一批熱門留言", "src/core/consent-comments"];
+  const [release, daily] = await Promise.all([pick(RELEASE_FEATURES), pick(DAILY_FEATURES)]);
+  for (const file of files) {
+    for (const marker of markers) {
+      assert.ok(daily.get(file)?.includes(marker), `日用构建的 ${file} 里没有 ${marker}`);
+      assert.ok(!release.get(file)?.includes(marker), `发行构建的 ${file} 里有 ${marker}`);
+      assert.ok(!readBuild(file.replace(/^build\//, "")).includes(marker), `build/ 里的 ${file} 有 ${marker}`);
+    }
+  }
+});
+
 test("构建标识带上开关取值：只换开关重新构建，标识跟着变，同一组开关算出同一个", () => {
   const idOf = (features: FeatureSet): string[] => bundleOptions(features).map((options) => String(options.define?.["__JIANMU_BUILD_ID__"]));
   const release = idOf(RELEASE_FEATURES);
@@ -363,13 +415,13 @@ test("构建标识带上开关取值：只换开关重新构建，标识跟着�
 });
 
 // 解释当前画面挂在开关下的内容：截帧代码、播放页图标、两份说明里当前一帧那几条、错误码和文案、
-// 画面分析的功能槽、看图探测、提示词、路由和侧边栏里的按钮和结果。
-const FRAME_SHARED = ["current-frame", "解释当前画面", "FRAME_PROTECTED", "AI_IMAGE_UNSUPPORTED", "画面分析", "frame.changed"];
+// 画面解释的功能槽、看图探测、提示词、路由和侧边栏里的按钮和结果。
+const FRAME_SHARED = ["current-frame", "解释当前画面", "FRAME_PROTECTED", "AI_IMAGE_UNSUPPORTED", "画面解释", "frame.changed"];
 const FRAME_MARKERS: Readonly<Record<string, readonly string[]>> = {
   "build/content/bilibili.js": ["requestVideoFrameCallback", "convertToBlob", "player.captureFrame", "解释当前画面", "frame.explainHere", "src/content/frame", "画面受保护", "Explain this frame", "Frame is protected"],
   "build/background.js": [...FRAME_SHARED, "prompts/study/frame-explain.md", "study/frame-explain.md", "frame.explain", "src/background/image-support", "src/background/services/frame-explain"],
   "build/pages/sidepanel.js": [...FRAME_SHARED, "frame.recent", "解释画面", "正在请模型看图", "Explain this frame"],
-  "build/pages/options.js": [...FRAME_SHARED, "ai.probeImage", "能不能看图", "Frame analysis", "Check image support"],
+  "build/pages/options.js": [...FRAME_SHARED, "ai.probeImage", "能不能看图", "Frame explanation", "Check image support"],
 };
 
 async function bundlesWith(features: FeatureSet): Promise<Map<string, string>> {
@@ -472,8 +524,11 @@ test("YouTube 代开文字稿首发带上：发行构建的后台、侧边栏和
   };
   const markers: Readonly<Record<string, readonly string[]>> = {
     "build/background.js": ["youtube.openTranscript", "src/background/routes/youtube"],
-    "build/pages/sidepanel.js": ["youtube.openTranscript", "src/pages/sidepanel/open-transcript"],
-    "build/content/youtube.js": ["youtube.openTranscript", "src/sites/youtube/page/commands"],
+    // generate-read 是侧边栏的一步生成：还没读到字幕时「生成概览」先经视频页读，跟着代开开关走。
+    "build/pages/sidepanel.js": ["youtube.openTranscript", "src/pages/sidepanel/open-transcript", "src/pages/sidepanel/generate-read"],
+    // commands.ts 里还有读播放器字幕时开关字幕的点击，那个开关也进发行包，所以按代开用的函数体认，不按模块路径；
+    // 关掉的构建里死分支还留着函数名，只有函数的定义会被裁掉。
+    "build/content/youtube.js": ["youtube.openTranscript", "function createPanelOpener("],
   };
   const release = await pick(RELEASE_FEATURES);
   const withoutOpener = await pick({ ...RELEASE_FEATURES, youtubeOpenPanel: false });
@@ -486,7 +541,7 @@ test("YouTube 代开文字稿首发带上：发行构建的后台、侧边栏和
   }
 });
 
-test("读播放器取回的字幕只在日用包里：日用构建的后台、YouTube 内容脚本和主世界小桥里有这段代码，发行包和 build/ 里都没有", async () => {
+test("读播放器取回的字幕进发行包：发行构建和 build/ 的后台、YouTube 内容脚本和主世界小桥里有这段代码，关掉这个开关的构建里没有", async () => {
   const files = ["build/background.js", "build/content/youtube.js", "build/content/youtube-bridge.js"];
   const pick = async (features: FeatureSet) => {
     const options = bundleOptions(features).filter((option) => files.includes(String(option.outfile)));
@@ -497,6 +552,27 @@ test("读播放器取回的字幕只在日用包里：日用构建的后台、Yo
     "build/background.js": ["youtube.caughtCaptions", "src/sites/youtube/player-fallback", "src/sites/youtube/caption-json", "src/sites/youtube/page/caption-types"],
     "build/content/youtube.js": ["youtube.caughtCaptions", "src/sites/youtube/page/caption-types", "ytp-subtitles-button", "src/sites/youtube/page/caption-ask"],
     "build/content/youtube-bridge.js": ["src/sites/youtube/page/caption-catch", "XMLHttpRequest", "src/sites/youtube/page/caption-types"],
+  };
+  const [release, off] = await Promise.all([pick(RELEASE_FEATURES), pick({ ...RELEASE_FEATURES, youtubeCaptionCatch: false })]);
+  for (const [file, list] of Object.entries(markers)) {
+    for (const marker of list) {
+      assert.ok(release.get(file)?.includes(marker), `发行构建的 ${file} 里没有 ${marker}`);
+      assert.ok(readBuild(file.replace(/^build\//, "")).includes(marker), `build/ 里的 ${file} 没有 ${marker}`);
+      assert.ok(!off.get(file)?.includes(marker), `关掉读播放器字幕的构建里，${file} 有 ${marker}`);
+    }
+  }
+});
+
+test("读评论区只进日用包：日用构建的后台和 YouTube 内容脚本里有这段代码，发行构建和 build/ 里没有", async () => {
+  const files = ["build/background.js", "build/content/youtube.js"];
+  const pick = async (features: FeatureSet) => {
+    const options = bundleOptions(features).filter((option) => files.includes(String(option.outfile)));
+    const built = await Promise.all(options.map(async (option) => [String(option.outfile), (await build({ ...option, write: false })).outputFiles.map((output) => output.text).join("\n")] as const));
+    return new Map(built);
+  };
+  const markers: Readonly<Record<string, readonly string[]>> = {
+    "build/background.js": ["src/sites/bilibili/comments", "youtube.loadComments", "src/sites/youtube/comments", "src/sites/youtube/page/comment-types"],
+    "build/content/youtube.js": ["youtube.loadComments", "ytd-comment-thread-renderer", "src/sites/youtube/page/read-comments", "src/sites/youtube/page/comment-types"],
   };
   const [release, daily] = await Promise.all([pick(RELEASE_FEATURES), pick(DAILY_FEATURES)]);
   for (const [file, list] of Object.entries(markers)) {

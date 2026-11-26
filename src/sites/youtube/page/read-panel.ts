@@ -1,9 +1,20 @@
-// 读观看页上已经显示的文字稿面板（新旧两种面板都认）：只看不动，不点、不滚动、不打开面板、不换页签，不碰播放器，不发请求。
+// 读观看页上已经显示的文字稿面板（新旧两种面板都认）：只看不动，不点、不滚动、不打开面板、不换页签，不碰播放器，不发请求。后台也可以只问页面现在是哪个视频、播放器上已有哪些字幕轨。
 // 字幕段落最后一次真的变了时页面放的是当前视频才认，同样的内容重建（切页签、关上再开）沿用原来的归属；简幕接上之前
 // 就有的内容认不出是谁的，要用户刷新视频页再开。读到的时间不超过视频时长，超过的整份不用；播广告时不拿时长。
 import type { VideoRef } from "../../../core/video-ref.ts";
 import { advertising, ENTRY, LANGUAGE_LABEL, openPanelOf, PANELS, searching, SEGMENTS, SEGMENT_TEXT, SEGMENT_TIME, transcriptShell, videoOnPage } from "./panel-dom.ts";
-import { END_SLACK_SEC, PANEL_LIMITS, type PanelCue, type PanelCurrent, type PanelInfo, type PanelRequest, type PanelSnapshot, type PanelState, type PlayerTracks } from "./panel-types.ts";
+import {
+  END_SLACK_SEC,
+  PANEL_LIMITS,
+  type PanelCue,
+  type PanelCurrent,
+  type PanelInfo,
+  type PanelRequest,
+  type PanelSnapshot,
+  type PanelState,
+  type PanelTracks,
+  type PlayerTracks,
+} from "./panel-types.ts";
 
 // 观看页的标题、作者和简介。
 const TITLE = "ytd-watch-metadata h1";
@@ -26,7 +37,7 @@ export interface PanelReaderDeps {
   readonly document: Document;
   readonly currentRef: () => VideoRef | null;
   readonly channelId: () => string | null;
-  /** 播放器上已有的字幕轨列表，读到面板时问一次；没有就是 null。 */
+  /** 播放器上已有的字幕轨列表，读到面板时、后台只问字幕轨时各问一次；没有就是 null。 */
   readonly playerTracks?: () => PlayerTracks | null;
   readonly now?: () => number;
   readonly sleep?: (ms: number) => Promise<void>;
@@ -36,7 +47,7 @@ export interface PanelReaderDeps {
 
 export interface PanelReader {
   /** 认得的请求回 Promise，认不出的回 null。 */
-  readonly handle: (message: unknown) => Promise<PanelSnapshot | PanelCurrent> | null;
+  readonly handle: (message: unknown) => Promise<PanelSnapshot | PanelCurrent | PanelTracks> | null;
   readonly stop: () => void;
 }
 
@@ -294,6 +305,7 @@ export function createPanelReader({
         changed();
         return Promise.resolve({ videoId: videoNow(), stamp, label: clip(squash(document.querySelector(LANGUAGE_LABEL)?.textContent), PANEL_LIMITS.label) });
       }
+      if (request?.type === "youtube.tracks") return Promise.resolve({ videoId: videoNow(), player: playerTracks() });
       return null;
     },
     stop() {

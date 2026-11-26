@@ -68,6 +68,13 @@ export interface WatchLaterList {
   items: WatchLaterItem[];
 }
 
+// 评论区的一条：不带昵称和评论者身份（PRD F23）。
+export interface TopComment {
+  text: string;
+  likes: number;
+  pinned: boolean;
+}
+
 // 内容格式不对时必须标影响范围，别的码的含义由码本身决定。
 export type SiteFailure =
   | { ok: false; code: "MALFORMED"; reach: SiteFailureReach; retryAfterSec?: never; detail?: string; rejected?: true }
@@ -118,4 +125,7 @@ export interface SiteService {
   readOfficialSummary?(info: VideoInfo, ctx: SiteCtx): R<OfficialSummary>;
   readCreatorChapters?(info: VideoInfo, ctx: SiteCtx, options?: { fresh?: boolean }): R<Chapter[]>; // 和列轨一起带 fresh，分段跟着新的列表走
   readWatchLater?(ctx: SiteCtx): R<WatchLaterList>;
+  readTopComments?(info: VideoInfo, ctx: SiteCtx): R<TopComment[]>; // 第一批热评，置顶的排前面；只在生成概览时调（PRD F23）
+  // 字幕要用户点了读取才读的站：只看页面上已经有的，不点、不发请求、不动播放器。确定这个视频没有字幕时是 true，有字幕或判断不了都是 false。
+  knownNoCaptions?(ref: VideoRef, ctx: SiteCtx): Promise<boolean>;
 }

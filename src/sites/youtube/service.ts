@@ -1,17 +1,22 @@
 // YouTube 的读取服务：不向平台发任何请求，只经内容脚本读观看页上的文字稿面板；构建开关打开时，页面上没有文字稿就改读播放器取回的字幕。
 // 开始读时核对页面上是不是这个视频；交回正文之前隔一会儿再问一次，视频、面板内容和语言有一样变了就整份不用。
-// 读到的只有面板当前显示的那一条轨：对照播放器上已有的字幕轨列表判定是哪一条，判定不了就记来源未确认。
+// 读到的只有面板当前显示的那一条轨：对照播放器上已有的字幕轨列表判定是哪一条，判定不了就记来源未确认。卡片要知道有没有字幕时只问这份列表，不点、不读面板。
 import type { VideoRef } from "../../core/video-ref.ts";
 import type { CaptionTrack, Cue, PageChannel, SiteCtx, SiteFailure, SiteResult, SiteService, VideoInfo } from "../types.ts";
-import { panelCurrentOf, panelSnapshotOf, type PanelCue, type PanelSnapshot, type PlayerTrack, type PlayerTracks } from "./page/panel-types.ts";
+import { panelCurrentOf, panelSnapshotOf, panelTracksOf, type PanelCue, type PanelSnapshot, type PlayerTrack, type PlayerTracks } from "./page/panel-types.ts";
+import { pageCommentReader } from "./comments.ts";
 import { readCaughtCaptions, type PlayerFallback, type PlayerRead } from "./player-fallback.ts";
 import { TRACK_PREFIX, UNCONFIRMED_TRACK, UNNAMED_TRACK, youtubeRules } from "./url.ts";
 
 // 页面上没有文字稿时读播放器取回的字幕：关掉开关的构建里这一支连同后备的代码一起裁掉。
 const playerFallback = FEATURE_YOUTUBE_CAPTION_CATCH ? readCaughtCaptions : null;
+// 读评论区（PRD F23）：关掉开关的构建里连同页面上读评论、替用户滚动的代码一起裁掉。
+const commentReader = FEATURE_COMMENTS ? pageCommentReader : null;
 
 // 等页面回话的上限：面板还在加载时页面那头最多等几秒。
 const ASK_TIMEOUT_MS = 10_000;
+// 只问字幕轨列表时页面当场就答，等不了这么久就当判断不了。
+const TRACKS_TIMEOUT_MS = 3_000;
 // 交回正文之前隔这么久再问一次：分批渲染、换语言后晚到的段落这时能看出来。
 const RECHECK_DELAY_MS = 300;
 // 最后一句没有下一句可比时，按这么长算。
@@ -294,6 +299,16 @@ export function createYoutubeService({ askTimeoutMs = ASK_TIMEOUT_MS, caughtCapt
       return failure ?? { ok: true, value: [trackOfPanel(snapshot)] };
     },
 
+    // 页面现在是这个视频、播放器拿到的是这个视频能正常播的完整数据、字幕轨列表是空的，才算确定没有字幕。
+    async knownNoCaptions(ref, ctx) {
+      if (!ctx.page) return false;
+      const asked = await ask(ctx.page, { type: "youtube.tracks", req: { videoId: ref.videoId } }, ctx.signal, Math.min(askTimeoutMs, TRACKS_TIMEOUT_MS));
+      if (!asked.ok) return false;
+      const answer = panelTracksOf(asked.answer);
+      const player = answer?.player;
+      return answer?.videoId === ref.videoId && player?.videoId === ref.videoId && player.playable === true && player.tracks.length === 0;
+    },
+
     async readCaptions(info, track, ctx) {
       const snapshot = snapshots.get(ctx);
       if (!snapshot) return fail("UNAVAILABLE", "stale");
@@ -309,5 +324,7 @@ export function createYoutubeService({ askTimeoutMs = ASK_TIMEOUT_MS, caughtCapt
       const changed = await stillSame(info.ref, ctx, snapshot, askTimeoutMs);
       return changed ?? { ok: true, value: cuesOf(snapshot) };
     },
+
+    ...(commentReader ? { readTopComments: commentReader(ask) } : {}),
   };
 }

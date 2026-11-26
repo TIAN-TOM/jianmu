@@ -1,12 +1,12 @@
 // 设置页「资料」一节：导出、导入备份，清除本机数据。
 // 导出只读本机的四个仓储（笔记、概览、问答、译文和整理后的字幕），不发平台和模型请求，确认启用之前也能用；
 // 导入分段进来（单条消息有大小上限），每段在对应仓储的写入队列里读本机的再合并，清除闸门的代数从连上那一刻算起；
-// 清除先停下在跑的任务，再在清除闸门里删仓库和存储键，删完广播给各页面。
+// 清除在闸门里按范围删仓库和存储键，删完广播；单独删笔记时只刷新笔记。
 // 这三样从开始到完全结束（成功失败都算）都记作忙：文件换了要重新加载时等它们做完，不留清了一半、导了一半的数据，也不关掉发起的页面。
 import { buildBackup, type Backup } from "../../core/backup/format.ts";
 import { mergeNotes, mergeOverviews, mergeQa, mergeTranslations, type MergeResult } from "../../core/backup/merge.ts";
 import { checkNote, checkOverview, checkQa, checkTranslation, keepValid, type RecordKind } from "../../core/backup/records.ts";
-import type { ClearGuard, ClearScope } from "../../core/clear-guard.ts";
+import type { ClearEpoch, ClearGuard, ClearScope } from "../../core/clear-guard.ts";
 import { fail, ok, type Result } from "../../core/errors.ts";
 import type { ExtensionStorage } from "../../platform/storage.ts";
 import type { SettingsStore } from "../../platform/settings-store.ts";
@@ -18,6 +18,21 @@ import type { OverviewStore } from "../stores/overviews.ts";
 import type { QaStore } from "../stores/qa.ts";
 import type { TranslationStore } from "../stores/translations.ts";
 import type { TaskRunner } from "../tasks.ts";
+
+// 清除全部数据前查已开的视频页最多等这么久，等不到就只靠设置变化时按登记的编号通知。
+const OPEN_PAGES_WAIT_MS = 2000;
+
+/** 等 work 最多 ms 毫秒，超时或出错都给 fallback。 */
+function within<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), ms);
+    const settle = (value: T): void => {
+      clearTimeout(timer);
+      resolve(value);
+    };
+    work.then(settle, () => settle(fallback));
+  });
+}
 
 export interface DataServiceDeps {
   readonly notes: Pick<NoteStore, "all" | "update">;
@@ -33,6 +48,12 @@ export interface DataServiceDeps {
   /** 清空一个数据库仓库。 */
   readonly clearStore: (name: StoreName) => Promise<void>;
   readonly broadcast: (message: Broadcast) => void;
+  /**
+   * 清除全部数据之前、启用还算数时查出已开的视频页，清完叫它们撤下。后台重启过以后，内存里登记的标签页是空的，
+   * 只靠设置变化时按登记的编号通知会漏掉一直没出声的页面。启用不算数时它只给登记过的。
+   */
+  readonly openPages?: () => Promise<readonly number[]>;
+  readonly toTabs?: (tabIds: readonly number[], message: { readonly type: "activation.changed"; readonly confirmed: false }) => Promise<void>;
   readonly now: () => number;
 }
 
@@ -57,7 +78,7 @@ export interface ExportSession {
 
 export interface DataService {
   readonly openExport: () => ExportSession;
-  readonly openImport: () => ImportSession;
+  readonly openImport: (since?: ClearEpoch) => ImportSession;
   readonly clear: (scope: ClearScope) => Promise<void>;
   /** 有导出、导入或清除没做完。 */
   readonly busy: () => boolean;
@@ -98,9 +119,8 @@ export function createDataService(deps: DataServiceDeps): DataService {
     };
   }
 
-  function openImport(): ImportSession {
+  function openImport(since = guard.epoch()): ImportSession {
     const release = hold();
-    const since = guard.epoch();
     let changed = false;
 
     // 记录在页面已经核对过，这里再过一遍：后台只认自己核对过的记录。
@@ -155,22 +175,28 @@ export function createDataService(deps: DataServiceDeps): DataService {
 
   async function clear(scope: ClearScope): Promise<void> {
     const release = hold();
+    let pages: readonly number[] = [];
     try {
       // 在跑的生成先停下：它们回来写的那一下也会被闸门拦住，停下是为了不再花钱。
-      deps.tasks.cancelAll(CLEARING);
+      if (scope !== "notes") deps.tasks.cancelAll(CLEARING);
       const targets = clearTargets(scope);
       await guard.clear(scope, async () => {
-        deps.forgetMemory(scope);
+        if (scope !== "notes") deps.forgetMemory(scope);
+        // 清完启用就失效了，那时不能再按地址查标签页：代数已经递增，趁设置还没清查好。查不到、查太久都不拦着清除。
+        if (scope === "all" && deps.openPages) pages = await within(deps.openPages(), OPEN_PAGES_WAIT_MS, []);
         await Promise.all(targets.stores.map((name) => deps.clearStore(name)));
         if (scope === "all") {
           await deps.settings.clearAll();
-          return;
+        } else if (scope === "cache") {
+          await deps.storage.local.remove([...targets.local]);
+          await deps.storage.session.remove([...targets.session]);
         }
-        await deps.storage.local.remove([...targets.local]);
-        await deps.storage.session.remove([...targets.session]);
       });
-      deps.broadcast({ type: "data.cleared", scope });
+      deps.broadcast(scope === "notes" ? { type: "notes.changed" } : { type: "data.cleared", scope });
     } finally {
+      // 清到一半出错也通知：确认可能已经删了，这时不通知，那些页面就再也找不到了；启用其实还算数的页面再问一次会照常开着。
+      // 不等页面回话，设置页的回执不让哪个没反应的标签页拖住。
+      if (pages.length > 0) void deps.toTabs?.(pages, { type: "activation.changed", confirmed: false }).catch(() => undefined);
       release();
     }
   }

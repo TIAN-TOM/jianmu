@@ -2,6 +2,9 @@
 // 整理后的文字替换原文显示，能切回原始字幕；翻译仍然基于原文；换字幕版本清空；显示和导出跟着切换走。
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { deferred } from "../../../helpers/deferred.ts";
+import { stillFalse, until } from "../../../helpers/wait-until.ts";
+import type { TranscriptMode, TranscriptModeRequest } from "../../../../src/shared/messages/transcript.ts";
 import { videoKey } from "../../../../src/core/video-ref.ts";
 import type { PortHandlers } from "../../../../src/pages/shared/api.ts";
 import { linesOf, mainBreaks, srtOf } from "../../../../src/pages/sidepanel/reading.ts";
@@ -10,12 +13,13 @@ import type { TranslateIn } from "../../../../src/shared/messages/translate.ts";
 
 const VIDEO = videoKey({ platform: "bilibili", videoId: "BV1Sample001" });
 
-function fakeApi() {
+function fakeApi(send: (type: string, req: TranscriptModeRequest) => Promise<{ ok: true; value: { mode: TranscriptMode } }> = async () => ({ ok: true, value: { mode: "original" } })) {
   const posted: TranslateIn[] = [];
   let handlers: PortHandlers<"translate"> | null = null;
   let open = false;
   let connects = 0;
   const api = {
+    send,
     connect(_name: "translate", next: PortHandlers<"translate">) {
       handlers = next;
       open = true;
@@ -57,7 +61,7 @@ test("点「整理字幕」：带 purpose 从播放位置往后先做，显示�
   tidy.stopRunning();
   assert.deepEqual(fake.posted.at(-1), { type: "translate.stop" });
   fake.emit({ type: "translate.done", state: "canceled", totalBatches: 1, failedBatches: 0 });
-  assert.equal(tidy.state.value.message, "整理已停止");
+  assert.equal(tidy.state.value.message, "整理停了");
   tidy.bind(VIDEO, "fp2");
   assert.deepEqual(tidy.lines.value, {});
 });
@@ -129,4 +133,44 @@ test("只取存着的那一下碰上后台在跑：接上了，期间点的开�
   fake.emit({ type: "translate.started", task: {} as never, joined: true, transcript: {} as never, target: "en", pending: 5 });
   fake.emit({ type: "translate.done", state: "completed", totalBatches: 1, failedBatches: 0 });
   assert.equal(fake.posted.length, 1, "只发过那一次取存着的");
+});
+
+test("恢复译文只取已经存好的，缺的段落仍显示原文；主动再选译文才开始翻译", async () => {
+  const fake = fakeApi(async () => ({ ok: true, value: { mode: "translated" } }));
+  const translation = createTranslation({ api: fake.api });
+  translation.bind(VIDEO, "fp1");
+  fake.emit({ type: "translate.segments", fingerprint: "fp1", translated: { s0: "Moonlight" }, stored: true });
+  fake.emit({ type: "translate.done", state: "completed", totalBatches: 0, failedBatches: 0 });
+  assert.ok(await until(() => translation.mode.value === "translated"));
+  const row = (id: string) => linesOf({ id, start: 0, text: "月光", texts: ["月光"] }, translation.mode.value, translation.lines.value);
+  assert.equal(row("s0").main, "Moonlight");
+  assert.equal(row("s1").main, "月光");
+  assert.deepEqual(fake.posted, [{ type: "translate.start", video: VIDEO, storedOnly: true }]);
+  translation.setMode("translated", 17);
+  assert.deepEqual(fake.posted.at(-1), { type: "translate.start", video: VIDEO, fromSec: 17 });
+});
+
+test("旧视频和主动改选前的恢复回复都不能覆盖当前选择", async () => {
+  const other = videoKey({ platform: "youtube", videoId: "sample" });
+  const old = deferred();
+  const current = deferred();
+  const saved: TranscriptModeRequest[] = [];
+  const fake = fakeApi(async (_type, req) => {
+    if (req.mode) {
+      saved.push(req);
+      return { ok: true, value: { mode: req.mode } };
+    }
+    await (req.video === VIDEO ? old : current).promise;
+    return { ok: true, value: { mode: "translated" } };
+  });
+  const translation = createTranslation({ api: fake.api });
+  translation.bind(VIDEO, "one");
+  translation.bind(other, "two");
+  old.resolve();
+  assert.ok(await stillFalse(() => translation.mode.value !== "original"));
+  translation.setMode("original");
+  current.resolve();
+  assert.ok(await stillFalse(() => translation.mode.value !== "original"));
+  assert.deepEqual(saved, [{ video: other, mode: "original" }]);
+  assert.ok(fake.posted.every((message) => message.type === "translate.start" && message.storedOnly));
 });

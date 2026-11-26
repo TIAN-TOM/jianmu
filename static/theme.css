@@ -3,18 +3,24 @@
  * 四个扩展页面（侧边栏、设置页、播放页卡片、粗筛页）共用。页面样式只用第二层的语义变量，
  * 不写死色值；换主题、换明暗都只动这里。
  *
- *   1. 主题：三套完整配色，每套一组原始色值，浅色 --l-*、深色 --d-*，
+ *   1. 主题：五套完整配色，每套一组原始色值，浅色 --l-*、深色 --d-*，外加这套主题的圆角，
  *      由 html 的 data-accent-theme 切换（取值和设置模块的主题表一致，单元测试核对）
  *   2. 语义变量：--bg、--card、--text 按明暗从原始色值里取
  *   3. 时间轨和判断档位
- *   4. 字号、行高、间距、圆角、阴影、动效、版面尺寸；界面字号改根字号
+ *   4. 字号、行高、间距、阴影、动效、版面尺寸；界面字号改根字号
  *   5. 浏览器自己画的部分：复选框、滚动条、选中色、搜索框清除按钮、自动填充、下拉框
  *
  * 页面第一帧的主题、明暗和字号由首帧外观脚本在 <head> 里同步写到 html 上。
  *
- * 三套主题共用同一套明度阶梯、排版和间距，只换色相和彩度。
- * 强调色低饱和，只落在主要操作上；--mark 是唯一的第二种颜色，只给播放头和重点章节，
- * 两者都是在说「看这里」。文字色在各自模式的底色上都过 WCAG AA，单元测试逐套核对。
+ * 五套主题共用排版和间距，都用系统无衬线字体；各自换颜色和圆角。原始色值的角色：
+ *   bg 页面底，surface 卡片和浮层，sunken 输入框和引用，hover 悬停底色，active 当前句和按下去的底色，
+ *   border 分隔线，border-strong 输入框、下拉框这类控件的边框（过 3:1），
+ *   text、text-muted 正文和次要文字，text-faint 注释（各套都和 text-muted 同值），
+ *   accent 主按钮底和进度，on-accent 主按钮上的字，accent-text 链接和时间戳这类落在文字上的强调色，
+ *   mark 播放头，key 重点章节的记号，verdict 判断档位的文字。
+ * mark、key 都是在说「看这里」，过 3:1；文字色在各自模式的底色上都过 WCAG AA，单元测试逐套核对。
+ * 另有几套主题版面上自己才用的颜色（刻度的空格、荧光笔、四档色带、淡底），只写在那一套里，见各块的注释；
+ * 它们经第 2 节的语义变量交给 ui/themes/ 下这套主题的版面规则。
  *
  * 深色挂两套选择器：data-theme-mode 承接首帧脚本和页面脚本写下的结果；
  * prefers-color-scheme 兜还没有首帧缓存时的首屏，免得系统深色的人先闪一下浅色。两处列表要同步维护。
@@ -23,120 +29,285 @@
 
 /* ---------- 1. 主题：原始色值 ---------- */
 
-/* 宣纸墨青（ink，默认）：暖白纸面、偏冷的墨色文字、低饱和的青黛强调色。
+/* 荧光笔（marker，默认）：白纸、近黑的墨水字、钢笔蓝的时间戳和主按钮，判断档位也是钢笔蓝。
  * 写在 :root 上，还没写下 data-accent-theme 的首屏也是这一套。 */
 :root {
-  --l-bg: #f6f3ed;
-  --l-surface: #fdfbf8;
-  --l-sunken: #f0ede7;
-  --l-hover: #eeebe5;
-  --l-active: #e7e4dd;
-  --l-border: #e2dfd9;
-  --l-border-strong: #c3c0ba;
-  --l-text: #1d2428;
-  --l-text-muted: #4e555a;
-  --l-text-faint: #636a6f;
-  --l-accent: #2a6664;
-  --l-accent-strong: #165553;
-  --l-accent-text: #246361;
-  --l-accent-text-strong: #114c4a;
-  --l-on-accent: #ffffff;
-  --l-shadow: 40 32 20;
-  --l-mark: #a8620c;
-
-  --d-bg: #141818;
-  --d-surface: #1b201f;
-  --d-sunken: #171c1c;
-  --d-hover: #242928;
-  --d-active: #2b3030;
-  --d-border: #2e3332;
-  --d-border-strong: #414646;
-  --d-text: #e3dfd7;
-  --d-text-muted: #b4b1a9;
-  --d-text-faint: #949089;
-  --d-accent: #76b9b6;
-  --d-accent-strong: #86c9c6;
-  --d-accent-text: #88c9c5;
-  --d-accent-text-strong: #a7ddda;
-  --d-on-accent: #0b1918;
-  --d-shadow: 0 0 0;
-  --d-mark: #f2b544;
-}
-
-/* 石墨靛蓝（graphite）：冷调石墨灰、白卡片、低饱和的靛蓝强调色 */
-:root[data-accent-theme="graphite"] {
-  --l-bg: #f2f4f8;
+  --l-bg: #ffffff;
   --l-surface: #ffffff;
-  --l-sunken: #eceef2;
-  --l-hover: #eaecf0;
-  --l-active: #e2e4e8;
-  --l-border: #dde0e4;
-  --l-border-strong: #bfc1c5;
-  --l-text: #1f232b;
-  --l-text-muted: #50545d;
-  --l-text-faint: #646972;
-  --l-accent: #515d9f;
-  --l-accent-strong: #414c8c;
-  --l-accent-text: #4e5a9e;
-  --l-accent-text-strong: #3a4480;
+  --l-sunken: #f6f8fa;
+  --l-hover: #f6f8fa;
+  --l-active: #f6f8fa;
+  --l-border: #d1d9e0;
+  --l-border-strong: #818b98;
+  --l-text: #1f2328;
+  --l-text-muted: #59636e;
+  --l-text-faint: #59636e;
+  --l-accent: #0969da;
+  --l-accent-strong: #0969da;
+  --l-accent-text: #0969da;
+  --l-accent-text-strong: #0969da;
   --l-on-accent: #ffffff;
-  --l-shadow: 20 26 40;
-  --l-mark: #a8620c;
+  --l-mark: #0969da;
+  --l-key: #0969da;
+  --l-verdict: #0969da;
+  --l-shadow: 28 38 64;
+  /* 荧光笔：只划字的下半截，hl 是笔迹，on-hl 是划过的字 */
+  --l-hl: #fae17d;
+  --l-on-hl: #1f2328;
 
-  --d-bg: #15171c;
-  --d-surface: #1c1f23;
-  --d-sunken: #191b20;
-  --d-hover: #25282d;
-  --d-active: #2d2f34;
-  --d-border: #2f3237;
-  --d-border-strong: #42454b;
-  --d-text: #dde0e5;
-  --d-text-muted: #aeb1b6;
-  --d-text-faint: #8e9196;
-  --d-accent: #9daae4;
-  --d-accent-strong: #acbaf5;
-  --d-accent-text: #adbbf2;
-  --d-accent-text-strong: #c7d2fd;
-  --d-on-accent: #13151f;
-  --d-mark: #f2b544;
+  --d-bg: #0d1117;
+  --d-surface: #0d1117;
+  --d-sunken: #151b23;
+  --d-hover: #151b23;
+  --d-active: #151b23;
+  --d-border: #3d444d;
+  --d-border-strong: #656c76;
+  --d-text: #f0f6fc;
+  --d-text-muted: #9198a1;
+  --d-text-faint: #9198a1;
+  --d-accent: #4493f8;
+  --d-accent-strong: #4493f8;
+  --d-accent-text: #4493f8;
+  --d-accent-text-strong: #4493f8;
+  --d-on-accent: #0d1117;
+  --d-mark: #4493f8;
+  --d-key: #4493f8;
+  --d-verdict: #4493f8;
+  --d-shadow: 0 0 0;
+  --d-hl: #5c471b;
+  --d-on-hl: #f8e3a1;
+
+  /* 圆角：小标记、按钮和输入框、卡片和抽屉 */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 12px;
 }
 
-/* 暖岩赭石（ochre）：带红褐的暖灰、压低饱和的赭石强调色。强调色已经是暖色，重点改用墨青。 */
-:root[data-accent-theme="ochre"] {
-  --l-bg: #f8f3ee;
-  --l-surface: #fdfbf9;
-  --l-sunken: #f2ede8;
-  --l-hover: #f0ebe6;
-  --l-active: #e8e3df;
-  --l-border: #e4dfda;
-  --l-border-strong: #c5c0bc;
-  --l-text: #29211d;
-  --l-text-muted: #5b524d;
-  --l-text-faint: #706762;
-  --l-accent: #8e5729;
-  --l-accent-strong: #7c4615;
-  --l-accent-text: #8b5425;
-  --l-accent-text-strong: #6c3d13;
+/* 时间码（timecode）：冷灰的头部和页面底、纯白卡片、近黑字，只有播放头是一道红。
+ * 主按钮是正文色底配底色字，时间戳用次要文字色，判断档位都是正文色。 */
+:root[data-accent-theme="timecode"] {
+  --l-bg: #eef0f3;
+  --l-surface: #ffffff;
+  --l-sunken: #f4f5f7;
+  --l-hover: #f4f5f7;
+  --l-active: #d5d9df;
+  --l-border: #dadde2;
+  --l-border-strong: #868c96;
+  --l-text: #15171c;
+  --l-text-muted: #565c66;
+  --l-text-faint: #565c66;
+  --l-accent: #15171c;
+  --l-accent-strong: #15171c;
+  --l-accent-text: #565c66;
+  --l-accent-text-strong: #15171c;
   --l-on-accent: #ffffff;
-  --l-shadow: 48 30 18;
-  --l-mark: #2a6664;
+  --l-mark: #d3382c;
+  --l-key: #d3382c;
+  --l-verdict: #15171c;
+  --l-shadow: 21 23 28;
+  /* off 是判断刻度和精读进度条里空着的格子，bar 是章节的时长条，on-mark 是红底胶囊上的字 */
+  --l-off: #d5d9df;
+  --l-bar: #868c96;
+  --l-on-mark: #ffffff;
 
-  --d-bg: #1a1614;
-  --d-surface: #221e1b;
-  --d-sunken: #1e1a17;
-  --d-hover: #2b2724;
-  --d-active: #322e2b;
-  --d-border: #35312e;
-  --d-border-strong: #484441;
-  --d-text: #e5ded7;
-  --d-text-muted: #b6b0a9;
-  --d-text-faint: #959089;
-  --d-accent: #dea77e;
-  --d-accent-strong: #efb78d;
-  --d-accent-text: #e9b58e;
-  --d-accent-text-strong: #f7cfb1;
-  --d-on-accent: #1d140d;
-  --d-mark: #76b9b6;
+  --d-bg: #242830;
+  --d-surface: #1b1e24;
+  --d-sunken: #242830;
+  --d-hover: #353a43;
+  --d-active: #353a43;
+  --d-border: #353a43;
+  --d-border-strong: #747b86;
+  --d-text: #e8eaee;
+  --d-text-muted: #a9afb9;
+  --d-text-faint: #a9afb9;
+  --d-accent: #e8eaee;
+  --d-accent-strong: #e8eaee;
+  --d-accent-text: #a9afb9;
+  --d-accent-text-strong: #e8eaee;
+  --d-on-accent: #1b1e24;
+  --d-mark: #ff6f62;
+  --d-key: #ff6f62;
+  --d-verdict: #e8eaee;
+  --d-off: #454b55;
+  --d-bar: #747b86;
+  --d-on-mark: #1b1e24;
+
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 10px;
+}
+
+/* 看不看（band）：偏冷的浅灰底、灰紫的正文。主按钮是正文色底，时间戳用次要文字色，判断档位都是正文色。
+ * 当前句铺分隔线那一档灰，上面的时间戳用正文色（次要文字色在这层灰上不够 4.5:1）。 */
+:root[data-accent-theme="band"] {
+  --l-bg: #e6e9ef;
+  --l-surface: #eff1f5;
+  --l-sunken: #e6e9ef;
+  --l-hover: #e6e9ef;
+  --l-active: #ccd0da;
+  --l-border: #ccd0da;
+  --l-border-strong: #7c7f93;
+  --l-text: #4c4f69;
+  --l-text-muted: #5c5f77;
+  --l-text-faint: #5c5f77;
+  --l-accent: #4c4f69;
+  --l-accent-strong: #4c4f69;
+  --l-accent-text: #5c5f77;
+  --l-accent-text-strong: #4c4f69;
+  --l-on-accent: #eff1f5;
+  --l-mark: #4c4f69;
+  --l-key: #4c4f69;
+  --l-verdict: #4c4f69;
+  --l-shadow: 18 20 23;
+  /* 四档色带：推荐看绿、可以看黄、可跳过灰、信息不足两色斜纹；ink 是判断词和记号的颜色。
+   * 深色是同色的淡底配原色的字（结论句换回正文色）。 */
+  --l-band-go: #a6e3a1;
+  --l-band-go-ink: #4c4f69;
+  --l-band-fair: #f9e2af;
+  --l-band-fair-ink: #4c4f69;
+  --l-band-skip: #45475a;
+  --l-band-skip-ink: #cdd6f4;
+  --l-band-unknown: #e6e9ef;
+  --l-band-unknown-alt: #ccd0da;
+  --l-band-unknown-ink: #4c4f69;
+
+  --d-bg: #181825;
+  --d-surface: #1e1e2e;
+  --d-sunken: #313244;
+  --d-hover: #313244;
+  --d-active: #313244;
+  --d-border: #313244;
+  --d-border-strong: #7f849c;
+  --d-text: #cdd6f4;
+  --d-text-muted: #a6adc8;
+  --d-text-faint: #a6adc8;
+  --d-accent: #cdd6f4;
+  --d-accent-strong: #cdd6f4;
+  --d-accent-text: #a6adc8;
+  --d-accent-text-strong: #cdd6f4;
+  --d-on-accent: #1e1e2e;
+  --d-mark: #cdd6f4;
+  --d-key: #cdd6f4;
+  --d-verdict: #cdd6f4;
+  --d-band-go: #364143;
+  --d-band-go-ink: #a6e3a1;
+  --d-band-fair: #454145;
+  --d-band-fair-ink: #f9e2af;
+  --d-band-skip: #45475a;
+  --d-band-skip-ink: #cdd6f4;
+  --d-band-unknown: #313244;
+  --d-band-unknown-alt: #45475a;
+  --d-band-unknown-ink: #cdd6f4;
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+}
+
+/* 粉蓝（pinkblue）：浅灰底、白卡片，链接、时间戳和主按钮是蓝色，播放头是亮一点的蓝；
+ * 重点章节和判断档位用粉色字。 */
+:root[data-accent-theme="pinkblue"] {
+  --l-bg: #f1f2f3;
+  --l-surface: #ffffff;
+  --l-sunken: #f6f7f8;
+  --l-hover: #f6f7f8;
+  --l-active: #e3e5e7;
+  --l-border: #e3e5e7;
+  --l-border-strong: #797f87;
+  --l-text: #18191c;
+  --l-text-muted: #61666d;
+  --l-text-faint: #61666d;
+  --l-accent: #00699d;
+  --l-accent-strong: #00699d;
+  --l-accent-text: #00699d;
+  --l-accent-text-strong: #00699d;
+  --l-on-accent: #ffffff;
+  --l-mark: #008ac5;
+  --l-key: #ad1c5b;
+  --l-verdict: #ad1c5b;
+  --l-shadow: 24 25 28;
+  /* key-tint 是重点章节和判断胶囊的浅粉底，now-tint 是当前句的浅蓝底 */
+  --l-key-tint: #ffecf1;
+  --l-now-tint: #dff6fd;
+
+  --d-bg: #0a0b0c;
+  --d-surface: #17181a;
+  --d-sunken: #232527;
+  --d-hover: #232527;
+  --d-active: #2f3134;
+  --d-border: #2f3134;
+  --d-border-strong: #757a81;
+  --d-text: #e7e9eb;
+  --d-text-muted: #a2a7ae;
+  --d-text-faint: #a2a7ae;
+  --d-accent: #58b1d4;
+  --d-accent-strong: #58b1d4;
+  --d-accent-text: #58b1d4;
+  --d-accent-text-strong: #58b1d4;
+  --d-on-accent: #17181a;
+  --d-mark: #2c9cc8;
+  --d-key: #e38caa;
+  --d-verdict: #e38caa;
+  --d-key-tint: #2f1a22;
+  --d-now-tint: #0b202a;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 12px;
+}
+
+/* 红黑（redblack）：白底黑字、深色是近黑底，主按钮是正文色底配底色字，时间戳用灰色；
+ * 播放头和重点是红色，红色只做图形不做文字，判断档位都是正文色。 */
+:root[data-accent-theme="redblack"] {
+  --l-bg: #ffffff;
+  --l-surface: #ffffff;
+  --l-sunken: #f2f2f2;
+  --l-hover: #f2f2f2;
+  --l-active: #e6e6e6;
+  --l-border: #e6e6e6;
+  --l-border-strong: #909090;
+  --l-text: #0f0f0f;
+  --l-text-muted: #606060;
+  --l-text-faint: #606060;
+  --l-accent: #0f0f0f;
+  --l-accent-strong: #0f0f0f;
+  --l-accent-text: #606060;
+  --l-accent-text-strong: #0f0f0f;
+  --l-on-accent: #ffffff;
+  --l-mark: #ff0033;
+  --l-key: #ff0033;
+  --l-verdict: #0f0f0f;
+  --l-shadow: 15 15 15;
+  /* key-tint 是「重点」小标签的淡红底；chip 是灰底胶囊按钮的底（播放页卡片的「展开全部」）；
+   * 深色的侧边栏铺页面底色（panel），不铺卡片色 */
+  --l-key-tint: #ffe6eb;
+  --l-chip: #f2f2f2;
+
+  --d-bg: #0f0f0f;
+  --d-surface: #212121;
+  --d-sunken: #272727;
+  --d-hover: #272727;
+  --d-active: #373737;
+  --d-border: #373737;
+  --d-border-strong: #717171;
+  --d-text: #f1f1f1;
+  --d-text-muted: #aaaaaa;
+  --d-text-faint: #aaaaaa;
+  --d-accent: #f1f1f1;
+  --d-accent-strong: #f1f1f1;
+  --d-accent-text: #aaaaaa;
+  --d-accent-text-strong: #f1f1f1;
+  --d-on-accent: #0f0f0f;
+  --d-mark: #ff0033;
+  --d-key: #ff0033;
+  --d-verdict: #f1f1f1;
+  --d-key-tint: #350d15;
+  --d-chip: #373737;
+  --d-panel: #0f0f0f;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
 }
 
 /* ---------- 2. 语义变量 ---------- */
@@ -163,11 +334,38 @@
   --accent-text-strong: var(--l-accent-text-strong);
   --on-accent: var(--l-on-accent);
   --mark: var(--l-mark);
+  --mark-key: var(--l-key);
+  --verdict: var(--l-verdict);
   --danger: #a7463e;
   --warn: #835617;
   --ok: #36714e;
   --shadow-rgb: var(--l-shadow);
   --shadow-alpha: 1;
+  /* 侧边栏的底：卡片色；只有红黑的深色铺页面底色 */
+  --panel-bg: var(--l-surface);
+  /* 下面这些只在用到它的那套主题里有值：刻度的空格、时长条和红底上的字（时间码），荧光笔（荧光笔），
+   * 四档色带（看不看；ink 是判断词，say 是色带上的结论句），重点和当前句的淡底（粉蓝、红黑），灰底胶囊按钮（红黑）。 */
+  --meter-off: var(--l-off);
+  --length-bar: var(--l-bar);
+  --on-mark: var(--l-on-mark);
+  --highlight: var(--l-hl);
+  --on-highlight: var(--l-on-hl);
+  --band-go: var(--l-band-go);
+  --band-go-ink: var(--l-band-go-ink);
+  --band-go-say: var(--l-band-go-ink);
+  --band-fair: var(--l-band-fair);
+  --band-fair-ink: var(--l-band-fair-ink);
+  --band-fair-say: var(--l-band-fair-ink);
+  --band-skip: var(--l-band-skip);
+  --band-skip-ink: var(--l-band-skip-ink);
+  --band-skip-say: var(--l-band-skip-ink);
+  --band-unknown: var(--l-band-unknown);
+  --band-unknown-alt: var(--l-band-unknown-alt);
+  --band-unknown-ink: var(--l-band-unknown-ink);
+  --band-unknown-say: var(--l-band-unknown-ink);
+  --key-tint: var(--l-key-tint);
+  --now-tint: var(--l-now-tint);
+  --chip: var(--l-chip);
 }
 
 :root[data-theme-mode="dark"] {
@@ -190,11 +388,35 @@
   --accent-text-strong: var(--d-accent-text-strong);
   --on-accent: var(--d-on-accent);
   --mark: var(--d-mark);
+  --mark-key: var(--d-key);
+  --verdict: var(--d-verdict);
   --danger: #e88f87;
   --warn: #e0b771;
   --ok: #8bc49e;
   --shadow-rgb: var(--d-shadow);
   --shadow-alpha: 3;
+  --panel-bg: var(--d-panel, var(--d-surface));
+  --meter-off: var(--d-off);
+  --length-bar: var(--d-bar);
+  --on-mark: var(--d-on-mark);
+  --highlight: var(--d-hl);
+  --on-highlight: var(--d-on-hl);
+  --band-go: var(--d-band-go);
+  --band-go-ink: var(--d-band-go-ink);
+  --band-go-say: var(--d-text);
+  --band-fair: var(--d-band-fair);
+  --band-fair-ink: var(--d-band-fair-ink);
+  --band-fair-say: var(--d-text);
+  --band-skip: var(--d-band-skip);
+  --band-skip-ink: var(--d-band-skip-ink);
+  --band-skip-say: var(--d-text);
+  --band-unknown: var(--d-band-unknown);
+  --band-unknown-alt: var(--d-band-unknown-alt);
+  --band-unknown-ink: var(--d-band-unknown-ink);
+  --band-unknown-say: var(--d-text);
+  --key-tint: var(--d-key-tint);
+  --now-tint: var(--d-now-tint);
+  --chip: var(--d-chip);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -218,11 +440,35 @@
     --accent-text-strong: var(--d-accent-text-strong);
     --on-accent: var(--d-on-accent);
     --mark: var(--d-mark);
+    --mark-key: var(--d-key);
+    --verdict: var(--d-verdict);
     --danger: #e88f87;
     --warn: #e0b771;
     --ok: #8bc49e;
     --shadow-rgb: var(--d-shadow);
     --shadow-alpha: 3;
+    --panel-bg: var(--d-panel, var(--d-surface));
+    --meter-off: var(--d-off);
+    --length-bar: var(--d-bar);
+    --on-mark: var(--d-on-mark);
+    --highlight: var(--d-hl);
+    --on-highlight: var(--d-on-hl);
+    --band-go: var(--d-band-go);
+    --band-go-ink: var(--d-band-go-ink);
+    --band-go-say: var(--d-text);
+    --band-fair: var(--d-band-fair);
+    --band-fair-ink: var(--d-band-fair-ink);
+    --band-fair-say: var(--d-text);
+    --band-skip: var(--d-band-skip);
+    --band-skip-ink: var(--d-band-skip-ink);
+    --band-skip-say: var(--d-text);
+    --band-unknown: var(--d-band-unknown);
+    --band-unknown-alt: var(--d-band-unknown-alt);
+    --band-unknown-ink: var(--d-band-unknown-ink);
+    --band-unknown-say: var(--d-text);
+    --key-tint: var(--d-key-tint);
+    --now-tint: var(--d-now-tint);
+    --chip: var(--d-chip);
   }
 }
 
@@ -231,9 +477,7 @@
   --accent-soft: color-mix(in oklab, var(--accent) 9%, transparent);
   --accent-soft-strong: color-mix(in oklab, var(--accent) 16%, transparent);
   --accent-line: color-mix(in oklab, var(--accent) 40%, transparent);
-  --danger-soft: color-mix(in oklab, var(--danger) 10%, transparent);
-  --warn-soft: color-mix(in oklab, var(--warn) 12%, transparent);
-  --ok-soft: color-mix(in oklab, var(--ok) 11%, transparent);
+  --warn-soft: color-mix(in oklab, var(--warn) 9%, transparent);
   --focus-color: var(--accent-text);
   --focus-ring: 2px solid var(--focus-color);
   /* 滚动条拇指：注释文字色压到 80% 不透明度，和底色、卡片、悬停底色都差 ≥ 3:1 */
@@ -247,24 +491,21 @@
   --rail-track: var(--border-strong); /* 还没有章节时的细线、还没写的块 */
   --rail-seg: color-mix(in oklab, var(--text-faint) 78%, transparent); /* 章节段、写完的块 */
   --rail-played: var(--accent); /* 已播放的部分、正在写的块 */
-  --rail-key: var(--mark); /* 重点章节 */
+  --rail-key: var(--mark-key); /* 重点章节 */
   --rail-focus: var(--text); /* 悬停或当前章节 */
   --rail-failed: var(--danger); /* 失败的块，画成斜纹 */
 
-  /* 判断档位：颜色只是第二层，形状和文字才是主信息 */
-  --verdict-go: var(--ok); /* 推荐看 */
-  --verdict-fair: var(--accent-text); /* 可以看 */
-  --verdict-skip: var(--text-muted); /* 可跳过 */
-  --verdict-unknown: var(--warn); /* 信息不足 */
+  /* 判断档位：四档同一个颜色，靠形状和文字区分 */
+  --verdict-go: var(--verdict); /* 推荐看 */
+  --verdict-fair: var(--verdict); /* 可以看 */
+  --verdict-skip: var(--verdict); /* 可跳过 */
+  --verdict-unknown: var(--verdict); /* 信息不足 */
 }
 
-/* ---------- 4. 字号、行高、间距、圆角、阴影、动效、版面尺寸 ---------- */
+/* ---------- 4. 字号、行高、间距、阴影、动效、版面尺寸 ---------- */
 
 :root {
   --font-sans: -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
-  /* 宋体只用在结论句和页面大标题，16px 以下不用。不列 SimSun：小字号下发虚，
-   * Windows 上没装思源宋体时直接回到黑体。 */
-  --font-serif: "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", var(--font-sans);
   --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
 
   /* 界面字号的倍数：标准 1、较大 1.12、特大 1.25，由页面脚本写在 html 的行内样式上 */
@@ -300,10 +541,7 @@
   --space-8: 2rem;
   --space-10: 2.5rem;
 
-  /* 圆角收敛：小标记 6、按钮和输入框 8、抽屉和卡片 12；胶囊只留给进度类圆点 */
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  /* 圆角的小、中、大三档跟着主题，写在第 1 节；胶囊只留给进度类圆点 */
   --radius-pill: 999px;
 
   /* 阴影很轻：版面靠细线分层，只有浮层（抽屉、菜单、对话框）才真的浮起来。
@@ -316,10 +554,19 @@
     0 4px 12px rgb(var(--shadow-rgb) / calc(0.06 * var(--shadow-alpha))),
     0 16px 40px rgb(var(--shadow-rgb) / calc(0.12 * var(--shadow-alpha)));
 
-  --ease: cubic-bezier(0.2, 0, 0, 1);
-  --dur-fast: 120ms; /* 悬停、按压 */
-  --dur: 160ms; /* 展开、淡入 */
-  --dur-mode: 240ms; /* 切换模式、抽屉 */
+  /* 动效：全项目一套曲线和三档时长，同一类变化用同一种写法（共用的写法在 ui/motion.css）。
+   * 离场比进场低一档：走掉的东西用户已经不关心了。越常做的越快：按下去那一下不过渡，松开才用 --dur-fast 回去。
+   * 只动透明度、位移和缩放；改版面高度的只有展开收起和一行提示。 */
+  --ease: cubic-bezier(0.2, 0, 0, 1); /* 进场和原地变化：出现、展开、移动、换色，快起慢停 */
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1); /* 离场：加速离开 */
+  --ease-pop: cubic-bezier(0.3, 1.4, 0.5, 1); /* 只给「有结果了」那一下：结论的标记、做完的勾，略微过冲 */
+  --dur-fast: 120ms; /* 悬停、松开、换色，菜单和浮钮进场；也是小东西的离场 */
+  --dur: 160ms; /* 内容淡入、箭头、下划线、一行提示；也是大块的离场 */
+  --dur-mode: 240ms; /* 改版面的大块：展开收起、抽屉、笔记层、结论出现 */
+  /* 可点的东西悬停、选中、停用时换色：一律这一组，写 transition: var(--tint)。 */
+  --tint:
+    background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+    opacity var(--dur-fast) var(--ease), text-decoration-color var(--dur-fast) var(--ease);
 
   /* 版面尺寸。轨道粗细和播放头用 px，不随字号变 */
   --rail-gutter: 1.25rem; /* 时间轨占的左边距 */
@@ -334,7 +581,6 @@
 /* 繁体界面（<html lang> 是 zh-Hant）换成繁体字形的字体；简体和英文照旧用上面那组。 */
 :root:lang(zh-Hant) {
   --font-sans: -apple-system, "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
-  --font-serif: "Songti TC", "Noto Serif CJK TC", "Source Han Serif TC", var(--font-sans);
 }
 
 /* 四个页面的尺寸都用 rem，界面字号只改这里，卡片报给播放页的高度就是实际高度。 */
@@ -418,7 +664,10 @@ html {
     rotate: 180deg;
   }
 
+  /* 展开的选项列表和菜单一样从下拉框那边长出来，收起是瞬间的。 */
   ::picker(select) {
+    transform-origin: top;
+    animation: pop-in var(--dur-fast) var(--ease);
     margin-block: var(--space-1);
     padding: var(--space-1);
     color: var(--text);

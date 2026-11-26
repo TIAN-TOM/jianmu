@@ -18,6 +18,7 @@ import {
   keyedHttpError,
   openAiModelTraits,
   parseClaudeModel,
+  parseErrorText,
   parseModelsResponse,
   PROTOCOLS,
   rejectRedirect,
@@ -187,6 +188,8 @@ export interface JsonResponse extends RedirectProbe {
   readonly ok: boolean;
   readonly status: number;
   readonly json: () => Promise<unknown>;
+  /** 错误响应按文本读，和模型请求用同一套规则解析；没有时退回按 JSON 读。 */
+  readonly text?: () => Promise<string>;
 }
 
 export interface JsonFetchInit {
@@ -365,6 +368,11 @@ export function createCapabilityCache({
   };
 }
 
+async function errorBodyFrom(response: JsonResponse, secret: unknown): Promise<unknown> {
+  if (!response.text) return response.json().catch(() => ({}));
+  return parseErrorText(await response.text().catch(() => ""), secret);
+}
+
 /**
  * 后台用的 GET：带超时，不跟随重定向，非 2xx 抛出带 status 的错误。
  * 请求带着密钥，这两条约定和模型调用一样，见 provider/keyed.ts。
@@ -381,7 +389,7 @@ export function createJsonGetter(fetchImpl: JsonFetch, timeoutMs = FETCH_TIMEOUT
       });
       rejectRedirect(response, settings?.aiBaseUrl);
       // 错误响应的 body 可能不是 JSON，按状态码报错；2xx 读不出来就是这次失败了，不能当成空列表缓存。
-      const data = response.ok ? await response.json() : await response.json().catch(() => ({}));
+      const data = response.ok ? await response.json() : await errorBodyFrom(response, settings?.aiApiKey);
       if (!response.ok) throw keyedHttpError(data, response.status, settings);
       return data;
     } finally {

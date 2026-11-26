@@ -1,4 +1,4 @@
-/* 共用组件：抽屉、层和菜单，只有它们浮起来，有表面和阴影。 */
+/* 共用组件：抽屉、层和菜单，只有它们浮起来，有表面和阴影。菜单的进场在 motion.css。 */
 
 /* ---------- 抽屉和层 ---------- */
 
@@ -19,18 +19,92 @@
   box-shadow: var(--shadow-lg);
 }
 
-.sheet[open] {
-  animation: sheet-rise var(--dur-mode) var(--ease);
-}
-
 .sheet::backdrop {
   background: rgb(var(--shadow-rgb) / calc(0.12 * var(--shadow-alpha)));
 }
 
-@keyframes sheet-rise {
-  from {
-    transform: translateY(1.5rem);
+/* 来去：抽屉从底边整块升上来、落回去，遮罩跟着淡；笔记层从右边整块推进来（左上角是「返回」），走的时候退回右边。
+ * 表面一直不透明，不做淡入淡出：半透明时上下两层的字叠在一起，看着乱。进 --dur-mode、出 --dur。
+ * 用过渡不用关键帧，开到一半关、关到一半开都从当前的位置接着走。关上的那一刻对话框就不再挡住页面、焦点也还回去了，
+ * 离场只是画面晚一点走（要 Chrome 117 起的 allow-discrete）。更早的版本只有抽屉的升起，关上是瞬间的。 */
+@supports (transition-behavior: allow-discrete) {
+  .sheet,
+  .layer {
+    transition:
+      translate var(--dur) var(--ease-exit),
+      display var(--dur) allow-discrete,
+      overlay var(--dur) allow-discrete;
+  }
+
+  /* 遮罩在 Chrome 122 以前不继承页面上的变量，时长和曲线带上和 theme.css 一样的后备值，减少动态效果时单独归零。 */
+  .sheet::backdrop {
+    transition:
+      opacity var(--dur, 160ms) var(--ease-exit, cubic-bezier(0.4, 0, 1, 1)),
+      display var(--dur, 160ms) allow-discrete,
+      overlay var(--dur, 160ms) allow-discrete;
+  }
+
+  .sheet {
+    translate: 0 100%;
+  }
+
+  .layer {
+    translate: 100% 0;
+  }
+
+  .sheet::backdrop {
     opacity: 0;
+  }
+
+  .sheet[open],
+  .layer[open] {
+    translate: none;
+    transition-duration: var(--dur-mode);
+    transition-timing-function: var(--ease);
+  }
+
+  .sheet[open]::backdrop {
+    opacity: 1;
+    transition-duration: var(--dur-mode, 240ms);
+    transition-timing-function: var(--ease, cubic-bezier(0.2, 0, 0, 1));
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sheet::backdrop,
+    .sheet[open]::backdrop {
+      transition-duration: 0ms;
+    }
+  }
+
+  .sheet:not([open]),
+  .layer:not([open]) {
+    pointer-events: none;
+  }
+
+  @starting-style {
+    .sheet[open] {
+      translate: 0 100%;
+    }
+
+    .layer[open] {
+      translate: 100% 0;
+    }
+
+    .sheet[open]::backdrop {
+      opacity: 0;
+    }
+  }
+}
+
+@supports not (transition-behavior: allow-discrete) {
+  .sheet[open] {
+    animation: sheet-rise var(--dur-mode) var(--ease);
+  }
+
+  @keyframes sheet-rise {
+    from {
+      translate: 0 100%;
+    }
   }
 }
 
@@ -40,6 +114,7 @@
   max-height: 76vh;
 }
 
+/* 阴影平时落在窗口左边外面看不见，推进来、退出去的路上才在左边缘露出来，分得清哪层在上面。 */
 .layer {
   width: 100%;
   height: 100%;
@@ -47,6 +122,7 @@
   max-height: none;
   margin: 0;
   background: var(--bg);
+  box-shadow: var(--shadow-lg);
 }
 
 .layer::backdrop {

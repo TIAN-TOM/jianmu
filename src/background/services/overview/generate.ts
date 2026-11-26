@@ -12,7 +12,7 @@ import type { LearningAnalysis } from "../../../core/notes/markdown.ts";
 import { normalizeAnalysisFailures, overviewTranscriptBasis, type Basis, type OverviewPart, type OverviewRecord } from "../../../core/notes/records.ts";
 import { genInfo } from "../../../core/tasks.ts";
 import { localizePrompt } from "../../../core/ai/prompt.ts";
-import { outputLangOf } from "../../../core/output-lang.ts";
+import { outputLangOf, type OutputLang } from "../../../core/output-lang.ts";
 import { parseVideoKey, type VideoKey } from "../../../core/video-ref.ts";
 import type { Broadcast } from "../../../shared/messages.ts";
 import type { OverviewResultView } from "../../../shared/messages/overview.ts";
@@ -24,11 +24,18 @@ import type { OverviewStore } from "../../stores/overviews.ts";
 import type { TaskRun } from "../../tasks.ts";
 import type { TranscriptService } from "../transcript/index.ts";
 import { analyzePlannedChunks, describeChunkFailure, mergeChunks, partsOf, previewReporter, type Chunk, type ChunkDeps, type ChunkPart, type PromptCommon } from "./chunks.ts";
+import { commentStage } from "./comment-stage.ts";
 import { concludeOverview, VERDICT_PROMPT } from "./conclude.ts";
+import { COMMENT_VERDICT_PROMPT } from "./conclude-comments.ts";
+import type { CommentRead } from "../comments.ts";
+import type { CommentMaterial } from "../../../core/ai/comments.ts";
 import { CLEARED, createPersist, type ChapterWrite, type Saved, type SnapshotFields } from "./persist.ts";
 
 export const ANALYSIS_PROMPT = "skim/chapters.md";
 const VERDICT_FEATURE = "verdict";
+// 评论区那一步（PRD F23）：关掉开关的构建里连同读评论、带评论区的提示词一起裁掉。
+const commentSteps = FEATURE_COMMENTS ? commentStage : null;
+const commentPromptFile = FEATURE_COMMENTS ? COMMENT_VERDICT_PROMPT : null;
 
 export interface GenerateDeps {
   readonly transcript: Pick<TranscriptService, "ensure">;
@@ -44,6 +51,8 @@ export interface GenerateDeps {
   readonly broadcast: (message: Broadcast) => void;
   readonly log: Log;
   readonly now: () => number;
+  /** 读评论区（PRD F23）；构建开关关着时没有。 */
+  readonly comments?: CommentRead | undefined;
 }
 
 interface Job {
@@ -51,6 +60,8 @@ interface Job {
   readonly taskId: string;
   readonly video: VideoKey;
   readonly since: ClearEpoch | undefined;
+  /** 这次生成要读评论区：卡片、侧边栏点的，打开就出结论。YouTube 经这个标签页读。 */
+  readonly comments?: { readonly tabId?: number | undefined } | undefined;
 }
 
 
@@ -75,12 +86,12 @@ const tooBig = (error: unknown): boolean => TOO_BIG_CODES.has((error as { readon
  * 抛出来的错误换成结果：概览自己的码照用，其余按模型服务的错误归类。
  * 选了「尽量整份」又是块太大的那类失败时，单独报，下一步提示换回别的档。
  */
-function failureOf(error: unknown, whole = false): Failure {
+function failureOf(error: unknown, lang: OutputLang, whole = false): Failure {
   const code = (error as { readonly code?: unknown } | null)?.code;
   if (whole && tooBig(error)) return fail("WHOLE_CHUNK_TOO_BIG");
   if (code === "EMPTY_CHUNK") return fail("EMPTY_ANALYSIS");
   if (code === "ANALYSIS_PARSE_FAILED" && isErrorCode(code)) return fail(code);
-  return aiFailure(error);
+  return aiFailure(error, lang);
 }
 
 function storedView(video: VideoKey, record: OverviewRecord): OverviewResultView {
@@ -95,6 +106,7 @@ function commonOf(view: TranscriptView): PromptCommon {
 
 export function createGenerator(deps: GenerateDeps) {
   const persist = createPersist({ overviews: deps.overviews, now: deps.now, log: deps.log });
+  const comments = commentSteps?.(deps.comments);
 
   // 用户点停止或清除本机数据不是故障：不往日志里报错。
   function logFailure(label: string, error: unknown, signal: AbortSignal): void {
@@ -128,6 +140,8 @@ export function createGenerator(deps: GenerateDeps) {
     readonly regenerating: boolean;
     /** 补失败块一块都没补上时不重写结论。 */
     readonly conclude: boolean;
+    /** 这次读的评论，和分块请求同时在读；写结论前等它。 */
+    readonly comments?: Promise<CommentMaterial | undefined> | undefined;
   }
 
   function resultOf(job: Job, saved: Saved, chunkCount: number, extra: Partial<OverviewResultView> = {}): OverviewResultView {
@@ -161,12 +175,24 @@ export function createGenerator(deps: GenerateDeps) {
     if (!work.conclude || (!work.analysis.chapters?.length && !work.analysis.keyQuotes?.length)) return ok(resultOf(job, shown, work.chunkCount));
 
     const verdictStage = run.stage(VERDICT_FEATURE);
-    const outcome = await concludeOverview(
-      { ai: verdictStage.ai, prompt: deps.prompt(VERDICT_PROMPT), outputLang: outputLangOf(verdictStage.gen), gate: deps.gate, concurrency: deps.concurrency, log: deps.log },
+    const material = work.comments ? await work.comments : undefined;
+    const concluded = await concludeOverview(
+      {
+        ai: verdictStage.ai,
+        prompt: deps.prompt(VERDICT_PROMPT),
+        // 读到了足够的评论、真要发给模型时才取带评论区的提示词。
+        ...(commentPromptFile ? { commentPrompt: () => deps.prompt(commentPromptFile) } : {}),
+        outputLang: outputLangOf(verdictStage.gen),
+        gate: deps.gate,
+        concurrency: deps.concurrency,
+        log: deps.log,
+      },
       work.analysis,
       work.failures,
-      { common: work.common, title: work.fields.title, totalDuration: work.totalDuration, signal: run.signal, progress: (message) => run.progress({ done: 1, total: 1, phase: "verdict", message }) },
+      { common: work.common, title: work.fields.title, totalDuration: work.totalDuration, signal: run.signal, progress: (message) => run.progress({ done: 1, total: 1, phase: "verdict", message }), comments: material },
     );
+    const chapterStarts = (work.analysis.chapters ?? []).map((chapter) => Number(chapter.timestampSeconds));
+    const outcome = comments && "verdict" in concluded ? { verdict: comments.carry(concluded.verdict, work.analysis.verdict, chapterStarts) } : concluded;
     const draftKept = work.regenerating && !first.saveFailed;
     if (!("verdict" in outcome)) {
       const flags = { ...("canceled" in outcome ? { verdictCanceled: true as const } : {}), ...(draftKept ? { draftKept: true as const } : {}) };
@@ -219,6 +245,8 @@ export function createGenerator(deps: GenerateDeps) {
         whole = options.whole === true;
         const chunks = planAnalysisChunks(view.transcript.segments, options);
         if (!chunks.length) return fail("NO_TRANSCRIPT");
+        // 评论和分块请求同时读，写结论之前才等它；不读的任务这里是 undefined。
+        const commentsRead = comments?.start({ video: job.video, signal: run.signal, comments: job.comments });
         const common = commonOf(view);
         const totalDuration = totalOf(view, chunks);
         const say = progressText(outputLangOf(run.gen));
@@ -233,7 +261,7 @@ export function createGenerator(deps: GenerateDeps) {
           ),
         });
         const parts = partsOf(results);
-        const remaining = chunkFailureRanges(chunks, results, describeChunkFailure);
+        const remaining = chunkFailureRanges(chunks, results, (reason) => describeChunkFailure(reason, outputLangOf(run.gen)));
         const regenerating = existing !== null && hasAnalysisContent(existing.analysis);
         if (run.signal.aborted) {
           // 重新生成时停下：不拿残缺的结果覆盖原来那份。一块都没完成、因为清除本机数据停下的，什么也不存。
@@ -245,11 +273,11 @@ export function createGenerator(deps: GenerateDeps) {
         run.progress({ done: chunks.length, total: chunks.length, phase: "merging", message: say.merging });
         const analysis = mergeChunks(chunks, results, totalDuration);
         if (!analysis.chapters?.length && !analysis.keyQuotes?.length) return fail("EMPTY_ANALYSIS");
-        const finishing = { fields: fieldsOf(job, view), analysis, failures: remaining, basis: basisOf(view), common, totalDuration, chunkCount: chunks.length, regenerating, conclude: true };
+        const finishing = { fields: fieldsOf(job, view), analysis, failures: remaining, basis: basisOf(view), common, totalDuration, chunkCount: chunks.length, regenerating, conclude: true, comments: commentsRead };
         return await finish(job, finishing);
       } catch (error) {
         logFailure("概览生成", error, run.signal);
-        return failureOf(error, whole);
+        return failureOf(error, outputLangOf(run.gen), whole);
       }
     },
 
@@ -293,7 +321,7 @@ export function createGenerator(deps: GenerateDeps) {
         if (whole && !parts.length && !run.signal.aborted && results.some((result) => result.status === "rejected" && tooBig(result.reason))) {
           return fail("WHOLE_CHUNK_TOO_BIG");
         }
-        const remaining = chunkFailureRanges(selected, results, describeChunkFailure);
+        const remaining = chunkFailureRanges(selected, results, (reason) => describeChunkFailure(reason, outputLangOf(run.gen)));
         // 合并只换被重试的区间；截断记录沿用旧的，被重试的区间换成这次的。结论先留着，补全后再重写。
         const previous = (existing.analysis as { readonly truncatedRanges?: readonly StoredRange[] }).truncatedRanges;
         const merged = withTruncatedRanges(
@@ -312,7 +340,7 @@ export function createGenerator(deps: GenerateDeps) {
         return done.ok ? ok({ ...done.value, recoveredChunks: parts.length }) : done;
       } catch (error) {
         logFailure("补失败块", error, run.signal);
-        return failureOf(error, whole);
+        return failureOf(error, outputLangOf(run.gen), whole);
       }
     },
   };

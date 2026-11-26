@@ -1,4 +1,5 @@
 // 模式规则：打开视频时进哪个模式，长视频在速读里播满 1 分钟切到精读。纯函数，规则照 PRD 第 6 节。
+// 侧边栏开着时先不切：人可能正读着速读，不在眼前把它换掉；关上以后下一次上报再切。
 // 观看会话每次有变化都调它，侧边栏和卡片只读结果，自己不算模式。
 import type { Mode, ModeSource } from "./types.ts";
 
@@ -26,6 +27,8 @@ export interface ModeInput {
   readonly current?: ModeState;
   /** 这次观看已经自动切过，撤销了也算：每次观看最多切一次。 */
   readonly autoSwitched: boolean;
+  /** 这个标签页所在窗口的侧边栏开着：先不自动切。 */
+  readonly panelOpen?: boolean;
 }
 
 const MODES: ReadonlySet<string> = new Set<Mode>(["skim", "study"]);
@@ -48,7 +51,7 @@ export function decideMode(input: ModeInput): ModeState {
   if (input.autoSwitched) return input.current?.source === "auto" ? { mode: "study", source: "auto" } : openingMode(input);
   const opening = openingMode(input);
   // 频道偏好只定打开时的模式，不挡自动切换；短视频不切。
-  if (opening.mode === "skim" && !isShortVideo(input.durationSec) && input.playedSec >= AUTO_SWITCH_SEC) {
+  if (opening.mode === "skim" && !isShortVideo(input.durationSec) && input.playedSec >= AUTO_SWITCH_SEC && !input.panelOpen) {
     return { mode: "study", source: "auto" };
   }
   return opening;

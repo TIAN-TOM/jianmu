@@ -252,7 +252,7 @@ export function finalTextProblems({ version, files }) {
   return problems;
 }
 
-/** 只改版本号的测试包用的新版本号。 @param {string} version @param {string} part */
+/** 升级测试包用的新版本号。 @param {string} version @param {string} part */
 export function bumpVersion(version, part) {
   const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
   if (!match) throw new Error(`版本号要是三段数字：${version}`);
@@ -261,4 +261,13 @@ export function bumpVersion(version, part) {
   if (part === "minor") return `${major}.${Number(minor) + 1}.0`;
   if (part === "major") return `${Number(major) + 1}.0.0`;
   throw new Error(`--bump 只认 patch、minor、major：${part}`);
+}
+
+/**
+ * 升级测试包的构建标识：后台醒来时拿磁盘上的标识和编进去的比，不换就认不出文件换了，覆盖以后不会自己重新加载。
+ * 按原来的标识和新版本号算，和原来的不一样，同一个提交两次打出来是同一个。
+ * @param {string} buildId @param {string} version
+ */
+export function upgradeBuildId(buildId, version) {
+  return createHash("sha256").update(`${buildId}\0${version}`).digest("hex").slice(0, 16);
 }

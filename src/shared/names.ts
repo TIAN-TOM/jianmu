@@ -16,6 +16,7 @@ export const API_KEY_SESSION_KEY = "jianmu_api_key";
 export const API_KEY_LOCAL_KEY = "jianmu_api_key_local";
 export const SETTINGS_REVISION_KEY = "jianmu_settings_revision";
 export const AUTO_LEDGER_KEY = "jianmu_auto_ledger";
+export const TRANSCRIPT_MODES_KEY = "jianmu_transcript_modes";
 export const WATCH_SESSIONS_KEY = "jianmu_watch_sessions";
 export const APPEARANCE_CACHE_KEY = "jianmu_appearance";
 export const SITE_BACKOFF_KEY = "jianmu_site_backoff";
@@ -93,6 +94,7 @@ export const STORAGE_KEYS = [
   SETTINGS_REVISION_KEY,
   AUTO_LEDGER_KEY,
   WATCH_SESSIONS_KEY,
+  TRANSCRIPT_MODES_KEY,
   APPEARANCE_CACHE_KEY,
   SITE_BACKOFF_KEY,
   SELF_RELOAD_KEY,

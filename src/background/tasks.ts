@@ -314,7 +314,7 @@ export function createTaskRunner(deps: TaskRunnerDeps): TaskRunner {
       try {
         result = await work({ signal, gen, input: meta.spec.input, createdAt, ai, stage, progress: (patch) => void manager.progress(taskId, patch) });
       } catch (error) {
-        result = signal.aborted ? fail("TASK_CANCELED") : aiFailure(error);
+        result = signal.aborted ? fail("TASK_CANCELED") : aiFailure(error, outputLangOf(gen));
       } finally {
         release();
       }

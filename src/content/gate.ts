@@ -1,5 +1,6 @@
 // 启用闸门：加载后问一次后台，确认启用了才放行；没确认时只等启用广播。启用失效（清除全部数据）时马上关上，重新等确认。
-// 闸门关着时什么都不做：不读页面、不插节点、不挂别的监听。问不到后台时隔一会儿再问，几次以后只等广播。
+// 闸门关着时什么都不做：不读页面、不插节点、不挂别的监听；每次没放行都叫一声，页面上先于闸门装上的东西跟着停下。
+// 问不到后台时隔一会儿再问，几次以后只等广播。
 
 /** 后台说的：启用了、没启用，或者问不到。 */
 export type Activation = "current" | "needed" | "unknown";
@@ -15,6 +16,8 @@ export interface GateDeps {
   readonly open: () => void;
   /** 关上：撤掉界面、停下一切。 */
   readonly close: () => void;
+  /** 没放行：每次问到没启用或者问不到都调，从来没放行过也调。页面上不归闸门管的东西（YouTube 页面主世界里的小桥）靠它停下。 */
+  readonly held?: () => void;
   readonly timers?: GateTimers;
 }
 
@@ -34,7 +37,7 @@ const realTimers: GateTimers = {
   clear: (timer) => clearTimeout(timer as ReturnType<typeof setTimeout>),
 };
 
-export function createGate({ ask, open, close, timers = realTimers }: GateDeps): Gate {
+export function createGate({ ask, open, close, held, timers = realTimers }: GateDeps): Gate {
   let opened = false;
   let stopped = false;
   // 每问一次、每来一条广播加一：迟到的回答对不上就作废。
@@ -68,6 +71,7 @@ export function createGate({ ask, open, close, timers = realTimers }: GateDeps):
       return;
     }
     shut();
+    held?.();
     if (answer === "unknown" && retries < ASK_RETRY_MS.length) {
       const wait = ASK_RETRY_MS[retries] ?? 0;
       retries += 1;

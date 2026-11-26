@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { createApp } from "../../../../src/background/app.ts";
 import type { MessageSender } from "../../../../src/background/senders.ts";
 import { videoKey } from "../../../../src/core/video-ref.ts";
-import { SETTINGS_STORAGE_KEY } from "../../../../src/shared/names.ts";
+import { SETTINGS_STORAGE_KEY, TRANSCRIPT_MODES_KEY } from "../../../../src/shared/names.ts";
 import { CONFIRMED, createFakeChrome, senders, STALE_CONFIRMATION, type FakeChromeOptions } from "../../../helpers/chrome.ts";
 import { failed, fakeSiteService, SAMPLE_ID, type SiteScript } from "../../../helpers/fake-site-service.ts";
 
@@ -70,7 +70,7 @@ test("取字幕只收认得的请求形状：视频、读取方式、语言、�
   assert.equal(ok.ok, true);
 });
 
-test("卡片只能用轻量读取：只问视频信息和官方总结，回复里没有字幕；完整读取、只读缓存和多带字段的都拒", async () => {
+test("卡片只能用轻量读取：问视频信息和官方总结、列一次字幕轨，回复里没有字幕；完整读取、只读缓存和多带字段的都拒", async () => {
   const { site, send } = appOn();
   for (const req of [
     { video: VIDEO, mode: "full" },
@@ -86,7 +86,24 @@ test("卡片只能用轻量读取：只问视频信息和官方总结，回复�
   assert.equal(reply.value["mode"], "light");
   assert.equal(reply.value["hasTranscript"], false);
   for (const field of ["transcript", "tracks", "chapters"]) assert.equal(field in reply.value, false, field);
-  assert.deepEqual(site.calls.map((call) => call.method).sort(), ["readOfficialSummary", "readVideoInfo"]);
+  assert.deepEqual(site.calls.map((call) => call.method).sort(), ["listCaptionTracks", "readOfficialSummary", "readVideoInfo"]);
+});
+
+test("YouTube 卡片的轻量读取本机没有字幕时只问卡片自己所在的标签页；侧边栏和扩展页面的轻量读取不问页面", async () => {
+  const fakeSite = fakeSiteService({ noCaptions: () => true });
+  const tube = { ...fakeSite.service, rules: { ...fakeSite.service.rules, platform: "youtube" as const } };
+  const fake = createFakeChrome({ local: { [SETTINGS_STORAGE_KEY]: CONFIRMED }, site: tube });
+  const app = createApp(fake.deps({ warn() {}, error() {} }));
+  const video = videoKey({ platform: "youtube", videoId: "tube-sample" });
+  const light = async (sender: MessageSender) =>
+    ((await app.dispatch({ type: "transcript.get", req: { video, mode: "light" } }, sender)) as { ok: true; value: { transcriptError?: string } }).value.transcriptError;
+
+  assert.equal(await light(senders.card(TAB)), "NO_CAPTIONS");
+  assert.deepEqual(fakeSite.calls.map((call) => call.method), ["knownNoCaptions"]);
+  assert.deepEqual(fake.calls.siteCtxTabs, [TAB]);
+
+  for (const sender of [senders.panel(), senders.triage(TAB + 1)]) assert.equal(await light(sender), "NOT_CACHED");
+  assert.equal(fakeSite.calls.length, 1, "别处的轻量读取不问页面");
 });
 
 test("卡片开关关着时卡片的轻量读取也不收，不发平台请求", async () => {
@@ -128,4 +145,34 @@ test("查原视频：没登录、被限流都当作还在，只有平台说找�
   }
   const { send } = appOn();
   assert.deepEqual(await send("video.checkAvailable", { video: VIDEO, extra: 1 }), { ok: false, code: "INVALID_REQUEST" });
+});
+
+test("字幕显示方式只给已启用的侧边栏，多个视频分别记住，最近改选的 50 个保留", async () => {
+  const { send, fake } = appOn();
+  const mode = (video: string) => send("transcript.displayMode", { video });
+  assert.deepEqual(await mode(VIDEO), { ok: true, value: { mode: "original" } });
+  for (const req of [{ video: "bad" }, { video: VIDEO, mode: "other" }, { video: VIDEO, text: "多余" }]) {
+    assert.deepEqual(await send("transcript.displayMode", req), { ok: false, code: "INVALID_REQUEST" });
+  }
+  assert.deepEqual(await send("transcript.displayMode", { video: VIDEO }, senders.card()), { ok: false, code: "FORBIDDEN" });
+  assert.deepEqual(await appOn({}, { local: {} }).send("transcript.displayMode", { video: VIDEO, mode: "bilingual" }), { ok: false, code: "NOT_ENABLED" });
+  const videos = Array.from({ length: 51 }, (_, index) => videoKey({ platform: "youtube", videoId: `sample-${index}` }));
+  await Promise.all(videos.slice(0, 50).map((video) => send("transcript.displayMode", { video, mode: "translated" })));
+  await send("transcript.displayMode", { video: videos[0], mode: "bilingual" });
+  await send("transcript.displayMode", { video: videos[50], mode: "translated" });
+  assert.deepEqual(await mode(videos[0]!), { ok: true, value: { mode: "bilingual" } });
+  assert.deepEqual(await mode(videos[1]!), { ok: true, value: { mode: "original" } }, "最早的那条挤出去了");
+  assert.deepEqual(await mode(videos[2]!), { ok: true, value: { mode: "translated" } });
+  assert.equal((fake.session.data[TRANSCRIPT_MODES_KEY] as unknown[]).length, 50);
+  assert.equal(fake.local.data[TRANSCRIPT_MODES_KEY], undefined);
+  assert.deepEqual(await send("transcript.displayMode", { video: videos[0], mode: "original" }), { ok: true, value: { mode: "original" } });
+  assert.deepEqual(await mode(videos[0]!), { ok: true, value: { mode: "original" } });
+});
+
+test("清除全部数据期间还在核对启用的字幕显示选择不能写回", async () => {
+  const { send, fake } = appOn();
+  const saving = send("transcript.displayMode", { video: VIDEO, mode: "bilingual" });
+  assert.deepEqual(await send("data.clear", { scope: "all" }, senders.options()), { ok: true, value: {} });
+  assert.deepEqual(await saving, { ok: false, code: "LOCAL_DATA_CLEARED" });
+  assert.equal(fake.session.data[TRANSCRIPT_MODES_KEY], undefined);
 });

@@ -24,8 +24,8 @@ import { OPTIONS_ZH } from "../../../src/pages/options/text-zh.ts";
 import * as SETTINGS from "../../../src/shared/settings-schema.ts";
 
 const HTTPS_ERROR = "API 地址要以 https:// 开头。只有本机地址（localhost、127.0.0.1）可以用 http://。";
-const KEY_ERROR = "请填写 API 密钥（没选记住密钥时，浏览器重启、扩展更新后要重新填）。";
-const MODEL_ERROR = "请填写模型名称，或点击「拉取模型列表」进行选择。";
+const KEY_ERROR = "请填写 API 密钥（没选记住密钥时，浏览器重启、简幕更新后要重新填）。";
+const MODEL_ERROR = "请填写模型名称，或点「获取模型列表」从里面选。";
 const STALE_FINGERPRINT = "0000000000000000";
 const OPENAI_KEY = "sk-openai-secret";
 
@@ -458,12 +458,11 @@ test("概览分块模式默认自动，并只接受自动、较短、较长三�
 });
 
 test("外观两项：默认值、非法值回退与合法值透传", () => {
-  assert.equal(SETTINGS.normalize({}).accentTheme, "ink");
+  assert.equal(SETTINGS.normalize({}).accentTheme, "marker");
   assert.equal(SETTINGS.normalize({}).themeMode, "system");
 
-  assert.equal(SETTINGS.normalize({ accentTheme: "graphite" }).accentTheme, "graphite");
-  assert.equal(SETTINGS.normalize({ accentTheme: "ochre" }).accentTheme, "ochre");
-  assert.equal(SETTINGS.normalize({ accentTheme: "neon-green" }).accentTheme, "ink");
+  for (const theme of ["timecode", "marker", "band", "pinkblue", "redblack"]) assert.equal(SETTINGS.normalize({ accentTheme: theme }).accentTheme, theme);
+  assert.equal(SETTINGS.normalize({ accentTheme: "neon-green" }).accentTheme, "marker");
   assert.equal(SETTINGS.normalize({ themeMode: "dark" }).themeMode, "dark");
   assert.equal(SETTINGS.normalize({ themeMode: "sepia" }).themeMode, "system");
 });
@@ -479,7 +478,7 @@ test("播放页总结卡片默认开启，只认真正的布尔值", () => {
   }
   // 设置页每次保存都会把存储里的配置整体规整一遍，关掉的开关不能被冲回默认。
   const saved = SETTINGS.normalize({ inPageCard: false });
-  assert.equal(SETTINGS.normalize({ ...saved, accentTheme: "ochre" }).inPageCard, false);
+  assert.equal(SETTINGS.normalize({ ...saved, accentTheme: "redblack" }).inPageCard, false);
 });
 
 test("打开就出结论：新安装默认关，只认真正的 true；时长门槛默认 10 分钟，取整、限在 0 到 180 分钟", () => {
@@ -499,28 +498,39 @@ test("打开就出结论：新安装默认关，只认真正的 true；时长门
   for (const value of ["", "abc", null, Number.NaN, Number.POSITIVE_INFINITY]) assert.equal(minutes(value), 10, String(value));
   // 改别的设置时这两项留着。
   const saved = SETTINGS.normalize({ autoOverview: true, autoOverviewMinutes: 30 });
-  assert.deepEqual(SETTINGS.normalize({ ...saved, accentTheme: "ochre" }), { ...saved, accentTheme: "ochre" });
+  assert.deepEqual(SETTINGS.normalize({ ...saved, accentTheme: "redblack" }), { ...saved, accentTheme: "redblack" });
 });
 
-test("主题只有三套，默认宣纸墨青", () => {
-  assert.deepEqual(Object.keys(SETTINGS.ACCENT_THEMES), ["ink", "graphite", "ochre"]);
-  assert.equal(SETTINGS.DEFAULTS.accentTheme, "ink");
+test("主题有五套，按设置页的顺序排，默认荧光笔", () => {
+  assert.deepEqual(Object.keys(SETTINGS.ACCENT_THEMES), ["timecode", "marker", "band", "pinkblue", "redblack"]);
+  assert.equal(SETTINGS.DEFAULTS.accentTheme, "marker");
   assert.deepEqual(
     (Object.keys(SETTINGS.ACCENT_THEMES) as SETTINGS.AccentTheme[]).map((theme) => OPTIONS_ZH.appearance.themes[theme].name),
-    ["宣纸墨青", "石墨靛蓝", "暖岩赭石"],
+    ["时间码", "荧光笔", "看不看", "粉蓝", "红黑"],
   );
 });
 
-test("主题取值任何情况下都落在三套之内", () => {
+test("早先版本的三套主题名不再认，一律回到默认", () => {
+  for (const old of ["ink", "graphite", "ochre"]) {
+    assert.equal(SETTINGS.normalize({ accentTheme: old }).accentTheme, "marker", old);
+    // 存储里留着旧值的配置再保存一次，写回去的是规整后的值，旧值不留。
+    const saved = SETTINGS.normalize({ accentTheme: old, inPageCard: false });
+    assert.equal(saved.accentTheme, "marker");
+    assert.equal(saved.inPageCard, false, "别的设置照旧");
+    assert.ok(!JSON.stringify(saved).includes(old), `规整后的配置里没有 ${old}`);
+  }
+});
+
+test("主题取值任何情况下都落在五套之内", () => {
   const valid = new Set<string>(Object.keys(SETTINGS.ACCENT_THEMES));
-  for (const raw of [undefined, null, "", " ink", "INK", "Pink", "toString", "__proto__", "constructor", 1, true, {}, ["ink"], "neon-green"]) {
+  for (const raw of [undefined, null, "", " marker", "MARKER", "Pink", "toString", "__proto__", "constructor", 1, true, {}, ["marker"], "neon-green"]) {
     const value = SETTINGS.normalize({ accentTheme: raw }).accentTheme;
     assert.ok(valid.has(value), `${String(raw)} → ${value}`);
-    assert.equal(value, "ink", `认不出的 ${String(raw)} 回到默认`);
+    assert.equal(value, "marker", `认不出的 ${String(raw)} 回到默认`);
   }
   // 整份配置缺失、不是对象时也一样。
   for (const raw of [undefined, null, "oops", 42]) {
-    assert.equal(SETTINGS.normalize(raw).accentTheme, "ink");
+    assert.equal(SETTINGS.normalize(raw).accentTheme, "marker");
   }
 });
 
@@ -591,10 +601,26 @@ test("预设表以地址模块为准：顺序、协议和地址都来自那边�
       ["dashscope", "阿里云百炼（通义千问）"],
       ["siliconflow", "硅基流动 SiliconFlow"],
       ["openrouter", "OpenRouter"],
+      ["ollama", "Ollama（本机）"],
       ["custom", "自定义"],
     ],
   );
   assert.equal(SETTINGS.presetById("没有这家"), null);
+});
+
+test("Ollama 预设指向本机的 OpenAI 兼容地址，不预置模型、没有密钥页，不填密钥也能保存", () => {
+  const preset = SETTINGS.presetById("ollama");
+  assert.equal(preset?.protocol, PROTOCOLS.OPENAI);
+  assert.equal(preset?.baseUrl, "http://localhost:11434/v1");
+  assert.equal(preset?.model, "");
+  assert.equal(preset?.docsUrl, "");
+  const normalized = SETTINGS.normalize({ presetId: "ollama", aiModel: "local-model" });
+  assert.equal(normalized.aiBaseUrl, "http://localhost:11434/v1");
+  assert.equal(SETTINGS.originOf(normalized.aiBaseUrl), "http://localhost:11434/");
+  assert.equal(chatCompletionsUrl(normalized), "http://localhost:11434/v1/chat/completions");
+  assert.equal(modelsUrl(normalized), "http://localhost:11434/v1/models");
+  assert.equal(SETTINGS.validate({ presetId: "ollama", aiModel: "local-model", ...CONSENTED }).ok, true);
+  assert.deepEqual(SETTINGS.validate({ presetId: "ollama", ...CONSENTED }).errors, [MODEL_ERROR]);
 });
 
 test("快捷选择指向真实的预设，国内在前", () => {
@@ -716,7 +742,7 @@ test("覆盖只认已知功能下的非空字符串，去掉首尾空白", () =>
   );
 });
 
-test("功能列表就是设置页那七项，构建开关打开时多一项画面分析，id 不重复", () => {
+test("功能列表就是设置页那七项，构建开关打开时多一项画面解释，id 不重复", () => {
   assert.deepEqual(
     SETTINGS.FEATURE_MODEL_SLOTS.map((slot) => [slot.id, slotLabel(slot.id)]),
     [
@@ -727,7 +753,7 @@ test("功能列表就是设置页那七项，构建开关打开时多一项画�
       ["qa", "问答"],
       ["notes", "笔记润色"],
       ["explain", "划词解释"],
-      ...(FEATURE_FRAME_EXPLAIN ? [["frame", "画面分析"]] : []),
+      ...(FEATURE_FRAME_EXPLAIN ? [["frame", "画面解释"]] : []),
     ],
   );
 });
@@ -744,7 +770,7 @@ test("保存过的覆盖记下所属的服务商和地址，再规整一遍不�
   assert.equal(SETTINGS.featureModelsOwnerOf(ANTHROPIC_SAVED), "anthropic|https://api.anthropic.com/");
   // 外观这类即改即存的设置都是「读出、规整、写回」，不能弄丢覆盖。
   assert.deepEqual(SETTINGS.normalize(normalized), normalized);
-  assert.deepEqual(SETTINGS.normalize({ ...normalized, accentTheme: "ochre" }).featureModels, ANTHROPIC_SAVED.featureModels);
+  assert.deepEqual(SETTINGS.normalize({ ...normalized, accentTheme: "redblack" }).featureModels, ANTHROPIC_SAVED.featureModels);
 });
 
 test("没有覆盖时不记归属", () => {
@@ -933,7 +959,7 @@ test("启用确认的字段只核对形状：坏值落回没确认，好值留�
   assert.equal(normalized.activationFingerprint, STALE_FINGERPRINT);
 
   const confirmed = SETTINGS.normalize({ ...SETTINGS.ACTIVATION_CONFIRMED });
-  assert.deepEqual(SETTINGS.activationStatus({ ...confirmed, accentTheme: "ochre" }), { state: "current" });
+  assert.deepEqual(SETTINGS.activationStatus({ ...confirmed, accentTheme: "redblack" }), { state: "current" });
 });
 
 test("启用确认和数据同意分开判断：确认了一边不等于确认了另一边", () => {

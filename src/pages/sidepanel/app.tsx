@@ -1,6 +1,6 @@
 // 侧边栏外壳：没确认启用时只有启用说明；没有视频时说明怎么用；有视频时是头部（含模式切换）、一行提示、
 // 当前模式的内容（速读或精读）和底部工具条（提问框在最左）。问答抽屉和笔记层挂在最外面，切模式时不卸载，草稿和在途回答都留着。
-// 视频页没连上扩展、还没设置 AI 服务、字幕和视频对不上、打开就出结论停着，都放在头部下面的一行提示里。
+// 视频页没连上扩展、还没设置 AI 服务、字幕和视频对不上、打开就出结论停着，都放在头部下面的一行提示里；这一行和模式切换一起吸顶。
 import { describe, errorCopy } from "../../core/errors.ts";
 import { translatedTitleOf } from "../../core/ai/verdict.ts";
 import { noticeLines, noticeStatus, ACTIVATION_TABLE } from "../../core/consent.ts";
@@ -13,7 +13,7 @@ import { Menu, type MenuItem } from "../shared/ui/menu.tsx";
 import { ModeSwitch } from "../shared/ui/mode-switch.tsx";
 import { Notice } from "../shared/ui/notice.tsx";
 import { pickNotice, type NoticeEntry } from "../shared/ui/notice.ts";
-import { useEffect, useState } from "preact/hooks";
+import { useEffect } from "preact/hooks";
 import { StateBlock } from "../shared/ui/state-block.tsx";
 import { stateCopy } from "../shared/ui/state.ts";
 import { Layer, Sheet } from "../shared/ui/overlay.tsx";
@@ -22,6 +22,7 @@ import type { Panel } from "./panel.ts";
 import { askReason, canSend, QaTab } from "./qa-tab.tsx";
 import { activeIndex } from "./reading.ts";
 import { SkimView } from "./skim.tsx";
+import { useStickyHeight } from "./sticky.ts";
 import { StudyView } from "./study.tsx";
 import { trackLabel } from "./files.ts";
 import { FrameButton, FrameResults } from "./frame-view.tsx";
@@ -101,7 +102,7 @@ function Header({ panel }: { readonly panel: Panel }) {
   );
 }
 
-/** 模式切换和笔记按钮：放在头部外面，滚动时吸在顶上。 */
+/** 模式切换和笔记按钮：放在头部外面，和下面那一行提示一起吸在顶上。 */
 function ModeRow({ panel }: { readonly panel: Panel }) {
   return (
     <div class="mode-row">
@@ -111,12 +112,23 @@ function ModeRow({ panel }: { readonly panel: Panel }) {
   );
 }
 
+/** 吸顶的一层：模式切换和一行提示。字幕滚到哪，存好了、复制了、跳不过去的原因都看得见；精读的章节条排在它下面。 */
+function PanelTop({ panel, lines }: { readonly panel: Panel; readonly lines: readonly (NoticeEntry | null)[] }) {
+  const ref = useStickyHeight<HTMLDivElement>("--panel-top-h");
+  return (
+    <div class="panel-top" ref={ref}>
+      <ModeRow panel={panel} />
+      <Notice notices={lines} />
+    </div>
+  );
+}
+
 /**
- * 底部的提问框：回车发出问题、清空，打开问答抽屉看回答。不能问时不发，字留着，照样打开抽屉，原因在抽屉里的提问按钮旁边。
- * 空着回车或点旁边的按钮只打开抽屉看历史。用表单提交，输入法选字时的回车不算。
+ * 底部的提问框：回车发出问题、清空，打开问答抽屉看回答。不能问时不发，字留着，照样打开抽屉：抽屉里的输入框和这里共用一份草稿，
+ * 刚打的字带进去，原因在抽屉里的按钮旁边。空着回车或点旁边的按钮只打开抽屉看历史。用表单提交，输入法选字时的回车不算。
  */
 function AskBox({ panel }: { readonly panel: Panel }) {
-  const [question, setQuestion] = useState("");
+  const question = panel.draft.value;
   const t = panelText();
   const open = (): void => {
     panel.qaOpen.value = true;
@@ -125,14 +137,14 @@ function AskBox({ panel }: { readonly panel: Panel }) {
     event.preventDefault();
     if (canSend(askReason(panel), question)) {
       void panel.qa.ask(question);
-      setQuestion("");
+      panel.draft.value = "";
     }
     open();
   };
   return (
     <>
       <form class="ask-entry" onSubmit={submit}>
-        <input class="search-input" type="text" aria-label={t.dock.ask} placeholder={t.qa.placeholder} value={question} onInput={(event) => setQuestion(event.currentTarget.value)} />
+        <input class="search-input" type="text" aria-label={t.dock.ask} placeholder={t.qa.placeholder} value={question} onInput={(event) => (panel.draft.value = event.currentTarget.value)} />
       </form>
       <IconButton icon="task" label={t.dock.history} onClick={open} />
     </>
@@ -176,7 +188,7 @@ function notices(panel: Panel): (NoticeEntry | null)[] {
   const p = panelText();
   const t = p.notices;
   return [
-    toast ? { id: `toast-${toast.id}`, priority: 0, text: toast.text, tone: "accent" } : null,
+    toast ? { id: `toast-${toast.id}`, priority: 0, text: toast.text, tone: "accent", ...(toast.action ? { action: toast.action } : {}) } : null,
     unreachable && tabId !== null
       ? {
           id: "connect",
@@ -195,7 +207,17 @@ function notices(panel: Panel): (NoticeEntry | null)[] {
       : null,
     FEATURE_KEEP_CONSENT ? carriedNotice(panel) : null,
     config.state === "checked" && config.view.autoPaused
-      ? { id: "auto-paused", priority: 4, text: t.autoPaused[config.view.autoPaused], tone: "warn", action: { label: p.openSettings, run: panel.openOptions } }
+      ? {
+          id: "auto-paused",
+          priority: 4,
+          text: sharedText().autoPaused.reasons[config.view.autoPaused],
+          tone: "warn",
+          // 额度用完、本机服务拒绝：用户自己决定什么时候接着花额度，点「恢复」就接着做。密钥被拒：去设置页改，保存以后后台自己恢复。
+          action:
+            config.view.autoPaused === "key"
+              ? { label: p.openSettings, run: () => panel.openSettingsAt("ai-service") }
+              : { label: sharedText().autoPaused.resume, run: () => void panel.resumeAuto() },
+        }
       : null,
   ];
 }
@@ -208,6 +230,22 @@ function UndoClock({ panel, shown }: { readonly panel: Panel; readonly shown: bo
   return null;
 }
 
+/** 抽屉和笔记层盖住了顶上那一行提示：同一句话在层里再说一遍，带着同一个按钮（比如「不记」），层里也收得回。 */
+function LayerToast({ panel, shown }: { readonly panel: Panel; readonly shown: boolean }) {
+  const toast = panel.toast.value;
+  if (!shown || !toast) return null;
+  return (
+    <p class="layer-toast" role="status">
+      <span>{toast.text}</span>
+      {toast.action ? (
+        <Button variant="text" onClick={toast.action.run}>
+          {toast.action.label}
+        </Button>
+      ) : null}
+    </p>
+  );
+}
+
 function BilibiliNoVideo(_props: { readonly panel: Panel }) {
   const t = panelText().noVideo;
   return <StateBlock title={t.title} impact={t.impact} />;
@@ -217,9 +255,10 @@ function BilibiliNoVideo(_props: { readonly panel: Panel }) {
 const NoVideo = FEATURE_YOUTUBE ? YoutubeNoVideo : BilibiliNoVideo;
 
 export function App({ panel }: { readonly panel: Panel }) {
+  // 三种样子各带自己的 key：换样子时整页是新挂上的，淡进来，不是在旧节点上换孩子。
   if (!panel.activation.enabled.value) {
     return (
-      <main class="panel panel-gate">
+      <main key="activation" class="panel panel-gate">
         <Activation panel={panel} />
       </main>
     );
@@ -227,7 +266,7 @@ export function App({ panel }: { readonly panel: Panel }) {
   const { video } = panel.follow.target.value;
   if (!video) {
     return (
-      <main class="panel panel-gate">
+      <main key="no-video" class="panel panel-gate">
         <Notice notices={[panel.toast.value ? { id: "toast", priority: 0, text: panel.toast.value.text, tone: "accent" } : null, FEATURE_KEEP_CONSENT ? carriedNotice(panel) : null]} />
         {FEATURE_KEEP_CONSENT ? carriedList(panel) : null}
         <NoVideo panel={panel} />
@@ -237,27 +276,25 @@ export function App({ panel }: { readonly panel: Panel }) {
   const mode = panel.mode.view.value.mode;
   const lines = notices(panel);
   return (
-    <main class="panel" data-mode={mode}>
+    <main key="video" class="panel" data-mode={mode}>
       <UndoClock panel={panel} shown={pickNotice(lines)?.id === AUTO_SWITCHED} />
       <Header panel={panel} />
-      <ModeRow panel={panel} />
-      <Notice notices={lines} />
+      <PanelTop panel={panel} lines={lines} />
       {FEATURE_KEEP_CONSENT ? carriedList(panel) : null}
       {FEATURE_FRAME_EXPLAIN && panel.frame ? <FrameResults panel={panel} frame={panel.frame} /> : null}
-      <section class="mode-view" aria-label={sharedText().modes[mode]}>
+      {/* 换模式、换视频时内容是新挂上的，淡进来；章节展开这些只属于一个视频的状态也跟着清掉。 */}
+      <section key={`${mode}:${video}`} class="mode-view" aria-label={sharedText().modes[mode]}>
         {mode === "study" ? <StudyView panel={panel} /> : <SkimView panel={panel} />}
       </section>
       <Toolbar panel={panel} />
       <Sheet open={panel.qaOpen.value} title={panelText().qa.title} onClose={() => (panel.qaOpen.value = false)}>
+        {/* 抽屉盖住了顶上那一行提示：复制了、删掉了在抽屉里说。 */}
+        <LayerToast panel={panel} shown={panel.qaOpen.value} />
         <QaTab panel={panel} />
       </Sheet>
       <Layer open={panel.notesOpen.value} title={panelText().head.notes} onClose={() => (panel.notesOpen.value = false)}>
         {/* 层盖住了顶上那一行提示：改笔记、删笔记的结果在层里说。 */}
-        {panel.notesOpen.value && panel.toast.value ? (
-          <p class="layer-toast" role="status">
-            {panel.toast.value.text}
-          </p>
-        ) : null}
+        <LayerToast panel={panel} shown={panel.notesOpen.value} />
         {panel.notesOpen.value ? <NotesTab panel={panel} /> : null}
       </Layer>
     </main>

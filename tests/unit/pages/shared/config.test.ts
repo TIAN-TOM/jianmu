@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { signal } from "@preact/signals";
 import { createPageApi } from "../../../../src/pages/shared/api.ts";
-import { CONFIG_DEBOUNCE_MS, CONFIG_KEYS, cardSetupHint, createConfigWatch, setupNotice, setupReason, touchesConfig, type ConfigState } from "../../../../src/pages/shared/config.ts";
+import { CONFIG_DEBOUNCE_MS, CONFIG_KEYS, cardSetupHint, createConfigWatch, needsSetup, setupAction, setupNotice, setupReason, touchesConfig, type ConfigState } from "../../../../src/pages/shared/config.ts";
 import { API_KEY_LOCAL_KEY, API_KEY_SESSION_KEY, SETTINGS_STORAGE_KEY, TRIAGE_STORAGE_KEY, WATCH_SESSIONS_KEY } from "../../../../src/shared/names.ts";
 import { deferred, nextTurn } from "../../../helpers/deferred.ts";
 import { fakeRuntime } from "../../../helpers/fake-runtime.ts";
@@ -169,4 +169,12 @@ test("没设置好时的说法按缺什么分开：密钥没了直说重新填�
   assert.match(cardSetupHint(keyGone), /「在这台电脑上记住密钥」/);
   assert.match(cardSetupHint(consent), /勾选数据说明/);
   for (const hint of [cardSetupHint(fresh), cardSetupHint(keyGone), cardSetupHint(consent)]) assert.doesNotMatch(hint, /（或/);
+
+  // 侧边栏摆在「生成概览」位置上的按钮：缺什么写什么。还没问到、问失败了都不算没设置好，不换按钮。
+  assert.equal(setupAction(fresh), "设置 AI 服务");
+  assert.equal(setupAction(keyGone), "重新填密钥");
+  assert.equal(setupAction(consent), "去看数据说明");
+  assert.equal(setupAction(keyGone, "en"), "Re-enter API key");
+  assert.deepEqual([fresh, keyGone, consent, local, { state: "unknown" } as ConfigState].map(needsSetup), [true, true, true, false, false]);
+  assert.equal(needsSetup({ state: "failed", failure: { ok: false, code: "BACKGROUND_FAILED" } }), false);
 });

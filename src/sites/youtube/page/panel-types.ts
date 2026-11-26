@@ -2,10 +2,14 @@
 // 页面和网页共享这块地方，回来的快照按不可信输入核对：字段、类型、大小、视频身份都要对得上，不对的整份不用。
 // 顶层只放字面量和函数：构建开关关着时整个模块不进包。
 
-/** 后台问页面要的两种东西：面板快照，或者只问页面现在是哪个视频、面板内容换过几次。 */
+/**
+ * 后台问页面要的三种东西：面板快照；只问页面现在是哪个视频、面板内容换过几次；
+ * 或者只问页面现在是哪个视频、播放器上已有哪些字幕轨（卡片看这个视频有没有字幕）。
+ */
 export type PanelRequest =
   | { readonly type: "youtube.panel"; readonly req: { readonly videoId: string } }
-  | { readonly type: "youtube.current"; readonly req: { readonly videoId: string } };
+  | { readonly type: "youtube.current"; readonly req: { readonly videoId: string } }
+  | { readonly type: "youtube.tracks"; readonly req: { readonly videoId: string } };
 
 /**
  * 面板的状态：ready 读到了；closed 面板没打开；reopen 面板是简幕接上之前打开的，认不出是谁的；
@@ -57,6 +61,14 @@ export interface PlayerTracks {
   readonly tracks: readonly PlayerTrack[];
   readonly defaultIndex: number | null;
   readonly hasDefault: boolean | null;
+  /** 播放器拿到的这个视频的数据说它能正常播：只有这时轨的列表才算完整。没带时当不知道。 */
+  readonly playable?: boolean;
+}
+
+/** 页面回的「现在是哪个视频、播放器上有哪些字幕轨」：视频编号的规矩同快照；问不到字幕轨是 null。 */
+export interface PanelTracks {
+  readonly videoId: string;
+  readonly player: PlayerTracks | null;
 }
 
 export interface PanelCurrent {
@@ -131,16 +143,17 @@ function trackOf(value: unknown): PlayerTrack | null {
 /** 核对小桥交回的字幕轨列表：主世界和网页共用，形状、大小、视频编号和默认轨的位置有一样不对就整份不用。 */
 export function playerTracksOf(value: unknown): PlayerTracks | null {
   if (!isRecord(value)) return null;
-  const { videoId, tracks, defaultIndex, hasDefault } = value;
+  const { videoId, tracks, defaultIndex, hasDefault, playable } = value;
   if (typeof videoId !== "string" || !VIDEO_ID.test(videoId) || !Array.isArray(tracks) || tracks.length > PANEL_LIMITS.tracks) return null;
   if (!(defaultIndex === null || (isCount(defaultIndex) && defaultIndex < tracks.length)) || !(hasDefault === null || typeof hasDefault === "boolean")) return null;
+  if (!(playable === undefined || typeof playable === "boolean")) return null;
   const list: PlayerTrack[] = [];
   for (const raw of tracks) {
     const track = trackOf(raw);
     if (!track) return null;
     list.push(track);
   }
-  return { videoId, tracks: list, defaultIndex, hasDefault };
+  return { videoId, tracks: list, defaultIndex, hasDefault, ...(typeof playable === "boolean" ? { playable } : {}) };
 }
 
 /** 核对页面回的快照，形状不对、超出大小、状态和内容对不上的都是 null。字幕轨列表不对只当没问到。 */
@@ -154,6 +167,14 @@ export function panelSnapshotOf(value: unknown): PanelSnapshot | null {
   if (!info || !cues) return null;
   if ((state === "ready") !== cues.length > 0) return null;
   return { videoId, state: state as PanelState, stamp, label, cues, info, player: playerTracksOf(value.player) };
+}
+
+/** 核对页面回的字幕轨问答：形状不对是 null；字幕轨列表不对只当没问到。 */
+export function panelTracksOf(value: unknown): PanelTracks | null {
+  if (!isRecord(value)) return null;
+  const { videoId } = value;
+  if (typeof videoId !== "string" || (videoId !== "" && !VIDEO_ID.test(videoId))) return null;
+  return { videoId, player: playerTracksOf(value.player) };
 }
 
 export function panelCurrentOf(value: unknown): PanelCurrent | null {

@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ACCENT_SWATCHES } from "../../../src/content/hover-icons.ts";
-import { createPlayer, MEDIA_SWITCH_WINDOW_MS } from "../../../src/content/player.ts";
+import { createPlayer, MEDIA_SWITCH_WINDOW_MS, noteTimestamp } from "../../../src/content/player.ts";
 import { videoKey, type VideoRef } from "../../../src/core/video-ref.ts";
 import { ACCENT_THEMES } from "../../../src/shared/settings-schema.ts";
 import type { MainVideo } from "../../../src/sites/page-types.ts";
@@ -32,6 +32,15 @@ function setup(main: () => MainVideo) {
   const player = createPlayer({ currentRef: () => ref, findMainVideo: main, now: () => clock });
   return { player, go: (next: VideoRef) => void (ref = next), tick: (ms: number) => void (clock += ms) };
 }
+
+test("播放中记笔记提前三秒，开头停在零；暂停、播完或跳转时记在当前", () => {
+  const playing = { currentTime: 20.8, paused: false, ended: false, seeking: false, readyState: 4 };
+  assert.equal(noteTimestamp(playing), 17);
+  assert.equal(noteTimestamp({ ...playing, currentTime: 2.4 }), 0);
+  for (const stopped of [{ paused: true }, { ended: true }, { seeking: true }, { readyState: 1 }]) {
+    assert.equal(noteTimestamp({ ...playing, ...stopped }), 20);
+  }
+});
 
 test("读状态和跳转：视频对得上时照做，暂停着跳过去就播起来", () => {
   const video = fakeVideo();
@@ -84,6 +93,9 @@ test("标签页在后台时播放器先换上了新视频，回到前台才发�
   assert.equal(player.handle({ type: "player.getState", req: { video: videoKey(SECOND) } })?.ok, true);
 });
 
-test("笔记图标抄的主题色和设置里的主题表一致", () => {
-  assert.deepEqual(ACCENT_SWATCHES, Object.fromEntries(Object.entries(ACCENT_THEMES).map(([name, theme]) => [name, theme.swatch])));
+test("笔记图标抄的主题色和字色和设置里的主题表一致", () => {
+  assert.deepEqual(
+    ACCENT_SWATCHES,
+    Object.fromEntries(Object.entries(ACCENT_THEMES).map(([name, theme]) => [name, { fill: theme.swatch, ink: theme.onSwatch }])),
+  );
 });

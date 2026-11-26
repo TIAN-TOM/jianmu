@@ -34,8 +34,8 @@ export interface CardFrame {
 }
 
 // 收起时只剩标题栏，载入前先按这个高度占位；之后卡片自己报高度，这里只夹一道上下限。
-export const CARD_HEIGHT = { initial: 36, min: 36, max: 720 } as const;
-const DOCKED_STYLE = "display:block;width:100%;border:0;border-radius:12px;margin:0 0 12px;background:transparent;";
+export const CARD_HEIGHT = { initial: 48, min: 48, max: 720 } as const;
+const DOCKED_STYLE = "display:block;width:100%;border:0;margin:0 0 12px;background:transparent;";
 const FLOATING_STYLE = `display:block;position:fixed;right:16px;bottom:16px;width:340px;max-width:calc(100vw - 32px);border:0;
   border-radius:12px;z-index:1000;background:transparent;box-shadow:0 6px 24px rgba(0,0,0,.18);`;
 // 在右栏里时每隔几轮才全面核对一次位置：核对要读弹幕列表的计算样式。

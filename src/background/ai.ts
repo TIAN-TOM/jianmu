@@ -42,7 +42,7 @@ import type { ClearGuard } from "../core/clear-guard.ts";
 import { fail, ok, type Failure, type Result } from "../core/errors.ts";
 import { AI_ERROR_TEXT, type AiErrorCode } from "../core/errors/ai.ts";
 import type { Effort } from "../core/notes/records.ts";
-import { inLang, resolveOutputLang, type OutputLang } from "../core/output-lang.ts";
+import { inLang, outputLangOf, resolveOutputLang, type OutputLang } from "../core/output-lang.ts";
 import { sha256Hex } from "../core/task-keys.ts";
 import { budgetEffort, type FrozenGen } from "../core/tasks.ts";
 import type { Permissions } from "../platform/permissions.ts";
@@ -122,7 +122,6 @@ export interface AiWiring {
 // 关不掉思考的模型，思考也算在预算里，给少了可能还没写出正文就用完了。上限本身不收费，按实际生成计费。
 const TEST_MAX_TOKENS = 1024;
 const TEST_REPLY_CHARS = 30;
-const TEST_MESSAGES = [{ role: "user" as const, content: "回复两个字：可用" }];
 
 const AI_CODES: ReadonlySet<string> = new Set(Object.keys(AI_ERROR_TEXT));
 
@@ -140,18 +139,21 @@ const FEATURE_PROMPTS = {
 } as Readonly<Record<FeatureSlotId, string>>;
 
 // 后台自己写的说明，简体、英文各一份，繁体那份放 ai-hant.ts。英文、繁体挂在错误的 messageEn、messageHant 上，到 aiFailure 按语言挑。
+// 测试连接发的那句话也按语言写：模型照着回的那个词原样显示在设置页上。
 const WIRING_TEXT = {
   zh: {
-    addressChanged: "AI 还没配置好：任务开始以后换了服务地址，请重新生成。",
+    addressChanged: "AI 还没设置好：任务开始以后换了服务地址，请重新生成。",
     badAddress: "API 地址不合法，请到设置页检查。",
-    noPermission: (origin: string) => `扩展还没有访问 ${origin} 的权限。请打开设置页，点「保存并授权」。`,
+    noPermission: (origin: string) => `简幕还没有访问 ${origin} 的权限。请打开设置页，点「保存」。`,
     noKey: "请先在设置页填写 API 密钥。",
+    testPrompt: "回复两个字：可用",
   },
   en: {
     addressChanged: "The AI service isn't set up yet: the service address changed after the task started. Generate it again.",
     badAddress: "The API address isn't valid. Check it in settings.",
-    noPermission: (origin: string) => `Jianmu doesn't have permission to access ${origin} yet. Open settings and click “Save and authorise”.`,
+    noPermission: (origin: string) => `Jianmu doesn't have permission to access ${origin} yet. Open settings and click “Save”.`,
     noKey: "Enter your API key in settings first.",
+    testPrompt: "Reply with one word: OK",
   },
 };
 
@@ -165,9 +167,9 @@ function codedError(code: AiErrorCode, pick: (text: WiringText) => string): Prov
 
 /**
  * 传输层的错误换成结果。说明来自传输层，带密钥的地方已经脱敏；认不出的错误只回码，不带说明。
- * 模型服务的限流单独一个码，和视频网站的限流分开。说明按 lang 写，不传时是中文。
+ * 模型服务的限流单独一个码，和视频网站的限流分开。说明按 lang 写；lang 必传，说明会原样显示在界面上，漏传就会在英文、繁体界面里露出简体。
  */
-export function aiFailure(error: unknown, lang: OutputLang = "zh"): Failure {
+export function aiFailure(error: unknown, lang: OutputLang): Failure {
   const { error: raw, message } = aiErrorResponse(error, lang);
   const code = raw === "RATE_LIMITED" ? "AI_RATE_LIMITED" : raw;
   const failure = AI_CODES.has(code) && code !== "AI_REQUEST_FAILED" ? fail(code as AiErrorCode, message) : fail("AI_REQUEST_FAILED");
@@ -283,17 +285,19 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
   }
 
   async function testConnection(feature?: FeatureSlotId): Promise<Result<TestConnectionView>> {
+    const lang = await shownLang();
     try {
       const result = await transport.requestAiCompletion({
         feature,
-        messages: TEST_MESSAGES,
+        messages: [{ role: "user", content: wiringText(lang).testPrompt }],
         maxTokens: TEST_MAX_TOKENS,
         selfRetry: false,
+        lang,
       });
       const reply = result.text.trim().slice(0, TEST_REPLY_CHARS);
       return ok({ model: result.settings.aiModel, reply, ...(result.truncated ? { truncated: true as const } : {}) });
     } catch (error) {
-      return aiFailure(error, await shownLang());
+      return aiFailure(error, lang);
     }
   }
 
@@ -343,7 +347,8 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
       const onUsage = (usage: TokenUsage, sent: Pick<EffortPlan, "effective" | "note">): void =>
         void usageLog.record(frozen.feature, { model: frozen.model, effort: sent.effective, ...(sent.note ? { note: sent.note } : {}), usage }, since);
       const bound = build(async () => frozenSettings(await load(), frozen), taskTimeoutMs(budgetEffort(frozen)), onUsage);
-      return { requestAiCompletion: (request) => bound.requestAiCompletion({ ...request, feature: frozen.feature, effort }) };
+      // 重试时的进度和报错默认按冻结的语言写，服务没传 lang 也不会在英文、繁体界面里露出简体。
+      return { requestAiCompletion: (request) => bound.requestAiCompletion({ lang: outputLangOf(frozen), ...request, feature: frozen.feature, effort }) };
     },
     async effortPreview(requested = {}) {
       const current = await load();

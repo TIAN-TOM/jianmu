@@ -2,10 +2,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { LEGACY_VERDICT, VERDICT_LABELS } from "../../../../../src/core/ai/verdict.ts";
-import { MARK_PARTS } from "../../../../../src/pages/shared/ui/icons.ts";
+import { MARK_SET_NAMES, MARK_SETS } from "../../../../../src/pages/shared/ui/icons.ts";
 import { basisText, labelOf, MARK_SHAPES, markOf, staleOverviewMarks } from "../../../../../src/pages/shared/ui/verdict.ts";
 
-test("四档和旧判断都有标记，形状互不相同；旧版的「看概览就够」是方块，不混进圆形那几档", () => {
+test("四档和旧判断都有标记，形状互不相同；旧版的「看概览就够」单独一种形状，不混进四档", () => {
   const labels = [...VERDICT_LABELS, LEGACY_VERDICT];
   const shapes = labels.map((label) => markOf(label));
   assert.ok(shapes.every((shape) => shape !== null), "每一档都有标记");
@@ -33,9 +33,14 @@ test("认不出的档位（空的、模型自创的、对象原型上的名字�
   assert.equal(markOf(" 可跳过 "), "skip");
 });
 
-test("五种标记形状都有绘制数据，没有多出来的", () => {
-  assert.deepEqual(Object.keys(MARK_PARTS).sort(), [...MARK_SHAPES].sort());
+test("三套画法里五种标记形状都有绘制数据，没有多出来的；同一套里五种画得各不相同", () => {
   assert.equal(MARK_SHAPES.length, 5);
+  assert.deepEqual(Object.keys(MARK_SETS).sort(), [...MARK_SET_NAMES].sort());
+  for (const [set, shapes] of Object.entries(MARK_SETS)) {
+    assert.deepEqual(Object.keys(shapes).sort(), [...MARK_SHAPES].sort(), set);
+    const drawn = Object.values(shapes).map((drawing) => JSON.stringify(drawing));
+    assert.equal(new Set(drawn).size, MARK_SHAPES.length, `${set}：五种画得各不相同`);
+  }
 });
 
 test("依据行按四种依据写", () => {

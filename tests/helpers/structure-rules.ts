@@ -47,6 +47,7 @@ const BILIBILI_ADDRESSES: ReadonlySet<string> = new Set([
   "https://api.bilibili.com/x/web-interface/view/conclusion/get",
   "https://api.bilibili.com/x/player/wbi/v2",
   "https://api.bilibili.com/x/v2/history/toview",
+  "https://api.bilibili.com/x/v2/reply/main",
 ]);
 // 第 3 条：注释只写用途，不写字段说明、错误码和来历。
 const COMMENT_SOURCE = /接口文档|文档(?:里|示例|没|：)|社区|官方示例|实测|抓到|逆推/;

@@ -23,6 +23,7 @@ import {
   type AutoPauseReason,
   type AutoRead,
 } from "../../../../src/background/services/auto-generate.ts";
+import { keyedHttpError } from "../../../../src/core/ai/provider/index.ts";
 import { createClearGuard } from "../../../../src/core/clear-guard.ts";
 import { currentStamp, DATA_CONSENT_FINGERPRINT, DATA_CONSENT_TABLE, DATA_CONSENT_VERSION } from "../../../../src/core/consent.ts";
 import { videoKey, type VideoKey, type VideoRef } from "../../../../src/core/video-ref.ts";
@@ -722,6 +723,18 @@ test("哪些错误算额度用完、哪些算密钥不对", () => {
   assert.equal(pauseReasonOf({ status: 402 }), "quota");
   for (const error of [{ status: 401 }, { status: 403 }, { code: "INVALID_AI_KEY" }, { code: "ANTHROPIC_WORKSPACE_REQUIRED" }]) assert.equal(pauseReasonOf(error), "key");
   for (const error of [{ status: 429 }, { status: 500 }, { code: "TASK_CANCELED" }, { code: "AI_NETWORK_ERROR" }, null, "error"]) assert.equal(pauseReasonOf(error), null);
+});
+
+test("本机服务回 403 按来源被拒暂停，不算密钥不对；非本机的 403 和所有 401 仍算密钥不对，暂停原因存下来读得回", () => {
+  const sample = { aiApiKey: "sk-sample" };
+  for (const aiBaseUrl of ["http://localhost:11434/v1", "http://127.0.0.1:8080/v1"]) {
+    assert.equal(pauseReasonOf(keyedHttpError({}, 403, { ...sample, aiBaseUrl })), "local-origin", aiBaseUrl);
+    assert.equal(pauseReasonOf(keyedHttpError({}, 401, { ...sample, aiBaseUrl })), "key", aiBaseUrl);
+  }
+  assert.equal(pauseReasonOf(keyedHttpError({}, 403, { ...sample, aiBaseUrl: "https://api.example.com/v1" })), "key");
+  assert.equal(pauseReasonOf(keyedHttpError({}, 401, { ...sample, aiBaseUrl: "https://api.example.com/v1" })), "key");
+  assert.equal(pauseReasonOf({ code: "AI_LOCAL_ORIGIN_REJECTED", status: 403 }), "local-origin");
+  assert.deepEqual(parseLedger({ attempts: [], paused: { reason: "local-origin", at: START } }, START).paused, { reason: "local-origin", at: START });
 });
 
 test("试过的整个会话都留着，不按条数挤掉；计数只留最近 10 分钟", async () => {

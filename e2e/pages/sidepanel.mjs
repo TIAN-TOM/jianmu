@@ -7,14 +7,17 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { ACTIVATION_TABLE, noticeLines, noticeStatus } from "../../src/core/consent.ts";
 import { errorCopy } from "../../src/core/errors.ts";
+import { translationId } from "../../src/core/notes/records.ts";
+import { textFingerprint } from "../../src/core/transcript/fingerprint.ts";
 import { channelKey, videoKey } from "../../src/core/video-ref.ts";
-import { API_KEY_SESSION_KEY, AUTO_LEDGER_KEY, DATABASE_NAME, SETTINGS_STORAGE_KEY, WATCH_SESSIONS_KEY } from "../../src/shared/names.ts";
+import { API_KEY_SESSION_KEY, AUTO_LEDGER_KEY, DATABASE_NAME, OPEN_PANELS_KEY, SETTINGS_STORAGE_KEY, TRANSCRIPT_MODES_KEY, WATCH_SESSIONS_KEY } from "../../src/shared/names.ts";
 import { ANTHROPIC, BRIEF_SAMPLE, PLAYING_SAMPLE, VIDEOS } from "../fixtures.mjs";
 import { playingWatchPage, PROBE, watchPage } from "../mock-server.mjs";
 import { storedSettings } from "../settings.mjs";
 import { charsIn, SIMPLIFIED_ONLY } from "../../tests/helpers/hant-chars.ts";
 import { stillFalse } from "../../tests/helpers/wait-until.ts";
 import { PANEL_HANT } from "../../src/pages/sidepanel/text-hant.ts";
+import { SHARED_HANT } from "../../src/pages/shared/text-hant.ts";
 import { scenario, until } from "./harness.mjs";
 
 const test = scenario(import.meta.url);
@@ -78,6 +81,14 @@ const tap = async (page, selector) => {
 
 const clickText = (page, selector, text) =>
   page.evaluate(`(() => { const node = [...document.querySelectorAll(${JSON.stringify(selector)})].find((item) => item.textContent.includes(${JSON.stringify(text)})); if (!node) return false; node.click(); return true; })()`);
+
+/**
+ * 无头 Chrome 里写剪贴板可能被拒：把侧边栏的写剪贴板换成记下来，看复制了什么。几个测试共用同一个侧边栏，每次从空的记起。
+ * 复制以后顶上一行说「已复制」，笔记层开着时在层里说。
+ */
+const recordClipboard = `(window.copiedTexts = [], navigator.clipboard.writeText = async (text) => { window.copiedTexts.push(text); }, true)`;
+const copiedTexts = `window.copiedTexts ?? []`;
+const copiedSaid = `[...document.querySelectorAll(".notice-text, .layer-toast")].some((node) => node.textContent === "已复制")`;
 
 test("侧边栏：确认启用前只有启用说明，点启用以后说明怎么打开视频", async ({ open, openSidePanel }) => {
   const from = await open(LAUNCHER);
@@ -163,6 +174,13 @@ test("侧边栏：没登录时也读到视频信息，长视频进速读；字�
   });
 });
 
+const pressAtFocus = (page, key) => page.evaluate(`document.activeElement.dispatchEvent(new KeyboardEvent("keydown", { key: ${JSON.stringify(key)}, bubbles: true, cancelable: true }))`);
+const typeSearch = (page, text) => page.call(`(value) => {
+  const input = document.querySelector(".search-row input");
+  input.value = value;
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}`, text);
+
 test("侧边栏：登录以后长视频进速读，还没有概览时下面接着字幕；搜索只留命中的段落并高亮", async (ctx) => {
   const from = await ctx.open(LAUNCHER);
   const login = await openTab(from, PROBE.login, false);
@@ -172,7 +190,7 @@ test("侧边栏：登录以后长视频进速读，还没有概览时下面接�
     assert.deepEqual(await panel.evaluate(modes), SKIM);
     assert.equal(await panel.evaluate(`Boolean(document.querySelector(".skim .skim-transcript .cues"))`), true, "字幕摆在速读里");
     // 速读里的字幕不跟着播放滚动：知道播放位置以后出「回到当前句」，侧边栏没被拉下去。
-    await waitIn(panel, "知道播放位置", `Boolean(document.querySelector(".follow-pill"))`);
+    await waitIn(panel, "知道播放位置", `Boolean(document.querySelector(".follow-pill[data-shown]"))`);
     assert.equal(await panel.evaluate("scrollY"), 0, "侧边栏没被字幕拉着滚");
     // 往下滚，模式切换吸在顶上。
     await panel.evaluate(`(document.querySelector(".panel").style.minHeight = "3000px", scrollTo(0, 2000), true)`);
@@ -183,20 +201,187 @@ test("侧边栏：登录以后长视频进速读，还没有概览时下面接�
     // 自造的语音识别字幕没有标点：一段里的两行原始字幕分开显示，拼起来的文字和原文一样，划词解释取的上下文不变。
     const firstCue = await panel.evaluate(`(() => { const cue = document.querySelector(".cue-text"); return { lines: [...cue.querySelectorAll(".cue-line")].map((line) => line.textContent), text: cue.textContent }; })()`);
     assert.deepEqual(firstCue, { lines: ["样例台词一", "样例台词二"], text: "样例台词一样例台词二" });
-    await tap(panel, "[aria-label='搜索字幕']");
-    await panel.evaluate(`(() => { const input = document.querySelector(".search-input"); input.value = "台词二"; input.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+    const search = ".search-row input";
+    await panel.evaluate(`document.querySelector(".ask-entry input").focus(), true`);
+    assert.equal(await pressAtFocus(panel, "/"), true, "问答输入框里能输入斜杠");
+    assert.equal(await panel.evaluate(`document.activeElement.matches(".ask-entry input") && !document.querySelector("${search}")`), true);
+    await panel.evaluate(`document.querySelector(".cue-time").focus(), true`);
+    assert.equal(await pressAtFocus(panel, "/"), false);
+    await waitIn(panel, "斜杠聚焦字幕搜索", `document.activeElement.matches("${search}")`);
+    await typeSearch(panel, "台词二");
     await waitIn(panel, "只留命中的段落", `document.querySelectorAll(".cue").length === 1 && document.querySelector(".cue mark")?.textContent === "台词二"`);
     assert.equal(await panel.evaluate(`document.querySelector(".cue mark")?.closest(".cue-line")?.textContent`), "样例台词二", "高亮落在第二行里");
     assert.equal(await panel.evaluate(textOf(".search-count")), "1 处");
+    assert.equal(await pressAtFocus(panel, "/"), true, "搜索框自己能输入斜杠");
+    assert.equal(await pressAtFocus(panel, "Escape"), false);
+    await waitIn(panel, "搜索收起并恢复全部段落", `!document.querySelector("${search}") && !document.querySelector(".cue mark")`);
+    await waitIn(panel, "搜索按钮可用", `Boolean(document.querySelector("button[aria-label='搜索字幕']"))`);
+    await tap(panel, "button[aria-label='搜索字幕']");
+    await waitIn(panel, "再次打开时搜索词已清空", `document.activeElement.matches("${search}") && document.activeElement.value === ""`);
   });
 });
 
-test("侧边栏：速读还没有概览时先摆官方总结；没设置 AI 服务时生成概览停用并写明原因", async (ctx) => {
+test("侧边栏：搜索字幕时，译文、整理后的字幕和原始字幕都能作为命中行显示", async (ctx) => {
+  await withVideo(ctx, async (panel) => {
+    await waitIn(panel, "字幕列出来", `Boolean(document.querySelector(".cue"))`);
+    const read = await panel.evaluate(`chrome.runtime.sendMessage({ type: "transcript.get", req: { video: ${JSON.stringify(VIDEO)}, mode: "cache-only" } })`);
+    assert.equal(read.ok, true);
+    const { ref, segments } = read.value.transcript;
+    const hash = await textFingerprint(segments[0].text);
+    const record = (target, text) => ({
+      id: translationId(ref, target), video: VIDEO, transcript: ref, target, segments: { [hash]: text },
+      derived: { basis: { source: "transcript", transcript: ref }, gen: { feature: target === "tidy" ? "tidy" : "rewrite", promptVersion: "p", model: "sample", effort: "off" } }, updatedAt: 1,
+    });
+    const records = [record("en", "A painted moon"), record("tidy", "样例旁白。")];
+    await editDatabase(panel, { translations: records });
+    try {
+      await panel.reload();
+      await waitIn(panel, "缓存的整理结果显示", `${textOf(".cue-text")}.includes("样例旁白。")`);
+      await pressAtFocus(panel, "/");
+      await waitIn(panel, "搜索框打开", `document.activeElement.matches(".search-row input")`);
+      await typeSearch(panel, "台词二");
+      await waitIn(panel, "原始字幕的命中行高亮", `document.querySelector(".cue-sub mark")?.textContent === "台词二"`);
+      await typeSearch(panel, "moon");
+      await waitIn(panel, "译文的命中行高亮", `document.querySelector(".cue-sub mark")?.textContent === "moon"`);
+      assert.equal(await panel.evaluate(textOf(".cue-text")), "样例旁白。");
+      await waitIn(panel, "可以切回原始字幕", `${textOf(".tidy-row button")}.includes("看原始字幕")`);
+      assert.ok(await clickText(panel, ".tidy-row button", "看原始字幕"));
+      await typeSearch(panel, "旁白");
+      await waitIn(panel, "收起的整理结果也高亮", `document.querySelector(".cue-sub mark")?.textContent === "旁白"`);
+      assert.equal(await panel.evaluate(textOf(".cue-text")), segments[0].text);
+    } finally {
+      await editDatabase(panel, {}, { translations: records.map(({ id }) => id) });
+    }
+  });
+});
+
+test("侧边栏：重开后恢复这个视频的双语显示，缺译文的段保留原文，不发起翻译", async (ctx) => {
+  await withVideo(ctx, async (panel) => {
+    const button = ".toolbar .menu-anchor:has([aria-label='字幕视图']) > button";
+    const list = "[aria-label='字幕视图']:popover-open";
+    await waitIn(panel, "字幕和视图按钮出现", `Boolean(document.querySelector(".cue-text") && document.querySelector(${JSON.stringify(button)}))`);
+    const send = (type, req) => panel.evaluate(`chrome.runtime.sendMessage(${JSON.stringify({ type, req })})`);
+    const first = "画室里的学生拿起画笔在白纸上描出月光落在河面时最明亮的那道银色轮廓。";
+    const second = "窗外的月亮升高了。";
+    const srt = `1\n00:00:01,000 --> 00:00:07,000\n${first}\n\n2\n00:00:28,000 --> 00:00:32,000\n${second}\n`;
+    let recordId;
+    const settings = await panel.evaluate(`chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)})`);
+    const session = await panel.evaluate(`chrome.storage.session.get(${JSON.stringify([TRANSCRIPT_MODES_KEY, API_KEY_SESSION_KEY])})`);
+    const stored = await storedSettings(ANTHROPIC);
+    try {
+      assert.equal((await send("imports.add", { video: VIDEO, fileName: "月光.srt", text: srt })).ok, true);
+      const read = await send("transcript.get", { video: VIDEO, mode: "full" });
+      assert.equal(read.ok, true);
+      const { ref, segments } = read.value.transcript;
+      assert.deepEqual(segments.map(({ text }) => text), [first, second]);
+      const hash = await textFingerprint(first);
+      recordId = translationId(ref, "en");
+      const translated = "Moonlight on the water.";
+      await editDatabase(panel, { translations: [{
+        id: recordId, video: VIDEO, transcript: ref, target: "en", segments: { [hash]: translated },
+        derived: { basis: { source: "transcript", transcript: ref }, gen: { feature: "rewrite", promptVersion: "p", model: "sample", effort: "off" } }, updatedAt: 1,
+      }] });
+      await panel.reload();
+      // 工具栏可能比字幕晚一拍渲染出来，点之前连按钮一起等。
+      await waitIn(panel, "样例的两段字幕和视图按钮出现", `${textOf(".cue-text")} === ${JSON.stringify(first + "\n" + second)} && Boolean(document.querySelector(${JSON.stringify(button)}))`);
+      await tap(panel, button);
+      await waitIn(panel, "双语选项出现", `${textOf(list + " .menu-label")}.includes("双语")`);
+      assert.ok(await clickText(panel, list + " .menu-item", "双语"));
+      const remembered = `chrome.runtime.sendMessage({ type: "transcript.displayMode", req: { video: ${JSON.stringify(VIDEO)} } }).then((reply) => reply.value?.mode)`;
+      await waitIn(panel, "已记住双语", `${remembered}.then((mode) => mode === "bilingual")`);
+      // 要到设置页去改的错：那一句下面跟着「打开设置」；没设置好时不摆「接着翻译」。
+      await waitIn(panel, "第一次主动翻译因服务未设置而结束", `${textOf(".cue-tools .settings-exit .button")} === "打开设置"`);
+      assert.equal(await panel.evaluate(`${textOf(".cue-tools .progress-row .button")}.includes("接着翻译")`), false);
+      await panel.evaluate(`Promise.all([chrome.storage.local.set(${JSON.stringify({ [SETTINGS_STORAGE_KEY]: stored.local[SETTINGS_STORAGE_KEY] })}), chrome.storage.session.set(${JSON.stringify(stored.session)})]).then(() => true)`);
+      const since = ctx.requests.length;
+      await panel.reload();
+      await waitIn(panel, "双语恢复，只有第一段显示译文，第二段保留原文", `${textOf(button)} === "双语" && ${textOf(".cue:first-child .cue-sub")} === ${JSON.stringify(translated)} && ${textOf(".cue:nth-child(2) .cue-text")} === ${JSON.stringify(second)} && !document.querySelector(".cue:nth-child(2) .cue-sub")`);
+      await tap(panel, button);
+      await waitIn(panel, "再次点双语会用额度", `[...document.querySelectorAll(${JSON.stringify(list + " .menu-item")})].some((item) => item.querySelector(".menu-label")?.textContent === "双语" && item.querySelector(".menu-hint")?.textContent.includes("额度"))`);
+      assert.ok(await stillFalse(() => ctx.requests.slice(since).some((item) => "kind" in item), 20), `恢复双语以后的模型请求：${ctx.requests.slice(since).flatMap((item) => item.kind ?? [])}`);
+    } finally {
+      if (recordId) await editDatabase(panel, {}, { translations: [recordId] });
+      await send("imports.remove", { video: VIDEO });
+      await panel.evaluate(`chrome.storage.session.remove(${JSON.stringify([TRANSCRIPT_MODES_KEY, API_KEY_SESSION_KEY])}).then(() => chrome.storage.session.set(${JSON.stringify(session)}))`);
+      await panel.evaluate(`chrome.storage.local.set(${JSON.stringify(settings)})`);
+    }
+  });
+});
+
+test("侧边栏：字幕选区能直接存笔记，保留选中文字和所在段起点", async (ctx) => {
+  await withVideo(ctx, async (panel) => {
+    const send = (type, req) => panel.evaluate(`chrome.runtime.sendMessage(${JSON.stringify({ type, req })})`);
+    const sample = "纸上画着半轮明月。";
+    const selection = "半轮明月";
+    const srt = `1\n00:00:37,000 --> 00:00:42,000\n${sample}\n`;
+    const selectWords = () => panel.call(`(sample, words) => {
+      const cue = [...document.querySelectorAll(".cue-text")].find((item) => item.textContent === sample);
+      const start = sample.indexOf(words);
+      const range = document.createRange();
+      range.setStart(cue.firstChild, start);
+      range.setEnd(cue.firstChild, start + words.length);
+      const selection = getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      cue.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+    }`, sample, selection);
+    const action = (label) => `[...document.querySelectorAll(".explain-pick button")].find((button) => button.textContent === ${JSON.stringify(label)} && !button.disabled)`;
+    const notes = `chrome.runtime.sendMessage({ type: "notes.list", req: { video: ${JSON.stringify(VIDEO)} } }).then((reply) => reply.value.notes)`;
+    const before = await panel.evaluate(notes);
+    const settings = await panel.evaluate(`chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)})`);
+    const stored = await storedSettings(ANTHROPIC);
+    assert.equal((await send("imports.add", { video: VIDEO, fileName: "选区.srt", text: srt })).ok, true);
+    try {
+      await panel.evaluate(`Promise.all([chrome.storage.local.set(${JSON.stringify({ [SETTINGS_STORAGE_KEY]: stored.local[SETTINGS_STORAGE_KEY] })}), chrome.storage.session.set(${JSON.stringify(stored.session)})]).then(() => true)`);
+      await panel.reload();
+      await waitIn(panel, "选区样例显示", `${textOf(".cue-text")} === ${JSON.stringify(sample)}`);
+      await selectWords();
+      await waitIn(panel, "选区有解释和存笔记", `Boolean(${action("解释")} && ${action("存笔记")})`);
+      const since = ctx.requests.length;
+      // 在浮条上松开鼠标时，选区可能已经收起；松开的事件还会冒泡到字幕列表。
+      await panel.evaluate(`(() => {
+        const button = ${action("存笔记")};
+        button.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+        getSelection().removeAllRanges();
+        button.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+      })()`);
+      await waitIn(panel, "松开鼠标后存笔记仍可点击", `Boolean(${action("存笔记")})`);
+      assert.ok(await clickText(panel, ".explain-pick button", "存笔记"));
+      const saved = await panel.waitFor("选中文字已存入笔记", `${notes}.then((rows) => rows.find((row) => row.text === ${JSON.stringify(selection)}))`);
+      assert.equal(saved.atSec, 37);
+      assert.equal(saved.quote, undefined);
+      // 存过笔记的那句带上标记；荧光笔主题把它用荧光笔划出来，别的主题不划。
+      await waitIn(panel, "存过笔记的那句标出来", `[...document.querySelectorAll(".cue[data-saved='true'] .cue-text")].some((node) => node.textContent === ${JSON.stringify(sample)})`);
+      const stroke = `getComputedStyle(document.querySelector(".cue[data-saved='true'] .cue-text")).textDecorationLine`;
+      await panel.setAppearance({ accentTheme: "marker", themeMode: "light", uiFontScale: 100 });
+      assert.equal(await panel.evaluate(stroke), "underline", "荧光笔主题划出来");
+      await panel.setAppearance({ accentTheme: "timecode", themeMode: "light", uiFontScale: 100 });
+      assert.equal(await panel.evaluate(stroke), "none", "别的主题不划");
+      await panel.setAppearance({ accentTheme: "marker", themeMode: "light", uiFontScale: 100 });
+      assert.ok(await stillFalse(() => ctx.requests.slice(since).some((item) => "kind" in item), 20), "存笔记不请求模型");
+    } finally {
+      const added = (await panel.evaluate(notes)).filter((row) => !before.some((old) => old.id === row.id));
+      for (const row of added) await send("notes.delete", { id: row.id });
+      await send("imports.remove", { video: VIDEO });
+      await panel.evaluate(`Promise.all([chrome.storage.local.set(${JSON.stringify(settings)}), chrome.storage.session.remove(${JSON.stringify(API_KEY_SESSION_KEY)})]).then(() => true)`);
+    }
+  });
+});
+
+test("侧边栏：速读还没有概览时先摆官方总结；没设置 AI 服务时「生成概览」的位置是能点的「设置 AI 服务」，本窗口全部生成和整理字幕先不摆", async (ctx) => {
   await withVideo(ctx, async (panel) => {
     await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
     await waitIn(panel, "官方总结", `${textOf(".guide-summary")}.includes("这是自造的样例总结。")`);
-    await waitIn(panel, "生成概览停用", `(() => { const button = [...document.querySelectorAll(".button")].find((node) => node.textContent === "生成概览"); return button?.disabled === true; })()`);
-    assert.ok((await panel.evaluate(textOf(".control-reason"))).includes("先在设置页设置 AI 服务"));
+    assert.equal(await panel.evaluate(`document.querySelector(".guide .section-title")?.textContent`), "B 站官方总结");
+    await waitIn(panel, "设置 AI 服务的主按钮", `[...document.querySelectorAll(".ai-overview .button")].some((node) => node.textContent === "设置 AI 服务" && !node.disabled && node.dataset.variant === "primary")`);
+    const shown = await panel.evaluate(`({
+      generate: [...document.querySelectorAll(".button")].some((node) => node.textContent === "生成概览"),
+      batch: Boolean(document.querySelector(".batch-start, .batch-bar")),
+      tidy: Boolean(document.querySelector(".tidy-row .button")),
+      reasons: document.querySelectorAll(".ai-overview .control-reason").length,
+      exportStudy: [...document.querySelectorAll(".ai-overview .button")].some((node) => node.textContent === "导出学习稿"),
+    })`);
+    assert.deepEqual(shown, { generate: false, batch: false, tidy: false, reasons: 0, exportStudy: true }, "有官方总结可导，导出学习稿摆着");
     assert.equal(await panel.evaluate(`document.querySelector(".mode-view")?.getAttribute("aria-label")`), "速读");
     assert.ok((await panel.evaluate(textOf(".outline-title"))).includes("样例小节"), "官方总结的提纲也在");
   });
@@ -225,13 +410,20 @@ test("侧边栏：没设置 AI 服务时点顶上那行的「打开设置」，�
       await tap(panel, CONFIG_ACTION);
       await waitIn(panel, "再点一次滚回 AI 服务", `(() => { const at = ${aiSectionAt}; return at !== null && at.top > -1 && at.top <= 200 && at.hash === ""; })()`);
       assert.equal(await panel.evaluate(`chrome.extension.getViews({ type: "tab" }).filter((view) => view.location.pathname === ${JSON.stringify(OPTIONS_PATH)}).length`), 1, "切回开着的设置页，不另开");
+
+      // 「生成概览」位置上的「设置 AI 服务」也去同一节。
+      await panel.evaluate(`(() => { const view = ${optionsView}; view.scrollTo(0, view.document.documentElement.scrollHeight); return true; })()`);
+      await panel.evaluate(`chrome.tabs.update(${tabId}, { active: true }).then(() => true)`);
+      await waitIn(panel, "回到视频页", `[...document.querySelectorAll(".ai-overview .button")].some((node) => node.textContent === "设置 AI 服务")`);
+      assert.ok(await clickText(panel, ".ai-overview .button", "设置 AI 服务"));
+      await waitIn(panel, "主按钮也滚回 AI 服务", `(() => { const at = ${aiSectionAt}; return at !== null && at.top > -1 && at.top <= 200 && at.hash === ""; })()`);
     } finally {
       await panel.evaluate(closeOptions);
     }
   });
 });
 
-test("侧边栏：配好过、密钥随浏览器重启清空时，顶上那行和按钮下面都直说要重新填密钥，提一句记住密钥", async (ctx) => {
+test("侧边栏：配好过、密钥随浏览器重启清空时，顶上那行直说要重新填密钥、提一句记住密钥，主按钮写「重新填密钥」", async (ctx) => {
   await withVideo(ctx, async (panel) => {
     await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
     const before = await panel.evaluate(`chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)})`);
@@ -242,7 +434,7 @@ test("侧边栏：配好过、密钥随浏览器重启清空时，顶上那行�
       const notice = textOf(`.notice[data-id="config"] .notice-text`);
       await waitIn(panel, "那一行改说重新填密钥", `${notice}.includes("API 密钥随浏览器重启或扩展更新清空了")`);
       assert.match(await panel.evaluate(notice), /要在设置页重新填；勾选「在这台电脑上记住密钥」就不用每次填/);
-      assert.ok((await panel.evaluate(textOf(".control-reason"))).includes("先在设置页重新填 API 密钥"));
+      await waitIn(panel, "主按钮改说重新填密钥", `[...document.querySelectorAll(".ai-overview .button")].some((node) => node.textContent === "重新填密钥")`);
     } finally {
       await panel.evaluate(`chrome.storage.local.set(${JSON.stringify(before)}).then(() => true)`);
       // 等后台和侧边栏都按还原后的设置重新问过，后面的测试一打开就是没设置的说法。
@@ -264,7 +456,7 @@ async function askFromDock(panel, text) {
   await panel.pressEnter();
 }
 
-test("侧边栏：底下的提问框没设置 AI 服务时按回车不发请求，字留着，打开问答抽屉写明原因；关上抽屉焦点回到提问框", async (ctx) => {
+test("侧边栏：底下的提问框没设置 AI 服务时按回车不发请求，字带进打开的问答抽屉，提问按钮的位置是「打开设置」、下面写明原因；关上抽屉焦点回到提问框", async (ctx) => {
   await withVideo(ctx, async (panel) => {
     await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
     assert.equal(await panel.evaluate(`${qaSheet}?.open`), false);
@@ -276,8 +468,12 @@ test("侧边栏：底下的提问框没设置 AI 服务时按回车不发请求�
     await askFromDock(panel, "页面测试想问的问题");
     await waitIn(panel, "问答抽屉打开", `${qaSheet}?.open === true`);
     await waitIn(panel, "问答的空状态", `${appText}.includes("还没有问答")`);
-    assert.equal(await panel.evaluate(`document.querySelector(".qa-form .button").disabled`), true);
-    assert.ok((await panel.evaluate(textOf(".qa-form .control-reason"))).includes("先在设置页设置 AI 服务"), "原因写在抽屉里的提问按钮旁边");
+    assert.equal(await panel.evaluate(`document.querySelector(".qa-form input").value`), "页面测试想问的问题", "刚打的字带进抽屉");
+    assert.deepEqual(
+      await panel.evaluate(`(() => { const button = document.querySelector(".qa-form .button"); return { text: button?.textContent, disabled: button?.disabled }; })()`),
+      { text: "打开设置", disabled: false },
+    );
+    assert.ok((await panel.evaluate(textOf(".qa-form .control-note"))).includes("先在设置页设置 AI 服务"), "原因写在「打开设置」下面");
     assert.equal(await panel.evaluate(`document.activeElement === document.querySelector(".qa-form input")`), true, `打开抽屉以后焦点在抽屉里的提问框：${JSON.stringify(await panel.focused())}`);
     assert.ok(await stillFalse(async () => qaAsked(ctx.requests, since) || (await panel.evaluate(`document.querySelectorAll(".qa-entry").length > 0`)), 20), "不能问时不发问答请求");
     assert.deepEqual(await panel.evaluate(modes), SKIM, "开抽屉不切模式");
@@ -322,7 +518,7 @@ test("侧边栏：设置好 AI 服务以后，底下的提问框空着回车和�
   });
 });
 
-test("侧边栏：头部的笔记按钮打开笔记层，列出本视频的笔记，能改能删，删完回到空状态", async (ctx) => {
+test("侧边栏：头部的笔记按钮打开笔记层，列出本视频的笔记，能复制正文和链接，能改能删，删完回到空状态", async (ctx) => {
   await withVideo(ctx, async (panel) => {
     await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
     await tap(panel, ".mode-row [aria-label='笔记']");
@@ -332,6 +528,18 @@ test("侧边栏：头部的笔记按钮打开笔记层，列出本视频的笔�
     assert.equal(saved?.ok, true, JSON.stringify(saved));
     await waitIn(panel, "列出这条", `${textOf(".note-text")} === "页面测试记的一条"`);
     assert.equal(await panel.evaluate(textOf(".layer .toolbar-count")), "1 条");
+
+    await panel.evaluate(recordClipboard);
+    await tap(panel, ".note .menu-anchor button");
+    assert.ok(await clickText(panel, ".menu-item", "复制正文"));
+    await waitIn(panel, "复制了正文", `${copiedTexts}.length === 1`);
+    assert.equal((await panel.evaluate(copiedTexts))[0], "页面测试记的一条");
+    await waitIn(panel, "层里说已复制", copiedSaid);
+    await tap(panel, ".note .menu-anchor button");
+    assert.ok(await clickText(panel, ".menu-item", "复制链接"));
+    await waitIn(panel, "复制了链接", `${copiedTexts}.length === 2`);
+    const link = (await panel.evaluate(copiedTexts))[1];
+    assert.ok(link.startsWith("http") && link.includes(FIRST_ID), `复制的是这条笔记的视频链接：${link}`);
 
     await tap(panel, ".note .menu-anchor button");
     assert.ok(await clickText(panel, ".menu-item", "编辑"));
@@ -349,6 +557,101 @@ test("侧边栏：头部的笔记按钮打开笔记层，列出本视频的笔�
   });
 });
 
+/**
+ * 删掉列表里的一条以前装上记录：那一条什么时候标上离场、是不是点不到、哪一帧真正拿掉，下面那一条每一帧在哪。
+ * 按帧数记，不按毫秒，看得出离场是不是走了好几帧、拿掉的那一下下面的有没有跳。
+ */
+const watchExit = (listSelector, rowSelector) => `(() => {
+  const list = document.querySelector(${JSON.stringify(listSelector)});
+  const target = list.querySelector(${JSON.stringify(rowSelector)});
+  const below = target.nextElementSibling;
+  const log = { index: [...list.children].indexOf(target), height: target.getBoundingClientRect().height, marked: null, inert: null, gone: null, tops: [], deltas: [] };
+  let frame = 0;
+  let last = performance.now();
+  const tick = (now) => {
+    log.deltas.push(now - last);
+    last = now;
+    frame += 1;
+    if (below) log.tops.push(below.getBoundingClientRect().top);
+    if (log.gone === null || frame < log.gone + 3) requestAnimationFrame(tick);
+    else log.done = true;
+  };
+  if (below) log.tops.push(below.getBoundingClientRect().top);
+  requestAnimationFrame(tick);
+  new MutationObserver((records) => {
+    for (const record of records) {
+      if (log.marked === null && record.type === "attributes" && record.target === target) {
+        log.marked = frame;
+        log.inert = target.inert;
+        log.kept = [...list.children].indexOf(target) === log.index;
+      }
+    }
+    if (log.gone === null && !target.isConnected) log.gone = frame;
+  }).observe(list, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-leaving"] });
+  window.exitLog = log;
+  return true;
+})()`;
+
+test("侧边栏：笔记层里删掉一条，那一条留在原位淡掉、收起，点不到，下面的跟着平滑上移，走完才拿掉；系统设了减少动态效果时当场拿掉", async (ctx) => {
+  await withVideo(ctx, async (panel) => {
+    await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
+    const send = (type, req) => panel.evaluate(`chrome.runtime.sendMessage(${JSON.stringify({ type, req })})`);
+    const listed = `chrome.runtime.sendMessage({ type: "notes.list", req: { video: ${JSON.stringify(VIDEO)} } }).then((reply) => reply.value.notes)`;
+    const before = await panel.evaluate(listed);
+    const COUNT = 40;
+    try {
+      for (let index = 0; index < COUNT; index += 1) {
+        const saved = await send("notes.save", { video: VIDEO, atSec: index + 1, text: `页面测试的长列表第 ${index + 1} 条` });
+        assert.equal(saved?.ok, true, JSON.stringify(saved));
+      }
+      await tap(panel, ".mode-row [aria-label='笔记']");
+      await waitIn(panel, "笔记层打开", `document.querySelector(".layer")?.open === true`);
+      await waitIn(panel, "列出全部", `document.querySelectorAll(".layer .note-list > .note").length === ${COUNT}`);
+      // 层的进场走完再删，量到的是删除这一下。
+      await panel.evaluate(`Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => {}))).then(() => true)`);
+
+      const deleteSecond = async () => {
+        const id = await panel.evaluate(`document.querySelectorAll(".layer .note-list > .note")[1].dataset.id`);
+        await panel.evaluate(watchExit(".layer .note-list", `.note[data-id="${id}"]`));
+        await panel.evaluate(`document.querySelectorAll(".layer .note-list > .note")[1].querySelector(".menu-anchor button").click(), true`);
+        // 每一条都带着自己的菜单，点开着的那一个里的「删除」。
+        assert.ok(await clickText(panel, ".menu:popover-open .menu-item", "删除"));
+        await panel.waitFor("拿掉以后又过了几帧", `window.exitLog.done === true`).catch(async (error) => {
+          const log = await panel.evaluate(`JSON.stringify({ ...window.exitLog, tops: window.exitLog.tops.length, deltas: window.exitLog.deltas.length, leaving: [...document.querySelectorAll(".note[data-leaving]")].map((node) => node.dataset.id), hidden: document.hidden })`);
+          throw new Error(`${error.message}\n${log}`);
+        });
+        await waitIn(panel, "说删掉了", `document.querySelector(".layer .layer-toast")?.textContent === "已删除这条笔记"`);
+        return panel.evaluate(`window.exitLog`);
+      };
+
+      const moving = await deleteSecond();
+      assert.notEqual(moving.marked, null, "删之前先标上离场");
+      assert.equal(moving.inert, true, "离场途中点不到");
+      assert.equal(moving.kept, true, "离场途中还在原来的位置");
+      assert.ok(moving.gone - moving.marked >= 3, `离场走了好几帧才拿掉：第 ${moving.marked} 帧标上，第 ${moving.gone} 帧拿掉`);
+      const tops = moving.tops;
+      const moved = tops[0] - tops[tops.length - 1];
+      const gap = await panel.evaluate(`parseFloat(getComputedStyle(document.querySelector(".layer .note-list")).rowGap)`);
+      assert.ok(Math.abs(moved - (moving.height + gap)) < 1, `下面那一条顶上来一条加一道缝那么高：${moved} 对 ${moving.height} + ${gap}`);
+      assert.ok(tops.every((top, index) => index === 0 || top <= tops[index - 1] + 0.5), `一路往上走，不往回弹：${tops.join(", ")}`);
+      const step = tops.slice(1).map((top, index) => tops[index] - top);
+      assert.ok(Math.max(...step) < moved, `分几帧走完，不是一下子跳上去：${step.join(", ")}`);
+      assert.ok(Math.abs(tops[moving.gone + 1] - tops[moving.gone]) < 1, `真正拿掉的那一帧下面的不再跳：${tops.join(", ")}`);
+      await waitIn(panel, "少了一条", `document.querySelectorAll(".layer .note-list > .note").length === ${COUNT - 1}`);
+
+      await panel.setReducedMotion(true);
+      const instant = await deleteSecond();
+      assert.ok(instant.marked === null || instant.gone === instant.marked, `减少动态效果时当场拿掉，不留一帧：第 ${instant.marked} 帧标上，第 ${instant.gone} 帧拿掉`);
+      await waitIn(panel, "又少了一条", `document.querySelectorAll(".layer .note-list > .note").length === ${COUNT - 2}`);
+    } finally {
+      await panel.setReducedMotion(false);
+      const added = (await panel.evaluate(listed)).filter((row) => !before.some((old) => old.id === row.id));
+      for (const row of added) await send("notes.delete", { id: row.id });
+      await panel.evaluate(`(document.querySelector(".layer [aria-label='返回']")?.click(), true)`);
+    }
+  });
+});
+
 /** 在扩展页面里直接改本机数据库：放进或删掉记录，测试做完自己收拾。 */
 const editDatabase = (page, puts, deletes = {}) =>
   page.evaluate(`(async () => {
@@ -362,6 +665,36 @@ const editDatabase = (page, puts, deletes = {}) =>
     db.close();
     return true;
   })()`);
+
+test("侧边栏：搜索笔记时标出正文和引文里的关键词，全部笔记还显示并标出视频标题和作者", async (ctx) => {
+  const from = await ctx.open(LAUNCHER);
+  const note = {
+    id: "note_page_search", kind: "note", origin: "user", video: VIDEO, atSec: 5, createdAt: 1, updatedAt: 1,
+    snapshot: { title: "航线 Atlas", author: "Atlas 读书会" }, text: "翻到 ATLAS 的目录", quote: "小册子叫 atlas",
+  };
+  await editDatabase(from, { notes: [note] });
+  try {
+    await withVideo(ctx, async (panel) => {
+      await waitIn(panel, "笔记按钮出现", `Boolean(document.querySelector(".mode-row [aria-label='笔记']"))`);
+      await tap(panel, ".mode-row [aria-label='笔记']");
+      await waitIn(panel, "本视频的笔记", `${textOf(".note-text")} === ${JSON.stringify(note.text)}`);
+      assert.equal(await panel.evaluate('document.querySelector(".note .note-video, .note .note-author") === null'), true);
+      await panel.evaluate(`(() => { const input = document.querySelector(".notes .search-input"); input.value = "atlas"; input.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+      await waitIn(panel, "本视频的笔记正文和引文标出关键词", `${textOf(".note mark")} === "ATLAS\\natlas"`);
+
+      await waitIn(panel, "全部范围出现", `[...document.querySelectorAll(".notes .segment")].some((node) => node.textContent === "全部")`);
+      assert.ok(await clickText(panel, ".notes .segment", "全部"));
+      await waitIn(panel, "全部笔记显示作者", `${textOf(".note-author")} === ${JSON.stringify(note.snapshot.author)}`);
+      assert.equal(await panel.evaluate(textOf(".note-video")), note.snapshot.title);
+      assert.equal(await panel.evaluate(textOf(".note-video mark")), "Atlas");
+      assert.equal(await panel.evaluate(textOf(".note-author mark")), "Atlas");
+      await panel.evaluate(`(() => { const input = document.querySelector(".notes .search-input"); input.value = ""; input.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+      await waitIn(panel, "清空搜索后还显示笔记，高亮消失", `Boolean(document.querySelector(".note-text")) && !document.querySelector(".note mark")`);
+    });
+  } finally {
+    await editDatabase(from, {}, { notes: [note.id] });
+  }
+});
 
 const STALE_SRT = "1\n00:00:01,000 --> 00:00:04,000\n换过的样例字幕一\n\n2\n00:00:05,000 --> 00:00:08,000\n换过的样例字幕二\n";
 const STALE_QA_ID = "qa_page-test-stale";
@@ -469,6 +802,42 @@ test("侧边栏：同一个视频换到另一个标签页，重读本机的概�
   }
 });
 
+const COPY_QA_ID = "qa_page-test-copy";
+
+test("侧边栏：问答的「⋯」菜单里「复制回答」复制回答，时间点按 [分:秒] 写回去，抽屉里说一声已复制；「删除」写着删了找不回来，删完说一声", async (ctx) => {
+  const from = await ctx.open(LAUNCHER);
+  const panel = await ctx.openSidePanel(from);
+  let tabId = null;
+  try {
+    const answer = "页面测试的回答 [0:02]，依据在 [0:01-0:03]。";
+    const qa = { id: COPY_QA_ID, video: VIDEO, question: "页面测试的复制问题", answer, citations: [], clickable: [2], derived: { basis: { source: "legacy-unknown" } }, createdAt: 1 };
+    await editDatabase(panel, { qa: [qa] });
+    tabId = await openTab(panel, watchPage(FIRST_ID));
+    await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
+    await panel.evaluate(recordClipboard);
+
+    await tap(panel, ".dock [aria-label='问答记录']");
+    await waitIn(panel, "问答里列出那一条", `${textOf(".qa-entry .qa-question")}.includes("页面测试的复制问题")`);
+    await tap(panel, ".qa-entry .menu-anchor button");
+    assert.ok(await clickText(panel, ".menu-item", "复制回答"));
+    await waitIn(panel, "复制了回答", `${copiedTexts}.length === 1`);
+    assert.equal((await panel.evaluate(copiedTexts))[0], answer, "时间点带回方括号，和存着的回答一字不差");
+    await waitIn(panel, "说已复制", copiedSaid);
+    assert.equal(await panel.evaluate(`(${qaSheet}).querySelector(".layer-toast")?.textContent`), "已复制", "抽屉盖住了顶上那一行，在抽屉里说");
+
+    await tap(panel, ".qa-entry .menu-anchor button");
+    await waitIn(panel, "删除带着提醒", `[...document.querySelectorAll(".menu-item")].some((item) => item.textContent.includes("删除") && item.textContent.includes("删了找不回来"))`);
+    assert.ok(await clickText(panel, ".menu-item", "删除"));
+    await waitIn(panel, "那一条没了", `!document.querySelector(".qa-entry[data-id='${COPY_QA_ID}']")`);
+    await waitIn(panel, "说删掉了", `(${qaSheet}).querySelector(".layer-toast")?.textContent === "已删除这条问答"`);
+    await panel.evaluate(`(${qaSheet}).querySelector(".overlay-head [aria-label='关闭']").click(), true`);
+    await waitIn(panel, "抽屉关上", `${qaSheet}?.open === false`);
+  } finally {
+    await editDatabase(panel, {}, { qa: [COPY_QA_ID] });
+    if (tabId !== null) await closeTab(from, tabId);
+  }
+});
+
 test("侧边栏：结论带着标题译名时顶上的标题显示译名、悬停是原标题；没有译名的旧结论照旧显示原标题", async (ctx) => {
   const from = await ctx.open(LAUNCHER);
   const panel = await ctx.openSidePanel(from);
@@ -503,12 +872,49 @@ test("侧边栏：结论带着标题译名时顶上的标题显示译名、悬�
   }
 });
 
-test("侧边栏：没设置 AI 服务时本窗口全部生成停用；设置好以后清点写清几个视频、要新生成几个，取消回到按钮", async (ctx) => {
+test("侧边栏：结论带着评论区时，章节下面摆「评论区」一块，口碑标签加一句话，要点点开露出原评论；评论的标记写在章节旁边", async (ctx) => {
+  const from = await ctx.open(LAUNCHER);
+  const panel = await ctx.openSidePanel(from);
+  const tabs = [];
+  const comments = {
+    tag: "有人指出错误",
+    line: "页面测试的评论区一句话",
+    points: [{ text: "页面测试的要点", quotes: [{ text: "页面测试的原评论", likes: 230, pinned: true }] }],
+    marks: [{ start: 0, kind: "有误" }],
+  };
+  const overview = {
+    schemaVersion: 1,
+    videoKey: VIDEO,
+    snapshot: { title: FIRST_TITLE, author: "" },
+    analysis: { chapters: [{ title: "页面测试的章节", timestamp: "0:00", timestampSeconds: 0, summary: "" }], keyQuotes: [], verdict: { verdict: "可以看", summary: "带评论区的结论", comments } },
+    updatedAt: 1,
+  };
+  try {
+    await editDatabase(panel, { overviews: [overview] });
+    tabs.push(await openTab(panel, watchPage(FIRST_ID)));
+    await waitIn(panel, "评论区摆出来", `${textOf(".comment-block .comment-line")}.includes("页面测试的评论区一句话")`);
+    const shown = await panel.evaluate(`({
+      tag: document.querySelector(".comment-block .badge")?.textContent ?? "",
+      note: document.querySelector(".chapter-note")?.textContent ?? "",
+      open: document.querySelector(".comment-point")?.open ?? null,
+      count: document.querySelector(".comment-count")?.textContent ?? "",
+    })`);
+    assert.deepEqual(shown, { tag: "有人指出错误", note: "评论说有误", open: false, count: "1 条评论" }, "原评论默认收着");
+    await panel.evaluate(`(document.querySelector(".comment-point summary").click(), true)`);
+    await waitIn(panel, "点开露出原评论", `${textOf(".comment-quote-text")} === "页面测试的原评论"`);
+    assert.equal(await panel.evaluate(`document.querySelector(".comment-quote-meta")?.textContent ?? ""`), "置顶 · 赞 230");
+  } finally {
+    await editDatabase(panel, {}, { overviews: [VIDEO] });
+    for (const tabId of tabs) await closeTab(from, tabId);
+  }
+});
+
+test("侧边栏：没设置 AI 服务时不摆本窗口全部生成；设置好以后它在「生成概览」那排按钮里，清点时回到速读最上面写清几个视频、要新生成几个，取消回到那排按钮", async (ctx) => {
   await withVideo(ctx, async (panel) => {
     await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
-    const batchButton = `[...document.querySelectorAll(".batch-bar .button")].find((node) => node.textContent.startsWith("本窗口全部生成"))`;
-    await waitIn(panel, "批量按钮停用", `${batchButton}?.disabled === true`);
-    assert.ok((await panel.evaluate(textOf(".batch-bar .control-reason"))).includes("先在设置页设置 AI 服务"));
+    const batchButton = `[...document.querySelectorAll(".ai-overview .state-actions .batch-start .button")].find((node) => node.textContent.startsWith("本窗口全部生成"))`;
+    await waitIn(panel, "没设置时的主按钮", `[...document.querySelectorAll(".ai-overview .button")].some((node) => node.textContent === "设置 AI 服务")`);
+    assert.equal(await panel.evaluate(`Boolean(${batchButton})`), false, "没设置时不摆");
 
     // 只在这个测试里配好模型服务，做完还原，后面的测试照旧是没设置的样子。
     const before = await panel.evaluate(`chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)})`);
@@ -516,8 +922,11 @@ test("侧边栏：没设置 AI 服务时本窗口全部生成停用；设置好�
     await panel.evaluate(`Promise.all([chrome.storage.local.set(${JSON.stringify({ [SETTINGS_STORAGE_KEY]: stored.local[SETTINGS_STORAGE_KEY] })}), chrome.storage.session.set(${JSON.stringify(stored.session)})]).then(() => true)`);
     try {
       await waitIn(panel, "批量按钮能点", `${batchButton}?.disabled === false`);
+      assert.equal(await panel.evaluate(`(${batchButton}).dataset.variant`), "text", "和导出学习稿一个样子");
       await panel.evaluate(`(${batchButton}).click(), true`);
       await waitIn(panel, "清点完给出确认", `${textOf(".batch-bar .batch-status")} === "本窗口有 1 个视频，要新生成 1 个。"`);
+      assert.equal(await panel.evaluate(`document.querySelector(".skim").firstElementChild?.matches(".batch-bar")`), true, "确认时在速读最上面");
+      assert.equal(await panel.evaluate(`Boolean(${batchButton})`), false, "那排按钮里先不摆");
       assert.match(await panel.evaluate(textOf(".batch-bar .batch-notice")), /会用掉 API 额度/);
       assert.ok(await panel.evaluate(`[...document.querySelectorAll(".batch-bar .button")].some((node) => node.textContent === "开始生成 1 个")`), "确认按钮写着要生成几个");
       // 不真的开始：生成、停止和重开接上在端到端里走。
@@ -529,12 +938,13 @@ test("侧边栏：没设置 AI 服务时本窗口全部生成停用；设置好�
   });
 });
 
-test("侧边栏：打开就出结论因为额度用完停着时，顶上一行写明怎么恢复；关掉开关以后这一行消失", async (ctx) => {
+test("侧边栏：打开就出结论因为额度用完停着时，顶上一行说停了、给「恢复」，点了就恢复；再停一次，关掉开关以后这一行也消失", async (ctx) => {
   await withVideo(ctx, async (panel) => {
     await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
     const before = await panel.evaluate(`chrome.storage.local.get(${JSON.stringify(SETTINGS_STORAGE_KEY)})`);
     const stored = await storedSettings(ANTHROPIC);
-    const settings = { ...stored.local[SETTINGS_STORAGE_KEY], autoOverview: true };
+    // 点「恢复」以后后台会把开着的视频页过一遍：门槛调到最高，这个 30 分钟的视频不会真的生成。
+    const settings = { ...stored.local[SETTINGS_STORAGE_KEY], autoOverview: true, autoOverviewMinutes: 180 };
     const paused = { tried: [], sent: [], paused: { reason: "quota", at: Date.now() } };
     const setLocal = (value) => panel.evaluate(`chrome.storage.local.set(${JSON.stringify({ [SETTINGS_STORAGE_KEY]: value })}).then(() => true)`);
     // 先打开开关（开关一动后台就清掉暂停），再放一份停着的记录，然后改一项别的设置让侧边栏重问配置。
@@ -544,10 +954,20 @@ test("侧边栏：打开就出结论因为额度用完停着时，顶上一行�
       await waitIn(panel, "配置齐了", `!${textOf(".notice-text")}.includes("要先设置 AI 服务")`);
       await panel.evaluate(`chrome.storage.session.set(${JSON.stringify({ [AUTO_LEDGER_KEY]: paused })}).then(() => true)`);
       await setLocal({ ...settings, analysisChunkMode: "short" });
-      await waitIn(panel, "暂停的提示", `${textOf(".notice-text")}.includes("额度用完，打开就出结论已暂停")`);
-      // 关掉开关：后台从暂停里恢复，告诉页面以后这一行消失。
-      await setLocal({ ...settings, analysisChunkMode: "short", autoOverview: false });
-      await waitIn(panel, "提示消失", `!${textOf(".notice-text")}.includes("打开就出结论已暂停")`);
+      const pausedLine = `.notice[data-id="auto-paused"]`;
+      await waitIn(panel, "暂停的提示", `${textOf(pausedLine + " .notice-text")} === "额度用完了，「打开就出结论」先停了"`);
+      assert.equal(await panel.evaluate(textOf(pausedLine + " .notice-action")), "恢复");
+      // 点「恢复」：后台恢复，告诉页面以后这一行消失。
+      await tap(panel, pausedLine + " .notice-action");
+      await waitIn(panel, "点了恢复，提示消失", `!document.querySelector(${JSON.stringify(pausedLine)})`);
+      await waitIn(panel, "后台的暂停记录清掉了", `chrome.storage.session.get(${JSON.stringify(AUTO_LEDGER_KEY)}).then((items) => !items[${JSON.stringify(AUTO_LEDGER_KEY)}]?.paused)`);
+
+      // 再停一次，关掉开关：后台同样从暂停里恢复，这一行消失。
+      await panel.evaluate(`chrome.storage.session.set(${JSON.stringify({ [AUTO_LEDGER_KEY]: paused })}).then(() => true)`);
+      await setLocal({ ...settings, analysisChunkMode: "long" });
+      await waitIn(panel, "又停了", `Boolean(document.querySelector(${JSON.stringify(pausedLine)}))`);
+      await setLocal({ ...settings, analysisChunkMode: "long", autoOverview: false });
+      await waitIn(panel, "提示消失", `!document.querySelector(${JSON.stringify(pausedLine)})`);
       const ledger = await panel.evaluate(`chrome.storage.session.get(${JSON.stringify(AUTO_LEDGER_KEY)})`);
       assert.equal(ledger[AUTO_LEDGER_KEY]?.paused, undefined);
     } finally {
@@ -644,7 +1064,7 @@ test("侧边栏：模型服务回了带说明的报错时，三段式下面有�
   // 这两次生成都是故意失败的，后台照常记一笔。
 }, { expectedErrors: [/background\.js：概览生成失败 Error$/] });
 
-test("侧边栏：不到 5 分钟的短视频打开就进精读，跟着播放的字幕在，不摆生成概览", async (ctx) => {
+test("侧边栏：不到 5 分钟的短视频打开就进精读，跟着播放的字幕在，不摆生成概览；没设置 AI 服务时也不摆整理字幕", async (ctx) => {
   await withVideo(
     ctx,
     async (panel) => {
@@ -653,20 +1073,123 @@ test("侧边栏：不到 5 分钟的短视频打开就进精读，跟着播放�
       assert.equal(await panel.evaluate(`document.querySelector(".mode-view")?.getAttribute("aria-label")`), "精读");
       assert.equal(await panel.evaluate(`[...document.querySelectorAll(".button")].some((node) => node.textContent === "生成概览")`), false);
       assert.ok(await panel.evaluate(`[...document.querySelectorAll(".dock .button")].some((node) => node.textContent === "存笔记")`), "精读的工具条有存笔记");
-      // 整理字幕：只在点的时候做，按钮旁写明要花额度；没设置 AI 服务时停用（配置检查是异步的，等它落定）。
-      await waitIn(panel, "整理字幕停用", `document.querySelector(".study .tidy-row .button")?.disabled === true`);
-      const tidy = await panel.evaluate(`(() => { const row = document.querySelector(".study .tidy-row"); const button = row?.querySelector(".button"); return { text: button?.textContent, disabled: button?.disabled, note: row?.querySelector(".control-note")?.textContent, reason: row?.querySelector(".control-reason")?.textContent }; })()`);
-      assert.equal(tidy.text, "整理字幕");
-      assert.equal(tidy.disabled, true);
-      assert.match(tidy.note ?? "", /要用 API 额度/);
-      assert.match(tidy.reason ?? "", /先在设置页设置 AI 服务/);
+      // 整理字幕要花额度：没设置 AI 服务时先不摆，顶上那一行带人去设置（配置检查是异步的，没问到时先摆着停用的，等它落定）。
+      await waitIn(panel, "没设置时不摆整理字幕", `!document.querySelector(".study .tidy-row")`);
+    },
+    BRIEF_SAMPLE.id,
+  );
+});
+
+// 精读的当前句在每套主题里怎么标：读的是计算出来的颜色，和主题变量比。
+const activeCueLook = `(() => {
+  const cue = document.querySelector(".cue[data-active='true']");
+  if (!cue) return null;
+  const color = (name) => { const probe = document.createElement("i"); probe.style.color = "var(" + name + ")"; document.body.append(probe); const value = getComputedStyle(probe).color; probe.remove(); return value; };
+  const row = getComputedStyle(cue);
+  const time = getComputedStyle(cue.querySelector(".cue-time"));
+  return {
+    rowBg: row.backgroundColor,
+    rowShadow: row.boxShadow,
+    timeBg: time.backgroundColor,
+    timeColor: time.color,
+    timeLine: time.borderRightWidth + " " + time.borderRightColor,
+    vars: Object.fromEntries(["--bg", "--mark", "--on-mark", "--accent-text", "--bg-active", "--text", "--now-tint", "--bg-subtle", "--panel-bg"].map((name) => [name, color(name)])),
+  };
+})()`;
+
+test("侧边栏：五套主题各自标出精读的当前句：时间码铺页面底色、时间码是红底胶囊；荧光笔时间戳右边换粗线；看不看铺分隔线那档灰、时间用正文色；粉蓝铺浅蓝底、左边一道竖线；红黑铺浅灰、时间码反显", async (ctx) => {
+  await withVideo(
+    ctx,
+    async (panel) => {
+      await waitIn(panel, "进了精读", `JSON.stringify(${modes}) === ${JSON.stringify(JSON.stringify(STUDY))}`);
+      await waitIn(panel, "播放到的那句标出来", `Boolean(document.querySelector(".cue[data-active='true']"))`);
+      // 当前句的底色有过渡：先关掉，读到的是落定的颜色。
+      await panel.evaluate(`(() => { const style = document.createElement("style"); style.id = "no-motion"; style.textContent = "*, *::before, *::after { transition: none !important; animation: none !important; }"; document.head.append(style); return true; })()`);
+      try {
+        for (const accentTheme of ["timecode", "marker", "band", "pinkblue", "redblack"]) {
+          for (const themeMode of ["light", "dark"]) {
+            await panel.setAppearance({ accentTheme, themeMode, uiFontScale: 100 });
+            const look = await panel.evaluate(activeCueLook);
+            const label = `${accentTheme} ${themeMode}：${JSON.stringify(look)}`;
+            assert.ok(look, label);
+            const { vars } = look;
+            if (accentTheme === "timecode") {
+              assert.equal(look.rowBg, vars["--bg"], `当前句铺页面底色：${label}`);
+              assert.deepEqual([look.timeBg, look.timeColor], [vars["--mark"], vars["--on-mark"]], `时间码是红底胶囊：${label}`);
+            } else if (accentTheme === "marker") {
+              assert.equal(look.rowBg, "rgba(0, 0, 0, 0)", `不铺底：${label}`);
+              assert.equal(look.timeLine, `2px ${vars["--accent-text"]}`, `时间戳右边换成钢笔蓝的粗线：${label}`);
+            } else if (accentTheme === "band") {
+              assert.equal(look.rowBg, vars["--bg-active"], `整行铺分隔线那档灰：${label}`);
+              assert.equal(look.timeColor, vars["--text"], `时间用正文色：${label}`);
+            } else if (accentTheme === "pinkblue") {
+              assert.equal(look.rowBg, vars["--now-tint"], `铺浅蓝底：${label}`);
+              assert.ok(look.rowShadow.includes("inset") && look.rowShadow.includes(vars["--mark"] ?? "?"), `左边一道蓝竖线：${label}`);
+            } else {
+              assert.equal(look.rowBg, vars["--bg-subtle"], `铺浅灰：${label}`);
+              assert.deepEqual([look.timeBg, look.timeColor], [vars["--text"], vars["--panel-bg"]], `时间码反显：${label}`);
+            }
+          }
+        }
+      } finally {
+        await panel.evaluate(`(document.getElementById("no-motion")?.remove(), true)`);
+        await panel.setAppearance({ accentTheme: "marker", themeMode: "light", uiFontScale: 100 });
+      }
+    },
+    BRIEF_SAMPLE.id,
+    playingWatchPage(BRIEF_SAMPLE.id),
+  );
+});
+
+/** 精读里吸顶的几层在视口里的位置：模式切换和提示一层、当前章节（有时没有）、字幕的工具行。 */
+const stickyLayout = `(() => {
+  const box = (selector) => { const node = document.querySelector(selector); if (!node) return null; const r = node.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, height: r.height }; };
+  return { top: box(".panel-top"), notice: box(".panel-top .notice"), chapter: box(".study .chapter-bar"), tools: box(".study .cue-tools"), scrolled: scrollY, viewport: innerHeight };
+})()`;
+
+test("侧边栏：精读里往下滚，模式切换和提示一起吸在顶上，当前章节和字幕的工具行接着吸在下面、彼此不压；360 和 400 宽时加起来都不到视口的四成", async (ctx) => {
+  await withVideo(
+    ctx,
+    async (panel) => {
+      await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
+      await waitIn(panel, "进了精读", `JSON.stringify(${modes}) === ${JSON.stringify(JSON.stringify(STUDY))}`);
+      // 顶上那一行提示要先在（这个样例是字幕时间轴对不上的提示，窄宽度下折成两行）。
+      await waitIn(panel, "顶上有一行提示", `Boolean(document.querySelector(".panel-top .notice"))`);
+      // 短视频的字幕只有几段，撑高精读这一块才滚得动：吸在章节下面的几层只在这一块里吸着。
+      await panel.evaluate(`(document.querySelector(".study").style.minHeight = "4000px", true)`);
+      try {
+        for (const width of [360, 400]) {
+          await panel.setWidth(width, 800);
+          await panel.evaluate("(scrollTo(0, 2500), true)");
+          await waitIn(panel, `${width} 宽：滚下去了`, "scrollY > 0");
+          // 换了宽度，提示折行变了，吸顶那一层的高度要等下一帧量好、写进变量，下面几层才跟上。
+          await waitIn(panel, `${width} 宽：下面几层跟上了吸顶那一层的高度`, `(() => { const at = ${stickyLayout}; const above = at.chapter ?? at.top; return Boolean(at.tools && above && Math.abs(at.tools.top - above.bottom) < 1); })()`);
+          const at = await panel.evaluate(stickyLayout);
+          const label = `${width} 宽：${JSON.stringify(at)}`;
+          assert.ok(at.top && at.notice && at.tools, label);
+          assert.ok(Math.abs(at.top.top) < 1, `模式切换和提示吸在顶上：${label}`);
+          assert.ok(at.notice.top >= 0 && at.notice.bottom <= at.top.bottom + 0.5, `提示在吸顶那一层里、看得见：${label}`);
+          const above = at.chapter ?? at.top;
+          if (at.chapter) assert.ok(Math.abs(at.chapter.top - at.top.bottom) < 1, `当前章节接在吸顶那一层下面：${label}`);
+          assert.ok(Math.abs(at.tools.top - above.bottom) < 1, `字幕的工具行接在上一层下面，不压着：${label}`);
+          assert.ok(at.tools.bottom - at.top.top <= at.viewport * 0.4, `吸顶的几层加起来不到视口的四成：${label}`);
+          // 滚下去以后工具行里的菜单照样够得着，复制的结果落在吸顶的提示里，看得见。
+          await panel.evaluate(recordClipboard);
+          await tap(panel, ".study .cue-tools [aria-label='更多字幕操作']");
+          assert.ok(await clickText(panel, ".menu-item", "复制全部字幕"));
+          await waitIn(panel, `${width} 宽：复制的结果看得见`, `(() => { const node = [...document.querySelectorAll(".panel-top .notice-text")].find((item) => item.textContent === "已复制全部字幕"); if (!node) return false; const r = node.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; })()`);
+        }
+      } finally {
+        await panel.evaluate(`(document.querySelector(".study").style.minHeight = "", scrollTo(0, 0), true)`);
+        await panel.setWidth(360, 800);
+      }
     },
     BRIEF_SAMPLE.id,
   );
 });
 
 // 这个测试会记住第一个样例视频的频道，做完从设置页清掉，免得影响后面打开同一个视频的测试。
-test("侧边栏：主动切到精读立刻换、说一声记住了；同一频道再打开就进精读；设置页「清除记住的 UP 主」以后回到按时长进速读", async (ctx) => {
+test("侧边栏：主动切到精读立刻换、说一声记住了、旁边给「不记」；同一频道再打开就进精读；设置页写明记住了几个，「清除记住的 UP 主」以后回到按时长进速读；点「不记」只忘掉这一个、模式不变", async (ctx) => {
   try {
     await withVideo(ctx, async (panel) => {
       await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
@@ -675,26 +1198,38 @@ test("侧边栏：主动切到精读立刻换、说一声记住了；同一频�
       await waitIn(panel, "换成精读", `document.querySelector(".mode-view")?.getAttribute("aria-label") === "精读"`);
       assert.deepEqual(await panel.evaluate(modes), STUDY);
       await waitIn(panel, "说记住了", `${textOf(".notice-text")}.includes("已记住：样例作者的视频以后先进精读")`);
+      assert.equal(await panel.evaluate(textOf(".notice .notice-action")), "不记");
     });
     await withVideo(ctx, async (panel) => {
       await waitIn(panel, "按频道进精读", `JSON.stringify(${modes}) === ${JSON.stringify(JSON.stringify(STUDY))}`);
     });
   } finally {
-    // 从设置页「速读和精读」一节清掉记住的 UP 主。
+    // 从设置页「速读和精读」一节清掉记住的 UP 主：先写明记住了几个。
     const options = await ctx.open("pages/options.html");
-    await options.waitFor("速读和精读一节", `Boolean(document.querySelector("#modes .button"))`);
+    await options.waitFor("速读和精读一节写明记住了几个", `document.querySelector("#modes .field-hint")?.textContent === "已记住 1 个 UP 主或频道。"`);
     await options.evaluate(`(document.querySelector("#modes .button").click(), true)`);
     await options.evaluate(`([...document.querySelectorAll("#modes .button")].find((node) => node.textContent === "清除").click(), true)`);
     await options.waitFor("清除好了", `document.querySelector("#modes .status")?.textContent.startsWith("已清除")`);
+    assert.equal(await options.evaluate(`Boolean(document.querySelector("#modes .button") || document.querySelector("#modes .field-hint"))`), false, "一个都没记了：不摆清除按钮");
   }
   await withVideo(ctx, async (panel) => {
     await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
     assert.deepEqual(await panel.evaluate(modes), SKIM, "清掉以后回到按时长");
+    // 再切一次，这次点「不记」：模式留在精读，这个 UP 主不记。
+    assert.ok(await clickText(panel, ".mode", "精读"));
+    await waitIn(panel, "说记住了", `${textOf(".notice-text")}.includes("已记住：")`);
+    assert.ok(await clickText(panel, ".notice .notice-action", "不记"));
+    await waitIn(panel, "说不记了", `${textOf(".notice-text")} === "好，不记这个 UP 主"`);
+    assert.deepEqual(await panel.evaluate(modes), STUDY, "眼下的模式不变");
+  });
+  await withVideo(ctx, async (panel) => {
+    await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
+    assert.deepEqual(await panel.evaluate(modes), SKIM, "不记以后回到按时长");
   });
 });
 
 // 要真的播满 1 分钟，这个测试要一分多钟。
-test("侧边栏：长视频在速读里连续播满 1 分钟切到精读，问答抽屉和草稿都留着；顶上一行「已切到精读」，点一下回速读、这次不再切", async (ctx) => {
+test("侧边栏：长视频在速读里播满 1 分钟，侧边栏开着就不切；报不出侧边栏开关的浏览器里照样切，问答抽屉和草稿都留着；顶上一行「已切到精读」，点一下回速读、这次不再切", async (ctx) => {
   await withVideo(
     ctx,
     async (panel, _from, tabId) => {
@@ -702,7 +1237,15 @@ test("侧边栏：长视频在速读里连续播满 1 分钟切到精读，问�
       await tap(panel, ".dock [aria-label='问答记录']");
       await waitIn(panel, "问答抽屉打开", `${qaSheet}?.open === true`);
       await panel.evaluate(`(() => { const input = document.querySelector(".qa-form input"); input.value = "还没发出去的草稿"; input.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
-      await waitIn(panel, "播满 1 分钟切到精读", `document.querySelector(".mode-view")?.getAttribute("aria-label") === "精读"`, 120_000);
+      const watched = `chrome.storage.session.get(${JSON.stringify(WATCH_SESSIONS_KEY)}).then((items) => items[${JSON.stringify(WATCH_SESSIONS_KEY)}]?.[${JSON.stringify(String(tabId))}] ?? null)`;
+      // 侧边栏是真的开着的（浏览器报了开）：播过 1 分钟也留在速读。
+      await waitIn(panel, "播满 1 分钟多", `${watched}.then((session) => (session?.playedSec ?? 0) >= 70)`, 120_000);
+      assert.equal(await panel.evaluate(`document.querySelector(".mode-view")?.getAttribute("aria-label")`), "速读", "侧边栏开着不切");
+      assert.deepEqual(await panel.evaluate(`${watched}.then((session) => [session?.modeSource, session?.autoSwitched])`), ["default", false]);
+
+      // 报不出侧边栏开关的老版本浏览器里，后台记的开着的窗口一直是空的：清空它，下一次上报就切。
+      await panel.evaluate(`chrome.storage.session.set({ ${JSON.stringify(OPEN_PANELS_KEY)}: [] }).then(() => true)`);
+      await waitIn(panel, "下一次上报切到精读", `document.querySelector(".mode-view")?.getAttribute("aria-label") === "精读"`, 30_000);
       assert.equal(await panel.evaluate(`${qaSheet}?.open`), true, "切模式不关抽屉");
       assert.equal(await panel.evaluate(`document.querySelector(".qa-form input").value`), "还没发出去的草稿", "草稿留着");
       const stored = await panel.evaluate(`chrome.storage.session.get(${JSON.stringify(WATCH_SESSIONS_KEY)})`);
@@ -721,7 +1264,7 @@ test("侧边栏：长视频在速读里连续播满 1 分钟切到精读，问�
     PLAYING_SAMPLE.id,
     playingWatchPage(PLAYING_SAMPLE.id),
   );
-}, { timeoutMs: 150_000 });
+}, { timeoutMs: 180_000 });
 
 /** 把设置里的语言改成这一项，回改之前存着的设置（没有时是 null）。 */
 async function setLanguage(panel, language) {
@@ -742,7 +1285,7 @@ const restoreSettings = (panel, before) =>
 test("侧边栏：语言选 English 以后，模式切换、底部工具条、各个状态的标题和按钮、问答抽屉、笔记层都是英文，<html lang> 是 en；切回中文恢复", async (ctx) => {
   await withVideo(ctx, async (panel) => {
     await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
-    await waitIn(panel, "生成概览停用", `[...document.querySelectorAll(".button")].some((node) => node.textContent === "生成概览" && node.disabled)`);
+    await waitIn(panel, "设置 AI 服务的主按钮", `[...document.querySelectorAll(".button")].some((node) => node.textContent === "设置 AI 服务")`);
     await waitIn(panel, "没设置的提示", `Boolean(document.querySelector(${JSON.stringify(CONFIG_ACTION)}))`);
     assert.equal(await panel.evaluate(`document.documentElement.lang`), "zh-CN");
     const before = await setLanguage(panel, "en");
@@ -763,9 +1306,8 @@ test("侧边栏：语言选 English 以后，模式切换、底部工具条、�
         history: document.querySelector(".dock .icon-button")?.getAttribute("aria-label"),
         config: document.querySelector('.notice[data-id="config"] .notice-text')?.textContent,
         configAction: document.querySelector(${JSON.stringify(CONFIG_ACTION)})?.textContent,
-        batch: document.querySelector(".batch-bar .button")?.textContent,
+        official: document.querySelector(".guide .section-title")?.textContent,
         buttons: [...document.querySelectorAll(".ai-overview .button")].map((node) => node.textContent),
-        reasons: [...new Set([...document.querySelectorAll(".ai-overview .control-reason")].map((node) => node.textContent))],
         count: document.querySelector(".toolbar-count")?.textContent ?? "",
       })`);
       const { count, ...rest } = view;
@@ -779,9 +1321,8 @@ test("侧边栏：语言选 English 以后，模式切换、底部工具条、�
         history: "Q&A history",
         config: "Subtitles work without setup. Overviews and Q&A need an AI service set up first",
         configAction: "Open settings",
-        batch: "Generate all in this window",
-        buttons: ["Generate overview", "Export study notes"],
-        reasons: ["Set up an AI service in settings first"],
+        official: "Bilibili's official summary",
+        buttons: ["Set up AI service", "Export study notes"],
       });
       assert.match(count, /^\d+ segments?$/);
 
@@ -798,7 +1339,7 @@ test("侧边栏：语言选 English 以后，模式切换、底部工具条、�
       })`);
       assert.deepEqual(qa, {
         placeholder: "Ask about this video, then press Enter",
-        button: "Ask",
+        button: "Open settings",
         hint: "Each question is answered on its own, so write follow-up questions out in full.",
         close: "Close",
       });
@@ -826,7 +1367,7 @@ test("侧边栏：语言选 English 以后，模式切换、底部工具条、�
       assert.deepEqual(await panel.evaluate(modes), SKIM);
       assert.equal(await panel.evaluate(`document.querySelector(".ask-entry input")?.getAttribute("aria-label")`), "针对这个视频提问");
       assert.equal(await panel.evaluate("document.title"), "简幕");
-      assert.ok(await panel.evaluate(`[...document.querySelectorAll(".button")].some((node) => node.textContent === "生成概览")`));
+      assert.ok(await panel.evaluate(`[...document.querySelectorAll(".button")].some((node) => node.textContent === "设置 AI 服务")`));
     } finally {
       await restoreSettings(panel, before);
     }
@@ -836,7 +1377,7 @@ test("侧边栏：语言选 English 以后，模式切换、底部工具条、�
 test("侧边栏：语言选繁体以后，模式切换、底部工具条、各个状态的标题和按钮、问答抽屉、笔记层都是繁体，<html lang> 是 zh-Hant、字体是繁体那组；切回简体恢复", async (ctx) => {
   await withVideo(ctx, async (panel) => {
     await waitIn(panel, "字幕读到", `document.querySelectorAll(".cue").length > 0`);
-    await waitIn(panel, "生成概览停用", `[...document.querySelectorAll(".button")].some((node) => node.textContent === "生成概览" && node.disabled)`);
+    await waitIn(panel, "设置 AI 服务的主按钮", `[...document.querySelectorAll(".button")].some((node) => node.textContent === "设置 AI 服务")`);
     await waitIn(panel, "没设置的提示", `Boolean(document.querySelector(${JSON.stringify(CONFIG_ACTION)}))`);
     const before = await setLanguage(panel, "zh-Hant");
     try {
@@ -857,9 +1398,8 @@ test("侧边栏：语言选繁体以后，模式切换、底部工具条、各�
         history: document.querySelector(".dock .icon-button")?.getAttribute("aria-label"),
         config: document.querySelector('.notice[data-id="config"] .notice-text')?.textContent,
         configAction: document.querySelector(${JSON.stringify(CONFIG_ACTION)})?.textContent,
-        batch: document.querySelector(".batch-bar .button")?.textContent,
+        official: document.querySelector(".guide .section-title")?.textContent,
         buttons: [...document.querySelectorAll(".ai-overview .button")].map((node) => node.textContent).join("|"),
-        reasons: [...new Set([...document.querySelectorAll(".ai-overview .control-reason")].map((node) => node.textContent))].join("|"),
         count: document.querySelector(".toolbar-count")?.textContent ?? "",
       })`);
       for (const [name, text] of Object.entries(view)) {
@@ -870,7 +1410,8 @@ test("侧边栏：语言选繁体以后，模式切换、底部工具条、各�
       assert.equal(view.ask, PANEL_HANT.dock.ask);
       assert.equal(view.history, PANEL_HANT.dock.history);
       assert.equal(view.notes, PANEL_HANT.head.notes);
-      assert.ok(view.buttons.split("|").includes(PANEL_HANT.skim.generate), view.buttons);
+      assert.ok(view.buttons.split("|").includes(SHARED_HANT.setup.action.none), view.buttons);
+      assert.equal(view.official, PANEL_HANT.guides.official);
 
       // 问答抽屉：标题、输入框、按钮、说明和空状态。
       const sheet = `[...document.querySelectorAll(".sheet")].find((node) => node.querySelector(".overlay-title")?.textContent === ${JSON.stringify(PANEL_HANT.qa.title)})`;
@@ -885,7 +1426,7 @@ test("侧边栏：语言选繁体以后，模式切换、底部工具条、各�
         all: (${sheet}).innerText,
       })`);
       assert.equal(qa.placeholder, PANEL_HANT.qa.placeholder);
-      assert.equal(qa.button, PANEL_HANT.qa.ask);
+      assert.equal(qa.button, PANEL_HANT.openSettings);
       assert.equal(qa.hint, PANEL_HANT.qa.hint);
       for (const [name, text] of Object.entries(qa)) assert.deepEqual(simplifiedIn(text), [], `问答抽屉 ${name}：${text}`);
       await panel.evaluate(`(${sheet}).querySelector(".overlay-head .icon-button").click(), true`);
@@ -924,7 +1465,7 @@ test("侧边栏：语言选繁体以后，模式切换、底部工具条、各�
   });
 });
 
-test("侧边栏：English 下精读的底部工具条、整理字幕和解释画面是英文", async (ctx) => {
+test("侧边栏：English 下精读的底部工具条、字幕视图和解释画面是英文；没设置 AI 服务时不摆整理字幕", async (ctx) => {
   await withVideo(
     ctx,
     async (panel) => {
@@ -933,18 +1474,18 @@ test("侧边栏：English 下精读的底部工具条、整理字幕和解释画
       const before = await setLanguage(panel, "en");
       try {
         await waitIn(panel, "界面换成英文", `document.documentElement.lang === "en"`);
-        await waitIn(panel, "整理字幕停用", `document.querySelector(".study .tidy-row .button")?.disabled === true`);
+        await waitIn(panel, "没设置时不摆整理字幕", `!document.querySelector(".study .tidy-row")`);
         const view = await panel.evaluate(`({
           modeView: document.querySelector(".mode-view")?.getAttribute("aria-label"),
           dock: [document.querySelector(".dock .ask-entry input")?.getAttribute("aria-label"), ...[...document.querySelectorAll(".dock button")].map((node) => node.textContent || node.getAttribute("aria-label"))],
-          tidy: document.querySelector(".study .tidy-row .button")?.textContent,
-          reason: document.querySelector(".study .tidy-row .control-reason")?.textContent,
+          tidy: Boolean(document.querySelector(".study .tidy-row")),
+          view: document.querySelector(".study .toolbar .menu-anchor .button")?.textContent,
         })`);
         assert.deepEqual(view, {
           modeView: "Study",
           dock: ["Ask about this video", "Q&A history", "Save note", "Explain this frame"],
-          tidy: "Tidy up subtitles",
-          reason: "Set up an AI service in settings first",
+          tidy: false,
+          view: "Original",
         });
       } finally {
         await restoreSettings(panel, before);

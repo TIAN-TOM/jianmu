@@ -1,10 +1,19 @@
 // 设置页的状态：等授权的工夫别的页面清了密钥，点击时的表单作废，不把清掉的密钥写回去；
 // 本页刚勾的同意还没落地就点保存，保存等它写完，同意不被盖回去；推理强度和概览分块改了马上存，不等保存、不申请权限，
 // 保存也不把它们盖回去；实际档位按存着的档位问，只认最后一问；「AI 服务」一节的状态行落在点的那个控件下面；
-// 保存以后那句「还差什么」跟着同意的勾选更新，不留着过时的话；点了保存就先收起上一次的结果。
+// 保存以后那句「还差什么」跟着同意的勾选更新，不留着过时的话；点了保存就先收起上一次的结果；
+// 保存了密钥、还没记住也没问过时问一句要不要记住，答过就不再问，清除密钥以后重新问。
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { buildBackup } from "../../../../src/core/backup/format.ts";
+import { videoKey } from "../../../../src/core/video-ref.ts";
+import type { NoteListView, NoteSaveView } from "../../../../src/shared/messages/notes.ts";
+import { pageApiOver } from "../../../helpers/backup-port.ts";
+import { senders } from "../../../helpers/chrome.ts";
+import { SAMPLE_ID } from "../../../helpers/fake-site-service.ts";
+import { studyBackground } from "../../../helpers/study-background.ts";
 import { createOptionsState } from "../../../../src/pages/options/state.ts";
+import type { UiLang } from "../../../../src/pages/shared/ui-lang.ts";
 import type { LoadedSettings, WrittenSettings } from "../../../../src/platform/settings-store.ts";
 import { SETTINGS_REVISION_KEY, SETTINGS_STORAGE_KEY } from "../../../../src/shared/names.ts";
 import { DATA_CONSENT_CONFIRMED, DEFAULTS, normalize, type SettingsInput } from "../../../../src/shared/settings-schema.ts";
@@ -13,7 +22,7 @@ import { until } from "../../../helpers/wait-until.ts";
 
 type Listener = (changes: object, area: string) => void;
 
-function world(initial: Record<string, unknown>) {
+function world(initial: Record<string, unknown>, lang: UiLang = "zh") {
   let current: LoadedSettings = { ...normalize({ ...DEFAULTS, ...initial }), settingsRevision: "r1" };
   const saves: SettingsInput[] = [];
   const updates: SettingsInput[] = [];
@@ -39,7 +48,9 @@ function world(initial: Record<string, unknown>) {
       if (expected !== current.settingsRevision) throw Object.assign(new Error("stale"), { code: "SETTINGS_STALE" });
       saves.push(form);
       const before = current.settingsRevision;
-      current = { ...normalize(form), settingsRevision: `${before}+save` };
+      const next = normalize(form);
+      // 和真的设置仓库一样：记住了密钥就算问过要不要记住。
+      current = { ...next, rememberKeyAsked: next.rememberKeyAsked || (next.rememberApiKey && next.aiApiKey !== ""), settingsRevision: `${before}+save` };
       return written(current, before);
     },
     async update(patch: SettingsInput) {
@@ -48,7 +59,9 @@ function world(initial: Record<string, unknown>) {
       updates.push(patch);
       // 和真的设置仓库一样：推理强度只改带来的那几项功能。
       const efforts = Object.hasOwn(patch, "featureEfforts") ? { featureEfforts: { ...current.featureEfforts, ...(patch.featureEfforts as object) } } : {};
-      current = { ...normalize({ ...current, ...patch, ...efforts }), settingsRevision: before };
+      // 清除密钥时记住开关跟着关，「问过」回到没问过。
+      const cleared = patch.aiApiKey === "" ? { rememberApiKey: false, rememberKeyAsked: false } : {};
+      current = { ...normalize({ ...current, ...patch, ...efforts, ...cleared }), settingsRevision: before };
       return written(current, before);
     },
     async setDataConsent(given: boolean) {
@@ -60,6 +73,7 @@ function world(initial: Record<string, unknown>) {
     },
   };
   const state = createOptionsState({
+    lang: () => lang,
     store,
     api: {
       send: (async (type: string, req: { efforts: Record<string, string> }) => {
@@ -193,7 +207,7 @@ test("推理强度和概览分块：载入时按存着的档位问实际档位�
   assert.equal(w.current().analysisChunkMode, "short");
   assert.equal(w.state.saved.value?.analysisChunkMode, "short");
 
-  assert.deepEqual(w.saves, [], "不走保存并授权");
+  assert.deepEqual(w.saves, [], "不走「保存」");
   assert.equal(w.hostAsks(), 0);
 });
 
@@ -244,6 +258,22 @@ test("推理强度没存上：提示没有保存，页面记着的还是原来�
   assert.equal(w.current().featureEfforts.qa, "off");
 });
 
+test("不带码的错误（浏览器自己报的）不把原话放进状态行，按界面语言说出了意外的错误", async (t) => {
+  const warned = t.mock.method(console, "warn", () => undefined);
+  for (const [lang, expected] of [
+    ["zh", "没有保存：出了意外的错误。"],
+    ["en", "Not saved: Something unexpected went wrong."],
+    ["zh-Hant", "沒有儲存：出了意外的錯誤。"],
+  ] as const) {
+    const w = world({ ...GATEWAY }, lang);
+    await w.state.load();
+    w.failUpdates();
+    await w.state.saveInstant({ featureEfforts: { qa: "high" } });
+    assert.equal(w.state.aiStatus.value?.text, expected, lang);
+  }
+  assert.equal(warned.mock.callCount(), 3, "原话留在控制台里");
+});
+
 test("AI 服务一节的状态行落在点的那个控件下面：记住密钥、清除密钥、拉取模型各在自己那里，保存和测试连接在按钮下面", async () => {
   const w = world({ ...GATEWAY, aiApiKey: "sk-old", aiApiKeyOrigin: "https://gateway.example.com/" });
   w.permission.resolve();
@@ -253,14 +283,14 @@ test("AI 服务一节的状态行落在点的那个控件下面：记住密钥�
 
   await w.state.setRemember(true);
   assert.equal(at(), "remember");
-  assert.match(text(), /保存并授权/);
+  assert.match(text(), /点「保存」以后/);
   await w.state.setRemember(false);
   assert.equal(at(), "remember");
   assert.match(text(), /不再记住/);
 
   await w.state.fetchModels();
   assert.equal(at(), "model");
-  assert.match(text(), /拉到 2 个模型/);
+  assert.match(text(), /找到 2 个模型/);
 
   await w.state.testConnection(false);
   assert.equal(at(), "actions");
@@ -268,7 +298,7 @@ test("AI 服务一节的状态行落在点的那个控件下面：记住密钥�
 
   assert.equal(await w.state.save(), true);
   assert.equal(at(), "actions");
-  assert.match(text(), /已保存并授权/);
+  assert.match(text(), /已保存/);
 
   await w.state.clearKey();
   assert.equal(at(), "key");
@@ -281,7 +311,7 @@ test("又点了保存、授权框还开着：上一次的「已保存」先收�
   await w.state.load();
   const status = () => w.state.aiStatus.value;
   assert.equal(await w.state.save(), true);
-  assert.match(status()?.text ?? "", /已保存并授权/);
+  assert.match(status()?.text ?? "", /已保存/);
 
   const popup = w.holdHost();
   const saving = w.state.save();
@@ -289,7 +319,7 @@ test("又点了保存、授权框还开着：上一次的「已保存」先收�
   assert.equal(status(), null);
   popup.resolve();
   assert.equal(await saving, true);
-  assert.match(status()?.text ?? "", /已保存并授权/);
+  assert.match(status()?.text ?? "", /已保存/);
 });
 
 test("拉取模型列表先保存过，状态行照实说已保存；模型框里的型号不在列表里时提醒一句，带不带 models/ 前缀都算在列表里", async () => {
@@ -302,16 +332,16 @@ test("拉取模型列表先保存过，状态行照实说已保存；模型框�
     return w.state.aiStatus.value;
   };
 
-  assert.deepEqual(await fetched({}), { at: "model", tone: "ok", text: "已保存并授权，拉到 2 个模型，可以在模型框里直接选。" });
+  assert.deepEqual(await fetched({}), { at: "model", tone: "ok", text: "已保存，找到 2 个模型，可以在模型框里直接选。" });
   assert.equal((await fetched({ aiModel: "models/M2" }))?.tone, "ok");
 
   const stale = await fetched({ aiModel: "m-old" });
   assert.equal(stale?.tone, "warn");
-  assert.match(stale?.text ?? "", /^已保存并授权，拉到 2 个模型，可以在模型框里直接选。模型框里的「m-old」不在列表里/);
+  assert.match(stale?.text ?? "", /^已保存，找到 2 个模型，可以在模型框里直接选。模型框里的「m-old」不在列表里/);
   assert.match(stale?.text ?? "", /有的服务也认列表外的别名/);
 
   const empty = await fetched({ aiModel: "" });
-  assert.deepEqual({ tone: empty?.tone, text: empty?.text }, { tone: "warn", text: "已保存并授权，拉到 2 个模型，在模型框里选一个，再点「保存并授权」。" });
+  assert.deepEqual({ tone: empty?.tone, text: empty?.text }, { tone: "warn", text: "已保存，找到 2 个模型，在模型框里选一个，再点「保存」。" });
 
   // 还差同意：拉取会被后台拦下，状态行仍然说清楚保存是成了的。
   const refused = world({ ...GATEWAY, aiApiKey: "sk-old", aiApiKeyOrigin: "https://gateway.example.com/" });
@@ -319,7 +349,7 @@ test("拉取模型列表先保存过，状态行照实说已保存；模型框�
   await refused.state.load();
   refused.failModels();
   await refused.state.fetchModels();
-  assert.match(refused.state.aiStatus.value?.text ?? "", /^已保存并授权，但没拉到模型列表：/);
+  assert.match(refused.state.aiStatus.value?.text ?? "", /^已保存，但没获取到模型列表：/);
 });
 
 test("拉取模型没成：服务拒绝、拉取前那次保存没拿到权限，都写在模型框下面", async () => {
@@ -329,7 +359,7 @@ test("拉取模型没成：服务拒绝、拉取前那次保存没拿到权限�
   refused.failModels();
   await refused.state.fetchModels();
   assert.equal(refused.state.aiStatus.value?.at, "model");
-  assert.match(refused.state.aiStatus.value?.text ?? "", /没拉到模型列表/);
+  assert.match(refused.state.aiStatus.value?.text ?? "", /没获取到模型列表/);
 
   const denied = world({ ...GATEWAY });
   denied.permission.resolve();
@@ -365,11 +395,11 @@ test("没勾同意就保存，提示还差同意；勾上以后那句提示跟�
   const status = () => w.state.aiStatus.value;
 
   assert.equal(await w.state.save(), true);
-  assert.match(status()?.text ?? "", /已保存并授权，但 AI 功能暂时用不了/);
+  assert.match(status()?.text ?? "", /已保存，但 AI 功能暂时用不了/);
   assert.equal(status()?.tone, "warn");
 
   await w.state.setConsent(true);
-  assert.deepEqual(status(), { text: "已保存并授权。", tone: "ok", at: "actions" });
+  assert.deepEqual(status(), { text: "已保存。", tone: "ok", at: "actions" });
 
   await w.state.setConsent(false);
   assert.match(status()?.text ?? "", /暂时用不了/);
@@ -378,7 +408,7 @@ test("没勾同意就保存，提示还差同意；勾上以后那句提示跟�
   await w.state.setRemember(true);
   await w.state.setConsent(true);
   assert.equal(status()?.at, "remember", "眼前是别的提示，勾同意不把它换掉");
-  assert.match(status()?.text ?? "", /保存并授权/);
+  assert.match(status()?.text ?? "", /点「保存」以后/);
 });
 
 test("同意过数据说明、密钥却是空的（多半是重启以后清空了）：打开设置页就在密钥框下面说要重新填，开始填了这句话就收起", async () => {
@@ -407,34 +437,194 @@ test("同意过数据说明、密钥却是空的（多半是重启以后清空�
 test("恢复备份：读文件的工夫就占着，这期间点导出、清除、另一次恢复都不发；读不出、读不懂、导完都放开", async () => {
   const sent: string[] = [];
   const connected: string[] = [];
+  let closed = 0;
   const state = createOptionsState({
     store: { load: async () => assert.fail(), save: async () => assert.fail(), update: async () => assert.fail(), setDataConsent: async () => assert.fail() },
     api: {
       send: (async (type: string) => (sent.push(type), { ok: true, value: {} })) as never,
-      connect: ((name: string) => (connected.push(name), assert.fail("读文件时不该连后台"))) as never,
+      connect: (name) => {
+        connected.push(name);
+        return { post: () => assert.fail("读不出备份时不发记录"), close: () => { closed += 1; }, isOpen: () => true };
+      },
     },
     requestHost: async () => true,
     download: () => assert.fail("读文件时不该导出"),
   });
   let finishReading!: (text: string) => void;
   const reading = new Promise<string>((resolve) => (finishReading = resolve));
-  const importing = state.importBackup(() => reading);
+  const importing = state.importBackup(() => {
+    assert.deepEqual(connected, ["backup.import"], "开始读文件时已连上导入端口");
+    return reading;
+  });
   assert.equal(state.busy.value, "import", "读文件之前就占住");
   await state.exportBackup();
   await state.clearData("all");
   let readAgain = false;
   await state.importBackup(async () => ((readAgain = true), "{}"));
-  assert.deepEqual([sent, connected, readAgain], [[], [], false], "读文件期间别的操作都不发");
+  assert.deepEqual([sent, connected, readAgain], [[], ["backup.import"], false], "读文件期间别的操作都不发");
   finishReading("不是 JSON");
   await importing;
+  assert.equal(closed, 1, "读不懂时关掉导入连接");
   assert.equal(state.busy.value, null, "读不懂也放开");
   assert.match(state.dataStatus.value?.text ?? "", /读不懂这个文件/);
 
   await state.importBackup(async () => Promise.reject(new Error("文件被移走了")));
+  assert.equal(closed, 2, "读文件失败也关掉导入连接");
   assert.equal(state.busy.value, null, "读不出也放开");
   assert.match(state.dataStatus.value?.text ?? "", /读不出这个文件/);
 
   await state.importBackup(async () => JSON.stringify({ hello: 1 }));
+  assert.equal(closed, 3, "认不出格式也关掉导入连接");
   assert.equal(state.busy.value, null, "认不出格式也放开");
   assert.match(state.dataStatus.value?.text ?? "", /^恢复失败/);
+});
+
+test("选好备份还在读文件时另一页删除了全部笔记，等文件读完也不会恢复旧笔记", async () => {
+  const bg = studyBackground({ withoutAi: true });
+  const video = videoKey({ platform: "bilibili", videoId: SAMPLE_ID, segment: 1 });
+  const saved = await bg.send<NoteSaveView>("notes.save", { video, atSec: 8, text: "备份里的一条笔记" });
+  assert.ok(saved.ok);
+  const file = JSON.stringify(buildBackup({ notes: [saved.value.note] }, 10));
+
+  let received = false;
+  const api = pageApiOver(bg.fake, { connect(port) { bg.app.connect(port); received = true; } });
+  const state = createOptionsState({
+    store: { load: async () => assert.fail(), save: async () => assert.fail(), update: async () => assert.fail(), setDataConsent: async () => assert.fail() },
+    api,
+    requestHost: async () => true,
+    download: () => assert.fail(),
+  });
+  const reading = deferred();
+  const importing = state.importBackup(async () => {
+    await reading.promise;
+    return file;
+  });
+  assert.ok(await until(() => received), "文件还在读，后台已收到这次导入连接");
+  assert.ok((await bg.send("data.clear", { scope: "notes" }, senders.options())).ok);
+  reading.resolve();
+  await importing;
+  assert.equal(state.dataStatus.value?.tone, "error");
+  assert.match(state.dataStatus.value?.text ?? "", /清除了本机数据/);
+  const listed = await bg.send<NoteListView>("notes.list", {});
+  assert.ok(listed.ok);
+  assert.deepEqual(listed.value.notes, []);
+});
+
+const LOCAL_SERVICE = { presetId: "custom", protocol: "openai", aiBaseUrl: "http://localhost:11434/v1", aiModel: "m" };
+
+test("保存了密钥、还没记住也没问过：按钮下面问要不要记住；答「不用」记成问过，再保存不问；清除密钥以后重新问", async () => {
+  const w = world({ ...GATEWAY, ...DATA_CONSENT_CONFIRMED });
+  w.permission.resolve();
+  await w.state.load();
+  assert.equal(w.state.rememberAsk.value, false, "刚打开不问");
+  w.state.editKey("sk-first");
+  assert.equal(await w.state.save(), true);
+  assert.equal(w.state.rememberAsk.value, true);
+  assert.equal(w.current().rememberApiKey, false, "默认照旧不记住");
+
+  await w.state.answerRemember(false);
+  assert.equal(w.state.rememberAsk.value, false);
+  assert.deepEqual(w.updates.at(-1), { rememberKeyAsked: true });
+  assert.equal(w.current().rememberKeyAsked, true);
+  assert.equal(w.current().rememberApiKey, false, "答不用不改记住开关");
+  assert.equal(await w.state.save(), true);
+  assert.equal(w.state.rememberAsk.value, false, "问过就不再问");
+
+  await w.state.clearKey();
+  assert.equal(w.current().rememberKeyAsked, false, "清除密钥以后回到没问过");
+  w.state.editKey("sk-second");
+  assert.equal(await w.state.save(), true);
+  assert.equal(w.state.rememberAsk.value, true);
+});
+
+test("那一问还摆着时勾选框被勾上、又答「不用」：勾选框回到不记，之后再保存密钥也不会记到这台电脑上", async () => {
+  const w = world({ ...GATEWAY, ...DATA_CONSENT_CONFIRMED });
+  w.permission.resolve();
+  await w.state.load();
+  w.state.editKey("sk-first");
+  assert.equal(await w.state.save(), true);
+  assert.equal(w.state.rememberAsk.value, true);
+  // 保存收尾的那一会儿里勾上的，表单上留着一个没保存的勾。
+  w.state.edit({ rememberApiKey: true });
+  await w.state.answerRemember(false);
+  assert.equal(w.state.form.value?.rememberApiKey, false, "答了不用，勾选框跟着回到不记");
+  assert.equal(await w.state.save(), true);
+  assert.equal(w.current().rememberApiKey, false);
+  assert.equal(w.saves.at(-1)?.rememberApiKey, false);
+});
+
+test("那一问摆着时改了密钥或换了服务商：那一问收起，不会把还没保存的新密钥记上", async () => {
+  const typed = world({ ...GATEWAY, ...DATA_CONSENT_CONFIRMED });
+  typed.permission.resolve();
+  await typed.state.load();
+  typed.state.editKey("sk-first");
+  assert.equal(await typed.state.save(), true);
+  assert.equal(typed.state.rememberAsk.value, true);
+  typed.state.editKey("sk-second");
+  assert.equal(typed.state.rememberAsk.value, false, "改了密钥就收起");
+
+  const switched = world({ ...GATEWAY, ...DATA_CONSENT_CONFIRMED });
+  switched.permission.resolve();
+  await switched.state.load();
+  switched.state.editKey("sk-first");
+  assert.equal(await switched.state.save(), true);
+  assert.equal(switched.state.rememberAsk.value, true);
+  switched.state.edit({ aiModel: "another-model" });
+  assert.equal(switched.state.rememberAsk.value, true, "只改模型不收起");
+  switched.state.choosePreset("deepseek");
+  assert.equal(switched.state.rememberAsk.value, false, "换了服务商就收起");
+});
+
+test("答「记住」等于勾上记住密钥再保存：密钥记住、算问过，状态行说记住了；之后取消记住再保存也不问", async () => {
+  const w = world({ ...GATEWAY, ...DATA_CONSENT_CONFIRMED });
+  w.permission.resolve();
+  await w.state.load();
+  w.state.editKey("sk-first");
+  assert.equal(await w.state.save(), true);
+  const asks = w.hostAsks();
+
+  await w.state.answerRemember(true);
+  assert.equal(w.state.rememberAsk.value, false);
+  assert.equal(w.saves.at(-1)?.rememberApiKey, true);
+  assert.equal(w.hostAsks(), asks + 1, "和点保存一样在点击里申请权限");
+  assert.equal(w.current().rememberApiKey, true);
+  assert.equal(w.current().rememberKeyAsked, true);
+  assert.equal(w.state.form.value?.rememberApiKey, true, "勾选框跟着勾上");
+  assert.deepEqual(w.state.aiStatus.value, { text: "已保存，密钥已记在这台电脑上。", tone: "ok", at: "actions" });
+
+  await w.state.setRemember(false);
+  assert.equal(await w.state.save(), true);
+  assert.equal(w.state.rememberAsk.value, false);
+});
+
+test("没有密钥的本机服务、已经勾了记住、问过的：保存以后都不问；自己动了勾选，那一问收起", async () => {
+  const local = world({ ...LOCAL_SERVICE, ...DATA_CONSENT_CONFIRMED });
+  local.permission.resolve();
+  await local.state.load();
+  assert.equal(await local.state.save(), true);
+  assert.equal(local.state.rememberAsk.value, false, "没有密钥就没有可记的");
+
+  const ticked = world({ ...GATEWAY, ...DATA_CONSENT_CONFIRMED });
+  ticked.permission.resolve();
+  await ticked.state.load();
+  ticked.state.editKey("sk-first");
+  await ticked.state.setRemember(true);
+  assert.equal(await ticked.state.save(), true);
+  assert.equal(ticked.state.rememberAsk.value, false);
+
+  const asked = world({ ...GATEWAY, ...DATA_CONSENT_CONFIRMED, rememberKeyAsked: true });
+  asked.permission.resolve();
+  await asked.state.load();
+  asked.state.editKey("sk-first");
+  assert.equal(await asked.state.save(), true);
+  assert.equal(asked.state.rememberAsk.value, false);
+
+  const fresh = world({ ...GATEWAY, ...DATA_CONSENT_CONFIRMED });
+  fresh.permission.resolve();
+  await fresh.state.load();
+  fresh.state.editKey("sk-first");
+  assert.equal(await fresh.state.save(), true);
+  assert.equal(fresh.state.rememberAsk.value, true);
+  await fresh.state.setRemember(true);
+  assert.equal(fresh.state.rememberAsk.value, false);
 });

@@ -1,4 +1,5 @@
 // 模型服务：配置检查给要发请求的页面看能不能用，打开就出结论停着时也一起说；拉模型列表、测试连接和推理强度预览只有设置页用得上。
+// 打开就出结论停着时，侧边栏和设置页上的「恢复」经 auto.resume 让它接着做，花不花额度由用户这一下决定。
 // 这里只拿接线给的入口，不直接碰传输层，所以路由层发不出不核对同意的请求。
 import { ok } from "../../core/errors.ts";
 import type { EffortPreviewRequest, TestConnectionRequest } from "../../shared/messages/ai.ts";
@@ -10,10 +11,10 @@ import { isEmptyRequest } from "./validate.ts";
 
 export interface AiRouteDeps {
   readonly ai: Pick<AiWiring, "configCheck" | "listModels" | "testConnection" | "effortPreview">;
-  readonly auto?: Pick<AutoGenerate, "paused">;
+  readonly auto?: Pick<AutoGenerate, "paused" | "resume" | "consider">;
 }
 
-type AiRoutes = { readonly [K in "config.check" | "models.list" | "ai.testConnection" | "ai.effortPreview"]: Route<K> };
+type AiRoutes = { readonly [K in "config.check" | "models.list" | "ai.testConnection" | "ai.effortPreview" | "auto.resume"]: Route<K> };
 
 const FEATURES: readonly unknown[] = FEATURE_MODEL_SLOTS.map(({ id }) => id);
 
@@ -70,6 +71,18 @@ export function aiRoutes({ ai, auto }: AiRouteDeps): AiRoutes {
       idempotent: true,
       validate: isEffortPreviewRequest,
       handler: async (req) => ok(await ai.effortPreview(req.efforts)),
+    },
+    "auto.resume": {
+      senders: ["panel", "page"],
+      pages: ["options"],
+      validate: isEmptyRequest,
+      async handler() {
+        if (!auto) return ok({});
+        await auto.resume();
+        // 恢复以后把已经开着的视频页排进来，不等下一个标签页事件。
+        void auto.consider().catch(() => undefined);
+        return ok({});
+      },
     },
   };
 }

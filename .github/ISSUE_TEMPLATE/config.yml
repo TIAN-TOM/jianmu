@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全漏洞 / Security vulnerability
+    url: https://github.com/TIAN-TOM/jianmu/security/advisories/new
+    about: 请私下报告，不要开公开 issue / Please report it privately, not in a public issue
+  - name: 隐私政策 / Privacy policy
+    url: https://github.com/TIAN-TOM/jianmu/blob/main/PRIVACY.md
+    about: 简幕把什么发给谁、存在哪里 / What Jianmu sends, to whom, and where it keeps your data

@@ -1,5 +1,5 @@
 // 工具栏图标的右键菜单：走真实的后台装配和设置仓库，浏览器接口是替身。建菜单时三项和初始勾选；粗筛项打开粗筛页；
-// 卡片开关经设置仓库改、存储变化再广播给视频页；打开就出结论同意齐全时才打开，否则勾退回、打开设置页；
+// 卡片开关经设置仓库改、存储变化再广播给视频页；打开就出结论同意齐全时才打开，否则勾退回、打开设置页并滚到那一节；
 // 没确认启用时两个开关都不改设置；设置在别处变了勾选跟着变；重复建不报错。
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -10,6 +10,9 @@ import { CONFIRMED, createFakeChrome, extensionUrl, senders, watchUrl } from "..
 import { stillFalse, until } from "../../helpers/wait-until.ts";
 
 const TEMPLATE_SCRIPTS = [{ matches: ["https://watch.example/watch/*"], js: ["content/bilibili.js"] }];
+const OPTIONS_PAGE = "pages/options.html";
+/** 打开就出结论改不成时打开的设置页：地址带着那一节的节名。 */
+const AUTO_SECTION_URL = `${extensionUrl(OPTIONS_PAGE)}#auto-overview`;
 // 同一个版本号、旧指纹：同意过，后来说明有更新，要重新同意。
 const STALE_CONSENT = { dataConsentVersion: DATA_CONSENT_CONFIRMED.dataConsentVersion, dataConsentFingerprint: "0000000000000000" };
 
@@ -17,7 +20,7 @@ function setup(settings: Record<string, unknown> | undefined) {
   const errors: string[] = [];
   const fake = createFakeChrome({
     ...(settings ? { local: { [SETTINGS_STORAGE_KEY]: settings } } : {}),
-    manifest: { content_scripts: TEMPLATE_SCRIPTS },
+    manifest: { content_scripts: TEMPLATE_SCRIPTS, options_ui: { page: OPTIONS_PAGE } },
     urlTabs: { 7: watchUrl() },
   });
   const app = createApp(fake.deps({ warn() {}, error: (message: string) => void errors.push(message) }));
@@ -88,14 +91,14 @@ test("点粗筛项在新标签页打开粗筛页，没确认启用时也一样�
 });
 
 test("卡片开关经设置仓库关上再打开，存储变化把开关广播给视频页", async () => {
-  const { fake, app, stored, checked } = setup(enabled({ aiModel: "test-model", accentTheme: "ochre" }));
+  const { fake, app, stored, checked } = setup(enabled({ aiModel: "test-model", accentTheme: "redblack" }));
   await app.onInstalled("install");
   const broadcasts = () => fake.calls.tabMessages.filter(({ message }) => (message as { type?: string }).type === "appearance.changed");
 
   fake.fireMenuClicked(ACTION_MENU.inPageCard);
   assert.ok(await until(() => stored()?.["inPageCard"] === false));
   assert.ok(await until(() => broadcasts().length === 1));
-  assert.deepEqual(broadcasts()[0], { tabId: 7, message: { type: "appearance.changed", accentTheme: "ochre", inPageCard: false, language: "auto" } });
+  assert.deepEqual(broadcasts()[0], { tabId: 7, message: { type: "appearance.changed", accentTheme: "redblack", inPageCard: false, language: "auto" } });
   assert.equal(checked(ACTION_MENU.inPageCard), false);
   // 只改这一项，别的设置原样。
   assert.equal(stored()?.["aiModel"], "test-model");
@@ -104,7 +107,7 @@ test("卡片开关经设置仓库关上再打开，存储变化把开关广播�
   fake.fireMenuClicked(ACTION_MENU.inPageCard);
   assert.ok(await until(() => stored()?.["inPageCard"] === true));
   assert.ok(await until(() => broadcasts().length === 2));
-  assert.deepEqual(broadcasts()[1]?.message, { type: "appearance.changed", accentTheme: "ochre", inPageCard: true, language: "auto" });
+  assert.deepEqual(broadcasts()[1]?.message, { type: "appearance.changed", accentTheme: "redblack", inPageCard: true, language: "auto" });
   assert.equal(checked(ACTION_MENU.inPageCard), true);
   assert.equal(fake.calls.optionsOpened, 0);
 });
@@ -123,13 +126,15 @@ test("打开就出结论：数据说明同意齐全时打开，关掉随时可�
   assert.equal(fake.calls.optionsOpened, 0);
 });
 
-test("打开就出结论：没同意或说明有更新要重新同意时不打开，勾退回去，打开设置页", async () => {
+test("打开就出结论：没同意或说明有更新要重新同意时不打开，勾退回去，打开设置页并滚到打开就出结论那一节", async () => {
   for (const consent of [{}, STALE_CONSENT]) {
     const { fake, app, stored, checked } = setup({ ...CONFIRMED, ...consent });
     await app.onInstalled("install");
     const before = structuredClone(stored());
     fake.fireMenuClicked(ACTION_MENU.autoOverview);
-    assert.ok(await until(() => fake.calls.optionsOpened === 1));
+    assert.ok(await until(() => fake.calls.tabsCreated.length === 1));
+    assert.deepEqual(fake.calls.tabsCreated, [AUTO_SECTION_URL]);
+    assert.equal(fake.calls.optionsOpened, 0, "不走只会停在顶上的打开方式");
     assert.equal(checked(ACTION_MENU.autoOverview), false);
     assert.deepEqual(stored(), before, "设置和同意都不动");
   }
@@ -141,7 +146,7 @@ test("打开就出结论：没同意或说明有更新要重新同意时不打�
   assert.equal(fake.calls.optionsOpened, 0);
 });
 
-test("没确认启用时两个开关都不改设置，勾退回去，打开设置页", async () => {
+test("没确认启用时两个开关都不改设置，勾退回去，打开设置页；打开就出结论那一项带着节名", async () => {
   for (const settings of [undefined, { ...DATA_CONSENT_CONFIRMED, inPageCard: true }]) {
     const { fake, app, stored, checked } = setup(settings);
     await app.onInstalled("install");
@@ -150,7 +155,8 @@ test("没确认启用时两个开关都不改设置，勾退回去，打开设�
     assert.ok(await until(() => fake.calls.optionsOpened === 1));
     assert.equal(checked(ACTION_MENU.inPageCard), true);
     fake.fireMenuClicked(ACTION_MENU.autoOverview);
-    assert.ok(await until(() => fake.calls.optionsOpened === 2));
+    assert.ok(await until(() => fake.calls.tabsCreated.length === 1));
+    assert.deepEqual(fake.calls.tabsCreated, [AUTO_SECTION_URL]);
     assert.equal(checked(ACTION_MENU.autoOverview), false);
     assert.deepEqual(stored(), before);
     assert.deepEqual(fake.calls.tabMessages, []);

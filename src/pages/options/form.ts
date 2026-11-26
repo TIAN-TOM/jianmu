@@ -1,5 +1,5 @@
 // 设置页「AI 服务」表单的纯逻辑：从存着的设置填表、换服务商、拼出保存用的设置、推理强度旁边的说明（语言缺省中文）。不碰存储和浏览器接口。
-// 表单只装要点「保存并授权」才生效的几项：服务商、地址、密钥、模型、记住密钥。推理强度和概览分块即改即存，不在表单里。
+// 表单只装要点「保存」才生效的几项：服务商、地址、密钥、模型、记住密钥。推理强度和概览分块即改即存，不在表单里。
 import type { LoadedSettings } from "../../platform/settings-store.ts";
 import type { EffortPreviewItem } from "../../shared/messages/ai.ts";
 import {
@@ -39,6 +39,17 @@ export function formOf(settings: LoadedSettings): AiForm {
     rememberApiKey: settings.rememberApiKey,
   };
 }
+
+/** 两份表单的服务商、协议、地址和密钥都一样：「要不要记住密钥」问的还是同一把。 */
+export const sameCredentials = (a: AiForm, b: AiForm): boolean =>
+  a.presetId === b.presetId && a.protocol === b.protocol && a.aiBaseUrl === b.aiBaseUrl && a.aiApiKey === b.aiApiKey;
+
+/**
+ * 保存完要不要问「记住密钥」：存下的有密钥、没记住也没问过，而且眼下的表单还是刚存的那一把、勾选框没被勾上。
+ * 保存收尾要等后台回话，这期间用户可能改了密钥、换了服务商或者自己勾了记住：都以眼下的表单为准，不再问。
+ */
+export const asksRememberAfterSave = (now: AiForm | null, written: LoadedSettings): boolean =>
+  written.aiApiKey !== "" && !written.rememberApiKey && !written.rememberKeyAsked && now !== null && !now.rememberApiKey && sameCredentials(now, formOf(written));
 
 /**
  * 换服务商：预设的地址和协议跟着换，模型换成预设给的；密钥只属于原来的来源，换到别家就清空，换回来再填上。

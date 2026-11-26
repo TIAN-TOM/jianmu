@@ -10,6 +10,7 @@ import { createHoverIcons, NOTE_ICON, noteIcon, type HoverIconEntry } from "./ho
 import { createContentLang, pageUiLanguage } from "./lang.ts";
 import { createMiniPlayer, type MiniPlayerDeps } from "./mini-player.ts";
 import { pageTone } from "./page-tone.ts";
+import { noteTimestamp } from "./player.ts";
 import type { ContentRuntime } from "./runtime.ts";
 import { listenShortcut } from "./shortcut.ts";
 import { contentText } from "./text.ts";
@@ -42,7 +43,7 @@ export function createSurface({ document, page, runtime, player, frame, retire, 
     { spec: noteIcon(lang.current()), onPress: () => void saveNote() },
     ...(FEATURE_FRAME_EXPLAIN ? frameIconEntries(frame, () => void pressFrame?.(), lang.current()) : []),
   ];
-  const icons = createHoverIcons({ document, anchor: () => page.hoverIconAnchor(), icons: entries });
+  const icons = createHoverIcons({ document, anchor: () => page.hoverIconAnchor(), icons: entries, top: page.hoverIconTop });
   const button = icons.icon(NOTE_ICON.id) ?? { flash: () => undefined, setTitle: () => undefined };
   pressFrame = FEATURE_FRAME_EXPLAIN
     ? frame
@@ -79,7 +80,7 @@ export function createSurface({ document, page, runtime, player, frame, retire, 
     saving = true;
     button.flash(text().saving, 0);
     try {
-      const reply = await runtime.send("notes.saveAtTime", { video, atSec: Math.floor(main.video.currentTime || 0) });
+      const reply = await runtime.send("notes.saveAtTime", { video, atSec: noteTimestamp(main.video) });
       if (!runtime.alive()) return showReloadHint();
       if (reply.ok) {
         button.setTitle(text().noteTitle);

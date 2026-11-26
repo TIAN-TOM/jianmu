@@ -61,16 +61,21 @@ export function errorBodyOf(data: unknown): unknown {
   return Array.isArray(data) ? data[0] : data;
 }
 
-export function parseErrorMessage(data: unknown, status: number): string {
+/** 错误体里服务自己写的说明；什么都没写（空 body、HTML 错误页、空对象）时是空串。 */
+export function errorMessageOf(data: unknown): string {
   const body = errorBodyOf(data);
   const payload = (body && typeof body === "object" ? body : {}) as ErrorBody;
   const detail = payload.error as Exclude<ErrorBody["error"], string> | undefined;
-  const message =
+  return (
     detail?.message ||
     detail?.type ||
     payload.message ||
-    (typeof payload.error === "string" ? payload.error : "");
-  return message || providerText().statusOnly(status);
+    (typeof payload.error === "string" ? payload.error : "")
+  );
+}
+
+export function parseErrorMessage(data: unknown, status: number): string {
+  return errorMessageOf(data) || providerText().statusOnly(status);
 }
 
 interface ModelEntry {

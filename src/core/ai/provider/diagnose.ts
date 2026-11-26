@@ -145,9 +145,9 @@ function diagnoseEmptyResponses(payload: ProviderResponse): EmptyDiagnosis {
     return diagnosis("CONTENT_FILTERED", (text) => text.contentFiltered, { retryWithoutJsonMode: false });
   }
   if (payload.status === "failed") {
-    // 服务自己给了说明就照原样，两种语言都用它。
-    const said = payload.error?.message;
-    return diagnosis("FAILED", (text) => said || text.generationFailed, { retryWithoutJsonMode: false });
+    // 服务自己给了说明就带上原话，前面按界面语言说明这是服务说的：原话多半是英文，不能当成简幕的说明直接显示。
+    const said = String(payload.error?.message ?? "").trim();
+    return diagnosis("FAILED", (text) => (said ? text.generationFailedWith(said) : text.generationFailed), { retryWithoutJsonMode: false });
   }
   // 推理模型的输出里总有推理项；连 message 项都没有，才是只做了推理。
   if (hasReasoningItem(payload) && !responsesMessages(payload).length) {

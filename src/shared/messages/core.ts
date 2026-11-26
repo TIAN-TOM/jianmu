@@ -15,7 +15,7 @@ export interface AppearanceView {
 }
 
 /** 打开设置页时可以直接滚到的几节，值是设置页里那一节的 id。 */
-export const OPTIONS_SECTIONS = ["ai-service", "youtube"] as const;
+export const OPTIONS_SECTIONS = ["ai-service", "youtube", "auto-overview"] as const;
 export type OptionsSection = (typeof OPTIONS_SECTIONS)[number];
 
 export function isOptionsSection(value: unknown): value is OptionsSection {

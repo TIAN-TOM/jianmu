@@ -1,0 +1,235 @@
+/* 动效的共用写法。曲线和时长在 theme.css 第 4 节，这里和各页的样式只用那些变量，不另写时长和曲线。
+ *
+ *   进场      新挂上的内容用关键帧进来：appear 只淡入，appear-up 再从下面 4px 升上来，
+ *             pop-in 是浮层从 0.96 长到原大，done-pop 是「有结果了」那一下。换进来的才动，原地改字不动。
+ *   换色      可点的东西悬停、选中、停用只换色，用 var(--tint)；按下去那一下不过渡，松开才回去。
+ *   展开收起  .collapse > .collapse-in（组件在 shared/ui/collapse.tsx）：开 --dur-mode，收 --dur，里面跟着淡。
+ *   删掉一条  .exit-list > [data-leaving]（钩子在 shared/ui/list-exit.ts）：和收起一样，高度 --dur 收成零，里面 --dur-fast 先淡掉。
+ *   浮层      抽屉和层在 overlays.css，来去都能中途反向；菜单只有进场，收起是瞬间的。
+ *
+ * 减少动态效果时 theme.css 把时长都归零，过渡和进场都变成当场到位；循环的呼吸要单独关，平滑滚动和换主题的淡化由脚本判断。
+ * 装着固定定位节点的容器（模式内容里有「回到当前句」）只能淡入，不能位移或缩放：那会让固定定位跟着它走。
+ */
+
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes appear-up {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    scale: 0.96;
+  }
+}
+
+@keyframes done-pop {
+  from {
+    opacity: 0;
+    scale: 0.8;
+  }
+}
+
+@keyframes ske-pulse {
+  to {
+    opacity: 0.45;
+  }
+}
+
+/* ---------- 换色 ---------- */
+
+.button,
+.icon-button,
+.mode,
+.chapter-time,
+.notice-action,
+.chapter-name {
+  transition: var(--tint);
+}
+
+/* 按下去当场变色，松开时才用 --dur-fast 回去。 */
+:is(.button, .icon-button, .chapter-time, .notice-action):active:not(:disabled) {
+  transition-duration: 0ms;
+}
+
+.button:active:not(:disabled),
+.icon-button:active:not(:disabled),
+.chapter-time:active {
+  background: var(--bg-active);
+}
+
+.button[data-variant="primary"]:active:not(:disabled) {
+  background: color-mix(in oklab, var(--accent-strong) 86%, #000);
+}
+
+.button[data-variant="text"]:active:not(:disabled),
+.notice-action:active {
+  background: transparent;
+  opacity: 0.6;
+}
+
+/* 文字按钮悬停时的下划线淡出来，不是一下子画上。 */
+.button[data-variant="text"]:not(:disabled) {
+  text-decoration-line: underline;
+  text-decoration-color: transparent;
+}
+
+.button[data-variant="text"]:hover:not(:disabled) {
+  text-decoration-color: currentColor;
+}
+
+/* ---------- 展开收起 ---------- */
+
+.collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--dur-mode) var(--ease);
+}
+
+.collapse[data-open="false"] {
+  grid-template-rows: 0fr;
+  transition-duration: var(--dur);
+}
+
+.collapse-in {
+  min-height: 0;
+  overflow: hidden;
+  transition: opacity var(--dur-mode) var(--ease);
+}
+
+/* 收起时里面先淡掉，裁切线再扫上去，不会看到字被切掉半行。 */
+.collapse[data-open="false"] > .collapse-in {
+  opacity: 0;
+  transition-duration: var(--dur-fast);
+  transition-timing-function: var(--ease-exit);
+}
+
+.collapse[data-settled] > .collapse-in {
+  overflow: visible;
+}
+
+/* ---------- 删掉一条 ----------
+ * 列表竖着排、条与条之间用 --list-gap 隔开。离场的那一条从删之前量好的高度（--leave-h）收成零，内边距和边框一起收；
+ * 底边距收到负的一个间距，把它下面那道缝也一起合上，下面的条目一路平滑地顶上来，最后拿掉时不再跳一下。
+ * 用关键帧而不是过渡：起点是写明的高度，不用先让浏览器画一帧固定高度。 */
+.exit-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--list-gap, 0px);
+}
+
+@keyframes row-fade {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes row-close {
+  from {
+    height: var(--leave-h);
+  }
+
+  to {
+    height: 0;
+    padding-block: 0;
+    border-block-width: 0;
+    margin-block-end: calc(-1 * var(--list-gap, 0px));
+  }
+}
+
+.exit-list > [data-leaving] {
+  box-sizing: border-box;
+  overflow: hidden;
+  animation:
+    row-fade var(--dur-fast) var(--ease-exit) forwards,
+    row-close var(--dur) var(--ease-exit) forwards;
+}
+
+/* ---------- 加载 ---------- */
+
+/* 骨架屏晚 150ms 才露面：本机有的内容几十毫秒就到，根本看不到它闪一下。 */
+.ske-line {
+  animation:
+    appear var(--dur) var(--ease) 150ms backwards,
+    ske-pulse 1.4s var(--ease) 150ms infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ske-line {
+    animation: appear 0ms 150ms backwards;
+  }
+}
+
+/* ---------- 换进来的内容 ---------- */
+
+.state-block,
+.activation,
+.service-said-text {
+  animation: appear var(--dur) var(--ease);
+}
+
+/* ---------- 浮层 ---------- */
+
+.menu[data-placed] {
+  transform-origin: top right;
+  animation: pop-in var(--dur-fast) var(--ease);
+}
+
+.menu[data-side="top"] {
+  transform-origin: bottom right;
+}
+
+/* ---------- 展开的小节（<details>） ----------
+ * 浏览器能把高度过渡到 auto（Chrome 131 起）时，点开时高度长出来、内容淡进来；收起照旧当场收：
+ * 收着的内容浏览器马上就不画了，再让高度慢慢收只会看到一块空白。更早的版本照旧当场打开。
+ * 只管纯文字的小节：设置页里装着控件的折叠（.field）不裁切，里面的模型候选列表要能伸出折叠的底边。 */
+@supports (interpolate-size: allow-keywords) and selector(::details-content) {
+  :root {
+    interpolate-size: allow-keywords;
+  }
+
+  details:not(.field)::details-content {
+    block-size: 0;
+    overflow: clip;
+    opacity: 0;
+  }
+
+  details:not(.field)[open]::details-content {
+    block-size: auto;
+    opacity: 1;
+    transition:
+      block-size var(--dur-mode) var(--ease),
+      opacity var(--dur-mode) var(--ease);
+  }
+}
+
+/* ---------- 换主题 ----------
+ * 换主题、换明暗时整页交叉淡化（脚本在 shared/theme.ts 里判断能不能做）；换的那几帧只关掉换色的过渡，免得有的控件慢一拍。
+ * 高度、位移这些照旧走完：系统明暗恰好在展开途中变了，展开不会一下子跳到头。 */
+:root[data-theme-switching] {
+  --tint: all 0s;
+}
+
+:root[data-theme-switching] .cue {
+  transition-duration: 0s;
+}
+
+/* 减少动态效果时时长都已归零；带延迟的那一下也不留，标记和结论一起出现。读取中的骨架屏照旧晚 150ms 露面：那是为了读得快时根本不出现，不是动效。 */
+@media (prefers-reduced-motion: reduce) {
+  .verdict[data-fresh] .verdict-mark {
+    animation: none;
+  }
+}
+
+::view-transition-group(root) {
+  animation-duration: var(--dur-mode);
+  animation-timing-function: var(--ease);
+}

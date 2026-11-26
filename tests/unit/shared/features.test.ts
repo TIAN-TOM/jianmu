@@ -16,11 +16,11 @@ import {
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
-test("发行构建打开解释当前画面、YouTube 和代开文字稿（首发带上），读播放器字幕和沿用同意关着；日用构建多开这两个；测试构建打开功能开关，沿用同意和发行一样关着", () => {
-  assert.deepEqual(FEATURE_NAMES, ["frameExplain", "youtube", "youtubeOpenPanel", "youtubeCaptionCatch", "keepConsent"]);
-  assert.deepEqual(RELEASE_FEATURES, { frameExplain: true, youtube: true, youtubeOpenPanel: true, youtubeCaptionCatch: false, keepConsent: false });
-  assert.deepEqual(DAILY_FEATURES, { ...RELEASE_FEATURES, youtubeCaptionCatch: true, keepConsent: true });
-  assert.deepEqual(TEST_BUILD_FEATURES, { frameExplain: true, youtube: true, youtubeOpenPanel: true, youtubeCaptionCatch: true, keepConsent: false });
+test("发行构建打开解释当前画面、YouTube、代开文字稿和读播放器字幕（首发带上），沿用同意关着；日用构建多开沿用同意；测试构建打开功能开关，沿用同意和发行一样关着", () => {
+  assert.deepEqual(FEATURE_NAMES, ["frameExplain", "youtube", "youtubeOpenPanel", "youtubeCaptionCatch", "keepConsent", "comments"]);
+  assert.deepEqual(RELEASE_FEATURES, { frameExplain: true, youtube: true, youtubeOpenPanel: true, youtubeCaptionCatch: true, keepConsent: false, comments: false });
+  assert.deepEqual(DAILY_FEATURES, { ...RELEASE_FEATURES, keepConsent: true, comments: true });
+  assert.deepEqual(TEST_BUILD_FEATURES, { frameExplain: true, youtube: true, youtubeOpenPanel: true, youtubeCaptionCatch: true, keepConsent: false, comments: true });
   assert.ok(Object.isFrozen(RELEASE_FEATURES) && Object.isFrozen(TEST_BUILD_FEATURES) && Object.isFrozen(FEATURE_GLOBALS));
 });
 
@@ -35,18 +35,20 @@ test("define 把每个全局常量换成字面量，只认真正的 true", () =>
     FEATURE_FRAME_EXPLAIN: "true",
     FEATURE_YOUTUBE: "true",
     FEATURE_YOUTUBE_OPEN_PANEL: "true",
-    FEATURE_YOUTUBE_CAPTION_CATCH: "false",
+    FEATURE_YOUTUBE_CAPTION_CATCH: "true",
     FEATURE_KEEP_CONSENT: "false",
+    FEATURE_COMMENTS: "false",
   });
   assert.deepEqual(featureDefines({ ...RELEASE_FEATURES, frameExplain: false, youtube: false }), {
     FEATURE_FRAME_EXPLAIN: "false",
     FEATURE_YOUTUBE: "false",
     FEATURE_YOUTUBE_OPEN_PANEL: "true",
-    FEATURE_YOUTUBE_CAPTION_CATCH: "false",
+    FEATURE_YOUTUBE_CAPTION_CATCH: "true",
     FEATURE_KEEP_CONSENT: "false",
+    FEATURE_COMMENTS: "false",
   });
-  const loose = { frameExplain: "yes", youtube: "true", youtubeOpenPanel: 1, youtubeCaptionCatch: "true", keepConsent: "true" } as unknown as FeatureSet;
-  assert.deepEqual(Object.values(featureDefines(loose)), ["false", "false", "false", "false", "false"]);
+  const loose = { frameExplain: "yes", youtube: "true", youtubeOpenPanel: 1, youtubeCaptionCatch: "true", keepConsent: "true", comments: 1 } as unknown as FeatureSet;
+  assert.deepEqual(Object.values(featureDefines(loose)), ["false", "false", "false", "false", "false", "false"]);
 });
 
 test("类型声明里的全局常量就是开关表里那几个", () => {

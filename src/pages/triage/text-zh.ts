@@ -4,12 +4,14 @@
 export const TRIAGE_ZH = {
   title: "稍后再看粗筛 · 简幕",
   heading: "稍后再看粗筛",
-  back: "← 返回设置",
+  back: "设置",
   lede: "先用 B 站官方总结看每个视频讲了什么，再决定要不要花 API 额度写一句话结论。只读你自己的稍后再看，不改动 B 站上的任何数据。",
   activationLoading: "正在读取启用状态……",
   retry: "重试",
   notEnabledTitle: "还没启用简幕",
-  notEnabledImpact: "先在侧边栏或设置页读一下启用说明，点「启用简幕」，再回到这一页。",
+  notEnabledImpact: "启用以后才能读稍后再看。",
+  enableInSettings: "去设置页启用",
+  openSettings: "打开设置",
 
   list: {
     title: "读取列表",
@@ -103,7 +105,8 @@ export const TRIAGE_ZH = {
   },
   allWritten: "有官方总结的视频都已经有结论了。",
   noneToWrite: "还没有可以写结论的视频：先做第一步取官方总结。",
-  notConfigured: "还没配置好 AI 服务：先到设置页填好服务商、密钥和模型。",
+  noneAvailable: "这些视频都没有官方总结，写不了一句话结论；可以到视频页生成概览。",
+  notConfigured: "还没设置好 AI 服务。",
   askVerdict: {
     count: (count: number) => `要给 ${count} 个有官方总结的视频写一句话结论。`,
     cost: (concurrency: number) => `会用到你的 API 额度：每个视频发一次小请求，把标题、简介、UP 主名、时长和官方总结发给你设置的模型服务，不含字幕，同时最多 ${concurrency} 个。`,

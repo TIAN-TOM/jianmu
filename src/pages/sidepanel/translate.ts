@@ -3,23 +3,29 @@
 // 两样走同一个端口、同一套状态，整理字幕只是多带一个 purpose。点了就在后台做完，关掉侧边栏不停；
 // 打开视频时先取本机存着的，同一份还在后台跑的就接上它的进度。
 import { signal, type ReadonlySignal } from "@preact/signals";
-import { describe } from "../../core/errors.ts";
+import { describe, type ErrorCode } from "../../core/errors.ts";
 import type { VideoKey } from "../../core/video-ref.ts";
+import type { TranscriptMode } from "../../shared/messages/transcript.ts";
 import type { TextPurpose, TranslateOut } from "../../shared/messages/translate.ts";
 import type { PagePort, PageApi } from "../shared/api.ts";
 import type { UiLang } from "../shared/ui-lang.ts";
 import { panelTextOf } from "./text.ts";
 
-export type TranscriptMode = "original" | "translated" | "bilingual";
-
 export interface TranslateState {
   readonly phase: "idle" | "running" | "done" | "failed";
   readonly done: number;
   readonly total: number;
-  /** 给用户看的一句：失败原因，或者部分批次没译成。 */
+  /** 给用户看的一句：失败原因，或者还有一部分没译完。 */
   readonly message: string;
   /** 失败时模型服务自己说的话，显示在那一句下面，默认收着。 */
   readonly said?: string;
+  /** 失败的错误码：要到设置页去改的，那一句下面给「打开设置」。 */
+  readonly code?: ErrorCode;
+}
+
+/** 此时主动选择译文或双语会尝试补译。 */
+export function canStartTranslation(state: TranslateState): boolean {
+  return state.phase === "idle" || state.phase === "failed" || state.message !== "";
 }
 
 export interface Translation {
@@ -53,7 +59,7 @@ export interface Tidy {
 const IDLE: TranslateState = { phase: "idle", done: 0, total: 0, message: "" };
 
 interface StreamWords {
-  readonly unfinished: (batches: number) => string;
+  readonly unfinished: string;
   readonly stopped: string;
 }
 
@@ -114,22 +120,22 @@ function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | unde
         const message = event.failure
           ? describe(event.failure.code, event.failure.detail, lang())
           : event.failedBatches > 0
-            ? words.unfinished(event.failedBatches)
+            ? words.unfinished
             : event.state === "canceled"
               ? words.stopped
               : "";
-        const { said: _said, ...rest } = state.peek();
-        state.value = { ...rest, phase: failed ? "failed" : "done", message, ...(event.failure?.said ? { said: event.failure.said } : {}) };
+        const { said: _said, code: _code, ...rest } = state.peek();
+        state.value = { ...rest, phase: failed ? "failed" : "done", message, ...(event.failure?.said ? { said: event.failure.said } : {}), ...(event.failure ? { code: event.failure.code } : {}) };
         closePort();
         return;
       }
       case "translate.refused":
         if (quiet) return endQuiet();
-        state.value = { ...IDLE, phase: "failed", message: describe(event.failure.code, event.failure.detail, lang()), ...(event.failure.said ? { said: event.failure.said } : {}) };
+        state.value = { ...IDLE, phase: "failed", message: describe(event.failure.code, event.failure.detail, lang()), code: event.failure.code, ...(event.failure.said ? { said: event.failure.said } : {}) };
         closePort();
         return;
       case "port.error":
-        state.value = { ...state.peek(), phase: "failed", message: describe(event.code, undefined, lang()) };
+        state.value = { ...state.peek(), phase: "failed", message: describe(event.code, undefined, lang()), code: event.code };
         return;
     }
   }
@@ -143,7 +149,7 @@ function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | unde
       onClose(code) {
         if (port !== opened) return;
         port = null;
-        if (state.peek().phase === "running") state.value = { ...state.peek(), phase: "failed", message: describe(code, undefined, lang()) };
+        if (state.peek().phase === "running") state.value = { ...state.peek(), phase: "failed", message: describe(code, undefined, lang()), code };
       },
     });
     port = opened;
@@ -195,7 +201,9 @@ function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | unde
   };
 }
 
-export function createTranslation({ api, lang = () => "zh" }: { readonly api: Pick<PageApi, "connect">; readonly lang?: () => UiLang }): Translation {
+export function createTranslation({ api, lang = () => "zh" }: { readonly api: Pick<PageApi, "connect" | "send">; readonly lang?: () => UiLang }): Translation {
+  let boundVideo: VideoKey | null = null;
+  let choiceVersion = 0;
   const mode = signal<TranscriptMode>("original");
   const stream = createStream(api, undefined, translateWords, lang);
   return {
@@ -204,13 +212,22 @@ export function createTranslation({ api, lang = () => "zh" }: { readonly api: Pi
     lines: stream.lines,
     bind(video, fingerprint, tabId) {
       if (!stream.bind(video, fingerprint, tabId ?? null)) return;
-      mode.value = "original";
+      if (video !== boundVideo) {
+        boundVideo = video;
+        const version = ++choiceVersion;
+        mode.value = "original";
+        if (video) void api.send("transcript.displayMode", { video }).then((reply) => {
+          // 换过视频或用户已经改选，迟到的回复就丢掉；恢复只改变显示。
+          if (reply.ok && choiceVersion === version) mode.value = reply.value.mode;
+        });
+      }
       stream.peek();
     },
     setMode(next, fromSec) {
+      choiceVersion++;
       mode.value = next;
-      const now = stream.state.peek();
-      if (next !== "original" && (now.phase === "idle" || now.phase === "failed" || now.message !== "")) stream.start(fromSec);
+      if (boundVideo) void api.send("transcript.displayMode", { video: boundVideo, mode: next });
+      if (next !== "original" && canStartTranslation(stream.state.peek())) stream.start(fromSec);
     },
     stopRunning: stream.stopRunning,
     stop: stream.stop,

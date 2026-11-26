@@ -55,36 +55,36 @@ test("resolveThemeMode 把跟随系统解析成具体明暗（无浏览器环境
 });
 
 test("watchAppearance：先按存储落地外观，存储变了跟着变，别处的变化不理", async () => {
-  const source = fakeSource({ accentTheme: "ochre", themeMode: "dark", uiFontScale: 118 });
+  const source = fakeSource({ accentTheme: "redblack", themeMode: "dark", uiFontScale: 118 });
   const localStorage = memoryLocalStorage();
   const { root } = fakePage({ localStorage });
 
   const watch = await watchAppearance(source.deps, root);
-  assert.deepEqual(watch.current(), { accentTheme: "ochre", themeMode: "dark", uiFontScale: 112, language: "auto" });
-  assert.equal(root.dataset.accentTheme, "ochre");
+  assert.deepEqual(watch.current(), { accentTheme: "redblack", themeMode: "dark", uiFontScale: 112, language: "auto" });
+  assert.equal(root.dataset.accentTheme, "redblack");
   assert.equal(root.dataset.themeMode, "dark");
   assert.equal(root.style.values["--ui-font-zoom"], "1.12");
 
-  source.emit({ [SETTINGS_STORAGE_KEY]: { newValue: { accentTheme: "graphite", themeMode: "light" } } });
-  assert.equal(root.dataset.accentTheme, "graphite", "设置页换了主题，页面立刻跟着换");
+  source.emit({ [SETTINGS_STORAGE_KEY]: { newValue: { accentTheme: "pinkblue", themeMode: "light" } } });
+  assert.equal(root.dataset.accentTheme, "pinkblue", "设置页换了主题，页面立刻跟着换");
   assert.equal(root.dataset.themeMode, "light");
   assert.equal(root.style.values["--ui-font-zoom"], "1");
-  assert.deepEqual(JSON.parse(localStorage.getItem(APPEARANCE_CACHE_KEY) ?? "null"), { accentTheme: "graphite", themeMode: "light", uiFontScale: 100, language: "auto" });
+  assert.deepEqual(JSON.parse(localStorage.getItem(APPEARANCE_CACHE_KEY) ?? "null"), { accentTheme: "pinkblue", themeMode: "light", uiFontScale: 100, language: "auto" });
 
-  source.emit({ [SETTINGS_STORAGE_KEY]: { newValue: { accentTheme: "ink" } } }, "sync");
-  source.emit({ [SETTINGS_STORAGE_KEY]: { newValue: { accentTheme: "ink" } } }, "session");
+  source.emit({ [SETTINGS_STORAGE_KEY]: { newValue: { accentTheme: "marker" } } }, "sync");
+  source.emit({ [SETTINGS_STORAGE_KEY]: { newValue: { accentTheme: "marker" } } }, "session");
   source.emit({ other_key: { newValue: {} } });
-  assert.equal(root.dataset.accentTheme, "graphite", "别的存储区、别的键变了不理");
+  assert.equal(root.dataset.accentTheme, "pinkblue", "别的存储区、别的键变了不理");
 
   // 没有变化事件的环境（比如测试替身）也不能抛
   const plain = fakePage().root;
   const quiet = await watchAppearance({ local: memoryStorage() }, plain);
-  assert.equal(plain.dataset.accentTheme, "ink");
+  assert.equal(plain.dataset.accentTheme, "marker");
   assert.equal(quiet.current()?.themeMode, "system");
 });
 
 test("读设置的途中设置变了：以变化为准，不让读回来的旧值盖回去；读设置失败就留着首帧的样子", async () => {
-  const source = fakeSource({ accentTheme: "ochre" });
+  const source = fakeSource({ accentTheme: "redblack" });
   const gate = deferred();
   const { root } = fakePage();
   const slow = async (key: string) => {
@@ -92,41 +92,46 @@ test("读设置的途中设置变了：以变化为准，不让读回来的旧�
     return source.local.get(key);
   };
   const pending = watchAppearance({ ...source.deps, local: { get: slow } }, root);
-  source.emit({ [SETTINGS_STORAGE_KEY]: { newValue: { accentTheme: "graphite" } } });
+  source.emit({ [SETTINGS_STORAGE_KEY]: { newValue: { accentTheme: "pinkblue" } } });
   gate.resolve();
   const watch = await pending;
-  assert.equal(root.dataset.accentTheme, "graphite");
-  assert.equal(watch.current()?.accentTheme, "graphite");
+  assert.equal(root.dataset.accentTheme, "pinkblue");
+  assert.equal(watch.current()?.accentTheme, "pinkblue");
 
   const failing = fakePage().root;
-  failing.dataset.accentTheme = "ochre";
+  failing.dataset.accentTheme = "redblack";
   const broken = await watchAppearance({ local: { get: () => Promise.reject(new Error("读不到")) } }, failing);
   assert.equal(broken.current(), null);
-  assert.equal(failing.dataset.accentTheme, "ochre", "首帧脚本写下的样子不动");
+  assert.equal(failing.dataset.accentTheme, "redblack", "首帧脚本写下的样子不动");
+
+  // 首帧脚本也没写主题（比如没加载它）：写上默认主题，各套主题的版面规则都按这个属性写
+  const bare = fakePage().root;
+  await watchAppearance({ local: { get: () => Promise.reject(new Error("读不到")) } }, bare);
+  assert.equal(bare.dataset.accentTheme, "marker");
 });
 
 test("收到清除全部数据：按清除后的设置（默认值）重写外观和首帧缓存；只清缓存时不动", async () => {
-  const source = fakeSource({ accentTheme: "graphite", themeMode: "dark", uiFontScale: 125 });
+  const source = fakeSource({ accentTheme: "pinkblue", themeMode: "dark", uiFontScale: 125 });
   const localStorage = memoryLocalStorage();
   const { root } = fakePage({ localStorage });
   const watch = await watchAppearance(source.deps, root);
-  assert.equal(JSON.parse(localStorage.getItem(APPEARANCE_CACHE_KEY) ?? "null").accentTheme, "graphite");
+  assert.equal(JSON.parse(localStorage.getItem(APPEARANCE_CACHE_KEY) ?? "null").accentTheme, "pinkblue");
 
   source.broadcastCleared("cache");
   await nextTurn();
   assert.equal(source.reads(), 1, "只清缓存：外观设置还在，不重读");
-  assert.equal(root.dataset.accentTheme, "graphite");
+  assert.equal(root.dataset.accentTheme, "pinkblue");
 
   await source.local.remove(SETTINGS_STORAGE_KEY);
   source.broadcastCleared("all");
-  assert.ok(await until(() => root.dataset.accentTheme === "ink"));
-  assert.equal(watch.current()?.accentTheme, "ink");
-  assert.deepEqual({ ...root.dataset }, { accentTheme: "ink", themeMode: "light" });
+  assert.ok(await until(() => root.dataset.accentTheme === "marker"));
+  assert.equal(watch.current()?.accentTheme, "marker");
+  assert.deepEqual({ ...root.dataset }, { accentTheme: "marker", themeMode: "light" });
   assert.equal(root.style.values["--ui-font-zoom"], "1");
-  assert.deepEqual(JSON.parse(localStorage.getItem(APPEARANCE_CACHE_KEY) ?? "null"), { accentTheme: "ink", themeMode: "system", uiFontScale: 100, language: "auto" });
+  assert.deepEqual(JSON.parse(localStorage.getItem(APPEARANCE_CACHE_KEY) ?? "null"), { accentTheme: "marker", themeMode: "system", uiFontScale: 100, language: "auto" });
 
   // 清除以后读设置失败：照样按默认值重写
-  const other = fakeSource({ accentTheme: "ochre" });
+  const other = fakeSource({ accentTheme: "redblack" });
   const otherCache = memoryLocalStorage();
   const otherPage = fakePage({ localStorage: otherCache });
   let reads = 0;
@@ -143,32 +148,32 @@ test("收到清除全部数据：按清除后的设置（默认值）重写外�
     otherPage.root,
   );
   other.broadcastCleared("all");
-  assert.ok(await until(() => otherPage.root.dataset.accentTheme === "ink"));
-  assert.equal(JSON.parse(otherCache.getItem(APPEARANCE_CACHE_KEY) ?? "null").accentTheme, "ink");
+  assert.ok(await until(() => otherPage.root.dataset.accentTheme === "marker"));
+  assert.equal(JSON.parse(otherCache.getItem(APPEARANCE_CACHE_KEY) ?? "null").accentTheme, "marker");
 });
 
 test("页面接上消息客户端：后台广播清除全部数据就按默认值重写外观；只清缓存、不是后台发的清除都不动；停止以后退订", async () => {
-  const source = fakeSource({ accentTheme: "graphite", themeMode: "dark", uiFontScale: 125 });
+  const source = fakeSource({ accentTheme: "pinkblue", themeMode: "dark", uiFontScale: 125 });
   const runtime = fakeRuntime();
   const api = createPageApi({ runtime: runtime.runtime, sleep: async () => {}, reportError: (error) => assert.fail(String(error)) });
   const page = fakePage();
   const watch = await watchAppearance(pageAppearanceSources(api, { local: source.deps.local, onChanged: source.deps.onChanged }), page.root);
-  assert.equal(page.root.dataset.accentTheme, "graphite");
+  assert.equal(page.root.dataset.accentTheme, "pinkblue");
 
   await source.local.remove(SETTINGS_STORAGE_KEY);
   runtime.broadcast({ type: "data.cleared", scope: "cache" });
   runtime.broadcast({ type: "data.cleared", scope: "all" }, { id: EXTENSION_ID, tab: { id: 3 } });
   await nextTurn();
   assert.equal(source.reads(), 1, "只清缓存、从网页标签页里来的都不重读");
-  assert.equal(page.root.dataset.accentTheme, "graphite");
+  assert.equal(page.root.dataset.accentTheme, "pinkblue");
 
   runtime.broadcast({ type: "data.cleared", scope: "all" });
-  assert.ok(await until(() => page.root.dataset.accentTheme === "ink"));
+  assert.ok(await until(() => page.root.dataset.accentTheme === "marker"));
   assert.equal(watch.current()?.uiFontScale, 100);
 
   watch.stop();
   assert.equal(runtime.listeners(), 1, "客户端的监听由页面停客户端时撤");
-  await source.local.set({ [SETTINGS_STORAGE_KEY]: { accentTheme: "ochre" } });
+  await source.local.set({ [SETTINGS_STORAGE_KEY]: { accentTheme: "redblack" } });
   runtime.broadcast({ type: "data.cleared", scope: "all" });
   await nextTurn();
   assert.equal(source.reads(), 2, "停止以后清除广播不再触发重读");
@@ -193,21 +198,21 @@ test("跟随系统时系统明暗变了跟着换，选定明暗时不跟；停�
   assert.equal(source.listeners.size, 0);
   assert.equal(source.clearedListeners.size, 0);
   assert.equal(page.schemeListeners(), 0);
-  source.emit({ [SETTINGS_STORAGE_KEY]: { newValue: { accentTheme: "ochre" } } });
-  assert.equal(page.root.dataset.accentTheme, "ink");
+  source.emit({ [SETTINGS_STORAGE_KEY]: { newValue: { accentTheme: "redblack" } } });
+  assert.equal(page.root.dataset.accentTheme, "marker");
 });
 
 test("卡片的明暗跟着所在的页面：给了页面的明暗就不跟设置和系统；页面换了，重新落地；认不出时照旧按设置", async () => {
   // 设置选了深色、系统也是深色，页面是浅色。
-  const source = fakeSource({ accentTheme: "ochre", themeMode: THEME_MODES.DARK });
+  const source = fakeSource({ accentTheme: "redblack", themeMode: THEME_MODES.DARK });
   const page = fakePage({ prefersDark: true });
   let host: "light" | "dark" | null = "light";
   const watch = await watchAppearance({ ...source.deps, hostMode: () => host }, page.root);
-  assert.deepEqual({ ...page.root.dataset }, { accentTheme: "ochre", themeMode: "light" });
+  assert.deepEqual({ ...page.root.dataset }, { accentTheme: "redblack", themeMode: "light" });
 
   // 设置里改明暗不影响卡片，改主题照常生效。
-  source.emit({ [SETTINGS_STORAGE_KEY]: { newValue: { accentTheme: "graphite", themeMode: THEME_MODES.SYSTEM } } });
-  assert.deepEqual({ ...page.root.dataset }, { accentTheme: "graphite", themeMode: "light" });
+  source.emit({ [SETTINGS_STORAGE_KEY]: { newValue: { accentTheme: "pinkblue", themeMode: THEME_MODES.SYSTEM } } });
+  assert.deepEqual({ ...page.root.dataset }, { accentTheme: "pinkblue", themeMode: "light" });
 
   host = "dark";
   watch.refresh();
@@ -231,24 +236,24 @@ test("设置读回来之前页面的明暗已经变了：按最新的落地；�
   let host: "light" | "dark" = "light";
   const pending = watchAppearance({ local: { get: () => reading }, hostMode: () => host }, page.root);
   host = "dark";
-  release({ [SETTINGS_STORAGE_KEY]: { accentTheme: "ink", themeMode: THEME_MODES.LIGHT } });
+  release({ [SETTINGS_STORAGE_KEY]: { accentTheme: "marker", themeMode: THEME_MODES.LIGHT } });
   const watch = await pending;
-  assert.deepEqual({ ...page.root.dataset }, { accentTheme: "ink", themeMode: "dark" });
+  assert.deepEqual({ ...page.root.dataset }, { accentTheme: "marker", themeMode: "dark" });
   watch.stop();
 
   const broken = fakePage();
-  broken.root.dataset.accentTheme = "ochre";
+  broken.root.dataset.accentTheme = "redblack";
   const failed = await watchAppearance({ local: { get: () => Promise.reject(new Error("读不到")) }, hostMode: () => host }, broken.root);
   assert.equal(failed.current(), null);
   failed.refresh();
-  assert.deepEqual({ ...broken.root.dataset }, { accentTheme: "ochre", themeMode: "dark" });
+  assert.deepEqual({ ...broken.root.dataset }, { accentTheme: "redblack", themeMode: "dark" });
 });
 
 test("applyAppearance 把主题和明暗落到根节点的 data 属性上", () => {
   const root = { dataset: {} as Record<string, string | undefined> };
-  const normalized = applyAppearance({ accentTheme: "ochre", themeMode: "dark" }, root);
-  assert.deepEqual({ ...root.dataset }, { accentTheme: "ochre", themeMode: "dark" });
-  assert.deepEqual(normalized, { accentTheme: "ochre", themeMode: "dark", uiFontScale: 100, language: "auto" });
+  const normalized = applyAppearance({ accentTheme: "redblack", themeMode: "dark" }, root);
+  assert.deepEqual({ ...root.dataset }, { accentTheme: "redblack", themeMode: "dark" });
+  assert.deepEqual(normalized, { accentTheme: "redblack", themeMode: "dark", uiFontScale: 100, language: "auto" });
 
   // 跟随系统要在无浏览器环境时安全落地
   const plain = { dataset: {} as Record<string, string | undefined> };
@@ -265,11 +270,60 @@ test("applyAppearance 把主题和明暗落到根节点的 data 属性上", () =
 
   // 不管存的是什么，写到根节点的值都在合法范围内
   const zooms = new Set(UI_FONT_SCALES.map((scale) => String(scale / 100)));
-  for (const raw of [undefined, null, "oops", 42, { accentTheme: "violet", themeMode: "sepia", uiFontScale: "abc" }, { accentTheme: "__proto__", uiFontScale: 999 }, { accentTheme: ["ink"], themeMode: 1 }]) {
+  for (const raw of [undefined, null, "oops", 42, { accentTheme: "violet", themeMode: "sepia", uiFontScale: "abc" }, { accentTheme: "__proto__", uiFontScale: 999 }, { accentTheme: ["marker"], themeMode: 1 }]) {
     const target = fakePage().root;
     applyAppearance(raw, target);
     assert.ok(Object.hasOwn(ACCENT_THEMES, target.dataset.accentTheme ?? ""), `${JSON.stringify(raw)} → ${target.dataset.accentTheme}`);
     assert.ok([THEME_MODES.LIGHT, THEME_MODES.DARK].includes(target.dataset.themeMode as "light"), `${JSON.stringify(raw)} → ${target.dataset.themeMode}`);
     assert.ok(zooms.has(target.style.values["--ui-font-zoom"] ?? ""), `${JSON.stringify(raw)} → ${target.style.values["--ui-font-zoom"]}`);
   }
+});
+
+/** 带整页淡化的页面替身：淡化的回调和动画帧都排着，测试自己决定什么时候跑。 */
+function fadingPage() {
+  const localStorage = memoryLocalStorage();
+  const transitions: (() => void)[] = [];
+  const frames: (() => void)[] = [];
+  const values: Record<string, string> = {};
+  const view = {
+    location: { protocol: "chrome-extension:" },
+    localStorage,
+    matchMedia: (_query: string) => ({ matches: false, addEventListener: () => undefined, removeEventListener: () => undefined }),
+    document: { visibilityState: "visible", startViewTransition: (update: () => void) => void transitions.push(update) },
+    requestAnimationFrame: (callback: () => void) => frames.push(callback),
+  };
+  const root = { dataset: {} as Record<string, string | undefined>, style: { values, setProperty: (name: string, value: string) => void (values[name] = value) }, ownerDocument: { defaultView: view } };
+  const run = (queue: (() => void)[]): void => {
+    for (const callback of queue.splice(0)) callback();
+  };
+  return { root, localStorage, transitions, flushTransitions: () => run(transitions), flushFrames: () => run(frames) };
+}
+
+test("watchAppearance：换主题时整页淡过去，换的那几帧挂着标记；淡化的回调晚到时已经又换回来了，不把旧主题写回去", async () => {
+  const source = fakeSource({ accentTheme: "marker", themeMode: "light" });
+  const page = fadingPage();
+  const watch = await watchAppearance(source.deps, page.root);
+  assert.equal(page.root.dataset.accentTheme, "marker");
+  assert.equal(page.transitions.length, 0, "第一次落地照着首帧直接写，不淡化");
+
+  source.emit({ [SETTINGS_STORAGE_KEY]: { newValue: { accentTheme: "pinkblue", themeMode: "light" } } });
+  assert.equal(page.transitions.length, 1, "换主题走整页淡化");
+  assert.equal(page.root.dataset.accentTheme, "marker", "淡化的回调还没跑，页面还是旧的");
+  page.flushTransitions();
+  assert.equal(page.root.dataset.accentTheme, "pinkblue");
+  assert.equal(page.root.dataset.themeSwitching, "true", "换的那几帧关掉换色过渡");
+  page.flushFrames();
+  page.flushFrames();
+  assert.equal(page.root.dataset.themeSwitching, undefined, "两帧以后拿掉标记");
+
+  // 换成荧光笔、回调还没跑就又换回粉蓝：先换的那次晚到的回调不能把荧光笔写回去。
+  source.emit({ [SETTINGS_STORAGE_KEY]: { newValue: { accentTheme: "marker", themeMode: "light" } } });
+  source.emit({ [SETTINGS_STORAGE_KEY]: { newValue: { accentTheme: "pinkblue", themeMode: "light" } } });
+  page.flushTransitions();
+  page.flushFrames();
+  page.flushFrames();
+  assert.equal(page.root.dataset.accentTheme, "pinkblue");
+  assert.equal(watch.current()?.accentTheme, "pinkblue");
+  assert.equal(JSON.parse(page.localStorage.getItem(APPEARANCE_CACHE_KEY) ?? "null")?.accentTheme, "pinkblue", "首帧缓存也是最后那次");
+  watch.stop();
 });

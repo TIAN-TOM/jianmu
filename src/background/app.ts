@@ -10,14 +10,14 @@ import { createPermissions, type PermissionsApi } from "../platform/permissions.
 import { createSettingsStore, type SettingsStore } from "../platform/settings-store.ts";
 import type { ExtensionStorage } from "../platform/storage.ts";
 import { createTabs, type Tabs, type TabsDeps } from "../platform/tabs.ts";
-import { analysisChunkOptions, qaChunkOptions } from "../shared/settings-schema.ts";
+import { qaChunkOptions } from "../shared/settings-schema.ts";
 import type { NoteRecord, OverviewRecord, QaRecord } from "../core/notes/records.ts";
 import type { StoreName } from "../shared/names.ts";
 import type { SiteRules } from "../sites/types.ts";
 import { createActionMenu, type ContextMenusDeps, type MenuClick } from "./action-menu.ts";
 import { createAiWiring, type AiWiring, type ModelServiceFetch, type PromptTable } from "./ai.ts";
-import { autoSwitchToggled, createAutoWiring, pageTranscriptOf, watchPagesOf } from "./auto.ts";
-import { createContentTabs, siteTabs, type ContentTabs } from "./content-tabs.ts";
+import { createAutoWiring, pageTranscriptOf, resumesAfter, watchPagesOf } from "./auto.ts";
+import { createContentTabs, createContentTargets, type ContentTabs, type ContentTargets } from "./content-tabs.ts";
 import { createGrants, siteOriginsOf, type Grants } from "./grants.ts";
 import { createOpenPanels, type OpenPanels } from "./open-panels.ts";
 import { createCardLimits, createPlaybackLimits, createPlayerNoteLimit, type CardLimits, type PlaybackLimits } from "./limits.ts";
@@ -26,7 +26,7 @@ import { createReinject, type Reinject } from "./reinject.ts";
 import { createSiteSwitch, type SiteSwitch } from "./site-switch.ts";
 import { createRegisteredScripts, type RegisteredScriptsApi } from "../platform/registered-scripts.ts";
 import { createRouter, type AnyPortSpec, type Router } from "./router.ts";
-import { activationDropped, activationLost } from "./routes/activation.ts";
+import { activationDropped, activationFlipped, activationLost } from "./routes/activation.ts";
 import { appearanceChange, type StorageChange } from "./routes/appearance.ts";
 import { createFrameParts, createPorts, createRoutes } from "./routes/index.ts";
 import { createSenders } from "./senders.ts";
@@ -44,11 +44,12 @@ import { createNoteStore, type NoteStore } from "./stores/notes.ts";
 import { createOverviewStore, type OverviewStore } from "./stores/overviews.ts";
 import { createQaStore, type QaStore } from "./stores/qa.ts";
 import { createTranslationStore, type TranslationRecord, type TranslationStore } from "./stores/translations.ts";
-import { createOverviewService, type OverviewService } from "./services/overview/index.ts";
+import { assembleOverview } from "./assemble-overview.ts";
+import type { OverviewService } from "./services/overview/index.ts";
 import { createVerdictService, type VerdictService } from "./services/overview/verdict.ts";
 import { createExplainService, type ExplainService } from "./services/explain.ts";
 import { createNotesService, type NotesService } from "./services/notes.ts";
-import { createDataService, type DataService } from "./services/data.ts";
+import { createDataService, type DataService, type DataServiceDeps } from "./services/data.ts";
 import { createQaService, type QaService } from "./services/qa.ts";
 import { createTranslateService, type TranslateService } from "./services/translate.ts";
 import { createBatchService, type BatchService } from "./services/batch/index.ts";
@@ -122,8 +123,7 @@ interface Core {
   readonly tabs: Tabs;
   readonly messenger: Messenger;
   readonly contentTabs: ContentTabs;
-  /** 确认启用之后要通知的内容脚本：发过消息登记的编号，加上按清单匹配规则查到的已开标签页。 */
-  readonly contentTargets: () => Promise<readonly number[]>;
+  readonly contentTargets: ContentTargets["all"];
   /** 往已开的视频页补注入内容脚本，启用确认不算数时什么都不做。 */
   readonly reinject: Reinject;
   readonly grants: Grants;
@@ -216,7 +216,7 @@ function assembleTranscript(deps: AppDeps, clearGuard: ClearGuard, tabs: Tabs, o
 }
 
 /** 概览和用官方总结写结论共用的部件：同一个概览仓储、同一道模型请求的并发闸门。 */
-interface OverviewParts {
+export interface OverviewParts {
   readonly settings: SettingsStore;
   readonly clearGuard: ClearGuard;
   readonly ai: AiWiring;
@@ -225,22 +225,6 @@ interface OverviewParts {
   readonly transcript: TranscriptService;
   readonly overviews: OverviewStore;
   readonly gate: Limiter;
-}
-
-// 概览：分块大小按设置；发往模型的请求几个视频、两种生成合起来不超过并发上限。
-function assembleOverview(deps: AppDeps, parts: OverviewParts): OverviewService {
-  return createOverviewService({
-    tasks: parts.tasks,
-    transcript: parts.transcript,
-    overviews: parts.overviews,
-    guard: parts.clearGuard,
-    prompt: parts.ai.prompt,
-    chunkOptions: async () => analysisChunkOptions(await parts.settings.loadPublic()),
-    gate: parts.gate,
-    broadcast: (message) => void parts.messenger.toPages(message),
-    log: deps.log,
-    now: deps.timers.now,
-  });
 }
 
 // 用官方总结写结论：和概览写进同一个仓储，排同一道并发闸门。
@@ -343,7 +327,7 @@ function assembleBatch(deps: AppDeps, parts: OverviewParts, tabs: Tabs, keepAliv
 }
 
 // 清除用的驱动单独建，每个仓库一份，第一次清除时才开库。
-function assembleData(deps: AppDeps, parts: OverviewParts, stores: ReturnType<typeof assembleStudyStores>): DataService {
+function assembleData(deps: AppDeps, parts: OverviewParts, stores: ReturnType<typeof assembleStudyStores>, pages: Pick<DataServiceDeps, "openPages" | "toTabs">): DataService {
   const drivers = new Map<StoreName, ReturnType<typeof lazyDriver>>();
   const driverOf = (name: StoreName) => {
     let driver = drivers.get(name);
@@ -362,6 +346,7 @@ function assembleData(deps: AppDeps, parts: OverviewParts, stores: ReturnType<ty
     forgetMemory: (scope) => parts.transcript.forget(scope),
     clearStore: (name) => driverOf(name).clear(),
     broadcast: (message) => void parts.messenger.toPages(message),
+    ...pages,
     now: deps.timers.now,
   });
 }
@@ -391,6 +376,7 @@ function assembleCore(deps: AppDeps): Core {
   const watchPages = watchPagesOf(tabs, siteSwitch?.grantedScripts);
   const pageTranscript = pageTranscriptOf({ ask: tabs.ask, transcript, sites: deps.sites });
   const autoParts = { settings, tabs, watchPages, pageTranscript, sleep, rules: deps.siteRules, ai, tasks, overviews, transcript, overview, storage: deps.storage.session, guard: clearGuard };
+  const targets = createContentTargets({ registered: contentTabs, tabs, siteScripts: siteSwitch?.grantedScripts, enabled });
   return {
     settings,
     clearGuard,
@@ -402,8 +388,7 @@ function assembleCore(deps: AppDeps): Core {
     tabs,
     messenger,
     contentTabs,
-    // 通知是尽力而为：查不到标签页时只发给登记过的，不让确认启用这类写入跟着报错。
-    contentTargets: async () => [...new Set([...contentTabs.list(), ...(await tabs.contentScriptTabs().catch(() => [])), ...(await siteTabs(tabs, siteSwitch?.grantedScripts))])],
+    contentTargets: targets.all,
     reinject: createReinject({ tabs, enabled, ...(siteSwitch ? { extraScripts: siteSwitch.grantedScripts } : {}), log: deps.log }),
     // 授权回收只碰授权接口：读不含密钥的设置，站点来源按设置推。
     grants: createGrants({ permissions: createPermissions(deps.permissions, () => deps.runtime.getManifest()), loadSettings: settings.loadPublic, siteOrigins: () => siteOriginsOf(deps.siteRules), logError: (message, detail) => deps.log.error(message, errorLabel(detail)) }),
@@ -415,7 +400,7 @@ function assembleCore(deps: AppDeps): Core {
     verdict,
     ...assembleStudy(deps, generation, keepAlive, studyStores),
     translate: assembleTranslate(deps, generation, studyStores.translations),
-    data: assembleData(deps, generation, studyStores),
+    data: assembleData(deps, generation, studyStores, { openPages: targets.all, toTabs: (tabIds, message) => messenger.toTabs(tabIds, message) }),
     batch: assembleBatch(deps, generation, tabs, keepAlive, { overview, verdict, pageTranscript }, watchPages),
     auto: createAutoWiring({ ...autoParts, now: deps.timers.now, broadcast: (message) => void messenger.toPages(message), log: deps.log }),
   };
@@ -424,7 +409,8 @@ function assembleCore(deps: AppDeps): Core {
 function assembleRouter(deps: AppDeps, core: Core): Router {
   const { settings, tabs, contentTabs } = core;
   return createRouter({
-    routes: createRoutes({ ...core, now: deps.timers.now, pageTranscript: pageTranscriptOf({ ask: core.tabs.ask, transcript: core.transcript, sites: deps.sites }), frame: FEATURE_FRAME_EXPLAIN ? createFrameParts({ ...core, storage: deps.storage.local, session: deps.storage.session, keepAlive: core.keepAlive, log: deps.log, now: deps.timers.now }) : null }),
+    clearEpoch: core.clearGuard.epoch,
+    routes: createRoutes({ ...core, sessionStorage: deps.storage.session, now: deps.timers.now, pageTranscript: pageTranscriptOf({ ask: core.tabs.ask, transcript: core.transcript, sites: deps.sites }), frame: FEATURE_FRAME_EXPLAIN ? createFrameParts({ ...core, storage: deps.storage.local, session: deps.storage.session, keepAlive: core.keepAlive, log: deps.log, now: deps.timers.now }) : null }),
     ports: deps.ports ?? createPorts({ ...core, log: deps.log }),
     senders: createSenders({ extensionId: deps.runtime.id, extensionUrl: (path) => deps.runtime.getURL(path), rules: deps.siteRules }),
     enabled: async () => (await settings.activation()).state === "current",
@@ -480,12 +466,12 @@ export function createApp(deps: AppDeps): App {
       void core.sessions.onTabRemoved(tabId).catch((error: unknown) => deps.log.error("删掉关闭标签页的观看会话失败", errorLabel(error)));
     },
     async onStorageChanged(changes, area) {
-      // 开关一动就恢复；刚打开时把已经开着的视频标签页排进来，不等下一个标签页事件。
-      if (autoSwitchToggled(changes, area)) await core.auto.resume().then(consider, (error: unknown) => deps.log.error("恢复自动生成失败", errorLabel(error)));
+      // 开关一动、密钥被拒后保存了新密钥就恢复；刚打开时把已经开着的视频标签页排进来，不等下一个标签页事件。
+      if (await resumesAfter(changes, area, core.auto)) await core.auto.resume().then(consider, (error: unknown) => deps.log.error("恢复自动生成失败", errorLabel(error)));
       // 先断端口：启用失效以后，连着的页面不能再发起新的读取和模型请求。
       if (activationLost(changes, area)) router.closeBusinessPorts("NOT_ENABLED");
-      // 只发给发过消息的内容脚本：启用已经失效，不再按地址查标签页。
-      if (activationDropped(changes, area)) await core.messenger.toTabs(core.contentTabs.list(), { type: "activation.changed", confirmed: false });
+      // 启用失效只发给发过消息的内容脚本，不再按地址查标签页；启用算不算数一变，要启用确认才注册的页面脚本跟着撤掉或补上。
+      await Promise.all([activationDropped(changes, area) ? core.messenger.toTabs(core.contentTabs.list(), { type: "activation.changed", confirmed: false }) : undefined, activationFlipped(changes, area) ? core.siteSwitch?.sync() : undefined]);
       await menu.settingsChanged(changes, area);
       const message = appearanceChange(changes, area);
       if (!message) return;

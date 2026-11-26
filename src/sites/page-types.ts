@@ -16,6 +16,7 @@ export interface SitePage {
   whenPageReady(signal: AbortSignal): Promise<void>; // 页面框架激活完成才插节点，中止时拒绝
   findMainVideo(): MainVideo;
   hoverIconAnchor(): Element | null;
+  hoverIconTop?: number; // 悬停图标离挂载点上沿的距离，页面自己在播放器右上角有按钮时往下让开；不给按默认
   watchControls?(cb: (visible: boolean | null) => void): () => void; // 控制栏显隐的页面信号，有变化才回调；null 是页面这会儿没给
   noteShortcut: string | null;
   cardSlot?(): { parent: Element; before: Node | null } | null;

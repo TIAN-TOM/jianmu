@@ -1,11 +1,12 @@
-// 观看会话：内容脚本报时长、频道和播放进度，侧边栏读会话、报适配层读到的时长和频道、切换模式，卡片读自己所在标签页的会话、手动展开收起，
-// 设置页清除记住的频道。内容脚本报的视频必须等于它所在标签页地址上的视频，地址过了启用闸门才读。
+// 观看会话：内容脚本报时长、频道和播放进度，侧边栏读会话、报适配层读到的时长和频道、切换模式、刚记住的频道点「不记」忘掉，
+// 卡片读自己所在标签页的会话、手动展开收起，设置页看记住了几个频道、全部清除。内容脚本报的视频必须等于它所在标签页地址上的视频，地址过了启用闸门才读。
 import { fail, ok } from "../../core/errors.ts";
 import { isMode } from "../../core/mode/decide.ts";
 import type { CardOverride } from "../../core/mode/types.ts";
 import { parseVideoKey, videoKey, type Platform, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
 import type {
   CardOverrideRequest,
+  ChannelForgetRequest,
   PlaybackInfoRequest,
   SessionDescribeRequest,
   PlaybackMilestoneRequest,
@@ -13,6 +14,7 @@ import type {
   SessionSetModeRequest,
 } from "../../shared/messages/session.ts";
 import type { PlaybackLimits } from "../limits.ts";
+import type { OpenPanels } from "../open-panels.ts";
 import type { HandlerCtx, Route } from "../router.ts";
 import type { SenderCtx } from "../senders.ts";
 import type { Sessions } from "../sessions.ts";
@@ -21,12 +23,14 @@ import { isEmptyRequest, isVideoKey } from "./validate.ts";
 
 export interface SessionRouteDeps {
   readonly sessions: Sessions;
-  readonly channels: Pick<ChannelStore, "clear">;
+  readonly channels: Pick<ChannelStore, "clear" | "count">;
   readonly playbackLimits: Pick<PlaybackLimits, "admitMilestone">;
+  /** 内容脚本所在窗口的侧边栏开没开：开着时先不自动切到精读。 */
+  readonly panels: Pick<OpenPanels, "isOpen">;
 }
 
 type SessionRoutes = {
-  readonly [K in "playback.info" | "playback.milestone" | "session.get" | "session.describe" | "session.setMode" | "card.setOverride" | "channels.clear"]: Route<K>;
+  readonly [K in "playback.info" | "playback.milestone" | "session.get" | "session.describe" | "session.setMode" | "card.setOverride" | "channels.clear" | "channels.forget" | "channels.count"]: Route<K>;
 };
 
 // 一周：比任何正常的视频和累计播放都长，挡掉离谱的数。
@@ -87,6 +91,10 @@ function isSetModeRequest(req: unknown): req is SessionSetModeRequest {
   return req.intent === "undo-auto" && keysWithin(req, ["tabId", "video", "intent"]);
 }
 
+function isForgetRequest(req: unknown): req is ChannelForgetRequest {
+  return isPlainObject(req) && keysWithin(req, ["tabId", "video"]) && isTabId(req.tabId) && isVideoKey(req.video);
+}
+
 function isOverrideRequest(req: unknown): req is CardOverrideRequest {
   return isPlainObject(req) && keysWithin(req, ["video", "value"]) && isVideoKey(req.video) && CARD_OVERRIDES.has(req.value);
 }
@@ -112,7 +120,10 @@ function contentTab({ sender }: HandlerCtx, claimed: VideoKey): ContentTab | "FO
   return actual === claimed ? { tabId: sender.tabId, site: sender.site, video: actual } : "VIDEO_CHANGED";
 }
 
-export function sessionRoutes({ sessions, channels, playbackLimits }: SessionRouteDeps): SessionRoutes {
+export function sessionRoutes({ sessions, channels, playbackLimits, panels }: SessionRouteDeps): SessionRoutes {
+  // 内容脚本所在窗口的侧边栏开着：人可能正读着速读，先不自动切。不知道窗口时当关着。
+  const panelOpen = ({ sender }: HandlerCtx): Promise<boolean> => (sender.windowId === undefined ? Promise.resolve(false) : panels.isOpen(sender.windowId));
+
   return {
     "playback.info": {
       senders: ["content:bilibili", "content:youtube"],
@@ -121,10 +132,15 @@ export function sessionRoutes({ sessions, channels, playbackLimits }: SessionRou
       async handler(req, ctx) {
         const tab = contentTab(ctx, req.video);
         if (typeof tab === "string") return fail(tab);
-        return sessions.onPlaybackInfo(tab.tabId, tab.video, {
-          ...(req.durationSec === undefined ? {} : { durationSec: req.durationSec }),
-          ...(req.channel === undefined ? {} : { channel: { platform: tab.site, channelId: req.channel } }),
-        });
+        return sessions.onPlaybackInfo(
+          tab.tabId,
+          tab.video,
+          {
+            ...(req.durationSec === undefined ? {} : { durationSec: req.durationSec }),
+            ...(req.channel === undefined ? {} : { channel: { platform: tab.site, channelId: req.channel } }),
+          },
+          await panelOpen(ctx),
+        );
       },
     },
     "playback.milestone": {
@@ -135,7 +151,7 @@ export function sessionRoutes({ sessions, channels, playbackLimits }: SessionRou
         const tab = contentTab(ctx, req.video);
         if (typeof tab === "string") return fail(tab);
         if (!playbackLimits.admitMilestone(tab.tabId)) return fail("PLAYBACK_RATE_LIMITED");
-        return sessions.onMilestone(tab.tabId, tab.video, req.playedSec);
+        return sessions.onMilestone(tab.tabId, tab.video, req.playedSec, await panelOpen(ctx));
       },
     },
     "session.get": {
@@ -190,6 +206,18 @@ export function sessionRoutes({ sessions, channels, playbackLimits }: SessionRou
       async handler() {
         return (await channels.clear()) ? ok({}) : fail("NOT_ENABLED");
       },
+    },
+    "channels.forget": {
+      senders: ["panel"],
+      validate: isForgetRequest,
+      handler: (req) => sessions.forgetChannel(req.tabId, req.video),
+    },
+    "channels.count": {
+      senders: ["page"],
+      pages: ["options"],
+      idempotent: true,
+      validate: isEmptyRequest,
+      handler: async () => ok({ count: await channels.count() }),
     },
   };
 }

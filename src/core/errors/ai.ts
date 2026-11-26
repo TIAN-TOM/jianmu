@@ -7,6 +7,7 @@ export type AiErrorCode =
   | "NEED_HOST_PERMISSION"
   | "INVALID_BASE_URL"
   | "INVALID_AI_KEY"
+  | "AI_LOCAL_ORIGIN_REJECTED"
   | "MODEL_OR_ENDPOINT_NOT_FOUND"
   | "AI_RATE_LIMITED"
   | "AI_SERVICE_BUSY"
@@ -32,19 +33,24 @@ const THINKING_EXHAUSTED = "模型把输出额度都用在思考上了，还没�
 const SWITCH_MODEL = "再试一次；老是这样，就到设置页换个模型。";
 
 export const AI_ERROR_TEXT: Readonly<Record<AiErrorCode, ErrorCopy>> = {
-  NO_AI_CONFIG: { cause: "AI 服务还没设置好。", impact: NOT_SENT, next: "到设置页填好服务商、密钥和模型，再点「保存并授权」。" },
+  NO_AI_CONFIG: { cause: "AI 服务还没设置好。", impact: NOT_SENT, next: "到设置页填好服务商、密钥和模型，再点「保存」。" },
   NO_DATA_CONSENT: { cause: "还没同意数据说明。", impact: "没有任何内容发给模型服务。", next: "到设置页读一下数据说明，勾上「我已了解」。" },
   NEED_HOST_PERMISSION: {
     cause: "简幕还没拿到访问这个 API 地址的权限。",
     impact: NOT_SENT,
-    next: "到设置页点「保存并授权」，浏览器问的时候选允许。",
+    next: "到设置页点「保存」，浏览器问的时候选允许。",
   },
   INVALID_BASE_URL: { cause: "API 地址不对。", impact: NOT_SENT, next: "到设置页检查一下 API 地址。" },
   INVALID_AI_KEY: { cause: "AI 服务不认这把密钥。", impact: NO_RESULT, next: "到设置页检查密钥，看它和 API 地址是不是同一家服务商的。" },
+  AI_LOCAL_ORIGIN_REJECTED: {
+    cause: "本机的模型服务拒绝了来自浏览器扩展的请求，多半不是密钥的问题。",
+    impact: NO_RESULT,
+    next: "用的是 Ollama 的话，在启动它的环境里把 OLLAMA_ORIGINS 设成 chrome-extension://*，再重启 Ollama。",
+  },
   MODEL_OR_ENDPOINT_NOT_FOUND: {
     cause: "AI 服务找不到这个模型或接口。",
     impact: NO_RESULT,
-    next: "到设置页核对模型名和 API 地址，可以点「拉取模型列表」从里面挑。",
+    next: "到设置页核对模型名和 API 地址，可以点「获取模型列表」从里面挑。",
   },
   AI_RATE_LIMITED: { cause: "AI 服务限流了，也可能是账户额度用完了。", impact: NO_RESULT, next: "等几分钟再试；一直这样，就到服务商后台看看额度。" },
   AI_SERVICE_BUSY: { cause: "AI 服务那边暂时繁忙或出错。", impact: NO_RESULT, next: "稍后再试。" },
@@ -71,16 +77,16 @@ export const AI_ERROR_TEXT: Readonly<Record<AiErrorCode, ErrorCopy>> = {
   EMPTY_AI_RESPONSE: { cause: "模型没有写出内容。", impact: MAYBE_BILLED, next: SWITCH_MODEL },
   AI_RESPONSE_TOO_LARGE: { cause: "模型的回复太大，简幕没有收下。", impact: MAYBE_BILLED, next: SWITCH_MODEL },
   AI_RESPONSE_TRUNCATED: { cause: "模型的回复没写完就停了。", impact: MAYBE_BILLED, next: SWITCH_MODEL },
-  // 思考把输出额度用完了：换模型不是唯一的办法，能调低档位的先让人调；调不了的（服务自己决定想多少、已经在最低档）只给换型号。
+  // 思考把输出额度用完了：换模型不是唯一的办法，能调低档位的先让人调；调不了的（服务自己决定想多少、已经在最低档）只给换模型。
   AI_THINKING_EXHAUSTED: {
     cause: THINKING_EXHAUSTED,
     impact: MAYBE_BILLED,
-    next: "到设置页「推理强度」给这项功能调低一档再试；或者在「按功能选模型」里给它换个型号。",
+    next: "到设置页「推理强度」给这项功能调低一档再试；或者在「按功能选模型」里给它换个模型。",
   },
   AI_THINKING_EXHAUSTED_LOCKED: {
     cause: THINKING_EXHAUSTED,
     impact: MAYBE_BILLED,
-    next: "这个型号想多久，简幕调不了；到设置页「按功能选模型」给这项功能换个型号再试。",
+    next: "这个模型想多久，简幕调不了；到设置页「按功能选模型」给这项功能换个模型再试。",
   },
   TASK_CANCELED: { cause: "已经停下了。", impact: "已经发出去的请求可能照样计费。" },
   AI_REQUEST_FAILED: { cause: "AI 请求没有成功。", impact: NO_RESULT, next: "稍后再试。" },
@@ -93,15 +99,20 @@ const THINKING_EXHAUSTED_EN = "The model spent its whole output allowance on thi
 const SWITCH_MODEL_EN = "Try again. If it keeps happening, choose a different model in settings.";
 
 export const AI_ERROR_TEXT_EN: Readonly<Record<AiErrorCode, ErrorCopy>> = {
-  NO_AI_CONFIG: { cause: "The AI service isn't set up yet.", impact: NOT_SENT_EN, next: "In settings, fill in the provider, key and model, then click “Save and authorise”." },
+  NO_AI_CONFIG: { cause: "The AI service isn't set up yet.", impact: NOT_SENT_EN, next: "In settings, fill in the provider, key and model, then click “Save”." },
   NO_DATA_CONSENT: { cause: "You haven't agreed to the data notice yet.", impact: "Nothing has been sent to the AI service.", next: "Read the data notice in settings and tick the box to agree." },
   NEED_HOST_PERMISSION: {
     cause: "Jianmu doesn't have permission to reach this API address yet.",
     impact: NOT_SENT_EN,
-    next: "Click “Save and authorise” in settings and allow access when the browser asks.",
+    next: "Click “Save” in settings and allow access when the browser asks.",
   },
   INVALID_BASE_URL: { cause: "The API address isn't right.", impact: NOT_SENT_EN, next: "Check the API address in settings." },
   INVALID_AI_KEY: { cause: "The AI service didn't accept this key.", impact: NO_RESULT_EN, next: "Check the key in settings and make sure it's from the same provider as the API address." },
+  AI_LOCAL_ORIGIN_REJECTED: {
+    cause: "The model service on this computer refused requests from the browser extension. This usually isn't a key problem.",
+    impact: NO_RESULT_EN,
+    next: "If you use Ollama, set OLLAMA_ORIGINS to chrome-extension://* where Ollama starts, then restart Ollama.",
+  },
   MODEL_OR_ENDPOINT_NOT_FOUND: {
     cause: "The AI service couldn't find this model or endpoint.",
     impact: NO_RESULT_EN,

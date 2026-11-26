@@ -1,7 +1,8 @@
 // 备份经长连接分段传：扩展的单条消息有大小上限，整份备份大了一次传不过去。
 // 导出：后台先报每类多少条，再一段段发记录，这里拼回整份。导入：这里先认格式、读出记录，
 // 再一段段发给后台合并，每段等后台回了才发下一段；计数按主键去重，和整份一次合并算出来的一样。
-import { BACKUP_KIND, BACKUP_VERSION, type Backup } from "../../core/backup/format.ts";
+// 导出交给下载、导入读所选文件也在这里，都回一句给用户看的结果。
+import { BACKUP_KIND, BACKUP_VERSION, backupText, readBackup, type Backup } from "../../core/backup/format.ts";
 import { joinParts, splitBackup, type BackupPart } from "../../core/backup/parts.ts";
 import { RECORD_KINDS, type ImportedBackup, type RecordKind } from "../../core/backup/records.ts";
 import { fail, ok, type ErrorCode, type Failure, type Result } from "../../core/errors.ts";
@@ -9,6 +10,7 @@ import type { PortEvent, PortName } from "../../shared/messages.ts";
 import type { BackupImportReply, ImportCount } from "../../shared/messages/data.ts";
 import type { PageApi, PagePort } from "../shared/api.ts";
 import type { UiLang } from "../shared/ui-lang.ts";
+import type { Status } from "./ai-status.ts";
 import { textOf } from "./text.ts";
 
 type Closed = { readonly type: "closed"; readonly code: ErrorCode };
@@ -73,27 +75,33 @@ interface Tally {
   skipped: number;
 }
 
-/** 把读好的备份一段段交给后台合并。计数：本次导入里先新增后又补过的仍算新增。 */
-export async function sendBackup(api: Pick<PageApi, "connect">, imported: ImportedBackup): Promise<Result<BackupImportReply>> {
+/** 选中文件就建立导入连接。读文件和合并都用这次连接，读不出文件时也要关掉。 */
+export async function withBackupImport<T>(
+  api: Pick<PageApi, "connect">,
+  run: (send: (imported: ImportedBackup) => Promise<Result<BackupImportReply>>) => Promise<T>,
+): Promise<T> {
+  const channel = open(api, "backup.import");
+  try {
+    return await run((imported) => sendBackup(channel, imported));
+  } finally {
+    channel.port.close();
+  }
+}
+
+/** 把读好的备份一段段交给后台合并，先新增后又补过的主键仍算新增。 */
+async function sendBackup({ port, next }: Channel<"backup.import">, imported: ImportedBackup): Promise<Result<BackupImportReply>> {
   const tallies = Object.fromEntries(
     RECORD_KINDS.map((kind) => [kind, { added: new Set<string>(), updated: new Set<string>(), skipped: imported.skipped[kind] }]),
   ) as Record<RecordKind, Tally>;
   const parts = splitBackup(imported.contents);
-  if (parts.length) {
-    const { port, next } = open(api, "backup.import");
-    try {
-      for (const [seq, part] of parts.entries()) {
-        if (!port.post({ type: "part", seq, kind: part.kind, records: part.records })) return fail(stopped(await next()));
-        const event = await next();
-        if (event.type !== "merged" || event.seq !== seq) return fail(stopped(event));
-        const tally = tallies[part.kind];
-        for (const key of event.added) tally.added.add(key);
-        for (const key of event.updated) tally.updated.add(key);
-        tally.skipped += event.skipped;
-      }
-    } finally {
-      port.close();
-    }
+  for (const [seq, part] of parts.entries()) {
+    if (!port.post({ type: "part", seq, kind: part.kind, records: part.records })) return fail(stopped(await next()));
+    const event = await next();
+    if (event.type !== "merged" || event.seq !== seq) return fail(stopped(event));
+    const tally = tallies[part.kind];
+    for (const key of event.added) tally.added.add(key);
+    for (const key of event.updated) tally.updated.add(key);
+    tally.skipped += event.skipped;
   }
   const counts = Object.fromEntries(
     RECORD_KINDS.map((kind) => {
@@ -118,4 +126,48 @@ export function backupFailureText(failure: Failure, kind: "export" | "import", f
   const t = textOf(lang).backup;
   if (failure.code === "BACKGROUND_DROPPED" || failure.code === "BACKGROUND_UNREACHABLE") return kind === "export" ? t.exportDropped : t.importDropped;
   return (kind === "export" ? t.exportFailed : t.importFailed)(failureText(failure));
+}
+
+/** 导出备份并交给下载，stamp 是文件名里的日期。回一句给用户看的结果。 */
+export async function exportBackupFile(
+  api: Pick<PageApi, "connect">,
+  download: (filename: string, chunks: readonly string[]) => void,
+  stamp: string,
+  failureText: (failure: Failure) => string,
+  lang: UiLang,
+): Promise<Status> {
+  const reply = await receiveBackup(api);
+  if (!reply.ok) return { text: backupFailureText(reply, "export", failureText, lang), tone: "error" };
+  const t = textOf(lang).backup;
+  download(t.fileName(stamp), backupText(reply.value));
+  const { notes, overviews, qa, translations } = reply.value;
+  return { text: t.exported({ notes: notes.length, overviews: overviews.length, qa: qa.length, translations: translations.length }), tone: "ok" };
+}
+
+/** 读所选的文件，认出是简幕的备份再分段交给后台合并。读文件时已经占着导入连接。回一句给用户看的结果。 */
+export function importBackupFile(
+  api: Pick<PageApi, "connect">,
+  readFile: () => Promise<string>,
+  failureText: (failure: Failure) => string,
+  lang: UiLang,
+): Promise<Status> {
+  const t = textOf(lang).backup;
+  return withBackupImport(api, async (send): Promise<Status> => {
+    let text: string;
+    try {
+      text = await readFile();
+    } catch {
+      return { text: t.unreadable, tone: "error" };
+    }
+    let payload: unknown;
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      return { text: t.notBackup, tone: "error" };
+    }
+    const read = readBackup(payload);
+    if (!read.ok) return { text: t.importFailed(failureText(read)), tone: "error" };
+    const reply = await send(read.value);
+    return reply.ok ? { text: importSummary(reply.value, lang), tone: "ok" } : { text: backupFailureText(reply, "import", failureText, lang), tone: "error" };
+  });
 }

@@ -9,7 +9,7 @@ import { memoryStorage } from "../../helpers/memory-storage.ts";
 
 // 定稿的清除表逐行抄在这里，不从实现里读：两边各写一份，改了哪一边都要对上才算核对过。
 const ROWS: readonly (readonly [string, Plan])[] = [
-  ["notes", { area: "indexeddb", clearCache: "keep", clearAll: "clear", backup: true }],
+  ["notes", { area: "indexeddb", clearNotes: true, clearCache: "keep", clearAll: "clear", backup: true }],
   ["overviews", { area: "indexeddb", clearCache: "keep", clearAll: "clear", backup: true }],
   ["qa", { area: "indexeddb", clearCache: "keep", clearAll: "clear", backup: true }],
   ["translations", { area: "indexeddb", clearCache: "keep", clearAll: "clear", backup: true }],
@@ -25,6 +25,7 @@ const ROWS: readonly (readonly [string, Plan])[] = [
   ["jianmu_settings", { area: "local", clearCache: "keep", clearAll: "clear", backup: false }],
   ["jianmu_api_key", { area: "session", clearCache: "keep", clearAll: "clear", backup: false }],
   ["jianmu_api_key_local", { area: "local", clearCache: "keep", clearAll: "clear", backup: false }],
+  ["jianmu_transcript_modes", { area: "session", clearCache: "keep", clearAll: "clear", backup: false }],
   ["jianmu_watch_sessions", { area: "session", clearCache: "keep", clearAll: "clear", backup: false }],
   ["jianmu_auto_ledger", { area: "session", clearCache: "keep", clearAll: "clear", backup: false }],
   ["jianmu_settings_revision", { area: "local", clearCache: "keep", clearAll: "renew", backup: false }],
@@ -38,7 +39,7 @@ function seeded() {
   return {
     stores: new Set<string>(["notes", "overviews", "qa", "cache", "translations", "imports", "channels"]),
     local: memoryStorage({
-      jianmu_settings: { accent: "ochre" },
+      jianmu_settings: { accent: "redblack" },
       jianmu_triage: { items: [] },
       jianmu_model_caps: { models: {} },
       jianmu_api_key_local: { version: 1, key: "test-key" },
@@ -49,6 +50,7 @@ function seeded() {
       jianmu_relaxed_params: { someModel: { temperature: false } },
       jianmu_usage: { analysis: { effort: "high", model: "some-model", usage: { input: 10, output: 5 } } },
       jianmu_auto_ledger: { attempts: 1 },
+      jianmu_transcript_modes: [{ video: "youtube:sample12345", mode: "bilingual" }],
       jianmu_watch_sessions: { 7: { mode: "skim" } },
     }),
   };
@@ -61,6 +63,10 @@ async function runClear(world: ReturnType<typeof seeded>, scope: ClearScope) {
   await world.session.remove(targets.session);
   return targets;
 }
+
+test("删除全部笔记的范围只有笔记仓库", () => {
+  assert.deepEqual(clearTargets("notes"), { stores: ["notes"], local: [], session: [], renew: [] });
+});
 
 test("清除缓存：只清字幕缓存、粗筛、模型能力、放宽记录和用量，笔记、概览、问答、设置和密钥都在", async () => {
   const world = seeded();
@@ -75,9 +81,10 @@ test("清除缓存：只清字幕缓存、粗筛、模型能力、放宽记录�
   assert.deepEqual(Object.keys(world.session.data).sort(), [
     "jianmu_api_key",
     "jianmu_auto_ledger",
+    "jianmu_transcript_modes",
     "jianmu_watch_sessions",
   ]);
-  assert.deepEqual(world.local.data["jianmu_settings"], { accent: "ochre" });
+  assert.deepEqual(world.local.data["jianmu_settings"], { accent: "redblack" });
   assert.deepEqual(targets.renew, [], "清除缓存不换修订号");
 });
 
@@ -95,8 +102,8 @@ test("清除全部数据：每个仓库、storage.local 和会话存储一个不
   assert.deepEqual(world.local.data, { jianmu_settings_revision: "revision-new" });
 });
 
-test("清除全部数据留着退避状态：两种清除都不碰它", () => {
-  for (const scope of ["cache", "all"] as const) {
+test("清除全部数据留着退避状态：三种清除都不碰它", () => {
+  for (const scope of ["cache", "notes", "all"] as const) {
     const targets = clearTargets(scope);
     assert.equal(targets.session.includes("jianmu_site_backoff"), false, scope);
     assert.equal(targets.local.includes("jianmu_site_backoff"), false, scope);
@@ -115,7 +122,7 @@ test("清除全部后留下新的设置修订号", async () => {
   assert.deepEqual(world.session.data, {});
 });
 
-test("清除表逐项核对：每个仓库和键的放处、两种清除和备份都对得上", () => {
+test("清除表逐项核对：每个仓库和键的放处、三种清除和备份都对得上", () => {
   assert.deepEqual(Object.keys(STORAGE_PLAN).sort(), ROWS.map(([name]) => name).sort());
   const plans: Readonly<Record<string, Plan>> = STORAGE_PLAN;
   for (const [name, plan] of ROWS) assert.deepEqual(plans[name], plan, name);

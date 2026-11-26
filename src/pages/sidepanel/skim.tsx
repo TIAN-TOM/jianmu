@@ -1,25 +1,31 @@
-// 速读：一句话结论在最上面，然后是模型生成的章节，每章展开看要点、金句和这一段的字幕，再是视频网站的官方总结和 UP 主分段。
-// 还没有概览时先摆官方总结和 UP 主分段，下面是「生成概览」和字幕。长视频边生成边显示，能停止、补失败块、重新生成；
+// 速读：一句话结论在最上面，然后是模型生成的章节，每章展开看要点、金句和这一段的字幕，再是 B 站的官方总结和 UP 主分段。
+// 还没有概览时先摆官方总结和 UP 主分段，下面是「生成概览」和字幕。长视频边生成边显示，能停止、补上缺的部分、重新生成；
 // 没有结论时可以只用官方总结写一句。换过字幕时，依据旧字幕写的结论和章节标「基于旧字幕」，不删不改。
+// AI 服务没设置好时，「生成概览」的位置是一个去设置页的主按钮，按缺什么写；本窗口全部生成这时不摆。
+// 「导出学习稿」有东西可导才摆。YouTube 上还没读到字幕时「生成概览」照样能点：先经视频页读字幕（和卡片同一条路），读完接着生成，
+// 生成完把读到的字幕摆出来；只想看字幕的照旧点下面的「读取字幕」（开发者本人 2026-11-25 定）。
 import { groupQuotesIntoChapters, type ChapterPart, type QuotePart } from "../../core/ai/chunking.ts";
 import { keyChapterStarts } from "../../core/ai/verdict.ts";
 import type { LearningAnalysis } from "../../core/notes/markdown.ts";
 import { breaksToShow, lineBreaks, splitRuns } from "../../core/transcript/lines.ts";
 import { formatTimestamp, type TranscriptSegment } from "../../core/transcript/segment.ts";
 import type { CueView } from "../../shared/messages/transcript.ts";
-import { useMemo, useState } from "preact/hooks";
+import { useMemo, useRef, useState } from "preact/hooks";
 import { Button } from "../shared/ui/button.tsx";
 import { ChapterList } from "../shared/ui/chapter-list.tsx";
+import { CommentBlock, commentNotes, commentViewOfVerdict } from "../shared/ui/comment-block.tsx";
 import { ServiceSaid } from "../shared/ui/notice.tsx";
 import { StaleTranscriptLine, VerdictBlock } from "../shared/ui/verdict-block.tsx";
 import { staleOverviewMarks, type BasisSource } from "../shared/ui/verdict.ts";
-import { BatchBar } from "./batch-bar.tsx";
+import { BatchBar, BatchStart } from "./batch-bar.tsx";
 import { downloadText, learningExport } from "./files.ts";
 import { CreatorChapters, OfficialSummary } from "./guides.tsx";
 import type { Panel } from "./panel.ts";
 import { segmentsBetween } from "./reading.ts";
+import { readsFirst } from "./generate-read.ts";
+import { SettingsExit } from "./settings-exit.tsx";
 import { TranscriptTab } from "./transcript-tab.tsx";
-import { setupReason } from "../shared/config.ts";
+import { needsSetup, setupAction, setupReason } from "../shared/config.ts";
 import { sharedText } from "../shared/text.ts";
 import { uiLang } from "../shared/ui-lang.ts";
 import { noteStored, panelText } from "./text.ts";
@@ -78,18 +84,39 @@ function ChapterTranscript({ panel, segments, breaks }: { readonly panel: Panel;
   );
 }
 
-function Chapters({ panel, analysis, segments, cues }: { readonly panel: Panel; readonly analysis: LearningAnalysis; readonly segments: readonly TranscriptSegment[]; readonly cues: readonly CueView[] }) {
+// 评论区那一块（PRD F23）：关掉开关的构建里连同组件和文案一起裁掉。
+const Comments = FEATURE_COMMENTS ? CommentBlock : null;
+const notesOf = FEATURE_COMMENTS ? commentNotes : null;
+const commentsOf = FEATURE_COMMENTS ? commentViewOfVerdict : null;
+
+function Chapters({
+  panel,
+  analysis,
+  segments,
+  cues,
+  totalSec,
+}: {
+  readonly panel: Panel;
+  readonly analysis: LearningAnalysis;
+  readonly segments: readonly TranscriptSegment[];
+  readonly cues: readonly CueView[];
+  readonly totalSec: number | undefined;
+}) {
   const breaks = useMemo(() => lineBreaks(segments, cues), [segments, cues]);
   const [expanded, setExpanded] = useState<readonly number[]>([]);
   const chapters = (analysis.chapters ?? []).filter((chapter): chapter is ChapterPart => Number.isFinite(chapter.timestampSeconds));
   const quotes = (analysis.keyQuotes ?? []).filter((quote) => text(quote.quote));
   const { grouped, orphans: loose } = groupQuotesIntoChapters(chapters, quotes);
   const groups = grouped.map((group) => group.quotes);
+  const comments = commentsOf?.(analysis.verdict) ?? null;
+  const notes = notesOf && comments ? notesOf(comments, chapters.map((chapter) => chapter.timestampSeconds)) : undefined;
   return (
     <>
       {chapters.length > 0 ? (
         <ChapterList
           keyStarts={keyChapterStarts(analysis)}
+          notes={notes}
+          totalSec={totalSec}
           chapters={chapters.map((chapter) => ({ startSec: chapter.timestampSeconds, title: text(chapter.title) || formatTimestamp(chapter.timestampSeconds) }))}
           expanded={expanded}
           onToggle={(index) => setExpanded(expanded.includes(index) ? expanded.filter((item) => item !== index) : [...expanded, index])}
@@ -107,9 +134,10 @@ function Chapters({ panel, analysis, segments, cues }: { readonly panel: Panel; 
           )}
         />
       ) : null}
+      {Comments && comments ? <Comments view={comments} /> : null}
       {loose.length > 0 ? (
         <section class="guide" aria-label={panelText().skim.quotes}>
-          <h3 class="section-title">{panelText().skim.quotes}</h3>
+          <h2 class="section-title">{panelText().skim.quotes}</h2>
           <ul class="quotes">
             {loose.map((quote) => (
               <Quote key={quote.quote} panel={panel} quote={quote} />
@@ -134,11 +162,14 @@ function Verdict({
   readonly failures: number;
   readonly stale: boolean;
 }) {
-  const { verdictTask } = panel.overview.state.value;
+  const { verdictTask, task } = panel.overview.state.value;
   const p = panelText();
   const verdict = analysis?.verdict;
   const summary = text(verdict?.summary);
   const source = text(verdict?.source);
+  // 这一屏上等过它（在写结论，或者还没有结论时在生成概览）：写好了进来时有「有结果了」那一下。
+  const waited = useRef(false);
+  if (verdictTask || (task && !summary)) waited.current = true;
   if (verdictTask) {
     return (
       <div class="progress-row" role="status">
@@ -157,6 +188,7 @@ function Verdict({
         basis={BASIS.find((item) => item === source) ?? null}
         staleTranscript={stale}
         incomplete={failures > 0 || verdict?.incomplete === true}
+        fresh={waited.current}
       />
     );
   }
@@ -185,6 +217,13 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
   const hasChapters = Boolean(analysis?.chapters?.length);
   const hasOverview = Boolean(analysis && (hasChapters || analysis.keyQuotes?.length));
   const notReady = ready ? undefined : setupReason(config, uiLang.value);
+  const setup = needsSetup(config);
+  // YouTube 上本机还没有字幕：能代开文字稿面板的构建里，点「生成概览」先经视频页读字幕。
+  const { tabId } = panel.follow.target.value;
+  const readFirst = FEATURE_YOUTUBE_OPEN_PANEL ? readsFirst(transcript, tabId) : false;
+  // 生成完以后从本机补字幕的那一步挂在侧边栏的状态上（generate-read.ts）：切到精读、这个视图卸掉了也照样补。
+  const generate = (): void => void (readFirst && tabId !== null ? panel.overview.generate(false, tabId) : panel.overview.generate(false));
+  const canGenerate = transcript.state === "ready" || readFirst;
   const t = panelText().skim;
   const verdictShown = !state.verdictTask && text(state.saved?.analysis.verdict?.summary) !== "";
   const stale = staleOverviewMarks(state.saved?.transcriptBasis, view?.transcript.ref.fingerprint, verdictShown);
@@ -196,22 +235,22 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
     </>
   );
 
+  const notes = panel.notes.state.value;
+  const learning = (exportedAt: number) => ({
+    title: info?.title ?? "",
+    author: info?.author ?? "",
+    ...(state.video ? { videoKey: state.video } : {}),
+    exportedAt,
+    analysis: state.saved?.analysis ?? null,
+    analysisFailures: state.saved?.analysisFailures ?? [],
+    officialSummary: official?.status === "ok" ? official : null,
+    creatorChapters: chapters ?? [],
+    notes: notes.scope === "video" ? notes.notes : [],
+  });
+  // 有东西可导才摆按钮：概览、官方总结、UP 主分段、本视频的笔记，一样都没有时导出是空的。
+  const canExport = useMemo(() => learningExport(learning(0), "zh") !== null, [state.saved, official, chapters, notes]);
   const exportLearning = (): void => {
-    const notes = panel.notes.state.peek();
-    const file = learningExport(
-      {
-        title: info?.title ?? "",
-        author: info?.author ?? "",
-        ...(state.video ? { videoKey: state.video } : {}),
-        exportedAt: Date.now(),
-        analysis: state.saved?.analysis ?? null,
-        analysisFailures: state.saved?.analysisFailures ?? [],
-        officialSummary: official?.status === "ok" ? official : null,
-        creatorChapters: chapters ?? [],
-        notes: notes.scope === "video" ? notes.notes : [],
-      },
-      uiLang.peek(),
-    );
+    const file = learningExport(learning(Date.now()), uiLang.peek());
     if (!file) return panel.say(t.nothingToExport);
     downloadText(file.fileName, file.markdown, "text/markdown");
   };
@@ -234,16 +273,18 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
         </p>
       ) : null}
       {state.error ? <ServiceSaid said={state.errorSaid} /> : null}
-      {state.result?.failedChunks ? <p class="note-line">{t.failedChunks(state.result.failedChunks)}</p> : null}
+      {state.error ? <SettingsExit panel={panel} code={state.errorCode} /> : null}
+      {state.result?.failedChunks ? <p class="note-line">{t.failedChunks}</p> : null}
       {state.result?.saveFailed ? <p class="note-line">{t.saveFailed}</p> : null}
-      {state.result?.canceled ? <p class="note-line">{t.canceled(state.result.savedChunks ?? 0)}</p> : null}
+      {state.result?.canceled ? <p class="note-line">{t.canceled}</p> : null}
       {hasOverview ? null : guides}
       <section class="ai-overview" aria-label={t.overviewLabel}>
         {stale.chapters && hasOverview && !running ? <StaleTranscriptLine /> : null}
-        {analysis && hasOverview ? <Chapters panel={panel} analysis={analysis} segments={view?.transcript.segments ?? NO_SEGMENTS} cues={view?.transcript.cues ?? NO_CUES} /> : null}
-        {!running && state.loaded ? (
-          <div class="state-actions">
-            {hasChapters ? (
+        {analysis && hasOverview ? <Chapters panel={panel} analysis={analysis} segments={view?.transcript.segments ?? NO_SEGMENTS} cues={view?.transcript.cues ?? NO_CUES} totalSec={info?.durationSec} /> : null}
+        {/* 这个视频正在生成时，这排只留「本窗口全部生成」：别的视频照样能一起清点。 */}
+        {state.loaded && (!running || (!setup && panel.batch.state.value.phase === "idle")) ? (
+          <div class="state-actions overview-actions">
+            {running ? null : hasChapters ? (
               <>
                 {failures > 0 ? (
                   <Button onClick={() => void panel.overview.retryFailed()} disabled={!ready} {...(notReady ? { disabledReason: notReady } : {})}>
@@ -254,14 +295,21 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
                   {t.regenerate}
                 </Button>
               </>
+            ) : setup ? (
+              <Button variant="primary" onClick={() => panel.openSettingsAt("ai-service")}>
+                {setupAction(config, uiLang.value)}
+              </Button>
             ) : (
-              <Button variant="primary" onClick={() => void panel.overview.generate(false)} disabled={!ready || transcript.state !== "ready"} {...(notReady ? { disabledReason: notReady } : transcript.state !== "ready" ? { disabledReason: t.needTranscript } : {})}>
+              <Button variant="primary" onClick={generate} disabled={!ready || !canGenerate} {...(notReady ? { disabledReason: notReady } : !canGenerate ? { disabledReason: t.needTranscript } : {})}>
                 {t.generate}
               </Button>
             )}
-            <Button variant="text" onClick={exportLearning}>
-              {t.exportStudy}
-            </Button>
+            {setup ? null : <BatchStart panel={panel} ready={ready} />}
+            {!running && canExport ? (
+              <Button variant="text" onClick={exportLearning}>
+                {t.exportStudy}
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </section>

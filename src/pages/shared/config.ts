@@ -60,6 +60,16 @@ export function setupReason(state: ConfigState, lang: UiLang = "zh"): string | u
   return pick(sharedTextOf(lang).setup.reason, missingOf(state));
 }
 
+/** 检查过、确实没设置好：要用 AI 的按钮这时换成去设置页的出口，或者先不摆。还没问到、问失败了都不算。 */
+export function needsSetup(state: ConfigState): boolean {
+  return state.state === "checked" && !state.view.ready;
+}
+
+/** 没设置好时摆在「生成概览」位置上的按钮写什么：缺密钥、缺同意各说各的，其余说去设置 AI 服务。 */
+export function setupAction(state: ConfigState, lang: UiLang = "zh"): string {
+  return pick(sharedTextOf(lang).setup.action, missingOf(state));
+}
+
 /** 卡片上生成概览按钮旁的说明。 */
 export function cardSetupHint(state: ConfigState, lang: UiLang = "zh"): string {
   return pick(sharedTextOf(lang).setup.card, missingOf(state));

@@ -3,7 +3,9 @@
 // 表从第 1 版起，扩大范围就升版、加一行，存着的版本和指纹表里认不出就按第一次处理；tests/fixtures/consent-fingerprints.json 的快照拦下没留意的变化。
 // 跟着构建开关走的条目放在单独的模块里，只从开关分支引用：开关关着的构建连措辞都不进包。
 // 每个条目的措辞中文（text）、英文（en）并排写，并显示的合成措辞也一样（combined、combinedEn）；英文不进指纹，加英文不用升版。
-// 繁体措辞按条目的 kind:id 另建表，放在 consent-hant.ts（画面那几条在 consent-frame-hant.ts），同样不进指纹。
+// 繁体措辞按条目的 kind:id 另建表，放在 consent-hant.ts（画面那几条在 consent-frame-hant.ts，评论区那几条在 consent-comments-hant.ts），同样不进指纹。
+import { COMMENT_ACTIVATION_ITEMS, COMMENT_DATA_ITEMS } from "./consent-comments.ts";
+import { COMMENT_ACTIVATION_HANT, COMMENT_DATA_HANT } from "./consent-comments-hant.ts";
 import { FRAME_ACTIVATION_ITEMS, FRAME_DATA_ITEMS } from "./consent-frame.ts";
 import { FRAME_ACTIVATION_HANT, FRAME_DATA_HANT } from "./consent-frame-hant.ts";
 import { ACTIVATION_HANT, DATA_CONSENT_ERROR_HANT, DATA_CONSENT_HANT } from "./consent-hant.ts";
@@ -166,15 +168,20 @@ const DATA_CONSENT_V1 = [
   },
 ] as const satisfies readonly NoticeItem<DataConsentKind>[];
 
-export const DATA_CONSENT_TABLE: NoticeTable<DataConsentKind> = [{ version: 1, items: [...DATA_CONSENT_V1, ...(FEATURE_FRAME_EXPLAIN ? FRAME_DATA_ITEMS : [])] }];
+// 评论区那几条只在开着 FEATURE_COMMENTS 的构建里（日用包），单独成一版：日用包认得出存着的第 1 版，只把评论这一条列成新增的。
+// 发行构建里没有这一版，仍然只有第 1 版；评论区进对外的包时，按那时是否已经首发并进第 1 版或升版（PRD 第 7.2 节）。
+export const DATA_CONSENT_TABLE: NoticeTable<DataConsentKind> = [
+  { version: 1, items: [...DATA_CONSENT_V1, ...(FEATURE_FRAME_EXPLAIN ? FRAME_DATA_ITEMS : [])] },
+  ...(FEATURE_COMMENTS ? [{ version: 2, items: COMMENT_DATA_ITEMS }] : []),
+];
 
 const ACTIVATION_V1 = [
   { kind: "read", id: "video-info", text: "视频信息：标题、作者和频道、时长、简介", en: "Video details: title, creator and channel, length, and description" },
   {
     kind: "read",
     id: "transcript",
-    text: "字幕。YouTube 上读观看页文字稿面板里显示的内容，面板没开时替你点开，打开就出结论、本窗口全部生成和卡片上的「生成概览」点开的读完替你关上；另读播放器上已有的字幕轨列表，标出语言和是不是自动生成",
-    en: "Subtitles. On YouTube, Jianmu reads what's shown in the transcript panel on the watch page and opens the panel for you if it's closed. If Verdict on open, Generate all in this window or “Generate overview” on the card opened it, Jianmu closes it again after reading. It also reads the list of subtitle tracks the player already has, noting each track's language and whether it's auto-generated",
+    text: "字幕。YouTube 上读观看页文字稿面板里显示的内容，面板没开时替你点开，打开就出结论、本窗口全部生成和卡片、侧边栏上的「生成概览」点开的读完替你关上；页面上没有文字稿时，改用播放器取回的字幕（页面里的脚本留着播放器最近取回的两份），需要时替你打开字幕、读完关上；另读播放器上已有的字幕轨列表，标出语言和是不是自动生成",
+    en: "Subtitles. On YouTube, Jianmu reads what's shown in the transcript panel on the watch page and opens the panel for you if it's closed. If Verdict on open, Generate all in this window or “Generate overview” on the card or in the side panel opened it, Jianmu closes it again after reading. If the page has no transcript, Jianmu uses the subtitles the player has loaded (a script in the page keeps the two most recent ones), turning subtitles on for you if needed and off again after reading. It also reads the list of subtitle tracks the player already has, noting each track's language and whether it's auto-generated",
   },
   { kind: "read", id: "official-summary", text: "B 站官方总结和 UP 主分段", en: "Bilibili official summaries and the creator's own chapters" },
   { kind: "read", id: "watch-state", text: "观看状态：播放、暂停、累计播放时长", en: "Viewing status: playing, paused, and total time played" },
@@ -196,7 +203,10 @@ const ACTIVATION_V1 = [
   },
 ] as const satisfies readonly NoticeItem<ActivationKind>[];
 
-export const ACTIVATION_TABLE: NoticeTable<ActivationKind> = [{ version: 1, items: [...ACTIVATION_V1, ...(FEATURE_FRAME_EXPLAIN ? FRAME_ACTIVATION_ITEMS : [])] }];
+export const ACTIVATION_TABLE: NoticeTable<ActivationKind> = [
+  { version: 1, items: [...ACTIVATION_V1, ...(FEATURE_FRAME_EXPLAIN ? FRAME_ACTIVATION_ITEMS : [])] },
+  ...(FEATURE_COMMENTS ? [{ version: 2, items: COMMENT_ACTIVATION_ITEMS }] : []),
+];
 
 const FNV_OFFSET = 0xcbf29ce484222325n;
 const FNV_PRIME = 0x100000001b3n;
@@ -270,6 +280,8 @@ const NOTICE_HANT: NoticeHantTable = {
   ...ACTIVATION_HANT,
   ...(FEATURE_FRAME_EXPLAIN ? FRAME_DATA_HANT : {}),
   ...(FEATURE_FRAME_EXPLAIN ? FRAME_ACTIVATION_HANT : {}),
+  ...(FEATURE_COMMENTS ? COMMENT_DATA_HANT : {}),
+  ...(FEATURE_COMMENTS ? COMMENT_ACTIVATION_HANT : {}),
 };
 
 /** 一个条目的繁体措辞。各张措辞表的类型保证每个条目都有，查不到说明传进来的不是表里的条目。 */

@@ -270,7 +270,7 @@ test("放宽记忆：请求开始后清除过缓存就不记；清除时 forget 
 });
 
 test("sendChatWithRelax：请求开始时记下清除代数，成功后带着它去记放宽项", async () => {
-  const EPOCH_AT_START: ClearEpoch = { cache: 7, all: 3 };
+  const EPOCH_AT_START: ClearEpoch = { cache: 7, notes: 3, all: 3 };
   const seen: unknown[] = [];
   const memory: RelaxMemory = {
     ready: async () => {},
