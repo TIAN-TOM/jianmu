@@ -14,6 +14,7 @@ import type { PageApi } from "../shared/api.ts";
 import type { ConfigState } from "../shared/config.ts";
 import type { UiLang } from "../shared/ui-lang.ts";
 import { createFold } from "./fold.ts";
+import { chaptersInOrder, hasOverview } from "./rows.ts";
 import { conclusionOf, createGlance } from "./glance.ts";
 import { cardTextOf } from "./text.ts";
 import { CARD_ZH } from "./text-zh.ts";
@@ -43,6 +44,8 @@ export interface CardDeps {
   /** 界面语言：状态按写出来那一刻的语言写。不给时是中文。 */
   readonly lang?: () => UiLang;
 }
+
+export { CARD_ROWS, cardRows, chaptersInOrder, hasOverview } from "./rows.ts";
 
 export type Tone = "" | "warn" | "error";
 
@@ -83,6 +86,8 @@ export interface CardView {
   readonly showAll: boolean;
   /** 有 AI 概览时 B 站官方总结收成一行，点开才露。换了视频回到收着。 */
   readonly officialOpen: boolean;
+  /** 评论区那一行点开了，露出要点。换了视频回到收着。 */
+  readonly commentsOpen: boolean;
   /** 这个视频的内容还在来：按钮行先不摆。 */
   readonly holdActions: boolean;
   /** 本窗口的侧边栏开着：卡片上不摆打开侧边栏的入口。 */
@@ -91,14 +96,6 @@ export interface CardView {
   readonly chapterNow: number | null;
   /** 收起的那一行上临时说的一句话，没有时是空串。 */
   readonly headNote: string;
-}
-
-/** 章节和官方提纲默认露几条：卡片嵌在右栏里，太高会把下面的选集和推荐顶下去。 */
-export const CARD_ROWS = 5;
-
-/** 默认露出来的那几条。只多出一条时不藏：为一条去点「展开全部」不值当。 */
-export function cardRows<T>(rows: readonly T[], showAll: boolean): readonly T[] {
-  return showAll || rows.length <= CARD_ROWS + 1 ? rows : rows.slice(0, CARD_ROWS);
 }
 
 const INITIAL: CardView = {
@@ -119,6 +116,7 @@ const INITIAL: CardView = {
   notice: null,
   showAll: false,
   officialOpen: false,
+  commentsOpen: false,
   holdActions: false,
   panelOpen: false,
   chapterNow: null,
@@ -132,19 +130,6 @@ const HIDDEN_CODES: ReadonlySet<ErrorCode> = new Set(["NOT_ENABLED", "CARD_DISAB
 export const NO_CAPTIONS_TEXT = CARD_ZH.noCaptions;
 export const NEED_LOGIN_TEXT = CARD_ZH.needLogin;
 export const NOT_READ_TEXT = CARD_ZH.notRead;
-
-/** 有章节或金句才算已经有概览；只有一句话结论的，「生成概览」照样留着。 */
-export function hasOverview(analysis: LearningAnalysis | null): boolean {
-  return Boolean(analysis?.chapters?.length || analysis?.keyQuotes?.length);
-}
-
-/** 章节按开始时间排好：收起那一行写「第几章」用，和侧边栏精读顶上那一条同一个顺序。 */
-export function chaptersInOrder(analysis: LearningAnalysis | null): readonly { readonly startSec: number; readonly title: string }[] {
-  return (analysis?.chapters ?? [])
-    .filter((chapter) => Number.isFinite(chapter.timestampSeconds))
-    .map((chapter) => ({ startSec: chapter.timestampSeconds, title: typeof chapter.title === "string" ? chapter.title.trim() : "" }))
-    .sort((a, b) => a.startSec - b.startSec);
-}
 
 const keyOf = (ref: VideoRef | null): VideoKey | null => {
   try {
@@ -219,7 +204,7 @@ export function createCardModel(deps: CardDeps) {
     savedBasis = null;
     actionRow.reset();
     glance.say("");
-    patch({ phase, title: "", official: null, analysis: null, transcriptBasis: null, transcriptFingerprint: null, verdictPending: false, noCaptions: false, notRead: false, task: null, settingsError: false, notice: null, showAll: false, officialOpen: false, holdActions: false });
+    patch({ phase, title: "", official: null, analysis: null, transcriptBasis: null, transcriptFingerprint: null, verdictPending: false, noCaptions: false, notRead: false, task: null, settingsError: false, notice: null, showAll: false, officialOpen: false, commentsOpen: false, holdActions: false });
   }
 
   function syncVideo(url: string): void {
@@ -481,6 +466,7 @@ export function createCardModel(deps: CardDeps) {
     },
     toggleShowAll: (): void => patch({ showAll: !view.peek().showAll }),
     toggleOfficial: (): void => patch({ officialOpen: !view.peek().officialOpen }),
+    toggleComments: (): void => patch({ commentsOpen: !view.peek().commentsOpen }),
     seek(atSec: number): void {
       if (tab && video) deps.seek(tab.id, video, Math.floor(atSec));
     },

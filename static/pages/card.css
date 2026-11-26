@@ -307,6 +307,18 @@ body {
   color: var(--text);
 }
 
+/* 评论区那一行（PRD F23）有要点时整行是开关：字照旧是正文的样子，只多一个小箭头。 */
+.comment-fold-head {
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.comment-fold-head .comment-line {
+  flex: 1;
+  min-width: 0;
+}
+
 .card-fold-head .card-chevron {
   transform: rotate(-45deg);
 }

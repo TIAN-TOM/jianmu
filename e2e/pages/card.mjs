@@ -388,6 +388,22 @@ test("卡片：换过字幕时结论块标「基于旧字幕」，章节和结�
   assert.equal(fresh.basis, "", "依据字幕是常态，卡片不标");
 });
 
+test("卡片：结论带着评论区时，口碑那一行默认收着、点开露出要点，要点再点开露出原评论", async ({ open }) => {
+  const page = await open(`${SAMPLE}#comments`);
+  const read = () => page.evaluate(`(() => ({
+    line: document.querySelector("#card-overview .comment-fold-head")?.textContent ?? "",
+    expanded: document.querySelector("#card-overview .comment-fold-head")?.getAttribute("aria-expanded") ?? null,
+    points: [...document.querySelectorAll("#card-comment-points .comment-point-text")].map((node) => node.textContent),
+  }))()`);
+  assert.deepEqual(await read(), { line: "有争议样例评论区的一句话", expanded: "false", points: [] });
+  await page.evaluate(`(document.querySelector("#card-overview .comment-fold-head").click(), true)`);
+  await page.waitFor("点开露出要点", `document.querySelectorAll("#card-comment-points .comment-point-text").length === 2`);
+  assert.equal((await read()).expanded, "true");
+  await page.evaluate(`(document.querySelector("#card-comment-points .comment-point summary").click(), true)`);
+  await page.waitFor("要点点开露出原评论", `document.querySelector("#card-comment-points .comment-quote-text")?.textContent === "样例原评论一"`);
+  assert.equal(await page.evaluate(`document.querySelector("#card-comment-points .comment-quote-meta")?.textContent ?? ""`), "置顶 · 赞 120");
+});
+
 test("卡片：配好过、密钥随浏览器重启清空时，说明直说要到设置页重新填密钥、提一句记住密钥，「打开设置」是主按钮，不摆「生成概览」", async ({ open }) => {
   const page = await open(`${SAMPLE}#setup-key`);
   const shown = await page.evaluate(`(() => ({

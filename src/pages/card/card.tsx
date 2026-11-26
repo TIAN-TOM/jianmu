@@ -1,4 +1,4 @@
-// 卡片的界面：标题栏（展开收起）、提示、AI 概览（结论在最前，章节默认只露前几章）、B 站官方总结（有概览时收成一行）、进度和底部一行。
+// 卡片的界面：标题栏（展开收起）、提示、AI 概览（结论在最前，评论区那一行点开露出要点，章节默认只露前几章）、B 站官方总结（有概览时收成一行）、进度和底部一行。
 // 标题栏展开时写名字，收起时写判断记号、判断档和一句话结论（没有结论时写播放到的章节，或者临时的一句话），旁边是打开侧边栏的入口；侧边栏开着时不摆这个入口。
 // 底部一行左边是章节的「展开全部」，右边是按钮。按钮在内容还在来时先不摆（规则在 model.ts），摆出来以后不被晚到的内容顶走。
 // 各套主题的版面差异都在样式表里，标记不分主题。
@@ -12,7 +12,7 @@ import type { OfficialSummaryView, OutlineSectionView } from "../../shared/messa
 import { keyChapterStarts, verdictName } from "../../core/ai/verdict.ts";
 import { ChapterList, type ChapterItem } from "../shared/ui/chapter-list.tsx";
 import { Collapse } from "../shared/ui/collapse.tsx";
-import { CommentLine, commentViewOfVerdict } from "../shared/ui/comment-block.tsx";
+import { CommentFold, commentViewOfVerdict } from "../shared/ui/comment-block.tsx";
 import { Icon, VerdictMark } from "../shared/ui/icon.tsx";
 import { ServiceSaid } from "../shared/ui/notice.tsx";
 import { StaleTranscriptLine, VerdictBlock } from "../shared/ui/verdict-block.tsx";
@@ -22,8 +22,8 @@ import { cardRows, chaptersInOrder, hasOverview, type CardView, type TaskProgres
 import { conclusionOf } from "./glance.ts";
 import { cardText } from "./text.ts";
 
-// 评论区那一行（PRD F23）：关掉开关的构建里连同组件和文案一起裁掉。
-const CardComments = FEATURE_COMMENTS ? CommentLine : null;
+// 评论区那一行（PRD F23），有要点时点开才露：关掉开关的构建里连同组件和文案一起裁掉。
+const CardComments = FEATURE_COMMENTS ? CommentFold : null;
 const commentsOf = FEATURE_COMMENTS ? commentViewOfVerdict : null;
 
 type ClickEvent = { readonly isTrusted: boolean };
@@ -136,6 +136,8 @@ function Overview({
   stale,
   pending,
   showAll,
+  commentsOpen,
+  onToggleComments,
   onSeek,
 }: {
   readonly analysis: LearningAnalysis;
@@ -143,6 +145,8 @@ function Overview({
   readonly stale: { readonly verdict: boolean; readonly chapters: boolean };
   readonly pending: boolean | string;
   readonly showAll: boolean;
+  readonly commentsOpen: boolean;
+  readonly onToggleComments: () => void;
   readonly onSeek: (atSec: number) => void;
 }) {
   const verdict = analysis.verdict;
@@ -168,7 +172,7 @@ function Overview({
       ) : summary ? (
         <VerdictBlock label={text(verdict?.verdict)} text={summary} basis={basisOf(analysis)} staleTranscript={stale.verdict} incomplete={verdict?.incomplete === true} fresh={waited.current} />
       ) : null}
-      {CardComments && comments && summary && !pending ? <CardComments view={comments} /> : null}
+      {CardComments && comments && summary && !pending ? <CardComments view={comments} open={commentsOpen} onToggle={onToggleComments} /> : null}
       {stale.chapters && shown.length ? <StaleTranscriptLine /> : null}
       {shown.length ? <ChapterList chapters={shown} keyStarts={keyChapterStarts(analysis)} heading={false} onSeek={onSeek} /> : null}
     </section>
@@ -221,6 +225,7 @@ export interface CardActions {
   readonly seek: (atSec: number) => void;
   readonly toggleShowAll: () => void;
   readonly toggleOfficial: () => void;
+  readonly toggleComments: () => void;
 }
 
 /** 点了展开而内容还在读：最多等这么久再打开，读到了就直接从标题栏长到内容那么高，不先露一行「正在读取」。 */
@@ -317,6 +322,8 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
               stale={staleOverviewMarks(view.transcriptBasis ?? undefined, view.transcriptFingerprint, !view.verdictPending && text(analysis.verdict?.summary) !== "")}
               pending={view.verdictPending}
               showAll={view.showAll}
+              commentsOpen={view.commentsOpen}
+              onToggleComments={actions.toggleComments}
               onSeek={actions.seek}
             />
           ) : null}

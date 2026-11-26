@@ -694,7 +694,7 @@ test("后台打开的标签页：第一次切到前台才读", async () => {
   assert.equal(fake.attempts("transcript.get"), 1);
 });
 
-test("默认只露前几条、官方总结收着：点了才全露，换了视频回到默认；生成中的提示不重复进度行上的块数", async () => {
+test("默认只露前几条、官方总结和评论区要点收着：点了才全露，换了视频回到默认；生成中的提示不重复进度行上的块数", async () => {
   assert.equal(CARD_ROWS, 5);
   // 多出两条以上才藏；只多一条时全露，不为一条去点「展开全部」。
   const rows = (count: number) => Array.from({ length: count }, (_, index) => index);
@@ -707,10 +707,11 @@ test("默认只露前几条、官方总结收着：点了才全露，换了视�
   model.configChanged();
   await model.start();
   assert.ok(await until(() => model.view.value.phase === "loaded"));
-  assert.deepEqual([model.view.value.showAll, model.view.value.officialOpen], [false, false]);
+  assert.deepEqual([model.view.value.showAll, model.view.value.officialOpen, model.view.value.commentsOpen], [false, false, false]);
   model.toggleShowAll();
   model.toggleOfficial();
-  assert.deepEqual([model.view.value.showAll, model.view.value.officialOpen], [true, true]);
+  model.toggleComments();
+  assert.deepEqual([model.view.value.showAll, model.view.value.officialOpen, model.view.value.commentsOpen], [true, true, true]);
   model.toggleShowAll();
   assert.equal(model.view.value.showAll, false);
   model.toggleShowAll();
@@ -718,7 +719,7 @@ test("默认只露前几条、官方总结收着：点了才全露，换了视�
   fake.reply("transcript.get", { value: guides(videoKey(SECOND)) });
   model.urlChanged("https://www.bilibili.com/video/BV1Sample002");
   assert.ok(await until(() => model.view.value.phase === "loaded"));
-  assert.deepEqual([model.view.value.showAll, model.view.value.officialOpen], [false, false]);
+  assert.deepEqual([model.view.value.showAll, model.view.value.officialOpen, model.view.value.commentsOpen], [false, false, false]);
 
   // 跟着一个在跑的任务，章节一块块到：结论那一行只说还没写，块数留给进度行。
   fake.broadcast({ type: "task.changed", task: task("side", "running", videoKey(SECOND)) });
