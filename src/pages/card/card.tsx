@@ -125,10 +125,10 @@ function OfficialBody({ official, limited, onSeek, onToggleAll }: { readonly off
   );
 }
 
+// 卡片地方小，依据字幕是常态不标；只有没读字幕、靠官方总结写的结论才提醒一句。
 function basisOf(analysis: LearningAnalysis): BasisSource | null {
   const source = text(analysis.verdict?.source);
-  if (source === "official" || source === "official-summary") return "official-summary";
-  return hasOverview(analysis) ? "transcript" : null;
+  return source === "official" || source === "official-summary" ? "official-summary" : null;
 }
 
 function Overview({
