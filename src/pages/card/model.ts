@@ -52,6 +52,8 @@ export { CARD_ROWS, cardRows, chaptersInOrder, hasOverview } from "./rows.ts";
 export type { CardView, TaskProgress, Tone } from "./view.ts";
 
 const LOAD_TIMEOUT_MS = 30_000;
+/** 「重新生成」的确认摆出来多久以后才认。 */
+export const CONFIRM_ARM_MS = 700;
 /** 卡片跟着看进度的任务种类：生成概览和用官方总结写结论。 */
 const FOLLOWED: ReadonlySet<string> = new Set(["overview", "verdict"]);
 const EXTERNAL_CHECK_MS = 15_000;
@@ -80,7 +82,15 @@ export function createCardModel(deps: CardDeps) {
   let loadedTicket = -1;
   let saved: LearningAnalysis | null = null;
   let savedBasis: OverviewTranscriptBasis | null = null;
-  const shownSaved = (): Pick<CardView, "analysis" | "transcriptBasis"> => ({ analysis: saved, transcriptBasis: savedBasis });
+  // 本机这份概览里没生成出来的分块数：有就摆「补上缺的部分」。
+  let savedFailures = 0;
+  // 「重新生成」的确认摆出来够久了才认。
+  let confirmArmed = false;
+  let disarm: (() => void) | null = null;
+  const keep = (analysis: LearningAnalysis | null, basis: OverviewTranscriptBasis | null | undefined, failures: readonly unknown[] | undefined): void => {
+    [saved, savedBasis, savedFailures] = [analysis, basis ?? null, failures?.length ?? 0];
+  };
+  const shownSaved = (): Pick<CardView, "analysis" | "transcriptBasis" | "failedParts"> => ({ analysis: saved, transcriptBasis: savedBasis, failedParts: savedFailures });
   const settled = new Set<string>();
   // 标签页到过前台：后台打开的标签页第一次切到前台才读。
   let seen = deps.page?.visible() ?? true;
@@ -109,7 +119,7 @@ export function createCardModel(deps: CardDeps) {
     windowId: () => tab?.windowId ?? null,
     collapsed: () => view.peek().collapsed,
     place(collapsed) {
-      patch({ collapsed });
+      patch({ collapsed, ...(collapsed ? { confirmRegenerate: false } : {}) });
       // 重新摆过，收起那一行上之前说的那句话就不留了。
       glance.say("");
       if (!collapsed) void load();
@@ -132,9 +142,10 @@ export function createCardModel(deps: CardDeps) {
     loadedTicket = -1;
     saved = null;
     savedBasis = null;
+    savedFailures = 0;
     actionRow.reset();
     glance.say("");
-    patch({ phase, title: "", official: null, analysis: null, transcriptBasis: null, transcriptFingerprint: null, verdictPending: false, noCaptions: false, notRead: false, task: null, settingsError: false, notice: null, showAll: false, officialOpen: false, commentsOpen: false, holdActions: false });
+    patch({ phase, title: "", official: null, analysis: null, transcriptBasis: null, failedParts: 0, confirmRegenerate: false, transcriptFingerprint: null, verdictPending: false, noCaptions: false, notRead: false, task: null, settingsError: false, notice: null, showAll: false, officialOpen: false, commentsOpen: false, holdActions: false });
   }
 
   function syncVideo(url: string): void {
@@ -166,12 +177,12 @@ export function createCardModel(deps: CardDeps) {
     if (!reply.ok) {
       if (HIDDEN_CODES.has(reply.code)) return void deps.recheckConfig();
       const known = (reply as GuidesFailure).overview;
-      if (known) [saved, savedBasis] = [known.analysis, known.transcriptBasis ?? null];
+      if (known) keep(known.analysis, known.transcriptBasis, known.analysisFailures);
       return failLoad(describe(reply.code, reply.detail, lang()), reply.said);
     }
     const value = reply.value;
     if (!("mode" in value) || value.video !== current) return failLoad(t().wrongVideo);
-    [saved, savedBasis] = [value.overview?.analysis ?? null, value.overview?.transcriptBasis ?? null];
+    keep(value.overview?.analysis ?? null, value.overview?.transcriptBasis, value.overview?.analysisFailures);
     const noCaptions = value.hasTranscript ? false : value.transcriptError === "NO_CAPTIONS" || view.peek().noCaptions;
     const needLogin = !value.hasTranscript && value.transcriptError === "NEED_LOGIN";
     // 能代开文字稿面板的构建里，本机没有字幕也能点生成：后台先经这个视频页读到字幕。
@@ -219,7 +230,7 @@ export function createCardModel(deps: CardDeps) {
 
   function follow(task: TaskView): void {
     if (settled.has(task.id) || view.peek().task) return;
-    patch({ task: progressOf(task, true), ...notice("") });
+    patch({ task: progressOf(task, true), confirmRegenerate: false, ...notice("") });
   }
 
   // 跟着的任务结束了：概览已经落进本机，重读一次就能摆出来；临时概览不留。
@@ -240,14 +251,15 @@ export function createCardModel(deps: CardDeps) {
     if (seen?.state !== "running" && !seen?.finishing) settle(task.id);
   }
 
-  async function generate(trusted: boolean): Promise<void> {
+  /** 新生成只在还没有概览时；重新生成和补上缺的部分只在已经有概览时，后者还要有没生成出来的分块。 */
+  async function generate(trusted: boolean, how: "new" | "fresh" | "retry" = "new"): Promise<void> {
     // 花的是用户的额度：卡片嵌在别人的页面里，只认真实点击。
     if (!trusted || !visible.peek() || !video || aiReady.peek() === false) return;
     const v = view.peek();
-    if (v.task || v.phase !== "loaded" || v.noCaptions || v.notRead || hasOverview(saved)) return;
+    if (v.task || v.phase !== "loaded" || v.noCaptions || v.notRead || hasOverview(saved) !== (how !== "new") || (how === "retry" && savedFailures === 0) || (how === "fresh" && !(v.confirmRegenerate && confirmArmed))) return;
     const asked = ticket;
     const current = video;
-    patch({ task: { id: "", external: false, auto: false, canceling: false, done: 0, total: 0, message: "" }, settingsError: false, ...notice("") });
+    patch({ task: { id: "", external: false, auto: false, canceling: false, done: 0, total: 0, message: "" }, confirmRegenerate: false, settingsError: false, ...notice("") });
     const started = await api.send("task.start", { kind: "overview", video: current });
     if (asked !== ticket) return;
     if (!started.ok) return finishOwn(null, started.code, describe(started.code, started.detail, lang()), started.said);
@@ -264,14 +276,19 @@ export function createCardModel(deps: CardDeps) {
       settled.add(task.id);
       return finishOwn(null, "TASK_CANCELED", t().stopped);
     }
-    const result = await api.send("overview.start", { video: current, token });
+    const result = how === "retry" ? await api.send("overview.retryFailed", { video: current, token }) : await api.send("overview.start", { video: current, token, ...(how === "fresh" ? { fresh: true } : {}) });
     settled.add(task.id);
     if (asked !== ticket) return;
-    if (!result.ok) return finishOwn(null, result.code, result.code === "TASK_CANCELED" ? t().stopped : describe(result.code, result.detail, lang()), result.said);
+    if (!result.ok) {
+      const text = result.code === "TASK_CANCELED" ? t().stopped : result.code === "CARD_RATE_LIMITED" && result.detail === "regenerate" ? t().regenerateTooSoon : describe(result.code, result.detail, lang());
+      return finishOwn(null, result.code, text, result.said);
+    }
     const value = result.value;
-    [saved, savedBasis] = [value.analysis, value.transcriptBasis ?? null];
-    const text = value.saveFailed ? t().saveFailed : value.canceled ? t().stoppedSaved(value.savedChunks ?? 0, value.chunkCount ?? 0) : "";
-    patch({ task: null, ...shownSaved(), verdictPending: false, ...notice(text, value.saveFailed ? "warn" : "") });
+    keep(value.analysis, value.transcriptBasis, value.analysisFailures);
+    // 重新生成的章节写好了、结论没写成或被停：生效的还是原来那份，照实说，免得以为换过了。
+    const kept = value.draftKept ? (value.verdictCanceled ? t().regenerateStopped : t().regenerateKept) : "";
+    const text = value.saveFailed ? t().saveFailed : kept || (value.canceled ? t().stoppedSaved(value.savedChunks ?? 0, value.chunkCount ?? 0) : "");
+    patch({ task: null, ...shownSaved(), verdictPending: false, ...notice(text, value.saveFailed || (kept && !value.verdictCanceled) ? "warn" : "") });
   }
 
   function finishOwn(analysis: LearningAnalysis | null, code: ErrorCode, text: string, said?: string): void {
@@ -300,7 +317,7 @@ export function createCardModel(deps: CardDeps) {
     if (asked !== ticket) return;
     if (outcome.kind === "joined") return void (patch({ task: null }), follow(outcome.task));
     if (outcome.kind === "failed") return finishOwn(null, outcome.code, outcome.code === "TASK_CANCELED" ? t().stopped : describe(outcome.code, outcome.detail, lang()), outcome.said);
-    [saved, savedBasis] = [outcome.value.analysis, outcome.value.transcriptBasis ?? null];
+    keep(outcome.value.analysis, outcome.value.transcriptBasis, outcome.value.analysisFailures);
     patch({ task: null, ...shownSaved(), verdictPending: false, ...(outcome.value.saveFailed ? notice(t().saveFailed, "warn") : notice("")) });
   }
 
@@ -406,6 +423,19 @@ export function createCardModel(deps: CardDeps) {
     recheck,
     retry: () => void load(),
     generate,
+    retryFailed: (trusted: boolean) => generate(trusted, "retry"),
+    /** 「重新生成」先问一句：点了才摆确认，确认那一下才花额度。 */
+    askRegenerate(): void {
+      const open = !view.peek().confirmRegenerate;
+      // 确认摆出来一会儿以后才认：连点两下，第二下落在确认上也不算。
+      // 上一次的计时先撤掉：取消以后马上再点开，不能借上一次的计时提前生效。
+      disarm?.();
+      disarm = null;
+      confirmArmed = false;
+      if (open) disarm = timers.after(CONFIRM_ARM_MS, () => void (confirmArmed = true));
+      patch({ confirmRegenerate: open });
+    },
+    regenerate: (trusted: boolean) => generate(trusted, "fresh"),
     fromOfficial,
     cancel,
     toggle: () => fold.toggle(),

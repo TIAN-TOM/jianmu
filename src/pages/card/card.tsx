@@ -221,6 +221,10 @@ export interface CardActions {
   readonly toggle: () => void;
   readonly generate: (event: ClickEvent) => void;
   readonly fromOfficial: (event: ClickEvent) => void;
+  readonly retryFailed: (event: ClickEvent) => void;
+  /** 点「重新生成」或确认那一行的「取消」：摆出或收起确认。 */
+  readonly askRegenerate: () => void;
+  readonly regenerate: (event: ClickEvent) => void;
   readonly cancel: () => void;
   readonly retry: () => void;
   readonly openPanel: (event: ClickEvent) => void;
@@ -229,6 +233,29 @@ export interface CardActions {
   readonly toggleShowAll: () => void;
   readonly toggleOfficial: () => void;
   readonly toggleComments: () => void;
+}
+
+/**
+ * 「重新生成」的确认，摆在底部一行原来的位置上，不进会滚动的正文区，摆出来就看得见。说明独占底部那一行原来的高度，
+ * 按钮在它下面一行：连点两下时第二下落在说明上，不落在确认上（模型另外让确认摆出来一会儿才认）。焦点挪到「取消」上。
+ */
+function RegenerateConfirm({ onConfirm, onCancel }: { readonly onConfirm: (event: ClickEvent) => void; readonly onCancel: () => void }) {
+  const cancel = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => cancel.current?.focus(), []);
+  const t = cardText();
+  return (
+    <div class="card-confirm" id="card-regenerate-confirm" role="group" aria-label={t.regenerate}>
+      <p class="card-confirm-note">{t.regenerateCost}</p>
+      <div class="card-confirm-buttons">
+        <button type="button" class="button" data-variant="text" ref={cancel} onClick={onCancel}>
+          {t.cancel}
+        </button>
+        <button type="button" class="button" data-variant="primary" onClick={onConfirm}>
+          {t.regenerateConfirm}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 /** 点了展开而内容还在读：最多等这么久再打开，读到了就直接从标题栏长到内容那么高，不先露一行「正在读取」。 */
@@ -277,8 +304,13 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
   const showGenerate = canGenerate && !needsSetup;
   const showSettings = needsSetup || (canGenerate && view.settingsError);
   const showRetry = (view.phase === "failed" || view.needLogin || retryRead) && !task;
+  // 已经有概览：能补上缺的部分、能重新生成（先确认一次）。读不到字幕的时候两样都用不了。
+  const canRedo = view.phase === "loaded" && aiReady === true && !task && hasOverview(view.analysis) && !view.noCaptions && !view.needLogin && !view.notRead;
+  const showRetryFailed = canRedo && view.failedParts > 0;
+  // 「重新生成」是个少用的文字按钮：底部左边写着「展开全部 N 章」时一行放不下三样，等章节全露了才摆。
+  const showRegenerate = canRedo && !view.confirmRegenerate && !(chaptersCut && !view.showAll);
   // 侧边栏已经开着：不摆打开它的按钮。别的按钮也都没有、章节也不用「展开全部」时，底部一行整个不摆。
-  const showActions = !view.holdActions && (showGenerate || showSettings || showRetry || !view.panelOpen);
+  const showActions = !view.holdActions && (showGenerate || showSettings || showRetry || showRegenerate || !view.panelOpen);
   // 「打开侧边栏」是底部一行的主按钮，同一行已经有别的主按钮时退成普通按钮。
   const panelPrimary = !showGenerate && !needsSetup;
   return (
@@ -362,6 +394,14 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
           ) : officialNote ? (
             <p class="card-note">{officialNote}</p>
           ) : null}
+          {showRetryFailed ? (
+            <div class="card-offer" id="card-failed-parts">
+              <span class="card-offer-note">{t.failedParts}</span>
+              <button type="button" class="button" data-variant="secondary" onClick={actions.retryFailed}>
+                {t.retryFailed}
+              </button>
+            </div>
+          ) : null}
           {needsSetup ? <p class="card-note" id="card-setup">{setupHint}</p> : null}
         </div>
         {task ? (
@@ -375,7 +415,9 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
             </button>
           </div>
         ) : null}
-        {showActions || chaptersCut ? (
+        {canRedo && view.confirmRegenerate ? (
+          <RegenerateConfirm onConfirm={actions.regenerate} onCancel={actions.askRegenerate} />
+        ) : showActions || chaptersCut ? (
           <div class="card-actions">
             {chaptersCut ? <More id="card-more" open={view.showAll} label={t.showAllChapters(chapterCount)} onToggle={actions.toggleShowAll} /> : null}
             {showActions && showGenerate ? (
@@ -386,6 +428,11 @@ export function Card({ view, aiReady, setupHint, actions }: { readonly view: Car
             {showActions && showSettings ? (
               <button type="button" class="button" data-variant={needsSetup ? "primary" : "secondary"} id="card-settings" onClick={actions.openSettings}>
                 {t.openSettings}
+              </button>
+            ) : null}
+            {showActions && showRegenerate ? (
+              <button type="button" class="button" data-variant="text" id="card-regenerate" onClick={actions.askRegenerate}>
+                {t.regenerate}
               </button>
             ) : null}
             {showActions && showRetry ? (

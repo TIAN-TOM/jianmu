@@ -59,7 +59,7 @@ const realRoutes = (): Readonly<Record<string, AnyRoute>> =>
       freeze: async () => assert.fail(),
     },
     tasks: { register: async () => assert.fail(), cancel: () => assert.fail(), list: () => assert.fail() },
-    cardLimits: { admitGenerate: () => assert.fail(), issueToken: () => assert.fail(), redeemToken: () => assert.fail() },
+    cardLimits: { admitGenerate: () => assert.fail(), admitRegenerate: () => assert.fail(), issueToken: () => assert.fail(), redeemToken: () => assert.fail() },
     reinject: async () => assert.fail(),
     grants: { releaseUnused: async () => assert.fail() },
     data: { openExport: () => assert.fail(), openImport: () => assert.fail(), clear: async () => assert.fail(), busy: () => false },

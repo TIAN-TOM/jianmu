@@ -418,6 +418,39 @@ test("卡片：有官方总结、还没有结论时，结论该在的地方摆�
   assert.equal((await read(await open(`${SAMPLE}#setup-key`))).text, "", "AI 服务没设置好");
 });
 
+test("卡片：已有概览、章节全露时底部有「重新生成」，和「收起」「打开侧边栏」在同一行；点了在底部一行原来的位置摆出确认、看得见，刚才点的地方不是确认按钮，焦点在「取消」上，取消收回；缺了分块时正文里摆「补上缺的部分」", async ({ open }) => {
+  const page = await open(SAMPLE);
+  assert.equal(await page.evaluate(`Boolean(document.getElementById("card-regenerate"))`), false, "底部写着「展开全部」时不摆");
+  await page.evaluate(`(document.getElementById("card-more").click(), true)`);
+  await page.waitFor("章节全露以后摆出来", `Boolean(document.getElementById("card-regenerate"))`);
+  const row = await page.evaluate(`["card-more", "card-regenerate", "card-panel"].map((id) => { const box = document.getElementById(id).getBoundingClientRect(); return Math.round((box.top + box.bottom) / 2); })`);
+  assert.ok(Math.max(...row) - Math.min(...row) <= 4, `不在同一行：${row}`);
+  const askAt = await page.evaluate(`(() => { const box = document.getElementById("card-regenerate").getBoundingClientRect(); return { x: box.left + box.width / 2, y: box.top + box.height / 2 }; })()`);
+  await page.click("#card-regenerate");
+  await page.waitFor("摆出确认", `Boolean(document.getElementById("card-regenerate-confirm"))`);
+  const shown = await page.evaluate(`(() => {
+    const confirm = document.querySelector("#card-regenerate-confirm .button[data-variant='primary']");
+    const cancel = document.querySelector("#card-regenerate-confirm .button[data-variant='text']");
+    const box = confirm.getBoundingClientRect();
+    const at = ${JSON.stringify(askAt)};
+    return {
+      ask: Boolean(document.getElementById("card-regenerate")),
+      note: document.querySelector("#card-regenerate-confirm .card-confirm-note")?.textContent ?? "",
+      confirm: confirm.textContent,
+      visible: box.top >= 0 && box.bottom <= window.innerHeight,
+      underLastClick: at.x >= box.left && at.x <= box.right && at.y >= box.top && at.y <= box.bottom,
+      focusOnCancel: document.activeElement === cancel,
+    };
+  })()`);
+  assert.deepEqual(shown, { ask: false, note: "重新生成会再花一次 API 额度。", confirm: "确认重新生成", visible: true, underLastClick: false, focusOnCancel: true });
+  await page.click("#card-regenerate-confirm .button[data-variant='text']");
+  await page.waitFor("取消收回", `!document.getElementById("card-regenerate-confirm") && Boolean(document.getElementById("card-regenerate"))`);
+
+  const failed = await open(`${SAMPLE}#failed-parts`);
+  assert.equal(await failed.evaluate(`document.getElementById("card-failed-parts")?.textContent ?? ""`), "有一部分没生成出来，可以只补这部分。补上缺的部分");
+  assert.equal(await page.evaluate(`Boolean(document.getElementById("card-failed-parts"))`), false, "没缺分块时不摆");
+});
+
 test("卡片：配好过、密钥随浏览器重启清空时，说明直说要到设置页重新填密钥、提一句记住密钥，「打开设置」是主按钮，不摆「生成概览」", async ({ open }) => {
   const page = await open(`${SAMPLE}#setup-key`);
   const shown = await page.evaluate(`(() => ({
