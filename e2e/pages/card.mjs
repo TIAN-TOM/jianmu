@@ -56,19 +56,25 @@ test("卡片：全部展开、框架高度到顶、最大字号、内容很长�
   assert.equal(measured.panelText, "打开侧边栏");
 });
 
-test("卡片：刚打开只露结论和前几章，结论在官方总结前面，官方总结收成一行，不重复视频标题；点「展开全部」和那一行才全露", async ({ open }) => {
+test("卡片：刚打开结论在官方总结前面，官方总结收成一行，不重复视频标题；章节整份都在，列表只露前几章那么高、下一章露出大半并淡出，其余在列表里滚动，滚到底不再淡出、卡片不变高，焦点移到后面的章节时滚过去", async ({ open }) => {
   const page = await open(SAMPLE);
   await page.setWidth(FRAME_WIDTH, CARD_HEIGHT.max);
   const read = () =>
     page.evaluate(`(() => {
       const top = (selector) => document.querySelector(selector)?.getBoundingClientRect().top ?? null;
       const fold = document.querySelector("#card-official .card-fold-head");
+      const list = document.getElementById("card-chapters");
+      const bottom = list?.getBoundingClientRect().bottom ?? 0;
+      const rows = [...document.querySelectorAll("#card-overview .chapter")];
       return {
         text: document.getElementById("card").innerText,
         height: document.getElementById("card").getBoundingClientRect().height,
-        chapters: document.querySelectorAll("#card-overview .chapter").length,
-        more: document.getElementById("card-more")?.textContent ?? null,
-        moreExpanded: document.getElementById("card-more")?.getAttribute("aria-expanded") ?? null,
+        chapters: rows.length,
+        whole: rows.filter((row) => row.getBoundingClientRect().bottom <= bottom + 1).length,
+        peek: rows[${CARD_ROWS}] ? rows[${CARD_ROWS}].getBoundingClientRect().top < bottom : false,
+        count: document.querySelector("#card-overview .card-chapter-count")?.textContent ?? null,
+        more: Boolean(document.getElementById("card-more")),
+        scrollTop: list?.scrollTop ?? null,
         verdictTop: top("#card-overview .verdict"),
         officialTop: top("#card-official"),
         foldExpanded: fold?.getAttribute("aria-expanded") ?? null,
@@ -77,30 +83,30 @@ test("卡片：刚打开只露结论和前几章，结论在官方总结前面�
     })()`);
 
   const first = await read();
-  assert.equal(first.chapters, CARD_ROWS);
-  assert.equal(first.more, "展开全部 16 章");
-  assert.equal(first.moreExpanded, "false");
+  assert.equal(first.chapters, 16, "章节整份都在");
+  assert.equal(first.whole, CARD_ROWS, "整行露出来的是前几章");
+  assert.equal(first.peek, true, "下一章露出来一截，看得出下面还有");
+  assert.equal(await page.evaluate(`document.getElementById("card-chapters").hasAttribute("data-end")`), false, "下面还有时下沿淡出");
+  assert.equal(first.count, "共 16 章");
+  assert.equal(first.more, false, "章节不再有「展开全部」");
   assert.ok(first.verdictTop < first.officialTop, "结论排在官方总结前面");
   assert.equal(first.foldExpanded, "false");
   assert.equal(first.outline, 0, "官方总结收着，提纲不画出来");
   assert.ok(!first.text.includes("样例长视频"), "卡片里不再写视频标题");
   assert.ok(first.text.includes("B 站官方总结"));
 
-  await page.click("#card-more");
-  await page.waitFor("章节全露出来", `document.querySelectorAll("#card-overview .chapter").length === 16`);
-  const all = await read();
-  assert.equal(all.more, "收起");
-  assert.equal(all.moreExpanded, "true");
-  // 样张的章节名很长，露前几章时卡片可能已经到顶：展开以后不变矮，也不超过框架上限。
-  assert.ok(all.height >= first.height);
-  assert.ok(all.height <= CARD_HEIGHT.max);
+  await page.evaluate(`(() => { const list = document.getElementById("card-chapters"); list.scrollTop = list.scrollHeight; return true; })()`);
+  await page.waitFor("滚到底不再淡出", `document.getElementById("card-chapters").hasAttribute("data-end")`);
+  const scrolled = await read();
+  assert.ok(scrolled.scrollTop > 0, "列表自己滚");
+  assert.equal(scrolled.height, first.height, "滚到底卡片不变高");
+
+  await page.evaluate(`(() => { const list = document.getElementById("card-chapters"); list.scrollTop = 0; document.querySelectorAll("#card-overview .chapter-time")[15].focus(); return true; })()`);
+  await page.waitFor("焦点移到最后一章，列表滚过去", `document.getElementById("card-chapters").scrollTop > 0`);
 
   await page.click("#card-official .card-fold-head");
   await page.waitFor("官方总结点开", `document.querySelectorAll("#card-official .outline-item").length === 12`);
   assert.equal((await read()).foldExpanded, "true");
-
-  await page.click("#card-more");
-  await page.waitFor("章节收回前几章", `document.querySelectorAll("#card-overview .chapter").length === ${CARD_ROWS}`);
 });
 
 test("卡片：官方总结的正文真被截了才给「展开全部」，按量出来的算不按字数猜；点了全露，再点收回", async ({ open }) => {
@@ -240,9 +246,9 @@ test("卡片：收起的一行写判断档和一句话结论，没有结论时�
   assert.equal(yielded.panel, null);
   assert.ok(yielded.card.right - yielded.chevron.right < 24, JSON.stringify(yielded));
 
-  // 侧边栏开着时手动点开的：已有概览，按钮只剩「打开侧边栏」一个，它不摆，底部一行只剩章节的「展开全部」。
+  // 侧边栏开着时手动点开的：已有概览，「打开侧边栏」不摆，底部一行只剩「重新生成」。
   const opened = await read("#open-yield");
-  assert.deepEqual([opened.buttons, opened.openPanel], [0, false]);
+  assert.deepEqual([opened.buttons, opened.openPanel], [1, false]);
 });
 
 /** 一个元素里看得见的字：只给读屏的（剪成 1 像素的）不算。 */
@@ -261,7 +267,7 @@ const VISIBLE_TEXT = `((root) => {
   return text;
 })`;
 
-test("卡片：五套主题、浅色深色下，头部只写「简幕」，底部「展开全部」和主按钮在同一行两端；收起的一行有判断词和一句话结论", async ({ open }) => {
+test("卡片：五套主题、浅色深色下，头部只写「简幕」，底部「重新生成」和主按钮在同一行两端；收起的一行有判断词和一句话结论", async ({ open }) => {
   for (const accentTheme of Object.keys(ACCENT_THEMES)) {
     for (const themeMode of ["light", "dark"]) {
       const label = `${accentTheme} ${themeMode}`;
@@ -275,8 +281,8 @@ test("卡片：五套主题、浅色深色下，头部只写「简幕」，底�
           headName: document.getElementById("card-toggle").textContent,
           verdictFirst: document.querySelector(".card-verdict").getBoundingClientRect().left < document.querySelector(".card-brand").getBoundingClientRect().left,
           card: box("#card"),
-          more: box("#card-more"),
-          moreText: document.getElementById("card-more")?.textContent ?? null,
+          more: box("#card-regenerate"),
+          moreText: document.getElementById("card-regenerate")?.textContent ?? null,
           panel: box("#card-panel"),
           primary: document.getElementById("card-panel")?.dataset.variant ?? null,
           headRow: document.querySelector(".card-head-row").getBoundingClientRect().height,
@@ -288,10 +294,10 @@ test("卡片：五套主题、浅色深色下，头部只写「简幕」，底�
       if (accentTheme === "band") assert.equal(shown.verdictFirst, true, `${label}：判断词排在名字前面`);
       assert.ok(shown.headName.includes("简幕") && shown.headName.includes("可以看"), `${label}：${shown.headName}`);
       assert.ok(!shown.head.includes("总结") && !shown.head.includes("·"), `${label}：${shown.head}`);
-      assert.equal(shown.moreText, "展开全部 16 章", label);
+      assert.equal(shown.moreText, "重新生成", label);
       assert.equal(shown.primary, "primary", label);
-      assert.ok(Math.abs(shown.more.middle - shown.panel.middle) < 2, `${label}：「展开全部」和「打开侧边栏」不在同一行 ${JSON.stringify(shown)}`);
-      assert.ok(shown.more.right < shown.panel.left, `${label}：「展开全部」在左、按钮在右 ${JSON.stringify(shown)}`);
+      assert.ok(Math.abs(shown.more.middle - shown.panel.middle) < 2, `${label}：「重新生成」和「打开侧边栏」不在同一行 ${JSON.stringify(shown)}`);
+      assert.ok(shown.more.right < shown.panel.left, `${label}：「重新生成」在左、按钮在右 ${JSON.stringify(shown)}`);
       assert.ok(shown.card.right - shown.panel.right < 20, `${label}：按钮靠右 ${JSON.stringify(shown)}`);
 
       const mini = await open(`${SAMPLE}#collapsed-verdict`);
@@ -418,12 +424,10 @@ test("卡片：有官方总结、还没有结论时，结论该在的地方摆�
   assert.equal((await read(await open(`${SAMPLE}#setup-key`))).text, "", "AI 服务没设置好");
 });
 
-test("卡片：已有概览、章节全露时底部有「重新生成」，和「收起」「打开侧边栏」在同一行；点了在底部一行原来的位置摆出确认、看得见，刚才点的地方不是确认按钮，焦点在「取消」上，取消收回；缺了分块时正文里摆「补上缺的部分」", async ({ open }) => {
+test("卡片：已有概览时底部有「重新生成」，和「打开侧边栏」在同一行；点了在底部一行原来的位置摆出确认、看得见，刚才点的地方不是确认按钮，焦点在「取消」上，取消收回；缺了分块时正文里摆「补上缺的部分」", async ({ open }) => {
   const page = await open(SAMPLE);
-  assert.equal(await page.evaluate(`Boolean(document.getElementById("card-regenerate"))`), false, "底部写着「展开全部」时不摆");
-  await page.evaluate(`(document.getElementById("card-more").click(), true)`);
-  await page.waitFor("章节全露以后摆出来", `Boolean(document.getElementById("card-regenerate"))`);
-  const row = await page.evaluate(`["card-more", "card-regenerate", "card-panel"].map((id) => { const box = document.getElementById(id).getBoundingClientRect(); return Math.round((box.top + box.bottom) / 2); })`);
+  await page.waitFor("摆出来", `Boolean(document.getElementById("card-regenerate"))`);
+  const row = await page.evaluate(`["card-regenerate", "card-panel"].map((id) => { const box = document.getElementById(id).getBoundingClientRect(); return Math.round((box.top + box.bottom) / 2); })`);
   assert.ok(Math.max(...row) - Math.min(...row) <= 4, `不在同一行：${row}`);
   const askAt = await page.evaluate(`(() => { const box = document.getElementById("card-regenerate").getBoundingClientRect(); return { x: box.left + box.width / 2, y: box.top + box.height / 2 }; })()`);
   await page.click("#card-regenerate");
@@ -503,7 +507,7 @@ test("卡片（YouTube）：有概览时结论在最前、只露前几章，没�
   await known.setWidth(FRAME_WIDTH, CARD_HEIGHT.max);
   const withOverview = await read(known);
   assert.equal(withOverview.verdict, true, "结论摆出来");
-  assert.equal(withOverview.chapters, CARD_ROWS);
+  assert.equal(withOverview.chapters, 16, "章节整份都在，列表里滚动");
   assert.equal(withOverview.official, false, "YouTube 没有官方总结，也不占一行去说");
   assert.ok(!withOverview.text.includes("官方总结"));
   assert.equal(withOverview.status, null, "有概览时不再提读字幕");
@@ -583,7 +587,7 @@ test("卡片：语言选 English 以后，打开的卡片第一帧就是英文�
         lang: document.documentElement.lang,
         title: document.title,
         name: document.querySelector(".card-name")?.textContent ?? "",
-        more: document.getElementById("card-more")?.textContent ?? null,
+        more: document.querySelector("#card-overview .card-chapter-count")?.textContent ?? null,
         official: document.querySelector("#card-official .card-fold-head span")?.textContent ?? null,
         buttons: [...document.querySelectorAll(".card-actions .button")].map((button) => button.textContent.trim()),
         toggle: document.getElementById("card-toggle")?.title ?? "",
@@ -594,9 +598,9 @@ test("卡片：语言选 English 以后，打开的卡片第一帧就是英文�
       lang: "en",
       title: "Jianmu summary card",
       name: "Jianmu",
-      more: "Show all 16 chapters",
+      more: "16 chapters",
       official: "Bilibili official summary",
-      buttons: ["Open side panel"],
+      buttons: ["Regenerate", "Open side panel"],
       toggle: "Collapse summary card",
     });
     const glance = await open(`${SAMPLE}#collapsed-glance`);
@@ -619,9 +623,9 @@ test("卡片：语言选 English 以后，打开的卡片第一帧就是英文�
       lang: "zh-CN",
       title: "简幕总结卡片",
       name: "简幕",
-      more: "展开全部 16 章",
+      more: "共 16 章",
       official: "B 站官方总结",
-      buttons: ["打开侧边栏"],
+      buttons: ["重新生成", "打开侧边栏"],
       toggle: "收起总结卡片",
     });
     await glance.waitFor("收起的一行换回中文", `document.querySelector(".card-verdict-name").textContent === "可以看"`);
@@ -683,7 +687,7 @@ test("卡片：语言选繁体以后，打开的卡片第一帧就是繁体、<h
         lang: document.documentElement.lang,
         title: document.title,
         name: document.querySelector(".card-name")?.textContent ?? "",
-        more: document.getElementById("card-more")?.textContent ?? null,
+        more: document.querySelector("#card-overview .card-chapter-count")?.textContent ?? null,
         official: document.querySelector("#card-official .card-fold-head span")?.textContent ?? null,
         buttons: [...document.querySelectorAll(".card-actions .button")].map((button) => button.textContent.trim()),
         toggle: document.getElementById("card-toggle")?.title ?? "",
@@ -695,9 +699,9 @@ test("卡片：语言选繁体以后，打开的卡片第一帧就是繁体、<h
       lang: "zh-Hant",
       title: "簡幕總結卡片",
       name: "簡幕",
-      more: "展開全部 16 章",
+      more: "共 16 章",
       official: "B 站官方總結",
-      buttons: ["打開側邊欄"],
+      buttons: ["重新生成", "打開側邊欄"],
       toggle: "收合總結卡片",
     });
     assert.match(await page.evaluate(`getComputedStyle(document.documentElement).getPropertyValue("--font-sans")`), /PingFang TC/);

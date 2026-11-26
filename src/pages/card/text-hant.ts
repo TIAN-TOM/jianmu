@@ -21,7 +21,7 @@ export const CARD_HANT: CardText = {
   less: "收合",
   showAll: "展開全部",
   showAllSections: (count) => `展開全部 ${count} 段`,
-  showAllChapters: (count) => `展開全部 ${count} 章`,
+  chapterCount: (count) => `共 ${count} 章`,
   writingVerdict: "正在寫一句話結論…",
   stopping: "正在停止…",
   chunksDone: (done, total) => `已完成 ${done}/${total}`,

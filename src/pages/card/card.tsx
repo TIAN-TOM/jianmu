@@ -10,7 +10,7 @@ import type { LearningAnalysis } from "../../core/notes/markdown.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
 import type { OfficialSummaryView, OutlineSectionView } from "../../shared/messages/transcript.ts";
 import { keyChapterStarts, verdictName } from "../../core/ai/verdict.ts";
-import { ChapterList, type ChapterItem } from "../shared/ui/chapter-list.tsx";
+import type { ChapterItem } from "../shared/ui/chapter-list.tsx";
 import { Collapse } from "../shared/ui/collapse.tsx";
 import { CommentFold, commentViewOfVerdict } from "../shared/ui/comment-block.tsx";
 import { Icon, VerdictMark } from "../shared/ui/icon.tsx";
@@ -18,6 +18,7 @@ import { ServiceSaid } from "../shared/ui/notice.tsx";
 import { StaleTranscriptLine, VerdictBlock } from "../shared/ui/verdict-block.tsx";
 import { markOf, staleOverviewMarks, type BasisSource } from "../shared/ui/verdict.ts";
 import { uiLang } from "../shared/ui-lang.ts";
+import { CardChapters } from "./chapters.tsx";
 import { cardRows, chaptersInOrder, hasOverview, type CardView, type TaskProgress } from "./model.ts";
 import { canWriteFromOfficial } from "./official-verdict.ts";
 import { ASK_IDLE, type AskState } from "./ask.ts";
@@ -138,7 +139,6 @@ function Overview({
   analysis,
   stale,
   pending,
-  showAll,
   commentsOpen,
   onToggleComments,
   onSeek,
@@ -147,7 +147,6 @@ function Overview({
   /** 换过字幕：结论块里标结论的，章节的单独一行。 */
   readonly stale: { readonly verdict: boolean; readonly chapters: boolean };
   readonly pending: boolean | string;
-  readonly showAll: boolean;
   readonly commentsOpen: boolean;
   readonly onToggleComments: () => void;
   readonly onSeek: (atSec: number) => void;
@@ -158,13 +157,12 @@ function Overview({
   // 卡片上等过它（先是「正在写结论」）：写好了进来时淡一下，标记有「有结果了」那一下。
   const waited = useRef(false);
   if (pending) waited.current = true;
-  // 只摆前几章时，最后摆出来的那一章也到下一章为止：时长条按整份章节算。
+  // 每一章都到下一章为止：时长条按整份章节算。
   const all = analysis.chapters ?? [];
   const chapters: ChapterItem[] = all.map((chapter, index) => {
     const next = all[index + 1]?.timestampSeconds;
     return { startSec: chapter.timestampSeconds, title: text(chapter.title), ...(next === undefined ? {} : { endSec: next }) };
   });
-  const shown = cardRows(chapters, showAll);
   const t = cardText();
   return (
     <section class="card-block" id="card-overview" aria-label={t.overview}>
@@ -176,8 +174,8 @@ function Overview({
         <VerdictBlock label={text(verdict?.verdict)} text={summary} basis={basisOf(analysis)} staleTranscript={stale.verdict} incomplete={verdict?.incomplete === true} fresh={waited.current} />
       ) : null}
       {CardComments && comments && summary && !pending ? <CardComments view={comments} open={commentsOpen} onToggle={onToggleComments} /> : null}
-      {stale.chapters && shown.length ? <StaleTranscriptLine /> : null}
-      {shown.length ? <ChapterList chapters={shown} keyStarts={keyChapterStarts(analysis)} heading={false} onSeek={onSeek} /> : null}
+      {stale.chapters && chapters.length ? <StaleTranscriptLine /> : null}
+      {chapters.length ? <CardChapters chapters={chapters} keyStarts={keyChapterStarts(analysis)} onSeek={onSeek} /> : null}
     </section>
   );
 }
@@ -315,17 +313,13 @@ export function Card({
   const glance = glanceOf(view);
   const shape = markOf(glance.label);
   const verdictLabel = glance.label ? verdictName(glance.label, uiLang.value) : "";
-  // 章节默认只露前几章：放不下的，底部一行左边摆「展开全部」。
-  const chapterCount = analysis?.chapters?.length ?? 0;
-  const chaptersCut = chapterCount > 0 && cardRows(analysis?.chapters ?? [], false).length < chapterCount;
   const showGenerate = canGenerate && !needsSetup;
   const showSettings = needsSetup || (canGenerate && view.settingsError);
   const showRetry = (view.phase === "failed" || view.needLogin || retryRead) && !task;
   // 已经有概览：能补上缺的部分、能重新生成（先确认一次）。读不到字幕的时候两样都用不了。
   const canRedo = view.phase === "loaded" && aiReady === true && !task && hasOverview(view.analysis) && !view.noCaptions && !view.needLogin && !view.notRead;
   const showRetryFailed = canRedo && view.failedParts > 0;
-  // 「重新生成」是个少用的文字按钮：底部左边写着「展开全部 N 章」时一行放不下三样，等章节全露了才摆。
-  const showRegenerate = canRedo && !view.confirmRegenerate && !(chaptersCut && !view.showAll);
+  const showRegenerate = canRedo && !view.confirmRegenerate;
   // 侧边栏已经开着：不摆打开它的按钮。别的按钮也都没有、章节也不用「展开全部」时，底部一行整个不摆。
   const showActions = !view.holdActions && (showGenerate || showSettings || showRetry || showRegenerate || !view.panelOpen);
   // 「打开侧边栏」是底部一行的主按钮，同一行已经有别的主按钮时退成普通按钮。
@@ -382,7 +376,6 @@ export function Card({
               analysis={analysis}
               stale={staleOverviewMarks(view.transcriptBasis ?? undefined, view.transcriptFingerprint, !view.verdictPending && text(analysis.verdict?.summary) !== "")}
               pending={view.verdictPending}
-              showAll={view.showAll}
               commentsOpen={view.commentsOpen}
               onToggleComments={actions.toggleComments}
               onSeek={actions.seek}
@@ -435,30 +428,29 @@ export function Card({
         ) : null}
         {canRedo && view.confirmRegenerate ? (
           <RegenerateConfirm onConfirm={actions.regenerate} onCancel={actions.askRegenerate} />
-        ) : showActions || chaptersCut ? (
+        ) : showActions ? (
           <div class="card-actions">
-            {chaptersCut ? <More id="card-more" open={view.showAll} label={t.showAllChapters(chapterCount)} onToggle={actions.toggleShowAll} /> : null}
-            {showActions && showGenerate ? (
+            {showGenerate ? (
               <button type="button" class="button" data-variant="primary" id="card-generate" onClick={actions.generate}>
                 {t.generate}
               </button>
             ) : null}
-            {showActions && showSettings ? (
+            {showSettings ? (
               <button type="button" class="button" data-variant={needsSetup ? "primary" : "secondary"} id="card-settings" onClick={actions.openSettings}>
                 {t.openSettings}
               </button>
             ) : null}
-            {showActions && showRegenerate ? (
+            {showRegenerate ? (
               <button type="button" class="button" data-variant="text" id="card-regenerate" onClick={actions.askRegenerate}>
                 {t.regenerate}
               </button>
             ) : null}
-            {showActions && showRetry ? (
+            {showRetry ? (
               <button type="button" class="button" id="card-retry" onClick={actions.retry}>
                 {t.retry}
               </button>
             ) : null}
-            {!showActions || view.panelOpen ? null : (
+            {view.panelOpen ? null : (
               <button type="button" class="button" data-variant={panelPrimary ? "primary" : undefined} id="card-panel" onClick={actions.openPanel}>
                 {t.openPanel}
               </button>

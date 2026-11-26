@@ -238,8 +238,7 @@ body {
   max-height: 34rem;
   padding: var(--card-body-top, 0.75rem) var(--card-pad) var(--card-pad);
   overflow-y: auto;
-  /* 滚到头不带着播放页一起滚。 */
-  overscroll-behavior: contain;
+  /* 滚到头接着滚播放页，不拦着：里面的章节列表滚到底也要能一路滚出去（PRD 第 6.5 节）。 */
   /* 上面或下面还有内容时，那一边压一道淡影，滚到头就没了：前两层跟着内容走、盖住影子，后两层钉在边上。 */
   background:
     linear-gradient(var(--card) 40%, transparent) center top / 100% 1.25rem no-repeat local,
@@ -556,6 +555,32 @@ body {
   justify-content: flex-end;
   gap: var(--space-2);
   padding: 0 var(--card-pad) var(--card-pad) var(--card-foot-left, var(--card-pad));
+}
+
+/* 章节多时的列表：固定露出前几章那么高、下一章露出大半（高度由 chapters.tsx 量好写上，这里的只是量好之前的那一帧），
+ * 其余在列表里滚动。下面还有章节时下沿淡出，滚到底就不淡了。不拦滚轮：滚到底以后接着往外滚。 */
+.card-chapter-scroll {
+  max-height: 15rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  /* 两边留出聚焦光圈的地方，不被滚动区裁掉。 */
+  margin-inline: -3px;
+  padding-inline: 3px;
+  mask-image: linear-gradient(#000 calc(100% - 2rem), transparent);
+}
+
+.card-chapter-scroll[data-end] {
+  mask-image: none;
+}
+
+.card-chapter-count {
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+}
+
+/* 底部一行的「重新生成」靠左，和右边的按钮分在两端。 */
+#card-regenerate {
+  margin-inline-end: auto;
 }
 
 /* 「重新生成」的确认：顶替底部一行，说明在上，按钮在下一行靠右。 */

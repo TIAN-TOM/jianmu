@@ -23,7 +23,7 @@ export const CARD_ZH = {
   less: "收起",
   showAll: "展开全部",
   showAllSections: (count: number) => `展开全部 ${count} 段`,
-  showAllChapters: (count: number) => `展开全部 ${count} 章`,
+  chapterCount: (count: number) => `共 ${count} 章`,
   writingVerdict: "正在写一句话结论…",
   stopping: "正在停止…",
   chunksDone: (done: number, total: number) => `已完成 ${done}/${total}`,
