@@ -153,7 +153,7 @@ test("手动生成或补失败块在结论那一步被停：不算成功，不�
   assert.equal(resumed, 0);
 });
 
-test("卡片和侧边栏在 YouTube 上点生成：交给生成一个准备步骤，经视频所在的标签页读到字幕；页面这会儿不能点、读不成，按页面报的原因收尾", async () => {
+test("卡片和侧边栏在 YouTube 上点生成、卡片补失败块：交给一个准备步骤，经视频所在的标签页读到字幕；页面这会儿不能点、读不成，按页面报的原因收尾", async () => {
   const TUBE = videoKey({ platform: "youtube", videoId: "tube-sample" });
   const reads: (readonly [string, number])[] = [];
   let read: unknown = { ok: true, value: {} };
@@ -163,6 +163,11 @@ test("卡片和侧边栏在 YouTube 上点生成：交给生成一个准备步�
       if (options.prepare) prepared += 1;
       const failure = options.prepare ? await options.prepare() : null;
       return failure ?? { ok: true, value: { fromCache: true } };
+    },
+    async retryFailed(_taskId: string, _video: string, options: { prepare?: () => Promise<unknown> } = {}) {
+      if (options.prepare) prepared += 1;
+      const failure = options.prepare ? await options.prepare() : null;
+      return failure ?? { ok: true, value: { fromCache: false, recoveredChunks: 1 } };
     },
   } as unknown as OverviewService;
   const routes = overviewRoutes({
@@ -198,6 +203,18 @@ test("卡片和侧边栏在 YouTube 上点生成：交给生成一个准备步�
   assert.equal(prepared, before, "B 站视频不经页面读");
   read = { ok: true, value: {} };
   assert.deepEqual(await routes["overview.start"].handler({ video: TUBE, token: "t", tabId: 9 }, ctx), { ok: false, code: "FORBIDDEN" }, "卡片不点名标签页");
+
+  // 卡片补失败块走同一条路：本机的字幕没了，先经卡片所在的标签页读回来再补；B 站视频不经页面读。
+  reads.length = 0;
+  const retry = async (video = TUBE) => (await routes["overview.retryFailed"].handler({ video, token: "t" }, ctx)) as { ok: boolean; code?: string };
+  assert.equal((await retry()).ok, true);
+  assert.deepEqual(reads, [["tube-sample", 9]]);
+  read = { later: "ad" };
+  assert.equal((await retry()).code, "PAGE_ACTION_NEEDED");
+  read = { ok: true, value: {} };
+  const beforeRetry = prepared;
+  await retry(KEY);
+  assert.equal(prepared, beforeRetry, "B 站视频补块不经页面读");
 
   // 侧边栏在 YouTube 上还没读到字幕：带上视频所在的标签页，走同一条路；不带就不经页面读。
   const panel = { sender: { kind: "panel" } } as unknown as typeof ctx;

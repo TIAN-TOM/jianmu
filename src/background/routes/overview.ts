@@ -101,7 +101,10 @@ export function overviewRoutes({ overview, cardLimits, auto, pageTranscript }: O
         if (sender.kind === "card") {
           if (req.taskId !== undefined || req.token === undefined) return Promise.resolve(fail("FORBIDDEN"));
           const taskId = cardLimits.redeemToken(req.token);
-          return taskId ? retried(overview.retryFailed(taskId, req.video)) : Promise.resolve(fail("TASK_NOT_FOUND"));
+          if (!taskId) return Promise.resolve(fail("TASK_NOT_FOUND"));
+          // 和卡片上的生成一样：要经页面读的站，本机的字幕没了就先经卡片所在的标签页读回来再补。
+          const prepare = readInPage(req.video, sender.tabId);
+          return retried(overview.retryFailed(taskId, req.video, prepare ? { prepare } : {}));
         }
         return req.taskId === undefined ? Promise.resolve(fail("FORBIDDEN")) : retried(overview.retryFailed(req.taskId, req.video));
       },

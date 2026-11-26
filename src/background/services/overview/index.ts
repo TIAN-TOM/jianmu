@@ -43,8 +43,8 @@ export interface CommentOption {
 export interface OverviewService {
   /** 认领登记好的概览任务：已有概览时直接交回，fresh 时重新生成。prepare 在认领以后、生成之前做，回失败就按它收尾。 */
   generate(taskId: string, video: VideoKey, options: { readonly fresh: boolean; readonly prepare?: () => Promise<Failure | null>; readonly comments?: CommentOption }): Promise<Result<OverviewResultView>>;
-  /** 认领登记好的概览任务，只补失败区间。 */
-  retryFailed(taskId: string, video: VideoKey): Promise<Result<OverviewResultView>>;
+  /** 认领登记好的概览任务，只补失败区间。prepare 和生成的一样，在认领以后、补之前做。 */
+  retryFailed(taskId: string, video: VideoKey, options?: { readonly prepare?: () => Promise<Failure | null> }): Promise<Result<OverviewResultView>>;
   /** 本机已有的概览，只交生效中的那份。 */
   get(video: VideoKey): Promise<Result<OverviewGetView>>;
 }
@@ -74,7 +74,11 @@ export function createOverviewService(deps: OverviewServiceDeps): OverviewServic
         },
         comments,
       ),
-    retryFailed: (taskId, video) => claim(taskId, video, (job) => generator.retryFailed(job)),
+    retryFailed: (taskId, video, { prepare } = {}) =>
+      claim(taskId, video, async (job) => {
+        const notReady = prepare ? await prepare() : null;
+        return notReady ?? generator.retryFailed(job);
+      }),
     async get(video) {
       try {
         const overview = overviewView(await deps.overviews.find(video));
