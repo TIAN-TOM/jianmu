@@ -86,6 +86,7 @@ export function createCardModel(deps: CardDeps) {
   let savedFailures = 0;
   // 「重新生成」的确认摆出来够久了才认。
   let confirmArmed = false;
+  let disarm: (() => void) | null = null;
   const keep = (analysis: LearningAnalysis | null, basis: OverviewTranscriptBasis | null | undefined, failures: readonly unknown[] | undefined): void => {
     [saved, savedBasis, savedFailures] = [analysis, basis ?? null, failures?.length ?? 0];
   };
@@ -427,8 +428,11 @@ export function createCardModel(deps: CardDeps) {
     askRegenerate(): void {
       const open = !view.peek().confirmRegenerate;
       // 确认摆出来一会儿以后才认：连点两下，第二下落在确认上也不算。
+      // 上一次的计时先撤掉：取消以后马上再点开，不能借上一次的计时提前生效。
+      disarm?.();
+      disarm = null;
       confirmArmed = false;
-      if (open) timers.after(CONFIRM_ARM_MS, () => void (confirmArmed = true));
+      if (open) disarm = timers.after(CONFIRM_ARM_MS, () => void (confirmArmed = true));
       patch({ confirmRegenerate: open });
     },
     regenerate: (trusted: boolean) => generate(trusted, "fresh"),

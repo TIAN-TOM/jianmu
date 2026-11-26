@@ -238,6 +238,28 @@ test("已有概览：缺了分块才能补，凭令牌补；重新生成要先�
   assert.equal(model.view.value.task, null);
 });
 
+test("重新生成的确认：取消以后马上再点开，上一次的计时不算，要从头等", async () => {
+  const { fake, model, elapse, waiting } = setup(READY, undefined, { manualWait: true });
+  fake.reply("transcript.get", { value: guides(KEY, { overview: { analysis: ANALYSIS, analysisFailures: [] } }) });
+  fake.reply("task.start", { value: { ok: true, value: { task: task("r2"), joined: false, token: "once" } } });
+  fake.reply("overview.start", { value: { ok: true, value: { video: KEY, analysis: ANALYSIS, analysisFailures: [], fromCache: false, failedChunks: 0 } } });
+  model.configChanged();
+  await model.start();
+  elapse();
+  assert.ok(await until(() => model.view.value.phase === "loaded"));
+  elapse();
+  const before = waiting();
+  model.askRegenerate();
+  model.askRegenerate();
+  model.askRegenerate();
+  assert.equal(waiting(), before + 1, "撤掉的计时不再挂着，只剩最新一次");
+  await model.regenerate(true);
+  assert.equal(fake.attempts("overview.start"), 0);
+  elapse();
+  await model.regenerate(true);
+  assert.equal(fake.attempts("overview.start"), 1);
+});
+
 test("重新生成：结论没写成或被停时说原来的概览还留着；同一视频十分钟内重新生成过，说清楚；跟上别处的任务、收起时撤掉确认", async () => {
   const { fake, model } = setup();
   fake.reply("transcript.get", { value: guides(KEY, { overview: { analysis: ANALYSIS, analysisFailures: [] } }) });
