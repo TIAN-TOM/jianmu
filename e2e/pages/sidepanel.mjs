@@ -1172,7 +1172,9 @@ test("侧边栏：精读里往下滚，模式切换和提示一起吸在顶上�
           try {
             await waitIn(panel, `${width} 宽：三层首尾相接`, stickyStacked);
           } catch (error) {
-            throw new Error(`${error.message}\n位置：${JSON.stringify(await panel.evaluate(stickyLayout))}`);
+            // 高度变量只在页面画新的一帧时更新：一并记下半秒里画了几帧、页面是不是可见。
+            const frames = await panel.evaluate(`new Promise((done) => { let count = 0; const tick = () => { count += 1; requestAnimationFrame(tick); }; requestAnimationFrame(tick); setTimeout(() => done({ frames: count, visibility: document.visibilityState }), 500); })`);
+            throw new Error(`${error.message}\n位置：${JSON.stringify(await panel.evaluate(stickyLayout))}\n半秒里：${JSON.stringify(frames)}`);
           }
           const at = await panel.evaluate(stickyLayout);
           const label = `${width} 宽：${JSON.stringify(at)}`;
