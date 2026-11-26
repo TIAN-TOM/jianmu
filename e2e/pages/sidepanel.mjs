@@ -1141,11 +1141,14 @@ test("侧边栏：五套主题各自标出精读的当前句：时间码铺页�
   );
 });
 
-/** 精读里吸顶的几层在视口里的位置：模式切换和提示一层、当前章节（有时没有）、字幕的工具行。 */
+/** 精读里吸顶的几层在视口里的位置：模式切换和提示一层、当前章节、字幕的工具行；带上页面写进外壳的两个高度变量。 */
 const stickyLayout = `(() => {
   const box = (selector) => { const node = document.querySelector(selector); if (!node) return null; const r = node.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, height: r.height }; };
-  return { top: box(".panel-top"), notice: box(".panel-top .notice"), chapter: box(".study .chapter-bar"), tools: box(".study .cue-tools"), scrolled: scrollY, viewport: innerHeight };
+  const shell = document.querySelector(".panel")?.style;
+  return { top: box(".panel-top"), notice: box(".panel-top .notice"), chapter: box(".study .chapter-bar"), tools: box(".study .cue-tools"), scrolled: scrollY, viewport: innerHeight, vars: [shell?.getPropertyValue("--panel-top-h"), shell?.getPropertyValue("--chapter-bar-h")] };
 })()`;
+/** 三层首尾相接：吸顶那一层贴着顶，章节条接在它下面，工具行接在章节条下面。等的和后面断言的是同一组位置关系。 */
+const stickyStacked = `(() => { const at = ${stickyLayout}; return Boolean(at.top && at.chapter && at.tools && Math.abs(at.top.top) < 1 && Math.abs(at.chapter.top - at.top.bottom) < 1 && Math.abs(at.tools.top - at.chapter.bottom) < 1); })()`;
 
 test("侧边栏：精读里往下滚，模式切换和提示一起吸在顶上，当前章节和字幕的工具行接着吸在下面、彼此不压；360 和 400 宽时加起来都不到视口的四成", async (ctx) => {
   await withVideo(
@@ -1155,6 +1158,8 @@ test("侧边栏：精读里往下滚，模式切换和提示一起吸在顶上�
       await waitIn(panel, "进了精读", `JSON.stringify(${modes}) === ${JSON.stringify(JSON.stringify(STUDY))}`);
       // 顶上那一行提示要先在（这个样例是字幕时间轴对不上的提示，窄宽度下折成两行）。
       await waitIn(panel, "顶上有一行提示", `Boolean(document.querySelector(".panel-top .notice"))`);
+      // 当前章节要等侧边栏问到播放位置才出来，早晚不定：先等它在，每一轮都量得到三层。
+      await waitIn(panel, "当前章节出来了", `Boolean(document.querySelector(".study .chapter-bar"))`);
       // 短视频的字幕只有几段，撑高精读这一块才滚得动：吸在章节下面的几层只在这一块里吸着。
       await panel.evaluate(`(document.querySelector(".study").style.minHeight = "4000px", true)`);
       try {
@@ -1162,16 +1167,20 @@ test("侧边栏：精读里往下滚，模式切换和提示一起吸在顶上�
           await panel.setWidth(width, 800);
           await panel.evaluate("(scrollTo(0, 2500), true)");
           await waitIn(panel, `${width} 宽：滚下去了`, "scrollY > 0");
-          // 换了宽度，提示折行变了，吸顶那一层的高度要等下一帧量好、写进变量，下面几层才跟上。
-          await waitIn(panel, `${width} 宽：下面几层跟上了吸顶那一层的高度`, `(() => { const at = ${stickyLayout}; const above = at.chapter ?? at.top; return Boolean(at.tools && above && Math.abs(at.tools.top - above.bottom) < 1); })()`);
+          // 换了宽度，提示和章节条的折行会变，两层的高度要等页面量好、写进变量，下面的层才跟上。章节条和工具行各跟各的变量，
+          // 只等工具行接上章节条不够：吸顶那一层的变量还旧着时，这两层一起错开、彼此照样接得上。
+          try {
+            await waitIn(panel, `${width} 宽：三层首尾相接`, stickyStacked);
+          } catch (error) {
+            throw new Error(`${error.message}\n位置：${JSON.stringify(await panel.evaluate(stickyLayout))}`);
+          }
           const at = await panel.evaluate(stickyLayout);
           const label = `${width} 宽：${JSON.stringify(at)}`;
-          assert.ok(at.top && at.notice && at.tools, label);
+          assert.ok(at.top && at.notice && at.chapter && at.tools, label);
           assert.ok(Math.abs(at.top.top) < 1, `模式切换和提示吸在顶上：${label}`);
           assert.ok(at.notice.top >= 0 && at.notice.bottom <= at.top.bottom + 0.5, `提示在吸顶那一层里、看得见：${label}`);
-          const above = at.chapter ?? at.top;
-          if (at.chapter) assert.ok(Math.abs(at.chapter.top - at.top.bottom) < 1, `当前章节接在吸顶那一层下面：${label}`);
-          assert.ok(Math.abs(at.tools.top - above.bottom) < 1, `字幕的工具行接在上一层下面，不压着：${label}`);
+          assert.ok(Math.abs(at.chapter.top - at.top.bottom) < 1, `当前章节接在吸顶那一层下面：${label}`);
+          assert.ok(Math.abs(at.tools.top - at.chapter.bottom) < 1, `字幕的工具行接在当前章节下面，不压着：${label}`);
           assert.ok(at.tools.bottom - at.top.top <= at.viewport * 0.4, `吸顶的几层加起来不到视口的四成：${label}`);
           // 滚下去以后工具行里的菜单照样够得着，复制的结果落在吸顶的提示里，看得见。
           await panel.evaluate(recordClipboard);
