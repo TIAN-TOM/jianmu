@@ -1,0 +1,77 @@
+name: 出了问题 / Bug report
+description: 简幕没有按说明工作 / Jianmu isn't working the way it says it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        谢谢你来报问题。安全漏洞请不要在这里报，改用[私密漏洞报告](https://github.com/TIAN-TOM/jianmu/security/advisories/new)。
+        Thanks for reporting. Please don't report security issues here; use a [private vulnerability report](https://github.com/TIAN-TOM/jianmu/security/advisories/new) instead.
+
+        **不要贴 API 密钥、Cookie 或其他凭证，截图前也遮掉它们。**
+        **Don't paste API keys, cookies or other credentials, and cover them up in screenshots.**
+  - type: dropdown
+    id: site
+    attributes:
+      label: 在哪个网站上 / Site
+      options:
+        - 哔哩哔哩 / Bilibili
+        - YouTube
+        - 两个都有 / Both
+        - 和网站无关（设置页、备份等） / Not site-specific (settings, backup and so on)
+    validations:
+      required: true
+  - type: input
+    id: jianmu-version
+    attributes:
+      label: 简幕版本 / Jianmu version
+      description: 在 chrome://extensions 里简幕那一栏能看到 / Shown on Jianmu's entry in chrome://extensions
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: chrome-version
+    attributes:
+      label: Chrome 版本 / Chrome version
+      description: 地址栏打开 chrome://version，复制第一行 / Open chrome://version and copy the first line
+    validations:
+      required: true
+  - type: dropdown
+    id: api
+    attributes:
+      label: 用的哪种 AI 接口 / Model API
+      description: 和 AI 功能无关的问题可以不选 / Skip this if the problem has nothing to do with the AI features
+      options:
+        - OpenAI 兼容 / OpenAI-compatible
+        - OpenAI Responses
+        - Anthropic
+        - 还没设置 / Not set up yet
+  - type: textarea
+    id: steps
+    attributes:
+      label: 怎么复现 / Steps to reproduce
+      description: 一步一步写。只在某个视频上出问题的话，贴上视频链接 / List the steps. If it only happens on one video, include its link.
+      placeholder: |
+        1. 打开一个 B 站视频 / Open a Bilibili video
+        2. 点侧边栏里的「生成概览」 / Click Generate overview in the side panel
+        3. ……
+    validations:
+      required: true
+  - type: textarea
+    id: expected-actual
+    attributes:
+      label: 你期望看到什么，实际看到什么 / What you expected and what happened
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: 截图或其他补充 / Screenshots or anything else
+      description: 界面上显示的错误提示原文最有用 / The exact error message shown in the interface helps most
+  - type: checkboxes
+    id: no-secrets
+    attributes:
+      label: 确认 / Confirm
+      options:
+        - label: 我没有在上面贴 API 密钥、Cookie 或其他凭证 / I haven't pasted any API key, cookie or other credential above
+          required: true

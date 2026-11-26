@@ -1,0 +1,22 @@
+name: 使用问题 / Question
+description: 不知道怎么用，或者想确认某个行为对不对 / Not sure how something works, or whether it's meant to behave this way
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        安装、更新和隐私的说明在 [README](https://github.com/TIAN-TOM/jianmu#readme) 和[隐私政策](https://github.com/TIAN-TOM/jianmu/blob/main/PRIVACY.md)里，可以先看看。
+        Installing, updating and privacy are covered in the [README](https://github.com/TIAN-TOM/jianmu/blob/main/README.en.md) and the [privacy policy](https://github.com/TIAN-TOM/jianmu/blob/main/PRIVACY.md).
+
+        **不要贴 API 密钥、Cookie 或其他凭证。** **Don't paste API keys, cookies or other credentials.**
+  - type: textarea
+    id: question
+    attributes:
+      label: 你的问题 / Your question
+    validations:
+      required: true
+  - type: input
+    id: jianmu-version
+    attributes:
+      label: 简幕版本 / Jianmu version
+      description: 在 chrome://extensions 里简幕那一栏能看到 / Shown on Jianmu's entry in chrome://extensions

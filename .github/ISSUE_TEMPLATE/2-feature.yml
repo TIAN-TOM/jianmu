@@ -1,0 +1,31 @@
+name: 想要一个功能 / Feature request
+description: 提一个新功能或改进 / Suggest a new feature or an improvement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提之前可以先看一眼产品需求说明第 5 节「[不做和以后再看](https://github.com/TIAN-TOM/jianmu/blob/main/notes/product-prd.md#5-不做和以后再看)」，那里列着已经决定不做或者以后再看的事。
+        Before you ask, you might check section 5 of the [PRD](https://github.com/TIAN-TOM/jianmu/blob/main/notes/product-prd.md#5-不做和以后再看) (in Chinese), which lists what has been ruled out or left for later.
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你遇到了什么麻烦 / What's the problem
+      description: 你在什么情况下会用到它，现在是怎么做的 / When would you use it, and how do you get by today?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: 你希望简幕怎么做 / What you'd like Jianmu to do
+    validations:
+      required: true
+  - type: dropdown
+    id: site
+    attributes:
+      label: 和哪个网站有关 / Site
+      options:
+        - 哔哩哔哩 / Bilibili
+        - YouTube
+        - 两个都有 / Both
+        - 和网站无关 / Not site-specific
