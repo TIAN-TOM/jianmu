@@ -168,7 +168,7 @@ test("扩展页面紧跟着主题样式表加载共用组件的样式表，组�
   }
 });
 
-const ICON_SIZES = [16, 48, 128];
+const ICON_SIZES = [16, 32, 48, 128];
 const PNG_SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
 
 /** PNG 里每一块的类型，按出现顺序。 */
@@ -178,7 +178,7 @@ function pngChunks(png: Buffer): string[] {
   return types;
 }
 
-test("扩展图标是 16、48、128 三档 PNG：尺寸对得上，工具栏用同一套，都进包，不带文字信息块", () => {
+test("扩展图标是 16、32、48、128 四档 PNG：尺寸对得上，工具栏用同一套，都进包，不带文字信息块", () => {
   const manifest = JSON.parse(readBuild("manifest.json"));
   const icons = Object.fromEntries(ICON_SIZES.map((size) => [String(size), `icons/icon-${size}.png`]));
   assert.deepEqual(manifest.icons, icons);

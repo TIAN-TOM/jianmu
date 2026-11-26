@@ -10,6 +10,7 @@ content/youtube-bridge.js
 content/youtube.js
 icons/icon-128.png
 icons/icon-16.png
+icons/icon-32.png
 icons/icon-48.png
 manifest.json
 pages/card.css
