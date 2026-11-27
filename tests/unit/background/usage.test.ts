@@ -13,6 +13,7 @@ import { usageText } from "../../../src/pages/options/form.ts";
 import { API_KEY_SESSION_KEY, USAGE_STORAGE_KEY } from "../../../src/shared/names.ts";
 import { createFakeChrome, senders } from "../../helpers/chrome.ts";
 import { keyedStorage, modelService, reply, SAMPLE_KEY, type ServiceHandler } from "../../helpers/fake-model-service.ts";
+import { holdWrites } from "../../helpers/held-writes.ts";
 import { memoryStorage } from "../../helpers/memory-storage.ts";
 import { stillFalse, until } from "../../helpers/wait-until.ts";
 
@@ -112,6 +113,32 @@ test("清除之前开始的任务，清除之后才回来的用量不写回", as
 
   await log.record("qa", { model: "m", effort: "low", usage: { input: 1 } }, clearGuard.epoch());
   assert.deepEqual(await log.read(), { qa: { model: "m", effort: "low", usage: { input: 1 } } });
+});
+
+test("只删了笔记：清除之前开始的任务回来照常记用量", async () => {
+  const session = memoryStorage({});
+  const clearGuard = createClearGuard();
+  const log = createUsageLog({ storage: session, clearGuard });
+  const since = clearGuard.epoch();
+  await clearGuard.clear("notes", () => undefined);
+  await log.record("qa", { model: "m", effort: "low", usage: { input: 1 } }, since);
+  assert.deepEqual(await log.read(), { qa: { model: "m", effort: "low", usage: { input: 1 } } });
+});
+
+test("清缓存撞上正在写和排着的用量：正在写的写完再清，排着的轮到时再核对一次，不写回", async () => {
+  const session = memoryStorage({});
+  const clearGuard = createClearGuard();
+  const log = createUsageLog({ storage: session, clearGuard });
+  const since = clearGuard.epoch();
+  const held = holdWrites(session);
+  const first = log.record("qa", { model: "m", effort: "low", usage: { input: 1 } }, since);
+  const second = log.record("verdict", { model: "m", effort: "low", usage: { input: 2 } }, since);
+  assert.ok(await until(() => held.started() === 1), "第一笔进了存储，第二笔排在后面");
+  const clearing = clearGuard.clear("cache", () => session.remove(USAGE_STORAGE_KEY));
+  held.release();
+  await Promise.all([clearing, first, second]);
+  assert.equal(held.started(), 1, "排着的那笔没再写");
+  assert.deepEqual(await log.read(), {});
 });
 
 test("用量写不进存储：这一笔丢掉不报错，后面的照常写", async () => {

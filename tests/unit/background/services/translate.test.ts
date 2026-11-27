@@ -217,6 +217,25 @@ test("偶发失败的批次等一会儿静默补一轮，补轮那一批传输�
   assert.equal(done(other)[0]?.state, "failed");
 });
 
+test("等着补译的时候点了停止：马上结束，不等到点，也不再补", async () => {
+  const view = await transcriptView(FIVE);
+  const h = translateHarness(view, {
+    reply(request) {
+      if (batchOf(request).some(({ id }) => id === LAST)) throw Object.assign(new Error("服务过载"), { status: 503 });
+      return echo()(request);
+    },
+  });
+  const panel = page("panel");
+  const running = h.translate(panel);
+  assert.ok(await eventually(() => h.timers.due(TRANSLATE_RETRY_DELAY_MS) === 1), "等一会儿再补");
+  h.service.stop(panel.id);
+  assert.ok(await eventually(() => done(panel).length > 0), "不等到点就结束");
+  await running;
+  assert.equal(h.timers.due(TRANSLATE_RETRY_DELAY_MS), 0, "等补译的计时器撤掉了");
+  assert.equal(h.requests(), 2, "不再补");
+  assert.deepEqual(done(panel).map((event) => event.state), ["canceled"]);
+});
+
 test("模型回的一条都对不上（编号改了、原文抄回来）：这一批算没译成，等一会儿补一轮，不推空结果", async () => {
   const view = await transcriptView(FIVE);
   let garbled = true;

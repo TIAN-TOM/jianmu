@@ -9,7 +9,9 @@ import { ok } from "../../../src/core/errors.ts";
 import type { FrozenGen } from "../../../src/core/tasks.ts";
 import { IMAGE_PROBE_STORAGE_KEY } from "../../../src/shared/names.ts";
 import { createFakeAi, type FakeAiOptions } from "../../helpers/fake-ai.ts";
+import { holdWrites } from "../../helpers/held-writes.ts";
 import { memoryStorage } from "../../helpers/memory-storage.ts";
+import { until } from "../../helpers/wait-until.ts";
 
 const GEN: FrozenGen = { feature: "frame", baseUrl: "https://ai.example.test/v1", model: "vision-model", effort: "off", promptVersion: "v1" };
 
@@ -21,6 +23,9 @@ function setup(options: FakeAiOptions = {}, start = 1_000) {
   const images = createImageSupport({ storage, clearGuard, ai: fake.ai, now: () => clock });
   return { fake, storage, clearGuard, images, tick: (ms: number) => (clock += ms) };
 }
+
+const OTHER_GEN: FrozenGen = { ...GEN, model: "other-vision-model" };
+const keyOf = (gen: FrozenGen): string => `${gen.baseUrl}|${gen.model}`;
 
 const httpError = (status: number, message: string): Error => Object.assign(new Error(message), { status });
 
@@ -96,6 +101,44 @@ test("探测结果存不进去：这一次照常回结果，下次说不准再�
   assert.deepEqual(await images.ensure(GEN), ok({ imageInput: true }));
   assert.equal(fake.calls.length, 2, "没记下，又探了一次");
   assert.equal(await images.known(GEN), true);
+});
+
+test("两个模型的探测差不多同时回来：排着写，两条都记下，后写的不盖掉先写的", async () => {
+  const { storage, images, fake } = setup();
+  const release = fake.hold("frame");
+  const first = images.probe(GEN);
+  const second = images.probe(OTHER_GEN);
+  assert.ok(await until(() => fake.calls.length === 2));
+  release();
+  await Promise.all([first, second]);
+  assert.deepEqual(Object.keys(storage.data[IMAGE_PROBE_STORAGE_KEY] as object).sort(), [keyOf(OTHER_GEN), keyOf(GEN)].sort());
+});
+
+test("探测途中只删了笔记：结果照常写", async () => {
+  const { storage, clearGuard, images, fake } = setup();
+  const release = fake.hold("frame");
+  const probing = images.probe(GEN);
+  assert.ok(await until(() => fake.calls.length === 1));
+  await clearGuard.clear("notes", () => undefined);
+  release();
+  await probing;
+  assert.deepEqual(Object.keys(storage.data[IMAGE_PROBE_STORAGE_KEY] as object), [keyOf(GEN)]);
+});
+
+test("清缓存撞上正在写和排着的探测结果：正在写的写完再清，排着的轮到时再核对一次，不写回", async () => {
+  const { storage, clearGuard, images, fake } = setup();
+  const release = fake.hold("frame");
+  const first = images.probe(GEN);
+  const second = images.probe(OTHER_GEN);
+  assert.ok(await until(() => fake.calls.length === 2));
+  const held = holdWrites(storage);
+  release();
+  assert.ok(await until(() => held.started() === 1), "第一条进了存储，第二条排在后面");
+  const clearing = clearGuard.clear("cache", () => storage.remove(IMAGE_PROBE_STORAGE_KEY));
+  held.release();
+  await Promise.all([clearing, first, second]);
+  assert.equal(held.started(), 1, "排着的那条没再写");
+  assert.equal(storage.data[IMAGE_PROBE_STORAGE_KEY], undefined);
 });
 
 test("认得出的拒收：4xx 并且说明里提到图片；鉴权、找不到、限流和别的说法都不算", () => {

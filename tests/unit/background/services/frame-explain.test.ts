@@ -21,6 +21,7 @@ import type { Broadcast } from "../../../../src/shared/messages.ts";
 import type { FrameEntryView } from "../../../../src/shared/messages/frame.ts";
 import { createFakeAi, type FakeAiOptions } from "../../../helpers/fake-ai.ts";
 import { manualTimers } from "../../../helpers/manual-timers.ts";
+import { holdWrites } from "../../../helpers/held-writes.ts";
 import { memoryStorage } from "../../../helpers/memory-storage.ts";
 import { cue, OTHER, START, transcriptView, TUBE, VIDEO } from "../../../helpers/study-service.ts";
 import { until } from "../../../helpers/wait-until.ts";
@@ -54,6 +55,7 @@ function setup(options: Options = {}) {
   const keepAlive = createKeepAlive({ ping: () => undefined, now: timers.now, setTimeout: timers.setTimeout, clearTimeout: timers.clearTimeout });
   let ids = 0;
   const broadcasts: Broadcast[] = [];
+  const warns: string[] = [];
   const clearGuard = createClearGuard();
   const tasks = createTaskRunner({ ai: fake.ai, keepAlive, timers, broadcast: () => undefined, newId: () => `task-${(ids += 1)}` });
   const asked: unknown[] = [];
@@ -119,7 +121,7 @@ function setup(options: Options = {}) {
     },
     prompt: (file) => fake.ai.prompt(file),
     broadcast: (message) => void broadcasts.push(message),
-    log: { warn() {}, error() {} },
+    log: { warn: (message: unknown) => void warns.push(String(message)), error() {} },
     now: timers.now,
     newId: () => `entry-${(ids += 1)}`,
   });
@@ -130,7 +132,7 @@ function setup(options: Options = {}) {
     assert.ok(latest);
     return latest;
   };
-  return { fake, service, asked, reads, broadcasts, probed, timers, run, clearGuard, session, ensured: () => ensured, held, released: () => released };
+  return { fake, service, asked, reads, broadcasts, warns, probed, timers, run, clearGuard, session, ensured: () => ensured, held, released: () => released };
 }
 
 test("能看图：向标签页要一帧，图在前、提示词在后发给画面分析的模型；结果记下，带时间和尺寸", async () => {
@@ -361,11 +363,52 @@ test("会话存储写不进去：解释照常列出，后面的写入不受影�
   const first = await h.run();
   assert.equal(first.state, "done");
   assert.equal(h.session.data[FRAME_RESULTS_KEY], undefined);
+  assert.ok(await until(() => h.warns.includes("记下画面解释失败")), "写不进去记一条警告");
   Object.assign(h.session, { set: write });
   const second = await h.run();
   const stored = () => (h.session.data[FRAME_RESULTS_KEY] as FrameEntryView[] | undefined) ?? [];
   assert.ok(await until(() => stored().some((item) => item.id === second.id && item.state === "done")));
   assert.ok(stored().some((item) => item.id === first.id), "之前没存进去的那条也跟着这次写进去");
+});
+
+const storedOf = (h: ReturnType<typeof setup>): FrameEntryView[] | undefined => h.session.data[FRAME_RESULTS_KEY] as FrameEntryView[] | undefined;
+
+test("等模型时只清了缓存：之后的进展不写回会话存储", async () => {
+  const cleared = setup();
+  const release = cleared.fake.hold("frame");
+  const entry = await cleared.service.start(TAB, VIDEO);
+  assert.ok(await until(() => cleared.fake.calls.length === 1));
+  await cleared.clearGuard.clear("cache", () => cleared.session.remove(FRAME_RESULTS_KEY));
+  release();
+  await cleared.service.settled(entry.id);
+  assert.equal(storedOf(cleared), undefined);
+});
+
+test("等模型时只删了笔记：之后的进展照常写回会话存储", async () => {
+  const notes = setup();
+  const go = notes.fake.hold("frame");
+  const kept = await notes.service.start(TAB, VIDEO);
+  assert.ok(await until(() => notes.fake.calls.length === 1));
+  await notes.clearGuard.clear("notes", () => undefined);
+  go();
+  await notes.service.settled(kept.id);
+  assert.ok(await until(() => storedOf(notes)?.some((item) => item.id === kept.id && item.state === "done") === true));
+});
+
+test("清缓存撞上正在写和排着的解释：正在写的写完再清，排着的轮到时再核对一次，不写回", async () => {
+  const h = setup();
+  const release = h.fake.hold("frame");
+  const held = holdWrites(h.session);
+  const entry = await h.service.start(TAB, VIDEO);
+  assert.ok(await until(() => h.fake.calls.length === 1));
+  assert.equal(held.started(), 1, "第一次写进了存储，后面几次排着");
+  const clearing = h.clearGuard.clear("cache", () => h.session.remove(FRAME_RESULTS_KEY));
+  held.release();
+  await clearing;
+  release();
+  await h.service.settled(entry.id);
+  assert.equal(held.started(), 1, "排着的几次都没再写");
+  assert.equal(storedOf(h), undefined);
 });
 
 test("登记任务之前的几步也撑着后台：整段包在一份有上限的保活里，做完就撤", async () => {
