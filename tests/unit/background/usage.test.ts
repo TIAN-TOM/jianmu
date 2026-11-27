@@ -114,6 +114,18 @@ test("清除之前开始的任务，清除之后才回来的用量不写回", as
   assert.deepEqual(await log.read(), { qa: { model: "m", effort: "low", usage: { input: 1 } } });
 });
 
+test("用量写不进存储：这一笔丢掉不报错，后面的照常写", async () => {
+  const session = memoryStorage({});
+  const write = session.set;
+  const log = createUsageLog({ storage: session, clearGuard: createClearGuard() });
+  Object.assign(session, { set: () => Promise.reject(new Error("存不进去")) });
+  await log.record("qa", { model: "m", effort: "low", usage: { input: 1 } }, undefined);
+  assert.deepEqual(await log.read(), {});
+  Object.assign(session, { set: write });
+  await log.record("verdict", { model: "m", effort: "low", usage: { input: 2 } }, undefined);
+  assert.deepEqual(await log.read(), { verdict: { model: "m", effort: "low", usage: { input: 2 } } });
+});
+
 test("几项功能的用量差不多同时回来：排队写，哪一项都不丢；存储里认不得的形状当作没有", async () => {
   const session = memoryStorage({});
   const log = createUsageLog({ storage: session, clearGuard: createClearGuard() });

@@ -86,6 +86,18 @@ test("探测途中清除了缓存：结果不写回去", async () => {
   assert.equal(storage.data[IMAGE_PROBE_STORAGE_KEY], undefined);
 });
 
+test("探测结果存不进去：这一次照常回结果，下次说不准再探；之后存得进去就记下", async () => {
+  const { storage, images, fake } = setup();
+  const write = storage.set;
+  Object.assign(storage, { set: () => Promise.reject(new Error("存不进去")) });
+  assert.deepEqual(await images.probe(GEN), ok({ imageInput: true }));
+  assert.equal(storage.data[IMAGE_PROBE_STORAGE_KEY], undefined);
+  Object.assign(storage, { set: write });
+  assert.deepEqual(await images.ensure(GEN), ok({ imageInput: true }));
+  assert.equal(fake.calls.length, 2, "没记下，又探了一次");
+  assert.equal(await images.known(GEN), true);
+});
+
 test("认得出的拒收：4xx 并且说明里提到图片；鉴权、找不到、限流和别的说法都不算", () => {
   assert.equal(isImageRejection(httpError(400, "image_url is not supported")), true);
   assert.equal(isImageRejection(httpError(422, "该模型不支持图片输入")), true);

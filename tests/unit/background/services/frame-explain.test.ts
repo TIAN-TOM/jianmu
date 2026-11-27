@@ -354,6 +354,20 @@ test("清除本机数据以后，之前的解释不再列出，也不写回会�
   assert.equal(h.session.data[FRAME_RESULTS_KEY], undefined);
 });
 
+test("会话存储写不进去：解释照常列出，后面的写入不受影响", async () => {
+  const h = setup();
+  const write = h.session.set;
+  Object.assign(h.session, { set: () => Promise.reject(new Error("存不进去")) });
+  const first = await h.run();
+  assert.equal(first.state, "done");
+  assert.equal(h.session.data[FRAME_RESULTS_KEY], undefined);
+  Object.assign(h.session, { set: write });
+  const second = await h.run();
+  const stored = () => (h.session.data[FRAME_RESULTS_KEY] as FrameEntryView[] | undefined) ?? [];
+  assert.ok(await until(() => stored().some((item) => item.id === second.id && item.state === "done")));
+  assert.ok(stored().some((item) => item.id === first.id), "之前没存进去的那条也跟着这次写进去");
+});
+
 test("登记任务之前的几步也撑着后台：整段包在一份有上限的保活里，做完就撤", async () => {
   const h = setup();
   await h.run();
