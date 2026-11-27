@@ -73,17 +73,18 @@ const REFUSAL_CODES: Readonly<Record<FrameRefusal, ErrorCode>> = {
   NOT_FOREGROUND: "FRAME_NOT_FOREGROUND",
 };
 
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null;
+// 数组也算对象，不用 shared/guards.ts 的 isRecord：内容脚本回个数组时要按截图不对（FRAME_BAD_CAPTURE）报，不按连不上报。
+const isObject = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null;
 const isSide = (value: unknown): value is number => Number.isInteger(value) && Number(value) >= 1 && Number(value) <= FRAME_MAX_SIDE;
 
 /** 内容脚本回的截图：形状、前缀、大小、尺寸和视频身份都对上才用，不对就不发给模型。 */
 export function checkCapture(reply: unknown, video: VideoKey): Result<FrameCapture> {
-  if (!isRecord(reply)) return fail("FRAME_UNREACHABLE");
+  if (!isObject(reply)) return fail("FRAME_UNREACHABLE");
   if (reply.ok === false) {
     const code = typeof reply.code === "string" && Object.hasOwn(REFUSAL_CODES, reply.code) ? REFUSAL_CODES[reply.code as FrameRefusal] : "FRAME_BAD_CAPTURE";
     return fail(code);
   }
-  const value = reply.ok === true && isRecord(reply.value) ? reply.value : null;
+  const value = reply.ok === true && isObject(reply.value) ? reply.value : null;
   if (!value) return fail("FRAME_BAD_CAPTURE");
   const { dataUrl, width, height, atSec } = value;
   if (typeof dataUrl !== "string" || !dataUrl.startsWith(FRAME_PREFIX) || dataUrl.length <= FRAME_PREFIX.length || dataUrl.length > FRAME_MAX_CHARS) {
@@ -148,7 +149,7 @@ export interface FrameExplainService {
 }
 
 const isEntry = (value: unknown): value is FrameEntryView =>
-  isRecord(value) && typeof value.id === "string" && Number.isInteger(value.tabId) && typeof value.video === "string" && typeof value.createdAt === "number";
+  isObject(value) && typeof value.id === "string" && Number.isInteger(value.tabId) && typeof value.video === "string" && typeof value.createdAt === "number";
 
 export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainService {
   let entries = new Map<string, FrameEntryView>();
