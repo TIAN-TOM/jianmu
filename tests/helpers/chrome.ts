@@ -371,6 +371,7 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
   const rule = (platform: VideoRef["platform"], prefix: string): SiteRules => ({
     platform,
     optionalPermission: platform === "youtube",
+    captions: platform === "youtube" ? "page" : "service",
     parseWatchUrl(url) {
       record(calls.siteParses, url);
       if (!url.startsWith(prefix)) return null;

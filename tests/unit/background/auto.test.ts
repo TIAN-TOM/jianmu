@@ -69,7 +69,7 @@ function appOn({ enabled = true, on = true, handler = answer, captions = () => "
     activeTabs: { [FOCUSED]: { id: 3, url: watchUrl(LONG_ID) }, [BACKGROUND]: { id: 4, url: watchUrl(OTHER_ID) } } as Record<number, { id: number; url: string }>,
     urlTabs: { 3: watchUrl(LONG_ID), 4: watchUrl(OTHER_ID) } as Record<number, string>,
   };
-  const service = tube ? { ...site.service, rules: { ...site.service.rules, platform: "youtube" as const } } : site.service;
+  const service = tube ? { ...site.service, rules: { ...site.service.rules, platform: "youtube" as const, captions: "page" as const } } : site.service;
   const fake = createFakeChrome(
     withWindows(
       {

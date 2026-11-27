@@ -4,6 +4,7 @@
 // 设置页选好画面分析的模型后可以探一次能不能看图。
 import { fail, ok } from "../../core/errors.ts";
 import { videoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
+import { CONTENT_SENDERS } from "../../shared/messages.ts";
 import type { FrameExplainRequest, FrameHereRequest, FrameRecentRequest } from "../../shared/messages/frame.ts";
 import type { Messenger } from "../../platform/messaging.ts";
 import type { AiWiring } from "../ai.ts";
@@ -56,7 +57,7 @@ export function frameRoutes({ frame, ai, messenger }: FrameRouteDeps): FrameRout
       },
     },
     "frame.explainHere": {
-      senders: ["content:bilibili", "content:youtube"],
+      senders: CONTENT_SENDERS,
       video: "from-sender",
       gesture: "open-panel",
       validate: isHereRequest,

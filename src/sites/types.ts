@@ -84,10 +84,14 @@ export type SiteResult<T> = { ok: true; value: T } | SiteFailure;
 
 type R<T> = Promise<SiteResult<T>>;
 
+// 这个站的字幕由谁读：service 是后台自己向平台读；page 是用户点了读取才经视频页读，后台不为它自己去读。
+export type CaptionAccess = "service" | "page";
+
 // 地址规则是纯函数，后台、页面和内容脚本共用。
 export interface SiteRules {
   platform: Platform;
   optionalPermission: boolean; // 这个站的主机权限要不要用户另外授予
+  captions: CaptionAccess;
   parseWatchUrl(url: string): VideoRef | null; // 只认首发支持的页面
   canonicalUrl(ref: VideoRef, atSec?: number): string;
   permissionOrigins: readonly string[]; // 启用这个站时请用户授权的来源；安装时就有授权的站是空的
