@@ -4,7 +4,7 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { AV_XOR_CODE, BV_ALPHABET } from "../src/sites/bilibili/url.ts";
-import { findStructureViolations, type SourceFile, type Violation } from "./helpers/structure-rules.ts";
+import { ENTRY_POINTS, findStructureViolations, UNIMPORTED_ALLOWED, type SourceFile, type Violation } from "./helpers/structure-rules.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -29,7 +29,17 @@ function filesHit(files: Readonly<Record<string, string>>): string[] {
 }
 
 test("src/ 没有违反结构规则", () => {
-  assert.deepEqual(findStructureViolations(sourceFiles(join(ROOT, "src"))), []);
+  assert.deepEqual(findStructureViolations(sourceFiles(join(ROOT, "src")), { wholeTree: true }), []);
+});
+
+test("第 9 条认的入口和构建脚本的入口一致", () => {
+  const build = readFileSync(join(ROOT, "scripts/build.mjs"), "utf8");
+  const entries = [...build.matchAll(/entryPoints:\s*\["([^"]+)"\]/g)].map((match) => match[1] ?? "");
+  const scriptOnly = [...ENTRY_POINTS].filter((path) => !entries.includes(path));
+  assert.deepEqual(scriptOnly, ["src/shared/features.ts"], "入口表里除了只给构建脚本读的开关表，都是构建入口");
+  assert.deepEqual(entries.filter((path) => !ENTRY_POINTS.has(path)), [], "新加的构建入口也要写进入口表");
+  const gone = [...ENTRY_POINTS, ...Object.keys(UNIMPORTED_ALLOWED)].filter((path) => !existsSync(join(ROOT, path)));
+  assert.deepEqual(gone, [], "入口表和放行表里的文件都还在");
 });
 
 test("内容脚本、卡片、侧边栏都用共用模块，自己不再留一份换算", () => {
@@ -280,6 +290,78 @@ describe("规则能拦下造好的违规", () => {
       "src/sites/bilibili/captions.ts": 'import { get } from "./http.ts";\n',
     };
     assert.deepEqual(filesHit(viaExit), ["6 src/sites/bilibili/http.ts", "6 src/sites/bilibili/captions.ts"]);
+  });
+
+  test("第 7 条：值的导入不成环，只导入类型的边不算", () => {
+    const pair = {
+      "src/core/a.ts": 'import { b } from "./b.ts";\nexport const a = 1;\n',
+      "src/core/b.ts": 'import { a } from "./a.ts";\nexport const b = 2;\n',
+    };
+    assert.deepEqual(filesHit(pair), ["7 src/core/a.ts"]);
+    const ring = {
+      "src/background/x.ts": 'import { y } from "./y.ts";\n',
+      "src/background/y.ts": 'export { z as y } from "./z.ts";\n',
+      "src/background/z.ts": 'import "./x.ts";\n',
+    };
+    assert.deepEqual(filesHit(ring), ["7 src/background/x.ts"]);
+    assert.deepEqual(rulesHit("src/core/a.ts", 'import { a } from "./a.ts";\n'), [7]);
+    const inlineType = {
+      "src/core/a.ts": 'import { type B } from "./b.ts";\nexport const a = 1;\n',
+      "src/core/b.ts": 'import { a } from "./a.ts";\nexport type B = number;\n',
+    };
+    assert.deepEqual(filesHit(inlineType), ["7 src/core/a.ts"], "只在花括号里写 type 的导入照样加载模块，算值的边");
+    const typeOnly = {
+      "src/core/a.ts": 'import type { B } from "./b.ts";\nexport const a = 1;\n',
+      "src/core/b.ts": 'import { a } from "./a.ts";\nexport type B = number;\n',
+    };
+    assert.deepEqual(filesHit(typeOnly), []);
+    const chain = {
+      "src/core/a.ts": 'import { b } from "./b.ts";\n',
+      "src/core/b.ts": 'import { c } from "./c.ts";\n',
+      "src/core/c.ts": "export const c = 1;\n",
+    };
+    assert.deepEqual(filesHit(chain), []);
+  });
+
+  test("第 8 条：core 不导入 shared/messages", () => {
+    assert.deepEqual(rulesHit("src/core/notes/a.ts", 'import type { TextTarget } from "../../shared/messages/translate.ts";\n'), [8]);
+    assert.deepEqual(rulesHit("src/core/a.ts", 'import type { Msg } from "../shared/messages.ts";\n'), [8]);
+    assert.deepEqual(rulesHit("src/core/a.ts", 'export type { Msg } from "../shared/messages/../messages/ai.ts";\n'), [8]);
+    assert.deepEqual(rulesHit("src/core/a.ts", 'import { NAMES } from "../shared/names.ts";\n'), []);
+    assert.deepEqual(rulesHit("src/core/a.ts", 'import { list } from "../shared/messages-list.ts";\n'), []);
+    assert.deepEqual(rulesHit("src/shared/messages/a.ts", 'import type { TranscriptRef } from "../../core/notes/records.ts";\n'), []);
+    assert.deepEqual(rulesHit("src/background/a.ts", 'import type { TranslateOut } from "../shared/messages/translate.ts";\n'), []);
+  });
+
+  test("第 9 条：src/ 下每个模块都有 src/ 里的导入方", () => {
+    const wholeHit = (files: Readonly<Record<string, string>>): string[] =>
+      findStructureViolations(Object.entries(files).map(([path, text]) => ({ path, text })), { wholeTree: true }).map(({ rule, file }) => `${rule} ${file}`);
+    const orphan = {
+      "src/background/main.ts": 'import { a } from "../core/a.ts";\n',
+      "src/core/a.ts": "export const a = 1;\n",
+      "src/core/unused.ts": "export const u = 1;\n",
+    };
+    assert.deepEqual(wholeHit(orphan), ["9 src/core/unused.ts"]);
+    assert.deepEqual(filesHit(orphan), [], "只给几个文件时不查第 9 条");
+    const used = {
+      "src/background/main.ts": 'import type { A } from "../core/a.ts";\nimport "../core/side.ts";\n',
+      "src/core/a.ts": "export type A = number;\n",
+      "src/core/side.ts": "globalThis.x = 1;\n",
+      "src/shared/build-flags.d.ts": "declare const FLAG: boolean;\n",
+      "src/shared/features.ts": "export const RELEASE_FEATURES = {};\n",
+      "src/core/notes/filter.ts": "export const filter = 1;\n",
+    };
+    assert.deepEqual(wholeHit(used), [], "只导入类型、只为副作用导入都算有导入方；入口、.d.ts 和放行表里的不查");
+    const selfOnly = {
+      "src/background/main.ts": "export const main = 1;\n",
+      "src/core/lonely.ts": 'import type { L } from "./lonely.ts";\nexport type L = number;\n',
+    };
+    assert.deepEqual(wholeHit(selfOnly), ["9 src/core/lonely.ts"], "只有自己导入自己不算");
+    const wired = {
+      "src/background/main.ts": 'import { filter } from "../core/notes/filter.ts";\n',
+      "src/core/notes/filter.ts": "export const filter = 1;\n",
+    };
+    assert.deepEqual(wholeHit(wired), ["9 src/core/notes/filter.ts"], "放行表里的模块接进产品以后，这一条要从放行表删掉");
   });
 
   test("第 6 条：经 http.ts 发请求、只导入类型，都不算绕过请求出口", () => {
