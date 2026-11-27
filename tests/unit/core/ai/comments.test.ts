@@ -75,7 +75,7 @@ test("存着的那一块：照形状核一遍；读存着的结论时留下，�
   const stored = { tag: "有争议", line: "两派意见", points: [{ text: "有人说好", quotes: [{ text: "讲得好", likes: 5, pinned: false, author: "x" }] }, { text: "没有原评论", quotes: [] }], marks: [{ start: 300, kind: "可跳过" }, { start: -1, kind: "有误" }] };
   const view = storedCommentView(stored);
   assert.deepEqual(view, { tag: "有争议", line: "两派意见", points: [{ text: "有人说好", quotes: [{ text: "讲得好", likes: 5, pinned: false }] }], marks: [{ start: 300, kind: "可跳过" }] });
-  const verdict = { summary: "讲了什么", value: "", verdict: "可以看", reason: "理由", comments: stored };
+  const verdict = { summary: "讲了什么", value: "", verdict: 3, reason: "理由", comments: stored };
   assert.deepEqual(validateVerdict(verdict, { stored: true })?.comments, view);
   assert.equal(validateVerdict(verdict)?.comments, undefined, "模型新写的由调用方按发出去的评论另外核对");
   assert.equal(validateVerdict({ ...verdict, comments: { tag: "还行" } }, { stored: true })?.comments, undefined);

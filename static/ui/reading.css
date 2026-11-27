@@ -164,29 +164,24 @@
 .verdict-label {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  column-gap: var(--space-2);
   font-size: var(--fs-ui);
   font-weight: var(--fw-semibold);
 }
 
-.verdict[data-shape="go"] .verdict-label {
-  color: var(--verdict-go);
+/* 最窄的栏里先让短词按词换行，连一个整词也放不下时，短词排到星的下一行。 */
+.verdict-label,
+.chapter-bar-verdict,
+.card-verdict {
+  flex-wrap: wrap;
 }
 
-.verdict[data-shape="fair"] .verdict-label {
-  color: var(--verdict-fair);
+.verdict-name {
+  flex: 1 1 min-content;
 }
 
-.verdict[data-shape="skip"] .verdict-label {
-  color: var(--verdict-skip);
-}
-
-.verdict[data-shape="unknown"] .verdict-label {
-  color: var(--verdict-unknown);
-}
-
-.verdict[data-shape="square"] .verdict-label {
-  color: var(--text);
+.verdict .verdict-label {
+  color: var(--verdict);
 }
 
 .verdict-text {

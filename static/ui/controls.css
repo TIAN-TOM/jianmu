@@ -48,21 +48,12 @@
   white-space: nowrap;
 }
 
-/* 判断标记：三套画法都在里面，主题的版面规则（ui/themes/）只把这一套用的那种显示出来、定大小。 */
-.verdict-mark {
-  display: inline-flex;
+/* 实心和空心星共用轮廓色。 */
+.verdict-stars {
+  display: block;
   flex: none;
-  align-items: center;
-}
-
-.mark-set {
-  display: none;
-  width: auto;
+  width: 5em;
   height: 1em;
-}
-
-.mark-off {
-  fill: var(--meter-off);
 }
 
 .ske-line {

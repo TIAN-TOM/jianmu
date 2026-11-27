@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { ACTIVATION_TABLE } from "../../src/core/consent.ts";
 import { errorCopy } from "../../src/core/errors.ts";
-import { UI_FONT_SCALES } from "../../src/shared/settings-schema.ts";
+import { ACCENT_THEMES, UI_FONT_SCALES } from "../../src/shared/settings-schema.ts";
 import { APPEARANCES, PANEL_WIDTHS, scenario } from "./harness.mjs";
 
 const test = scenario(import.meta.url);
@@ -100,63 +100,53 @@ test("组件样张：时间轨竖着横着都按时长比例分段，播放头�
   assert.equal(rails.blocks.keys, 0, "生成中不显示重点");
 });
 
-test("组件样张：五种判断标记形状各不相同，档位名用文字写出来，标记不进读屏；依据行、不完整和「基于旧字幕」标记", async ({ open }) => {
+test("组件样张：每种星数配短词，读屏只读一次星数和短词，信息不足只写短词", async ({ open }) => {
   const page = await open(GALLERY);
   const state = await page.evaluate(`(() => ({
-    marks: [...document.querySelectorAll("#marks .verdict-mark")].map((mark) => ({ shape: mark.dataset.shape, hidden: mark.getAttribute("aria-hidden"), drawn: mark.children.length })),
     verdicts: [...document.querySelectorAll("#verdicts .verdict")].map((block) => ({
       label: block.getAttribute("aria-label"),
-      shape: block.dataset.shape ?? null,
-      markHidden: block.querySelector(".verdict-mark")?.getAttribute("aria-hidden") ?? null,
+      band: block.dataset.band ?? null,
+      marks: [...block.querySelectorAll("svg.verdict-stars path")].map((path) => path.getAttribute("fill")),
+      hidden: block.querySelector(".verdict-stars")?.getAttribute("aria-hidden") ?? null,
       name: block.querySelector(".verdict-name")?.textContent ?? null,
+      spoken: block.querySelector(".verdict-label[role='img']")?.getAttribute("aria-label") ?? null,
       text: block.querySelector(".verdict-text").textContent,
       basis: block.querySelector(".verdict-basis")?.textContent ?? null,
     })),
   }))()`);
-  assert.equal(new Set(state.marks.map((mark) => mark.shape)).size, 5, "五种形状");
-  assert.ok(state.marks.every((mark) => mark.hidden === "true" && mark.drawn > 0));
-  assert.deepEqual(
-    state.verdicts.map(({ shape, name }) => [shape, name]),
-    [
-      ["go", "推荐看"],
-      ["fair", "可以看"],
-      ["skip", "可跳过"],
-      ["unknown", "信息不足"],
-      ["square", "看概览就够"],
-      [null, null],
-    ],
-    "四档各一个形状；存着的旧名字「可以跳过」显示成可跳过，旧判断「看概览就够」是方块",
-  );
+  const expected = ["推荐看", "值得看", "挑着看", "可略过", "可跳过", "信息不足", null];
+  assert.deepEqual(state.verdicts.map(({ name }) => name), expected);
+  assert.deepEqual(state.verdicts.map(({ band }) => band), ["go", "go", "fair", "skip", "skip", "unknown", null]);
+  for (const [index, verdict] of state.verdicts.entries()) {
+    const stars = 5 - index;
+    assert.deepEqual(verdict.marks, stars > 0 ? [1, 2, 3, 4, 5].map((n) => n <= stars ? "currentColor" : "none") : []);
+    assert.equal(verdict.hidden, stars > 0 ? "true" : null);
+    assert.equal(verdict.spoken, stars > 0 ? `5 星中的 ${stars} 星，${expected[index]}` : null);
+  }
   assert.ok(state.verdicts.every((verdict) => verdict.label === "一句话结论"));
-  assert.ok(state.verdicts.slice(0, 5).every((verdict) => verdict.markHidden === "true"));
   assert.deepEqual(
     state.verdicts.map((verdict) => verdict.basis),
-    ["依据字幕", "依据 B 站官方总结，没有通读字幕", "依据标题和简介基于旧字幕", "依据未知（旧版）不完整", null, null],
+    ["依据字幕", null, "依据 B 站官方总结，没有通读字幕", null, "依据标题和简介基于旧字幕", "依据未知（旧版）不完整", null],
   );
-  assert.equal(state.verdicts[5]?.text, "样例结论：档位认不出来时只写结论句。");
+  assert.equal(state.verdicts[6]?.text, "样例结论：星级认不出来时只写结论句。");
 });
 
-// 每套主题的判断记号画法、重点章节的标法。颜色按主题样式表的原始色值写死在这里，换了色值这里要跟着改。
-const THEME_LOOKS = {
-  timecode: { set: "meter", total: true },
-  marker: { set: "grade", total: false },
-  band: { set: "player", total: false },
-  pinkblue: { set: "player", total: false },
-  redblack: { set: "player", total: false },
-};
-
-test("组件样张：五套主题各画各的判断记号和重点章节，读屏读到的不变", async ({ open }) => {
+test("组件样张：五套主题显示判断星和重点章节", async ({ open }) => {
   const page = await open(GALLERY);
-  for (const [accentTheme, look] of Object.entries(THEME_LOOKS)) {
+  for (const accentTheme of Object.keys(ACCENT_THEMES)) {
     for (const themeMode of ["light", "dark"]) {
       await page.setAppearance({ accentTheme, themeMode, uiFontScale: 100 });
       const label = `${accentTheme} ${themeMode}`;
       const state = await page.evaluate(`(() => {
         const shown = (node) => Boolean(node) && node.getClientRects().length > 0 && getComputedStyle(node).visibility !== "hidden";
         const color = (name) => { const probe = document.createElement("i"); probe.style.color = "var(" + name + ")"; document.body.append(probe); const value = getComputedStyle(probe).color; probe.remove(); return value; };
-        const block = (shape) => document.querySelector("#verdicts .verdict[data-shape='" + shape + "']");
+        const block = (band) => document.querySelector("#verdicts .verdict[data-band='" + band + "']");
         return {
-          sets: [...document.querySelectorAll("#verdicts .verdict-mark")].map((mark) => [...mark.querySelectorAll(".mark-set")].filter(shown).map((svg) => svg.dataset.set)),
+          stars: [...document.querySelectorAll("#verdicts .verdict-stars")].filter(shown).map((svg) => ({
+            height: svg.getBoundingClientRect().height,
+            width: svg.getBoundingClientRect().width,
+            fontSize: parseFloat(getComputedStyle(svg.parentElement.querySelector(".verdict-name")).fontSize),
+          })),
           total: shown(document.querySelector("#rail-key .chapters-total")) ? document.querySelector("#rail-key .chapters-total").textContent : null,
           rows: [...document.querySelectorAll("#rail-key .chapter")].map((row) => ({
             key: row.dataset.key === "true",
@@ -171,11 +161,12 @@ test("组件样张：五套主题各画各的判断记号和重点章节，读�
           colors: { text: color("--text"), bar: color("--length-bar"), tint: color("--key-tint"), bandGo: color("--band-go") },
         };
       })()`);
-      // 每个判断标记只露出这套主题的那一种画法。
-      assert.ok(state.sets.length >= 5, label);
-      for (const sets of state.sets) assert.deepEqual(sets, [look.set], `${label}：判断记号`);
-      assert.equal(state.total !== null, look.total, `${label}：全长只在时间码里写`);
-      if (look.total) assert.equal(state.total, "全长 10:00", label);
+      assert.equal(state.stars.length, 5, label);
+      for (const { height, width, fontSize } of state.stars) {
+        assert.ok(Math.abs(height - fontSize) < 0.1 && Math.abs(width - 5 * fontSize) < 0.1, `${label}：每颗星和旁边的短词同字号`);
+      }
+      assert.equal(state.total !== null, accentTheme === "timecode", `${label}：全长只在时间码里写`);
+      if (accentTheme === "timecode") assert.equal(state.total, "全长 10:00", label);
       const keys = state.rows.filter((row) => row.key);
       const plain = state.rows.filter((row) => !row.key);
       assert.ok(keys.length > 0 && plain.length > 0, label);
@@ -389,10 +380,10 @@ test("组件样张：首次启用说明按三节列出完整说明；说明更�
 // 关键文字：结论句和档位、依据、章节时间和名字、提示行、状态块、标记、按钮、停用原因、启用说明。
 const CONTRAST_TARGETS = [
   ".verdict-text",
-  "#verdicts .verdict[data-shape='go'] .verdict-name",
-  "#verdicts .verdict[data-shape='square'] .verdict-name",
-  "#verdicts .verdict[data-shape='skip'] .verdict-name",
-  "#verdicts .verdict[data-shape='unknown'] .verdict-name",
+  "#verdicts .verdict[data-band='go'] .verdict-name",
+  "#verdicts .verdict[data-band='fair'] .verdict-name",
+  "#verdicts .verdict[data-band='skip'] .verdict-name",
+  "#verdicts .verdict[data-band='unknown'] .verdict-name",
   "#verdicts .verdict-basis span",
   "#rail-key .section-title",
   "#rail-key .chapter-time",

@@ -10,7 +10,6 @@ import { activationSections } from "../../../src/pages/shared/ui/activation.ts";
 import { Badge, Button, IconButton } from "../../../src/pages/shared/ui/button.tsx";
 import { ChapterList } from "../../../src/pages/shared/ui/chapter-list.tsx";
 import { Dock } from "../../../src/pages/shared/ui/dock.tsx";
-import { VerdictMark } from "../../../src/pages/shared/ui/icon.tsx";
 import { Menu } from "../../../src/pages/shared/ui/menu.tsx";
 import { ModeSwitch } from "../../../src/pages/shared/ui/mode-switch.tsx";
 import { Notice } from "../../../src/pages/shared/ui/notice.tsx";
@@ -20,7 +19,6 @@ import { StateBlock } from "../../../src/pages/shared/ui/state-block.tsx";
 import { stateCopy } from "../../../src/pages/shared/ui/state.ts";
 import { TimeRail } from "../../../src/pages/shared/ui/time-rail.tsx";
 import { VerdictBlock } from "../../../src/pages/shared/ui/verdict-block.tsx";
-import { MARK_SHAPES } from "../../../src/pages/shared/ui/verdict.ts";
 
 const DURATION_SEC = 600;
 const CHAPTERS = [
@@ -129,22 +127,14 @@ function Gallery() {
         <TimeRail orientation="horizontal" durationSec={DURATION_SEC} chapters={CHAPTERS} keyStarts={KEY_STARTS} positionSec={POSITION_SEC} />
       </section>
 
-      <section id="marks">
-        {MARK_SHAPES.map((shape) => (
-          <span key={shape} class="gallery-mark">
-            <VerdictMark shape={shape} />
-            <span>{shape}</span>
-          </span>
-        ))}
-      </section>
-
       <section id="verdicts" class="gallery-stack">
-        <VerdictBlock label="推荐看" text="样例结论：讲清了问题的来龙去脉，值得从头看。" basis="transcript" menu={<Menu label="更多操作" items={[{ label: "重新生成", hint: "会再调一次模型", onSelect: () => (picked.value = "重新生成") }]} />} />
-        <VerdictBlock label="可以看" text="样例结论：挑标出的两章看就够。" basis="official-summary" />
-        <VerdictBlock label="可以跳过" text="样例结论：存着的旧档位名，按新名字显示。" basis="title-description" staleTranscript />
+        <VerdictBlock label={5} text="样例结论：讲清了问题的来龙去脉，值得从头看。" basis="transcript" menu={<Menu label="更多操作" items={[{ label: "重新生成", hint: "会再调一次模型", onSelect: () => (picked.value = "重新生成") }]} />} />
+        <VerdictBlock label={4} text="样例结论：只有结尾重复，可以略过。" />
+        <VerdictBlock label={3} text="样例结论：挑标出的两章看就够。" basis="official-summary" />
+        <VerdictBlock label="看概览就够" text="样例结论：只值得看一两段。" />
+        <VerdictBlock label="可以跳过" text="样例结论：要点都在概览里。" basis="title-description" staleTranscript />
         <VerdictBlock label="信息不足" text="样例结论：字幕只覆盖了一部分，判断不了。" basis="legacy-unknown" incomplete />
-        <VerdictBlock label="看概览就够" text="样例结论：旧版留下的判断，原样显示。" />
-        <VerdictBlock label="还行" text="样例结论：档位认不出来时只写结论句。" />
+        <VerdictBlock label="还行" text="样例结论：星级认不出来时只写结论句。" />
       </section>
 
       <section id="state-demo">

@@ -6,6 +6,7 @@ import { createVerdictService, type VerdictService } from "../../src/background/
 import type { TranscriptService } from "../../src/background/services/transcript/index.ts";
 import { createOverviewStore, type OverviewStore } from "../../src/background/stores/overviews.ts";
 import { createTaskRunner, type TaskRunner } from "../../src/background/tasks.ts";
+import type { VerdictRating } from "../../src/core/ai/verdict.ts";
 import type { ChunkPlanOptions } from "../../src/core/ai/chunking.ts";
 import { taskCanceledError, type CompletionRequest, type CompletionResult, type RetryNotice } from "../../src/core/ai/transport/index.ts";
 import { createClearGuard, type ClearGuard } from "../../src/core/clear-guard.ts";
@@ -129,7 +130,7 @@ export const OFFICIAL: OfficialSummaryView = {
   fingerprint: "official-fingerprint",
 };
 
-export const verdictReply = (summary = "讲了两段", verdict = "可以看"): Reply => ({
+export const verdictReply = (summary = "讲了两段", verdict: VerdictRating = 3): Reply => ({
   text: JSON.stringify({ summary, value: "有方法", verdict, reason: "要点都在" }),
 });
 

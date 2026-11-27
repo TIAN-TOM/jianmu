@@ -91,6 +91,10 @@ test("粗筛页：读列表、读完直接确认第一步、取官方总结、�
     await page.evaluate(closeOptions);
   }
 
+  const counts = await page.evaluate(`[...document.querySelectorAll("button.filter")].map(button => [button.dataset.group, Number(button.textContent.trim().split(" ").at(-1))])`);
+  assert.deepEqual(counts, [
+    ["all", TITLES.length], ["5", 0], ["4", 0], ["3", 0], ["2", 0], ["1", 0], ["pending", TITLES.length], ["unknown", 0],
+  ]);
   await clickButton(page, "还没判断");
   assert.equal((await rows(page)).length, TITLES.length);
   await clickButton(page, "可跳过");
@@ -141,7 +145,7 @@ test("粗筛页：语言选 English 以后标题、各步、按钮、分组和�
       back: "Settings",
       sections: ["Read the list", "Step 1: Fetch Bilibili official summaries", "Step 2: Write one-line verdicts", "Results"],
       buttons: ["Load my Watch Later", "Fetch official summaries", "Write verdicts", "Export Markdown"],
-      filters: ["All", "Worth watching", "Watch the key parts", "Skip", "Not enough info", "Not judged yet"],
+      filters: ["All", "Must watch", "Worth watching", "Watch the key parts", "Mostly skippable", "Skip", "Not judged yet", "Not enough info"],
       status: undefined,
     });
     const fourth = (await rows(page)).find((row) => row.text.includes(FOURTH_VIDEO.title));
@@ -164,7 +168,7 @@ test("粗筛页：语言选 English 以后标题、各步、按钮、分组和�
       back: "设置",
       sections: ["读取列表", "第一步：取 B 站官方总结", "第二步：写一句话结论", "结果"],
       buttons: ["读取我的稍后再看", "开始取官方总结", "开始写结论", "导出 Markdown"],
-      filters: ["全部", "推荐看", "可以看", "可跳过", "信息不足", "还没判断"],
+      filters: ["全部", "推荐看", "值得看", "挑着看", "可略过", "可跳过", "还没判断", "信息不足"],
       status: undefined,
     });
   } finally {

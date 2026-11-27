@@ -20,6 +20,7 @@ export const SHARED_EN: SharedText = {
   },
 
   verdict: {
+    stars: (stars: number, name: string) => `${stars} out of 5 stars, ${name}`,
     label: "One-line verdict",
     stale: "Based on old subtitles",
     incomplete: "Incomplete",

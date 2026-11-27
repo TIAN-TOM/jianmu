@@ -37,7 +37,7 @@ const verdictWithComments = (ask: Ask) =>
         text: JSON.stringify({
           summary: "讲了样例",
           value: "",
-          verdict: "可以看",
+          verdict: 3,
           reason: "评论区普遍说后半段好",
           keyChapters: [],
           translatedTitle: "",
@@ -84,7 +84,7 @@ test("读不到评论：照常生成，结论里没有评论区", async () => {
 test("补失败块重写结论：不再读评论，沿用原来那份，章节标记只留还对得上的", () => {
   const stage = commentStage(undefined);
   const previous = { comments: { tag: "有争议", line: "两派", points: [{ text: "有人说好", quotes: [{ text: "好", likes: 1, pinned: false }] }], marks: [{ start: 150, kind: "有误" }, { start: 999, kind: "精彩" }] } };
-  const verdict = { summary: "s", value: "", verdict: "可以看", reason: "r" };
+  const verdict = { summary: "s", value: "", verdict: 3, reason: "r" } as const;
   assert.deepEqual(stage.carry(verdict, previous, [0, 150])?.comments, { ...previous.comments, marks: [{ start: 150, kind: "有误" }] });
   const fresh = { ...verdict, comments: { tag: "好评居多", line: "", points: [], marks: [] } };
   assert.equal(stage.carry(fresh, previous, [0, 150]), fresh, "这次新读到的优先");

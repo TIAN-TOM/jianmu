@@ -90,10 +90,7 @@ const TEXTS = [
   "--danger",
   "--warn",
   "--ok",
-  "--verdict-go",
-  "--verdict-fair",
-  "--verdict-skip",
-  "--verdict-unknown",
+  "--verdict",
 ];
 const SURFACES = ["--bg", "--card", "--panel-bg", "--bg-subtle", "--bg-hover"];
 
@@ -135,7 +132,7 @@ test("叠在底色上的选中文字、提示行、警告徽标，播放头、�
 });
 
 // 各套主题版面上自己的颜色：页面上真会出现的前景和底色的配对，文字要 4.5:1，图形和控件要 3:1。
-// 时间码的刻度空格（--meter-off）贴着卡片色只有 1.4 到 1.9:1、细边框按钮的边框（--border）只有 1.4:1，画板就是这么取的，
+// 时间码进度条的空格（--meter-off）贴着卡片色只有 1.4 到 1.9:1、细边框按钮的边框（--border）只有 1.4:1，画板就是这么取的，
 // 判断词和按钮上的字已经说清了意思，这两对不在这里查。
 const OWN_PAIRS: Readonly<Record<string, readonly (readonly [string, string, number])[]>> = {
   timecode: [
@@ -186,7 +183,7 @@ test("各套主题版面上自己的颜色：真会出现的配对都够对比�
 
 test("看不看的色带取自画板：深色是原色 18% 叠在底色上，判断词用原色、结论句用正文色", () => {
   const values = rawValues("band");
-  // 推荐看、可以看按这条规则算；可跳过、信息不足本来就是灰，深色照画板写的那两种灰。
+  // 三至五星按这条规则算；一至二星、信息不足本来就是灰，深色照画板写的那两种灰。
   const own = ["go", "fair"] as const;
   const mix = (hex: string): string => {
     const [r, g, b] = evaluateColor({}, hex);
@@ -307,7 +304,24 @@ test("圆角跟着主题：每套主题写全小、中、大三档", () => {
   }
 });
 
-test("判断档位四档同一个颜色，靠形状和文字区分", () => {
-  const root = propertiesOf(RULES, ":root");
-  for (const name of ["--verdict-go", "--verdict-fair", "--verdict-skip", "--verdict-unknown"]) assert.equal(root[name], "var(--verdict)", name);
+test("星的实心和轮廓与底色至少相差 3:1，短词与底色至少相差 4.5:1", () => {
+  eachLook((theme, _mode, color, label) => {
+    const pair = (stars: string, word: string, base: Rgba): void => {
+      assertContrast(`${label}：判断星`, color(stars), base, 3);
+      assertContrast(`${label}：短词`, color(word), base, 4.5);
+    };
+    const stars = theme === "redblack" ? "--mark" : "--verdict";
+    for (const base of ["--bg", "--card", "--panel-bg"]) pair(stars, "--verdict", color(base));
+    if (theme === "band") {
+      for (const band of ["go", "fair", "skip"]) pair(`--band-${band}-ink`, `--band-${band}-ink`, color(`--band-${band}`));
+    }
+    if (theme === "pinkblue") pair(stars, "--verdict", color("--key-tint"));
+    // 粗筛页未选中、选中、按下和悬停时的筛选按钮。
+    for (const [word, base] of [
+      ["--text-muted", color("--card")],
+      ["--accent-text-strong", over(color("--accent-soft"), color("--card"))],
+      ["--text", color("--bg-active")],
+      ["--text", color("--card")],
+    ] as const) pair(theme === "redblack" ? "--mark" : word, word, base);
+  });
 });

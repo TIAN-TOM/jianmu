@@ -125,7 +125,7 @@ test("学习稿把一句话结论放在最前面", () => {
   const verdictAt = markdown.indexOf("## 一句话结论");
   assert.ok(verdictAt > 0);
   assert.ok(verdictAt < markdown.indexOf("## 视频概览"), "结论在章节之前");
-  assert.match(markdown, /\*\*看概览就够\*\*\n\n讲了 A\n\n- 核心价值：得到 B\n- 判断理由：要点都在章节里/);
+  assert.match(markdown, /\*\*★★☆☆☆ 可略过\*\*\n\n讲了 A\n\n- 核心价值：得到 B\n- 判断理由：要点都在章节里/);
 });
 
 test("没有结论的旧概览，学习稿不出现结论小节", () => {
@@ -326,7 +326,7 @@ test("用官方总结写的结论导出时注明来源，不说成根据字幕�
   });
   assert.match(
     only,
-    /## 一句话结论\n\n\*\*看概览就够\*\*\n\n\*这条结论由你配置的 AI 模型根据 B站官方总结写成，不是根据字幕。\*\n\n官方说讲了 A/,
+    /## 一句话结论\n\n\*\*★★☆☆☆ 可略过\*\*\n\n\*这条结论由你配置的 AI 模型根据 B站官方总结写成，不是根据字幕。\*\n\n官方说讲了 A/,
   );
   assert.doesNotMatch(only, /根据字幕生成/);
 

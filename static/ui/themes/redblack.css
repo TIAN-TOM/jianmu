@@ -1,4 +1,4 @@
-/* 红黑（redblack）的版面：判断是红色播放器记号加粗体判断词；重点章节名后面一个淡红底的「重点」小标签；
+/* 红黑（redblack）的版面：判断是红色星加粗体判断词；重点章节名后面一个淡红底的「重点」小标签；
  * 时间戳是灰色，当前句铺浅灰、时间码反显；模式切换是圆角块，选中的那块黑底白字；按钮、输入框都是胶囊，图标按钮是圆的。 */
 
 :root[data-accent-theme="redblack"] {
@@ -61,9 +61,7 @@
   line-height: 1.375rem;
 }
 
-:root[data-accent-theme="redblack"] .mark-set[data-set="player"] {
-  display: block;
-  height: 1.25em;
+:root[data-accent-theme="redblack"] .verdict-stars {
   color: var(--mark);
 }
 

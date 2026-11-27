@@ -300,8 +300,8 @@ test("paid：稍后再看里的付费项标成不可用，别的项不受影响"
   const { items } = value(await state.service.readWatchLater(state.ctx));
   assert.deepEqual(items.map((item) => [item.title, item.available, item.paidChecked]), [
     [FIRST_VIDEO.title, false, true],
-    [SECOND_VIDEO.title, true, false],
     [THIRD_VIDEO.title, true, false],
+    [SECOND_VIDEO.title, true, false],
     [FOURTH_VIDEO.title, true, false],
   ]);
   assertNoStray(state);
@@ -313,8 +313,8 @@ test("upower-only：列表项没带充电标记时 paidChecked 为 false，要�
   const { items } = value(await state.service.readWatchLater(state.ctx));
   assert.deepEqual(items.map((item) => [item.title, item.available, item.paidChecked]), [
     [FIRST_VIDEO.title, true, false],
-    [SECOND_VIDEO.title, true, false],
     [THIRD_VIDEO.title, true, false],
+    [SECOND_VIDEO.title, true, false],
     [FOURTH_VIDEO.title, true, false],
   ]);
   assert.equal(failure(await state.service.readVideoInfo(REF, state.ctx)).code, "UNPLAYABLE");

@@ -1,6 +1,7 @@
 // 带评论区的结论（prompts/skim/verdict-comments.md）的输出格式：只在构建开关 FEATURE_COMMENTS 打开时进包，只从开关分支引用。
 // 顶层只放字面量：前几项和一句话结论一样，多一个 comments 对象；标签和章节标记的种类限定在本机认得的几种里。
 import type { ResponseSchema } from "./schemas.ts";
+import { VERDICT_STARS } from "./verdict.ts";
 
 const text = { type: "string" } as const;
 
@@ -13,7 +14,7 @@ export const VERDICT_WITH_COMMENTS: ResponseSchema = {
       summary: text,
       value: text,
       reason: text,
-      verdict: { type: "string", enum: ["推荐看", "可以看", "可跳过", "信息不足"] },
+      verdict: { anyOf: [{ type: "integer", enum: VERDICT_STARS }, { type: "string", enum: ["信息不足"] }] },
       keyChapters: { type: "array", items: text },
       translatedTitle: text,
       comments: {

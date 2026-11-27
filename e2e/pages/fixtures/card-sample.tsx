@@ -7,7 +7,7 @@
 // 「展开全部」和官方总结那一行点得动。卡片的界面组件原样用，样式用产品的 card.css。界面语言照卡片入口那样跟着设置。
 // 带 #official-late、#official-never 时接上真实的卡片模型，后台换成本页的替身：官方总结先回「还在读」，
 // 前者过一会儿读到、照后台的做法广播一次重读，后者一直读不到。带 #load-failed 时也接上真实的卡片模型，后台说被平台限流，
-// 卡片按界面语言写原因。地址带 ?verdict=<档位> 时结论换成那一档（默认「可以看」），量判断词长短不一时的版面。
+// 卡片按界面语言写原因。地址带 ?verdict=<星数> 时结论换成该星数（默认三星），量判断词长短不一时的版面。
 import { signal } from "@preact/signals";
 import { render } from "preact";
 import { videoKey } from "../../../src/core/video-ref.ts";
@@ -70,7 +70,7 @@ const view = signal<CardView>({
   analysis: officialOnly || keyCleared || noOverview || location.hash === "#collapsed" ? null : {
     chapters: Array.from({ length: 16 }, (_, index) => ({ title: `样例章节 ${index + 1}：${LONG}`, timestampSeconds: index * 90 })),
     // 重点是第 2 章和第 11 章：一个时间四位、一个五位，章节名要和别的章对齐。
-    ...(chaptersOnly ? {} : { verdict: { verdict: new URLSearchParams(location.search).get("verdict") || "可以看", summary: LONG.repeat(2), keyStarts: [90, 900], ...(withComments ? { comments: SAMPLE_COMMENTS } : {}) } }),
+    ...(chaptersOnly ? {} : { verdict: { verdict: Number(new URLSearchParams(location.search).get("verdict") ?? 3), summary: LONG.repeat(2), keyStarts: [90, 900], ...(withComments ? { comments: SAMPLE_COMMENTS } : {}) } }),
   },
   transcriptBasis: stale ? { chapters: "old-sample", verdict: "old-sample" } : null,
   failedParts: location.hash === "#failed-parts" ? 2 : 0,

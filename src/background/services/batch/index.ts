@@ -161,7 +161,8 @@ export function createBatchService(deps: BatchServiceDeps): BatchService {
     await Promise.all(
       items.map(async ({ videoKey }) => {
         const verdict = (await deps.overviews.find(videoKey))?.analysis.verdict;
-        if (verdict && hasVerdict(verdictView(verdict))) verdicts[videoKey] = verdictView(verdict);
+        const view = verdict && verdictView(verdict);
+        if (hasVerdict(view)) verdicts[videoKey] = view;
       }),
     );
     return verdicts;

@@ -24,13 +24,13 @@ Jianmu is a Chrome extension (Manifest V3). Open a long video and it tells you f
 ## Features
 
 - **Verdict on open**: once you switch it on, any video longer than a set length (10 minutes by default) gets an overview and a one-line verdict as soon as you open it, shown on the card beside the player with no clicking.
-- **Skim**: a one-line verdict with a recommendation (Worth watching, Watch the key parts, Skip, Not enough info), plus timestamped chapters with the key ones marked. Expand a chapter to read its subtitles.
+- **Skim**: a one-line verdict comes with a rating from 1 star (Skip) to 5 stars (Must watch). A 3-star verdict marks the key chapters and their timestamps. If there’s too little material to judge, you’ll see “Not enough info”. Expand a chapter to read its subtitles.
 - **Study**: subtitles follow playback, and you can ask questions, get selected text explained and take timestamped notes at any time. Long videos switch here automatically after a minute of continuous playback.
 - **Q&A with citations**: answers come with timestamps and the subtitle lines they quote. Click one to jump back to the video and check. Citations are verified, and when the evidence is thin the answer says so.
 - **Explain this frame**: click the icon on the player and Jianmu sends that frame, with a few subtitle lines either side, to a model that can read images, so it can explain the slide, formula, code or chart on screen. The screenshot is used once and never stored.
 - **Translation**: subtitles are translated with your own model and shown beside the original.
 - **Tidy up subtitles**: speech-recognised subtitles have no punctuation. One click has your own model add punctuation and fix obvious sound-alike mistakes, and nothing else. Any line it rewrites is shown as the original.
-- **Batch decisions**: Generate all in this window writes overviews for every video open in the current window in one go, and Watch Later triage runs a quick first pass over your Bilibili Watch Later list.
+- **Batch decisions**: Generate all in this window writes overviews for every video open in the current window in one go, and Watch Later triage shows videos in the same order as your Bilibili Watch Later list. You can filter by star rating or export the list grouped by rating, highest first.
 - **Your own model**: use as strong a model as you like, and set the reasoning effort for each feature separately. New installs start on the cheap settings.
 - **Two sites, one tool**: Bilibili and YouTube share one side panel for verdicts, chapters and subtitles.
 - **Three languages**: the interface and what the model writes (overviews, verdicts, answers and explanations) can be in Simplified Chinese, Traditional Chinese or English.

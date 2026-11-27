@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import * as SCHEMAS from "../../../../src/core/ai/schemas.ts";
 import type { ResponseSchema, SchemaNode } from "../../../../src/core/ai/schemas.ts";
-import { VERDICT_LABELS } from "../../../../src/core/ai/verdict.ts";
+import { VERDICT_WITH_COMMENTS } from "../../../../src/core/ai/schemas-comments.ts";
 
 // 两家结构化输出都不接受的关键字。Anthropic 不支持数值和字符串约束、
 // 除 0 和 1 以外的 minItems；OpenAI 不支持组合关键字，根节点也不能用 anyOf。
@@ -33,6 +33,10 @@ function assertPortable(node: SchemaNode, where: string): void {
   if ("minItems" in node) {
     assert.ok(node.minItems === 0 || node.minItems === 1, `${where} 的 minItems 只能是 0 或 1`);
   }
+  if ("anyOf" in node) {
+    for (const branch of node.anyOf) assertPortable(branch, where);
+    return;
+  }
   if (node.type === "object") {
     assert.equal(node.additionalProperties, false, `${where} 要写 additionalProperties: false`);
     assert.deepEqual(
@@ -49,6 +53,7 @@ function assertPortable(node: SchemaNode, where: string): void {
 
 // 按 schema 检查一份模型输出：字段齐全、没有多余字段、类型和枚举对得上。
 function conforms(schema: SchemaNode, value: unknown): boolean {
+  if ("anyOf" in schema) return schema.anyOf.some((branch) => conforms(branch, value));
   switch (schema.type) {
     case "object":
       return (
@@ -67,7 +72,7 @@ function conforms(schema: SchemaNode, value: unknown): boolean {
     case "string":
       return typeof value === "string" && (!schema.enum || schema.enum.includes(value));
     case "integer":
-      return Number.isInteger(value);
+      return typeof value === "number" && Number.isInteger(value) && (!schema.enum || schema.enum.includes(value));
     default:
       return false;
   }
@@ -96,23 +101,30 @@ test("schema 描述对象整棵冻结，请求层顺手改了也影响不到别�
   });
 });
 
-test("一句话结论的档位就是界面认得的那几档", () => {
-  assert.deepEqual(SCHEMAS.VERDICT.schema.properties.verdict.enum, [...VERDICT_LABELS]);
+test("普通结论和带评论的结论都只接受一到五的整数或「信息不足」", () => {
+  for (const descriptor of [SCHEMAS.VERDICT, VERDICT_WITH_COMMENTS]) {
+    const rating = descriptor.schema.properties.verdict;
+    assert.ok(rating);
+    assertPortable(rating, descriptor.name);
+    for (const valid of [1, 2, 3, 4, 5, "信息不足"]) assert.ok(conforms(rating, valid), String(valid));
+    for (const invalid of [0, 6, 3.5, "3", "推荐看", null]) assert.equal(conforms(rating, invalid), false, String(invalid));
+  }
 });
 
 // 下面的样例照抄 prompts/*.md 「输出格式」里的示例：schema 和提示词要的是同一个形状。
-// 示例直接从提示词里取：每份要 JSON 的提示词都写着一行以 {" 开头的示例输出，它得符合要的那份 schema。
+// 示例直接从提示词里取：每份要 JSON 的提示词都写着一行以 JSON 对象结尾的示例输出，它得符合要的那份 schema。
 test("各提示词的示例输出都符合对应的 schema", () => {
   const samples: readonly (readonly [string, ResponseSchema])[] = [
     ["skim/chapters.md", SCHEMAS.ANALYSIS_CHUNK],
     ["skim/verdict.md", SCHEMAS.VERDICT],
+    ["skim/verdict-comments.md", VERDICT_WITH_COMMENTS],
     ["study/translation.md", SCHEMAS.SEGMENT_BATCH],
     ["common/qa.md", SCHEMAS.QA_ANSWER],
     ["study/note-polish.md", SCHEMAS.NOTE_QUOTE],
   ];
   for (const [file, descriptor] of samples) {
     const markdown = readFileSync(new URL(`../../../../prompts/${file}`, import.meta.url), "utf8");
-    const example = /\{"[^\n]*\}/.exec(markdown.slice(markdown.indexOf("## 系统提示词")))?.[0];
+    const example = /\{"[^\n]*\}$/m.exec(markdown.slice(markdown.indexOf("## 系统提示词")))?.[0];
     assert.ok(example, `${file} 没有示例输出`);
     assert.ok(conforms(descriptor.schema, JSON.parse(example)), `${file} 的示例不符合 ${descriptor.name}`);
   }
@@ -183,7 +195,7 @@ test("五份输出结构的名字、字段和顺序逐字节固定", () => {
             summary: text,
             value: text,
             reason: text,
-            verdict: { type: "string", enum: ["推荐看", "可以看", "可跳过", "信息不足"] },
+            verdict: { anyOf: [{ type: "integer", enum: [5, 4, 3, 2, 1] }, { type: "string", enum: ["信息不足"] }] },
             keyChapters: { type: "array", items: text },
             translatedTitle: text,
           },

@@ -1,7 +1,7 @@
 // 图标数据只有几何：路径只含绘图指令和数字，坐标都在网格里，组件按数据画元素，不拼标记文本。
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ICON_GRID, ICONS, MARK_SETS, type IconPart } from "../../../../../src/pages/shared/ui/icons.ts";
+import { ICON_GRID, ICONS, STAR_PATH, type IconPart } from "../../../../../src/pages/shared/ui/icons.ts";
 
 const PATH_DATA = /^[MmLlHhVvCcSsQqTtAaZz0-9.,\s-]+$/;
 
@@ -35,11 +35,8 @@ test("界面图标都在 16px 网格里，路径只含绘图指令", () => {
   assert.deepEqual(problems, []);
 });
 
-test("三套判断标记都在各自的网格里，路径只含绘图指令", () => {
-  const problems = Object.entries(MARK_SETS).flatMap(([set, shapes]) =>
-    Object.entries(shapes).flatMap(([shape, drawing]) => problemsOf(`${set}/${shape}`, drawing.parts, drawing.width, drawing.height)),
-  );
-  assert.deepEqual(problems, []);
+test("判断星的轮廓落在图标网格里", () => {
+  assert.deepEqual(problemsOf("星", [{ kind: "path", d: STAR_PATH }], ICON_GRID), []);
 });
 
 test("核对能拦下夹带标记文本和出界的数据", () => {

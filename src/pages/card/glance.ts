@@ -1,5 +1,6 @@
 // 卡片收起的那一行上写什么：没有一句话结论时写播放到的章节（隔一会儿问一次本页的播放器），和临时说的一句话（浏览器没让卡片打开侧边栏时说怎么办）。
 // 只在收着、侧边栏关着、没有结论、已经有章节时才问播放位置，标签页不在前台时不问；那句话只在看得见时计时。
+import { verdictLabelOf, type VerdictRating } from "../../core/ai/verdict.ts";
 import type { LearningAnalysis } from "../../core/notes/markdown.ts";
 import { chapterAt, type ChapterStart } from "../shared/ui/chapters.ts";
 import { CARD_ZH } from "./text-zh.ts";
@@ -15,10 +16,10 @@ export const PANEL_REFUSED_NOTE = CARD_ZH.panelRefusedNote;
 const trimmed = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
 
 /** 本机已有的一句话结论（判断词和那句话），结论还在写或者没有时是 null。收起那一行有它就写它，不写播放到的章节。 */
-export function conclusionOf(view: { readonly analysis: LearningAnalysis | null; readonly verdictPending: boolean | string }): { readonly label: string; readonly summary: string } | null {
+export function conclusionOf(view: { readonly analysis: LearningAnalysis | null; readonly verdictPending: boolean | string }): { readonly label: VerdictRating; readonly summary: string } | null {
   const verdict = view.verdictPending ? undefined : view.analysis?.verdict;
   const summary = trimmed(verdict?.summary);
-  const label = summary ? trimmed(verdict?.verdict) : "";
+  const label = summary ? verdictLabelOf(verdict?.verdict) : "";
   return label ? { label, summary } : null;
 }
 

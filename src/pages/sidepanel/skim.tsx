@@ -183,7 +183,7 @@ function Verdict({
   if (summary) {
     return (
       <VerdictBlock
-        label={text(verdict?.verdict)}
+        label={verdict?.verdict}
         text={summary}
         basis={BASIS.find((item) => item === source) ?? null}
         staleTranscript={stale}

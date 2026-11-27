@@ -1,8 +1,10 @@
 // 稍后再看这个来源：读列表、逐个取官方总结（不花额度）、给有官方总结的写一句话结论（花额度）。每个条目一次读取、一个读取环境，
 // 读不成只看错误码和读取实现标的影响范围。写结论的材料：字幕缓存里有就用缓存的视频信息，官方总结和视频信息缺的从粗筛存的那份补，
 // 不为写结论向平台读字幕；观看进度只存在本机，不进写结论的材料。
+import { verdictLabelOf } from "../../../core/ai/verdict.ts";
 import type { ClearEpoch, ClearGuard } from "../../../core/clear-guard.ts";
 import { fail, ok, type ErrorCode, type Result } from "../../../core/errors.ts";
+import type { LearningVerdict } from "../../../core/notes/markdown.ts";
 import type { FrozenGen } from "../../../core/tasks.ts";
 import { officialFingerprint } from "../../../core/transcript/fingerprint.ts";
 import { hasOfficialContent, isOfficialDone, needsVideoInfo, type PacedOutcome, type ReadFailure, type VerdictRequest } from "../../../core/triage/batch.ts";
@@ -222,12 +224,12 @@ export async function writeVerdict(deps: WatchLaterDeps, { item, ref }: VerdictR
 }
 
 /** 概览里的结论换成粗筛要显示的那几项。 */
-export function verdictView(verdict: { readonly summary?: unknown; readonly value?: unknown; readonly verdict?: unknown; readonly reason?: unknown; readonly source?: unknown }): TriageVerdict {
-  const text = (value: unknown): string | undefined => (typeof value === "string" ? value : undefined);
+export function verdictView(verdict: LearningVerdict): TriageVerdict {
   const view: Record<string, string> = {};
-  for (const field of ["summary", "value", "verdict", "reason", "source"] as const) {
-    const value = text(verdict[field]);
-    if (value !== undefined) view[field] = value;
+  for (const field of ["summary", "value", "reason", "source"] as const) {
+    const value = verdict[field];
+    if (typeof value === "string") view[field] = value;
   }
-  return view;
+  const rating = verdictLabelOf(verdict.verdict);
+  return rating ? { ...view, verdict: rating } : view;
 }

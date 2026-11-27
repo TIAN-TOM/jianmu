@@ -88,7 +88,7 @@ export const VIDEOS = {
   [BRIEF_VIDEO.bvid]: BRIEF_VIDEO,
 };
 
-/** 写结论时模拟服务判「可跳过」的视频，粗筛分组用；其余判「可以看」。 */
+/** 写结论时模拟服务给 1 星的视频，粗筛分组用；其余给 3 星。 */
 export const SKIPPED_VIDEO = THIRD_VIDEO.bvid;
 
 /** @param {Keys} keys */
@@ -189,7 +189,7 @@ function watchLaterItem(video, paid) {
 
 /** @param {{ paid?: boolean }} [options] 第一项要不要带付费标记 */
 export function watchLaterData({ paid = false } = {}) {
-  const list = [watchLaterItem(FIRST_VIDEO, paid), watchLaterItem(SECOND_VIDEO, false), watchLaterItem(THIRD_VIDEO, false), watchLaterItem(FOURTH_VIDEO, false)];
+  const list = [watchLaterItem(FIRST_VIDEO, paid), watchLaterItem(THIRD_VIDEO, false), watchLaterItem(SECOND_VIDEO, false), watchLaterItem(FOURTH_VIDEO, false)];
   return { count: list.length, list };
 }
 

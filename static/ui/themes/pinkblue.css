@@ -1,4 +1,4 @@
-/* 粉蓝（pinkblue）的版面：判断是浅粉胶囊里的播放器记号加粉字；重点章节整行铺浅粉底；时间戳和链接是蓝色；
+/* 粉蓝（pinkblue）的版面：判断是浅粉胶囊里的星级加粉字；重点章节整行铺浅粉底；时间戳和链接是蓝色；
  * 当前句铺浅蓝底、左边一道蓝竖线；模式切换选中项下面一条居中的蓝色短横线；按钮是无边框的浅灰小块。 */
 
 :root[data-accent-theme="pinkblue"] {
@@ -63,11 +63,6 @@
 
 :root[data-accent-theme="pinkblue"] .verdict .verdict-label:empty {
   display: none;
-}
-
-:root[data-accent-theme="pinkblue"] .mark-set[data-set="player"] {
-  display: block;
-  height: 1.11em;
 }
 
 :root[data-accent-theme="pinkblue"] .verdict-text {

@@ -1,7 +1,7 @@
 // 笔记和学习稿的 Markdown 导出。视频链接由调用方给的函数按视频身份现生成。
 // 标题、小标题、来源说明这些固定文字按语言出，缺省中文；模型写的内容、平台来的内容和用户自己的笔记原样写。
 import { groupQuotesIntoChapters, type ChapterPart, type QuotePart } from "../ai/chunking.ts";
-import { keyChapterStarts, verdictLabelOf, verdictName, type OfficialSummary } from "../ai/verdict.ts";
+import { keyChapterStarts, verdictText, type OfficialSummary } from "../ai/verdict.ts";
 import { inLang, type OutputLang } from "../output-lang.ts";
 import { MARKDOWN_HANT } from "./markdown-hant.ts";
 import { formatTimestamp } from "../transcript/segment.ts";
@@ -409,8 +409,7 @@ export function learningAsMarkdown(
 
   // 一句话结论放在最前面，和侧边栏一样先回答「讲了什么、要不要看」。
   if (verdictSummary) {
-    // 旧版改了名的档位按新名字写，「看概览就够」照旧；英文时写档位的英文名。
-    const verdictLabel = escapeMarkdown(verdictName(verdictLabelOf(verdict?.verdict), lang));
+    const verdictLabel = verdictText(verdict?.verdict, lang);
     const verdictValue = escapeMarkdown(String(verdict?.value || "").trim());
     const verdictReason = escapeMarkdown(String(verdict?.reason || "").trim());
     lines.push(t.verdictHeading, "");

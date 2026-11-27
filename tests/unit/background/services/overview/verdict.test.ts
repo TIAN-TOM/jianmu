@@ -32,7 +32,7 @@ import {
 import { harness as transcriptHarness, KEY as TRANSCRIPT_KEY, REF as TRANSCRIPT_REF } from "../../../../helpers/transcript-service.ts";
 import { stillFalse, until } from "../../../../helpers/wait-until.ts";
 
-const OFFICIAL_REPLY = verdictReply("官方说讲了两段", "可以看");
+const OFFICIAL_REPLY = verdictReply("官方说讲了两段", 3);
 const officialOnly: Respond = ({ isVerdict }) => (isVerdict ? OFFICIAL_REPLY : undefined);
 const isOfficialAsk = (user: string): boolean => user.includes("全片概述");
 
@@ -177,7 +177,7 @@ test("只认登记成结论、而且是这个视频的任务：概览任务、�
 test("只有官方总结写的结论时不算已有概览：照常生成，结论以完整概览为准", async () => {
   const h = overviewHarness({ respond: officialOnly });
   value(await h.officialVerdict().result);
-  h.setRespond(({ isVerdict }) => (isVerdict ? verdictReply("按字幕讲了两段", "可跳过") : undefined));
+  h.setRespond(({ isVerdict }) => (isVerdict ? verdictReply("按字幕讲了两段", 1) : undefined));
 
   const done = value(await h.generate().result);
   assert.equal(done.fromCache, false, "不能把只有结论的那份当成已有的概览");
@@ -210,7 +210,7 @@ test("等官方总结结论的工夫完整概览已经写好结论：以完整�
   const h = overviewHarness({
     respond: async ({ isVerdict, user }) => {
       if (!isVerdict) return undefined;
-      if (!isOfficialAsk(user)) return verdictReply("按字幕写的", "可跳过");
+      if (!isOfficialAsk(user)) return verdictReply("按字幕写的", 1);
       sent.resolve();
       await reply.promise;
       return OFFICIAL_REPLY;
@@ -618,7 +618,7 @@ const userOf = (request: SentRequest): string => {
   return messages.find((message) => message.role === "user")?.content ?? "";
 };
 const isVerdictRequest = (request: SentRequest): boolean => userOf(request).includes("各章：");
-const VERDICT_ANSWER = chatReply(JSON.stringify({ summary: "官方说讲了开场", value: "", verdict: "可以看", reason: "提纲都有" }));
+const VERDICT_ANSWER = chatReply(JSON.stringify({ summary: "官方说讲了开场", value: "", verdict: 3, reason: "提纲都有" }));
 const chunkAnswer = (request: SentRequest) => {
   const start = /本次范围：(\d+:\d{2})/.exec(userOf(request))?.[1] ?? "0:00";
   return chatReply(JSON.stringify({ chapters: [{ start, title: "开场", summary: "摘要" }], keyQuotes: [] }));
@@ -729,7 +729,7 @@ test("后台里概览和用官方总结写结论排同一道并发闸门：合�
 
 test("用官方总结写的结论不带重点章节：没有生成的章节可对", async () => {
   const keyed: Respond = ({ isVerdict }) =>
-    isVerdict ? { text: JSON.stringify({ summary: "官方说讲了两段", value: "有方法", verdict: "可以看", reason: "要点都在", keyChapters: ["1:05"] }) } : undefined;
+    isVerdict ? { text: JSON.stringify({ summary: "官方说讲了两段", value: "有方法", verdict: 3, reason: "要点都在", keyChapters: ["1:05"] }) } : undefined;
   const h = overviewHarness({ respond: keyed });
   const done = value(await h.officialVerdict().result);
   assert.equal(done.analysis.verdict?.summary, "官方说讲了两段");

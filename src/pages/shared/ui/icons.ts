@@ -1,10 +1,7 @@
-// 界面图标和判断标记的绘制数据。图标在 16px 网格上，1.5px 线宽、圆头圆角、跟随文字颜色；
-// 判断标记分三套画法，各在自己的网格上，由主题样式表决定显示哪一套。只存几何数据，组件逐个画成 SVG 元素，不拼标记文本。
-import type { MarkShape } from "./verdict.ts";
-
+// 界面图标在 16px 网格上绘制，判断星也复用同一条路径。
 export type IconPart =
   | { readonly kind: "path"; readonly d: string; readonly solid?: boolean; readonly weight?: number }
-  | { readonly kind: "circle"; readonly cx: number; readonly cy: number; readonly r: number; readonly solid?: boolean; readonly dash?: number }
+  | { readonly kind: "circle"; readonly cx: number; readonly cy: number; readonly r: number; readonly solid?: boolean }
   | {
       readonly kind: "rect";
       readonly x: number;
@@ -13,22 +10,19 @@ export type IconPart =
       readonly height: number;
       readonly rx: number;
       readonly solid?: boolean;
-      /** 空着的格子：颜色由样式表给，不跟文字颜色。 */
-      readonly off?: boolean;
-      readonly dash?: number;
     };
 
 export const ICON_GRID = 16;
 
 const path = (d: string, extra: { readonly solid?: boolean; readonly weight?: number } = {}): IconPart => ({ kind: "path", d, ...extra });
-const circle = (cx: number, cy: number, r: number, extra: { readonly solid?: boolean; readonly dash?: number } = {}): IconPart => ({
+const circle = (cx: number, cy: number, r: number, extra: { readonly solid?: boolean } = {}): IconPart => ({
   kind: "circle",
   cx,
   cy,
   r,
   ...extra,
 });
-const rect = (x: number, y: number, width: number, height: number, rx: number, extra: { readonly solid?: boolean; readonly off?: boolean; readonly dash?: number } = {}): IconPart => ({
+const rect = (x: number, y: number, width: number, height: number, rx: number, extra: { readonly solid?: boolean } = {}): IconPart => ({
   kind: "rect",
   x,
   y,
@@ -64,51 +58,4 @@ export const ICONS = Object.freeze({
 
 export type IconName = keyof typeof ICONS;
 
-export type MarkSet = "meter" | "grade" | "player";
-
-export interface MarkDrawing {
-  /** 网格的宽和高。 */
-  readonly width: number;
-  readonly height: number;
-  /** 不实心的部分的线宽。 */
-  readonly stroke: number;
-  readonly parts: readonly IconPart[];
-}
-
-const meterCell = (index: number, filled: boolean): IconPart => rect(index * 14, 0, 12, 6, 1, filled ? { solid: true } : { off: true });
-const meter = (filled: number): MarkDrawing => ({ width: 40, height: 6, stroke: 1, parts: [0, 1, 2].map((index) => meterCell(index, index < filled)) });
-const grade = (parts: readonly IconPart[], width = 22): MarkDrawing => ({ width, height: 18, stroke: 2.2, parts });
-const player = (parts: readonly IconPart[]): MarkDrawing => ({ width: 24, height: 24, stroke: 2, parts });
-
-/**
- * 判断标记的三套画法。四档之外，旧版的「看概览就够」每套都画成和四档不同类的东西：刻度和批改记号是一个空方框，播放器记号是停止键。
- *   meter：三格刻度，推荐看三格、可以看两格、可跳过一格，信息不足是虚线空框；
- *   grade：批改记号，推荐看两道勾、可以看一道勾、可跳过一道横线，信息不足一个问号；
- *   player：播放器记号，推荐看是播放、可以看是快进、可跳过是下一个，信息不足是带圈的问号。
- */
-export const MARK_SETS = Object.freeze({
-  meter: {
-    go: meter(3),
-    fair: meter(2),
-    skip: meter(1),
-    unknown: { width: 40, height: 6, stroke: 1, parts: [rect(0.5, 0.5, 39, 5, 1, { dash: 2 })] },
-    square: { width: 40, height: 6, stroke: 1, parts: [rect(0.5, 0.5, 5, 5, 1)] },
-  },
-  grade: {
-    go: grade([path("M2 10.5l4 4L14 4"), path("M13 10.5l4 4L27 3")], 29),
-    fair: grade([path("M3 10.5l4.5 4.5L19 3")]),
-    skip: grade([path("M4 9.5h14")]),
-    unknown: grade([path("M7.5 6.5a3.5 3.5 0 1 1 4.7 3.3c-.8.3-1.2.9-1.2 1.8"), path("M11 15.2h.01")]),
-    square: grade([rect(5.5, 4, 11, 10, 1.5)]),
-  },
-  player: {
-    go: player([path("M5 4l15 8-15 8z", { solid: true })]),
-    fair: player([path("M2 5l9 7-9 7z", { solid: true }), path("M12 5l9 7-9 7z", { solid: true })]),
-    skip: player([path("M3 5l10 7-10 7z", { solid: true }), rect(15, 5, 3, 14, 0, { solid: true })]),
-    unknown: player([circle(12, 12, 9), path("M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .8-1 1.5"), path("M12 17h.01")]),
-    square: player([rect(6, 6, 12, 12, 1.5, { solid: true })]),
-  },
-} satisfies Record<MarkSet, Record<MarkShape, MarkDrawing>>);
-
-/** 三套画法，组件按这个顺序画。 */
-export const MARK_SET_NAMES: readonly MarkSet[] = Object.freeze(["meter", "grade", "player"]);
+export const STAR_PATH = "M8 1.3 10 5.5 14.6 6.2 11.3 9.5 12.1 14.2 8 12 3.9 14.2 4.7 9.5 1.4 6.2 6 5.5Z";
