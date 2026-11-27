@@ -29,6 +29,14 @@ const FRAME_WIDTH = 320;
 // 卡片实际会有的最窄宽度：播放页右栏收到最窄时。
 const NARROWEST = 300;
 
+// 样张打开后才切到卡片宽度。等章节列表按新宽度量好，再读位置或点它下面的提问框。
+const waitForChapterLayout = (page) => page.waitFor("章节列表按当前宽度排好，第六章露出一截", `(() => {
+  const list = document.getElementById("card-chapters");
+  const next = list?.querySelectorAll(".chapter")[${CARD_ROWS}]?.getBoundingClientRect();
+  const bottom = list?.getBoundingClientRect().bottom;
+  return next && next.top < bottom && bottom < next.bottom;
+})()`);
+
 test("卡片：全部展开、框架高度到顶、最大字号、内容很长时，正文区滚动，进度行、「停止」和「打开侧边栏」都露在框架里", async ({ open }) => {
   const page = await open(`${SAMPLE}#full`);
   await page.setWidth(FRAME_WIDTH, CARD_HEIGHT.max);
@@ -59,6 +67,7 @@ test("卡片：全部展开、框架高度到顶、最大字号、内容很长�
 test("卡片：刚打开结论在官方总结前面，官方总结收成一行，不重复视频标题；章节整份都在，列表只露前几章那么高、下一章露出大半并淡出，其余在列表里滚动，滚到底不再淡出、卡片不变高，焦点移到后面的章节时滚过去", async ({ open }) => {
   const page = await open(SAMPLE);
   await page.setWidth(FRAME_WIDTH, CARD_HEIGHT.max);
+  await waitForChapterLayout(page);
   const read = () =>
     page.evaluate(`(() => {
       const top = (selector) => document.querySelector(selector)?.getBoundingClientRect().top ?? null;
@@ -100,6 +109,21 @@ test("卡片：刚打开结论在官方总结前面，官方总结收成一行�
   const scrolled = await read();
   assert.ok(scrolled.scrollTop > 0, "列表自己滚");
   assert.equal(scrolled.height, first.height, "滚到底卡片不变高");
+  const count = await page.evaluate(`(() => {
+    const list = document.getElementById("card-chapters");
+    const count = document.querySelector(".card-chapter-count");
+    const range = document.createRange();
+    range.selectNodeContents(count);
+    return {
+      rightGap: document.getElementById("card-overview").getBoundingClientRect().right - range.getBoundingClientRect().right,
+      topGap: count.getBoundingClientRect().top - list.getBoundingClientRect().bottom,
+      lastBottom: list.querySelector(".chapter:last-child").getBoundingClientRect().bottom,
+      countTop: count.getBoundingClientRect().top,
+    };
+  })()`);
+  assert.ok(Math.abs(count.rightGap) <= 1, "章数文字在列表下方靠正文右边");
+  assert.ok(count.topGap >= 0 && count.topGap <= 5, "章数紧贴列表下方");
+  assert.ok(count.lastBottom <= count.countTop + 1, "滚到底时章数不盖住最后一章");
 
   await page.evaluate(`(() => { const list = document.getElementById("card-chapters"); list.scrollTop = 0; document.querySelectorAll("#card-overview .chapter-time")[15].focus(); return true; })()`);
   await page.waitFor("焦点移到最后一章，列表滚过去", `document.getElementById("card-chapters").scrollTop > 0`);
@@ -423,25 +447,37 @@ test("卡片：各档的判断词和星采用对应字色，在五套主题的�
   }
 });
 
-test("卡片：时间一列定宽，章节名从同一条线起，重点的圆点不把章节名顶歪；官方提纲的标题也对齐", async ({ open }) => {
+test("卡片：五套主题的官方提纲和章节列表时间列等宽，竖线和标题起点对齐", async ({ open }) => {
   const page = await open(`${SAMPLE}#full`);
   await page.setWidth(FRAME_WIDTH, CARD_HEIGHT.max);
-  const edges = await page.evaluate(`(() => {
-    const lefts = (selector) => [...new Set([...document.querySelectorAll(selector)].map((node) => Math.round(node.getBoundingClientRect().left)))];
-    const times = [...document.querySelectorAll("#card-overview .chapter-time")].map((node) => node.textContent);
-    return {
-      names: lefts("#card-overview .chapter-name"),
-      keys: document.querySelectorAll("#card-overview .chapter[data-key]").length,
-      short: times.some((time) => time.length === 4),
-      long: times.some((time) => time.length === 5),
-      outline: lefts("#card-official .outline-title"),
-      points: lefts("#card-official .point > span:last-child"),
-    };
-  })()`);
-  assert.equal(edges.keys, 2, "样张里有两章重点");
-  assert.ok(edges.short && edges.long, "样张里四位和五位的时间都有");
-  assert.equal(edges.names.length, 1, `章节名的左边不齐：${edges.names}`);
-  assert.equal(edges.outline.length, 1, `官方提纲标题的左边不齐：${edges.outline}`);
+  for (const accentTheme of Object.keys(ACCENT_THEMES)) {
+    await page.setAppearance({ accentTheme, themeMode: "light", uiFontScale: 100 });
+    const edges = await page.evaluate(`(() => {
+      const nodes = (selector) => [...document.querySelectorAll(selector)];
+      const lefts = (selector) => [...new Set(nodes(selector).map((node) => node.getBoundingClientRect().left))];
+      const columns = (selector) => nodes(selector).map((node) => {
+        const rect = node.getBoundingClientRect();
+        return [rect.left, rect.right, getComputedStyle(node).borderRightWidth];
+      });
+      const times = nodes("#card-overview .chapter-time").map((node) => node.textContent);
+      return {
+        names: lefts("#card-overview .chapter-name"),
+        titles: lefts("#card-official .outline-title"),
+        chapters: columns("#card-overview .chapter-time"),
+        outline: columns("#card-official .outline-item > .chapter-time"),
+        keys: nodes("#card-overview .chapter[data-key]").length,
+        lengths: [...new Set(times.map((time) => time.length))],
+      };
+    })()`);
+    assert.equal(edges.keys, 2, "样张里有两章重点");
+    assert.deepEqual(edges.lengths, [4, 5], "样张里四位和五位的时间都有");
+    assert.equal(edges.names.length, 1, accentTheme);
+    assert.deepEqual(edges.titles, edges.names, `${accentTheme}：提纲标题和章节名从同一条线起`);
+    assert.ok(edges.outline.length > 0, accentTheme);
+    for (const column of [...edges.chapters, ...edges.outline]) {
+      assert.deepEqual(column, edges.chapters[0], `${accentTheme}：时间列的两端和右边线一致`);
+    }
+  }
 });
 
 test("卡片：换过字幕时结论块标「基于旧字幕」，章节和结论同一份依据只标一次；没换过时不标，也不写「依据字幕」", async ({ open }) => {
@@ -535,15 +571,29 @@ test("卡片：已有概览时底部有「重新生成」，和「打开侧边�
   assert.equal(await page.evaluate(`Boolean(document.getElementById("card-failed-parts"))`), false, "没缺分块时不摆");
 });
 
-test("卡片：能提问时底部有提问框；合成的提交不发，真实按 Enter 才问，回答摆在框上面，回答里的时间点点了跳过去；不能提问时不摆", async ({ open }) => {
+test("卡片：能提问时发送图标在框里，空着点只聚焦，合成的点击和提交不发，按回车能发送；不能提问时不摆", async ({ open }) => {
   assert.equal(await (await open(SAMPLE)).evaluate(`Boolean(document.getElementById("card-ask-input"))`), false, "不能提问的样张不摆");
   const page = await open(`${SAMPLE}#ask`);
-  assert.equal(await page.evaluate(`document.getElementById("card-ask-input")?.placeholder ?? ""`), "针对这个视频提问，Enter 发送");
+  await waitForChapterLayout(page);
+  assert.equal(await page.evaluate(`document.getElementById("card-ask-input").placeholder`), "问这个视频，回车发送");
+  assert.equal(await page.evaluate(`document.querySelector(".card-ask-send").getAttribute("aria-label")`), "发送");
+  const inside = await page.evaluate(`(() => {
+    const input = document.getElementById("card-ask-input");
+    const box = input.getBoundingClientRect();
+    const send = document.querySelector(".card-ask-send").getBoundingClientRect();
+    return send.top >= box.top && send.bottom <= box.bottom && send.right <= box.right &&
+      send.left >= box.right - parseFloat(getComputedStyle(input).paddingRight);
+  })()`);
+  assert.ok(inside, "图标在输入框右侧给它留的位置里");
+  await page.click(".card-ask-send");
+  assert.equal((await page.focused())?.id, "card-ask-input");
+  assert.equal(await page.evaluate(`Boolean(document.querySelector(".card-asking, #card-answer"))`), false, "空着点发送不提问");
   await page.evaluate(`(() => {
     const input = document.getElementById("card-ask-input");
     input.value = "合成的问题";
     input.dispatchEvent(new Event("input", { bubbles: true }));
-    // 自己派发的提交事件才是合成的；requestSubmit() 发出的提交浏览器照样标成真实事件。
+    input.form.querySelector("button").click();
+    input.form.requestSubmit();
     input.form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     return true;
   })()`);
@@ -554,8 +604,43 @@ test("卡片：能提问时底部有提问框；合成的提交不发，真实�
   await page.click("#card-ask-input");
   await page.insertText("样例问题");
   await page.pressEnter();
-  await page.waitFor("回答摆出来", `document.querySelector("#card-answer .card-answer-text")?.textContent === "样例回答在 1:30 讲到。"`);
+  await page.waitFor("回答摆出来", `document.querySelector("#card-answer .card-answer-text")?.textContent === "样例回答见1:30。"`);
   assert.equal(await page.evaluate(`document.querySelector("#card-answer .card-question")?.textContent ?? ""`), "样例问题");
+});
+
+test("卡片：点发送图标能提问，回答里的时间点贴着正文，行尾放不下句号时一起换行，点时间仍能跳", async ({ open }) => {
+  const page = await open(`${SAMPLE}#ask`);
+  await waitForChapterLayout(page);
+  await page.click("#card-ask-input");
+  await page.insertText("样例问题");
+  await page.click(".card-ask-send");
+  await page.waitFor("回答摆出来", `document.querySelector(".card-answer-text")?.textContent === "样例回答见1:30。"`);
+  const measured = await page.evaluate(`(() => {
+    const answer = document.querySelector(".card-answer-text");
+    const stamp = answer.querySelector(".card-stamp");
+    const walker = document.createTreeWalker(answer, NodeFilter.SHOW_TEXT);
+    const prefix = walker.nextNode();
+    let period;
+    while (walker.nextNode()) {
+      if (walker.currentNode.textContent === "。") period = walker.currentNode;
+    }
+    const rect = (node) => {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      return range.getBoundingClientRect();
+    };
+    const before = rect(stamp);
+    const leadingGap = before.left - rect(prefix).right;
+    const trailingGap = rect(period).left - before.right;
+    // 量到时间末尾再留半个句号宽，让行尾放得下时间、放不下整个句号。
+    answer.style.width = (before.right - answer.getBoundingClientRect().left + rect(period).width / 2) + "px";
+    const after = rect(stamp);
+    const stop = rect(period);
+    return { leadingGap, trailingGap, wrapped: after.top >= rect(prefix).bottom, together: stop.top < after.bottom && after.top < stop.bottom };
+  })()`);
+  assert.ok(Math.abs(measured.leadingGap) <= 1 && Math.abs(measured.trailingGap) <= 1, "时间点两侧紧贴正文");
+  assert.ok(measured.wrapped, "时间点确实换到了下一行");
+  assert.ok(measured.together, "句号跟时间点在同一行");
   await page.click("#card-answer .card-stamp");
   await page.waitFor("跳到回答里的时间点", `window.__seeked === 90`);
 });

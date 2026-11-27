@@ -39,13 +39,16 @@ const timeColumn = (times: readonly (number | null)[]): string => `--time-ch:${M
 
 function TimeCell({ atSec, onSeek }: { readonly atSec: number | null; readonly onSeek: (atSec: number) => void }) {
   return (
-    <span class="outline-time">
+    <>
+      <span class="key-play" aria-hidden="true" />
       {validTime(atSec) ? (
         <button type="button" class="chapter-time" aria-label={cardText().jumpTo(formatTimestamp(atSec))} onClick={() => onSeek(atSec)}>
           {formatTimestamp(atSec)}
         </button>
-      ) : null}
-    </span>
+      ) : (
+        <span class="chapter-time" aria-hidden="true">{"\u00a0"}</span>
+      )}
+    </>
   );
 }
 
@@ -53,14 +56,14 @@ function OutlineItem({ part, index, onSeek }: { readonly part: OutlineSectionVie
   const title = part.title.trim() || cardText().section(index + 1);
   const points = part.points.filter((point) => point.content.trim());
   return (
-    <li class="outline-item">
+    <li class="outline-item chapter-row">
       <TimeCell atSec={part.timestamp} onSeek={onSeek} />
       {points.length ? (
         <details class="outline-details">
           <summary class="outline-title">{title}</summary>
-          <ul class="points">
+          <ul class="points chapter-list">
             {points.map((point, at) => (
-              <li key={at} class="point">
+              <li key={at} class="point chapter-row">
                 <TimeCell atSec={point.timestamp} onSeek={onSeek} />
                 <span>{point.content.trim()}</span>
               </li>
@@ -104,9 +107,12 @@ function useClipped(watch: string): [RefObject<HTMLParagraphElement>, boolean] {
 /**
  * 官方总结的正文和提纲。limited 时正文只露三行、提纲只露前几段；给了 onToggleAll，有藏起来的（或者已经展开）时下面摆「展开全部」。
  */
-function OfficialBody({ official, limited, onSeek, onToggleAll }: { readonly official: OfficialSummaryView; readonly limited: boolean; readonly onSeek: (atSec: number) => void; readonly onToggleAll?: () => void }) {
+function OfficialBody({ official, chapters, limited, onSeek, onToggleAll }: { readonly official: OfficialSummaryView; readonly chapters?: LearningAnalysis["chapters"]; readonly limited: boolean; readonly onSeek: (atSec: number) => void; readonly onToggleAll?: () => void }) {
   const summary = official.summary.trim();
   const outline = cardRows(official.outline, !limited);
+  const times = chapters?.length
+    ? chapters.map((chapter) => chapter.timestampSeconds)
+    : official.outline.flatMap((part) => [part.timestamp, ...part.points.map((point) => point.timestamp)]);
   const outlineCut = cardRows(official.outline, false).length < official.outline.length;
   const [reading, clipped] = useClipped(`${limited}:${summary}`);
   return (
@@ -117,7 +123,7 @@ function OfficialBody({ official, limited, onSeek, onToggleAll }: { readonly off
         </p>
       ) : null}
       {outline.length ? (
-        <ol class="outline" style={timeColumn(outline.flatMap((part) => [part.timestamp, ...part.points.map((point) => point.timestamp)]))}>
+        <ol class="outline chapter-list" style={timeColumn(times)}>
           {outline.map((part, index) => (
             <OutlineItem key={index} part={part} index={index} onSeek={onSeek} />
           ))}
@@ -367,7 +373,7 @@ export function Card({
               <Collapse open={view.officialOpen}>
                 {() => (
                   <div class="card-fold-body" id="card-official-body">
-                    <OfficialBody official={official} limited={false} onSeek={actions.seek} />
+                    <OfficialBody official={official} chapters={analysis.chapters} limited={false} onSeek={actions.seek} />
                   </div>
                 )}
               </Collapse>

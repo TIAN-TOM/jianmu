@@ -33,7 +33,7 @@ export function CardChapters({ chapters, keyStarts, onSeek }: { readonly chapter
   const list = <ChapterList chapters={chapters} keyStarts={keyStarts} heading={false} onSeek={onSeek} />;
   if (!scrolls) return list;
   return (
-    <>
+    <div>
       <div
         class="card-chapter-scroll"
         id="card-chapters"
@@ -48,6 +48,6 @@ export function CardChapters({ chapters, keyStarts, onSeek }: { readonly chapter
         {list}
       </div>
       <p class="card-chapter-count">{cardText().chapterCount(chapters.length)}</p>
-    </>
+    </div>
   );
 }
