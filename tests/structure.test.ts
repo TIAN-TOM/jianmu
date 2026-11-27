@@ -3,8 +3,10 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { bundlesFor } from "../scripts/lib/bundles.mjs";
+import { FEATURE_NAMES, type FeatureSet } from "../src/shared/features.ts";
 import { AV_XOR_CODE, BV_ALPHABET } from "../src/sites/bilibili/url.ts";
-import { ENTRY_POINTS, findStructureViolations, UNIMPORTED_ALLOWED, type SourceFile, type Violation } from "./helpers/structure-rules.ts";
+import { findStructureViolations, SCRIPT_ONLY, UNIMPORTED_ALLOWED, type SourceFile, type Violation } from "./helpers/structure-rules.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -28,18 +30,17 @@ function filesHit(files: Readonly<Record<string, string>>): string[] {
   return findStructureViolations(list).map(({ rule, file }) => `${rule} ${file}`);
 }
 
+// 第 9 条认的入口：开关全开时要打的全部包的入口。
+const ALL_ON = Object.fromEntries(FEATURE_NAMES.map((name) => [name, true])) as FeatureSet;
+const ENTRIES: ReadonlySet<string> = new Set(bundlesFor(ALL_ON).flatMap((bundle) => bundle.entryPoints));
+
 test("src/ 没有违反结构规则", () => {
-  assert.deepEqual(findStructureViolations(sourceFiles(join(ROOT, "src")), { wholeTree: true }), []);
+  assert.deepEqual(findStructureViolations(sourceFiles(join(ROOT, "src")), { entries: ENTRIES }), []);
 });
 
-test("第 9 条认的入口和构建脚本的入口一致", () => {
-  const build = readFileSync(join(ROOT, "scripts/build.mjs"), "utf8");
-  const entries = [...build.matchAll(/entryPoints:\s*\["([^"]+)"\]/g)].map((match) => match[1] ?? "");
-  const scriptOnly = [...ENTRY_POINTS].filter((path) => !entries.includes(path));
-  assert.deepEqual(scriptOnly, ["src/shared/features.ts"], "入口表里除了只给构建脚本读的开关表，都是构建入口");
-  assert.deepEqual(entries.filter((path) => !ENTRY_POINTS.has(path)), [], "新加的构建入口也要写进入口表");
-  const gone = [...ENTRY_POINTS, ...Object.keys(UNIMPORTED_ALLOWED)].filter((path) => !existsSync(join(ROOT, path)));
-  assert.deepEqual(gone, [], "入口表和放行表里的文件都还在");
+test("第 9 条：只给脚本读的文件和放行表里的文件都还在", () => {
+  const gone = [...Object.keys(SCRIPT_ONLY), ...Object.keys(UNIMPORTED_ALLOWED)].filter((path) => !existsSync(join(ROOT, path)));
+  assert.deepEqual(gone, [], "文件删掉了，表里那一条也要删");
 });
 
 test("内容脚本、卡片、侧边栏都用共用模块，自己不再留一份换算", () => {
@@ -334,15 +335,17 @@ describe("规则能拦下造好的违规", () => {
   });
 
   test("第 9 条：src/ 下每个模块都有 src/ 里的导入方", () => {
-    const wholeHit = (files: Readonly<Record<string, string>>): string[] =>
-      findStructureViolations(Object.entries(files).map(([path, text]) => ({ path, text })), { wholeTree: true }).map(({ rule, file }) => `${rule} ${file}`);
+    const entries: ReadonlySet<string> = new Set(["src/background/main.ts"]);
+    const wholeHit = (files: Readonly<Record<string, string>>, given = entries): string[] =>
+      findStructureViolations(Object.entries(files).map(([path, text]) => ({ path, text })), { entries: given }).map(({ rule, file }) => `${rule} ${file}`);
     const orphan = {
       "src/background/main.ts": 'import { a } from "../core/a.ts";\n',
       "src/core/a.ts": "export const a = 1;\n",
       "src/core/unused.ts": "export const u = 1;\n",
     };
     assert.deepEqual(wholeHit(orphan), ["9 src/core/unused.ts"]);
-    assert.deepEqual(filesHit(orphan), [], "只给几个文件时不查第 9 条");
+    assert.deepEqual(wholeHit(orphan, new Set()), ["9 src/background/main.ts", "9 src/core/unused.ts"], "不在入口集合里的入口文件也要有导入方");
+    assert.deepEqual(filesHit(orphan), [], "不给入口集合时不查第 9 条");
     const used = {
       "src/background/main.ts": 'import type { A } from "../core/a.ts";\nimport "../core/side.ts";\n',
       "src/core/a.ts": "export type A = number;\n",

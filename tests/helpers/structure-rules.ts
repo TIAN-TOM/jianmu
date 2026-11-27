@@ -105,19 +105,10 @@ const PAGE_COMMANDS = /^src\/sites\/[^/]+\/page\/commands\.ts$/;
 const YOUTUBE_FILE = /^src\/sites\/youtube\//;
 // 第 8 条：消息的形状依赖领域类型，core 不反过来导入消息模块。
 const MESSAGES = /^src\/shared\/messages(?:\.ts$|\/)/;
-// 第 9 条：构建入口（和 scripts/build.mjs 的 entryPoints 一致，结构测试核对）没有导入方。
-export const ENTRY_POINTS: ReadonlySet<string> = new Set([
-  "src/background/main.ts",
-  "src/content/bilibili.ts",
-  "src/content/youtube-bridge.ts",
-  "src/content/youtube.ts",
-  "src/pages/card/main.tsx",
-  "src/pages/options/main.tsx",
-  "src/pages/shared/theme-boot.ts",
-  "src/pages/sidepanel/main.tsx",
-  "src/pages/triage/main.tsx",
-  "src/shared/features.ts", // 只给构建脚本读开关取值
-]);
+// 第 9 条：不经打包、只给脚本读的文件没有 src/ 里的导入方，加一条要写原因。包的入口由调用方从包清单算好传进来。
+export const SCRIPT_ONLY: Readonly<Record<string, string>> = {
+  "src/shared/features.ts": "构建脚本和测试从这里读各种构建的开关取值，产品代码只认构建时换进来的常量",
+};
 // 第 9 条：暂时没有导入方也放行的模块，加一条要写原因。
 export const UNIMPORTED_ALLOWED: Readonly<Record<string, string>> = {
   "src/core/notes/filter.ts": "笔记过滤还没接进产品，去留待定",
@@ -428,14 +419,14 @@ function valueCycles(modules: ReadonlyMap<string, Module>): Violation[] {
   return found;
 }
 
-// 第 9 条：每个模块都有 src/ 里的导入方，只导入类型的也算。要拿整棵 src/ 才查得了，样例只给几个文件时不查。
-function unimported(modules: ReadonlyMap<string, Module>): Violation[] {
+// 第 9 条：每个模块都有 src/ 里的导入方，只导入类型的也算。包的入口、只给脚本读的文件、.d.ts 和放行表里的不查。
+function unimported(modules: ReadonlyMap<string, Module>, entries: ReadonlySet<string>): Violation[] {
   const imported = new Set<string>();
   for (const { path, edges } of modules.values()) {
     for (const { target } of edges) if (target !== path) imported.add(target);
   }
   const orphans = [...modules.keys()]
-    .filter((path) => !imported.has(path) && !ENTRY_POINTS.has(path) && !path.endsWith(".d.ts") && !(path in UNIMPORTED_ALLOWED))
+    .filter((path) => !imported.has(path) && !entries.has(path) && !(path in SCRIPT_ONLY) && !path.endsWith(".d.ts") && !(path in UNIMPORTED_ALLOWED))
     .map((path): Violation => ({ rule: 9, file: path, detail: "src/ 里没有模块导入它：删掉，或者接进产品" }));
   // 放行表里的模块接进了产品，这一条也要跟着删；文件删掉了的，结构测试另外查。
   const stale = Object.keys(UNIMPORTED_ALLOWED)
@@ -445,8 +436,10 @@ function unimported(modules: ReadonlyMap<string, Module>): Violation[] {
 }
 
 export interface StructureOptions {
-  /** 给的是整棵 src/：只有这时才查第 9 条。 */
-  readonly wholeTree?: boolean;
+  /**
+   * 包的入口，从包清单算出来。给了才查第 9 条：要拿整棵 src/ 才查得了，样例只给几个文件时不给。
+   */
+  readonly entries?: ReadonlySet<string>;
 }
 
 export function findStructureViolations(files: readonly SourceFile[], options: StructureOptions = {}): Violation[] {
@@ -455,6 +448,6 @@ export function findStructureViolations(files: readonly SourceFile[], options: S
   return [
     ...list.flatMap((file) => [...checkFile(file), ...checkReach(file, modules)]),
     ...valueCycles(modules),
-    ...(options.wholeTree ? unimported(modules) : []),
+    ...(options.entries ? unimported(modules, options.entries) : []),
   ];
 }
