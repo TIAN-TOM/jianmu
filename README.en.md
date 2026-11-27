@@ -40,11 +40,11 @@ Jianmu is a Chrome extension (Manifest V3). Open a long video and it tells you f
 The video, channel and subtitles in the animation and screenshots were made up for the demo. The made-up lecture is in Chinese, so its title, subtitles and quoted lines stay in Chinese in the animation above, which otherwise shows the English interface. The screenshots below show the Chinese interface.
 
 <p>
-  <img src=".github/assets/skim.png" width="49%" alt="Skim view: a one-line verdict with a recommendation, timestamped chapters with the key ones marked, and an expanded chapter showing its summary and subtitles">
+  <img src=".github/assets/skim.png" width="49%" alt="Skim view: a one-line verdict with a star rating, timestamped chapters with the key ones marked, and an expanded chapter showing its summary and subtitles">
   <img src=".github/assets/study-qa.png" width="49%" alt="Close reading: subtitles highlighted as the video plays, and an answer with timestamps and the subtitle lines it cites">
 </p>
 <p>
-  <img src=".github/assets/card.png" width="49%" alt="The card beside the player: verdict, chapters and a button that opens the side panel">
+  <img src=".github/assets/card.png" width="49%" alt="The card beside the player: a star rating in the header, then the reason and summary, chapters and a question box">
   <img src=".github/assets/settings-ai.png" width="49%" alt="Settings: choose the AI service and model, and set the reasoning effort for each feature">
 </p>
 
