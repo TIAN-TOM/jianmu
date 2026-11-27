@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createYoutubePage } from "../../../../src/sites/youtube/page.ts";
+import { nextTurn } from "../../../helpers/deferred.ts";
 
 // 自造的编号，只照着字符集和长度写，不对应真实视频。
 const ID = "jmSample0001";
@@ -55,7 +56,7 @@ function pageAt(href: string) {
   const page = createYoutubePage({
     document: document as unknown as Document,
     location,
-    sleep: () => new Promise((resolve) => setImmediate(resolve)),
+    sleep: () => nextTurn(),
     every: (_ms, run) => {
       ticks.add(run);
       return () => void ticks.delete(run);
@@ -111,7 +112,7 @@ test("页面外壳出来、加载完才算激活，不在观看页也一样", as
   const controller = new AbortController();
   let done = false;
   const waiting = page.whenPageReady(controller.signal).then(() => (done = true));
-  await new Promise((resolve) => setImmediate(resolve));
+  await nextTurn();
   assert.equal(done, false);
   document.readyState = "complete";
   await waiting;

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { VideoKey } from "../../../../src/core/video-ref.ts";
 import { createPlayer, RECONNECT_MS } from "../../../../src/pages/sidepanel/player.ts";
+import { nextTurn } from "../../../helpers/deferred.ts";
 import { until } from "../../../helpers/wait-until.ts";
 
 const VIDEO = "youtube:jmSample0001" as VideoKey;
@@ -58,7 +59,7 @@ test("一直连不上：问完这几次就停；换了视频以后旧的重问�
   assert.ok(await until(() => pending.length === 1));
   const before = asks();
   stale?.run();
-  await new Promise((resolve) => setImmediate(resolve));
+  await nextTurn();
   assert.equal(asks(), before, "作废的重问不再发");
   player.stop();
 });

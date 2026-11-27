@@ -11,6 +11,7 @@ import type { Route } from "../router.ts";
 import type { AutoGenerate } from "../services/auto-generate.ts";
 import type { OverviewService } from "../services/overview/index.ts";
 import type { PageTranscript } from "../services/page-transcript.ts";
+import { captionsInPage } from "../../sites/rules.ts";
 import { isId, isPlainObject, isTabId, isVideoKey, keysWithin } from "./validate.ts";
 
 export interface OverviewRouteDeps {
@@ -48,7 +49,7 @@ export function overviewRoutes({ overview, cardLimits, auto, pageTranscript }: O
   function readInPage(video: VideoKey, tabId: number | undefined): (() => Promise<Failure | null>) | null {
     const ref = parseVideoKey(video);
     const page = pageTranscript;
-    if (!ref || ref.platform === "bilibili" || !page || tabId === undefined) return null;
+    if (!ref || !captionsInPage(ref.platform) || !page || tabId === undefined) return null;
     return async () => {
       const read = await page.read(ref, tabId);
       if ("later" in read) return read.later === "ad" ? fail("PAGE_ACTION_NEEDED", "ad") : read.later === "video-changed" ? fail("VIDEO_CHANGED") : fail("UNAVAILABLE", "no-page");

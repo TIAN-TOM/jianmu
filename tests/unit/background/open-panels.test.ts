@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { createOpenPanels } from "../../../src/background/open-panels.ts";
 import type { Broadcast } from "../../../src/shared/messages.ts";
 import { OPEN_PANELS_KEY } from "../../../src/shared/names.ts";
+import { nextTurn } from "../../helpers/deferred.ts";
 import { memoryStorage } from "../../helpers/memory-storage.ts";
 
 function world(seed: Record<string, unknown> = {}) {
@@ -74,7 +75,7 @@ test("核对有没有侧边栏页面的这一会儿，别的窗口刚报了打�
     broadcast: (message) => void sent.push(message),
   });
   const stale = panels.isOpen(1);
-  while (asked === 0) await new Promise((resolve) => setImmediate(resolve));
+  while (asked === 0) await nextTurn();
   await panels.changed(2, true);
   answerFirst(false);
   await stale;

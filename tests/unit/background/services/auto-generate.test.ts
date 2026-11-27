@@ -31,7 +31,7 @@ import { AUTO_LEDGER_KEY } from "../../../../src/shared/names.ts";
 import { siteRules } from "../../../../src/sites/rules.ts";
 import { videoPageUrl } from "../../../helpers/bilibili-pages.ts";
 import { TUBE_ORIGIN, tubeUrl } from "../../../helpers/chrome.ts";
-import { nextTurn } from "../../../helpers/deferred.ts";
+import { deferred, nextTurn } from "../../../helpers/deferred.ts";
 import { SAMPLE_ID } from "../../../helpers/fake-site-service.ts";
 import { manualTimers } from "../../../helpers/manual-timers.ts";
 import { memoryStorage } from "../../../helpers/memory-storage.ts";
@@ -149,8 +149,7 @@ function setup(options: Setup = {}) {
     start: async (_ref, video, hooks): Promise<AutoLaunch> => {
       if (options.launch) return { skipped: options.launch };
       if (state.joinFor.has(video)) return { skipped: "joined" };
-      let finish = (): void => {};
-      const done = new Promise<void>((resolve) => (finish = resolve));
+      const { promise: done, resolve: finish } = deferred();
       const run: Run = {
         video,
         hooks,

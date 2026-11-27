@@ -788,8 +788,7 @@ test("先点停止、收尾还没存完时清除了本机数据：已完成的�
 });
 
 test("概览进了写队列、还没写时清除了本机数据：概览不被重建", async () => {
-  let queued!: () => void;
-  const reached = new Promise<void>((resolve) => (queued = resolve));
+  const { promise: reached, resolve: queued } = deferred();
   const h = overviewHarness({
     wrapStore: (inner) => ({
       ...inner,

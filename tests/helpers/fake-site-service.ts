@@ -88,6 +88,7 @@ export const failed = (code: SiteFailure["code"], extra: Partial<Omit<SiteFailur
 const rules: SiteRules = {
   platform: "bilibili",
   optionalPermission: false,
+  captions: "service",
   parseWatchUrl: () => null,
   canonicalUrl: (ref) => `https://watch.example/watch/${ref.videoId}`,
   permissionOrigins: [],

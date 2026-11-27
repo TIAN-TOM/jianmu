@@ -8,8 +8,9 @@ import { fixedInSettings } from "../../core/errors/settings-codes.ts";
 import type { LearningAnalysis } from "../../core/notes/markdown.ts";
 import type { OverviewTranscriptBasis } from "../../core/notes/records.ts";
 import type { TaskView } from "../../core/tasks.ts";
-import { videoKeyOrNull, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
+import { parseVideoKey, videoKeyOrNull, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
 import type { GuidesFailure } from "../../shared/messages/transcript.ts";
+import { captionsInPage } from "../../sites/rules.ts";
 import type { PageApi } from "../shared/api.ts";
 import type { ConfigState } from "../shared/config.ts";
 import type { UiLang } from "../shared/ui-lang.ts";
@@ -63,6 +64,12 @@ const HIDDEN_CODES: ReadonlySet<ErrorCode> = new Set(["NOT_ENABLED", "CARD_DISAB
 export const NO_CAPTIONS_TEXT = CARD_ZH.noCaptions;
 export const NEED_LOGIN_TEXT = CARD_ZH.needLogin;
 export const NOT_READ_TEXT = CARD_ZH.notRead;
+
+/** 这个视频的字幕后台会自己去读（登录着时）；要用户点了才经页面读的站和认不出的视频键都不算。 */
+const serviceReads = (video: VideoKey): boolean => {
+  const ref = parseVideoKey(video);
+  return ref !== null && !captionsInPage(ref.platform);
+};
 
 export function createCardModel(deps: CardDeps) {
   const { api, timers = realTimers, position, lang = (): UiLang => "zh" } = deps;
@@ -192,7 +199,7 @@ export function createCardModel(deps: CardDeps) {
       needLogin,
       notRead,
       // 问答要整份字幕：B 站登录着时后台自己去读，YouTube 只用本机已有的。
-      canAsk: !noCaptions && !needLogin && (value.hasTranscript || current.startsWith("bilibili:")),
+      canAsk: !noCaptions && !needLogin && (value.hasTranscript || serviceReads(current)),
       transcriptFingerprint: value.transcriptFingerprint ?? null,
       ...(following && !quiet ? {} : { ...shownSaved(), verdictPending: false }),
       // 安静重读不动提示，只有原来挡着的「没有字幕」这次不成立了（比如刚导入了字幕文件）才撤下。

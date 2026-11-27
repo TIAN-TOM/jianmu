@@ -29,6 +29,7 @@ import type {
 } from "../../../../src/core/ai/transport/index.ts";
 import { DATA_CONSENT_ERROR, DATA_CONSENT_VERSION } from "../../../../src/core/consent.ts";
 import * as SETTINGS from "../../../../src/shared/settings-schema.ts";
+import { nextTurn } from "../../../helpers/deferred.ts";
 import { memoryStorage } from "../../../helpers/memory-storage.ts";
 import * as RESP from "../../../helpers/responses-fixtures.ts";
 
@@ -2114,7 +2115,7 @@ test("retrySignal 不中止已经发出的请求：在途时中止，照常等�
   const t = makeTransport(async (_url, init) => {
     fetchSignal = init.signal;
     controller.abort();
-    await new Promise((resolve) => setImmediate(resolve));
+    await nextTurn();
     return openaiReply("回来了");
   });
   const result = await t.requestAiCompletion({

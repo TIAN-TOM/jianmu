@@ -9,6 +9,7 @@ import vm from "node:vm";
 import { build } from "esbuild";
 import { bundleOptions, manifestFor } from "../scripts/build.mjs";
 import { buildFlagsRecord, readBuildFlags } from "../scripts/lib/build-flags.mjs";
+import { bundlesFor } from "../scripts/lib/bundles.mjs";
 import { extractPromptSection } from "../src/core/ai/prompt.ts";
 import {
   FEATURE_GLOBALS,
@@ -24,7 +25,8 @@ import { COMMENTS_PROBE, FRAME_EXPLAIN_PROBE, KEEP_CONSENT_PROBE, YOUTUBE_OPEN_P
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BUILD = join(ROOT, "build");
-const BUNDLES = ["background.js", "pages/sidepanel.js", "pages/theme-boot.js", "pages/card.js", "content/bilibili.js", "content/youtube.js", "content/youtube-bridge.js"];
+// build/ 是发行构建：逐个扫的包按构建脚本的同一份清单取，不另外手写。
+const BUNDLES = bundlesFor(RELEASE_FEATURES).map((bundle) => bundle.outfile.replace(/^build\//, ""));
 // 权限只认这几项：多一项要改这里，不靠禁用名单列举。YouTube 和 AI 地址都走运行时申请的可选权限。
 // scripting 用来在安装、更新和确认启用后往已开的视频页补注入内容脚本，本身没有安装警告。
 // contextMenus 只用来在工具栏图标的右键菜单里加简幕自己的几项，也没有安装警告。

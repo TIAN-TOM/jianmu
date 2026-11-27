@@ -3,10 +3,9 @@
 import { isRecord } from "../../shared/guards.ts";
 import { effect, signal } from "@preact/signals";
 import { render } from "preact";
-import type { VideoRef } from "../../core/video-ref.ts";
 import type { ContentReply } from "../../shared/messages/content.ts";
 import { CARD_TONE, INJECTED } from "../../shared/names.ts";
-import { siteRules } from "../../sites/rules.ts";
+import { watchRefOf } from "../../sites/rules.ts";
 import { createPageApi, type PageApi } from "../shared/api.ts";
 import { startWhenCurrent } from "../shared/build-check.ts";
 import { cardSetupHint, createConfigWatch } from "../shared/config.ts";
@@ -37,15 +36,6 @@ function originOf(url: string): string | null {
   }
 }
 
-/** 按各站的地址规则认标签页上的视频。YouTube 的规则只在构建开关打开时登记。 */
-function videoOfUrl(url: string): VideoRef | null {
-  for (const rules of Object.values(siteRules)) {
-    const ref = rules?.parseWatchUrl(url);
-    if (ref) return ref;
-  }
-  return null;
-}
-
 // 后台旧了：只显示重新加载的提示，高度照常报给父页面，提示才露得出来。
 function stale(root: HTMLElement): void {
   renderStaleBackground(root);
@@ -70,7 +60,8 @@ function start(root: HTMLElement, api: PageApi): void {
     config: config.state,
     recheckConfig: () => config.check(),
     currentTab,
-    parseVideo: videoOfUrl,
+    // 按各站的地址规则认标签页上的视频。YouTube 的规则只在构建开关打开时登记。
+    parseVideo: (url) => watchRefOf(url),
     seek(tabId, video, atSec) {
       void chrome.tabs.sendMessage(tabId, { type: "player.seek", req: { video, atSec } }, { frameId: 0 }).catch(() => undefined);
     },

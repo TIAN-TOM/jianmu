@@ -1,7 +1,7 @@
 // 外观：内容脚本读不到存储，外观、卡片开关和语言选项经这里读；设置里这几项变了，广播给确认启用之后的内容脚本。
 import { ok } from "../../core/errors.ts";
 import type { SettingsStore } from "../../platform/settings-store.ts";
-import type { Broadcast } from "../../shared/messages.ts";
+import { CONTENT_SENDERS, type Broadcast } from "../../shared/messages.ts";
 import { SETTINGS_STORAGE_KEY } from "../../shared/names.ts";
 import { activationStatus, normalize } from "../../shared/settings-schema.ts";
 import type { Route } from "../router.ts";
@@ -16,7 +16,7 @@ type AppearanceRoutes = { readonly [K in "appearance.get"]: Route<K> };
 export function appearanceRoutes({ settings }: AppearanceRouteDeps): AppearanceRoutes {
   return {
     "appearance.get": {
-      senders: ["panel", "page", "content:bilibili", "content:youtube"],
+      senders: ["panel", "page", ...CONTENT_SENDERS],
       pages: ["options", "triage"],
       beforeEnable: true,
       idempotent: true,

@@ -3,6 +3,7 @@
 // 消息里的视频对不上就拒。播放页来的笔记每分钟只润色几条。
 import { fail } from "../../core/errors.ts";
 import { videoKeyOrNull } from "../../core/video-ref.ts";
+import { CONTENT_SENDERS } from "../../shared/messages.ts";
 import type { NoteAtTimeRequest, NoteDeleteRequest, NoteListRequest, NoteSaveRequest, NoteUpdateRequest } from "../../shared/messages/notes.ts";
 import type { Route } from "../router.ts";
 import type { NotesService } from "../services/notes.ts";
@@ -45,7 +46,7 @@ export function noteRoutes({ notes, playerNotePolish }: NoteRouteDeps): NoteRout
       handler: (req, { since }) => notes.save(req, { since }),
     },
     "notes.saveAtTime": {
-      senders: ["content:bilibili", "content:youtube"],
+      senders: CONTENT_SENDERS,
       video: "from-sender",
       validate: isAtTimeRequest,
       async handler(req, { sender, since }) {

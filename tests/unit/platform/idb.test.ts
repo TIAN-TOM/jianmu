@@ -8,6 +8,7 @@ import {
   type UpgradeStep,
 } from "../../../src/platform/idb.ts";
 import { DATABASE_NAME, STORE_NAMES, type StoreName } from "../../../src/shared/names.ts";
+import { nextTurn } from "../../helpers/deferred.ts";
 import { createMemoryDriver } from "../../helpers/memory-driver.ts";
 import { createMemoryIndexedDb, type MemoryIndexedDb } from "../../helpers/memory-idb.ts";
 
@@ -187,7 +188,7 @@ test("IndexedDB 驱动：关掉连接以后再调用重新打开", async () => {
 
   driver.close();
   for (let turn = 0; turn < 100 && idb.openConnections() > 0; turn += 1) {
-    await new Promise((resolve) => setImmediate(resolve));
+    await nextTurn();
   }
   assert.equal(idb.openConnections(), 0, "连接真的关了");
 
@@ -363,7 +364,7 @@ test("连接悄悄断了时，并发的操作共用同一次重开，不留多�
   assert.equal(idb.openConnections(), 1, "两个操作共用一条新连接");
   driver.close();
   for (let turn = 0; turn < 100 && idb.openConnections() > 0; turn += 1) {
-    await new Promise((resolve) => setImmediate(resolve));
+    await nextTurn();
   }
   assert.equal(idb.openConnections(), 0, "关掉驱动后一条不留");
 });
@@ -388,12 +389,12 @@ test("升级被别的连接挡住：明确报错不挂死，对方让出来以�
 
   // 被挡住的那次请求后来也会成功，它的连接没人持有，不能留着。
   for (let turn = 0; turn < 100 && idb.openConnections() > 1; turn += 1) {
-    await new Promise((resolve) => setImmediate(resolve));
+    await nextTurn();
   }
   assert.equal(idb.openConnections(), 1, "只留下重试拿到的那条连接");
   second.close();
   for (let turn = 0; turn < 100 && idb.openConnections() > 0; turn += 1) {
-    await new Promise((resolve) => setImmediate(resolve));
+    await nextTurn();
   }
   assert.equal(idb.openConnections(), 0, "关掉驱动后一条不留");
 });
