@@ -2,10 +2,10 @@
 // 不发请求；机器翻译的也用，交回译成的语言。只从 service.ts 的构建开关分支引用，开关关着时整个模块不进包。
 import type { SiteFailure, SiteResult } from "../types.ts";
 import { parseCaptionJson, type CaptionLine } from "./caption-json.ts";
+import { fail, malformed } from "./failure.ts";
 import { captionReplyOf, type CaptionRequest, type PlayerCaption } from "./page/caption-types.ts";
 import { END_SLACK_SEC, PANEL_LIMITS, type PlayerTrack, type PlayerTracks } from "./page/panel-types.ts";
-
-const AUTO_KIND = "asr";
+import { AUTO_KIND } from "./page/values.ts";
 
 /** 读到的播放器字幕：一句一句的正文；认出的轨（认不出是 null）；机器翻译时是译成的语言，不是时是空串。 */
 export interface PlayerRead {
@@ -24,9 +24,6 @@ export interface PlayerFallbackInput {
 }
 
 export type PlayerFallback = (input: PlayerFallbackInput) => Promise<SiteResult<PlayerRead>>;
-
-const fail = (code: Exclude<SiteFailure["code"], "MALFORMED">, detail?: string): SiteFailure => (detail ? { ok: false, code, detail } : { ok: false, code });
-const malformed = (detail: string): SiteFailure => ({ ok: false, code: "MALFORMED", reach: "item", detail });
 
 /** 播放器的轨里按语言和是不是自动生成只对上一条时就是它；机器翻译的、视频对不上的、对上几条的都认不出。 */
 export function trackOfCaption(player: PlayerTracks | null, caption: PlayerCaption): PlayerTrack | null {

@@ -5,7 +5,7 @@ import type { VideoRef } from "../../../core/video-ref.ts";
 import { askPlayerCaption } from "./caption-ask.ts";
 import type { CaptionOutcome, CaptionReply, CaptionRequest, PlayerCaption } from "./caption-types.ts";
 import type { CommentRequest, LoadOutcome, LoadReply } from "./comment-types.ts";
-import { advertising, ENTRY, expanded, openPanelOf, PANEL_CLOSE, PANELS, searching, SEGMENTS, TABS, videoOnPage } from "./panel-dom.ts";
+import { advertising, ENTRY, expanded, openPanelOf, PANEL_CLOSE, PANELS, PLAYER, searching, SEGMENTS, TABS, videoOnPage } from "./panel-dom.ts";
 import type { CloseTranscriptOutcome, OpenTranscriptOutcome, PlayerTracks } from "./panel-types.ts";
 import { askPlayerTracks } from "./player-tracks.ts";
 import { COMMENT_SECTION, loadedComments } from "./read-comments.ts";
@@ -110,7 +110,7 @@ export function createPanelOpener({ document, currentRef, now = Date.now, sleep 
 }
 
 // 播放器上的字幕按钮：按类名在播放器里找，开没开看它标着的按下状态，标着不可用或者认不出状态就不点。
-const CAPTIONS_BUTTON = "ytd-watch-flexy .html5-video-player .ytp-subtitles-button";
+const CAPTIONS_BUTTON = ".ytp-subtitles-button";
 // 点开字幕以后最多等这么久看小桥接没接住，每隔这么久看一次。
 export const CAPTION_WAIT_MS = 6000;
 const CAPTION_POLL_MS = 200;
@@ -169,7 +169,7 @@ export function createCaptionToggle({
     const ready = caption(videoId);
     if (ready) return reply("caught", ready);
     if (advertising(document)) return reply("ad");
-    const button = document.querySelector<HTMLElement>(CAPTIONS_BUTTON);
+    const button = document.querySelector<HTMLElement>(`${PLAYER} ${CAPTIONS_BUTTON}`);
     if (!button || !usable(button)) return reply("no-button");
     if (pressed(button) === "true") return reply("on-missed");
     button.click();

@@ -76,8 +76,9 @@ const PAGE_ADDRESS = /^https:\/\/www\.(?:bilibili|youtube)\.com\/(?:video|watch)
 const BILIBILI_READ = /^src\/sites\/bilibili\/(?!(?:url|page|page\/[^/]+)\.ts$)/;
 // 前台模块在内容脚本和扩展页面里跑，传递带入的只能是纯逻辑、契约、地址规则和各站的 url.ts。
 // 各站 url.ts 旁边的繁体文字模块（url-hant.ts）和 url.ts 同样算地址规则，守同样的规矩。
-const FRONT_MODULE = /^src\/sites\/(?:[^/]+\/(?:url|url-hant|page|page\/[^/]+)|rules|types|page-types)\.ts$/;
-const FRONT_SHARED: ReadonlySet<string> = new Set(["src/sites/types.ts", "src/sites/page-types.ts", "src/sites/rules.ts"]);
+// 两站页面模块共用的小工具（page-util.ts）也算前台模块，守同样的规矩。
+const FRONT_MODULE = /^src\/sites\/(?:[^/]+\/(?:url|url-hant|page|page\/[^/]+)|rules|types|page-types|page-util)\.ts$/;
+const FRONT_SHARED: ReadonlySet<string> = new Set(["src/sites/types.ts", "src/sites/page-types.ts", "src/sites/rules.ts", "src/sites/page-util.ts"]);
 const SITE_FRONT_FILE = /^src\/sites\/([^/]+)\/(?:url|url-hant|page|page\/[^/]+)\.ts$/;
 const SITE_PAGE = /^src\/sites\/([^/]+)\/(?:page|page\/[^/]+)\.ts$/;
 const SITE_URL = /^src\/sites\/([^/]+)\/url(?:-hant)?\.ts$/;

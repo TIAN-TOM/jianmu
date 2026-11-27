@@ -2,6 +2,7 @@
 // 先读页面上已经加载出来的；没有时请页面替用户滚过去一次（页面自己判断前台、广告、用户在不在动），加载出来再读一遍。
 // 只在构建开关 FEATURE_COMMENTS 打开时进包，只从 service.ts 的开关分支引用。
 import type { PageChannel, SiteCtx, SiteFailure, SiteResult, TopComment, VideoInfo } from "../types.ts";
+import { fail, malformed } from "./failure.ts";
 import { commentReplyOf, loadReplyOf, type CommentReply, type LoadOutcome } from "./page/comment-types.ts";
 
 export type PageAsk = (page: PageChannel, message: unknown, signal: AbortSignal, limitMs: number) => Promise<{ ok: true; answer: unknown } | { ok: false; failure: SiteFailure }>;
@@ -10,9 +11,6 @@ export type PageAsk = (page: PageChannel, message: unknown, signal: AbortSignal,
 const READ_TIMEOUT_MS = 3_000;
 // 滚过去等评论加载：页面那头最多等 6 秒，再留一点余量。
 const LOAD_TIMEOUT_MS = 10_000;
-
-const fail = (code: Exclude<SiteFailure["code"], "MALFORMED">, detail: string): SiteFailure => ({ ok: false, code, detail });
-const malformed = (detail: string): SiteFailure => ({ ok: false, code: "MALFORMED", reach: "item", detail });
 
 async function readLoaded(ask: PageAsk, page: PageChannel, videoId: string, ctx: SiteCtx): Promise<SiteResult<CommentReply>> {
   const asked = await ask(page, { type: "youtube.comments", req: { videoId } }, ctx.signal, READ_TIMEOUT_MS);

@@ -223,7 +223,8 @@ test("页面包里没有站点的后台读取代码", () => {
 test("内容脚本包里只有自己站的页面模块和地址规则，没有后台、页面和设置的代码", () => {
   const origins = [...readBuild("content/bilibili.js").matchAll(/^\s*\/\/ (src\/\S+)$/gm)].map((match) => match[1] ?? "");
   assert.ok(origins.includes("src/content/bilibili.ts"));
-  assert.deepEqual(origins.filter((origin) => /^src\/(?:sites\/(?!bilibili\/(?:page|url|url-hant)\.ts)|background\/|pages\/|platform\/)|settings-schema/.test(origin)), []);
+  // 两站页面模块共用的小工具（sites/page-util.ts）也是页面模块。
+  assert.deepEqual(origins.filter((origin) => /^src\/(?:sites\/(?!bilibili\/(?:page|url|url-hant)\.ts|page-util\.ts)|background\/|pages\/|platform\/)|settings-schema/.test(origin)), []);
 });
 
 test("后台包带着 B 站的读取实现和取字幕服务", () => {
