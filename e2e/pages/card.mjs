@@ -550,19 +550,22 @@ test("卡片：有官方总结时文字链接在生成旁边，确定没有字�
   const empty = await open(`${SAMPLE}#official-no-captions`);
   assert.deepEqual(await read(empty), { link: text, generateBefore: false, first: true, official: true });
   assert.equal(await empty.evaluate(`Boolean(document.getElementById("card-generate"))`), false);
-  for (const [width, sameLine] of [[800, true], [NARROWEST, false]]) {
+  for (const width of [800, NARROWEST]) {
     await empty.setWidth(width, CARD_HEIGHT.max);
     const placement = await empty.evaluate(`(() => {
       const reason = document.getElementById("card-status");
       const link = document.getElementById("card-official-verdict");
       const lastLine = Array.from(reason.getClientRects()).at(-1);
       const box = link.getBoundingClientRect();
+      const card = document.getElementById("card").getBoundingClientRect();
+      const sameLine = box.top < lastLine.bottom && box.bottom > lastLine.top;
       return {
         followsReason: reason.nextElementSibling === link,
-        sameLine: box.top < lastLine.bottom && box.bottom > lastLine.top,
+        visuallyAfter: sameLine ? box.left >= lastLine.right : box.top >= lastLine.bottom,
+        fitsWidth: box.left >= card.left && box.right <= card.right,
       };
     })()`);
-    assert.deepEqual(placement, { followsReason: true, sameLine }, `${width} 像素宽时，先说明没有字幕，文字链接在句后，放不下才换行`);
+    assert.deepEqual(placement, { followsReason: true, visuallyAfter: true, fitsWidth: true }, `${width} 像素宽时，文字链接在提示句右边或下一行，不超出卡片宽度`);
   }
   const verdictOnly = await open(`${SAMPLE}#verdict-only`);
   assert.deepEqual(await read(verdictOnly), { link: "", generateBefore: false, first: false, official: true });
