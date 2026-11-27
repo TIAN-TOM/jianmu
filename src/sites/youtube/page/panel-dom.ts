@@ -1,4 +1,4 @@
-// 观看页上和文字稿面板有关的结构：读面板和代开面板共用。只有选择器和只读的判断，不点、不改页面。
+// 观看页上播放器、观看页外壳和文字稿面板的结构：页面模块、读面板和代开面板共用。只有选择器和只读的判断，不点、不改页面。
 import type { VideoRef } from "../../../core/video-ref.ts";
 
 // 页面上的各种侧栏面板。文字稿可能在旧面板、新面板，或者带「章节」「文字稿」两个页签的面板里；
@@ -20,10 +20,11 @@ const SEARCH_BOXES = "input, textarea";
 export const LANGUAGE_LABEL = "ytd-transcript-footer-renderer yt-dropdown-menu #label-text";
 // 视频简介里打开文字稿的那一块：没有它也没有面板，就是页面上没有文字稿入口。
 export const ENTRY = "ytd-video-description-transcript-section-renderer";
-// 观看页外壳上标着它正在放的视频；播放器在播广告时标在自己身上的两种状态。
+// 观看页外壳上标着它正在放的视频；外壳里的播放器和它的主视频元素；播放器在播广告时标在自己身上的两种状态。
 const WATCH_SHELL = "ytd-watch-flexy";
 const SHELL_VIDEO_ATTRIBUTE = "video-id";
 export const PLAYER = "ytd-watch-flexy .html5-video-player";
+export const MAIN_VIDEO = "ytd-watch-flexy .html5-video-player video.html5-main-video";
 const AD_CLASSES = ["ad-showing", "ad-interrupting"];
 
 /** 页面现在放的视频：地址和观看页外壳都对得上才算，换视频的途中是空串。 */

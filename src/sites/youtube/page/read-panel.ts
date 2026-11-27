@@ -2,7 +2,7 @@
 // 字幕段落最后一次真的变了时页面放的是当前视频才认，同样的内容重建（切页签、关上再开）沿用原来的归属；简幕接上之前
 // 就有的内容认不出是谁的，要用户刷新视频页再开。读到的时间不超过视频时长，超过的整份不用；播广告时不拿时长。
 import type { VideoRef } from "../../../core/video-ref.ts";
-import { advertising, ENTRY, LANGUAGE_LABEL, openPanelOf, PANELS, searching, SEGMENTS, SEGMENT_TEXT, SEGMENT_TIME, transcriptShell, videoOnPage } from "./panel-dom.ts";
+import { advertising, ENTRY, LANGUAGE_LABEL, MAIN_VIDEO, openPanelOf, PANELS, searching, SEGMENTS, SEGMENT_TEXT, SEGMENT_TIME, transcriptShell, videoOnPage } from "./panel-dom.ts";
 import {
   END_SLACK_SEC,
   PANEL_LIMITS,
@@ -21,7 +21,6 @@ const TITLE = "ytd-watch-metadata h1";
 const AUTHOR = "ytd-watch-metadata ytd-channel-name a";
 const METADATA = "ytd-watch-metadata";
 const DESCRIPTION = "ytd-watch-metadata #description-inline-expander";
-const VIDEO = "ytd-watch-flexy .html5-video-player video.html5-main-video";
 
 const TIME = /^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})$/;
 // 段落签名的校验和：32 位 FNV-1a。只用来看出变没变，不防伪造。
@@ -224,7 +223,7 @@ export function createPanelReader({
   const stopAttach = every(ATTACH_MS, attach);
 
   function info(videoId: string): PanelInfo {
-    const video = videoId && !advertising(document) ? document.querySelector<HTMLVideoElement>(VIDEO) : null;
+    const video = videoId && !advertising(document) ? document.querySelector<HTMLVideoElement>(MAIN_VIDEO) : null;
     const duration = video && Number.isFinite(video.duration) && video.duration > 0 && video.duration <= PANEL_LIMITS.seconds ? video.duration : 0;
     const title = squash(document.querySelector(TITLE)?.textContent);
     const author = squash(document.querySelector(AUTHOR)?.textContent);
