@@ -1,6 +1,7 @@
 // 哪些窗口开着侧边栏：浏览器报开了、关了就记进会话存储，再广播给各页面，同一窗口里的卡片据此让位或回来。
 // 后台随时会被回收，所以不记在内存里。开关事件是新一些的浏览器才有的；没有时这张表一直是空的，卡片照旧只跟模式走。
 // 关闭万一没报上来，只有在一个侧边栏页面都不在时才看得出来（浏览器不说侧边栏页面在哪个窗口）：这时整张表作废并通知各卡片。
+import { createSerialQueue } from "../core/concurrency.ts";
 import type { StorageArea } from "../platform/storage.ts";
 import type { Broadcast } from "../shared/messages.ts";
 import { OPEN_PANELS_KEY } from "../shared/names.ts";
@@ -22,12 +23,7 @@ const isWindowId = (value: unknown): value is number => Number.isInteger(value);
 
 export function createOpenPanels({ storage, anySidePanel, broadcast }: OpenPanelsDeps): OpenPanels {
   // 读—改—写排成一队：两个窗口前后脚开关时不互相盖掉。
-  let tail: Promise<unknown> = Promise.resolve();
-  const queued = <T>(work: () => Promise<T>): Promise<T> => {
-    const run = tail.then(work, work);
-    tail = run.catch(() => undefined);
-    return run;
-  };
+  const queued = createSerialQueue();
 
   // 会话存储只有扩展自己读写，读出来仍按不可信处理。
   async function load(): Promise<readonly number[]> {
