@@ -15,6 +15,8 @@ import {
 import type { TriageVerdict } from "../../../../src/core/triage/groups.ts";
 import type { OfficialRecord, TriageItem } from "../../../../src/core/triage/state.ts";
 import { videoKey, type VideoKey, type VideoRef } from "../../../../src/core/video-ref.ts";
+import { nextTurn } from "../../../helpers/deferred.ts";
+import { stillFalse } from "../../../helpers/wait-until.ts";
 
 // 用例里用短名字称呼视频，身份按出现顺序造。
 const refs = new Map<string, VideoRef>();
@@ -152,7 +154,8 @@ test("worker 抛错按可能发过请求算，仍然等满间隔，循环不中�
 test("停止：等间隔时点停止立刻结束，不再开始下一个", async () => {
   const controller = new AbortController();
   const started: VideoKey[] = [];
-  const result = await runSerial(
+  let finished = false;
+  const running = runSerial(
     [item("A"), item("B"), item("C")],
     async (video) => {
       started.push(video.videoKey);
@@ -160,10 +163,14 @@ test("停止：等间隔时点停止立刻结束，不再开始下一个", async
     },
     {
       signal: controller.signal,
-      // 用真的 sleep：停止要能打断正在等的那 1 秒。
-      onResult: () => setTimeout(() => controller.abort(), 10),
+      // 用真的 sleep：停止要能打断正在等的那 1 秒。第一个回来以后循环接着就进了等间隔，下一轮点停止。
+      onResult: () => void nextTurn().then(() => controller.abort()),
     },
-  );
+  ).finally(() => {
+    finished = true;
+  });
+  assert.equal(await stillFalse(() => finished), false, "点了停止要马上结束，不等满间隔");
+  const result = await running;
   assert.deepEqual(started, [keyOf("A")]);
   assert.deepEqual(result, { done: 1, total: 3, stopped: true });
 });
@@ -319,7 +326,7 @@ test("第二步并发不超过上限；停止后不再开始新的，发出去�
       peak = Math.max(peak, active);
       // 第三个开始时用户点了停止：在途的 A、B、C 照样跑完，D 以后不再开始。
       if (started.length === 3) controller.abort();
-      await new Promise((resolve) => setTimeout(resolve, 5));
+      await nextTurn();
       active -= 1;
       finished.push(video.videoKey);
       return {};
@@ -342,7 +349,7 @@ test("并发数不是有效数字时按 1 跑，单个失败不影响其余", as
     async (video) => {
       active += 1;
       peak = Math.max(peak, active);
-      await new Promise((resolve) => setTimeout(resolve, 1));
+      await nextTurn();
       active -= 1;
       if (video.videoKey === keyOf("A")) throw new Error("限流");
       return { ok: true };
