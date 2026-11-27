@@ -1,10 +1,10 @@
 // 卡片样张：页面测试时现编进测试用的扩展副本，不进产品包。数据都是自造的，内容故意很长。
-// 地址带 #full 时是全部展开、正在生成的样子（进度行、「停止」和「打开侧边栏」都在），带 #collapsed 时是收起的一行，
+// 地址带 #full 时是全部展开、正在生成的样子（进度行、「停止」和「侧边栏」都在），带 #collapsed 时是收起的一行，
 // 带 #official 时是还没有概览、只有一段不长的官方总结，带 #setup-key 时是还没有概览、以前配好过 AI 服务但密钥清空了（说明用产品里的 cardSetupHint），
 // 带 #youtube 时是 YouTube 上已有概览、本机没有字幕（没有官方总结），带 #youtube-unread 时是没有代开文字稿的构建里，YouTube 上本机既没有概览也没有字幕，
 // 带 #youtube-ready 时是 YouTube 上还没有概览、字幕已经读过；带 #comments 时结论带着评论区；带 #failed-parts 时概览有两块没生成出来；
 // 带 #ask 时能提问，提问接上真实的提问状态（ask.ts），后台换成本页的替身，回答带一个能点的时间点；不带时是刚打开的默认样子；
-// 「展开全部」和官方总结那一行点得动。卡片的界面组件原样用，样式用产品的 card.css。界面语言照卡片入口那样跟着设置。
+// 「展开全部」和头部操作都点得动。卡片的界面组件原样用，样式用产品的 card.css。界面语言照卡片入口那样跟着设置。
 // 带 #official-late、#official-never 时接上真实的卡片模型，后台换成本页的替身：官方总结先回「还在读」，
 // 前者过一会儿读到、照后台的做法广播一次重读，后者一直读不到。带 #load-failed 时也接上真实的卡片模型，后台说被平台限流，
 // 卡片按界面语言写原因。地址带 ?verdict=<星数> 时结论换成该星数（默认三星），量判断词长短不一时的版面。
@@ -21,7 +21,7 @@ import { bindDocumentLang, initUiLang, setUiLanguage, uiLang } from "../../../sr
 import { cardTextOf } from "../../../src/pages/card/text.ts";
 import { SETTINGS_STORAGE_KEY } from "../../../src/shared/names.ts";
 
-const LONG = "这是一段自造的样例文字，用来把卡片撑得很高，看底部的按钮会不会被裁掉。";
+const LONG = "这是一段自造的样例文字，用来把卡片撑得很高，看头部的按钮会不会被裁掉。";
 const REASON = "中段的演示能看清完整步骤，开头和结尾都在重复，可以略过。";
 const params = new URLSearchParams(location.search);
 const rating = params.get("verdict") ?? "3";
@@ -29,13 +29,15 @@ const full = location.hash === "#full";
 // 收起的一行：#collapsed 只有名字（没读过）；#collapsed-glance 有结论、也知道播到哪，写判断理由；
 // #collapsed-chapters 只有章节没有结论，写播放到的章节；#collapsed-note 带临时说的那句话（打不开侧边栏时）；
 // #collapsed-verdict 有结论、不知道播到哪，同样写理由。带 ?reason=none 时模拟没有理由的旧记录，改写摘要；
-// #collapsed-yield 是侧边栏开着、让位收起，没有打开侧边栏的入口。#open-yield 是侧边栏开着时手动点开的，按钮行里没有「打开侧边栏」。
+// #collapsed-yield 是侧边栏开着、让位收起，没有打开侧边栏的入口。#open-yield 是侧边栏开着时手动点开的，头部没有「侧边栏」。
 const collapsed = location.hash.startsWith("#collapsed");
 const chaptersOnly = location.hash === "#collapsed-chapters";
 // 只有官方总结：正文一百来个字，提纲 3 段。很窄的卡片加大字号时三行放不下，很宽的卡片标准字号时放得下；
 // 宽窄差得开，换一套字体、字宽不一样也照样成立。
-const officialOnly = location.hash === "#official";
-const keyCleared = location.hash === "#setup-key";
+const noCaptions = location.hash === "#official-no-captions";
+const needLogin = location.hash === "#need-login";
+const officialOnly = location.hash === "#official" || noCaptions;
+const keyCleared = location.hash === "#setup-key" || params.get("setup") === "key";
 // YouTube 没有官方总结；本机没有字幕时卡片不去读，请用户先在侧边栏读。
 const youtube = location.hash.startsWith("#youtube");
 const unread = location.hash === "#youtube" || location.hash === "#youtube-unread";
@@ -61,7 +63,7 @@ const view = signal<CardView>({
   collapsed,
   phase: "loaded",
   title: `样例长视频：${LONG}`,
-  official: keyCleared || youtube ? null : {
+  official: youtube || needLogin ? null : {
     status: "ok",
     summary: officialOnly ? SHORT_SUMMARY : LONG.repeat(6),
     outline: Array.from({ length: officialOnly ? 3 : 12 }, (_, index) => ({
@@ -71,7 +73,7 @@ const view = signal<CardView>({
     })),
   },
   analysis: officialOnly || keyCleared || noOverview || location.hash === "#collapsed" ? null : {
-    chapters: Array.from({ length: 16 }, (_, index) => ({ title: `样例章节 ${index + 1}：${LONG}`, timestampSeconds: index * 90 })),
+    chapters: Array.from({ length: location.hash === "#verdict-only" ? 0 : 16 }, (_, index) => ({ title: `样例章节 ${index + 1}：${LONG}`, timestampSeconds: index * 90 })),
     // 重点是第 2 章和第 11 章：一个时间四位、一个五位，章节名要和别的章对齐。
     ...(chaptersOnly ? {} : {
       verdict: {
@@ -85,16 +87,16 @@ const view = signal<CardView>({
   },
   transcriptBasis: stale ? { chapters: "old-sample", verdict: "old-sample" } : null,
   failedParts: location.hash === "#failed-parts" ? 2 : 0,
-  confirmRegenerate: false,
+  more: "closed",
   transcriptFingerprint: stale ? "new-sample" : null,
-  verdictPending: false,
-  noCaptions: false,
-  needLogin: false,
+  verdictPending: full,
+  noCaptions,
+  needLogin,
   notRead: unread,
   canAsk: location.hash === "#ask",
   task: full ? { id: "sample", external: false, auto: false, canceling: false, done: 3, total: 8, message: "" } : null,
   settingsError: false,
-  notice: full ? { text: LONG, tone: "" } : location.hash === "#youtube-unread" ? { text: NOT_READ_TEXT, tone: "" } : null,
+  notice: noCaptions ? { text: cardTextOf("zh").noCaptions, tone: "" } : full ? { text: LONG, tone: "" } : location.hash === "#youtube-unread" ? { text: NOT_READ_TEXT, tone: "" } : null,
   showAll: full,
   officialOpen: full,
   commentsOpen: false,
@@ -107,21 +109,22 @@ const view = signal<CardView>({
 
 const noop = (): void => undefined;
 const actions: CardActions = {
-  toggle: () => void (view.value = { ...view.value, collapsed: !view.value.collapsed }),
+  toggle: () => void (view.value = { ...view.value, collapsed: !view.value.collapsed, more: "closed" }),
   generate: noop,
   fromOfficial: noop,
   retryFailed: noop,
-  askRegenerate: () => void (view.value = { ...view.value, confirmRegenerate: !view.value.confirmRegenerate }),
+  toggleMore: () => void (view.value = { ...view.value, more: view.value.more === "closed" ? "actions" : "closed" }),
+  askRegenerate: () => void (view.value = { ...view.value, more: view.value.more === "confirm" ? "actions" : "confirm" }),
   regenerate: noop,
   ask: noop,
   cancelAsk: noop,
-  cancel: noop,
+  cancel: () => { if (view.value.task) view.value = { ...view.value, task: { ...view.value.task, canceling: true } }; },
   retry: noop,
   openPanel: noop,
   openSettings: noop,
   seek: noop,
   toggleShowAll: () => void (view.value = { ...view.value, showAll: !view.value.showAll }),
-  toggleOfficial: () => void (view.value = { ...view.value, officialOpen: !view.value.officialOpen }),
+  toggleOfficial: () => void (view.value = { ...view.value, officialOpen: !view.value.officialOpen, more: "closed" }),
   toggleComments: () => void (view.value = { ...view.value, commentsOpen: !view.value.commentsOpen }),
 };
 
@@ -157,8 +160,11 @@ const OFFICIAL_LATE_MS = 1_500;
 const SAMPLE_REF = { platform: "bilibili", videoId: "BV1Sample001", segment: 1 } as const;
 const SAMPLE_URL = "https://www.bilibili.com/video/BV1Sample001";
 
-/** 官方总结晚到的卡片：模型原样用，后台的回复由这里现编。 */
-function lateOfficial(root: HTMLElement, arrives: boolean, failed = false): void {
+/** 读取失败、官方总结晚到和确认重新生成的样张共用产品模型，后台回复由本页提供。 */
+function modelSample(root: HTMLElement): void {
+  const arrives = location.hash === "#official-late";
+  const failed = location.hash === "#load-failed";
+  const regenerate = location.hash === "#regenerate";
   const key = videoKey(SAMPLE_REF);
   const startedAt = performance.now();
   const arrived = (): boolean => arrives && performance.now() - startedAt >= OFFICIAL_LATE_MS;
@@ -172,7 +178,8 @@ function lateOfficial(root: HTMLElement, arrives: boolean, failed = false): void
         mode: "light",
         video: key,
         info: { title: "样例视频", author: "", description: "", durationSec: 1800 },
-        official: arrived() ? { status: "ok", summary: SHORT_SUMMARY, outline: Array.from({ length: 3 }, (_, index) => ({ title: `样例小节 ${index + 1}`, timestamp: index * 60, points: [] })) } : { status: "pending", summary: "", outline: [] },
+        ...(regenerate ? { overview: { analysis: view.value.analysis } } : {}),
+        official: regenerate || arrived() ? { status: "ok", summary: SHORT_SUMMARY, outline: Array.from({ length: 3 }, (_, index) => ({ title: `样例小节 ${index + 1}`, timestamp: index * 60, points: [] })) } : { status: "pending", summary: "", outline: [] },
         hasTranscript: true,
         fromCache: true,
       },
@@ -197,7 +204,11 @@ function lateOfficial(root: HTMLElement, arrives: boolean, failed = false): void
     seek: noop,
     lang: () => uiLang.value,
   });
-  const live: CardActions = { ...actions, retry: model.retry, toggleShowAll: model.toggleShowAll, toggleOfficial: model.toggleOfficial, toggleComments: model.toggleComments };
+  const live: CardActions = {
+    ...actions, toggle: model.toggle, toggleMore: model.toggleMore, askRegenerate: model.askRegenerate,
+    regenerate: (event) => void model.regenerate(event.isTrusted),
+    retry: model.retry, toggleShowAll: model.toggleShowAll, toggleOfficial: model.toggleOfficial, toggleComments: model.toggleComments,
+  };
   render(<LiveApp model={model} actions={live} />, root);
   model.configChanged();
   void model.start();
@@ -216,7 +227,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 const root = document.getElementById("app");
-if (root && (location.hash === "#official-late" || location.hash === "#official-never" || location.hash === "#load-failed")) {
-  lateOfficial(root, location.hash === "#official-late", location.hash === "#load-failed");
+if (root && (location.hash === "#official-late" || location.hash === "#official-never" || location.hash === "#load-failed" || location.hash === "#regenerate")) {
+  modelSample(root);
 }
 else if (root) render(<App />, root);

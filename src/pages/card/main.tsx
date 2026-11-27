@@ -143,6 +143,7 @@ function start(root: HTMLElement, api: PageApi): void {
     generate: (event: { readonly isTrusted: boolean }) => void model.generate(trusted(event)),
     fromOfficial: (event: { readonly isTrusted: boolean }) => void model.fromOfficial(trusted(event)),
     retryFailed: (event: { readonly isTrusted: boolean }) => void model.retryFailed(trusted(event)),
+    toggleMore: model.toggleMore,
     askRegenerate: model.askRegenerate,
     regenerate: (event: { readonly isTrusted: boolean }) => void model.regenerate(trusted(event)),
     ask: (question: string, event: { readonly isTrusted: boolean }) => void model.ask.ask(question, trusted(event)),
@@ -157,7 +158,7 @@ function start(root: HTMLElement, api: PageApi): void {
     },
     openSettings(event: { readonly isTrusted: boolean }) {
       if (!trusted(event)) return;
-      // 这个按钮只在 AI 服务没设置好或设置出错时出现，直接滚到那一节。
+      // 卡片里的设置入口都直接打开 AI 服务这一节。
       void api.send("options.open", { section: "ai-service" }).then((reply) => {
         if (!reply.ok) model.view.value = { ...model.view.peek(), notice: { text: cardText().openSettingsFailed, tone: "error" } };
       });

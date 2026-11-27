@@ -113,7 +113,7 @@ export function createCardModel(deps: CardDeps) {
     set: (next) => patch(next),
   });
   const notice = (text: string, tone: Tone = "", said?: string): Pick<CardView, "notice"> => ({ notice: text ? { text, tone, ...(said ? { said } : {}) } : null });
-  const actionRow = createActionHold(timers.after, (held) => patch({ holdActions: held }));
+  const actionHold = createActionHold(timers.after, (held) => patch({ holdActions: held }));
   const fold = createFold({
     api,
     after: timers.after,
@@ -121,7 +121,7 @@ export function createCardModel(deps: CardDeps) {
     windowId: () => tab?.windowId ?? null,
     collapsed: () => view.peek().collapsed,
     place(collapsed) {
-      patch({ collapsed, ...(collapsed ? { confirmRegenerate: false } : {}) });
+      patch({ collapsed, more: collapsed ? "closed" : view.peek().more });
       // 重新摆过，收起那一行上之前说的那句话就不留了。
       glance.say("");
       if (!collapsed) void load();
@@ -145,10 +145,10 @@ export function createCardModel(deps: CardDeps) {
     saved = null;
     savedBasis = null;
     savedFailures = 0;
-    actionRow.reset();
+    actionHold.reset();
     glance.say("");
     ask.reset();
-    patch({ phase, title: "", official: null, analysis: null, transcriptBasis: null, failedParts: 0, confirmRegenerate: false, transcriptFingerprint: null, verdictPending: false, noCaptions: false, notRead: false, canAsk: false, task: null, settingsError: false, notice: null, showAll: false, officialOpen: false, commentsOpen: false, holdActions: false });
+    patch({ phase, title: "", official: null, analysis: null, transcriptBasis: null, failedParts: 0, more: "closed", transcriptFingerprint: null, verdictPending: false, noCaptions: false, notRead: false, canAsk: false, task: null, settingsError: false, notice: null, showAll: false, officialOpen: false, commentsOpen: false, holdActions: false });
   }
 
   function syncVideo(url: string): void {
@@ -171,7 +171,7 @@ export function createCardModel(deps: CardDeps) {
     const current = video;
     loadedTicket = asked;
     if (!quiet) {
-      actionRow.hold();
+      actionHold.hold();
       patch({ phase: "loading", ...notice(t().loading) });
     }
     const reply = await timers.timeout(api.send("transcript.get", { video: current, mode: "light" }), LOAD_TIMEOUT_MS);
@@ -208,15 +208,15 @@ export function createCardModel(deps: CardDeps) {
     });
     // 没登录、本机还没有字幕：登录或在侧边栏读过以后，重试、收起再展开都要能重读，不当成已经读过。
     if (needLogin || notRead) loadedTicket = -1;
-    // 官方总结还在读：按钮行接着等，再轻读一次，后台会等这次问询回来再答。
-    if (value.official?.status !== "pending") actionRow.show();
-    else if (!quiet && actionRow.holding()) void load(true);
+    // 官方总结还在读：生成等操作接着等，再轻读一次，后台会等这次问询回来再答。
+    if (value.official?.status !== "pending") actionHold.show();
+    else if (!quiet && actionHold.holding()) void load(true);
     if (!quiet) await followRunning(asked);
   }
 
   function failLoad(text: string, said?: string): void {
     loadedTicket = -1;
-    actionRow.show();
+    actionHold.show();
     patch({ phase: "failed", ...shownSaved(), ...notice(text, "error", said) });
   }
 
@@ -235,7 +235,7 @@ export function createCardModel(deps: CardDeps) {
 
   function follow(task: TaskView): void {
     if (settled.has(task.id) || view.peek().task) return;
-    patch({ task: progressOf(task, true), confirmRegenerate: false, ...notice("") });
+    patch({ task: progressOf(task, true), more: "closed", ...notice("") });
   }
 
   // 跟着的任务结束了：概览已经落进本机，重读一次就能摆出来；临时概览不留。
@@ -261,10 +261,10 @@ export function createCardModel(deps: CardDeps) {
     // 花的是用户的额度：卡片嵌在别人的页面里，只认真实点击。
     if (!trusted || !visible.peek() || !video || aiReady.peek() === false) return;
     const v = view.peek();
-    if (v.task || v.phase !== "loaded" || v.noCaptions || v.notRead || hasOverview(saved) !== (how !== "new") || (how === "retry" && savedFailures === 0) || (how === "fresh" && !(v.confirmRegenerate && confirmArmed))) return;
+    if (v.task || v.phase !== "loaded" || v.noCaptions || v.notRead || hasOverview(saved) !== (how !== "new") || (how === "retry" && savedFailures === 0) || (how === "fresh" && !(v.more === "confirm" && confirmArmed))) return;
     const asked = ticket;
     const current = video;
-    patch({ task: { id: "", external: false, auto: false, canceling: false, done: 0, total: 0, message: "" }, confirmRegenerate: false, settingsError: false, ...notice("") });
+    patch({ task: { id: "", external: false, auto: false, canceling: false, done: 0, total: 0, message: "" }, more: "closed", settingsError: false, ...notice("") });
     const started = await api.send("task.start", { kind: "overview", video: current });
     if (asked !== ticket) return;
     if (!started.ok) return finishOwn(null, started.code, describe(started.code, started.detail, lang()), started.said);
@@ -312,7 +312,7 @@ export function createCardModel(deps: CardDeps) {
     // 花的是用户的额度：和「生成概览」一样只认真实点击。
     if (!trusted || !visible.peek() || !video || !canWriteFromOfficial(view.peek(), aiReady.peek())) return;
     const asked = ticket;
-    patch({ task: { id: "", external: false, auto: false, verdict: true, canceling: false, done: 0, total: 0, message: "" }, settingsError: false, ...notice("") });
+    patch({ task: { id: "", external: false, auto: false, verdict: true, canceling: false, done: 0, total: 0, message: "" }, more: "closed", settingsError: false, ...notice("") });
     const outcome = await writeFromOfficial(api, video, (task) => {
       const canceling = asked === ticket && (view.peek().task?.canceling ?? false);
       if (asked === ticket) patch({ task: progressOf(task, false, canceling) });
@@ -413,7 +413,7 @@ export function createCardModel(deps: CardDeps) {
     /** 配置检查有了新结果：卡片从隐藏变成显示时接着读。 */
     configChanged(): void {
       const shown = visible.peek();
-      patch({ visible: shown });
+      patch(shown ? { visible: true } : { visible: false, more: "closed" });
       if (!shown) {
         ticket += 1;
         loadedTicket = -1;
@@ -429,16 +429,17 @@ export function createCardModel(deps: CardDeps) {
     retry: () => void load(),
     generate,
     retryFailed: (trusted: boolean) => generate(trusted, "retry"),
+    toggleMore: () => patch({ more: view.peek().more === "closed" ? "actions" : "closed" }),
     /** 「重新生成」先问一句：点了才摆确认，确认那一下才花额度。 */
     askRegenerate(): void {
-      const open = !view.peek().confirmRegenerate;
+      const open = view.peek().more !== "confirm";
       // 确认摆出来一会儿以后才认：连点两下，第二下落在确认上也不算。
       // 上一次的计时先撤掉：取消以后马上再点开，不能借上一次的计时提前生效。
       disarm?.();
       disarm = null;
       confirmArmed = false;
       if (open) disarm = timers.after(CONFIRM_ARM_MS, () => void (confirmArmed = true));
-      patch({ confirmRegenerate: open });
+      patch({ more: open ? "confirm" : "actions" });
     },
     regenerate: (trusted: boolean) => generate(trusted, "fresh"),
     fromOfficial,
@@ -451,7 +452,7 @@ export function createCardModel(deps: CardDeps) {
       if (view.peek().collapsed) glance.say(t().panelRefusedNote);
     },
     toggleShowAll: (): void => patch({ showAll: !view.peek().showAll }),
-    toggleOfficial: (): void => patch({ officialOpen: !view.peek().officialOpen }),
+    toggleOfficial: (): void => patch({ officialOpen: !view.peek().officialOpen, more: "closed" }),
     toggleComments: (): void => patch({ commentsOpen: !view.peek().commentsOpen }),
     seek(atSec: number): void {
       if (tab && video) deps.seek(tab.id, video, Math.floor(atSec));
@@ -461,7 +462,7 @@ export function createCardModel(deps: CardDeps) {
       stopTimer?.();
       fold.stop();
       glance.stop();
-      actionRow.stop();
+      actionHold.stop();
       stopWatching?.();
       for (const off of subscriptions) off();
     },

@@ -1,4 +1,4 @@
-// 卡片里到点做事的部件：定时器本身（测试换成手动到点的），和按钮行等内容的那一段。
+// 卡片里到点做事的部件：定时器本身（测试换成手动到点的），和生成按钮等内容的那一段。
 
 export interface CardTimers {
   every(ms: number, run: () => void): () => void;
@@ -23,12 +23,12 @@ export const realTimers: CardTimers = {
   },
 };
 
-/** 按钮行最多等内容这么久：读得慢、官方总结一直没结果时，过了这个时间照样摆出来。 */
+/** 生成按钮最多等内容这么久：读得慢、官方总结一直没结果时，过了这个时间照样摆出来。 */
 export const ACTIONS_WAIT_MS = 5_000;
 
 /**
- * 按钮行摆出来以后，晚到的视频信息、官方总结会把它往下顶，用户正要点时就点空了。所以每个视频第一次读时先不摆，
- * 读完、官方总结有了结果（读到、没有、读失败都算）再摆，等不到也只等 ACTIONS_WAIT_MS；摆出来以后这个视频就不再收回。
+ * 每个视频第一次读时等视频信息和官方总结有了结果再摆出操作，最长等 ACTIONS_WAIT_MS。
+ * 摆出来以后这个视频就不再收回。
  * changed 在要不要摆变了时调。
  */
 export function createActionHold(after: CardTimers["after"], changed: (held: boolean) => void) {
