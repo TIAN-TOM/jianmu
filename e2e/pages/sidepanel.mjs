@@ -842,6 +842,8 @@ test("侧边栏：结论带着标题译名时顶上的标题显示译名、悬�
   const from = await ctx.open(LAUNCHER);
   const panel = await ctx.openSidePanel(from);
   const heading = `[document.querySelector(".video-title")?.textContent ?? "", document.querySelector(".video-title")?.getAttribute("title") ?? ""]`;
+  // 新标签页里结论从本机先到，视频信息读到之前原标题还是标签页标题，所以等标题和悬停都换好再核对。
+  const headingIs = (shown, hover) => `((pair) => pair[0] === ${JSON.stringify(shown)} && pair[1] === ${JSON.stringify(hover)})(${heading})`;
   const tabs = [];
   /** 把这份结论写进本机，再在新标签页里打开同一个视频，侧边栏跟过去重读。 */
   const showWith = async (verdict, label) => {
@@ -862,9 +864,11 @@ test("侧边栏：结论带着标题译名时顶上的标题显示译名、悬�
     assert.deepEqual(await panel.evaluate(heading), [FIRST_TITLE, FIRST_TITLE], "还没有概览时是原标题");
 
     await showWith({ verdict: "可以看", summary: "带译名的结论", translatedTitle: "A Long Sample Video" }, "带译名的结论摆出来");
+    await waitIn(panel, "标题换成译名，悬停是原标题", headingIs("A Long Sample Video", FIRST_TITLE));
     assert.deepEqual(await panel.evaluate(heading), ["A Long Sample Video", FIRST_TITLE], "标题是译名，悬停是原标题");
 
     await showWith({ verdict: "可以看", summary: "旧版的结论" }, "没有译名的结论摆出来");
+    await waitIn(panel, "标题和悬停都是原标题", headingIs(FIRST_TITLE, FIRST_TITLE));
     assert.deepEqual(await panel.evaluate(heading), [FIRST_TITLE, FIRST_TITLE], "旧结论没有译名，照旧是原标题");
   } finally {
     await editDatabase(panel, {}, { overviews: [VIDEO] });
@@ -1160,6 +1164,10 @@ test("侧边栏：精读里往下滚，模式切换和提示一起吸在顶上�
       await waitIn(panel, "顶上有一行提示", `Boolean(document.querySelector(".panel-top .notice"))`);
       // 当前章节要等侧边栏问到播放位置才出来，早晚不定：先等它在，每一轮都量得到三层。
       await waitIn(panel, "当前章节出来了", `Boolean(document.querySelector(".study .chapter-bar"))`);
+      // 字幕跟着播放，当前句一出来就被滚到中间，这一下在章节条画出来以后才跑；直接 scrollTo 不算用户在滚，跟随晚一点到就把页面拉回顶上。
+      // 像用户那样在字幕上滚一下滚轮，停下跟随，等「回到当前句」出来再往下滚。
+      await panel.evaluate(`(document.querySelector(".study .cues").dispatchEvent(new WheelEvent("wheel", { bubbles: true })), true)`);
+      await waitIn(panel, "停下跟随", `Boolean(document.querySelector(".follow-pill[data-shown]"))`);
       // 短视频的字幕只有几段，撑高精读这一块才滚得动：吸在章节下面的几层只在这一块里吸着。
       await panel.evaluate(`(document.querySelector(".study").style.minHeight = "4000px", true)`);
       try {
