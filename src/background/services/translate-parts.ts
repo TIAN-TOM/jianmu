@@ -42,10 +42,11 @@ export function parseFailed(sends: number): TransportError {
 
 export function failureOf(error: unknown, lang: OutputLang): TranslateFailure {
   if ((error as { readonly code?: unknown } | null)?.code === "TRANSLATE_PARSE_FAILED") return { code: "TRANSLATE_PARSE_FAILED" };
-  return bare(aiFailure(error, lang));
+  return toTranslateFailure(aiFailure(error, lang));
 }
 
-export const bare = ({ code, detail, said }: Failure): TranslateFailure => ({ code, ...(detail === undefined ? {} : { detail }), ...(said ? { said } : {}) });
+/** 翻译那一种失败：留着服务说的话（said），不带重试秒数。 */
+export const toTranslateFailure = ({ code, detail, said }: Failure): TranslateFailure => ({ code, ...(detail === undefined ? {} : { detail }), ...(said ? { said } : {}) });
 
 /** 从这一秒往后的先译：眼前的内容几秒内就有结果，前面的随后补齐，总量和费用不变。 */
 export function fromPlayback(segments: readonly TranscriptSegment[], fromSec: number | undefined): TranscriptSegment[] {

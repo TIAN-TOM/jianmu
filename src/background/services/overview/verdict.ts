@@ -6,7 +6,7 @@ import { taskCanceledError } from "../../../core/ai/transport/index.ts";
 import { hasOfficialSummaryContent, officialVerdictInputs } from "../../../core/ai/verdict.ts";
 import type { ClearEpoch, ClearGuard } from "../../../core/clear-guard.ts";
 import type { Limiter } from "../../../core/concurrency.ts";
-import { fail, ok, type Failure, type Result } from "../../../core/errors.ts";
+import { fail, ok, trimFailure, type Result } from "../../../core/errors.ts";
 import { normalizeAnalysisFailures, overviewTranscriptBasis, type Basis, type OverviewPart, type OverviewRecord } from "../../../core/notes/records.ts";
 import { equivalenceKey } from "../../../core/task-keys.ts";
 import { genInfo } from "../../../core/tasks.ts";
@@ -81,14 +81,6 @@ const NO_SUMMARY: ReadonlySet<string> = new Set(["none", "unsupported"]);
 const hasVerdict = (record: OverviewRecord | null): record is OverviewRecord =>
   typeof record?.analysis.verdict?.summary === "string" && record.analysis.verdict.summary.trim() !== "";
 
-/** 只带失败本身，不带读字幕失败时顺手带回的视频信息、字幕轨这些。 */
-const bare = ({ code, detail, retryAfterSec }: Failure): Failure => ({
-  ok: false,
-  code,
-  ...(detail === undefined ? {} : { detail }),
-  ...(retryAfterSec === undefined ? {} : { retryAfterSec }),
-});
-
 function storedView(video: VideoKey, record: OverviewRecord): OverviewResultView {
   const failures = normalizeAnalysisFailures(record.analysisFailures);
   const transcriptBasis = overviewTranscriptBasis(record.parts);
@@ -142,7 +134,7 @@ export function createVerdictService(deps: VerdictServiceDeps): VerdictService {
       const segments = reply.ok ? reply.value.transcript.segments : [];
       return ok({ info, official: { ...official, fingerprint }, lastStart: Math.floor(Number(segments.at(-1)?.start) || 0) });
     }
-    if (!reply.ok && !NO_SUMMARY.has(official?.status ?? "")) return bare(reply);
+    if (!reply.ok && !NO_SUMMARY.has(official?.status ?? "")) return trimFailure(reply);
     return fail("NO_OFFICIAL_SUMMARY");
   }
 

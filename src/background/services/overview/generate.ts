@@ -7,7 +7,7 @@ import { isInputTooLong } from "../../../core/ai/too-long.ts";
 import { hasAnalysisContent } from "../../../core/ai/verdict.ts";
 import type { ClearEpoch, ClearGuard } from "../../../core/clear-guard.ts";
 import type { Limiter } from "../../../core/concurrency.ts";
-import { fail, isErrorCode, ok, type Failure, type Result } from "../../../core/errors.ts";
+import { fail, isErrorCode, ok, trimFailure, type Failure, type Result } from "../../../core/errors.ts";
 import type { LearningAnalysis } from "../../../core/notes/markdown.ts";
 import { normalizeAnalysisFailures, overviewTranscriptBasis, type Basis, type OverviewPart, type OverviewRecord } from "../../../core/notes/records.ts";
 import { genInfo } from "../../../core/tasks.ts";
@@ -70,14 +70,6 @@ type TranscriptBasis = Extract<Basis, { readonly source: "transcript" }>;
 
 const reasonCode = (signal: AbortSignal): unknown => (signal.reason as { readonly code?: unknown } | null | undefined)?.code;
 
-/** 只带失败本身，不带取字幕失败时顺手带回的视频信息、字幕轨这些。 */
-const bare = ({ code, detail, retryAfterSec }: Failure): Failure => ({
-  ok: false,
-  code,
-  ...(detail === undefined ? {} : { detail }),
-  ...(retryAfterSec === undefined ? {} : { retryAfterSec }),
-});
-
 // 「尽量整份」的块太大时常见的两种失败：等太久被掐断，或者模型一次装不下。
 const TOO_BIG_CODES: ReadonlySet<unknown> = new Set(["AI_HARD_TIMEOUT", "AI_IDLE_TIMEOUT"]);
 const tooBig = (error: unknown): boolean => TOO_BIG_CODES.has((error as { readonly code?: unknown } | null)?.code) || isInputTooLong(error);
@@ -125,7 +117,7 @@ export function createGenerator(deps: GenerateDeps) {
     const ref = parseVideoKey(job.video);
     if (!ref) return fail("INVALID_REQUEST");
     const snapshot = await deps.transcript.ensure(ref);
-    return snapshot.ok ? ok(snapshot.value.view) : bare(snapshot);
+    return snapshot.ok ? ok(snapshot.value.view) : trimFailure(snapshot);
   }
 
   interface Finishing {

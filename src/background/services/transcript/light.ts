@@ -9,7 +9,7 @@
 // 播放器上已有的字幕轨列表确定是空的，才告诉卡片没有字幕。不点、不发请求、不动播放器。
 import type { ClearGuard } from "../../../core/clear-guard.ts";
 import { withTimeout } from "../../../core/concurrency.ts";
-import { fail, ok, type Failure } from "../../../core/errors.ts";
+import { fail, ok, trimFailure, type Failure } from "../../../core/errors.ts";
 import { videoKey, type Platform, type VideoKey, type VideoRef } from "../../../core/video-ref.ts";
 import type {
   GuidesFailure,
@@ -109,11 +109,6 @@ function sameVideo(info: VideoInfo, video: VideoKey): boolean {
   }
 }
 
-/** 只带失败本身的几样，不带完整读取的字幕轨和分段。 */
-function bareFailure({ code, detail, retryAfterSec }: Failure): Failure {
-  return { ok: false, code, ...(detail === undefined ? {} : { detail }), ...(retryAfterSec === undefined ? {} : { retryAfterSec }) };
-}
-
 export function createLight(deps: LightDeps): Light {
   const { cache, guard, timers, log } = deps;
   const memo = new Map<VideoKey, Memo>();
@@ -177,7 +172,7 @@ export function createLight(deps: LightDeps): Light {
 
   async function failure(video: VideoKey, failed: Failure): Promise<GuidesFailure> {
     const overview = await overviewOf(video);
-    return { ...bareFailure(failed), ...(overview ? { overview } : {}) };
+    return { ...trimFailure(failed), ...(overview ? { overview } : {}) };
   }
 
   // 并进的完整读取读到了字幕：官方总结还是占位（字幕先交了）就等它回来，不说成没有官方总结。
