@@ -5,7 +5,7 @@ import type { VerdictFromOfficialRequest } from "../../shared/messages/overview.
 import type { CardLimits } from "../limits.ts";
 import type { Route } from "../router.ts";
 import type { VerdictService } from "../services/overview/verdict.ts";
-import { isVideoKey } from "./validate.ts";
+import { isId, isPlainObject, isVideoKey } from "./validate.ts";
 
 export interface VerdictRouteDeps {
   readonly verdict: VerdictService;
@@ -13,13 +13,6 @@ export interface VerdictRouteDeps {
 }
 
 type VerdictRoutes = { readonly [K in "verdict.fromOfficial"]: Route<K> };
-
-const MAX_ID = 100;
-
-const isPlainObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
-
-const isId = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= MAX_ID;
 
 /** 视频加上任务号或令牌，两样恰好带一个。 */
 function isFromOfficialRequest(req: unknown): req is VerdictFromOfficialRequest {

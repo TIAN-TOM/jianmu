@@ -4,6 +4,7 @@ import type { ClearGuard } from "../../core/clear-guard.ts";
 import { MAX_ENTRIES, type SubtitleFormat } from "../../core/transcript/import-file.ts";
 import type { VideoKey } from "../../core/video-ref.ts";
 import type { ObjectStoreDriver } from "../../platform/idb.ts";
+import { isRecord } from "../../shared/guards.ts";
 import type { Cue, VideoInfo } from "../../sites/types.ts";
 import { createWriteGate, type WriteOptions } from "./write-gate.ts";
 
@@ -31,16 +32,15 @@ export interface ImportStore {
   readonly restore: (video: VideoKey, previous: ImportRecord | null, options?: WriteOptions) => Promise<boolean>;
 }
 
-const isObject = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null && !Array.isArray(value);
 const isTime = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0;
 
-const isCue = (value: unknown): value is Cue => isObject(value) && isTime(value.start) && isTime(value.duration) && typeof value.text === "string";
+const isCue = (value: unknown): value is Cue => isRecord(value) && isTime(value.start) && isTime(value.duration) && typeof value.text === "string";
 
 const isInfo = (value: unknown): value is VideoInfo =>
-  isObject(value) && isObject(value.ref) && typeof value.title === "string" && typeof value.author === "string" && typeof value.description === "string" && isTime(value.durationSec);
+  isRecord(value) && isRecord(value.ref) && typeof value.title === "string" && typeof value.author === "string" && typeof value.description === "string" && isTime(value.durationSec);
 
 function rowOf(video: VideoKey, row: unknown): ImportRecord | null {
-  if (!isObject(row) || row.videoKey !== video || typeof row.fileName !== "string" || (row.format !== "srt" && row.format !== "vtt")) return null;
+  if (!isRecord(row) || row.videoKey !== video || typeof row.fileName !== "string" || (row.format !== "srt" && row.format !== "vtt")) return null;
   const { cues } = row;
   if (!Array.isArray(cues) || cues.length === 0 || cues.length > MAX_ENTRIES || !cues.every(isCue)) return null;
   const importedAt = isTime(row.importedAt) ? row.importedAt : 0;

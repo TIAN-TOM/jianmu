@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { channelKey, parseVideoKey, videoKey, type VideoRef } from "../../../src/core/video-ref.ts";
+import { channelKey, parseVideoKey, videoKey, videoKeyOrNull, type VideoRef } from "../../../src/core/video-ref.ts";
 
 const BILIBILI_ID = "BV1Sample000";
 const YOUTUBE_ID = "sample_ID-01";
@@ -67,4 +67,14 @@ test("频道键分平台", () => {
   assert.equal(channelKey({ platform: "bilibili", channelId: "42" }), "bilibili:42");
   assert.notEqual(channelKey({ platform: "bilibili", channelId: "42" }), channelKey({ platform: "youtube", channelId: "42" }));
   assert.throws(() => channelKey({ platform: "youtube", channelId: "" }), RangeError);
+});
+
+test("videoKeyOrNull：有效身份同 videoKey，没有身份或身份无效回 null，不抛", () => {
+  const ref: VideoRef = { platform: "bilibili", videoId: BILIBILI_ID, segment: 2 };
+  assert.equal(videoKeyOrNull(ref), videoKey(ref));
+  assert.equal(videoKeyOrNull({ platform: "youtube", videoId: YOUTUBE_ID }), `youtube:${YOUTUBE_ID}`);
+  assert.equal(videoKeyOrNull(null), null);
+  assert.equal(videoKeyOrNull({ platform: "bilibili", videoId: "BV1short" }), null);
+  assert.equal(videoKeyOrNull({ platform: "bilibili", videoId: BILIBILI_ID, segment: 0 }), null);
+  assert.equal(videoKeyOrNull({ platform: "youtube", videoId: "has:colon" }), null);
 });

@@ -1,5 +1,6 @@
 // 读视频信息，判断付费内容；确认是付费、充电专属的内容到这里就停，后面的读取都不发；确认不了的照读。
 import type { VideoRef } from "../../core/video-ref.ts";
+import { isRecord } from "../../shared/guards.ts";
 import type { SiteCtx, SiteResult, VideoInfo } from "../types.ts";
 import { VIEW_URL, type BiliHttp } from "./http.ts";
 
@@ -25,8 +26,6 @@ export type PaidStatus = "paid" | "free" | "unknown";
 const PAID_RIGHTS = ["pay", "ugc_pay", "arc_pay"] as const;
 
 const text = (value: unknown): string => (typeof value === "string" ? value : "");
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 const pageNumber = (item: PageData, index: number): number => Number(item?.page) || index + 1;
 
 // 付费标记只认有限数字和布尔值，别的写法都算读不懂。

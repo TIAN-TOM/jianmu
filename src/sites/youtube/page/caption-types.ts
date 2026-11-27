@@ -1,6 +1,7 @@
 // 播放器取回的字幕在小桥、内容脚本和后台之间传的形状，以及每一站对它的核对。只有类型和纯函数。
 // 主世界和网页共用页面事件，回来的东西按不可信输入核对：字段、类型、大小、视频编号有一样不对就整份不用。
 // 只从读播放器字幕的那几个模块引用，顶层只放字面量和函数：构建开关关着时整个模块不进包。
+import { isRecord } from "../../../shared/guards.ts";
 import { LANG_CODE, playerTracksOf, VIDEO_ID, type PlayerTracks } from "./panel-types.ts";
 
 /** 播放器取回的一份字幕：哪个视频、什么语言、是不是自动生成、是不是机器翻译和译成的语言，以及正文。 */
@@ -44,7 +45,6 @@ export interface CaptionReply {
 }
 
 const OUTCOMES: readonly string[] = ["caught", "video-changed", "ad", "no-button", "on-missed", "not-caught"];
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null && !Array.isArray(value);
 const isLang = (value: unknown): value is string => typeof value === "string" && value.length <= 35 && LANG_CODE.test(value);
 
 /** 核对一份字幕：形状、大小、编号和语言的写法；机器翻译的要带译成的语言，不是的不许带。 */

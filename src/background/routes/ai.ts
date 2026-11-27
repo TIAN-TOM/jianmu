@@ -7,7 +7,7 @@ import { EFFORTS, FEATURE_MODEL_SLOTS } from "../../shared/settings-schema.ts";
 import type { AiWiring } from "../ai.ts";
 import type { AutoGenerate } from "../services/auto-generate.ts";
 import type { Route } from "../router.ts";
-import { isEmptyRequest } from "./validate.ts";
+import { isEmptyRequest, isRecord } from "./validate.ts";
 
 export interface AiRouteDeps {
   readonly ai: Pick<AiWiring, "configCheck" | "listModels" | "testConnection" | "effortPreview">;
@@ -25,9 +25,6 @@ function isTestRequest(req: unknown): req is TestConnectionRequest {
   const keys = Object.keys(req);
   return keys.length === 1 && keys[0] === "feature" && FEATURES.includes((req as { feature?: unknown }).feature);
 }
-
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 /** 空对象，或者只带一张档位表：表里只有认得的功能和档位。 */
 function isEffortPreviewRequest(req: unknown): req is EffortPreviewRequest {

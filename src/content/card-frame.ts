@@ -1,6 +1,7 @@
 // 播放页右栏的卡片：一个 iframe，里面是扩展自己的卡片页，网页脚本碰不到卡片里的内容和按钮。
 // 插在适配器给的位置，右栏都找不到时悬浮在右下角；定期核对位置（宽屏时挪到弹幕列表下面），换视频时只发一句提醒，不改地址。
 // 卡片的明暗跟着周围的页面：插入时写在地址的 # 后面，卡片第一帧就对；之后页面换了明暗，发一句消息告诉它。
+import { isRecord } from "../shared/guards.ts";
 import { CARD_TONE, INJECTED } from "../shared/names.ts";
 import type { PageTone } from "./page-tone.ts";
 import { contentText } from "./text.ts";
@@ -45,8 +46,6 @@ const FULL_CHECK_TICKS = 5;
 export function extensionOrigin(url: string): string {
   return /^[a-z-]+:\/\/[^/]+/i.exec(url)?.[0] ?? "";
 }
-
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null;
 
 export function createCardFrame({ document, cardUrl, extensionRoot, slot, fillsScreen, tone, title = () => contentText().cardTitle }: CardFrameDeps): CardFrame {
   const view = document.defaultView;
