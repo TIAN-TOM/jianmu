@@ -54,7 +54,7 @@ test("提示词：繁体有自己那一节，填出来和简体不一样；结�
     assert.notEqual(localizePrompt(markdown, "zh-Hant"), localizePrompt(markdown, "zh"), file);
   }
   assert.deepEqual(VERDICT_CLIP["zh-Hant"], VERDICT_CLIP.zh);
-  const raw = { summary: "x".repeat(1000), value: "x".repeat(1000), reason: "x".repeat(1000), verdict: "可以看" };
+  const raw = { summary: "x".repeat(1000), value: "x".repeat(1000), reason: "x".repeat(1000), verdict: 3 };
   assert.deepEqual(validateVerdict(raw, { lang: "zh-Hant" }), validateVerdict(raw, { lang: "zh" }));
 });
 
@@ -136,12 +136,12 @@ test("界面文字接上了繁体：数据说明、档位名、分组名、字�
   const hant = noticeLines(items, "zh-Hant");
   assert.deepEqual(hant.map(({ kind, ids }) => ({ kind, ids })), noticeLines(items, "zh").map(({ kind, ids }) => ({ kind, ids })));
   assert.deepEqual(
-    ["推荐看", "可以看", "可跳过", "信息不足", "看概览就够", "值得看完整视频", "模型自创"].map((label) => verdictName(label, "zh-Hant")),
-    ["推薦看", "可以看", "可跳過", "資訊不足", "看概覽就夠", "推薦看", "模型自创"],
+    [5, 4, 3, 2, 1, "信息不足", "看概览就够", "值得看完整视频", "模型自创"].map((label) => verdictName(label, "zh-Hant")),
+    ["推薦看", "值得看", "挑著看", "可略過", "可跳過", "資訊不足", "可略過", "推薦看", ""],
   );
   assert.equal(groupName("pending", "zh-Hant"), "還沒判斷");
-  assert.equal(groupName("watch", "zh-Hant"), "推薦看");
-  assert.equal(groupName("legacy", "zh-Hant"), "看概覽就夠");
+  assert.equal(groupName(5, "zh-Hant"), "★★★★★ 推薦看");
+  assert.equal(groupName(2, "zh-Hant"), "★★☆☆☆ 可略過");
   assert.equal(fallbackAnswer("zh-Hant"), FALLBACK_ANSWERS["zh-Hant"]);
   assert.equal(fallbackAnswer("zh"), FALLBACK_ANSWERS.zh);
   assert.equal(fallbackAnswer("en"), FALLBACK_ANSWERS.en);

@@ -1,69 +1,54 @@
-// 一句话结论：判断档位、给模型的输入和结果校验。
+// 一句话结论：观看星级、给模型的输入和结果校验。
 import { inLang, type OutputLang } from "../output-lang.ts";
 import { storedCommentView, type CommentView } from "./comments.ts";
-import { VERDICT_HANT } from "./verdict-hant.ts";
+import { LEGACY_RATINGS_HANT, VERDICT_HANT } from "./verdict-hant.ts";
 import { formatTimestamp, startSecondsOf } from "../transcript/segment.ts";
 
-// 一句话结论的判断档位，模型只能在这四档里选，界面按它们配标记，导出也原样写出。
-// 「可以看」是有收获、挑重点章节看就行；「信息不足」留给概览缺块、或已有内容判断不了的情况，不逼模型硬选一档。
-export const VERDICT_LABELS: readonly string[] = Object.freeze([
-  "推荐看",
-  "可以看",
-  "可跳过",
-  "信息不足",
-]);
+export const VERDICT_STARS = Object.freeze([5, 4, 3, 2, 1] as const);
+export type VerdictStars = (typeof VERDICT_STARS)[number];
+export type VerdictRating = VerdictStars | "信息不足";
 
-/** 旧版的「看概览就够」：存着的原样留成旧判断，不映射到新四档，重新生成结论后才换掉。 */
-export const LEGACY_VERDICT = "看概览就够";
-
-// 旧版另外两档换了名字，意思没变，读的时候按新名字认。
-const RENAMED: Readonly<Record<string, string>> = Object.freeze({ 值得看完整视频: "推荐看", 可以跳过: "可跳过" });
-
-// 选繁体时模型可能把档位也写成繁体：照繁体显示名反查回档位本身。「信息不足」逐字转成繁体还是这四个字，已经认得。
-const FROM_HANT: Readonly<Record<string, string>> = Object.freeze({
-  [VERDICT_HANT.watch]: "推荐看",
-  [VERDICT_HANT.fair]: "可以看",
-  [VERDICT_HANT.skip]: "可跳过",
-  [VERDICT_HANT.unknown]: "信息不足",
-  [VERDICT_HANT.legacy]: LEGACY_VERDICT,
-});
-
-/**
- * 存着的档位按现在的说法读：新四档原样，旧版改了名的换成新名字，「看概览就够」原样留下，
- * 写成繁体的换回档位本身，别的（模型自创的、空的）交回空串。只在读的时候认，存储里的旧值不改写。
- */
-export function verdictLabelOf(raw: unknown): string {
-  const label = String(raw ?? "").trim();
-  if (VERDICT_LABELS.includes(label) || label === LEGACY_VERDICT) return label;
-  if (Object.hasOwn(RENAMED, label)) return RENAMED[label] ?? "";
-  return Object.hasOwn(FROM_HANT, label) ? (FROM_HANT[label] ?? "") : "";
+function modelRating(raw: unknown): VerdictRating | "" {
+  const value = typeof raw === "string" ? raw.trim() : raw;
+  if (value === "信息不足" || value === VERDICT_HANT.unknown) return "信息不足";
+  return VERDICT_STARS.find((stars) => value === stars || value === String(stars)) ?? "";
 }
 
-// 档位的英文、繁体显示名，页面、导出和粗筛的分组都用这一份；简体的显示名就是档位本身。
-const VERDICT_NAMES_EN: Readonly<Record<string, string>> = Object.freeze({
-  推荐看: "Worth watching",
-  可以看: "Watch the key parts",
-  可跳过: "Skip",
-  信息不足: "Not enough info",
-  [LEGACY_VERDICT]: "Overview is enough",
-});
+const LEGACY_RATINGS: Readonly<Record<string, VerdictRating>> = {
+  推荐看: 5,
+  可以看: 3,
+  可跳过: 1,
+  信息不足: "信息不足",
+  值得看完整视频: 5,
+  可以跳过: 1,
+  看概览就够: 2,
+  ...LEGACY_RATINGS_HANT,
+  [VERDICT_HANT.unknown]: "信息不足",
+};
 
-const VERDICT_NAMES_HANT: Readonly<Record<string, string>> = Object.freeze({
-  推荐看: VERDICT_HANT.watch,
-  可以看: VERDICT_HANT.fair,
-  可跳过: VERDICT_HANT.skip,
-  信息不足: VERDICT_HANT.unknown,
-  [LEGACY_VERDICT]: VERDICT_HANT.legacy,
-});
+/** 读旧结论时换算星数，存储里的旧值保留原样。 */
+export function verdictLabelOf(raw: unknown): VerdictRating | "" {
+  if (typeof raw !== "string") return modelRating(raw);
+  const label = raw.trim();
+  return Object.hasOwn(LEGACY_RATINGS, label) ? LEGACY_RATINGS[label] ?? "" : "";
+}
 
-/**
- * 档位的显示名。简体照原样写；别的语言有显示名表时，认得出的档位（含旧版改了名的、「看概览就够」）换成那种语言的名字，
- * 认不出的（模型自创的）原样写。
- */
-export function verdictName(label: string, lang: OutputLang = "zh"): string {
-  const names = inLang<Readonly<Record<string, string>> | null>(lang, null, VERDICT_NAMES_EN, VERDICT_NAMES_HANT);
-  if (!names) return label;
-  return names[verdictLabelOf(label)] ?? label;
+const VERDICT_ZH = { 5: "推荐看", 4: "值得看", 3: "挑着看", 2: "可略过", 1: "可跳过", unknown: "信息不足" };
+const VERDICT_EN = { 5: "Must watch", 4: "Worth watching", 3: "Watch the key parts", 2: "Mostly skippable", 1: "Skip", unknown: "Not enough info" };
+
+/** 页面和导出共用的星级短词。 */
+export function verdictName(raw: unknown, lang: OutputLang = "zh"): string {
+  const rating = verdictLabelOf(raw);
+  if (!rating) return "";
+  const names = inLang(lang, VERDICT_ZH, VERDICT_EN, VERDICT_HANT);
+  return names[rating === "信息不足" ? "unknown" : rating];
+}
+
+/** 写进 Markdown 的星级和短词。 */
+export function verdictText(raw: unknown, lang: OutputLang = "zh"): string {
+  const rating = verdictLabelOf(raw);
+  const name = verdictName(rating, lang);
+  return typeof rating === "number" ? `${"★".repeat(rating)}${"☆".repeat(5 - rating)} ${name}` : name;
 }
 
 /** 概览的失败区间，这里只看起止秒数。 */
@@ -214,7 +199,7 @@ export function officialVerdictInputs(officialSummary: OfficialSummary | null | 
 export interface Verdict {
   summary: string;
   value: string;
-  verdict: string;
+  verdict: VerdictRating | "";
   reason: string;
   /** 重点章节的起始秒，按时间先后；一个都没有时不写这个字段。 */
   keyStarts?: number[];
@@ -291,7 +276,7 @@ const withTitle = (translatedTitle: string): { translatedTitle?: string } => (tr
 export interface VerdictCheck {
   /** 概览有失败块，结论只基于部分内容，界面和导出都要标出来。 */
   readonly incomplete?: boolean;
-  /** 读存着的结论（本机记录、备份）：旧档位按 verdictLabelOf 认，「看概览就够」留成旧判断。模型的新输出不给。 */
+  /** 读存着的结论（本机记录、备份）：旧档位按 verdictLabelOf 换算成星。 */
   readonly stored?: boolean;
   /** 写结论时看到的章节的起始秒。不给时不收重点章节。 */
   readonly chapterStarts?: readonly unknown[] | undefined;
@@ -312,8 +297,7 @@ export const VERDICT_CLIP: Readonly<Record<OutputLang, { readonly summary: numbe
 });
 
 /**
- * 结论同样当不可信数据处理：没有 summary 就当没生成；判断不在几档里就不显示，
- * 免得模型自创一档「还行」。字段按提示词的字数要求留些余量再截断。
+ * 结论同样当不可信数据处理：没有 summary 就当没生成；判断不符合约定时只丢掉判断和理由。字段按提示词的字数要求留些余量再截断。
  * 重点章节（模型输出里的 keyChapters）按 validKeyStarts 过滤，坏了只丢重点；标题译名按 translatedTitleOf 收，坏了只丢译名。
  */
 export function validateVerdict(
@@ -334,9 +318,7 @@ export function validateVerdict(
   const limits = VERDICT_CLIP[lang];
   const summary = clip(source.summary, limits.summary);
   if (!summary) return null;
-  // 模型只能给新四档；改了名的旧档位也认，只有「看概览就够」不再是模型能给的判断。
-  const label = verdictLabelOf(source.verdict);
-  const verdict = stored || label !== LEGACY_VERDICT ? label : "";
+  const verdict = stored ? verdictLabelOf(source.verdict) : modelRating(source.verdict);
   return {
     summary,
     value: clip(source.value, limits.value),

@@ -159,10 +159,10 @@ export function toMarkdown(
   const t = textOf(lang);
   const groups = groupItems(items, verdicts);
   const lines = [t.heading, "", t.exported(formatDateTime(exportedAt), items.length), ""];
-  for (const group of GROUPS) {
-    const members = groups[group.key];
+  for (const key of GROUPS) {
+    const members = groups[key];
     if (!members.length) continue;
-    lines.push(t.group(groupName(group.key, lang), members.length), "");
+    lines.push(t.group(groupName(key, lang), members.length), "");
     for (const item of members) {
       const meta = [item.ownerName, item.duration ? formatDuration(item.duration) : ""]
         .filter(Boolean)

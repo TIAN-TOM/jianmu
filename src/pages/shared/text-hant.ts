@@ -18,6 +18,7 @@ export const SHARED_HANT: SharedText = {
   },
 
   verdict: {
+    stars: (stars: number, name: string) => `5 星中的 ${stars} 星，${name}`,
     label: "一句話結論",
     stale: "根據舊字幕",
     incomplete: "不完整",

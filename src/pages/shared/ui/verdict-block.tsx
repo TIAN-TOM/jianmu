@@ -1,15 +1,15 @@
-// 结论块：标记加档位名、右边的菜单位置，结论句，依据行。侧边栏和卡片共用。
-// 档位名用文字读出来，标记不进读屏；结论句不截断。
+// 结论块：星级和短词、菜单、结论句和依据行。侧边栏、卡片和粗筛共用。
 import type { ComponentChildren } from "preact";
 import { Badge } from "./button.tsx";
-import { VerdictMark } from "./icon.tsx";
+import { verdictLabelOf, verdictName, type VerdictRating } from "../../../core/ai/verdict.ts";
+import { VerdictStars } from "./icon.tsx";
 import { sharedText } from "../text.ts";
 import { uiLang } from "../ui-lang.ts";
-import { basisText, labelOf, markOf, type BasisSource } from "./verdict.ts";
+import { bandOf, basisText, type BasisSource } from "./verdict.ts";
 
 export interface VerdictBlockProps {
-  /** 判断档位，照数据写；旧版改了名的显示新名字，认不出的档位只写结论句，不画标记。 */
-  readonly label: string;
+  /** 结论可能来自旧记录，展示时再认出它的星数。 */
+  readonly label: unknown;
   readonly text: string;
   readonly basis?: BasisSource | null;
   /** 换过字幕：这份结论基于旧字幕。 */
@@ -31,22 +31,26 @@ export function StaleTranscriptLine() {
   );
 }
 
+/** 星级和短词只有一个读屏名称；信息不足直接读出短词。 */
+export function VerdictLabel({ rating, class: className = "verdict-label" }: { readonly rating: VerdictRating; readonly class?: string }) {
+  const name = verdictName(rating, uiLang.value);
+  if (typeof rating !== "number") return <span class={className}><span class="verdict-name">{name}</span></span>;
+  return (
+    <span class={className} role="img" aria-label={sharedText().verdict.stars(rating, name)}>
+      <VerdictStars stars={rating} />
+      <span class="verdict-name" aria-hidden="true">{name}</span>
+    </span>
+  );
+}
+
 export function VerdictBlock({ label, text, basis, staleTranscript = false, incomplete = false, menu, fresh = false }: VerdictBlockProps) {
   const t = sharedText().verdict;
   const lang = uiLang.value;
-  const shape = markOf(label);
-  const name = shape ? labelOf(label, lang) : "";
+  const rating = verdictLabelOf(label);
   return (
-    <section class="verdict" aria-label={t.label} data-shape={shape ?? undefined} data-fresh={fresh ? "true" : undefined}>
+    <section class="verdict" aria-label={t.label} data-band={bandOf(rating)} data-fresh={fresh ? "true" : undefined}>
       <div class="verdict-head">
-        {shape ? (
-          <span class="verdict-label">
-            <VerdictMark shape={shape} />
-            <span class="verdict-name">{name}</span>
-          </span>
-        ) : (
-          <span class="verdict-label" />
-        )}
+        {rating ? <VerdictLabel rating={rating} /> : <span class="verdict-label" />}
         {menu ? <span class="verdict-menu">{menu}</span> : null}
       </div>
       <p class="verdict-text">{text}</p>

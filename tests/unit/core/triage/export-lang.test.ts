@@ -38,7 +38,7 @@ test("导出：不传语言和传中文逐字一样，固定文字是中文", ()
   assert.equal(toMarkdown(INPUT, VIDEO_BASE, "zh"), zh);
   assert.ok(zh.startsWith("# 稍后再看粗筛\n\n导出于 "));
   assert.match(zh, /共 5 个视频。/);
-  assert.match(zh, /^## 推荐看（1）$/m);
+  assert.match(zh, /^## ★★★★★ 推荐看（1）$/m);
   assert.match(zh, /^ {2}- 结论：自造的结论（基于 B站官方总结）$/m);
   assert.match(zh, /^ {2}- 官方总结：自造的官方总结$/m);
   assert.match(zh, /^ {2}- 请求失败，再点开始会重试（NETWORK）$/m);
@@ -47,7 +47,7 @@ test("导出：不传语言和传中文逐字一样，固定文字是中文", ()
 test("导出：英文时标题、分组名、说明是英文，标题、作者、官方总结和结论原样", () => {
   const en = toMarkdown(INPUT, VIDEO_BASE, "en");
   assert.ok(en.startsWith(`# Watch Later triage\n\nExported ${formatDateTime(0)}. 5 videos in total.\n`));
-  for (const heading of ["## Worth watching (1)", "## Overview is enough (1)", "## Not judged yet (3)"]) assert.ok(en.includes(`\n${heading}\n`), heading);
+  for (const heading of ["## ★★★★★ Must watch (1)", "## ★★☆☆☆ Mostly skippable (1)", "## Not judged yet (3)"]) assert.ok(en.includes(`\n${heading}\n`), heading);
   assert.match(en, /^ {2}- Verdict: 自造的结论 \(based on the Bilibili official summary\)$/m);
   assert.match(en, /^ {2}- Verdict: 自造的结论 \(based on the overview\)$/m);
   assert.match(en, /^ {2}- Core value: 自造的价值$/m);
@@ -80,24 +80,19 @@ test("导出的文件名：中文照旧，英文是英文名，都带导出时�
   assert.equal(exportFileName(0, "en"), `jianmu-watch-later-${stamp}.md`);
 });
 
-test("分组和档位的显示名：中文就是标识本身，英文按译名表，认不出的档位原样", () => {
-  assert.deepEqual(GROUPS.map((group) => groupName(group.key)), GROUPS.map((group) => group.label));
-  assert.deepEqual(
-    GROUPS.map((group) => groupName(group.key, "en")),
-    ["Worth watching", "Watch the key parts", "Skip", "Not enough info", "Overview is enough", "Not judged yet"],
-  );
-  assert.equal(verdictName("可以看"), "可以看");
-  assert.equal(verdictName("可以看", "en"), "Watch the key parts");
-  assert.equal(verdictName("可以跳过", "en"), "Skip", "旧版改了名的按新名字认");
-  assert.equal(verdictName("看概览就够", "en"), "Overview is enough");
-  assert.equal(verdictName("自创的档", "en"), "自创的档");
-  assert.equal(verdictName("", "en"), "");
+test("导出的星级分组标题按界面语言写，同时标明星数和意思", () => {
+  assert.deepEqual(GROUPS.map((key) => groupName(key)), [
+    "★★★★★ 推荐看", "★★★★☆ 值得看", "★★★☆☆ 挑着看", "★★☆☆☆ 可略过", "★☆☆☆☆ 可跳过", "还没判断", "信息不足",
+  ]);
+  assert.deepEqual(GROUPS.map((key) => groupName(key, "en")), [
+    "★★★★★ Must watch", "★★★★☆ Worth watching", "★★★☆☆ Watch the key parts", "★★☆☆☆ Mostly skippable", "★☆☆☆☆ Skip", "Not judged yet", "Not enough info",
+  ]);
 });
 
 test("导出：繁体时标题、分组名、说明是繁体，标题、作者、官方总结和结论原样", () => {
   const hant = toMarkdown(INPUT, VIDEO_BASE, "zh-Hant");
   assert.ok(hant.startsWith(`# 稍後再看粗篩\n\n匯出於 ${formatDateTime(0)}，共 5 部影片。\n`));
-  for (const heading of ["## 推薦看（1）", "## 看概覽就夠（1）", "## 還沒判斷（3）"]) assert.ok(hant.includes(`\n${heading}\n`), heading);
+  for (const heading of ["## ★★★★★ 推薦看（1）", `## ★★☆☆☆ ${verdictName(2, "zh-Hant")}（1）`, "## 還沒判斷（3）"]) assert.ok(hant.includes(`\n${heading}\n`), heading);
   assert.match(hant, /^ {2}- 結論：自造的结论（根據 B 站官方總結）$/m);
   assert.match(hant, /^ {2}- 結論：自造的结论（根據概覽）$/m);
   assert.match(hant, /^ {2}- 核心價值：自造的价值$/m);
@@ -114,10 +109,7 @@ test("繁体：观看进度、官方总结的状态、文件名、分组和档�
   assert.equal(officialStatusText({ status: "unsupported" } as OfficialRecord, null, "zh-Hant"), "B 站不替這部影片做總結");
   const stamp = formatDateTime(0).replace(/[-: ]/g, "");
   assert.equal(exportFileName(0, "zh-Hant"), `簡幕-稍後再看-${stamp}.md`);
-  assert.deepEqual(
-    GROUPS.map((group) => groupName(group.key, "zh-Hant")),
-    ["推薦看", "可以看", "可跳過", "資訊不足", "看概覽就夠", "還沒判斷"],
-  );
-  assert.equal(verdictName("可以跳过", "zh-Hant"), "可跳過", "旧版改了名的按新名字认");
-  assert.equal(verdictName("自创的档", "zh-Hant"), "自创的档");
+  assert.equal(groupName(1, "zh-Hant"), "★☆☆☆☆ 可跳過");
+  assert.equal(groupName("pending", "zh-Hant"), "還沒判斷");
+  assert.equal(groupName("unknown", "zh-Hant"), "資訊不足");
 });

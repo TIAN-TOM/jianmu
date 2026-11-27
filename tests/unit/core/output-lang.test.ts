@@ -82,8 +82,8 @@ for (const file of LOCALIZED) {
   });
 }
 
-test("英文规则写明协议性的标识照原样输出：结论档位、JSON 的键、出处格式", () => {
-  assert.match(langVariables(read("skim/verdict.md"), "en").langLine ?? "", /verdict.*四个中文词.*原样.*JSON 的键不变/);
+test("英文规则写明协议性的标识照原样输出：结论星级、JSON 的键、出处格式", () => {
+  assert.match(langVariables(read("skim/verdict.md"), "en").langLine ?? "", /verdict.*整数.*原样写「信息不足」.*JSON 的键不变/);
   assert.match(langVariables(read("skim/chapters.md"), "en").langLine ?? "", /JSON 的键不变/);
   assert.match(langVariables(read("common/qa.md"), "en").langLine ?? "", /【12:05\|原文】.*照原样/);
 });
@@ -127,7 +127,7 @@ const OVERVIEW: OverviewRecord = {
   analysis: {
     chapters: [{ title: "Opening", summary: "Why plans fail", timestampSeconds: 0, timestamp: "0:00" }],
     keyQuotes: [],
-    verdict: { summary: LONG_SUMMARY, value: "A three-step method", verdict: "可以看", reason: "Concrete examples" },
+    verdict: { summary: LONG_SUMMARY, value: "A three-step method", verdict: 3, reason: "Concrete examples" },
   },
   parts: {
     chapters: { derived: derived({ feature: "analysis", promptVersion: "p1", model: "m", effort: "off", outputLang: "en" }), taskCreatedAt: 10 },
@@ -172,7 +172,7 @@ test("备份里认不出的语言当没写，读的时候按中文；旧备份�
 
 test("结论截断：中文照旧按 200、120、120 字截；英文另给一组更宽的上限，不截成半句", () => {
   const long = (n: number) => "x".repeat(n);
-  const raw = { summary: long(1000), value: long(1000), reason: long(1000), verdict: "可以看" };
+  const raw = { summary: long(1000), value: long(1000), reason: long(1000), verdict: 3 };
   const zh = validateVerdict(raw);
   assert.deepEqual([zh?.summary.length, zh?.value.length, zh?.reason.length], [200, 120, 120]);
   const en = validateVerdict(raw, { lang: "en" });
@@ -181,7 +181,7 @@ test("结论截断：中文照旧按 200、120、120 字截；英文另给一组
   assert.ok(VERDICT_CLIP.en.summary >= 50 * 7 * 2);
   assert.ok(VERDICT_CLIP.en.value >= 30 * 7 * 2 && VERDICT_CLIP.en.reason >= 30 * 7 * 2);
   const sentence = "The talk walks through three planning mistakes and shows how a weekly review fixes each one with real examples.";
-  assert.equal(validateVerdict({ summary: sentence, verdict: "可以看" }, { lang: "en" })?.summary, sentence);
+  assert.equal(validateVerdict({ summary: sentence, verdict: 3 }, { lang: "en" })?.summary, sentence);
 });
 
 test("翻译方向：译成设置的语言，字幕本身已经是这种语言时译成另一种；选中文时和以前一样", () => {

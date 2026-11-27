@@ -224,7 +224,7 @@
 
 /* 减少动态效果时时长都已归零；带延迟的那一下也不留，标记和结论一起出现。读取中的骨架屏照旧晚 150ms 露面：那是为了读得快时根本不出现，不是动效。 */
 @media (prefers-reduced-motion: reduce) {
-  .verdict[data-fresh] .verdict-mark {
+  .verdict[data-fresh] .verdict-stars {
     animation: none;
   }
 }

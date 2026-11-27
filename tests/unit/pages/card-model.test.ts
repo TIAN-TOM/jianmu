@@ -634,7 +634,7 @@ test("章节按开始时间排好再数第几章；时间不是数的不算", ()
 const CHAPTERS_ONLY = { chapters: THREE.chapters };
 
 test("一句话结论：判断词和那句话都有、结论不在写时才算", () => {
-  assert.deepEqual(conclusionOf({ analysis: THREE, verdictPending: false }), { label: "可以看", summary: "样例结论" });
+  assert.deepEqual(conclusionOf({ analysis: THREE, verdictPending: false }), { label: 3, summary: "样例结论" });
   assert.equal(conclusionOf({ analysis: THREE, verdictPending: true }), null, "结论还在写");
   assert.equal(conclusionOf({ analysis: CHAPTERS_ONLY, verdictPending: false }), null);
   assert.equal(conclusionOf({ analysis: { verdict: { verdict: "可以看", summary: "  " } }, verdictPending: false }), null, "只有判断词");

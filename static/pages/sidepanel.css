@@ -59,7 +59,7 @@ body {
   animation: appear-up var(--dur-mode) var(--ease);
 }
 
-.verdict[data-fresh] .verdict-mark {
+.verdict[data-fresh] .verdict-stars {
   animation: done-pop var(--dur-mode) var(--ease-pop) 60ms backwards;
 }
 

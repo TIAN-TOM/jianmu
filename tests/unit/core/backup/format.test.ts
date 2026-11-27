@@ -40,7 +40,7 @@ const OVERVIEW: OverviewRecord = {
   analysis: {
     chapters: [{ title: "开场", summary: "讲了为什么", timestampSeconds: 0, timestamp: "0:00" }],
     keyQuotes: [{ quote: "先想清楚再动手。", timestampSeconds: 12, timestamp: "0:12" }],
-    verdict: { summary: "讲清了做计划的方法。", value: "三步法", verdict: "推荐看", reason: "例子具体" },
+    verdict: { summary: "讲清了做计划的方法。", value: "三步法", verdict: 4, reason: "例子具体" },
   },
   analysisFailures: [{ index: 1, startSeconds: 600, endSeconds: 900, reason: "超时" }],
   updatedAt: 3000,
@@ -282,15 +282,21 @@ test("标题译名随结论往返，不升备份版本；空的、太长的只�
   assert.deepEqual(old, OVERVIEW, "没有这个字段的旧记录照常读");
 });
 
-test("新格式里存着旧档位名（新版日用早期写下的）：改了名的按新名字导入，「看概览就够」连同理由原样留成旧判断", () => {
-  const withLabel = (verdict: string): OverviewRecord => ({ ...OVERVIEW, analysis: { ...OVERVIEW.analysis, verdict: { ...OVERVIEW.analysis.verdict, verdict } } });
-  const backup = buildBackup({ overviews: ["值得看完整视频", "可以跳过", "看概览就够"].map(withLabel) }, EXPORTED_AT);
-  const verdicts = read(backup).contents.overviews.map((overview) => [overview.analysis.verdict?.verdict, overview.analysis.verdict?.reason]);
-  assert.deepEqual(verdicts, [
-    ["推荐看", "例子具体"],
-    ["可跳过", "例子具体"],
-    ["看概览就够", "例子具体"],
-  ]);
+test("导出和导入都认新旧判断，只在读出的副本上换算旧值", () => {
+  const labels = ["值得看完整视频", "推荐看", "可以看", "看概览就够", "可以跳过", "可跳过", "信息不足", 1, 2, 3, 4, 5];
+  const expected = [5, 5, 3, 2, 1, 1, "信息不足", 1, 2, 3, 4, 5].map((rating) => [rating, "例子具体"]);
+  const overviews = labels.map((verdict) => ({
+    ...OVERVIEW,
+    analysis: { ...OVERVIEW.analysis, verdict: { ...OVERVIEW.analysis.verdict, verdict } },
+  }));
+  const ratings = (records: readonly OverviewRecord[]) =>
+    records.map((record) => [record.analysis.verdict?.verdict, record.analysis.verdict?.reason]);
+
+  const backup = buildBackup({ overviews }, EXPORTED_AT);
+  assert.deepEqual(ratings(backup.overviews), expected);
+  assert.deepEqual(ratings(read(backup).contents.overviews), expected);
+  assert.deepEqual(ratings(read({ kind: BACKUP_KIND, version: 1, overviews }).contents.overviews), expected);
+  assert.deepEqual(overviews.map((record) => record.analysis.verdict.verdict), labels);
 });
 
 const TRANSCRIPT = { video: KEY_A, kind: "auto" as const, lang: "zh-CN", fingerprint: "fp-sample" };

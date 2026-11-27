@@ -9,15 +9,14 @@ import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { LearningAnalysis } from "../../core/notes/markdown.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
 import type { OfficialSummaryView, OutlineSectionView } from "../../shared/messages/transcript.ts";
-import { keyChapterStarts, verdictName } from "../../core/ai/verdict.ts";
+import { keyChapterStarts, type VerdictRating } from "../../core/ai/verdict.ts";
 import type { ChapterItem } from "../shared/ui/chapter-list.tsx";
 import { Collapse } from "../shared/ui/collapse.tsx";
 import { CommentFold, commentViewOfVerdict } from "../shared/ui/comment-block.tsx";
-import { Icon, VerdictMark } from "../shared/ui/icon.tsx";
+import { Icon } from "../shared/ui/icon.tsx";
 import { ServiceSaid } from "../shared/ui/notice.tsx";
-import { StaleTranscriptLine, VerdictBlock } from "../shared/ui/verdict-block.tsx";
-import { markOf, staleOverviewMarks, type BasisSource } from "../shared/ui/verdict.ts";
-import { uiLang } from "../shared/ui-lang.ts";
+import { StaleTranscriptLine, VerdictBlock, VerdictLabel } from "../shared/ui/verdict-block.tsx";
+import { bandOf, staleOverviewMarks, type BasisSource } from "../shared/ui/verdict.ts";
 import { CardChapters } from "./chapters.tsx";
 import { cardRows, chaptersInOrder, hasOverview, type CardView, type TaskProgress } from "./model.ts";
 import { canWriteFromOfficial } from "./official-verdict.ts";
@@ -171,7 +170,7 @@ function Overview({
           {typeof pending === "string" ? pending : t.writingVerdict}
         </p>
       ) : summary ? (
-        <VerdictBlock label={text(verdict?.verdict)} text={summary} basis={basisOf(analysis)} staleTranscript={stale.verdict} incomplete={verdict?.incomplete === true} fresh={waited.current} />
+        <VerdictBlock label={verdict?.verdict} text={summary} basis={basisOf(analysis)} staleTranscript={stale.verdict} incomplete={verdict?.incomplete === true} fresh={waited.current} />
       ) : null}
       {CardComments && comments && summary && !pending ? <CardComments view={comments} open={commentsOpen} onToggle={onToggleComments} /> : null}
       {stale.chapters && chapters.length ? <StaleTranscriptLine /> : null}
@@ -193,7 +192,7 @@ function progressText(task: TaskProgress): string {
  * 标题栏上的判断档和后面那句话。判断档有结论时就有（展开时只给读屏和看不看那套的色带用）；那句话只在收起时有：
  * 临时的一句话最优先，其次是一句话结论；没有结论时写播放到的章节（和侧边栏精读顶上那一条同一个写法）。
  */
-export function glanceOf(view: CardView): { readonly label: string; readonly text: string } {
+export function glanceOf(view: CardView): { readonly label: VerdictRating | ""; readonly text: string } {
   const conclusion = conclusionOf(view);
   const label = conclusion?.label ?? "";
   if (!view.collapsed) return { label, text: "" };
@@ -311,8 +310,6 @@ export function Card({
   const task = view.task;
   const percent = task && task.total > 0 ? Math.round((task.done / task.total) * 100) : 0;
   const glance = glanceOf(view);
-  const shape = markOf(glance.label);
-  const verdictLabel = glance.label ? verdictName(glance.label, uiLang.value) : "";
   const showGenerate = canGenerate && !needsSetup;
   const showSettings = needsSetup || (canGenerate && view.settingsError);
   const showRetry = (view.phase === "failed" || view.needLogin || retryRead) && !task;
@@ -325,7 +322,7 @@ export function Card({
   // 「打开侧边栏」是底部一行的主按钮，同一行已经有别的主按钮时退成普通按钮。
   const panelPrimary = !showGenerate && !needsSetup;
   return (
-    <div class="card" id="card" data-collapsed={view.collapsed ? "true" : "false"} data-shape={shape ?? undefined}>
+    <div class="card" id="card" data-collapsed={view.collapsed ? "true" : "false"} data-band={bandOf(glance.label)}>
       <div class="card-head-row">
         <button type="button" class="card-head" id="card-toggle" aria-expanded={!view.collapsed} aria-controls="card-body" title={view.collapsed ? t.expand : t.collapse} onClick={actions.toggle}>
           {/* 名字和判断档两样都在读屏的名称里；看不见的那样由样式表只藏起样子。 */}
@@ -333,12 +330,7 @@ export function Card({
             <BrandMark />
             <span class="card-name">{t.name}</span>
           </span>
-          {verdictLabel ? (
-            <span class="card-verdict">
-              {shape ? <VerdictMark shape={shape} /> : null}
-              <span class="card-verdict-name">{verdictLabel}</span>
-            </span>
-          ) : null}
+          {glance.label ? <VerdictLabel class="card-verdict" rating={glance.label} /> : null}
           {glance.text ? (
             <span class="card-glance" id="card-glance" role={view.headNote ? "status" : undefined}>
               {glance.text}

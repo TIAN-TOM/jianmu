@@ -1,16 +1,15 @@
-// 模型写繁体：提示词按繁体中文规则那一节填，简体和英文收到的提示词和加这一节之前逐字相同；
-// 档位、引用照抄原文的规矩写进规则，模型没照做时本机兜住：繁体档位认回原档位，转成繁体的引用对不上就丢掉那一行。
+// 模型按繁体中文规则写，兼容旧结论里的繁体档位；出处还要对得上字幕原文。
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { extractPromptSection, LANG_SECTIONS, langVariables, localizePrompt } from "../../../src/core/ai/prompt.ts";
 import { alignTranslatedSegments, chunkFromModel, looksLikeTranslation, validateAnalysis } from "../../../src/core/ai/validate.ts";
-import { LEGACY_VERDICT, validateVerdict, verdictLabelOf, verdictName } from "../../../src/core/ai/verdict.ts";
+import { validateVerdict, verdictLabelOf } from "../../../src/core/ai/verdict.ts";
 import { groundQaAnswer } from "../../../src/core/qa/citations.ts";
 
 const PROMPTS_DIR = new URL("../../../prompts/", import.meta.url);
 const read = (file: string): string => readFileSync(new URL(file, PROMPTS_DIR), "utf8");
-// 加繁体那一节之前，简体和英文拼出来的各小节（语言占位符已填，其余占位符未填；翻译的语言规则已填进 {langRules}）。
+// 简体和英文拼出来的各小节（语言占位符已填，其余占位符未填；翻译的语言规则已填进 {langRules}）。
 const BEFORE = JSON.parse(readFileSync(new URL("../../fixtures/golden/prompts-zh-en.json", import.meta.url), "utf8")) as Record<"zh" | "en", Record<string, Record<string, string>>>;
 const LOCALIZED = ["skim/verdict.md", "skim/chapters.md", "common/qa.md", "study/explain.md", "study/frame-explain.md"];
 const PLACEHOLDER = /\{([A-Za-z][A-Za-z0-9_]*)\}/g;
@@ -27,7 +26,7 @@ function sectionsIn(file: string, lang: "zh" | "zh-Hant" | "en", headings: reado
   return Object.fromEntries(headings.map((heading) => [heading, extractPromptSection(localized, heading, {})]));
 }
 
-test("简体和英文：六份提示词拼出来的每个小节和加繁体那一节之前逐字相同", () => {
+test("简体和英文：六份提示词拼出来的每个小节和黄金样本逐字相同", () => {
   for (const lang of ["zh", "en"] as const) {
     const files = BEFORE[lang];
     assert.deepEqual(Object.keys(files).sort(), [...LOCALIZED, "study/translation.md"].sort());
@@ -72,11 +71,12 @@ test("繁体的翻译规则：译成繁体中文，带繁体那一节，不带�
   assert.doesNotMatch(system, /\{langRules\}|\{targetLangName\}/);
 });
 
-test("繁体规则写明：档位照抄四个简体词，不跟着转成繁体", () => {
-  const line = langVariables(read("skim/verdict.md"), "zh-Hant").langLine ?? "";
-  for (const label of ["推荐看", "可以看", "可跳过", "信息不足"]) assert.ok(line.includes(`「${label}」`), label);
-  assert.match(line, /不要因为全文是繁体就把这四个词转成繁体/);
-  assert.match(line, /JSON 的键不变/);
+test("繁体规则写明星数和信息不足的写法，JSON 键照旧", () => {
+  for (const file of ["skim/verdict.md", "skim/verdict-comments.md"]) {
+    const line = langVariables(read(file), "zh-Hant").langLine ?? "";
+    assert.match(line, /verdict 用整数或原样写「信息不足」/);
+    assert.match(line, /JSON 的键不变/);
+  }
 });
 
 test("繁体规则写明：出处里的原文照字幕抄，简体不转繁体；规则里的示例本机核对得上", () => {
@@ -116,31 +116,23 @@ test("繁体规则写明：标题是中文（不分简繁）就不给译名，�
 // 本机兜底：档位
 // ============================================================
 
-test("档位写成繁体：认回原来的档位；「信息不足」和「資訊不足」都认", () => {
-  const cases: readonly [string, string][] = [
-    ["推薦看", "推荐看"],
-    ["可以看", "可以看"],
-    ["可跳過", "可跳过"],
-    ["資訊不足", "信息不足"],
-    ["信息不足", "信息不足"],
-    [" 推薦看 ", "推荐看"],
-    ["看概覽就夠", LEGACY_VERDICT],
-    ["推荐看", "推荐看"],
-    ["還行", ""],
-  ];
-  for (const [raw, label] of cases) assert.equal(verdictLabelOf(raw), label, raw);
+test("读旧记录时认得繁体档位和早期的名称，模型新输出里的旧名一律丢掉", () => {
+  for (const [raw, stars] of [
+    [" 推薦看 ", 5], ["可以看", 3], ["可跳過", 1],
+    ["看概覽就夠", 2], ["值得看完整視頻", 5], ["值得看完整影片", 5], ["可以跳過", 1],
+  ] as const) {
+    const record = { summary: "摘要", verdict: raw, reason: "理由" };
+    assert.equal(verdictLabelOf(raw), stars, raw);
+    assert.equal(validateVerdict(record, { lang: "zh-Hant", stored: true })?.verdict, stars);
+    assert.equal(validateVerdict(record, { lang: "zh-Hant" })?.verdict, "");
+  }
 });
 
-test("模型在繁体下写了繁体档位：结论照收，存的是原来的简体档位；旧版那一档照旧不收", () => {
-  const base = { summary: "這部影片講了三個做法。", value: "一個做法", reason: "8:20 那章的推導" };
-  for (const [raw, label] of [["推薦看", "推荐看"], ["可跳過", "可跳过"], ["資訊不足", "信息不足"], ["信息不足", "信息不足"], ["可以看", "可以看"]] as const) {
-    const verdict = validateVerdict({ ...base, verdict: raw }, { lang: "zh-Hant" });
-    assert.equal(verdict?.verdict, label, raw);
-    assert.equal(verdict?.reason, base.reason, `${raw} 的理由留着`);
-    assert.equal(verdictName(verdict?.verdict ?? "", "zh-Hant"), verdictName(label, "zh-Hant"));
+test("模型回繁体的信息不足时保留理由，读旧记录也认同一写法", () => {
+  const record = { summary: "摘要", value: "", verdict: " 資訊不足 ", reason: "缺了後半段" };
+  for (const stored of [false, true]) {
+    assert.deepEqual(validateVerdict(record, { lang: "zh-Hant", stored }), { ...record, verdict: "信息不足" });
   }
-  assert.equal(validateVerdict({ ...base, verdict: "看概覽就夠" }, { lang: "zh-Hant" })?.verdict, "");
-  assert.equal(validateVerdict({ ...base, verdict: "看概覽就夠" }, { lang: "zh-Hant", stored: true })?.verdict, LEGACY_VERDICT);
 });
 
 // ============================================================
@@ -149,7 +141,7 @@ test("模型在繁体下写了繁体档位：结论照收，存的是原来的�
 
 test("选繁体时外文标题的繁体译名照收，全是汉字的日文标题译成等长的繁体也照收；和原标题一样的不收；简体和英文的规矩不变", () => {
   const verdict = (translatedTitle: string, title: string, lang: "zh" | "zh-Hant" | "en") =>
-    validateVerdict({ summary: "摘要", verdict: "可以看", translatedTitle }, { lang, title })?.translatedTitle;
+    validateVerdict({ summary: "摘要", verdict: 3, translatedTitle }, { lang, title })?.translatedTitle;
   assert.equal(verdict("番茄怎麼種才能長得好", "How to grow better tomatoes", "zh-Hant"), "番茄怎麼種才能長得好");
   assert.equal(verdict("東京的觀光指南", "東京の観光ガイド", "zh-Hant"), "東京的觀光指南");
   assert.equal(verdict("東京觀光", "東京観光", "zh-Hant"), "東京觀光");

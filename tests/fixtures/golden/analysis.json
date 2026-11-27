@@ -22160,14 +22160,14 @@
   },
   {
    "id": "validateVerdict#1",
-   "label": "三档之一",
+   "label": "模型直接打五星",
    "fn": "validateVerdict",
    "args": [
     {
      "reason": "有演示",
      "summary": "值得看",
      "value": "学会搭架子",
-     "verdict": "值得看完整视频"
+     "verdict": 5
     },
     {}
    ],
@@ -22175,7 +22175,7 @@
     "reason": "有演示",
     "summary": "值得看",
     "value": "学会搭架子",
-    "verdict": "推荐看"
+    "verdict": 5
    }
   },
   {
@@ -22200,7 +22200,7 @@
   },
   {
    "id": "validateVerdict#3",
-   "label": "可以跳过",
+   "label": "模型用旧称可以跳过",
    "fn": "validateVerdict",
    "args": [
     {
@@ -22213,7 +22213,7 @@
     "reason": "",
     "summary": "跳过",
     "value": "",
-    "verdict": "可跳过"
+    "verdict": ""
    }
   },
   {
@@ -22263,7 +22263,7 @@
    "args": [
     {
      "summary": "完整",
-     "verdict": "值得看完整视频"
+     "verdict": 5
     },
     {
      "incomplete": true
@@ -22274,7 +22274,7 @@
     "reason": "",
     "summary": "完整",
     "value": "",
-    "verdict": "推荐看"
+    "verdict": 5
    }
   },
   {

@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { LEGACY_VERDICT, VERDICT_LABELS } from "../../../../src/core/ai/verdict.ts";
 import { toMarkdown } from "../../../../src/core/triage/export.ts";
 import { GROUPS, groupItems, type TriageVerdict } from "../../../../src/core/triage/groups.ts";
 import type { OfficialRecord, TriageItem } from "../../../../src/core/triage/state.ts";
@@ -29,7 +28,7 @@ const OK = (summary = "官方总摘要"): OfficialRecord => ({
   outline: [{ title: "第一段", timestamp: 0, points: [] }],
 });
 
-const verdictOf = (label: string, extra: TriageVerdict = {}): TriageVerdict => ({
+const verdictOf = (label: number | string, extra: TriageVerdict = {}): TriageVerdict => ({
   summary: `讲了 ${label}`,
   value: "核心价值",
   verdict: label,
@@ -38,35 +37,30 @@ const verdictOf = (label: string, extra: TriageVerdict = {}): TriageVerdict => (
   ...extra,
 });
 
-test("分组的前四组和结论校验的四档同序，旧判断单列在四档之后，最后是「还没判断」", () => {
-  assert.deepEqual(GROUPS.slice(0, 4).map((group) => group.label), VERDICT_LABELS);
-  assert.deepEqual(GROUPS.slice(4).map((group) => [group.key, group.label]), [["legacy", LEGACY_VERDICT], ["pending", "还没判断"]]);
+test("粗筛按五星到一星排列，还没判断单列，信息不足排最后", () => {
+  assert.deepEqual(GROUPS, [5, 4, 3, 2, 1, "pending", "unknown"]);
 });
 
-test("结论按判断分组：四档各归各的，旧版改了名的按新名字分，「看概览就够」单列，没有结论的是「还没判断」，档位认不出的算「信息不足」", () => {
-  const items = ["W", "OW", "F", "S", "OS", "U", "O", "P", "BLK", "ODD"].map((name) => item(name));
-  const verdicts = {
-    [keyOf("W")]: verdictOf("推荐看"),
-    [keyOf("OW")]: verdictOf("值得看完整视频"),
-    [keyOf("F")]: verdictOf("可以看"),
-    [keyOf("S")]: verdictOf("可跳过"),
-    [keyOf("OS")]: verdictOf("可以跳过"),
-    [keyOf("U")]: verdictOf("信息不足"),
-    [keyOf("O")]: verdictOf("看概览就够"),
-    [keyOf("BLK")]: { summary: "", verdict: "可跳过" },
-    [keyOf("ODD")]: verdictOf(""),
+test("新评分和换算后的旧判断进同一组，组内保留稍后再看的顺序", () => {
+  const ratings = {
+    S3: 3, W: "推荐看", OW: "值得看完整视频", F: "可以看", S2: 2,
+    S: "可跳过", S5: 5, OS: "可以跳过", UNK: "信息不足", OLD: "看概览就够",
+    S4: 4, S1: 1, BAD: 0,
   };
-  const groups = groupItems(items, verdicts);
+  const items = [...Object.keys(ratings), "New", "BLK"].map((name) => item(name));
+  const verdicts = Object.fromEntries(Object.entries(ratings).map(([name, rating]) => [keyOf(name), verdictOf(rating)]));
+  const groups = groupItems(items, { ...verdicts, [keyOf("BLK")]: { summary: " ", verdict: 4 } });
   const keys = Object.fromEntries(
     Object.entries(groups).map(([key, members]) => [key, members.map((video) => video.videoKey)]),
   );
   assert.deepEqual(keys, {
-    watch: [keyOf("W"), keyOf("OW")],
-    fair: [keyOf("F")],
-    skip: [keyOf("S"), keyOf("OS")],
-    unknown: [keyOf("U"), keyOf("ODD")],
-    legacy: [keyOf("O")],
-    pending: [keyOf("P"), keyOf("BLK")],
+    5: [keyOf("W"), keyOf("OW"), keyOf("S5")],
+    4: [keyOf("S4")],
+    3: [keyOf("S3"), keyOf("F")],
+    2: [keyOf("S2"), keyOf("OLD")],
+    1: [keyOf("S"), keyOf("OS"), keyOf("S1")],
+    pending: [keyOf("New"), keyOf("BLK")],
+    unknown: [keyOf("UNK"), keyOf("BAD")],
   });
 });
 
@@ -99,7 +93,7 @@ test("导出 Markdown：按判断分组，空组不写，链接、结论、理�
       "",
       "导出于 2026-11-01 07:05，共 4 个视频。",
       "",
-      "## 推荐看（1）",
+      "## ★★★★★ 推荐看（1）",
       "",
       `- [ ] [看完整 \\[精华\\] 版](${VIDEO_BASE}BV1Sample001) · 菜园 · 3:38`,
       "  - 结论：番茄搭架子的办法（基于 B站官方总结）",

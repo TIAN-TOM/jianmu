@@ -10,7 +10,7 @@ import { Button } from "../shared/ui/button.tsx";
 import { ServiceSaid } from "../shared/ui/notice.tsx";
 import { StateBlock } from "../shared/ui/state-block.tsx";
 import { stateCopy } from "../shared/ui/state.ts";
-import { VerdictBlock } from "../shared/ui/verdict-block.tsx";
+import { VerdictBlock, VerdictLabel } from "../shared/ui/verdict-block.tsx";
 import { uiLang } from "../shared/ui-lang.ts";
 import type { OptionsSection } from "../../shared/messages/core.ts";
 import { idleText, officialRecordText, type Filter, type Status, type TriageState } from "./state.ts";
@@ -180,11 +180,7 @@ function Results({ state }: { readonly state: TriageState }) {
   const groups = groupItems(items, verdicts);
   const filter = state.filter.value;
   const t = triageText();
-  const entries: { readonly key: Filter; readonly label: string; readonly count: number }[] = [
-    { key: "all", label: t.all, count: items.length },
-    // 旧判断只在真有的时候列出来，新装的用户看不到这一组。
-    ...GROUPS.filter((group) => group.key !== "legacy" || groups.legacy.length > 0).map((group) => ({ key: group.key, label: groupName(group.key, uiLang.value), count: groups[group.key].length })),
-  ];
+  const filters: readonly Filter[] = ["all", ...GROUPS];
   const shown = filter === "all" ? items : groups[filter];
   return (
     <section class="card" id="triage-results">
@@ -195,9 +191,9 @@ function Results({ state }: { readonly state: TriageState }) {
         </Button>
       </div>
       <div class="filters" role="group" aria-label={t.filterLabel}>
-        {entries.map((entry) => (
-          <button key={entry.key} type="button" class="filter" data-group={entry.key} aria-pressed={filter === entry.key} onClick={() => state.setFilter(entry.key)}>
-            {entry.label} {entry.count}
+        {filters.map((key) => (
+          <button key={key} type="button" class="filter" data-group={key} aria-pressed={filter === key} onClick={() => state.setFilter(key)}>
+            {typeof key === "number" ? <VerdictLabel rating={key} /> : key === "all" ? t.all : groupName(key, uiLang.value)} {key === "all" ? items.length : groups[key].length}
           </button>
         ))}
       </div>

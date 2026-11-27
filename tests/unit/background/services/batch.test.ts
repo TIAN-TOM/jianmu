@@ -255,12 +255,23 @@ test("第一步：点停止不再开始新的，正在读的读完存下", async
   assert.equal((await service.state()).official[keyOf(ids[0])]?.status, "ok");
 });
 
+test("重开粗筛读到旧判断时按星数显示，本机原记录保留旧值", async () => {
+  const item = listItem(ids[0]);
+  const site = fakeSiteService({ watchLater: () => ({ ok: true, value: { total: 1, dropped: 0, items: [item] } }) });
+  const { service, harness, page } = setup({ site });
+  const old = { summary: "讲了一件事", verdict: "看概览就够", reason: "要点在概览里" };
+  await harness.store.save({ videoKey: item.videoKey, analysis: { verdict: old } });
+  await service.handle({ type: "triage.start", step: "list" }, page("p1").listener);
+  assert.deepEqual((await service.state()).verdicts[item.videoKey], { ...old, verdict: 2 });
+  assert.deepEqual((await harness.store.find(item.videoKey))?.analysis.verdict, old);
+});
+
 test("第二步：只发模型请求，不向平台读；结论跟着概览存下", async () => {
   const site = fakeSiteService({
     watchLater: () => ({ ok: true, value: { total: 2, dropped: 0, items: [listItem(ids[0]), listItem(ids[1])] } }),
     officialSummary: officialOk,
   });
-  const { service, harness, timers, page, ensured, materials } = setup({ site, respond: (ask) => (ask.isVerdict ? verdictReply("讲了一件事", "可跳过") : undefined) });
+  const { service, harness, timers, page, ensured, materials } = setup({ site, respond: (ask) => (ask.isVerdict ? verdictReply("讲了一件事", 1) : undefined) });
   const tab = page("p1");
   await service.handle({ type: "triage.start", step: "list" }, tab.listener);
   const first = service.handle({ type: "triage.start", step: "official" }, tab.listener);
@@ -280,7 +291,7 @@ test("第二步：只发模型请求，不向平台读；结论跟着概览存�
   }
   assert.ok(!harness.verdictAsks().some((ask) => JSON.stringify(ask.request).includes(String(PROGRESS))), "发给模型的请求里没有观看进度");
   const state = await service.state();
-  assert.equal(state.verdicts[keyOf(ids[0])]?.verdict, "可跳过");
+  assert.equal(state.verdicts[keyOf(ids[0])]?.verdict, 1);
   assert.equal(tab.last("triage.done")?.done, 2);
 });
 

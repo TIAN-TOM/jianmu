@@ -33,7 +33,7 @@ const INPUT: LearningInput = {
 test("学习稿：不传语言和传中文逐字一样", () => {
   const zh = learningAsMarkdown(INPUT, LINK);
   assert.equal(learningAsMarkdown(INPUT, LINK, "zh"), zh);
-  for (const line of ["## B站官方总结", "## UP 主分段", "## 一句话结论", "**可跳过**", "## 视频概览", "## 章节", "## 我的时间戳笔记", "  - 简幕", "title: BV1Sample000"]) {
+  for (const line of ["## B站官方总结", "## UP 主分段", "## 一句话结论", "**★☆☆☆☆ 可跳过**", "## 视频概览", "## 章节", "## 我的时间戳笔记", "  - 简幕", "title: BV1Sample000"]) {
     assert.ok(zh.includes(line), line);
   }
 });
@@ -50,7 +50,7 @@ test("学习稿：英文时固定文字是英文，档位写英文名，内容�
     "> **Incomplete overview**: these time ranges failed to generate, so the chapters and key quotes don't cover them.",
     "> - 2:00–3:00: 样例原因",
     "## One-line verdict",
-    "**Skip**",
+    "**★☆☆☆☆ Skip**",
     "- Core value: 样例价值",
     "- Reasoning: 样例理由",
     "## Video overview",
@@ -92,7 +92,7 @@ test("学习稿和笔记：繁体时固定文字是繁体，档位写繁体名�
     "> 以下章節和金句由你設定的 AI 模型根據字幕生成。",
     "> **概覽內容不完整**：以下時間段生成失敗，章節和金句裡沒有這幾段的內容。",
     "## 一句話結論",
-    "**可跳過**",
+    "**★☆☆☆☆ 可跳過**",
     "- 核心價值：样例价值",
     "- 判斷理由：样例理由",
     "## 影片概覽",

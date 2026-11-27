@@ -82,6 +82,7 @@
 
 /* 按下去当场变色，松开才用 --dur-fast 回去。 */
 .filter:active {
+  color: var(--text);
   background: var(--bg-active);
   transition-duration: 0ms;
 }

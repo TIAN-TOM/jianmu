@@ -7,10 +7,10 @@
  * schema 只用两家都接受的写法：
  * - 每个对象都写 additionalProperties: false，所有字段都列进 required（OpenAI 要求）；
  * - 不用 minLength、maxLength、minimum、maximum 这类约束（Anthropic 不支持）；
- * - 根节点是对象，不用 anyOf、allOf。
+ * - 根节点是对象，anyOf 只用在属性里。
  * 字数、条数、时间范围由提示词约束，再由校验函数兜底。
  */
-import { VERDICT_LABELS } from "./verdict.ts";
+import { VERDICT_STARS } from "./verdict.ts";
 
 export interface StringSchema {
   readonly type: "string";
@@ -19,6 +19,7 @@ export interface StringSchema {
 
 export interface IntegerSchema {
   readonly type: "integer";
+  readonly enum?: readonly number[];
 }
 
 export interface ArraySchema {
@@ -35,7 +36,7 @@ export interface ObjectSchema<P extends SchemaProperties = SchemaProperties> {
   readonly additionalProperties: false;
 }
 
-export type SchemaNode = StringSchema | IntegerSchema | ArraySchema | ObjectSchema;
+export type SchemaNode = StringSchema | IntegerSchema | ArraySchema | ObjectSchema | { readonly anyOf: readonly SchemaNode[] };
 
 export interface ResponseSchema<P extends SchemaProperties = SchemaProperties> {
   readonly type: "json_schema";
@@ -83,7 +84,7 @@ export const ANALYSIS_CHUNK = describe(
   }),
 );
 
-// 一句话结论：先写理由再下判断，判断档位限定在界面认得的几档里；重点章节写成章节的时间点，由本机对回现有章节。
+// 一句话结论：先写理由再下判断，星数和信息不足分开写；重点章节写成章节的时间点，由本机对回现有章节。
 // 标题不是结论的语言时顺带给出译名，是的话给空串。
 export const VERDICT = describe(
   "verdict",
@@ -91,7 +92,7 @@ export const VERDICT = describe(
     summary: string,
     value: string,
     reason: string,
-    verdict: { type: "string", enum: [...VERDICT_LABELS] },
+    verdict: { anyOf: [{ type: "integer", enum: VERDICT_STARS }, { type: "string", enum: ["信息不足"] }] },
     keyChapters: { type: "array", items: string },
     translatedTitle: string,
   }),

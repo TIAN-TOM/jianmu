@@ -1,4 +1,4 @@
-/* 时间码（timecode）的版面：头部铺页面底色，判断是三格刻度，章节名下面一条按时长画的时长条，
+/* 时间码（timecode）的版面：头部铺页面底色，判断是星级，章节名下面一条按时长画的时长条，
  * 模式切换是分段控件，精读顶上一条按章节时长分段的进度条。红色只给播放头和当前句的时间码。 */
 
 :root[data-accent-theme="timecode"] {
@@ -51,12 +51,7 @@
   color: var(--panel-bg);
 }
 
-/* ---------- 判断：三格刻度 ---------- */
-
-:root[data-accent-theme="timecode"] .mark-set[data-set="meter"] {
-  display: block;
-  height: 0.375rem;
-}
+/* ---------- 判断：星级 ---------- */
 
 :root[data-accent-theme="timecode"] .verdict-label {
   font-size: var(--fs-meta);

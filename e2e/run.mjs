@@ -2,7 +2,7 @@
 // 核对后台和侧边栏都没有报错，主机权限和登录状态都生效，后台取字幕在确认前、没登录、付费时都按规矩停下，也没有意外请求。
 // 播放页之后在真实的侧边栏里走一遍主流程：跟着视频页读字幕、点一句跳过去、生成概览、把金句存为笔记、提问并点引用跳转；
 // 侧边栏开着时卡片让位收起，关上再回来（浏览器报不出侧边栏开关的老版本里，卡片照旧只跟模式走）；
-// 让位收起的那一行写着判断档；
+// 让位收起的那一行写着星级和短词；
 // 再从设置页打开粗筛页，读稍后再看、两步批次、分组和导出；然后在侧边栏里本窗口全部生成，跳过已有的、生成中停止、重开接上；
 // 最后打开就出结论：开着时后台打开的长视频也排队生成、前台的先，卡片上出结论，关着时不发请求。
 // 第一个加载：装的是发行包，之后导入的产品模块按发行构建的开关取值算。
@@ -208,10 +208,10 @@ async function panelFlow(launcher, panelUrl, videoId) {
   await keyChapterOnCard();
   await evaluate(launcher, `chrome.sidePanel.open({ windowId: ${windowId} }).then(() => true)`, true);
   await until("再打开侧边栏，卡片又让位收起", async () => (await cardCollapsed()) === "true");
-  // 让位收起的那一行：读到过结论，写着判断档和一句话结论，不写播放到的章节；侧边栏开着，不摆打开它的入口。
-  const line = await evaluate(card, `JSON.stringify([document.querySelector(".card-verdict-name")?.textContent ?? "", document.getElementById("card-glance")?.textContent ?? "", document.getElementById("card-head-panel") === null])`);
-  if (line !== JSON.stringify(["可以看", "模拟服务写的一句话结论", true])) throw new Error(`让位收起的那一行不对：${line}`);
-  console.log("✓ 卡片给侧边栏让位：关上侧边栏卡片展开、重点章节标着，再打开又收起，收起的那一行写着判断档和一句话结论、没有打开侧边栏的入口");
+  // 让位收起的那一行：读到过结论，写着星级和一句话结论，不写播放到的章节；侧边栏开着，不摆打开它的入口。
+  const line = await evaluate(card, `JSON.stringify([document.querySelector(".card-verdict .verdict-name")?.textContent ?? "", document.getElementById("card-glance")?.textContent ?? "", document.getElementById("card-head-panel") === null])`);
+  if (line !== JSON.stringify(["挑着看", "模拟服务写的一句话结论", true])) throw new Error(`让位收起的那一行不对：${line}`);
+  console.log("✓ 卡片给侧边栏让位：关上侧边栏卡片展开、重点章节标着，再打开又收起，收起的那一行写着星级和一句话结论、没有打开侧边栏的入口");
 }
 
 let failed = false;

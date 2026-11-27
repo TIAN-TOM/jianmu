@@ -1,8 +1,9 @@
 // 端到端里的稍后再看粗筛：从设置页打开粗筛页，读列表；第一步取官方总结，两次请求至少隔 1 秒，本机缓存里有的不再问；
 // 第二步只发模型请求、不向平台读；按判断分组、筛选，导出的 Markdown 按组列出。要在登录、配好模型服务之后跑。
+import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { FIRST_VIDEO, FOURTH_VIDEO, SECOND_VIDEO, SKIPPED_VIDEO, THIRD_VIDEO, VIDEOS } from "./fixtures.mjs";
+import { FIRST_VIDEO, FOURTH_VIDEO, SECOND_VIDEO, SKIPPED_VIDEO, THIRD_VIDEO, VIDEOS, watchLaterData } from "./fixtures.mjs";
 import { officialRead, watchLaterRead } from "./mock-server.mjs";
 
 const LISTED = [FIRST_VIDEO, SECOND_VIDEO, THIRD_VIDEO, FOURTH_VIDEO];
@@ -26,7 +27,7 @@ export async function triageFlow({ until, evaluate, cdp, findSession, mock, exte
     until(`点「${label}」`, () =>
       evaluate(page, `(() => { const node = [...document.querySelectorAll("button")].find((button) => button.textContent.trim().startsWith(${JSON.stringify(label)}) && !button.disabled); if (!node) return false; node.click(); return true; })()`),
     );
-  const rows = () => evaluate(page, `[...document.querySelectorAll(".video")].map((row) => ({ text: row.innerText, group: row.dataset.group }))`);
+  const rows = () => evaluate(page, `[...document.querySelectorAll(".video")].map((row) => ({ text: row.innerText, group: row.dataset.group, title: row.querySelector(".video-title").textContent }))`);
   const rowOf = (list, video) => list.find((row) => row.text.includes(video.title));
 
   const listReads = mock.requests.filter(watchLaterRead).length;
@@ -42,7 +43,7 @@ export async function triageFlow({ until, evaluate, cdp, findSession, mock, exte
   await until("第一步取完", async () => (await text("#step-official .status")).includes("这一轮取完了"));
   const summaries = mock.requests.slice(beforeOfficial).filter(officialRead);
   const asked = summaries.map((entry) => entry.video);
-  // 前面的步骤读过前两个视频，官方总结已经在本机缓存里。
+  // 前面的步骤读过两个视频，官方总结已经在本机缓存里。
   if (asked.join() !== [idOf(THIRD_VIDEO), idOf(FOURTH_VIDEO)].join()) throw new Error(`第一步问了 ${asked.join("、") || "（无）"}，应只问本机没有的两个`);
   const gaps = summaries.slice(1).map((entry, index) => entry.at - summaries[index].at);
   if (gaps.some((gap) => gap < 1000)) throw new Error(`两次官方总结请求的间隔不足 1 秒：${gaps.join("、")} ms`);
@@ -53,7 +54,7 @@ export async function triageFlow({ until, evaluate, cdp, findSession, mock, exte
   const beforeVerdict = mock.requests.length;
   await click("开始写结论");
   const confirm = await until("第二步的确认", () => text(".confirm"));
-  // 前两个视频之前生成过概览，已经有结论。
+  // 之前生成过概览的两个视频已经有结论。
   if (!confirm.includes("要给 1 个有官方总结的视频写一句话结论") || !confirm.includes("已经有结论的 2 个会跳过")) throw new Error(`第二步的确认不对：${confirm}`);
   // 第二步花额度：等确认时摆着「关掉页面……可能照样计费」。
   if (!(await text("#triage-steps .note")).includes("可能照样计费")) throw new Error("第二步等确认时没有计费提示");
@@ -68,10 +69,15 @@ export async function triageFlow({ until, evaluate, cdp, findSession, mock, exte
 
   const grouped = await until("分好组", async () => {
     const list = await rows();
-    return rowOf(list, THIRD_VIDEO)?.group === "skip" ? list : null;
+    return rowOf(list, THIRD_VIDEO)?.group === "1" ? list : null;
   });
+  assert.deepEqual(
+    grouped.map((row) => row.title),
+    watchLaterData().list.map((video) => video.title),
+    "全部应保留稍后再看里高低星级穿插的原顺序",
+  );
   const groups = LISTED.map((video) => rowOf(grouped, video)?.group);
-  const expected = ["fair", "fair", "skip", "pending"];
+  const expected = ["3", "3", "1", "pending"];
   if (JSON.stringify(groups) !== JSON.stringify(expected)) throw new Error(`分组不对：${JSON.stringify(groups)}`);
   await click("可跳过");
   await until("筛选后只剩可跳过的", async () => {
@@ -87,8 +93,8 @@ export async function triageFlow({ until, evaluate, cdp, findSession, mock, exte
     const block = sections[heading];
     if (!block || videos.some((video) => !block.includes(video.title))) throw new Error(`导出的「${heading}」不对：${block ?? "没有这一组"}`);
   };
-  expectSection("可以看（2）", [FIRST_VIDEO, SECOND_VIDEO]);
-  expectSection("可跳过（1）", [THIRD_VIDEO]);
+  expectSection("★★★☆☆ 挑着看（2）", [FIRST_VIDEO, SECOND_VIDEO]);
+  expectSection("★☆☆☆☆ 可跳过（1）", [THIRD_VIDEO]);
   expectSection("还没判断（1）", [FOURTH_VIDEO]);
   console.log("✓ 粗筛：按判断分组、筛选，导出的 Markdown 按组列出");
 }

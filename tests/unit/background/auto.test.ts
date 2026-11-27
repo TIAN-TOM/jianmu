@@ -21,7 +21,7 @@ const ORIGIN = "https://gateway.example.com/";
 const prompt = (user: string): string => ["## 系统提示词", "```", "系统", "```", "## 用户提示词", "```", user, "```", ""].join("\n");
 const PROMPTS = { "skim/chapters.md": prompt("分块 {minTimestampSeconds}"), "skim/verdict.md": prompt("写结论") };
 const CHAPTER = JSON.stringify({ chapters: [{ title: "开场", timestampSeconds: 0, summary: "摘要" }], keyQuotes: [] });
-const VERDICT = JSON.stringify({ summary: "自动写的结论", value: "有方法", verdict: "可以看", reason: "要点都在" });
+const VERDICT = JSON.stringify({ summary: "自动写的结论", value: "有方法", verdict: 3, reason: "要点都在" });
 
 const LONG_ID = "BV1Sample301";
 const SHORT_ID = "BV1Sample302";

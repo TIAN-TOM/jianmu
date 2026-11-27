@@ -20,6 +20,7 @@ export const SHARED_ZH = {
   },
 
   verdict: {
+    stars: (stars: number, name: string) => `5 星中的 ${stars} 星，${name}`,
     label: "一句话结论",
     stale: "基于旧字幕",
     incomplete: "不完整",
