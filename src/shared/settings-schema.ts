@@ -33,6 +33,7 @@ import {
 import { carryActivation } from "../core/consent-carry.ts";
 import { isLanguageSetting, type LanguageSetting, type OutputLang } from "../core/output-lang.ts";
 import { FRAME_SLOT } from "./frame-slot.ts";
+import { stringOrEmpty } from "./guards.ts";
 import { settingsCheckText } from "./settings-text.ts";
 
 export { CUSTOM_PRESET_ID };
@@ -239,8 +240,6 @@ const isThemeMode = (value: unknown): value is ThemeMode =>
 
 const positiveInteger = (value: unknown): number =>
   typeof value === "number" && Number.isInteger(value) && value > 0 ? value : 0;
-
-const stringOrEmpty = (value: unknown): string => (typeof value === "string" ? value : "");
 
 export function normalizeAccentTheme(value: unknown): AccentTheme {
   return isKeyOf(ACCENT_THEMES, value) ? value : DEFAULTS.accentTheme;
