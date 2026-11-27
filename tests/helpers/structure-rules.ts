@@ -1,6 +1,6 @@
 // 结构规则：只看源码文本，输入是文件表，测试既能扫真实的 src/，也能喂造好的违规样例。
 import { posix } from "node:path";
-import { splitSource, type SourceParts } from "./source-scan.ts";
+import { splitSource, topLevelDefinitions, type Definition, type SourceParts } from "./source-scan.ts";
 
 export interface SourceFile {
   readonly path: string; // 仓库相对路径，正斜杠
@@ -8,7 +8,7 @@ export interface SourceFile {
 }
 
 export interface Violation {
-  readonly rule: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+  readonly rule: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
   readonly file: string;
   readonly detail: string;
 }
@@ -23,6 +23,7 @@ interface Module extends SourceFile, SourceParts {
   readonly edges: readonly Edge[]; // 只含相对导入，含只导入类型的和重导出
   readonly sends: boolean; // 去掉放行的写法以后还有网络调用
   readonly calls: boolean; // 不管放行表，代码里有网络调用；YouTube 一侧按这个查
+  readonly definitions: readonly Definition[];
 }
 
 const LAYER: Readonly<Record<string, number>> = {
@@ -115,6 +116,15 @@ export const UNIMPORTED_ALLOWED: Readonly<Record<string, string>> = {
   "src/core/notes/filter.ts": "笔记过滤还没接进产品，去留待定",
   "src/pages/shared/ui/time-rail.tsx": "时间轴组件还没接进产品，只有页面测试的样品页用，去留待定",
 };
+// 第 10 条：同一个顶层函数定义在两个以上的文件里各写一份。压完空白不到这么长的撞上了不说明问题，不算。
+const MIN_DEFINITION_CHARS = 70;
+// 第 10 条：逐字相同、却不是同一份实现的定义，按「文件 名字」列，加一条要写原因。
+export const DUPLICATE_ALLOWED: Readonly<Record<string, string>> = {
+  "src/pages/options/frame-text.ts frameText": "设置页这张画面解释文案表的取表函数，取的是本文件的三份表，和侧边栏那张只是写法一样",
+  "src/pages/sidepanel/frame-text.ts frameText": "侧边栏这张画面解释文案表的取表函数，取的是本文件的三份表，和设置页那张只是写法一样",
+  "src/pages/options/youtube-text.ts youtubeText": "设置页 YouTube 一节文案表的取表函数，取的是本文件的三份表，和侧边栏那张只是写法一样",
+  "src/pages/sidepanel/youtube-text.ts youtubeText": "侧边栏 YouTube 文案表的取表函数，取的是本文件的三份表，和设置页那张只是写法一样",
+};
 
 // 只有协议头不算地址：把 http 换成 https 时要写这个字符串。
 const isAddress = (value: string): boolean =>
@@ -157,7 +167,7 @@ function toModule(file: SourceFile): Module {
   const hook = PAGE_REQUEST_HOOK[file.path];
   const code = hook ? parts.code.replace(hook, "") : parts.code;
   const sends = NETWORK_CALL.test(allowed ? code.replace(allowed, "") : code);
-  return { ...file, ...parts, edges: edgesOf(file.path, parts.code), sends, calls: NETWORK_CALL.test(code) };
+  return { ...file, ...parts, edges: edgesOf(file.path, parts.code), sends, calls: NETWORK_CALL.test(code), definitions: topLevelDefinitions(parts.code) };
 }
 
 function checkImport(file: string, { specifier, target, typeOnly }: Edge): string | null {
@@ -436,6 +446,32 @@ function unimported(modules: ReadonlyMap<string, Module>, entries: ReadonlySet<s
   return [...orphans, ...stale];
 }
 
+// 第 10 条：逐字相同的顶层函数定义只留一份。放行表里的条目所在文件还在、却不再和别处重复时，提醒从放行表删掉。
+function duplicateDefinitions(modules: ReadonlyMap<string, Module>): Violation[] {
+  const owners = new Map<string, { readonly file: string; readonly name: string }[]>();
+  for (const { path, definitions } of modules.values()) {
+    for (const { name, text } of definitions) {
+      if (text.length >= MIN_DEFINITION_CHARS) owners.set(text, [...(owners.get(text) ?? []), { file: path, name }]);
+    }
+  }
+  const found: Violation[] = [];
+  const duplicated = new Set<string>();
+  for (const list of owners.values()) {
+    const files = [...new Set(list.map(({ file }) => file))];
+    if (files.length < 2) continue;
+    for (const { file, name } of list) {
+      duplicated.add(`${file} ${name}`);
+      if (`${file} ${name}` in DUPLICATE_ALLOWED) continue;
+      const others = files.filter((other) => other !== file).map((other) => other.replace(/^src\//, ""));
+      found.push({ rule: 10, file, detail: `${name} 和 ${others.join("、")} 里的定义逐字相同：只留一份，别处导入` });
+    }
+  }
+  const stale = Object.keys(DUPLICATE_ALLOWED)
+    .filter((key) => modules.has(key.slice(0, key.indexOf(" "))) && !duplicated.has(key))
+    .map((key): Violation => ({ rule: 10, file: key.slice(0, key.indexOf(" ")), detail: `放行表里的 ${key.slice(key.indexOf(" ") + 1)} 已经不和别处重复，从放行表删掉` }));
+  return [...found, ...stale];
+}
+
 export interface StructureOptions {
   /**
    * 包的入口，从包清单算出来。给了才查第 9 条：要拿整棵 src/ 才查得了，样例只给几个文件时不给。
@@ -449,6 +485,7 @@ export function findStructureViolations(files: readonly SourceFile[], options: S
   return [
     ...list.flatMap((file) => [...checkFile(file), ...checkReach(file, modules)]),
     ...valueCycles(modules),
+    ...duplicateDefinitions(modules),
     ...(options.entries ? unimported(modules, options.entries) : []),
   ];
 }
