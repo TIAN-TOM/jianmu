@@ -13,6 +13,7 @@ import type {
 } from "../../../../src/core/ai/provider/index.ts";
 import * as SCHEMAS from "../../../../src/core/ai/schemas.ts";
 import { normalize } from "../../../../src/shared/settings-schema.ts";
+import { deferred } from "../../../helpers/deferred.ts";
 import { memoryStorage } from "../../../helpers/memory-storage.ts";
 
 const openaiSettings = normalize({
@@ -293,10 +294,8 @@ test("sendChatWithRelax：请求开始时记下清除代数，成功后带着它
 test("放宽记忆：清除之前就在读的那份存储，清除之后才读回来，不再填进内存，也不随下次记录写回", async () => {
   const guard = createClearGuard();
   const session = heldSession(oldRelaxRecord());
-  let release = () => {};
-  session.gates.get = new Promise((resolve) => {
-    release = resolve;
-  });
+  const { promise: held, resolve: release } = deferred();
+  session.gates.get = held;
   const memory = provider.createRelaxMemory({ storage: session, clearGuard: guard });
   const reading = memory.ready();
   const clearing = clearLikeBackground(guard, memory, session);
@@ -313,10 +312,8 @@ test("放宽记忆：清除之前就在读的那份存储，清除之后才读�
 test("放宽记忆：清除进行中（代数已加、存储还没删）才开始的读取，等清完再读，读不到旧记录", async () => {
   const guard = createClearGuard();
   const session = heldSession(oldRelaxRecord());
-  let release = () => {};
-  session.gates.remove = new Promise((resolve) => {
-    release = resolve;
-  });
+  const { promise: held, resolve: release } = deferred();
+  session.gates.remove = held;
   const memory = provider.createRelaxMemory({ storage: session, clearGuard: guard });
   const clearing = clearLikeBackground(guard, memory, session);
   const reading = memory.ready();
@@ -328,14 +325,8 @@ test("放宽记忆：清除进行中（代数已加、存储还没删）才开�
 
 // 写存储的那一段可以按住，看清除和写入谁等谁。
 function heldWrites(session: ReturnType<typeof heldSession>) {
-  let started = () => {};
-  let release = () => {};
-  const writeStarted = new Promise<void>((resolve) => {
-    started = resolve;
-  });
-  const gate = new Promise<void>((resolve) => {
-    release = resolve;
-  });
+  const { promise: writeStarted, resolve: started } = deferred();
+  const { promise: gate, resolve: release } = deferred();
   const state = { writes: 0, writeStarted, release: () => release() };
   const storage = {
     ...session,

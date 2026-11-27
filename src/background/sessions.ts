@@ -7,6 +7,7 @@ import { decideMode, isMode, openingMode } from "../core/mode/decide.ts";
 import type { CardOverride, Mode, ModeSource, SessionView } from "../core/mode/types.ts";
 import { channelKey, parseVideoKey, type ChannelRef, type Platform, type VideoKey } from "../core/video-ref.ts";
 import type { StorageArea } from "../platform/storage.ts";
+import { isRecord } from "../shared/guards.ts";
 import type { Broadcast } from "../shared/messages.ts";
 import { WATCH_SESSIONS_KEY } from "../shared/names.ts";
 import { errorLabel, type Log } from "./log.ts";
@@ -78,14 +79,12 @@ export interface Sessions {
 const MODE_SOURCES: ReadonlySet<unknown> = new Set<ModeSource>(["manual", "channel", "short", "default", "auto"]);
 const CARD_OVERRIDES: ReadonlySet<unknown> = new Set<CardOverride>(["expanded", "collapsed"]);
 
-const isPlainObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 const isCount = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0;
 const optional = (value: unknown, check: (value: unknown) => boolean): boolean => value === undefined || check(value);
 
 // 会话存储只有扩展自己读写，读出来仍按不可信处理：形状不对的整条不认。
 function isSession(value: unknown): value is WatchSession {
-  if (!isPlainObject(value)) return false;
+  if (!isRecord(value)) return false;
   return (
     typeof value.video === "string" &&
     parseVideoKey(value.video) !== null &&
@@ -146,7 +145,7 @@ export function createSessions({ storage, channels, guard, now, broadcast, log }
 
   async function load(): Promise<Record<string, WatchSession>> {
     const stored = (await storage.get(WATCH_SESSIONS_KEY))[WATCH_SESSIONS_KEY];
-    if (!isPlainObject(stored)) return {};
+    if (!isRecord(stored)) return {};
     const kept: Record<string, WatchSession> = {};
     for (const [tab, session] of Object.entries(stored)) if (/^\d+$/.test(tab) && isSession(session)) kept[tab] = session;
     return kept;

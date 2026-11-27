@@ -41,7 +41,7 @@ import { WIRING_HANT } from "./ai-hant.ts";
 import type { ClearGuard } from "../core/clear-guard.ts";
 import { fail, ok, type Failure, type Result } from "../core/errors.ts";
 import { AI_ERROR_TEXT, type AiErrorCode } from "../core/errors/ai.ts";
-import type { Effort } from "../core/notes/records.ts";
+import type { Effort } from "../core/ai/effort-level.ts";
 import { inLang, outputLangOf, resolveOutputLang, type OutputLang } from "../core/output-lang.ts";
 import { sha256Hex } from "../core/task-keys.ts";
 import { budgetEffort, type FrozenGen } from "../core/tasks.ts";

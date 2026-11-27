@@ -6,7 +6,7 @@ import { parseLooseJson } from "../../core/ai/parse.ts";
 import { NOTE_QUOTE } from "../../core/ai/schemas.ts";
 import type { ClearEpoch, ClearGuard } from "../../core/clear-guard.ts";
 import { fail, ok, trimFailure, type Failure, type Result } from "../../core/errors.ts";
-import type { Derived, NoteRecord } from "../../core/notes/records.ts";
+import { AUTHOR_MAX, TITLE_MAX, type Derived, type NoteRecord } from "../../core/notes/records.ts";
 import { budgetEffort, genInfo, type FrozenGen } from "../../core/tasks.ts";
 import { noteContextAt, type NoteContext } from "../../core/transcript/note-context.ts";
 import { parseVideoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
@@ -22,11 +22,10 @@ import { errorLabel, type Log } from "../log.ts";
 import type { NoteStore, NoteView } from "../stores/notes.ts";
 import { promptMessages } from "./overview/chunks.ts";
 import type { TranscriptService } from "./transcript/index.ts";
+import { captionsInPage } from "../../sites/rules.ts";
 
 export const NOTE_PROMPT = "study/note-polish.md";
 export const NOTE_TEXT_MAX = 3000;
-const TITLE_MAX = 500;
-const AUTHOR_MAX = 300;
 const POLISH_MAX_TOKENS = 512;
 
 export interface NoteInput {
@@ -101,7 +100,7 @@ export function createNotesService(deps: NotesServiceDeps): NotesService {
   }
 
   async function sourceOf(ref: VideoRef): Promise<Result<Source>> {
-    if (ref.platform === "youtube") return localSource(ref);
+    if (captionsInPage(ref.platform)) return localSource(ref);
     const snapshot = await deps.transcript.ensure(ref);
     return snapshot.ok ? ok({ view: snapshot.value.view }) : trimFailure(snapshot);
   }

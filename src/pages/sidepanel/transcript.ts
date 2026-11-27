@@ -5,6 +5,7 @@ import { describe } from "../../core/errors.ts";
 import { EXTENSIONS, MAX_FILE_BYTES } from "../../core/transcript/import-file.ts";
 import { parseVideoKey, type VideoKey } from "../../core/video-ref.ts";
 import type { TranscriptFailure, TranscriptView } from "../../shared/messages/transcript.ts";
+import { captionsInPage } from "../../sites/rules.ts";
 import type { PageApi } from "../shared/api.ts";
 import type { UiLang } from "../shared/ui-lang.ts";
 import { panelTextOf } from "./text.ts";
@@ -26,9 +27,10 @@ export interface LoadOptions {
   readonly localOnly?: boolean;
 }
 
-/** 这个视频的字幕要用户点了才读：YouTube 只在用户点读取时读页面上的文字稿。 */
+/** 这个视频的字幕要用户点了才读：YouTube 只在用户点读取时读页面上的文字稿。认不出的视频键不算。 */
 export function readsOnClick(video: VideoKey): boolean {
-  return parseVideoKey(video)?.platform === "youtube";
+  const ref = parseVideoKey(video);
+  return ref !== null && captionsInPage(ref.platform);
 }
 
 export interface TranscriptStore {

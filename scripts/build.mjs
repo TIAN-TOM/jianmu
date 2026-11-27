@@ -10,6 +10,7 @@ import { DAILY_FEATURES, featureDefines, FEATURE_GLOBALS, FEATURE_NAMES, RELEASE
 import { PAGE_PATHS } from "../src/shared/names.ts";
 import { youtubeRules } from "../src/sites/youtube/url.ts";
 import { buildFlagsRecord, clearBuildFlags, featuresFromArgs, writeBuildFlags } from "./lib/build-flags.mjs";
+import { bundlesFor } from "./lib/bundles.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = join(ROOT, "build");
@@ -69,27 +70,6 @@ const shared = {
   plugins: [promptText],
 };
 
-// 页面各打一个自包含的 ESM 包，不开代码拆分，产物清单才稳定。首帧外观脚本在页面 <head> 里同步加载，打成经典脚本。
-/** @type {import("esbuild").BuildOptions[]} */
-const bundles = [
-  { entryPoints: ["src/background/main.ts"], outfile: "build/background.js", format: "iife" },
-  { entryPoints: ["src/pages/sidepanel/main.tsx"], outfile: "build/pages/sidepanel.js", format: "esm" },
-  { entryPoints: ["src/pages/options/main.tsx"], outfile: "build/pages/options.js", format: "esm" },
-  { entryPoints: ["src/pages/triage/main.tsx"], outfile: "build/pages/triage.js", format: "esm" },
-  { entryPoints: ["src/pages/shared/theme-boot.ts"], outfile: "build/pages/theme-boot.js", format: "iife" },
-  { entryPoints: ["src/pages/card/main.tsx"], outfile: "build/pages/card.js", format: "esm" },
-  { entryPoints: ["src/content/bilibili.ts"], outfile: "build/content/bilibili.js", format: "iife" },
-];
-
-// 只在开关打开时构建的入口：YouTube 的内容脚本运行时按授权动态注册，开关关着时这个文件不出现在产物里。
-/** @type {Readonly<Record<string, readonly import("esbuild").BuildOptions[]>>} */
-const FEATURE_BUNDLES = {
-  youtube: [
-    { entryPoints: ["src/content/youtube.ts"], outfile: "build/content/youtube.js", format: "iife" },
-    { entryPoints: ["src/content/youtube-bridge.ts"], outfile: "build/content/youtube-bridge.js", format: "iife" },
-  ],
-};
-
 /**
  * 每个包的完整选项。开关换成字面量以后，只从关着的分支引用的模块整段摇掉；不开 minifySyntax，
  * 直接写在死分支里的字面量会留在包里，所以开关保护的内容要放进单独的模块。
@@ -98,8 +78,7 @@ const FEATURE_BUNDLES = {
  */
 export function bundleOptions(features) {
   const define = { __JIANMU_BUILD_ID__: JSON.stringify(buildId(features)), ...featureDefines(features) };
-  const gated = Object.entries(FEATURE_BUNDLES).flatMap(([name, list]) => (features[/** @type {keyof typeof features} */ (name)] === true ? list : []));
-  return [...bundles, ...gated].map((bundle) => ({ ...shared, ...bundle, define }));
+  return bundlesFor(features).map((bundle) => ({ ...shared, ...bundle, entryPoints: [...bundle.entryPoints], define }));
 }
 
 /**

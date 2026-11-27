@@ -6,7 +6,7 @@ import { parseVideoKey } from "../../core/video-ref.ts";
 import type { Tabs } from "../../platform/tabs.ts";
 import type { OpenTranscriptRequest, OpenTranscriptResult } from "../../shared/messages/youtube.ts";
 import type { Route } from "../router.ts";
-import { isVideoKey } from "./validate.ts";
+import { isPlainObject, isVideoKey } from "./validate.ts";
 
 /** 同一个标签页两次代开之间至少隔这么久。 */
 export const OPEN_TRANSCRIPT_GAP_MS = 3000;
@@ -17,9 +17,6 @@ export interface YoutubeRouteDeps {
 }
 
 type YoutubeRoutes = { readonly [K in "youtube.openTranscript"]: Route<K> };
-
-const isPlainObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
 
 const isOpenRequest = (req: unknown): req is OpenTranscriptRequest =>
   isPlainObject(req) &&

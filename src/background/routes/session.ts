@@ -3,7 +3,8 @@
 import { fail, ok } from "../../core/errors.ts";
 import { isMode } from "../../core/mode/decide.ts";
 import type { CardOverride } from "../../core/mode/types.ts";
-import { parseVideoKey, videoKey, type Platform, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
+import { parseVideoKey, videoKeyOrNull, type Platform, type VideoKey } from "../../core/video-ref.ts";
+import { CONTENT_SENDERS } from "../../shared/messages.ts";
 import type {
   CardOverrideRequest,
   ChannelForgetRequest,
@@ -19,7 +20,7 @@ import type { HandlerCtx, Route } from "../router.ts";
 import type { SenderCtx } from "../senders.ts";
 import type { Sessions } from "../sessions.ts";
 import type { ChannelStore } from "../stores/channels.ts";
-import { isEmptyRequest, isVideoKey } from "./validate.ts";
+import { isEmptyRequest, isPlainObject, isTabId, isVideoKey, keysWithin } from "./validate.ts";
 
 export interface SessionRouteDeps {
   readonly sessions: Sessions;
@@ -39,16 +40,8 @@ const MAX_SECONDS = 7 * 24 * 3600;
 const CHANNEL_ID = /^@?[A-Za-z0-9_.-]{1,64}$/;
 const CARD_OVERRIDES: ReadonlySet<unknown> = new Set<CardOverride>(["expanded", "collapsed"]);
 
-const isPlainObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
-
-/** 必须有 required 里的键，别的键只能是 optional 里的。 */
-const keysWithin = (value: Readonly<Record<string, unknown>>, required: readonly string[], optional: readonly string[] = []): boolean =>
-  required.every((key) => Object.hasOwn(value, key)) && Object.keys(value).every((key) => required.includes(key) || optional.includes(key));
-
 const isSeconds = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= MAX_SECONDS;
-const isTabId = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0;
 
 function isInfoRequest(req: unknown): req is PlaybackInfoRequest {
   return (
@@ -99,14 +92,6 @@ function isOverrideRequest(req: unknown): req is CardOverrideRequest {
   return isPlainObject(req) && keysWithin(req, ["video", "value"]) && isVideoKey(req.video) && CARD_OVERRIDES.has(req.value);
 }
 
-function keyOf(ref: VideoRef): VideoKey | null {
-  try {
-    return videoKey(ref);
-  } catch {
-    return null;
-  }
-}
-
 interface ContentTab {
   readonly tabId: number;
   readonly site: Platform;
@@ -116,7 +101,7 @@ interface ContentTab {
 /** 内容脚本所在的标签页和地址上的视频。消息里的视频只作提示，和地址上的对不上就不认。 */
 function contentTab({ sender }: HandlerCtx, claimed: VideoKey): ContentTab | "FORBIDDEN" | "VIDEO_CHANGED" {
   if (!("site" in sender) || sender.tabId === undefined) return "FORBIDDEN";
-  const actual = keyOf(sender.video);
+  const actual = videoKeyOrNull(sender.video);
   return actual === claimed ? { tabId: sender.tabId, site: sender.site, video: actual } : "VIDEO_CHANGED";
 }
 
@@ -126,7 +111,7 @@ export function sessionRoutes({ sessions, channels, playbackLimits, panels }: Se
 
   return {
     "playback.info": {
-      senders: ["content:bilibili", "content:youtube"],
+      senders: CONTENT_SENDERS,
       video: "from-sender",
       validate: isInfoRequest,
       async handler(req, ctx) {
@@ -144,7 +129,7 @@ export function sessionRoutes({ sessions, channels, playbackLimits, panels }: Se
       },
     },
     "playback.milestone": {
-      senders: ["content:bilibili", "content:youtube"],
+      senders: CONTENT_SENDERS,
       video: "from-sender",
       validate: isMilestoneRequest,
       async handler(req, ctx) {

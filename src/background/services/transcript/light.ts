@@ -10,7 +10,7 @@
 import type { ClearGuard } from "../../../core/clear-guard.ts";
 import { withTimeout } from "../../../core/concurrency.ts";
 import { fail, ok, trimFailure, type Failure } from "../../../core/errors.ts";
-import type { Platform, VideoKey, VideoRef } from "../../../core/video-ref.ts";
+import type { VideoKey, VideoRef } from "../../../core/video-ref.ts";
 import type {
   GuidesFailure,
   GuidesReply,
@@ -23,6 +23,7 @@ import type {
   TranscriptView,
   VideoInfoView,
 } from "../../../shared/messages/transcript.ts";
+import { captionsInPage } from "../../../sites/rules.ts";
 import type { SiteCtx, SiteService, VideoInfo } from "../../../sites/types.ts";
 import { errorLabel, type Log } from "../../log.ts";
 import type { OverviewStore } from "../../stores/overviews.ts";
@@ -40,8 +41,6 @@ export const LIGHT_JOIN_MS = 4_000;
 // 读不到字幕的这两种情况告诉卡片；被限流、超时这些过一阵再试可能就好了，不说成没有字幕。
 const UNAVAILABLE: ReadonlySet<string> = new Set<TranscriptUnavailable>(["NO_CAPTIONS", "NEED_LOGIN"]);
 
-// 字幕和视频信息都只能经页面读、而且要用户点了读取才读的站：卡片不为自己去读。
-const LOCAL_ONLY: ReadonlySet<Platform> = new Set<Platform>(["youtube"]);
 // 本机连视频信息都没有时给卡片的：卡片不写标题，也不按它定模式。
 const NO_INFO: VideoInfoView = { title: "", author: "", description: "", durationSec: 0 };
 
@@ -279,7 +278,8 @@ export function createLight(deps: LightDeps): Light {
 
   return {
     async read(ref, video, tabId) {
-      if (LOCAL_ONLY.has(ref.platform)) return localOnly(ref, video, tabId);
+      // 字幕和视频信息都只能经页面读、而且要用户点了读取才读的站：卡片不为自己去读。
+      if (captionsInPage(ref.platform)) return localOnly(ref, video, tabId);
       const forCard = tabId !== undefined;
       // 已经有轻量读取在路上就并进它；没有时看完整读取。
       if (!requests.has(video)) {

@@ -1,6 +1,7 @@
 // 后台和观看页之间读文字稿面板的一问一答：问的形状、页面回的快照，以及后台对快照的核对。只有类型和纯函数。
 // 页面和网页共享这块地方，回来的快照按不可信输入核对：字段、类型、大小、视频身份都要对得上，不对的整份不用。
 // 顶层只放字面量和函数：构建开关关着时整个模块不进包。
+import { isRecord } from "../../../shared/guards.ts";
 
 /**
  * 后台问页面要的三种东西：面板快照；只问页面现在是哪个视频、面板内容换过几次；
@@ -102,7 +103,6 @@ export const LANG_CODE = /^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/;
 // 字幕的最后一句可以比视频时长晚这么一点，再晚就不是这个视频的。
 export const END_SLACK_SEC = 5;
 
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null && !Array.isArray(value);
 const isText = (value: unknown, max: number): value is string => typeof value === "string" && value.length <= max;
 const isSeconds = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= PANEL_LIMITS.seconds;
 const isCount = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0;

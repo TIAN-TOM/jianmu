@@ -6,7 +6,7 @@
 // 生成完把读到的字幕摆出来；只想看字幕的照旧点下面的「读取字幕」（开发者本人 2026-11-25 定）。
 import { groupQuotesIntoChapters, type ChapterPart, type QuotePart } from "../../core/ai/chunking.ts";
 import { keyChapterStarts } from "../../core/ai/verdict.ts";
-import type { LearningAnalysis } from "../../core/notes/markdown.ts";
+import type { LearningAnalysis } from "../../core/notes/records.ts";
 import { breaksToShow, lineBreaks, splitRuns } from "../../core/transcript/lines.ts";
 import { formatTimestamp, type TranscriptSegment } from "../../core/transcript/segment.ts";
 import type { CueView } from "../../shared/messages/transcript.ts";

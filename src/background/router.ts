@@ -7,7 +7,7 @@ import type { Platform } from "../core/video-ref.ts";
 import { jsonCopy, type PortLike } from "../platform/messaging.ts";
 import { isSettingsError } from "../platform/settings-store.ts";
 import { isQuotaError } from "../platform/storage.ts";
-import type { Api, PageName, PortEvent, PortMessage, PortName, PortNotice, RouteName, SenderKind } from "../shared/messages.ts";
+import { CONTENT_SENDERS, type Api, type PageName, type PortEvent, type PortMessage, type PortName, type PortNotice, type RouteName, type SenderKind } from "../shared/messages.ts";
 import type { FrameRouteName } from "../shared/messages/frame.ts";
 import type { YoutubeRouteName } from "../shared/messages/youtube.ts";
 import type { ContentTabs } from "./content-tabs.ts";
@@ -120,7 +120,7 @@ export interface Router {
   readonly closeBusinessPorts: (code: ErrorCode) => void;
 }
 
-const CONTENT_KINDS: readonly SenderKind[] = ["content:bilibili", "content:youtube"];
+const CONTENT_KINDS: readonly SenderKind[] = CONTENT_SENDERS;
 
 interface Envelope {
   readonly type: string;

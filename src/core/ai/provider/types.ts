@@ -1,7 +1,7 @@
 // 协议层用到的形状。响应和报错来自服务方，形状不可信：这里只写读得到时的样子，
 // 读取的地方都留着 ?. 和 Array.isArray 的判断。
 import type { ClearEpoch } from "../../clear-guard.ts";
-import type { Effort } from "../../notes/records.ts";
+import type { Effort } from "../effort-level.ts";
 import type { ResponseSchema } from "../schemas.ts";
 import type { Protocol } from "./endpoint.ts";
 

@@ -4,7 +4,7 @@
 import type { ClearEpoch, ClearGuard, ClearScope } from "../../../core/clear-guard.ts";
 import { fail, ok, type ErrorCode, type Result } from "../../../core/errors.ts";
 import { transcriptFingerprint } from "../../../core/transcript/fingerprint.ts";
-import { videoKey, type VideoKey, type VideoRef } from "../../../core/video-ref.ts";
+import { videoKeyOrNull, type VideoKey, type VideoRef } from "../../../core/video-ref.ts";
 import type { EmptyRequest } from "../../../shared/messages/core.ts";
 import type { ImportReceipt } from "../../../shared/messages/imports.ts";
 import type { GuidesReply, TranscriptFailure, VideoInfoView, TranscriptReadMode, TranscriptReply, TranscriptView } from "../../../shared/messages/transcript.ts";
@@ -100,14 +100,6 @@ const TITLE_FALLBACK: ReadonlySet<ErrorCode> = new Set<ErrorCode>(["NEED_LOGIN",
 
 /** 缓存里已有平台或导入的字幕：官方总结附带的字幕不顶替它。只认真进了缓存的，内存里记着的对不上的那份不算。 */
 const keepsCaptions = (current: CachedTranscript | null): current is TranscriptRecord => hasTranscript(current) && current.transcript.ref.kind !== "official-ai";
-
-const keyOf = (ref: VideoRef): VideoKey | null => {
-  try {
-    return videoKey(ref);
-  } catch {
-    return null;
-  }
-};
 
 /** 每个调用方拿自己的一层外壳，谁往结果上补字段都不影响一起等的另一方。 */
 const shell = (reply: TranscriptReply): TranscriptReply => (reply.ok ? { ok: true, value: { ...reply.value } } : { ...reply });
@@ -382,7 +374,7 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
 
   const service: TranscriptService = {
     async get(ref, { mode, lang = "", fresh = false, tabId }) {
-      const video = keyOf(ref);
+      const video = videoKeyOrNull(ref);
       if (!video) return fail("INVALID_REQUEST");
       // 这个视频正在导入或移除字幕文件：等做完再读。
       const changing = imports.pending(video);
@@ -408,7 +400,7 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
     },
 
     async ensure(ref) {
-      const video = keyOf(ref);
+      const video = videoKeyOrNull(ref);
       if (!video) return fail("INVALID_REQUEST");
       // 代数在读之前记：读的工夫换了字幕文件，调用方写回前就看得出来。
       const generation = generationOf(video);
@@ -417,7 +409,7 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
     },
 
     async light(ref, tabId) {
-      const video = keyOf(ref);
+      const video = videoKeyOrNull(ref);
       if (!video) return fail("INVALID_REQUEST");
       const changing = imports.pending(video);
       if (changing) await changing;
@@ -425,7 +417,7 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
     },
 
     async knownDuration(ref) {
-      const video = keyOf(ref);
+      const video = videoKeyOrNull(ref);
       if (!video) return null;
       const known = (seconds: number | undefined): number | null => (typeof seconds === "number" && seconds > 0 ? seconds : null);
       try {
@@ -439,7 +431,7 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
 
     async verify(ref) {
       const site = deps.sites.service(ref.platform);
-      if (!site || !keyOf(ref)) return fail("NOT_FOUND");
+      if (!site || !videoKeyOrNull(ref)) return fail("NOT_FOUND");
       try {
         // 截帧前的核对照旧要登录：没登录不截。
         const read = await site.readVideoInfo(ref, deps.sites.ctx(ref.platform, { signal: new AbortController().signal }));
@@ -452,7 +444,7 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
 
     async checkAvailable(ref) {
       const site = deps.sites.service(ref.platform);
-      if (!site || !keyOf(ref)) return true;
+      if (!site || !videoKeyOrNull(ref)) return true;
       try {
         const read = await site.readVideoInfo(ref, deps.sites.ctx(ref.platform, { signal: new AbortController().signal }));
         return read.ok || read.code !== "NOT_FOUND";
@@ -464,7 +456,7 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
     },
 
     async importFile(ref, file) {
-      const video = keyOf(ref);
+      const video = videoKeyOrNull(ref);
       if (!video) return fail("INVALID_REQUEST");
       const added = await imports.add(video, file);
       if (added.ok) awaitingReplacement.delete(video);
@@ -472,7 +464,7 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
     },
 
     async removeImport(ref) {
-      const video = keyOf(ref);
+      const video = videoKeyOrNull(ref);
       if (!video) return fail("INVALID_REQUEST");
       const removed = await imports.remove(video);
       if (removed.ok) awaitingReplacement.add(video);
@@ -480,7 +472,7 @@ export function createTranscriptService(deps: TranscriptDeps): TranscriptService
     },
 
     generation(ref) {
-      const video = keyOf(ref);
+      const video = videoKeyOrNull(ref);
       return video ? generationOf(video) : 0;
     },
 

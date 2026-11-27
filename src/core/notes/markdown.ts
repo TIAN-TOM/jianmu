@@ -5,11 +5,13 @@ import { keyChapterStarts, verdictText, type OfficialSummary } from "../ai/verdi
 import { inLang, type OutputLang } from "../output-lang.ts";
 import { MARKDOWN_HANT } from "./markdown-hant.ts";
 import { formatTimestamp } from "../transcript/segment.ts";
+import { secondsOrNull } from "../transcript/seconds.ts";
 import { parseVideoKey, type VideoKey, type VideoRef } from "../video-ref.ts";
 import {
   normalizeAnalysisFailures,
   noteList,
   videoIdOf,
+  type LearningAnalysis,
   type NoteFields,
   type NoteList,
 } from "./records.ts";
@@ -81,27 +83,6 @@ const textOf = (lang: OutputLang | undefined): MarkdownText => inLang(lang ?? "z
 /** 导出文件在视频没有标题时用的名字：笔记导出（notes）和学习稿（learning）各一个。 */
 export function markdownFallbackName(kind: "notes" | "learning", lang: OutputLang = "zh"): string {
   return kind === "notes" ? textOf(lang).fileNotes : textOf(lang).fileLearning;
-}
-
-export interface LearningVerdict {
-  readonly summary?: unknown;
-  readonly value?: unknown;
-  readonly verdict?: unknown;
-  readonly reason?: unknown;
-  readonly source?: unknown;
-  readonly incomplete?: unknown;
-  /** 重点章节的起始秒，只认和现有章节对得上的。 */
-  readonly keyStarts?: unknown;
-  /** 模型的正文被截断，靠补齐读出来：摘要或理由可能只有半句。 */
-  readonly truncated?: unknown;
-  /** 视频标题译成结论语言的样子，只有侧边栏顶上的标题用；导出照旧用原标题。 */
-  readonly translatedTitle?: unknown;
-}
-
-export interface LearningAnalysis {
-  readonly chapters?: readonly ChapterPart[] | null;
-  readonly keyQuotes?: readonly QuotePart[] | null;
-  readonly verdict?: LearningVerdict | null;
 }
 
 /** UP 主给视频划的一段。 */
@@ -273,12 +254,6 @@ function localDate(value: string | number | Date | undefined): string {
   if (Number.isNaN(date.getTime())) return "";
   const pad = (part: number): string => String(part).padStart(2, "0");
   return `${String(date.getFullYear()).padStart(4, "0")}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-function secondsOrNull(value: unknown): number | null {
-  if (value === null || value === undefined || value === "") return null;
-  const seconds = Number(value);
-  return Number.isFinite(seconds) && seconds >= 0 ? seconds : null;
 }
 
 // 时间戳缺失时只写文字，不编一个 0:00 出来。text 是调用方已经转义、续行过的正文。

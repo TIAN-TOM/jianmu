@@ -1,6 +1,7 @@
 // 简幕自己的备份格式：导出、先认格式再读。旧格式交给 legacy-reader，合并在 merge。
 // 备份带笔记、概览、问答，第 2 版起加上译文和整理后的字幕（花额度换来的，重装就没了）；
 // 密钥、设置、提示词和链接这类字段一律不进文件，记录过一遍校验只留认得的字段。第 1 版的备份照常能读。
+import { isRecord } from "../../shared/guards.ts";
 import { fail, ok, type Result } from "../errors.ts";
 import type { NoteRecord, OverviewRecord, QaRecord, TranslationRecord } from "../notes/records.ts";
 import { isLegacyBackup, readLegacyBackup } from "./legacy-reader.ts";
@@ -9,7 +10,6 @@ import {
   checkOverview,
   checkQa,
   checkTranslation,
-  isFields,
   keepValid,
   RECORD_KINDS,
   type BackupContents,
@@ -103,7 +103,7 @@ function readCurrent(payload: Fields): Result<ImportedBackup> {
  * 整份结构坏了（该是列表的不是列表）才整份拒绝，detail 是坏的那一类；单条记录坏了只跳过并计数。
  */
 export function readBackup(payload: unknown): Result<ImportedBackup> {
-  if (!isFields(payload)) return fail("BACKUP_UNRECOGNIZED");
+  if (!isRecord(payload)) return fail("BACKUP_UNRECOGNIZED");
   if (payload.kind === BACKUP_KIND) return readCurrent(payload);
   if (isLegacyBackup(payload)) return readLegacyBackup(payload);
   return fail("BACKUP_UNRECOGNIZED");

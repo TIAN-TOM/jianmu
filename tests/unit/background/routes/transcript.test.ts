@@ -91,7 +91,7 @@ test("卡片只能用轻量读取：问视频信息和官方总结、列一次�
 
 test("YouTube 卡片的轻量读取本机没有字幕时只问卡片自己所在的标签页；侧边栏和扩展页面的轻量读取不问页面", async () => {
   const fakeSite = fakeSiteService({ noCaptions: () => true });
-  const tube = { ...fakeSite.service, rules: { ...fakeSite.service.rules, platform: "youtube" as const } };
+  const tube = { ...fakeSite.service, rules: { ...fakeSite.service.rules, platform: "youtube" as const, captions: "page" as const } };
   const fake = createFakeChrome({ local: { [SETTINGS_STORAGE_KEY]: CONFIRMED }, site: tube });
   const app = createApp(fake.deps({ warn() {}, error() {} }));
   const video = videoKey({ platform: "youtube", videoId: "tube-sample" });

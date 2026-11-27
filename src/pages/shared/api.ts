@@ -4,6 +4,7 @@
 import { fail, isErrorCode, type ErrorCode } from "../../core/errors.ts";
 import type { VideoKey } from "../../core/video-ref.ts";
 import type { PortLike } from "../../platform/messaging.ts";
+import { isTabId } from "../../shared/guards.ts";
 import type { Api, Broadcast, BroadcastType, PortEvent, PortMessage, PortName, Reply, RouteName } from "../../shared/messages.ts";
 import { FRAME_BROADCAST_SHAPES, FRAME_IDEMPOTENT_ROUTES } from "./frame-api.ts";
 
@@ -82,19 +83,19 @@ interface BroadcastKeys {
   readonly tabId?: number;
 }
 
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null;
+// 数组也算对象，不用 shared/guards.ts 的 isRecord：概览预览的 analysis、会话广播的 session 是数组时照收，端口发来的数组消息也照样交给 onEvent。
+const isObject = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null;
 const isText = (value: unknown): value is string => typeof value === "string" && value !== "";
-const isTabId = (value: unknown): value is number => Number.isInteger(value) && Number(value) >= 0;
 
 // 只核对过滤和收件方要用的字段：缺了它们的广播一律不收，免得被当成发给所有视频的。
 // 解释当前画面那一种只在构建开关打开时认。
 const BROADCAST_SHAPES = {
-  "task.changed": ({ task }) => isRecord(task) && isText(task.id) && isText(task.video),
-  "overview.preview": ({ video, taskId, analysis }) => isText(video) && isText(taskId) && isRecord(analysis),
+  "task.changed": ({ task }) => isObject(task) && isText(task.id) && isText(task.video),
+  "overview.preview": ({ video, taskId, analysis }) => isText(video) && isText(taskId) && isObject(analysis),
   "overview.updated": ({ video, verdictPending }) => isText(video) && typeof verdictPending === "boolean",
   "notes.changed": ({ video }) => video === undefined || isText(video),
   "transcript.changed": ({ video }) => isText(video),
-  "session.changed": ({ tabId, session }) => isTabId(tabId) && isRecord(session),
+  "session.changed": ({ tabId, session }) => isTabId(tabId) && isObject(session),
   "data.cleared": ({ scope }) => scope === "cache" || scope === "all",
   "panel.follow": ({ tabId }) => isTabId(tabId),
   "panel.changed": ({ windowId, open }) => Number.isInteger(windowId) && typeof open === "boolean",
@@ -105,7 +106,7 @@ const BROADCAST_SHAPES = {
 } as Readonly<Record<BroadcastType, (message: Readonly<Record<string, unknown>>) => boolean>>;
 
 function isBroadcast(message: unknown): message is Broadcast {
-  if (!isRecord(message) || typeof message.type !== "string" || !Object.hasOwn(BROADCAST_SHAPES, message.type)) return false;
+  if (!isObject(message) || typeof message.type !== "string" || !Object.hasOwn(BROADCAST_SHAPES, message.type)) return false;
   return BROADCAST_SHAPES[message.type as BroadcastType](message);
 }
 
@@ -264,7 +265,7 @@ export function createPageApi({ runtime = chrome.runtime, sleep = realSleep, rep
     }
     ports.add(closeQuietly);
     port.onMessage.addListener((message) => {
-      if (!open || !isRecord(message)) return;
+      if (!open || !isObject(message)) return;
       if (message.type === "port.error") {
         reason = isErrorCode(message.code) ? message.code : "BACKGROUND_FAILED";
         handlers.onEvent({ type: "port.error", code: reason } as PortEvent<P>);

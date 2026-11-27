@@ -3,14 +3,11 @@
 // 问答走带随机标记的页面事件；网页也看得见这些事件，内容脚本那头按不可信输入核对。
 import { INJECTED } from "../../../shared/names.ts";
 import { PANEL_LIMITS, type PlayerTrack, type PlayerTracks } from "./panel-types.ts";
+import { AUTO_KIND, fields, TOKEN } from "./values.ts";
 
 const PLAYER = "movie_player";
-const AUTO_KIND = "asr";
 const PLAYABLE = "OK";
-const TOKEN = /^[\w-]{8,64}$/;
 
-type Fields = Readonly<Record<string, unknown>>;
-const fields = (value: unknown): Fields | null => (typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Fields) : null);
 const text = (value: unknown, max: number): string => (typeof value === "string" ? value.slice(0, max) : "");
 
 function nameOf(value: unknown): string {

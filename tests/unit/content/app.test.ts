@@ -10,6 +10,7 @@ import type { VideoRef } from "../../../src/core/video-ref.ts";
 import { INJECTED } from "../../../src/shared/names.ts";
 import type { SitePage } from "../../../src/sites/page-types.ts";
 import { EXTENSION_ID } from "../../helpers/chrome.ts";
+import { nextTurn } from "../../helpers/deferred.ts";
 import { fakeRuntime } from "../../helpers/fake-runtime.ts";
 import { manualTimers } from "../../helpers/manual-timers.ts";
 import { stillFalse, until } from "../../helpers/wait-until.ts";
@@ -38,7 +39,7 @@ function setup(
   const signals: AbortSignal[] = [];
   let ready: (() => void) | null = null;
   const page: SitePage = {
-    rules: { platform: "bilibili", optionalPermission: false, parseWatchUrl: () => VIDEO, canonicalUrl: () => "", permissionOrigins: [], scriptMatches: [] },
+    rules: { platform: "bilibili", optionalPermission: false, captions: "service", parseWatchUrl: () => VIDEO, canonicalUrl: () => "", permissionOrigins: [], scriptMatches: [] },
     noteShortcut: "n",
     currentRef: () => (pageReads.push("currentRef"), VIDEO),
     onVideoChange: () => (pageReads.push("onVideoChange"), () => undefined),
@@ -106,7 +107,7 @@ test("确认启用之前：问一次启用状态，只挂一个消息监听，�
   const { fake, app, pageReads, surfaces, hooks } = setup();
   app.start();
   assert.ok(await until(() => fake.attempts("activation.get") === 1));
-  await new Promise((resolve) => setImmediate(resolve));
+  await nextTurn();
   assert.equal(fake.listeners(), 1);
   assert.deepEqual(pageReads, []);
   assert.deepEqual(hooks, []);
@@ -117,7 +118,7 @@ test("确认启用之前：问一次启用状态，只挂一个消息监听，�
   fake.broadcast({ type: "appearance.changed", accentTheme: "redblack", inPageCard: true, language: "auto" });
   fake.broadcast({ type: "player.getState", req: { video: "bilibili:BV1Sample001:p1" } });
   fake.broadcast({ type: "data.cleared", scope: "all" });
-  await new Promise((resolve) => setImmediate(resolve));
+  await nextTurn();
   assert.deepEqual(pageReads, []);
   assert.equal(surfaces.length, 0);
 });
@@ -128,7 +129,7 @@ test("收到确认启用的广播后再问一次，算数才等页面激活、�
   assert.ok(await until(() => fake.attempts("activation.get") === 1));
   setActivation(CURRENT);
   fake.broadcast({ type: "activation.changed", confirmed: true }, { id: "another-extension" });
-  await new Promise((resolve) => setImmediate(resolve));
+  await nextTurn();
   assert.equal(fake.attempts("activation.get"), 1);
 
   fake.broadcast({ type: "activation.changed", confirmed: true });
@@ -169,10 +170,10 @@ for (const [label, message] of [
     fake.broadcast(message);
     assert.equal(surfaces[0]?.removed, true, "不等后台回答，马上撤下");
     assert.ok(await until(() => fake.attempts("activation.get") === 2));
-    await new Promise((resolve) => setImmediate(resolve));
+    await nextTurn();
     const readsAfterLoss = pageReads.length;
     fake.broadcast({ type: "appearance.changed", accentTheme: "redblack", inPageCard: true, language: "auto" });
-    await new Promise((resolve) => setImmediate(resolve));
+    await nextTurn();
     assert.equal(pageReads.length, readsAfterLoss, "撤下以后不再读页面");
     assert.equal(surfaces[0]?.appearance.length, 1);
 
@@ -193,7 +194,7 @@ test("等页面激活的途中启用失效：中止等待，不挂界面", async
   setActivation(NEEDED);
   fake.broadcast({ type: "activation.changed", confirmed: false });
   assert.equal(signals[0]?.aborted, true);
-  await new Promise((resolve) => setImmediate(resolve));
+  await nextTurn();
   assert.equal(surfaces.length, 0);
 });
 
@@ -205,7 +206,7 @@ test("问不到后台时隔一会儿再问，几次以后只等广播", async ()
     assert.ok(await until(() => timers.due(wait) === 1), `第 ${index + 1} 次重问排上了`);
     timers.fire(wait);
   }
-  await new Promise((resolve) => setImmediate(resolve));
+  await nextTurn();
   assert.equal(timers.pending(), 0);
   assert.deepEqual(pageReads, []);
 });
@@ -251,7 +252,7 @@ test("撤了自己这个站的授权：还没问到启用状态也先叫一声�
   assert.ok(await until(() => fake.attempts("activation.get") === 1));
   fake.broadcast({ type: "site.changed", platform: "bilibili", enabled: false });
   fake.broadcast({ type: "site.changed", platform: "youtube", enabled: true });
-  await new Promise((resolve) => setImmediate(resolve));
+  await nextTurn();
   assert.equal(revoked, 0);
   fake.broadcast({ type: "site.changed", platform: "youtube", enabled: false });
   assert.ok(await until(() => revoked === 1));
@@ -267,7 +268,7 @@ test("撤了自己这个站的授权：整套撤下、不再响应；别的站�
   assert.ok(await until(() => surfaces.length === 1));
   fake.broadcast({ type: "site.changed", platform: "bilibili", enabled: false });
   fake.broadcast({ type: "site.changed", platform: "youtube", enabled: true });
-  await new Promise((resolve) => setImmediate(resolve));
+  await nextTurn();
   assert.equal(surfaces[0]?.removed, false);
   fake.broadcast({ type: "site.changed", platform: "youtube", enabled: false });
   assert.ok(await until(() => surfaces[0]?.removed === true));
@@ -345,7 +346,7 @@ test("截帧指令：确认以后才建截帧工具、交给它，等它异步�
   app.start();
   assert.ok(await until(() => fake.attempts("activation.get") === 1));
   fake.broadcast(capture, undefined, reply);
-  await new Promise((resolve) => setImmediate(resolve));
+  await nextTurn();
   assert.deepEqual(replies, [], "确认前不回");
   assert.equal(fake.listenerResults.at(-1), false);
   assert.equal(identities.length, 0, "确认前不建截帧工具");
@@ -382,7 +383,7 @@ test("构建开关关着时没有截帧工具：截帧指令没人回，界面�
   assert.equal(surfaces[0]?.frame, undefined);
   const replies: unknown[] = [];
   fake.broadcast({ type: "player.captureFrame", req: { video: "bilibili:BV1Sample001:p1", maxEdge: 1456 } }, undefined, (value) => void replies.push(value));
-  await new Promise((resolve) => setImmediate(resolve));
+  await nextTurn();
   assert.deepEqual(replies, []);
   assert.equal(fake.listenerResults.at(-1), false);
 });

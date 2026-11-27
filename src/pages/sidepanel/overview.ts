@@ -2,7 +2,7 @@
 // 生成先登记任务再开始；重开面板时从任务表接上还在跑的，跟着任务广播收尾。换了视频，旧视频的回复和广播都不再进来。
 import { signal, type ReadonlySignal } from "@preact/signals";
 import { describe, type ErrorCode, type Failure } from "../../core/errors.ts";
-import type { LearningAnalysis } from "../../core/notes/markdown.ts";
+import type { LearningAnalysis } from "../../core/notes/records.ts";
 import type { TaskView } from "../../core/tasks.ts";
 import type { VideoKey } from "../../core/video-ref.ts";
 import type { OverviewResultView } from "../../shared/messages/overview.ts";

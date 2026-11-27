@@ -505,8 +505,7 @@ test("用官方总结写结论被停止：限流后的自动重发也听它的�
 // ============================================================
 
 test("官方总结结论进了概览仓储的写队列、还没写时清除了本机数据：不重建，也不报成功", async () => {
-  let queued!: () => void;
-  const reached = new Promise<void>((resolve) => (queued = resolve));
+  const { promise: reached, resolve: queued } = deferred();
   const h = overviewHarness({
     respond: officialOnly,
     wrapStore: (inner) => ({

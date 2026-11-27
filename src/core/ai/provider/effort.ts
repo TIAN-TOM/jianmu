@@ -1,14 +1,11 @@
 // 推理强度的映射，集中在这一张表：协议 × 域名 × 型号 × 档位 → 请求体补丁、实际生效的档位、输出余量和超时。
 // 选关时请求体的参数和以前一样（照样会思考的模型多留输出余量，见 planEffort）；Google 模型服务的兼容端点例外：关得掉的显式关，关不掉的按最低档发并标出。
 // 做不到的档位退到最接近的一档并标出，不悄悄退回不发。各档的数值都是初值。
-import type { Effort } from "../../notes/records.ts";
+import { EFFORTS, type Effort } from "../effort-level.ts";
 import { parseClaudeModel } from "./anthropic.ts";
 import { PROTOCOLS, type Protocol } from "./endpoint.ts";
 import { isOpenAiReasoningModel, openAiModelTraits } from "./openai.ts";
 import type { ClaudeCapabilities, EffortNote, EffortPlan, ModelCapabilities, RelaxState } from "./types.ts";
-
-/** 设置页能选的档位，从低到高。 */
-export const EFFORTS: readonly Effort[] = Object.freeze(["off", "low", "medium", "high"]);
 
 const LEVELS: readonly Effort[] = Object.freeze(["low", "medium", "high"]);
 
@@ -20,8 +17,6 @@ export const EFFORT_BUDGETS: Readonly<Record<Effort, { readonly outputHeadroom: 
     medium: Object.freeze({ outputHeadroom: 6144, timeoutSec: 180 }),
     high: Object.freeze({ outputHeadroom: 16384, timeoutSec: 300 }),
   });
-
-export const isEffort = (value: unknown): value is Effort => (EFFORTS as readonly unknown[]).includes(value);
 
 /** 地址的主机名，小写；地址不合法时是空串。 */
 export function hostOf(baseUrl: unknown): string {

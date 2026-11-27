@@ -1,13 +1,14 @@
 // 模型服务：配置检查给要发请求的页面看能不能用，打开就出结论停着时也一起说；拉模型列表、测试连接和推理强度预览只有设置页用得上。
 // 打开就出结论停着时，侧边栏和设置页上的「恢复」经 auto.resume 让它接着做，花不花额度由用户这一下决定。
 // 这里只拿接线给的入口，不直接碰传输层，所以路由层发不出不核对同意的请求。
+import { EFFORTS } from "../../core/ai/effort-level.ts";
 import { ok } from "../../core/errors.ts";
 import type { EffortPreviewRequest, TestConnectionRequest } from "../../shared/messages/ai.ts";
-import { EFFORTS, FEATURE_MODEL_SLOTS } from "../../shared/settings-schema.ts";
+import { FEATURE_MODEL_SLOTS } from "../../shared/settings-schema.ts";
 import type { AiWiring } from "../ai.ts";
 import type { AutoGenerate } from "../services/auto-generate.ts";
 import type { Route } from "../router.ts";
-import { isEmptyRequest } from "./validate.ts";
+import { isEmptyRequest, isRecord } from "./validate.ts";
 
 export interface AiRouteDeps {
   readonly ai: Pick<AiWiring, "configCheck" | "listModels" | "testConnection" | "effortPreview">;
@@ -25,9 +26,6 @@ function isTestRequest(req: unknown): req is TestConnectionRequest {
   const keys = Object.keys(req);
   return keys.length === 1 && keys[0] === "feature" && FEATURES.includes((req as { feature?: unknown }).feature);
 }
-
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 /** 空对象，或者只带一张档位表：表里只有认得的功能和档位。 */
 function isEffortPreviewRequest(req: unknown): req is EffortPreviewRequest {

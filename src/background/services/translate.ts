@@ -14,13 +14,13 @@ import { alignTranslatedSegments } from "../../core/ai/validate.ts";
 import type { ClearEpoch, ClearGuard } from "../../core/clear-guard.ts";
 import { mapWithConcurrency, waitOrStop } from "../../core/concurrency.ts";
 import { fail, ok, type Result } from "../../core/errors.ts";
-import type { Basis, Derived, TranscriptRef } from "../../core/notes/records.ts";
+import type { Basis, Derived, TextTarget, TranscriptRef } from "../../core/notes/records.ts";
 import { outputLangOf, type OutputLang } from "../../core/output-lang.ts";
 import type { FrozenGen, TaskOrigin, TaskView } from "../../core/tasks.ts";
 import { textFingerprint } from "../../core/transcript/fingerprint.ts";
 import type { TranscriptSegment } from "../../core/transcript/segment.ts";
 import { parseVideoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
-import type { TextPurpose, TextTarget, TranslateFailure, TranslateOut, TranslateTarget } from "../../shared/messages/translate.ts";
+import type { TextPurpose, TranslateFailure, TranslateOut } from "../../shared/messages/translate.ts";
 import { AI_CONCURRENCY } from "../../shared/settings-schema.ts";
 import { pauseReasonOf } from "./auto-generate.ts";
 import { errorLabel, type Log } from "../log.ts";
@@ -34,7 +34,7 @@ import { isTransientChunkFailure, promptMessages } from "./overview/chunks.ts";
 import type { TranscriptService } from "./transcript/index.ts";
 
 // 翻译提示词里「译成什么」的写法。
-const TARGET_LANG_NAMES: Readonly<Record<TranslateTarget, string>> = { zh: "简体中文", "zh-Hant": "繁体中文", en: "英文" };
+const TARGET_LANG_NAMES: Readonly<Record<OutputLang, string>> = { zh: "简体中文", "zh-Hant": "繁体中文", en: "英文" };
 
 export const TRANSLATE_PROMPT = "study/translation.md";
 /** 设置里「翻译」这一项的模型槽，沿用旧名。 */

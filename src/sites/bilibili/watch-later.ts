@@ -2,6 +2,7 @@
 import { videoKey } from "../../core/video-ref.ts";
 import type { SiteCtx, SiteResult, WatchLaterItem, WatchLaterList } from "../types.ts";
 import { isPlatformFileUrl, WATCH_LATER_URL, type BiliHttp } from "./http.ts";
+import { plainText } from "./raw-text.ts";
 import { parseBvid } from "./url.ts";
 import { paidStatus } from "./video-info.ts";
 
@@ -32,8 +33,6 @@ export interface WatchLaterDeps {
 
 const WATCH_LATER_TIMEOUT_MS = 15_000;
 const WATCHED_TO_END = -1;
-
-const plainText = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
 
 function positiveInt(value: unknown): number {
   const number = Number(value);

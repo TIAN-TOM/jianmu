@@ -76,9 +76,6 @@ const EXPORT_EN: ExportText = {
 
 const textOf = (lang: OutputLang): ExportText => inLang(lang, EXPORT_ZH, EXPORT_EN, EXPORT_HANT);
 
-/** 官方总结各种结果的说法，中文这份。 */
-export const OFFICIAL_STATUS_TEXT = Object.freeze(EXPORT_ZH.status);
-
 export function officialStatusText(
   record: OfficialRecord | null | undefined,
   item: TriageItem | null = null,

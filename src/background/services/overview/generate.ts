@@ -8,8 +8,7 @@ import { hasAnalysisContent } from "../../../core/ai/verdict.ts";
 import type { ClearEpoch, ClearGuard } from "../../../core/clear-guard.ts";
 import type { Limiter } from "../../../core/concurrency.ts";
 import { fail, isErrorCode, ok, trimFailure, type Failure, type Result } from "../../../core/errors.ts";
-import type { LearningAnalysis } from "../../../core/notes/markdown.ts";
-import { normalizeAnalysisFailures, type Basis, type OverviewPart } from "../../../core/notes/records.ts";
+import { normalizeAnalysisFailures, type Basis, type LearningAnalysis, type OverviewPart } from "../../../core/notes/records.ts";
 import { genInfo } from "../../../core/tasks.ts";
 import { localizePrompt } from "../../../core/ai/prompt.ts";
 import { outputLangOf, type OutputLang } from "../../../core/output-lang.ts";
@@ -333,5 +332,4 @@ export function createGenerator(deps: GenerateDeps) {
   };
 }
 
-export type Generator = ReturnType<typeof createGenerator>;
 export type { Job };

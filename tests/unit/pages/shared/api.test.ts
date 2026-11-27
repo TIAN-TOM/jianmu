@@ -10,6 +10,7 @@ import { createPageApi, IDEMPOTENT_ROUTES, RETRY_DELAY_MS, type PageApi } from "
 import { stateCopy } from "../../../../src/pages/shared/ui/state.ts";
 import type { RouteName } from "../../../../src/shared/messages.ts";
 import { EXTENSION_ID, SAMPLE_VIDEO_ID } from "../../../helpers/chrome.ts";
+import { nextTurn } from "../../../helpers/deferred.ts";
 import { BROWSER_ERRORS, fakeRuntime } from "../../../helpers/fake-runtime.ts";
 
 const VIDEO = videoKey({ platform: "bilibili", videoId: SAMPLE_VIDEO_ID });
@@ -379,7 +380,7 @@ test("长连接：连不上时按没送到后台回调一次；页面停止时�
   const closed: ErrorCode[] = [];
   const port = api.connect("batch", { onEvent: () => {}, onClose: (code) => void closed.push(code) });
   assert.equal(port.post({} as never), false);
-  await new Promise((resolve) => setImmediate(resolve));
+  await nextTurn();
   assert.deepEqual(closed, ["BACKGROUND_UNREACHABLE"]);
 
   const { fake: live, api: liveApi } = client();

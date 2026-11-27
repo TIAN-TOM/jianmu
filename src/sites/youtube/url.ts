@@ -76,6 +76,7 @@ export function trackName(trackId: string, lang: OutputLang): string | null {
 export const youtubeRules: SiteRules = {
   platform: "youtube",
   optionalPermission: true,
+  captions: "page",
   parseWatchUrl,
   canonicalUrl,
   permissionOrigins: [SITE_PATTERN],

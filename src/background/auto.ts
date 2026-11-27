@@ -11,6 +11,7 @@ import type { Broadcast } from "../shared/messages.ts";
 import type { TranscriptView } from "../shared/messages/transcript.ts";
 import { SETTINGS_REVISION_KEY, SETTINGS_STORAGE_KEY } from "../shared/names.ts";
 import { activationStatus } from "../shared/settings-schema.ts";
+import { captionsInPage, watchRefOf } from "../sites/rules.ts";
 import type { SiteRules } from "../sites/types.ts";
 import type { AiWiring } from "./ai.ts";
 import type { Log } from "./log.ts";
@@ -45,13 +46,7 @@ export interface AutoWiringDeps {
 
 export function createAutoWiring(deps: AutoWiringDeps): AutoGenerate {
   const { tasks, ai } = deps;
-  const parseWatchUrl = (url: string): VideoRef | null => {
-    for (const rule of deps.rules) {
-      const ref = rule.parseWatchUrl(url);
-      if (ref) return ref;
-    }
-    return null;
-  };
+  const parseWatchUrl = (url: string): VideoRef | null => watchRefOf(url, deps.rules);
   return createAutoGenerate({
     async settings() {
       const settings = await deps.settings.loadPublic();
@@ -66,14 +61,14 @@ export function createAutoWiring(deps: AutoWiringDeps): AutoGenerate {
     activeTab: deps.tabs.activeTab,
     videoTabs: async () => (await deps.tabs.allTabs(await deps.watchPages())).map(({ tabId, url }) => ({ id: tabId, url })),
     parseWatchUrl,
-    autoReads: (platform) => platform === "bilibili" || deps.pageTranscript !== null,
+    autoReads: (platform) => !captionsInPage(platform, deps.rules) || deps.pageTranscript !== null,
     configReady: async () => (await ai.configCheck()).ready,
     running: () => tasks.list().filter((task) => task.origin === "auto" && task.state === "running").length,
     hasOverview: async (video) => (await deps.overviews.find(video)) !== null,
     knownDuration: (ref) => deps.transcript.knownDuration(ref),
     async lightDuration(ref, tabId) {
       // 经页面读的站：本机不知道就问视频页，不点、不读字幕。
-      if (ref.platform !== "bilibili") return (await deps.transcript.knownDuration(ref)) ?? (await deps.pageTranscript?.duration(ref, tabId)) ?? null;
+      if (captionsInPage(ref.platform, deps.rules)) return (await deps.transcript.knownDuration(ref)) ?? (await deps.pageTranscript?.duration(ref, tabId)) ?? null;
       // 做一次卡片那样的轻量读取，卡片正在读就接上它，不为短视频去读字幕。
       const reply = await deps.transcript.light(ref).catch(() => null);
       // 没登录时轻量读取读得到视频信息，但字幕要登录：和读字幕报要登录一样整批停下。
@@ -82,7 +77,7 @@ export function createAutoWiring(deps: AutoWiringDeps): AutoGenerate {
       return stop ?? deps.transcript.knownDuration(ref);
     },
     async readTranscript(ref, tabId) {
-      if (ref.platform !== "bilibili") {
+      if (captionsInPage(ref.platform, deps.rules)) {
         const reply = (await deps.pageTranscript?.read(ref, tabId)) ?? null;
         if (reply === null) return null;
         if ("later" in reply) return "later";

@@ -1,15 +1,9 @@
 // 翻译端口两个方向的消息，整理字幕（补标点、改同音错字）也走这条。侧边栏连着端口发起，后台分批请求模型，每批回来就推给页面；
 // 页面关掉端口只退订自己，订阅的页面都走了才停下还没开始的批次。
 import type { ErrorCode } from "../../core/errors.ts";
-import type { TranscriptRef } from "../../core/notes/records.ts";
+import type { TextTarget, TranscriptRef } from "../../core/notes/records.ts";
 import type { TaskView } from "../../core/tasks.ts";
 import type { VideoKey } from "../../core/video-ref.ts";
-
-/** 译成哪种语言：zh 是简体中文，zh-Hant 是繁体中文。 */
-export type TranslateTarget = "zh" | "zh-Hant" | "en";
-
-/** 按字幕版本存在本机的几种文字：三种译文，加整理后的原文（tidy）。 */
-export type TextTarget = TranslateTarget | "tidy";
 
 /** 这一轮做什么：不写是翻译，tidy 是整理字幕。 */
 export type TextPurpose = "tidy";

@@ -17,7 +17,7 @@ function setup(options: { readonly answer?: (message: unknown) => unknown; reado
   const asked: string[] = [];
   const reads: { mode: string; tabId?: number | undefined }[] = [];
   const site = fakeSiteService(options.info ? { videoInfo: options.info } : {});
-  const service = { ...site.service, rules: { ...site.service.rules, platform: "youtube" as const } };
+  const service = { ...site.service, rules: { ...site.service.rules, platform: "youtube" as const, captions: "page" as const } };
   const page = createPageTranscript({
     async ask(tabId, message) {
       assert.equal(tabId, TAB);

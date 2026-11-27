@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createLimiter, createSerialQueue, mapWithConcurrency, waitOrStop, withTimeout } from "../../../src/core/concurrency.ts";
+import { deferred, nextTurn, type Deferred } from "../../helpers/deferred.ts";
 import { manualTimers } from "../../helpers/manual-timers.ts";
 import { stillFalse, until } from "../../helpers/wait-until.ts";
-
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // 结果是 allSettled 形状，这两个函数取出其中一边，另一边读出来是 undefined，断言对不上。
 const valueOf = <T>(result: PromiseSettledResult<T> | undefined): T | undefined =>
@@ -16,11 +15,20 @@ const reasonOf = (result: PromiseSettledResult<unknown> | undefined): Error | un
 // 并发池
 
 test("结果按输入顺序返回，与完成顺序无关", async () => {
-  // 故意让先入队的慢、后入队的快，制造完成顺序与输入顺序相反的情况
-  const results = await mapWithConcurrency([30, 20, 10, 0], 4, async (ms, i) => {
-    await delay(ms);
+  // 后入队的先放行，制造完成顺序与输入顺序相反的情况
+  const gates = [deferred(), deferred(), deferred(), deferred()];
+  const finished: number[] = [];
+  const running = mapWithConcurrency(gates, 4, async (gate, i) => {
+    await gate.promise;
+    finished.push(i);
     return i;
   });
+  for (const gate of [...gates].reverse()) {
+    gate.resolve();
+    await nextTurn();
+  }
+  const results = await running;
+  assert.deepEqual(finished, [3, 2, 1, 0], "完成顺序确实和输入相反");
   assert.deepEqual(
     results.map((result) => valueOf(result)),
     [0, 1, 2, 3],
@@ -31,12 +39,20 @@ test("并发数不会超过上限", async () => {
   let active = 0;
   let peak = 0;
 
-  await mapWithConcurrency(Array.from({ length: 20 }), 3, async () => {
+  const gates = Array.from({ length: 20 }, () => deferred());
+  const running = mapWithConcurrency(gates, 3, async (gate) => {
     active += 1;
     peak = Math.max(peak, active);
-    await delay(5);
+    await gate.promise;
     active -= 1;
   });
+  // 一个一个放行：每次放行之前，在跑的都压在上限以内。
+  for (const gate of gates) {
+    await nextTurn();
+    assert.ok(active <= 3, `放行之前有 ${active} 个在跑`);
+    gate.resolve();
+  }
+  await running;
 
   assert.equal(peak, 3, `实际峰值并发 ${peak}，超过了上限`);
 });
@@ -44,7 +60,7 @@ test("并发数不会超过上限", async () => {
 test("每一项都只被处理一次", async () => {
   const seen: number[] = [];
   await mapWithConcurrency([1, 2, 3, 4, 5, 6, 7, 8], 4, async (item) => {
-    await delay(1);
+    await nextTurn();
     seen.push(item);
   });
   assert.deepEqual(seen.sort((a, b) => a - b), [1, 2, 3, 4, 5, 6, 7, 8]);
@@ -65,7 +81,7 @@ test("单个失败不影响其余任务，返回 settled 形状", async () => {
 
 test("进度回调按完成数递增，最终等于总数", async () => {
   const progress: [number, number][] = [];
-  await mapWithConcurrency([1, 2, 3, 4, 5], 2, async () => delay(1), (done, total) => {
+  await mapWithConcurrency([1, 2, 3, 4, 5], 2, async () => nextTurn(), (done, total) => {
     progress.push([done, total]);
   });
 
@@ -106,12 +122,16 @@ test("并发数非法时回落到 1，且不会超过任务数", async () => {
 
   let peak = 0;
   let active = 0;
-  await mapWithConcurrency([1, 2], 100, async () => {
+  const gates = [deferred(), deferred()];
+  const running = mapWithConcurrency(gates, 100, async (gate) => {
     active += 1;
     peak = Math.max(peak, active);
-    await delay(1);
+    await gate.promise;
     active -= 1;
   });
+  await nextTurn();
+  for (const gate of gates) gate.resolve();
+  await running;
   assert.equal(peak, 2, "并发数不该超过任务数");
 });
 
@@ -123,21 +143,27 @@ test("排队的任务严格逐个执行，不会重叠", async () => {
   let active = 0;
   let overlapped = false;
 
-  const task = (id: string, ms: number) => async () => {
+  const gates = { a: deferred(), b: deferred(), c: deferred() };
+  const task = (id: keyof typeof gates) => async () => {
     active += 1;
     if (active > 1) overlapped = true;
-    await delay(ms);
+    await gates[id].promise;
     order.push(id);
     active -= 1;
     return id;
   };
 
-  // 先入队的故意最慢，若队列失效，快的会先跑完
-  await Promise.all([
-    enqueue(task("a", 20)),
-    enqueue(task("b", 10)),
-    enqueue(task("c", 0)),
+  const all = Promise.all([
+    enqueue(task("a")),
+    enqueue(task("b")),
+    enqueue(task("c")),
   ]);
+  // 后入队的先放行，先入队的最后放行：若队列失效，后面的会先跑完
+  gates.c.resolve();
+  gates.b.resolve();
+  await nextTurn();
+  gates.a.resolve();
+  await all;
 
   assert.equal(overlapped, false, "出现了重叠执行，临界区没有被保护住");
   assert.deepEqual(order, ["a", "b", "c"]);
@@ -148,14 +174,18 @@ test("读—改—写并发时不会丢更新", async () => {
   let store: Record<string, boolean> = {};
 
   // 模拟缓存的读—改—写：读出快照、改一个键、整份写回
+  const gap = deferred();
   const update = (key: string) =>
     enqueue(async () => {
       const snapshot = store;
-      await delay(5); // 读和写之间的空窗，正是覆盖发生的地方
+      await gap.promise; // 读和写之间的空窗，正是覆盖发生的地方
       store = { ...snapshot, [key]: true };
     });
 
-  await Promise.all([update("a"), update("b"), update("c")]);
+  const all = Promise.all([update("a"), update("b"), update("c")]);
+  await nextTurn();
+  gap.resolve();
+  await all;
   assert.deepEqual(Object.keys(store).sort(), ["a", "b", "c"]);
 });
 
@@ -188,15 +218,26 @@ test("几个任务共用一道闸门时，同时在跑的总数不超过上限",
   const run = createLimiter();
   let active = 0;
   let peak = 0;
+  const held: Deferred[] = [];
   const job = async () => {
     active += 1;
     peak = Math.max(peak, active);
-    await delay(5);
+    const gate = deferred();
+    held.push(gate);
+    await gate.promise;
     active -= 1;
   };
   // 两个视频各 4 块，各自的池子开 3 个并发，总数仍要压在 3 以内。
   const video = () => mapWithConcurrency([1, 2, 3, 4], 3, () => run(3, job));
-  await Promise.all([video(), video()]);
+  const all = Promise.all([video(), video()]);
+  // 按开跑的先后一个一个放行，每次放行之前看一眼在跑的总数。
+  for (let released = 0; released < 8; released += 1) {
+    assert.ok(await until(() => held.length > released), `第 ${released + 1} 个请求没开跑`);
+    await nextTurn();
+    assert.ok(active <= 3, `放行之前有 ${active} 个在跑`);
+    held[released]?.resolve();
+  }
+  await all;
   assert.equal(peak, 3);
 });
 
@@ -242,17 +283,6 @@ test("任务出错也会归还名额，排队的照常执行", async () => {
   assert.equal(await next, "ok");
   assert.equal(await run(1, async () => "still ok"), "still ok");
 });
-
-// 可控的「挂起中」任务：由测试决定什么时候让它结束。
-type Deferred = ReturnType<typeof deferred>;
-
-function deferred() {
-  let resolve!: () => void;
-  const promise = new Promise<void>((done) => {
-    resolve = done;
-  });
-  return { promise, resolve };
-}
 
 // 取消是同步判定的，排空这一轮微任务后还没结束就算挂起，不靠计时器。
 const settledState = (promise: Promise<unknown>) =>
@@ -310,16 +340,25 @@ test("调低上限后开的任务，实际并发会降到新上限", async () =>
 
   let active = 0;
   let peak = 0;
+  const held: Deferred[] = [];
   const job = async () => {
     active += 1;
     peak = Math.max(peak, active);
-    await delay(3);
+    const gate = deferred();
+    held.push(gate);
+    await gate.promise;
     active -= 1;
   };
   // 设置改成 1 之后开的新任务，排在后面。
   const fresh = [run(1, job), run(1, job), run(1, job)];
 
   for (const holder of holders) holder.resolve();
+  // 新任务开跑以后先按住，名额交接错了的话，别的新任务会趁这时一起跑起来。
+  for (let released = 0; released < fresh.length; released += 1) {
+    assert.ok(await until(() => held.length > released), `第 ${released + 1} 个新任务没开跑`);
+    await nextTurn();
+    held[released]?.resolve();
+  }
   await Promise.all([...old, ...fresh]);
   assert.equal(peak, 1, "名额释放时要按新上限重新判断，不能原样交接给排队的");
 });
@@ -338,7 +377,7 @@ test("队首被取消后，后面能放行的立刻补上", async () => {
   });
 
   // 放不放行在排队时就决定了，不经过计时器：排空一轮微任务后还没开跑，就是被挡在队首后面。
-  await new Promise((resolve) => setImmediate(resolve));
+  await nextTurn();
   assert.equal(started, false, "先来后到：队首放不进去时，后面的不越过它");
   controller.abort();
   await assert.rejects(strict, isCanceled);

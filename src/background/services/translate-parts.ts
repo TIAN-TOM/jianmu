@@ -6,9 +6,9 @@ import type { Failure } from "../../core/errors.ts";
 import type { OutputLang } from "../../core/output-lang.ts";
 import { isChineseSubtitle, isEnglishSubtitle } from "../../core/transcript/language.ts";
 import type { TranscriptSegment } from "../../core/transcript/segment.ts";
-import type { TranslateFailure, TranslateTarget } from "../../shared/messages/translate.ts";
+import type { TranslateFailure } from "../../shared/messages/translate.ts";
 import { videoKey, type VideoKey } from "../../core/video-ref.ts";
-import { siteRules } from "../../sites/rules.ts";
+import { watchRefOf } from "../../sites/rules.ts";
 import { aiFailure } from "../ai.ts";
 
 /** 整理字幕一批的结果：改得太多的段记成原文（照旧显示原文、下次不再请求）；漏的、编号对不上的不记，交给补轮。 */
@@ -26,7 +26,7 @@ export function tidiedOf(parsed: unknown, batch: readonly TranslationItem[], job
  * 译成设置的语言；字幕本身已经是这种语言时译成另一种。选简体或繁体时就是：中文字幕（不分简繁）译成英文，其他语言的字幕译成所选的中文；
  * 选英文时英文字幕译成简体中文。
  */
-export function targetOf(lang: string, outputLang: OutputLang = "zh"): TranslateTarget {
+export function targetOf(lang: string, outputLang: OutputLang = "zh"): OutputLang {
   if (outputLang === "en") return isEnglishSubtitle(lang) ? "zh" : "en";
   return isChineseSubtitle(lang) ? "en" : outputLang;
 }
@@ -57,9 +57,6 @@ export function fromPlayback(segments: readonly TranscriptSegment[], fromSec: nu
 /** 按各站的地址规则认视频；认不出或没有地址时是 null。 */
 export function videoOfUrl(url: string | null): VideoKey | null {
   if (url === null) return null;
-  for (const rules of Object.values(siteRules)) {
-    const ref = rules?.parseWatchUrl(url);
-    if (ref) return videoKey(ref);
-  }
-  return null;
+  const ref = watchRefOf(url);
+  return ref ? videoKey(ref) : null;
 }

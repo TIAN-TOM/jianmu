@@ -1,8 +1,7 @@
 // 概览这几条消息的请求和回复：开始生成、补失败块、读本机已有的概览、用官方总结写结论。生成、补块和写结论都要先经任务登记拿到任务号，
 // 卡片能开始生成、重新生成、补失败块和用官方总结写结论，都凭登记时拿到的一次性令牌。回复里的概览是生效中的那份，重新生成写到一半的草稿不给页面。
 import type { FailureRange } from "../../core/ai/chunking.ts";
-import type { LearningAnalysis } from "../../core/notes/markdown.ts";
-import type { OverviewTranscriptBasis } from "../../core/notes/records.ts";
+import type { LearningAnalysis, OverviewTranscriptBasis } from "../../core/notes/records.ts";
 import type { VideoKey } from "../../core/video-ref.ts";
 import type { OverviewView } from "./transcript.ts";
 

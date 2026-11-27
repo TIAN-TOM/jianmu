@@ -1,16 +1,19 @@
 // 备份里四类记录的校验：导出、读新格式、转换旧格式都过这一道。只留记录类型里有的字段，
 // 概览过一遍和生成时相同的校验，必填的字段不对就整条丢掉，交给调用方计数。草稿不进备份。
+import { isRecord } from "../../shared/guards.ts";
 import type { TimeRange } from "../ai/chunking.ts";
+import { EFFORTS } from "../ai/effort-level.ts";
 import { validateAnalysis } from "../ai/validate.ts";
 import { validateVerdict, validKeyStarts } from "../ai/verdict.ts";
-import type { LearningAnalysis, LearningVerdict } from "../notes/markdown.ts";
 import {
+  AUTHOR_MAX,
   normalizeAnalysisFailures,
   OVERVIEW_RECORD_VERSION,
   type Basis,
   type Derived,
-  type Effort,
   type GenInfo,
+  type LearningAnalysis,
+  type LearningVerdict,
   type NoteRecord,
   type NoteSnapshot,
   type OverviewPart,
@@ -21,10 +24,11 @@ import {
   type TranscriptRef,
   type TranslationRecord,
   TEXT_TARGETS,
+  TITLE_MAX,
   translationId,
 } from "../notes/records.ts";
 import { isOutputLang, outputLangOf, type OutputLang } from "../output-lang.ts";
-import type { CaptionKind } from "../transcript/sources.ts";
+import { CAPTION_KINDS } from "../transcript/sources.ts";
 import { parseVideoKey, type VideoKey } from "../video-ref.ts";
 
 export interface BackupContents {
@@ -51,18 +55,8 @@ export interface ImportedBackup {
 const ID_MAX = 200;
 const QA_ID_MAX = 100;
 const QA_ID_PREFIX = "qa_";
-const TITLE_MAX = 500;
-const AUTHOR_MAX = 300;
-
-// 认得的字幕来源类别。旧备份里没有「来源未确认」，照常导入。
-const CAPTION_KINDS: readonly CaptionKind[] = ["human", "auto", "official-ai", "imported", "unconfirmed"];
-const EFFORTS: readonly Effort[] = ["off", "low", "medium", "high"];
 
 export type Fields = Readonly<Record<string, unknown>>;
-
-export function isFields(value: unknown): value is Fields {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 export function finite(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
@@ -96,7 +90,7 @@ export function snapshotOf(title: unknown, author: unknown, channel?: unknown): 
 }
 
 function storedSnapshot(value: unknown): NoteSnapshot {
-  return isFields(value) ? snapshotOf(value.title, value.author, value.channel) : snapshotOf("", "");
+  return isRecord(value) ? snapshotOf(value.title, value.author, value.channel) : snapshotOf("", "");
 }
 
 /** 一份列表逐条过 check：留下认得的，坏的只计数，不拖累同一份里的其他记录。 */
@@ -121,7 +115,7 @@ export function keepValid<T>(list: readonly unknown[], check: (value: unknown) =
 export const UNKNOWN_BASIS: Derived = Object.freeze({ basis: Object.freeze({ source: "legacy-unknown" }) });
 
 function checkGen(value: unknown): GenInfo | null {
-  if (!isFields(value)) return null;
+  if (!isRecord(value)) return null;
   const { feature, promptVersion, model, effort, outputLang } = value;
   if (typeof feature !== "string" || typeof promptVersion !== "string" || typeof model !== "string") return null;
   if (!oneOf(EFFORTS, effort)) return null;
@@ -130,11 +124,11 @@ function checkGen(value: unknown): GenInfo | null {
 }
 
 function checkBasis(value: unknown): Basis | null {
-  if (!isFields(value)) return null;
+  if (!isRecord(value)) return null;
   const { source } = value;
   if (source === "transcript") {
     const transcript = value.transcript;
-    if (!isFields(transcript)) return null;
+    if (!isRecord(transcript)) return null;
     const video = videoOf(transcript.video);
     const { kind, lang, fingerprint } = transcript;
     if (!video || !oneOf(CAPTION_KINDS, kind) || typeof lang !== "string" || typeof fingerprint !== "string") return null;
@@ -152,7 +146,7 @@ function checkBasis(value: unknown): Basis | null {
 
 /** 依据读不懂时记成未知，不丢整条记录；依据已知却缺生成配置的也只能算未知。 */
 export function checkDerived(value: unknown): Derived {
-  if (!isFields(value)) return UNKNOWN_BASIS;
+  if (!isRecord(value)) return UNKNOWN_BASIS;
   const basis = checkBasis(value.basis);
   const gen = checkGen(value.gen);
   if (!basis) return UNKNOWN_BASIS;
@@ -166,7 +160,7 @@ export function checkDerived(value: unknown): Derived {
  * 重点章节和这条记录的章节对一遍，坏的、对不上的只丢重点；没有这个字段的旧记录按没有重点。
  */
 function checkVerdict(value: unknown, chapterStarts: readonly number[], lang: OutputLang): LearningVerdict | null {
-  if (!isFields(value)) return null;
+  if (!isRecord(value)) return null;
   const verdict = validateVerdict(value, { incomplete: value.incomplete === true, stored: true, lang });
   if (!verdict) return null;
   const keyStarts = validKeyStarts(value.keyStarts, chapterStarts);
@@ -183,7 +177,7 @@ function truncatedRangesOf(value: unknown): TimeRange[] {
   if (!Array.isArray(value)) return [];
   const items: readonly unknown[] = value;
   return items.flatMap((item) => {
-    if (!isFields(item)) return [];
+    if (!isRecord(item)) return [];
     const startSeconds = finite(item.startSeconds);
     const endSeconds = finite(item.endSeconds);
     if (startSeconds === null || endSeconds === null || startSeconds < 0 || endSeconds < startSeconds) return [];
@@ -207,7 +201,7 @@ function checkAnalysis(value: Fields, lang: OutputLang = "zh"): CheckedAnalysis 
 }
 
 function checkPart(value: unknown): OverviewPart | null {
-  if (!isFields(value)) return null;
+  if (!isRecord(value)) return null;
   const taskCreatedAt = finite(value.taskCreatedAt);
   if (taskCreatedAt === null || taskCreatedAt < 0) return null;
   return { derived: checkDerived(value.derived), taskCreatedAt };
@@ -215,7 +209,7 @@ function checkPart(value: unknown): OverviewPart | null {
 
 /** 各部分的来历只跟着还在的那部分走：结论没留下，结论的来历也不留。 */
 function checkParts(value: unknown, analysis: LearningAnalysis): OverviewParts | undefined {
-  if (!isFields(value)) return undefined;
+  if (!isRecord(value)) return undefined;
   const chapters = checkPart(value.chapters);
   const verdict = analysis.verdict ? checkPart(value.verdict) : null;
   if (!chapters && !verdict) return undefined;
@@ -223,7 +217,7 @@ function checkParts(value: unknown, analysis: LearningAnalysis): OverviewParts |
 }
 
 export function checkNote(value: unknown): NoteRecord | null {
-  if (!isFields(value)) return null;
+  if (!isRecord(value)) return null;
   const { id, kind, origin, snapshot, text, quote, derived, updatedAt } = value;
   const video = videoOf(value.video);
   const atSec = finite(value.atSec);
@@ -272,17 +266,17 @@ export function overviewRecord(
 
 // 结论那部分记下的语言：先过一遍和导入时相同的来历校验，认不出就按中文。
 function verdictLangOf(parts: unknown): OutputLang {
-  if (!isFields(parts) || !isFields(parts.verdict)) return "zh";
+  if (!isRecord(parts) || !isRecord(parts.verdict)) return "zh";
   const derived = checkDerived(parts.verdict.derived);
   return outputLangOf(derived.gen);
 }
 
 export function checkOverview(value: unknown): OverviewRecord | null {
-  if (!isFields(value)) return null;
+  if (!isRecord(value)) return null;
   const videoKey = videoOf(value.videoKey);
   const updatedAt = finite(value.updatedAt);
   const { snapshot, analysis } = value;
-  if (!videoKey || updatedAt === null || !isFields(analysis)) return null;
+  if (!videoKey || updatedAt === null || !isRecord(analysis)) return null;
   return overviewRecord(
     videoKey,
     storedSnapshot(snapshot),
@@ -298,7 +292,7 @@ function citationsOf(value: unknown): QaCitation[] {
   if (!Array.isArray(value)) return [];
   const items: readonly unknown[] = value;
   return items.flatMap((item) => {
-    if (!isFields(item)) return [];
+    if (!isRecord(item)) return [];
     const startSeconds = finite(item.startSeconds);
     if (startSeconds === null || startSeconds < 0 || typeof item.quote !== "string") return [];
     return [{ startSeconds, quote: item.quote }];
@@ -329,7 +323,7 @@ export function qaRecord(id: string, video: VideoKey, fields: Fields, derived: D
 }
 
 export function checkQa(value: unknown): QaRecord | null {
-  if (!isFields(value) || !isQaId(value.id)) return null;
+  if (!isRecord(value) || !isQaId(value.id)) return null;
   const video = videoOf(value.video);
   if (!video) return null;
   return qaRecord(value.id, video, value, checkDerived(value.derived));
@@ -345,7 +339,7 @@ const SEGMENT_HASH = /^[0-9a-f]{8,128}$/;
 export const SEGMENTS_MAX = 50_000;
 
 function checkTranscriptRef(value: unknown, video: VideoKey): TranscriptRef | null {
-  if (!isFields(value)) return null;
+  if (!isRecord(value)) return null;
   const { kind, lang, fingerprint } = value;
   if (value.video !== video || !oneOf(CAPTION_KINDS, kind)) return null;
   if (typeof lang !== "string" || lang.length > 40) return null;
@@ -355,12 +349,12 @@ function checkTranscriptRef(value: unknown, video: VideoKey): TranscriptRef | nu
 
 /** 译文或整理后的字幕：主键要和视频、字幕指纹、目标对得上；段里只留非空字符串，坏的段丢掉，一段都不剩就整条丢掉。 */
 export function checkTranslation(value: unknown): TranslationRecord | null {
-  if (!isFields(value)) return null;
+  if (!isRecord(value)) return null;
   const video = videoOf(value.video);
   if (!video || !oneOf(TEXT_TARGETS, value.target)) return null;
   const transcript = checkTranscriptRef(value.transcript, video);
   if (!transcript || value.id !== translationId(transcript, value.target)) return null;
-  if (!isFields(value.segments)) return null;
+  if (!isRecord(value.segments)) return null;
   const segments: Record<string, string> = {};
   let count = 0;
   for (const [hash, text] of Object.entries(value.segments)) {

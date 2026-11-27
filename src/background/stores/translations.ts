@@ -2,10 +2,9 @@
 // 记录里按每段原文规范化后的指纹记译文：换了字幕版本，原文没变的段认得出来，不用再付一次钱。
 // 不随字幕缓存过期，清除全部数据时才清；进备份，导入时按字幕版本合并。读出来的行不信：形状不对的滤掉，不认识的字段不往外带。
 import type { ClearGuard } from "../../core/clear-guard.ts";
-import { TEXT_TARGETS, translationId, type Derived, type TranscriptRef, type TranslationRecord } from "../../core/notes/records.ts";
+import { TEXT_TARGETS, translationId, type Derived, type TextTarget, type TranscriptRef, type TranslationRecord } from "../../core/notes/records.ts";
 import { parseVideoKey, type VideoKey } from "../../core/video-ref.ts";
 import type { ObjectStoreDriver } from "../../platform/idb.ts";
-import type { TextTarget } from "../../shared/messages/translate.ts";
 import { createWriteGate, type WriteOptions } from "./write-gate.ts";
 
 export type { TranslationRecord };
