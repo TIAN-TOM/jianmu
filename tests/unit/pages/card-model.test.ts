@@ -226,7 +226,7 @@ test("已有概览：缺了分块才能补，凭令牌补；重新生成要先�
   await model.regenerate(true);
   assert.equal(fake.attempts("overview.start"), 0, "没确认不重新生成");
   model.askRegenerate();
-  assert.equal(model.view.value.confirmRegenerate, true);
+  assert.equal(model.view.value.more, "confirm");
   await model.regenerate(true);
   assert.equal(fake.attempts("overview.start"), 0, "确认刚摆出来就点的不算：连点两下的第二下");
   await new Promise((resolve) => setImmediate(resolve));
@@ -234,7 +234,7 @@ test("已有概览：缺了分块才能补，凭令牌补；重新生成要先�
   assert.equal(fake.attempts("overview.start"), 0, "合成的点击不算");
   await model.regenerate(true);
   assert.deepEqual(fake.sent.find(({ type }) => type === "overview.start")?.req, { video: KEY, token: "once", fresh: true });
-  assert.equal(model.view.value.confirmRegenerate, false);
+  assert.equal(model.view.value.more, "closed");
   assert.equal(model.view.value.task, null);
 });
 
@@ -288,7 +288,7 @@ test("重新生成：结论没写成或被停时说原来的概览还留着；�
   model.askRegenerate();
   fake.broadcast({ type: "task.changed", task: task("side") });
   assert.ok(await until(() => model.view.value.task?.id === "side"));
-  assert.equal(model.view.value.confirmRegenerate, false, "跟上别处的任务就撤掉确认");
+  assert.equal(model.view.value.more, "closed", "跟上别处的任务就撤掉确认");
 });
 
 test("同一视频已经有任务在跑：接上它看进度，结束后重读", async () => {

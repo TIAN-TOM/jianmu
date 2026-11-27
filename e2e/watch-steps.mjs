@@ -143,7 +143,7 @@ export function createWatchSteps({ cdp, until, evaluate, findSession, url }) {
       const card = await cardSession();
       const text = await until("卡片显示官方总结", async () => {
         const value = await cardText(card);
-        return value.includes("自造的样例总结") && value.includes("打开设置") ? value : null;
+        return value.includes("自造的样例总结") && await evaluate(card, `Boolean(document.querySelector("#card-body > :first-child > #card-setup + #card-settings"))`) ? value : null;
       });
 
       // 鼠标没碰播放器：图标挂着但藏着，上面没有字。
@@ -210,13 +210,16 @@ export function createWatchSteps({ cdp, until, evaluate, findSession, url }) {
     async generate(card, panel, service) {
       const { local, session } = await storedSettings(service);
       await evaluate(panel, `Promise.all([chrome.storage.local.set(${JSON.stringify(local)}), chrome.storage.session.set(${JSON.stringify(session)})]).then(() => true)`);
-      await until("卡片上出现「生成概览」", async () => (await cardText(card)).includes("生成概览"));
+      await until("结论位置出现「生成概览」", () => evaluate(card, `Boolean(document.querySelector("#card-body > :first-child > #card-generate"))`));
       await clickInCard(card, "#card-generate");
       try {
-        return await until("卡片显示生成的概览和结论", async () => {
+        await until("卡片显示生成的概览和结论", async () => {
           const value = await cardText(card);
           return value.includes("模拟服务写的一句话结论") && value.includes("模拟服务写的章节") ? value : null;
         });
+        await clickInCard(card, "#card-more-actions");
+        await clickInCard(card, "#card-toggle-official");
+        await until("章节下面露出官方总结，更多操作收起", () => evaluate(card, `document.querySelector("#card-official .card-reading")?.textContent.includes("自造的样例总结") && document.getElementById("card-more-actions").getAttribute("aria-expanded") === "false"`));
       } catch (error) {
         throw new Error(`${error.message}；卡片上是：${await cardText(card).catch(() => "读不到")}`);
       }

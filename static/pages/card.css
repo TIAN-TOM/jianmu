@@ -10,7 +10,7 @@ body {
 }
 
 /* 整张卡片不超过内容脚本给框架夹的高度上限（card-frame.ts 里的 CARD_HEIGHT.max，单元测试核对两边一致）：
- * 字号大、内容多时只有正文区滚动，标题栏、进度和底部按钮一直露在外面。 */
+ * 字号大、内容多时只有正文区滚动，标题栏、更多操作和生成进度一直露在外面。 */
 .card {
   /* 正文区左右和底下的留白、块和块之间的间距；各套主题在下面改。 */
   --card-pad: 0.875rem;
@@ -28,11 +28,11 @@ body {
 
 .card-head-row,
 .card-progress,
-.card-actions {
+.card-tools-sheet {
   flex: none;
 }
 
-/* 头部那一行：左边整块点了展开收起，收起时右边另有一个打开侧边栏的入口。
+/* 头部那一行：左边整块点了展开收起，右边有侧边栏入口，展开时还有更多操作。
  * 图标和判断在展开收起时位置相同。没有判断时写名字，有判断时名字只给读屏。
  * 这一行展开收起都是上下留白加展开按钮那么高：收起时和内容脚本载入前占位的高度一样（card-frame.ts 的 CARD_HEIGHT），载入完不跳；
  * 点收起那一刻头部不变高，高度一路往下走。各套主题需要的额外留白放在正文区顶上。 */
@@ -152,6 +152,44 @@ body {
   cursor: pointer;
 }
 
+.card-head-more {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.875rem;
+  margin-inline-end: var(--space-1);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.card-head-more:hover,
+.card-head-more[aria-expanded="true"] {
+  background: var(--bg-hover);
+}
+
+/* 窄卡片给英文判断留足换行的宽度，三个操作仍各有自己的点击区域。 */
+@container (max-width: 22rem) {
+  .card-head {
+    gap: var(--space-1);
+    padding-inline-end: 0;
+  }
+
+  .card-collapse,
+  .card-head-more {
+    width: 1.5rem;
+  }
+
+  .card-head-panel {
+    margin-inline-end: var(--space-1);
+    min-height: 1.5rem;
+  }
+}
+
 .card-head-panel,
 .card-more {
   text-decoration-line: underline;
@@ -171,7 +209,7 @@ body {
   transition-duration: 0ms;
 }
 
-/* 官方总结收成的那一行上的小箭头：收着朝右，展开转到朝下。 */
+/* 评论行的小箭头：收着朝右，展开转到朝下。 */
 .card-chevron {
   flex: none;
   width: 0.45rem;
@@ -197,14 +235,12 @@ body {
   overflow: hidden;
 }
 
-/* 不是用户点出来的变化（提示、结论、进度、按钮行到了）：高度一步到位，只把新来的那块淡进来。
+/* 不是用户点出来的变化（提示、结论、进度到了）：高度一步到位，只把新来的那块淡进来。
  * 每报一次高度播放页的右栏就重排一次，只有点出来的展开收起才值得逐帧报。卡片里都只淡入，不位移。 */
 .card-status,
 .card-note,
-.card-pending,
 .card-offer,
 .card-progress,
-.card-actions,
 .card-glance,
 .card .chapter-list > .chapter,
 .card .verdict[data-fresh] {
@@ -262,7 +298,7 @@ body {
   margin-bottom: 0;
 }
 
-/* 默认只露前几条时列表下面的「展开全部」，和有概览时把官方总结收成的那一行。 */
+/* 官方提纲下面的「展开全部」。 */
 .card-more {
   align-self: flex-start;
   padding: var(--space-1) 0;
@@ -334,26 +370,19 @@ body {
   transform: rotate(45deg);
 }
 
-/* 收着时折叠那一块高度是零，却还占着弹性盒的一道间距：把这道间距挪进折叠里面，收着时就不多出一截空白。 */
-.card-block > .collapse {
-  margin-top: calc(-1 * var(--space-2));
-}
-
-.card-fold-body {
+.card-official-head {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
+  align-items: baseline;
   gap: var(--space-2);
-  padding-top: var(--space-2);
 }
 
 .card-status,
-.card-note,
-.card-pending {
+.card-note {
   color: var(--text-muted);
   font-size: var(--fs-meta);
 }
 
-/* 还没有结论时「用官方总结写结论」那一行：按钮在前，旁边一句说只发一次小请求，放不下就折到下一行。 */
 .card-offer {
   display: flex;
   flex-wrap: wrap;
@@ -361,9 +390,20 @@ body {
   gap: var(--space-2);
 }
 
-.card-offer-note {
-  color: var(--text-muted);
+.card-link {
+  padding: var(--space-1) 0;
+  border: 0;
+  background: transparent;
+  color: var(--card-link, var(--accent-text));
   font-size: var(--fs-meta);
+  text-align: start;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.card-link:hover {
+  color: var(--text);
 }
 
 /* 提问（正文最后一块）：上面是这一次的问题和回答，发送图标在输入框右侧。 */
@@ -552,7 +592,7 @@ body {
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-2) var(--card-pad);
-  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
 }
 
 .card-track {
@@ -589,14 +629,36 @@ body {
   font-size: var(--fs-meta);
 }
 
-/* 底部一行：左边是章节的「展开全部」，右边是按钮，两端对齐。有这一行时正文区底下只留块和块之间那道间距。 */
-.card-actions {
+/* 更多操作参与排版，留在滚动正文上方。整行都可以点，额度提示跟着按钮换行。 */
+.card-tools {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--card-pad);
+  border-block: 1px solid var(--border);
+}
+
+.card-tools > button {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-2);
-  padding: 0 var(--card-pad) var(--card-pad) var(--card-foot-left, var(--card-pad));
+  align-items: baseline;
+  gap: 0 var(--space-2);
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-ui);
+  text-align: start;
+  cursor: pointer;
+}
+
+.card-tools > button:hover {
+  background: var(--bg-hover);
+}
+
+.card-tools small {
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
 }
 
 /* 章节多时的列表：固定露出前几章那么高、下一章露出大半（高度由 chapters.tsx 量好写上，这里的只是量好之前的那一帧），
@@ -623,18 +685,12 @@ body {
   text-align: end;
 }
 
-/* 底部一行的「重新生成」靠左，和右边的按钮分在两端。 */
-#card-regenerate {
-  margin-inline-end: auto;
-}
-
-/* 「重新生成」的确认：顶替底部一行，说明在上，按钮在下一行靠右。 */
+/* 确认顶替操作列表，说明和按钮分两行。 */
 .card-confirm {
   display: flex;
   flex: none;
   flex-direction: column;
   gap: var(--space-2);
-  padding: 0 var(--card-pad) var(--card-pad);
   animation: appear var(--dur) var(--ease);
 }
 
@@ -645,46 +701,25 @@ body {
 
 .card-confirm-buttons {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--space-2);
 }
 
-.card-sheet-in:has(> .card-actions) > .card-body,
-.card-sheet-in:has(> .card-confirm) > .card-body {
-  padding-bottom: var(--card-gap);
-}
-
-/* 正文区一样东西都没有（还没有概览、也没有官方总结）时不占地方，底部一行直接接在头部下面，
- * 和头部隔开的那一截跟正文区顶上留的一样。 */
 .card-body:empty {
   display: none;
 }
 
-.card-body:empty + .card-actions {
-  padding-top: var(--card-body-top, 0.75rem);
-}
-
-.card-progress + .card-actions {
-  padding-top: var(--space-2);
-}
-
-.card-actions > .card-more {
-  align-self: center;
-  margin-right: auto;
-  padding: var(--space-1) 0;
-  color: var(--card-link, var(--accent-text));
-  text-decoration-color: currentColor;
-}
-
-.card-actions > .button {
+.card-offer > .button,
+.card-confirm-buttons > .button {
   font-size: var(--fs-meta);
   font-weight: var(--fw-semibold);
 }
 
-/* ---------- 各套主题的卡片外壳：头部、底部一行、收起的一行、外框 ----------
+/* ---------- 各套主题的卡片外壳：头部、操作、收起的一行、外框 ----------
  * 卡片在播放页的框架里，框架和卡片一样大，往外的投影会被裁掉，所以外框只画边线，不画投影。 */
 
-/* 时间码：头部铺页面底色，底部的「展开全部」是带下划线的正文色字，主按钮是正文色底。 */
+/* 时间码：头部铺页面底色，文字链用带下划线的正文色字，主按钮是正文色底。 */
 :root[data-accent-theme="timecode"] .card[data-collapsed="false"] .card-head-row {
   background: var(--bg);
 }
@@ -697,15 +732,13 @@ body {
   font-weight: 700;
 }
 
-:root[data-accent-theme="timecode"] .card-actions > .button[data-variant="primary"] {
+:root[data-accent-theme="timecode"] :is(.card-offer, .card-confirm-buttons) > .button[data-variant="primary"] {
   padding-inline: 0.75rem;
 }
 
-/* 荧光笔：名字划一道荧光笔，判断是钢笔蓝的星；底部一行和章节名从同一条线起，主按钮是钢笔蓝的细边框。 */
+/* 荧光笔：名字划一道荧光笔，判断是钢笔蓝的星；主按钮是钢笔蓝的细边框。 */
 :root[data-accent-theme="marker"] .card {
   --card-body-top: 0.125rem;
-  /* 和章节名对齐：页边栏按五位的时间算宽，再加页边栏和正文之间那道间距。 */
-  --card-foot-left: calc(var(--card-pad) + max(var(--margin-col), 2.765625rem) + var(--margin-gap));
 }
 
 :root[data-accent-theme="marker"] .card-name:not(.sr-only) {
@@ -719,17 +752,17 @@ body {
   font-size: var(--fs-ui);
 }
 
-:root[data-accent-theme="marker"] .card-actions > .card-more {
+:root[data-accent-theme="marker"] #card-official .card-more {
   text-underline-offset: 4px;
 }
 
-:root[data-accent-theme="marker"] .card-actions > .button[data-variant="primary"] {
+:root[data-accent-theme="marker"] :is(.card-offer, .card-confirm-buttons) > .button[data-variant="primary"] {
   border-color: var(--accent);
   background: transparent;
   color: var(--accent-text);
 }
 
-:root[data-accent-theme="marker"] .card-actions > .button[data-variant="primary"]:hover:not(:disabled) {
+:root[data-accent-theme="marker"] :is(.card-offer, .card-confirm-buttons) > .button[data-variant="primary"]:hover:not(:disabled) {
   background: var(--accent-soft);
 }
 
@@ -757,11 +790,13 @@ body {
 
 :root[data-accent-theme="band"] .card[data-band] .card-head,
 :root[data-accent-theme="band"] .card[data-band] .card-glance,
-:root[data-accent-theme="band"] .card[data-band] .card-head-panel {
+:root[data-accent-theme="band"] .card[data-band] .card-head-panel,
+:root[data-accent-theme="band"] .card[data-band] .card-head-more {
   color: inherit;
 }
 
-:root[data-accent-theme="band"] .card[data-band] .card-head:hover .card-collapse {
+:root[data-accent-theme="band"] .card[data-band] .card-head:hover .card-collapse,
+:root[data-accent-theme="band"] .card[data-band] .card-head-more:is(:hover, [aria-expanded="true"]) {
   background: color-mix(in srgb, currentColor 12%, transparent);
 }
 
@@ -784,15 +819,11 @@ body {
   --card-body-top: 0;
 }
 
-:root[data-accent-theme="band"] .card[data-band] #card-overview {
-  order: -1;
-}
-
 :root[data-accent-theme="band"] .card[data-band] #card-overview > .verdict:first-child {
   padding-top: 0;
 }
 
-:root[data-accent-theme="band"] .card-actions > .button[data-variant="primary"] {
+:root[data-accent-theme="band"] :is(.card-offer, .card-confirm-buttons) > .button[data-variant="primary"] {
   padding-inline: 0.875rem;
   font-weight: 700;
 }
@@ -812,11 +843,11 @@ body {
   background: var(--key-tint);
 }
 
-:root[data-accent-theme="pinkblue"] .card-actions > .card-more {
+:root[data-accent-theme="pinkblue"] #card-official .card-more {
   text-decoration-line: none;
 }
 
-:root[data-accent-theme="pinkblue"] .card-actions > .button[data-variant="primary"] {
+:root[data-accent-theme="pinkblue"] :is(.card-offer, .card-confirm-buttons) > .button[data-variant="primary"] {
   padding-inline: 0.875rem;
 }
 
@@ -849,7 +880,7 @@ body {
   color: inherit;
 }
 
-:root[data-accent-theme="redblack"] .card-actions > .card-more {
+:root[data-accent-theme="redblack"] #card-official .card-more {
   display: inline-flex;
   align-items: center;
   min-height: 2rem;
@@ -861,10 +892,10 @@ body {
   text-decoration-line: none;
 }
 
-:root[data-accent-theme="redblack"] .card-actions > .card-more:hover {
+:root[data-accent-theme="redblack"] #card-official .card-more:hover {
   background: var(--bg-active);
 }
 
-:root[data-accent-theme="redblack"] .card-actions > .button[data-variant="primary"] {
+:root[data-accent-theme="redblack"] :is(.card-offer, .card-confirm-buttons) > .button[data-variant="primary"] {
   padding-inline: 0.875rem;
 }

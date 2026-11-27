@@ -1,9 +1,4 @@
-// 卡片的界面：标题栏（展开收起）、提示、AI 概览（结论在最前，评论区那一行点开露出要点，章节默认只露前几章）、B 站官方总结（有概览时收成一行）、进度和底部一行。
-// 标题栏的图标后面写星级和短词，没有判断时写名字。收起时再接一句话，旁边是打开侧边栏的入口；侧边栏开着时不摆这个入口。
-// 底部一行左边是章节的「展开全部」，右边是按钮。按钮在内容还在来时先不摆（规则在 model.ts），摆出来以后不被晚到的内容顶走。
-// 各套主题的版面差异都在样式表里，标记不分主题。
-// 规则在 model.ts。视频标题不在卡片里再写一遍：页面顶上就是。
-// 展开收起有过渡：标题栏下面那一整块的高度从零长到内容那么高，卡片把每一帧的高度报给页面，外面的框架跟着走。
+// 播放页卡片。头部的更多操作和生成进度在滚动正文上方，展开收起沿用框架的高度上报。
 import type { ComponentChildren, RefObject } from "preact";
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { LearningAnalysis } from "../../core/notes/markdown.ts";
@@ -151,7 +146,7 @@ function Overview({
   readonly analysis: LearningAnalysis;
   /** 换过字幕：结论块里标结论的，章节的单独一行。 */
   readonly stale: { readonly verdict: boolean; readonly chapters: boolean };
-  readonly pending: boolean | string;
+  readonly pending: boolean;
   readonly commentsOpen: boolean;
   readonly onToggleComments: () => void;
   readonly onSeek: (atSec: number) => void;
@@ -171,11 +166,7 @@ function Overview({
   const t = cardText();
   return (
     <section class="card-block" id="card-overview" aria-label={t.overview}>
-      {pending ? (
-        <p class="card-pending" role="status">
-          {typeof pending === "string" ? pending : t.writingVerdict}
-        </p>
-      ) : summary ? (
+      {!pending && summary ? (
         <VerdictBlock label={verdict?.verdict} cardReason={text(verdict?.reason)} text={summary} basis={basisOf(analysis)} staleTranscript={stale.verdict} incomplete={verdict?.incomplete === true} fresh={waited.current} />
       ) : null}
       {CardComments && comments && summary && !pending ? <CardComments view={comments} open={commentsOpen} onToggle={onToggleComments} /> : null}
@@ -185,11 +176,12 @@ function Overview({
   );
 }
 
-function progressText(task: TaskProgress): string {
+function progressText(task: TaskProgress, pending: CardView["verdictPending"]): string {
   const t = cardText();
   if (task.canceling) return t.stopping;
   if (task.verdict) return t.writingVerdict;
-  const text = task.message || (task.total > 0 ? t.chunksDone(task.done, task.total) : "");
+  const fallback = task.total > 0 ? t.chunksDone(task.done, task.total) : typeof pending === "string" ? pending : "";
+  const text = pending === true ? t.writingVerdict : task.message || fallback;
   if (task.auto) return text ? t.auto(text) : t.autoStarting;
   return text || t.preparing;
 }
@@ -211,6 +203,7 @@ export function glanceOf(view: CardView): { readonly label: VerdictRating | ""; 
 
 export interface CardActions {
   readonly toggle: () => void;
+  readonly toggleMore: () => void;
   readonly generate: (event: ClickEvent) => void;
   readonly fromOfficial: (event: ClickEvent) => void;
   readonly retryFailed: (event: ClickEvent) => void;
@@ -229,10 +222,7 @@ export interface CardActions {
   readonly toggleComments: () => void;
 }
 
-/**
- * 「重新生成」的确认，摆在底部一行原来的位置上，不进会滚动的正文区，摆出来就看得见。说明独占底部那一行原来的高度，
- * 按钮在它下面一行：连点两下时第二下落在说明上，不落在确认上（模型另外让确认摆出来一会儿才认）。焦点挪到「取消」上。
- */
+/** 确认时焦点先落在取消上；模型另有防连点的延时。 */
 function RegenerateConfirm({ onConfirm, onCancel }: { readonly onConfirm: (event: ClickEvent) => void; readonly onCancel: () => void }) {
   const cancel = useRef<HTMLButtonElement>(null);
   useLayoutEffect(() => cancel.current?.focus(), []);
@@ -274,7 +264,7 @@ function Fold({ collapsed, waiting, children }: { readonly collapsed: boolean; r
   );
 }
 
-/** setupHint 是 AI 服务没设置好时生成概览按钮旁的说明，按缺什么说。 */
+/** setupHint 说明 AI 服务还缺哪项设置。 */
 /** ask 是这一次提问的状态（ask.ts），不给时当没问过。 */
 export function Card({
   view,
@@ -289,31 +279,73 @@ export function Card({
   readonly actions: CardActions;
   readonly ask?: AskState;
 }) {
+  const moreButton = useRef<HTMLButtonElement>(null);
+  const regenerateButton = useRef<HTMLButtonElement>(null);
+  const officialClose = useRef<HTMLButtonElement>(null);
+  const revealOfficial = useRef(false);
+  const previousMore = useRef(view.more);
+  const moreOpen = view.more !== "closed";
+
+  useLayoutEffect(() => {
+    if (previousMore.current === "confirm") {
+      if (view.more === "actions") regenerateButton.current?.focus();
+      if (view.more === "closed") moreButton.current?.focus();
+    }
+    previousMore.current = view.more;
+  }, [view.more]);
+
+  useLayoutEffect(() => {
+    if (!moreOpen) return;
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      actions.toggleMore();
+      moreButton.current?.focus();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [moreOpen, actions.toggleMore]);
+
+  useLayoutEffect(() => {
+    if (!revealOfficial.current) return;
+    revealOfficial.current = false;
+    // 只把卡片正文滚到官方总结，保持播放页的位置。
+    const close = officialClose.current;
+    const section = close?.closest("section");
+    const body = section?.closest(".card-body");
+    if (section && body) body.scrollTop += section.getBoundingClientRect().top - body.getBoundingClientRect().top;
+    close?.focus({ preventScroll: true });
+  }, [view.officialOpen]);
+
   if (!view.visible) return null;
-  const canGenerate = view.phase === "loaded" && !view.noCaptions && !view.needLogin && !view.notRead && !hasOverview(view.analysis) && !view.task;
-  // 本机还没有字幕：在侧边栏读过以后点重试，不用刷新页面就能生成。已经有概览时用不着。
-  const retryRead = view.notRead && !hasOverview(view.analysis);
-  const needsSetup = canGenerate && aiReady === false;
-  const analysis = view.analysis && (view.analysis.verdict || hasOverview(view.analysis) || view.verdictPending) ? view.analysis : null;
+  const task = view.task;
+  const withOverview = hasOverview(view.analysis);
+  const canGenerate = view.phase === "loaded" && !view.noCaptions && !view.needLogin && !view.notRead && !withOverview && !task;
+  const needsSetup = aiReady === false && (canGenerate || canWriteFromOfficial(view, true));
+  const analysis = view.analysis && (view.analysis.verdict || withOverview || view.verdictPending) ? view.analysis : null;
   const official = view.official?.status === "ok" ? view.official : null;
   const t = cardText();
   const officialNotes: Readonly<Partial<Record<OfficialSummaryView["status"], string>>> = t.officialNotes;
   // 没登录时上面已经说了要登录，官方总结那块不再重复。
   const officialNote = view.official && view.phase === "loaded" && !(view.needLogin && view.official.status === "need-login") ? (officialNotes[view.official.status] ?? "") : "";
-  const task = view.task;
   const percent = task && task.total > 0 ? Math.round((task.done / task.total) * 100) : 0;
   const glance = glanceOf(view);
-  const showGenerate = canGenerate && !needsSetup;
-  const showSettings = needsSetup || (canGenerate && view.settingsError);
-  const showRetry = (view.phase === "failed" || view.needLogin || retryRead) && !task;
-  // 已经有概览：能补上缺的部分、能重新生成（先确认一次）。读不到字幕的时候两样都用不了。
-  const canRedo = view.phase === "loaded" && aiReady === true && !task && hasOverview(view.analysis) && !view.noCaptions && !view.needLogin && !view.notRead;
-  const showRetryFailed = canRedo && view.failedParts > 0;
-  const showRegenerate = canRedo && !view.confirmRegenerate;
-  // 侧边栏已经开着：不摆打开它的按钮。别的按钮也都没有、章节也不用「展开全部」时，底部一行整个不摆。
-  const showActions = !view.holdActions && (showGenerate || showSettings || showRetry || showRegenerate || !view.panelOpen);
-  // 「打开侧边栏」是底部一行的主按钮，同一行已经有别的主按钮时退成普通按钮。
-  const panelPrimary = !showGenerate && !needsSetup;
+  const showGenerate = !view.holdActions && canGenerate && !needsSetup;
+  const showSettings = !view.holdActions && (needsSetup || (canGenerate && view.settingsError));
+  const showStart = showGenerate || showSettings;
+  const showRetry = !view.holdActions && !task && (view.phase === "failed" || view.needLogin || (view.notRead && !withOverview));
+  const officialLink = canWriteFromOfficial(view, aiReady) ? (
+    <button type="button" class="card-link" id="card-official-verdict" onClick={actions.fromOfficial}>{t.verdictFromOfficial}</button>
+  ) : null;
+  const retryHint = view.needLogin ? t.needLogin : view.notRead ? t.notRead : "";
+  const offerHint = view.noCaptions && !withOverview && officialLink ? t.noCaptions : "";
+  const statusText = view.notice?.text ?? (showRetry ? retryHint : offerHint);
+  const canRedo = view.phase === "loaded" && aiReady === true && !task && withOverview && !view.noCaptions && !view.needLogin && !view.notRead;
+  const toggleOfficial = (): void => {
+    revealOfficial.current = !view.officialOpen;
+    if (view.officialOpen) moreButton.current?.focus();
+    actions.toggleOfficial();
+  };
   return (
     <div class="card" id="card" data-collapsed={view.collapsed ? "true" : "false"} data-band={bandOf(glance.label)}>
       <div class="card-head-row">
@@ -330,115 +362,99 @@ export function Card({
             <Icon name="chevron" />
           </span>
         </button>
-        {view.collapsed && !view.panelOpen ? (
-          <button type="button" class="card-head-panel" id="card-head-panel" title={t.openPanel} onClick={actions.openPanel}>
+        {!view.panelOpen ? (
+          <button type="button" class="card-head-panel" id="card-panel" title={t.openPanel} onClick={actions.openPanel}>
             {t.headPanel}
           </button>
         ) : null}
+        {!view.collapsed ? (
+          <button
+            type="button" class="card-head-more" id="card-more-actions" ref={moreButton}
+            aria-label={t.moreActions} title={t.moreActions} aria-expanded={moreOpen}
+            aria-controls={moreOpen ? "card-tools" : undefined} onClick={actions.toggleMore}
+          >
+            <Icon name="more" />
+          </button>
+        ) : null}
       </div>
-      <Fold collapsed={view.collapsed} waiting={view.phase === "loading"}>
-        <div class="card-body" id="card-body">
-          {view.notice ? (
-            <p class="card-status" id="card-status" role="status" data-tone={view.notice.tone || undefined}>
-              {view.notice.text}
-            </p>
-          ) : null}
-          <ServiceSaid said={view.notice?.said} />
-          {canWriteFromOfficial(view, aiReady) ? (
-            // 还没有一句话结论、有官方总结：结论该在的地方先摆一个便宜的入口。
-            <div class="card-offer" id="card-official-verdict">
-              <button type="button" class="button" data-variant="secondary" onClick={actions.fromOfficial}>
-                {t.verdictFromOfficial}
-              </button>
-              <span class="card-offer-note">{t.verdictFromOfficialNote}</span>
-            </div>
-          ) : null}
-          {analysis ? (
-            <Overview
-              analysis={analysis}
-              stale={staleOverviewMarks(view.transcriptBasis ?? undefined, view.transcriptFingerprint, !view.verdictPending && text(analysis.verdict?.summary) !== "")}
-              pending={view.verdictPending}
-              commentsOpen={view.commentsOpen}
-              onToggleComments={actions.toggleComments}
-              onSeek={actions.seek}
-            />
-          ) : null}
-          {official && analysis ? (
-            // 已经有结论和章节：官方总结收成一行，点开才露。
-            <section class="card-block" id="card-official" aria-label={t.official}>
-              <button type="button" class="card-fold-head" aria-expanded={view.officialOpen} aria-controls={view.officialOpen ? "card-official-body" : undefined} onClick={actions.toggleOfficial}>
-                <span>{t.official}</span>
-                <span class="card-chevron" aria-hidden="true" />
-              </button>
-              <Collapse open={view.officialOpen}>
-                {() => (
-                  <div class="card-fold-body" id="card-official-body">
-                    <OfficialBody official={official} chapters={analysis.chapters} limited={false} onSeek={actions.seek} />
-                  </div>
-                )}
-              </Collapse>
-            </section>
-          ) : official ? (
-            <section class="card-block" id="card-official" aria-label={t.official}>
-              <h2 class="section-title">{t.official}</h2>
-              <OfficialBody official={official} limited={!view.showAll} onSeek={actions.seek} onToggleAll={actions.toggleShowAll} />
-            </section>
-          ) : officialNote ? (
-            <p class="card-note">{officialNote}</p>
-          ) : null}
-          {showRetryFailed ? (
-            <div class="card-offer" id="card-failed-parts">
-              <span class="card-offer-note">{t.failedParts}</span>
-              <button type="button" class="button" data-variant="secondary" onClick={actions.retryFailed}>
-                {t.retryFailed}
-              </button>
-            </div>
-          ) : null}
-          {needsSetup ? <p class="card-note" id="card-setup">{setupHint}</p> : null}
-          {(view.phase === "loaded" && aiReady === true && view.canAsk) || ask.phase !== "idle" ? <CardAskBox state={ask} onAsk={actions.ask} onCancel={actions.cancelAsk} onSeek={actions.seek} /> : null}
+      <Collapse open={moreOpen} outerClass="card-tools-sheet">
+        <div class="card-tools" id="card-tools" role="group" aria-label={t.moreActions}>
+          {view.more === "confirm" && canRedo ? (
+            <RegenerateConfirm onConfirm={actions.regenerate} onCancel={actions.askRegenerate} />
+          ) : (
+            <>
+              {canRedo && !view.holdActions ? (
+                <button type="button" id="card-regenerate" ref={regenerateButton} onClick={actions.askRegenerate}>
+                  {t.regenerate}<small>{t.regenerateNote}</small>
+                </button>
+              ) : null}
+              {withOverview && official ? (
+                <button type="button" aria-expanded={view.officialOpen} aria-controls={view.officialOpen ? "card-official" : undefined} id="card-toggle-official" onClick={toggleOfficial}>
+                  {t.official}
+                </button>
+              ) : null}
+              <button type="button" onClick={actions.openSettings}>{t.settings}</button>
+            </>
+          )}
         </div>
+      </Collapse>
+      <Fold collapsed={view.collapsed} waiting={view.phase === "loading"}>
         {task ? (
-          <div class="card-progress" id="card-progress" role="status">
-            <div class="card-track">
+          <div class="card-progress" id="card-progress">
+            <div class="card-track" aria-hidden="true">
               <div class="card-bar" style={{ transform: `scaleX(${percent / 100})` }} />
             </div>
-            <span class="card-progress-text">{progressText(task)}</span>
+            <span class="card-progress-text" role="status">{progressText(task, view.verdictPending)}</span>
             <button type="button" class="button" data-variant="text" disabled={task.canceling} onClick={actions.cancel}>
               {t.stop}
             </button>
           </div>
         ) : null}
-        {canRedo && view.confirmRegenerate ? (
-          <RegenerateConfirm onConfirm={actions.regenerate} onCancel={actions.askRegenerate} />
-        ) : showActions ? (
-          <div class="card-actions">
-            {showGenerate ? (
-              <button type="button" class="button" data-variant="primary" id="card-generate" onClick={actions.generate}>
-                {t.generate}
-              </button>
-            ) : null}
-            {showSettings ? (
-              <button type="button" class="button" data-variant={needsSetup ? "primary" : "secondary"} id="card-settings" onClick={actions.openSettings}>
-                {t.openSettings}
-              </button>
-            ) : null}
-            {showRegenerate ? (
-              <button type="button" class="button" data-variant="text" id="card-regenerate" onClick={actions.askRegenerate}>
-                {t.regenerate}
-              </button>
-            ) : null}
-            {showRetry ? (
-              <button type="button" class="button" id="card-retry" onClick={actions.retry}>
-                {t.retry}
-              </button>
-            ) : null}
-            {view.panelOpen ? null : (
-              <button type="button" class="button" data-variant={panelPrimary ? "primary" : undefined} id="card-panel" onClick={actions.openPanel}>
-                {t.openPanel}
-              </button>
-            )}
-          </div>
-        ) : null}
+        <div class="card-body" id="card-body">
+          {showStart ? (
+            <div class="card-offer" id="card-start">
+              {needsSetup ? <span class="card-note" id="card-setup">{setupHint}</span> : null}
+              {showGenerate ? <button type="button" class="button" data-variant="primary" id="card-generate" onClick={actions.generate}>{t.generate}</button> : null}
+              {showSettings ? <button type="button" class="button" data-variant={needsSetup ? "primary" : "secondary"} id="card-settings" onClick={actions.openSettings}>{t.openSettings}</button> : null}
+              {officialLink}
+            </div>
+          ) : null}
+          {statusText || showRetry || (!showStart && officialLink) ? (
+            <p class="card-note">
+              {statusText ? <span class="card-status" id="card-status" role="status" data-tone={view.notice?.tone || undefined}>{statusText}</span> : null}{" "}
+              {showRetry ? <button type="button" class="card-link" id="card-retry" onClick={actions.retry}>{t.retry}</button> : null}
+              {!showStart && officialLink}
+            </p>
+          ) : null}
+          <ServiceSaid said={view.notice?.said} />
+          {analysis ? (
+            <Overview
+              analysis={analysis}
+              stale={staleOverviewMarks(view.transcriptBasis ?? undefined, view.transcriptFingerprint, !view.verdictPending && text(analysis.verdict?.summary) !== "")}
+              pending={Boolean(view.verdictPending || task)}
+              commentsOpen={view.commentsOpen}
+              onToggleComments={actions.toggleComments}
+              onSeek={actions.seek}
+            />
+          ) : null}
+          {official && (!withOverview || view.officialOpen) ? (
+            <section class="card-block" id="card-official" aria-label={t.official}>
+              <div class="card-official-head">
+                <h2 class="section-title">{t.official}</h2>
+                {withOverview ? <button type="button" class="card-link" ref={officialClose} onClick={toggleOfficial}>{t.less}</button> : null}
+              </div>
+              <OfficialBody official={official} limited={!withOverview && !view.showAll} onSeek={actions.seek} {...(withOverview ? { chapters: analysis?.chapters } : { onToggleAll: actions.toggleShowAll })} />
+            </section>
+          ) : officialNote ? (
+            <p class="card-note">{officialNote}</p>
+          ) : null}
+          {canRedo && view.failedParts > 0 ? (
+            <p class="card-note" id="card-failed-parts">
+              {t.failedParts}{" "}<button type="button" class="card-link" onClick={actions.retryFailed}>{t.retryFailed}</button>
+            </p>
+          ) : null}
+          {(view.phase === "loaded" && aiReady === true && view.canAsk) || ask.phase !== "idle" ? <CardAskBox state={ask} onAsk={actions.ask} onCancel={actions.cancelAsk} onSeek={actions.seek} /> : null}
+        </div>
       </Fold>
     </div>
   );

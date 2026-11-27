@@ -30,11 +30,11 @@ export interface CardView {
   readonly transcriptBasis: OverviewTranscriptBasis | null;
   /** 本机这份概览里没生成出来的分块数。 */
   readonly failedParts: number;
-  /** 点了「重新生成」、正等着确认。 */
-  readonly confirmRegenerate: boolean;
+  /** 头部操作区收着、展开，或正在确认重新生成。 */
+  readonly more: "closed" | "actions" | "confirm";
   /** 本机有字幕时，现在用的那份的指纹：和上面的对不上就标「基于旧字幕」。 */
   readonly transcriptFingerprint: string | null;
-  /** 结论还没写好：true 写「正在写」，字符串原样显示。 */
+  /** 结论还没写好：true 表示正在写结论，字符串是还没有进度文字时的章节提示。 */
   readonly verdictPending: boolean | string;
   readonly noCaptions: boolean;
   /** 没登录 B 站：读得到视频信息，字幕要登录才读得到。 */
@@ -48,11 +48,11 @@ export interface CardView {
   readonly notice: { readonly text: string; readonly tone: Tone; /** 模型服务报错时自己说的话。 */ readonly said?: string } | null;
   /** 章节（还没有概览时是官方提纲）默认只露前几条，点了「展开全部」才全露。换了视频回到默认。 */
   readonly showAll: boolean;
-  /** 有 AI 概览时 B 站官方总结收成一行，点开才露。换了视频回到收着。 */
+  /** 有概览时，从头部的更多操作打开 B 站官方总结。换了视频回到收着。 */
   readonly officialOpen: boolean;
   /** 评论区那一行点开了，露出要点。换了视频回到收着。 */
   readonly commentsOpen: boolean;
-  /** 这个视频的内容还在来：按钮行先不摆。 */
+  /** 这个视频的内容还在来：生成等操作先不摆。 */
   readonly holdActions: boolean;
   /** 本窗口的侧边栏开着：卡片上不摆打开侧边栏的入口。 */
   readonly panelOpen: boolean;
@@ -72,7 +72,7 @@ export const INITIAL: CardView = {
   analysis: null,
   transcriptBasis: null,
   failedParts: 0,
-  confirmRegenerate: false,
+  more: "closed",
   transcriptFingerprint: null,
   verdictPending: false,
   noCaptions: false,

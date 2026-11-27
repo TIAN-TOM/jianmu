@@ -209,7 +209,7 @@ async function panelFlow(launcher, panelUrl, videoId) {
   await evaluate(launcher, `chrome.sidePanel.open({ windowId: ${windowId} }).then(() => true)`, true);
   await until("再打开侧边栏，卡片又让位收起", async () => (await cardCollapsed()) === "true");
   // 让位收起的那一行：读到过结论，写着星级和判断理由，不写播放到的章节；侧边栏开着，不摆打开它的入口。
-  const line = await evaluate(card, `JSON.stringify([document.querySelector(".card-verdict .verdict-name")?.textContent ?? "", document.getElementById("card-glance")?.textContent ?? "", document.getElementById("card-head-panel") === null])`);
+  const line = await evaluate(card, `JSON.stringify([document.querySelector(".card-verdict .verdict-name")?.textContent ?? "", document.getElementById("card-glance")?.textContent ?? "", document.querySelector("#card-panel, #card-more-actions") === null])`);
   if (line !== JSON.stringify(["挑着看", "样例理由", true])) throw new Error(`让位收起的那一行不对：${line}`);
   console.log("✓ 卡片给侧边栏让位：关上侧边栏卡片展开、重点章节标着，再打开又收起，收起的那一行写着星级和判断理由、没有打开侧边栏的入口");
 }
@@ -300,7 +300,7 @@ try {
   const { card } = await watch.notesAndOfficial(ask, FIRST);
   console.log("✓ 卡片显示官方总结，没配模型服务时摆「打开设置」；笔记图标平时藏着、悬停才露、跟着控制栏信号走，穿过透明层点图标、按 n 各存下一条笔记");
   await watch.generate(card, page, ANTHROPIC);
-  console.log("✓ 配好模型服务后卡片换回「生成概览」，点一下出了章节和结论");
+  console.log("✓ 配好模型服务后能在卡片上生成概览，从更多操作打开章节下面的官方总结");
   await watch.wideScreen();
   console.log("✓ 宽屏时卡片挪到弹幕列表下面");
   // 第一个视频的概览卡片已经生成过，侧边栏用第二个视频从头走。
