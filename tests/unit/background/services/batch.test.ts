@@ -16,6 +16,7 @@ import type { BatchOut, WindowEntryStatus } from "../../../../src/shared/message
 import type { TranscriptReply } from "../../../../src/shared/messages/transcript.ts";
 import { bilibiliRules } from "../../../../src/sites/bilibili/url.ts";
 import type { OfficialSummary, SiteResult, WatchLaterItem } from "../../../../src/sites/types.ts";
+import { deferred, nextTurn } from "../../../helpers/deferred.ts";
 import { failed, fakeSiteService, type FakeSiteService } from "../../../helpers/fake-site-service.ts";
 import { memoryStorage } from "../../../helpers/memory-storage.ts";
 import { ANALYSIS_GEN, hang, overviewHarness, VERDICT_GEN, verdictReply, type OverviewHarness, type Respond } from "../../../helpers/overview-service.ts";
@@ -334,8 +335,7 @@ test("第二步：页面都关了撤掉还在排队的；已经发出的那次�
 });
 
 test("第二步：登记还没回来时停下这一轮，回来以后撤掉刚建的任务，不发模型请求、不存结论", async () => {
-  let release: () => void = () => {};
-  const registerGate = new Promise<void>((resolve) => void (release = resolve));
+  const { promise: registerGate, resolve: release } = deferred();
   const site = fakeSiteService({
     watchLater: () => ({ ok: true, value: { total: 1, dropped: 0, items: [listItem(ids[0])] } }),
     officialSummary: officialOk,
@@ -356,8 +356,7 @@ test("第二步：登记还没回来时停下这一轮，回来以后撤掉刚�
 });
 
 test("第二步：登记还没回来时最后一个页面走了，同样不发模型请求", async () => {
-  let release: () => void = () => {};
-  const registerGate = new Promise<void>((resolve) => void (release = resolve));
+  const { promise: registerGate, resolve: release } = deferred();
   const site = fakeSiteService({
     watchLater: () => ({ ok: true, value: { total: 1, dropped: 0, items: [listItem(ids[0])] } }),
     officialSummary: officialOk,
@@ -666,8 +665,7 @@ test("清除了本机数据：这一批不再读下一个，也不再登记新�
 });
 
 test("取定配置、登记的工夫点了全部停止：回来以后不开始生成", async () => {
-  let release: () => void = () => {};
-  const freezeGate = new Promise<void>((resolve) => void (release = resolve));
+  const { promise: freezeGate, resolve: release } = deferred();
   const tabs = [{ url: watchUrl(ids[0]), title: "一" }];
   const { service, harness, ensured, page } = setup({ tabs, freezeGate });
   const panel = page("panel");
@@ -683,8 +681,7 @@ test("取定配置、登记的工夫点了全部停止：回来以后不开始�
 });
 
 test("登记任务还没回来时点了全部停止：回来以后撤掉刚建的任务，不开始生成", async () => {
-  let release: () => void = () => {};
-  const registerGate = new Promise<void>((resolve) => void (release = resolve));
+  const { promise: registerGate, resolve: release } = deferred();
   const tabs = [{ url: watchUrl(ids[0]), title: "一" }];
   const { service, harness, ensured, page } = setup({ tabs, registerGate });
   const panel = page("panel");
@@ -692,7 +689,7 @@ test("登记任务还没回来时点了全部停止：回来以后撤掉刚建�
   const running = service.handle({ type: "window.start", windowId: 7 }, panel.listener);
   assert.ok(await until(() => ensured.length === 1));
   // 取定配置走完，正卡在登记上。
-  await new Promise((resolve) => setImmediate(resolve));
+  await nextTurn();
   await service.handle({ type: "window.stop", windowId: 7 }, panel.listener);
   release();
   await running;

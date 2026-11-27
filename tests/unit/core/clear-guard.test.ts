@@ -1,18 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createClearGuard, NO_CLEAR_GUARD } from "../../../src/core/clear-guard.ts";
-
-function deferred() {
-  let resolve!: () => void;
-  const promise = new Promise<void>((r) => {
-    resolve = r;
-  });
-  return { promise, resolve };
-}
-
-function nextTurn() {
-  return new Promise<void>((resolve) => setImmediate(resolve));
-}
+import { deferred, nextTurn } from "../../helpers/deferred.ts";
 
 test("按清除范围递增代数：清缓存或删笔记只影响各自的写入，清除全部数据影响三种", async () => {
   const guard = createClearGuard();

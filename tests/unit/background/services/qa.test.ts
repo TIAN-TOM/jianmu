@@ -11,6 +11,7 @@ import type { QaRecord } from "../../../../src/core/notes/records.ts";
 import type { TaskView } from "../../../../src/core/tasks.ts";
 import { videoKey } from "../../../../src/core/video-ref.ts";
 import type { QaAnswerView, QaHistoryView } from "../../../../src/shared/messages/qa.ts";
+import { deferred } from "../../../helpers/deferred.ts";
 import { chatReply, type ServiceReply } from "../../../helpers/fake-model-service.ts";
 import { SAMPLE_ID } from "../../../helpers/fake-site-service.ts";
 import { senders } from "../../../helpers/chrome.ts";
@@ -164,8 +165,7 @@ test("问答的回答来自补齐的信封：返回的结果和存下的记录�
 });
 
 test("同一个问题连点两下：登记接上同一个任务，两次开始只发一次模型请求，拿到同一份回答", async () => {
-  let release!: () => void;
-  const gate = new Promise<void>((resolve) => (release = resolve));
+  const { promise: gate, resolve: release } = deferred();
   const bg = studyBackground({ handler: async () => (await gate, chatReply(JSON.stringify({ answer: "第一句 【0:00|字幕】" }))) });
   const first = await startQa(bg.send, "讲了什么");
   const second = await startQa(bg.send, "  讲了什么  ");

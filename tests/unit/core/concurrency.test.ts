@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createLimiter, createSerialQueue, mapWithConcurrency } from "../../../src/core/concurrency.ts";
+import { deferred, nextTurn, type Deferred } from "../../helpers/deferred.ts";
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -241,17 +242,6 @@ test("任务出错也会归还名额，排队的照常执行", async () => {
   assert.equal(await run(1, async () => "still ok"), "still ok");
 });
 
-// 可控的「挂起中」任务：由测试决定什么时候让它结束。
-type Deferred = ReturnType<typeof deferred>;
-
-function deferred() {
-  let resolve!: () => void;
-  const promise = new Promise<void>((done) => {
-    resolve = done;
-  });
-  return { promise, resolve };
-}
-
 // 取消是同步判定的，排空这一轮微任务后还没结束就算挂起，不靠计时器。
 const settledState = (promise: Promise<unknown>) =>
   Promise.race([
@@ -336,7 +326,7 @@ test("队首被取消后，后面能放行的立刻补上", async () => {
   });
 
   // 放不放行在排队时就决定了，不经过计时器：排空一轮微任务后还没开跑，就是被挡在队首后面。
-  await new Promise((resolve) => setImmediate(resolve));
+  await nextTurn();
   assert.equal(started, false, "先来后到：队首放不进去时，后面的不越过它");
   controller.abort();
   await assert.rejects(strict, isCanceled);
