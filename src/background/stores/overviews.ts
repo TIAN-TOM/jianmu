@@ -1,8 +1,7 @@
 // 概览仓储：每个视频一条，不随字幕缓存过期。生成、补块、补存和导入都写这里，
 // 都排在同一条写队列上；要先读再写的用 update、updateRecord，读和写一次做完。
 import type { ClearGuard } from "../../core/clear-guard.ts";
-import type { LearningAnalysis } from "../../core/notes/markdown.ts";
-import { normalizeAnalysisFailures, OVERVIEW_RECORD_VERSION, type OverviewRecord } from "../../core/notes/records.ts";
+import { normalizeAnalysisFailures, OVERVIEW_RECORD_VERSION, type LearningAnalysis, type OverviewRecord } from "../../core/notes/records.ts";
 import { parseVideoKey, type VideoKey } from "../../core/video-ref.ts";
 import type { ObjectStoreDriver } from "../../platform/idb.ts";
 import { createWriteGate, type WriteOptions } from "./write-gate.ts";

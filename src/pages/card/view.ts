@@ -1,7 +1,6 @@
 // 卡片的状态长什么样，和刚插进页面时的初始值。状态怎么变在 model.ts。
-import type { LearningAnalysis } from "../../core/notes/markdown.ts";
+import type { LearningAnalysis, OverviewTranscriptBasis } from "../../core/notes/records.ts";
 import type { OfficialSummaryView } from "../../shared/messages/transcript.ts";
-import type { OverviewTranscriptBasis } from "../../core/notes/records.ts";
 
 export type Tone = "" | "warn" | "error";
 

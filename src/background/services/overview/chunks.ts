@@ -10,7 +10,7 @@ import { aiErrorResponse, throwIfTaskCanceled, type RetryNotice, type TransportE
 import { chunkFromModel, validateAnalysis, type Analysis } from "../../../core/ai/validate.ts";
 import { mapWithConcurrency, type Limiter } from "../../../core/concurrency.ts";
 import { errorCopy } from "../../../core/errors.ts";
-import type { LearningAnalysis } from "../../../core/notes/markdown.ts";
+import type { LearningAnalysis } from "../../../core/notes/records.ts";
 import { formatTimestamp, type TranscriptSegment } from "../../../core/transcript/segment.ts";
 import { outputLangOf, type OutputLang } from "../../../core/output-lang.ts";
 import { errorLabel, type Log } from "../../log.ts";

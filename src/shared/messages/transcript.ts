@@ -1,8 +1,7 @@
 // 取字幕和查原视频还在不在这两条消息的请求和回复。回复里只有页面要显示的东西，不带字幕文件地址和平台的内部编号。
 import type { FailureRange } from "../../core/ai/chunking.ts";
 import type { Failure } from "../../core/errors.ts";
-import type { LearningAnalysis } from "../../core/notes/markdown.ts";
-import type { OverviewTranscriptBasis, TranscriptRef } from "../../core/notes/records.ts";
+import type { LearningAnalysis, OverviewTranscriptBasis, TranscriptRef } from "../../core/notes/records.ts";
 import type { TranscriptSegment } from "../../core/transcript/segment.ts";
 import type { CaptionKind } from "../../core/transcript/sources.ts";
 import type { ChannelRef, VideoKey } from "../../core/video-ref.ts";

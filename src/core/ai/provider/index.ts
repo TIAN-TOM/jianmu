@@ -12,10 +12,8 @@ export {
 export { diagnoseEmptyResponse, thinkingUsedUpBudget } from "./diagnose.ts";
 export {
   EFFORT_BUDGETS,
-  EFFORTS,
   effortSupport,
   hostOf,
-  isEffort,
   planEffort,
   type EffortPlanInput,
   type EffortSupport,

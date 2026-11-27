@@ -1,6 +1,6 @@
 // AI 任务生命周期：去重、进度、取消与状态广播。保活在 platform/keepalive.ts。
-import { EFFORTS } from "./ai/provider/effort.ts";
-import type { Effort, FeatureId, GenInfo } from "./notes/records.ts";
+import { EFFORTS, type Effort } from "./ai/effort-level.ts";
+import type { FeatureId, GenInfo } from "./notes/records.ts";
 import type { OutputLang } from "./output-lang.ts";
 import type { VideoKey } from "./video-ref.ts";
 

@@ -4,6 +4,7 @@
 // 保存了密钥、还没记住也没问过时，按钮下面就地问一句要不要记在这台电脑上。
 import { useEffect, useId, useRef } from "preact/hooks";
 import { DATA_CONSENT_TABLE, noticeLines, noticeStatus, type DataConsentKind, type NoticeItem } from "../../core/consent.ts";
+import { EFFORTS } from "../../core/ai/effort-level.ts";
 import {
   ANALYSIS_CHUNK_MODES,
   CUSTOM_PRESET_ID,
@@ -11,7 +12,6 @@ import {
   PRESETS,
   presetById,
   REGION_PRESETS,
-  EFFORTS,
   type AnalysisChunkMode,
 } from "../../shared/settings-schema.ts";
 import { dataConsentStatus } from "../../shared/consent-status.ts";

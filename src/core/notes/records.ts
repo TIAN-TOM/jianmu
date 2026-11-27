@@ -1,10 +1,9 @@
 // 笔记和概览的记录类型，以及派生结果记下的依据和生成配置。
-import type { TextTarget } from "../../shared/messages/translate.ts";
-import type { FailureRange, StoredRange } from "../ai/chunking.ts";
-import type { OutputLang } from "../output-lang.ts";
+import type { ChapterPart, FailureRange, QuotePart, StoredRange } from "../ai/chunking.ts";
+import type { Effort } from "../ai/effort-level.ts";
+import { OUTPUT_LANGS, type OutputLang } from "../output-lang.ts";
 import type { CaptionKind } from "../transcript/sources.ts";
 import { parseVideoKey, type VideoKey } from "../video-ref.ts";
-import type { LearningAnalysis } from "./markdown.ts";
 
 /** 一个字幕版本：真实视频、来源、语言和正文指纹。 */
 export interface TranscriptRef {
@@ -23,8 +22,6 @@ export type Basis =
 
 // 和传输层请求里的 feature 是同一个值。
 export type FeatureId = string;
-
-export type Effort = "off" | "low" | "medium" | "high";
 
 /** 任务创建时取定的生成配置，effort 是实际生效的档位。 */
 export interface GenInfo {
@@ -91,6 +88,29 @@ export interface QaRecord {
 }
 
 export const OVERVIEW_RECORD_VERSION = 1;
+
+/** 概览里的结论。存下来的和备份读进来的都可能缺项或类型不对，读的时候各自校验。 */
+export interface LearningVerdict {
+  readonly summary?: unknown;
+  readonly value?: unknown;
+  readonly verdict?: unknown;
+  readonly reason?: unknown;
+  readonly source?: unknown;
+  readonly incomplete?: unknown;
+  /** 重点章节的起始秒，只认和现有章节对得上的。 */
+  readonly keyStarts?: unknown;
+  /** 模型的正文被截断，靠补齐读出来：摘要或理由可能只有半句。 */
+  readonly truncated?: unknown;
+  /** 视频标题译成结论语言的样子，只有侧边栏顶上的标题用；导出照旧用原标题。 */
+  readonly translatedTitle?: unknown;
+}
+
+/** 概览的正文：章节、关键句和结论。 */
+export interface LearningAnalysis {
+  readonly chapters?: readonly ChapterPart[] | null;
+  readonly keyQuotes?: readonly QuotePart[] | null;
+  readonly verdict?: LearningVerdict | null;
+}
 
 /** 概览的一部分（章节、结论）是哪个任务写的、依据什么、用什么配置生成的。 */
 export interface OverviewPart {
@@ -190,6 +210,9 @@ export function normalizeAnalysisFailures(value: unknown): FailureRange[] {
     .filter((item) => Number.isFinite(item.startSeconds));
 }
 
+/** 按字幕版本存在本机的几种文字：三种译文，加整理后的原文（tidy）。 */
+export type TextTarget = OutputLang | "tidy";
+
 /** 按字幕版本存的译文和整理后的字幕：一版字幕译成一种语言（或整理一遍）是一条，记录里按段的原文指纹记文字。 */
 export interface TranslationRecord {
   readonly id: string;
@@ -202,6 +225,6 @@ export interface TranslationRecord {
   readonly updatedAt: number;
 }
 
-export const TEXT_TARGETS: readonly TextTarget[] = Object.freeze(["zh", "zh-Hant", "en", "tidy"]);
+export const TEXT_TARGETS: readonly TextTarget[] = Object.freeze([...OUTPUT_LANGS, "tidy"]);
 
 export const translationId = (transcript: Pick<TranscriptRef, "video" | "fingerprint">, target: TextTarget): string => `${transcript.video}|${transcript.fingerprint}|${target}`;

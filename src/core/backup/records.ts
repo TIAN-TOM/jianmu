@@ -1,16 +1,17 @@
 // 备份里四类记录的校验：导出、读新格式、转换旧格式都过这一道。只留记录类型里有的字段，
 // 概览过一遍和生成时相同的校验，必填的字段不对就整条丢掉，交给调用方计数。草稿不进备份。
 import type { TimeRange } from "../ai/chunking.ts";
+import { EFFORTS } from "../ai/effort-level.ts";
 import { validateAnalysis } from "../ai/validate.ts";
 import { validateVerdict, validKeyStarts } from "../ai/verdict.ts";
-import type { LearningAnalysis, LearningVerdict } from "../notes/markdown.ts";
 import {
   normalizeAnalysisFailures,
   OVERVIEW_RECORD_VERSION,
   type Basis,
   type Derived,
-  type Effort,
   type GenInfo,
+  type LearningAnalysis,
+  type LearningVerdict,
   type NoteRecord,
   type NoteSnapshot,
   type OverviewPart,
@@ -56,7 +57,6 @@ const AUTHOR_MAX = 300;
 
 // 认得的字幕来源类别。旧备份里没有「来源未确认」，照常导入。
 const CAPTION_KINDS: readonly CaptionKind[] = ["human", "auto", "official-ai", "imported", "unconfirmed"];
-const EFFORTS: readonly Effort[] = ["off", "low", "medium", "high"];
 
 export type Fields = Readonly<Record<string, unknown>>;
 

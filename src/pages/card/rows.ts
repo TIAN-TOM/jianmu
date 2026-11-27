@@ -1,5 +1,5 @@
 // 卡片上的概览怎么摆：有没有概览、章节按时间排好、默认露几条。纯函数，模型和界面都用。
-import type { LearningAnalysis } from "../../core/notes/markdown.ts";
+import type { LearningAnalysis } from "../../core/notes/records.ts";
 
 /** 有章节或金句才算已经有概览；只有一句话结论的，「生成概览」照样留着。 */
 export function hasOverview(analysis: LearningAnalysis | null): boolean {

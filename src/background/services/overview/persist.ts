@@ -5,11 +5,12 @@
 // 写入经仓储的清除闸门，等模型的工夫清除了本机数据就不写，按取消收尾。
 import type { FailureRange } from "../../../core/ai/chunking.ts";
 import type { ClearEpoch } from "../../../core/clear-guard.ts";
-import type { LearningAnalysis, LearningVerdict } from "../../../core/notes/markdown.ts";
 import {
   normalizeAnalysisFailures,
   OVERVIEW_RECORD_VERSION,
   overviewTranscriptBasis,
+  type LearningAnalysis,
+  type LearningVerdict,
   type OverviewPart,
   type OverviewRecord,
   type OverviewTranscriptBasis,

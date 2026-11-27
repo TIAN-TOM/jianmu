@@ -1,7 +1,7 @@
 // 参数放宽：模型因某个参数返回 400 时算出下一轮怎么发，记住放宽项，并把放宽重发收成一个函数。
 import { NO_CLEAR_GUARD, type ClearGuard } from "../../clear-guard.ts";
 import { RELAX_STORAGE_KEY } from "../../../shared/names.ts";
-import type { Effort } from "../../notes/records.ts";
+import type { Effort } from "../effort-level.ts";
 import { apiVersionFor } from "./anthropic.ts";
 import { PROTOCOLS, type Protocol } from "./endpoint.ts";
 import { buildChatRequest } from "./request.ts";
