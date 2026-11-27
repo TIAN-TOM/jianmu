@@ -3,6 +3,7 @@
 import type { VideoRef } from "../../../core/video-ref.ts";
 import { COMMENT_LIMITS, likesOf, type CommentReply, type CommentRequest, type PageComment } from "./comment-types.ts";
 import { videoOnPage } from "./panel-dom.ts";
+import { squash } from "./values.ts";
 
 // 评论区和其中的每一条顶层评论；回复在另一块里，不读。
 export const COMMENT_SECTION = "ytd-comments#comments";
@@ -11,8 +12,6 @@ const TOP_LEVEL = "#comment-container";
 const TEXT = "#content-text";
 const LIKES = "#vote-count-middle";
 const PINNED_BADGE = "#pinned-comment-badge";
-
-const squash = (text: string | null | undefined): string => (text ?? "").replace(/\s+/g, " ").trim();
 
 /** 页面上已经加载出来的顶层评论，最多 COMMENT_LIMITS.count 条。 */
 export function loadedComments(document: Document): PageComment[] {

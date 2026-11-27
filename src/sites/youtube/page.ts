@@ -1,22 +1,15 @@
 // YouTube 观看页：认当前视频、听站内换视频、找主视频、悬停图标和卡片的挂载点、读控制栏显隐和频道。
 // 只读页面结构，不插节点，不发请求，不碰播放器。站内跳转不重新加载页面，脚本在整个站点上跑，只有观看页认得出视频。
-import { videoKey, type VideoRef } from "../../core/video-ref.ts";
+import type { VideoRef } from "../../core/video-ref.ts";
 import type { MainVideo, SitePage } from "../page-types.ts";
-import { PANELS } from "./page/panel-dom.ts";
+import { keyOf, repeat, waitFor, watchAttribute } from "../page-util.ts";
+import { advertising, MAIN_VIDEO, PANELS, PLAYER, videoOnPage } from "./page/panel-dom.ts";
 import { youtubeRules } from "./url.ts";
 
-// 观看页外壳里的播放器和它的主视频元素。
-const PLAYER = "ytd-watch-flexy .html5-video-player";
-const VIDEO = "ytd-watch-flexy .html5-video-player video.html5-main-video";
-// 播放器在播广告时标在自己身上的两种状态。
-const AD_CLASSES = ["ad-showing", "ad-interrupting"];
 // 控制栏自动藏起来时播放器带上这个状态。
 const AUTOHIDE_CLASS = "ytp-autohide";
 // 视频带信息卡片时，播放器右上角有页面自己的信息按钮和卡片提示条，全屏时更大；悬停图标排在它们下面。
 const HOVER_ICON_TOP = 76;
-// 观看页的外壳，标着它正在放的视频编号。
-const WATCH_SHELL = "ytd-watch-flexy";
-const SHELL_VIDEO_ATTRIBUTE = "video-id";
 const APP_ROOT = "ytd-app";
 // 观看页标题下面频道名的链接。
 const CHANNEL_LINK_SELECTORS = ["ytd-watch-metadata ytd-channel-name a", "ytd-video-owner-renderer ytd-channel-name a", "#owner ytd-channel-name a"];
@@ -43,35 +36,6 @@ export interface YoutubePageDeps {
   observeAttribute?: (element: Element, name: string, run: () => void) => () => void; // 属性变了就调，返回停止函数
 }
 
-function waitFor(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    signal.throwIfAborted();
-    const onAbort = (): void => {
-      clearTimeout(timer);
-      reject(signal.reason);
-    };
-    const timer = setTimeout(() => {
-      signal.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
-    signal.addEventListener("abort", onAbort, { once: true });
-  });
-}
-
-function repeat(ms: number, run: () => void): () => void {
-  const timer = setInterval(run, ms);
-  return () => clearInterval(timer);
-}
-
-function watchAttribute(element: Element, name: string, run: () => void): () => void {
-  if (typeof MutationObserver !== "function") return () => undefined;
-  const observer = new MutationObserver(run);
-  observer.observe(element, { attributes: true, attributeFilter: [name] });
-  return () => observer.disconnect();
-}
-
-const keyOf = (ref: VideoRef | null): string | null => (ref ? videoKey(ref) : null);
-
 /** 在侧栏面板里面：卡片不能插进去，也就不会被当成面板内容读到。 */
 const inPanel = (element: Element): boolean => element.closest(PANELS) !== null;
 
@@ -86,13 +50,6 @@ function afterPanels(column: Element): Node | null {
 
 export function createYoutubePage({ document, location, sleep = waitFor, every = repeat, observeAttribute = watchAttribute }: YoutubePageDeps): SitePage {
   const currentRef = (): VideoRef | null => youtubeRules.parseWatchUrl(location.href);
-
-  /** 观看页外壳上标的视频就是地址上的视频：换视频的途中两者对不上，这时页面上读到的还可能是上一个视频的。 */
-  function shellMatches(): boolean {
-    const ref = currentRef();
-    const shell = document.querySelector(WATCH_SHELL);
-    return ref !== null && shell !== null && shell.getAttribute(SHELL_VIDEO_ATTRIBUTE) === ref.videoId;
-  }
 
   return {
     rules: youtubeRules,
@@ -134,9 +91,8 @@ export function createYoutubePage({ document, location, sleep = waitFor, every =
 
     findMainVideo(): MainVideo {
       if (!currentRef()) return { status: "none" };
-      const player = document.querySelector(PLAYER);
-      if (player && AD_CLASSES.some((name) => player.classList.contains(name))) return { status: "ad" };
-      const video = document.querySelector<HTMLVideoElement>(VIDEO);
+      if (advertising(document)) return { status: "ad" };
+      const video = document.querySelector<HTMLVideoElement>(MAIN_VIDEO);
       return video ? { status: "found", video } : { status: "none" };
     },
 
@@ -173,9 +129,9 @@ export function createYoutubePage({ document, location, sleep = waitFor, every =
       };
     },
 
-    // 频道编号或频道的 @ 名，换视频的途中不读，免得记到上一个视频的频道上。
+    // 频道编号或频道的 @ 名，换视频的途中（观看页外壳上标的视频和地址对不上）不读，免得记到上一个视频的频道上。
     channelId() {
-      if (!shellMatches()) return null;
+      if (videoOnPage(document, currentRef()) === "") return null;
       for (const selector of CHANNEL_LINK_SELECTORS) {
         for (const link of document.querySelectorAll<HTMLAnchorElement>(selector)) {
           const match = CHANNEL_PATH.exec(link.getAttribute("href") ?? "");

@@ -1,8 +1,10 @@
 // 读当前视频的字幕轨、字幕正文和 UP 主分段，三样共用一次列表请求。
 // 字幕文件的地址只留在这里的内存表，不落盘，不写进报错和日志。
+import { secondsOrNull } from "../../core/transcript/seconds.ts";
 import { videoKey } from "../../core/video-ref.ts";
 import type { CaptionTrack, Chapter, Cue, SiteCtx, SiteErrorCode, SiteResult, SiteService, VideoInfo } from "../types.ts";
 import { ABORTED, isCaptionFileUrl, PLAYER_URL, untilAborted, type BiliHttp } from "./http.ts";
+import { plainText } from "./raw-text.ts";
 
 interface RawTrack {
   readonly lan?: unknown;
@@ -47,14 +49,6 @@ export type Captions = Pick<Required<SiteService>, "listCaptionTracks" | "readCa
 const RECORD_MS = 5 * 60_000;
 // 这两种失败只说明这一次没读成，换了地址或重列也一样，记录留着。
 const KEEPS_RECORD: ReadonlySet<SiteErrorCode> = new Set(["RATE_LIMITED", "TIMEOUT"]);
-
-const plainText = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
-
-function secondsOrNull(value: unknown): number | null {
-  if (value === null || value === undefined || value === "") return null;
-  const seconds = Number(value);
-  return Number.isFinite(seconds) && seconds >= 0 ? seconds : null;
-}
 
 function baseLang(lang: string): string {
   const [base = ""] = lang.replace(/^ai[-_]/i, "").split("-");
