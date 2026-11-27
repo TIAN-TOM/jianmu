@@ -5,6 +5,7 @@ import { EFFORTS } from "../ai/effort-level.ts";
 import { validateAnalysis } from "../ai/validate.ts";
 import { validateVerdict, validKeyStarts } from "../ai/verdict.ts";
 import {
+  AUTHOR_MAX,
   normalizeAnalysisFailures,
   OVERVIEW_RECORD_VERSION,
   type Basis,
@@ -22,10 +23,11 @@ import {
   type TranscriptRef,
   type TranslationRecord,
   TEXT_TARGETS,
+  TITLE_MAX,
   translationId,
 } from "../notes/records.ts";
 import { isOutputLang, outputLangOf, type OutputLang } from "../output-lang.ts";
-import type { CaptionKind } from "../transcript/sources.ts";
+import { CAPTION_KINDS } from "../transcript/sources.ts";
 import { parseVideoKey, type VideoKey } from "../video-ref.ts";
 
 export interface BackupContents {
@@ -52,11 +54,6 @@ export interface ImportedBackup {
 const ID_MAX = 200;
 const QA_ID_MAX = 100;
 const QA_ID_PREFIX = "qa_";
-const TITLE_MAX = 500;
-const AUTHOR_MAX = 300;
-
-// 认得的字幕来源类别。旧备份里没有「来源未确认」，照常导入。
-const CAPTION_KINDS: readonly CaptionKind[] = ["human", "auto", "official-ai", "imported", "unconfirmed"];
 
 export type Fields = Readonly<Record<string, unknown>>;
 

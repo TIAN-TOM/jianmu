@@ -45,6 +45,10 @@ export type NoteKind = "note";
 // user 是用户在扩展里存下的，legacy 是从旧备份导入的。
 export type NoteOrigin = "user" | "legacy";
 
+/** 快照里标题和作者存下的最大长度，超出的截掉。 */
+export const TITLE_MAX = 500;
+export const AUTHOR_MAX = 300;
+
 /** 存笔记时的视频和频道信息，视频改名后笔记照样能显示。 */
 export interface NoteSnapshot {
   readonly title: string;

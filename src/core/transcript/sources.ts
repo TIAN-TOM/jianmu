@@ -3,7 +3,8 @@ import { inLang, type OutputLang } from "../output-lang.ts";
 import { SOURCE_LABELS_HANT } from "./sources-hant.ts";
 
 // 一份字幕的来源类别：人工、平台自动、官方总结附带、用户导入，以及读到了正文但确认不了是人工还是自动的。
-export type CaptionKind = "human" | "auto" | "official-ai" | "imported" | "unconfirmed";
+export const CAPTION_KINDS = Object.freeze(["human", "auto", "official-ai", "imported", "unconfirmed"] as const);
+export type CaptionKind = (typeof CAPTION_KINDS)[number];
 
 // 播放器一条字幕都没有、改用官方总结附带的 AI 字幕时记这个值。
 export const OFFICIAL_SUBTITLE_SOURCE = "official-summary";
