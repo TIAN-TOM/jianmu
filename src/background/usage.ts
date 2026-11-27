@@ -1,6 +1,7 @@
 // 每项功能最近一次模型请求服务回报的用量，设置页「推理强度」一节显示。只记数字和当时的模型、实际按的档位，
 // 不记请求和回复的内容，也不记密钥。放在会话存储里：后台被回收以后还在，关掉浏览器就没了；不进备份，两种清除都清掉。
 import { isEffort, type EffortNote, type TokenUsage } from "../core/ai/provider/index.ts";
+import { countOf } from "../core/ai/provider/response.ts";
 import type { ClearEpoch, ClearGuard } from "../core/clear-guard.ts";
 import type { StorageArea } from "../platform/storage.ts";
 import type { LastUsageView } from "../shared/messages/ai.ts";
@@ -16,9 +17,6 @@ export interface UsageLog {
 
 const USAGE_FIELDS = ["input", "output", "reasoning", "total"] as const;
 const EFFORT_NOTES: readonly EffortNote[] = ["cannot-disable", "fallback", "unknown"];
-
-const countOf = (value: unknown): number | undefined =>
-  typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
 
 // 会话存储里的东西照样按不可信的形状读，只留认得的几项。
 function entryOf(value: unknown): LastUsageView | null {

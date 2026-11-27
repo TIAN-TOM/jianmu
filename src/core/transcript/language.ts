@@ -13,6 +13,12 @@ export function isChineseSubtitle(language: string | null | undefined): boolean 
   return code.replace(/^ai[-_]/, "").startsWith("zh");
 }
 
+/** 语言码的主语言：脱掉自动字幕的前缀，取第一段，小写。同一种语言的几条轨按它归到一起。 */
+export function baseLang(lang: string): string {
+  const [base = ""] = lang.replace(/^ai[-_]/i, "").split("-");
+  return base.toLowerCase();
+}
+
 /** 英文字幕：语言码脱掉自动字幕的前缀后以 en 开头。拿不到语言码时不算英文（按中文处理，见上）。 */
 export function isEnglishSubtitle(language: string | null | undefined): boolean {
   const code = String(language || "")

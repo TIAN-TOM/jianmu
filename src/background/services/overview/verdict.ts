@@ -7,7 +7,7 @@ import { hasOfficialSummaryContent, officialVerdictInputs } from "../../../core/
 import type { ClearEpoch, ClearGuard } from "../../../core/clear-guard.ts";
 import type { Limiter } from "../../../core/concurrency.ts";
 import { fail, ok, trimFailure, type Result } from "../../../core/errors.ts";
-import { normalizeAnalysisFailures, overviewTranscriptBasis, type Basis, type OverviewPart, type OverviewRecord } from "../../../core/notes/records.ts";
+import type { Basis, OverviewPart, OverviewRecord } from "../../../core/notes/records.ts";
 import { equivalenceKey } from "../../../core/task-keys.ts";
 import { genInfo } from "../../../core/tasks.ts";
 import { outputLangOf } from "../../../core/output-lang.ts";
@@ -25,6 +25,7 @@ import type { TaskRun, TaskRunner } from "../../tasks.ts";
 import type { TranscriptService } from "../transcript/index.ts";
 import { requestVerdict, VERDICT_PROMPT } from "./conclude.ts";
 import { CLEARED, createPersist, type Saved, type SnapshotFields } from "./persist.ts";
+import { storedView } from "./view.ts";
 
 export interface VerdictServiceDeps {
   readonly tasks: Pick<TaskRunner, "run" | "list">;
@@ -80,12 +81,6 @@ const NO_SUMMARY: ReadonlySet<string> = new Set(["none", "unsupported"]);
 
 const hasVerdict = (record: OverviewRecord | null): record is OverviewRecord =>
   typeof record?.analysis.verdict?.summary === "string" && record.analysis.verdict.summary.trim() !== "";
-
-function storedView(video: VideoKey, record: OverviewRecord): OverviewResultView {
-  const failures = normalizeAnalysisFailures(record.analysisFailures);
-  const transcriptBasis = overviewTranscriptBasis(record.parts);
-  return { video, analysis: record.analysis, analysisFailures: failures, ...(transcriptBasis ? { transcriptBasis } : {}), fromCache: true, failedChunks: failures.length };
-}
 
 function savedView(video: VideoKey, saved: Saved): OverviewResultView {
   return {

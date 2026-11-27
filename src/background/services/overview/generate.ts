@@ -9,7 +9,7 @@ import type { ClearEpoch, ClearGuard } from "../../../core/clear-guard.ts";
 import type { Limiter } from "../../../core/concurrency.ts";
 import { fail, isErrorCode, ok, trimFailure, type Failure, type Result } from "../../../core/errors.ts";
 import type { LearningAnalysis } from "../../../core/notes/markdown.ts";
-import { normalizeAnalysisFailures, overviewTranscriptBasis, type Basis, type OverviewPart, type OverviewRecord } from "../../../core/notes/records.ts";
+import { normalizeAnalysisFailures, type Basis, type OverviewPart } from "../../../core/notes/records.ts";
 import { genInfo } from "../../../core/tasks.ts";
 import { localizePrompt } from "../../../core/ai/prompt.ts";
 import { outputLangOf, type OutputLang } from "../../../core/output-lang.ts";
@@ -30,6 +30,7 @@ import { COMMENT_VERDICT_PROMPT } from "./conclude-comments.ts";
 import type { CommentRead } from "../comments.ts";
 import type { CommentMaterial } from "../../../core/ai/comments.ts";
 import { CLEARED, createPersist, type ChapterWrite, type Saved, type SnapshotFields } from "./persist.ts";
+import { storedView } from "./view.ts";
 
 export const ANALYSIS_PROMPT = "skim/chapters.md";
 const VERDICT_FEATURE = "verdict";
@@ -84,12 +85,6 @@ function failureOf(error: unknown, lang: OutputLang, whole = false): Failure {
   if (code === "EMPTY_CHUNK") return fail("EMPTY_ANALYSIS");
   if (code === "ANALYSIS_PARSE_FAILED" && isErrorCode(code)) return fail(code);
   return aiFailure(error, lang);
-}
-
-function storedView(video: VideoKey, record: OverviewRecord): OverviewResultView {
-  const failures = normalizeAnalysisFailures(record.analysisFailures);
-  const transcriptBasis = overviewTranscriptBasis(record.parts);
-  return { video, analysis: record.analysis, analysisFailures: failures, ...(transcriptBasis ? { transcriptBasis } : {}), fromCache: true, failedChunks: failures.length };
 }
 
 function commonOf(view: TranscriptView): PromptCommon {

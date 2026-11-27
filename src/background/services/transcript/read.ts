@@ -50,7 +50,8 @@ export type SiteReadResult =
 
 const failed = (failure: Failure, guides: ReadGuides = {}, official?: Promise<OfficialRead>): SiteReadResult => ({ ok: false, failure, guides, official });
 
-function sameVideo(info: VideoInfo, video: VideoKey): boolean {
+/** 平台回的视频信息是不是这个视频；认不出的算不是。 */
+export function sameVideo(info: VideoInfo, video: VideoKey): boolean {
   try {
     return videoKey(info.ref) === video;
   } catch {

@@ -10,7 +10,7 @@
 import type { ClearGuard } from "../../../core/clear-guard.ts";
 import { withTimeout } from "../../../core/concurrency.ts";
 import { fail, ok, trimFailure, type Failure } from "../../../core/errors.ts";
-import { videoKey, type Platform, type VideoKey, type VideoRef } from "../../../core/video-ref.ts";
+import type { Platform, VideoKey, VideoRef } from "../../../core/video-ref.ts";
 import type {
   GuidesFailure,
   GuidesReply,
@@ -29,7 +29,7 @@ import type { OverviewStore } from "../../stores/overviews.ts";
 import { overviewView } from "../overview/view.ts";
 import type { Timers } from "../../tasks.ts";
 import { needsRetry, settledWithoutCaptions, type OfficialRead, type Officials, type RememberedOfficial } from "./official.ts";
-import type { SiteAccess } from "./read.ts";
+import { sameVideo, type SiteAccess } from "./read.ts";
 import { failureOf } from "./tracks.ts";
 import { hasTranscript, infoView, officialView, type TranscriptCache, type TranscriptRecord } from "./write.ts";
 
@@ -100,14 +100,6 @@ interface Memo {
 }
 
 const EXPIRED = Symbol("expired");
-
-function sameVideo(info: VideoInfo, video: VideoKey): boolean {
-  try {
-    return videoKey(info.ref) === video;
-  } catch {
-    return false;
-  }
-}
 
 export function createLight(deps: LightDeps): Light {
   const { cache, guard, timers, log } = deps;

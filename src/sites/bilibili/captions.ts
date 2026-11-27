@@ -1,5 +1,6 @@
 // 读当前视频的字幕轨、字幕正文和 UP 主分段，三样共用一次列表请求。
 // 字幕文件的地址只留在这里的内存表，不落盘，不写进报错和日志。
+import { baseLang } from "../../core/transcript/language.ts";
 import { videoKey } from "../../core/video-ref.ts";
 import type { CaptionTrack, Chapter, Cue, SiteCtx, SiteErrorCode, SiteResult, SiteService, VideoInfo } from "../types.ts";
 import { ABORTED, isCaptionFileUrl, PLAYER_URL, untilAborted, type BiliHttp } from "./http.ts";
@@ -54,11 +55,6 @@ function secondsOrNull(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
   const seconds = Number(value);
   return Number.isFinite(seconds) && seconds >= 0 ? seconds : null;
-}
-
-function baseLang(lang: string): string {
-  const [base = ""] = lang.replace(/^ai[-_]/i, "").split("-");
-  return base.toLowerCase();
 }
 
 // 协议相对的地址补上 https，别的协议和不认识的主机都不收。
