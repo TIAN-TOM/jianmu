@@ -5,6 +5,7 @@ import type { ClearEpoch, ClearGuard } from "../core/clear-guard.ts";
 import type { StorageArea } from "../platform/storage.ts";
 import type { LastUsageView } from "../shared/messages/ai.ts";
 import { USAGE_STORAGE_KEY } from "../shared/names.ts";
+import { createWriteGate } from "./stores/write-gate.ts";
 
 export interface UsageLog {
   /** 记下这项功能最近一次的用量，盖掉上一次。since 是任务开始时的清除代数，这之后清除过就不记。 */
@@ -47,18 +48,15 @@ export function createUsageLog({ storage, clearGuard }: { storage: StorageArea; 
   }
 
   // 几个请求差不多同时回来时排队写，后写的不会拿着旧的整份盖掉先写的那项。
-  let queue: Promise<void> = Promise.resolve();
+  const write = createWriteGate(clearGuard, "cache");
   function record(feature: string, entry: LastUsageView, since: ClearEpoch | undefined): Promise<void> {
-    queue = queue
-      .then(() =>
-        clearGuard.track(async () => {
-          if (clearGuard.clearedSince(since, "cache")) return;
-          const current = await read();
-          await storage.set({ [USAGE_STORAGE_KEY]: { ...current, [feature]: entryOf(entry) } });
-        }),
-      )
-      .catch(() => {});
-    return queue;
+    return write(since, async () => {
+      const current = await read();
+      await storage.set({ [USAGE_STORAGE_KEY]: { ...current, [feature]: entryOf(entry) } });
+    }).then(
+      () => undefined,
+      () => undefined,
+    );
   }
 
   return { record, read };

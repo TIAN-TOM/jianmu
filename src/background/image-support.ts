@@ -10,6 +10,7 @@ import type { FrozenGen } from "../core/tasks.ts";
 import type { StorageArea } from "../platform/storage.ts";
 import { IMAGE_PROBE_STORAGE_KEY } from "../shared/names.ts";
 import { aiFailure, type AiWiring } from "./ai.ts";
+import { createWriteGate } from "./stores/write-gate.ts";
 
 /** 一张 64×64 的红色 JPEG，探测用，693 字节。比 8×8 大，是因为有的服务要求宽高都超过 10 像素、总像素不少于 196。 */
 export const PROBE_IMAGE =
@@ -77,10 +78,10 @@ export function createImageSupport({ storage, clearGuard, ai, now }: ImageSuppor
   }
 
   // 探测要等网络，这期间清除了缓存就不写回去。
+  const write = createWriteGate(clearGuard, "cache");
   async function remember(gen: FrozenGen, imageInput: boolean, since: ReturnType<ClearGuard["epoch"]>): Promise<void> {
     try {
-      await clearGuard.track(async () => {
-        if (clearGuard.clearedSince(since, "cache")) return;
+      await write(since, async () => {
         const all = await readAll();
         all[keyOf(gen)] = { imageInput, at: now() };
         const kept = Object.entries(all)
