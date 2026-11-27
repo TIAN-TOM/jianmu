@@ -8,6 +8,7 @@ import { createClearGuard, type ClearGuard } from "../../../src/core/clear-guard
 import { channelKey, videoKey, type VideoKey } from "../../../src/core/video-ref.ts";
 import { WATCH_SESSIONS_KEY } from "../../../src/shared/names.ts";
 import { SAMPLE_VIDEO_ID } from "../../helpers/chrome.ts";
+import { deferred } from "../../helpers/deferred.ts";
 import { createMemoryDriver } from "../../helpers/memory-driver.ts";
 import { memoryStorage } from "../../helpers/memory-storage.ts";
 import { until } from "../../helpers/wait-until.ts";
@@ -316,10 +317,7 @@ test("读频道偏好失败：按没选过开会话，记一条日志", async ()
 test("清除全部数据之前开始、清除之后才轮到写的会话改动不写回，回还没启用；清除之后开始的照常写", async () => {
   const guard = createClearGuard();
   const world = harness({ guard });
-  let release!: () => void;
-  const held = new Promise<void>((resolve) => {
-    release = resolve;
-  });
+  const { promise: held, resolve: release } = deferred();
   const get = world.hooks.get;
   let reading = false;
   world.hooks.get = async (key) => {

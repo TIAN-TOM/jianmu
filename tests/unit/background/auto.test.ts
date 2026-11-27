@@ -12,6 +12,7 @@ import { videoKey } from "../../../src/core/video-ref.ts";
 import { AUTO_LEDGER_KEY, SETTINGS_REVISION_KEY, SETTINGS_STORAGE_KEY } from "../../../src/shared/names.ts";
 import { readFileSync } from "node:fs";
 import { createFakeChrome, senders, TUBE_ORIGIN, watchUrl, tubeUrl } from "../../helpers/chrome.ts";
+import { deferred } from "../../helpers/deferred.ts";
 import { chatReply, keyedStorage, modelService, reply, type SentRequest } from "../../helpers/fake-model-service.ts";
 import { failed, fakeSiteService, sampleInfo } from "../../helpers/fake-site-service.ts";
 import { stillFalse, until } from "../../helpers/wait-until.ts";
@@ -224,8 +225,7 @@ test("YouTube：授权了就排进来，经视频页替用户点开文字稿面�
 });
 
 test("自动生成在跑时侧边栏点「生成概览」：接上同一个任务，不另发", async () => {
-  let release = (): void => {};
-  const gate = new Promise<void>((resolve) => (release = resolve));
+  const { promise: gate, resolve: release } = deferred();
   const { app, ask, ai, overviewOf } = appOn({ handler: async (request) => (await gate, answer(request)) });
   app.onTabActivated();
   assert.ok(await until(() => ai.posts().length > 0));

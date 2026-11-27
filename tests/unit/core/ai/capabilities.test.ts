@@ -6,6 +6,7 @@ import type { JsonFetchInit, JsonResponse } from "../../../../src/core/ai/capabi
 import { PROTOCOLS } from "../../../../src/core/ai/provider/endpoint.ts";
 import type { AiSettings, ModelsRequest, ProviderError } from "../../../../src/core/ai/provider/index.ts";
 import { normalize } from "../../../../src/shared/settings-schema.ts";
+import { deferred } from "../../../helpers/deferred.ts";
 import { memoryStorage } from "../../../helpers/memory-storage.ts";
 
 const anthropicSettings = normalize({
@@ -319,10 +320,7 @@ test("拉取失败的记录只保留一小时；只留最近的几个地址；�
 test("后台的能力查询：缓存命中不拉，并发请求只拉一次，非 Anthropic 不拉", async () => {
   const storage = memoryStorage();
   let lists = 0;
-  let release!: (value?: unknown) => void;
-  const gate = new Promise((resolve) => {
-    release = resolve;
-  });
+  const { promise: gate, resolve: release } = deferred();
   const resolve = CAPS.createCapabilityResolver({
     storage,
     send: consented(async () => {
