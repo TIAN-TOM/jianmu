@@ -861,7 +861,7 @@ test("刚导入字幕文件、缓存里的字幕作废了还没重读：卡片�
 /** YouTube 的替身站点：只有「页面上确定没有字幕」这一项按脚本回，别的能力一被调到就算错。 */
 function tubeRig(noCaptions: (ref: VideoRef) => boolean | Promise<boolean>, options: HarnessOptions = {}): Harness & { readonly tubeCalls: () => string[] } {
   const tube = fakeSiteService({ noCaptions });
-  const h = rig({ ...options, other: { ...tube.service, rules: { ...tube.service.rules, platform: "youtube" } } });
+  const h = rig({ ...options, other: { ...tube.service, rules: { ...tube.service.rules, platform: "youtube", captions: "page" } } });
   return Object.assign(h, { tubeCalls: () => tube.calls.map((call) => call.method) });
 }
 

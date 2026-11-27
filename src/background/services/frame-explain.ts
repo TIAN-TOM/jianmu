@@ -33,6 +33,7 @@ import { createRateLimit } from "../limits.ts";
 import { errorLabel, type Log } from "../log.ts";
 import type { TaskRunner } from "../tasks.ts";
 import type { TranscriptService } from "./transcript/index.ts";
+import { captionsInPage } from "../../sites/rules.ts";
 
 /** 截图长边，和内容脚本的初值一致。 */
 export const FRAME_MAX_EDGE = 1456;
@@ -232,7 +233,7 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
   async function material(video: VideoKey, tabId: number): Promise<Result<Material>> {
     const ref = parseVideoKey(video);
     if (!ref) return fail("FRAME_VIDEO_CHANGED");
-    if (ref.platform === "youtube") return localMaterial(ref, tabId);
+    if (captionsInPage(ref.platform)) return localMaterial(ref, tabId);
     const verified = await deps.transcript.verify(ref);
     if (!verified.ok) return verified;
     let reply: Awaited<ReturnType<FrameExplainDeps["transcript"]["get"]>>;

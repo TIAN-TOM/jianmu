@@ -38,7 +38,7 @@ function setup(
   const signals: AbortSignal[] = [];
   let ready: (() => void) | null = null;
   const page: SitePage = {
-    rules: { platform: "bilibili", optionalPermission: false, parseWatchUrl: () => VIDEO, canonicalUrl: () => "", permissionOrigins: [], scriptMatches: [] },
+    rules: { platform: "bilibili", optionalPermission: false, captions: "service", parseWatchUrl: () => VIDEO, canonicalUrl: () => "", permissionOrigins: [], scriptMatches: [] },
     noteShortcut: "n",
     currentRef: () => (pageReads.push("currentRef"), VIDEO),
     onVideoChange: () => (pageReads.push("onVideoChange"), () => undefined),

@@ -4,7 +4,7 @@
 // 这个标签页的观看会话记的还是之前那个视频，不能拿来认。
 import { signal, type ReadonlySignal } from "@preact/signals";
 import { videoKey, type VideoKey } from "../../core/video-ref.ts";
-import { siteRules } from "../../sites/rules.ts";
+import { watchRefOf } from "../../sites/rules.ts";
 import type { PageApi } from "../shared/api.ts";
 
 export interface FollowTarget {
@@ -56,11 +56,8 @@ const NONE: FollowTarget = { tabId: null, video: null, title: "" };
 /** 按各站的地址规则认视频；认不出是 null。 */
 export function videoOfUrl(url: string | undefined): VideoKey | null {
   if (!url) return null;
-  for (const rules of Object.values(siteRules)) {
-    const ref = rules?.parseWatchUrl(url);
-    if (ref) return videoKey(ref);
-  }
-  return null;
+  const ref = watchRefOf(url);
+  return ref ? videoKey(ref) : null;
 }
 
 function browserFollow(): FollowBrowser {
