@@ -1,7 +1,6 @@
 // 取字幕和查原视频还在不在。卡片只能用轻量读取，而且只带视频和读取方式；轻量读取不看语言、刷新和标签页，带了也拒。
 // 卡片的轻量读取要问页面时只问卡片自己所在的那个标签页，按发送方认，不由消息指定。
 import { ok } from "../../core/errors.ts";
-import { parseVideoKey, type VideoRef } from "../../core/video-ref.ts";
 import { isTranscriptMode, type TranscriptGetRequest, type TranscriptModeRequest, type VideoCheckRequest } from "../../shared/messages/transcript.ts";
 import type { Route } from "../router.ts";
 import type { SenderCtx } from "../senders.ts";
@@ -9,7 +8,7 @@ import type { TranscriptService } from "../services/transcript/index.ts";
 import type { ClearGuard } from "../../core/clear-guard.ts";
 import type { StorageArea } from "../../platform/storage.ts";
 import { createTranscriptModes } from "../stores/transcript-modes.ts";
-import { isVideoKey } from "./validate.ts";
+import { isPlainObject, isTabId, isVideoKey, keysWithin, refOf } from "./validate.ts";
 
 export interface TranscriptRouteDeps {
   readonly sessionStorage: StorageArea;
@@ -22,14 +21,6 @@ type TranscriptRoutes = { readonly [K in "transcript.get" | "transcript.displayM
 const MODES: ReadonlySet<unknown> = new Set(["full", "cache-only", "local", "light"]);
 // 语言码只用来在列出的字幕轨里找同名的那条。
 const LANG = /^[A-Za-z0-9_-]{1,32}$/;
-
-const isPlainObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
-
-const keysWithin = (value: Readonly<Record<string, unknown>>, required: readonly string[], optional: readonly string[] = []): boolean =>
-  required.every((key) => Object.hasOwn(value, key)) && Object.keys(value).every((key) => required.includes(key) || optional.includes(key));
-
-const isTabId = (value: unknown): boolean => Number.isSafeInteger(value) && Number(value) >= 0;
 
 function isGetRequest(req: unknown, ctx: SenderCtx): req is TranscriptGetRequest {
   if (!isPlainObject(req) || !isVideoKey(req.video) || !MODES.has(req.mode)) return false;
@@ -48,7 +39,6 @@ function isCheckRequest(req: unknown): req is VideoCheckRequest {
 }
 
 // 形状核对时已经确认解析得出。
-const refOf = (video: string): VideoRef => parseVideoKey(video) as VideoRef;
 
 export function transcriptRoutes({ transcript, sessionStorage, clearGuard }: TranscriptRouteDeps): TranscriptRoutes {
   const transcriptModes = createTranscriptModes({ storage: sessionStorage, guard: clearGuard });

@@ -1,12 +1,12 @@
 // 旧格式备份的读取器：Digest for Bilibili 和简幕以前的版本导出的文件，一律按 B 站视频读，转成现在的记录。
 // 坏记录逐条跳过并计数；提示词和设置不读，只记下带没带提示词；能算出来或不再可信的字段（链接、草稿、修订号）丢掉。
 // 旧记录不知道当时依据的是什么，也不推断，一律记成依据未知；旧结论标过依据官方总结的，留个提示。
+import { isRecord } from "../../shared/guards.ts";
 import { fail, ok, type Result } from "../errors.ts";
 import type { Derived, NoteRecord, OverviewParts, OverviewRecord, QaRecord } from "../notes/records.ts";
 import { videoKey, type VideoKey } from "../video-ref.ts";
 import {
   finite,
-  isFields,
   isQaId,
   isRecordId,
   keepValid,
@@ -61,12 +61,12 @@ function keyFromRecordKey(value: unknown): VideoKey | null {
 function hasContent(value: unknown): boolean {
   if (typeof value === "string") return value.trim() !== "";
   if (Array.isArray(value)) return value.length > 0;
-  if (isFields(value)) return Object.keys(value).length > 0;
+  if (isRecord(value)) return Object.keys(value).length > 0;
   return present(value);
 }
 
 function legacyNote(value: unknown): NoteRecord | null {
-  if (!isFields(value) || !isRecordId(value.id)) return null;
+  if (!isRecord(value) || !isRecordId(value.id)) return null;
   const video = legacyVideo(value.bvid, value.page);
   const atSec = finite(value.timestampSeconds);
   const { text, rawText, updatedAt } = value;
@@ -109,7 +109,7 @@ function legacyParts({ verdict }: CheckedAnalysis): OverviewParts {
 }
 
 function legacyOverview(value: unknown): OverviewRecord | null {
-  if (!isFields(value) || !isFields(value.analysis)) return null;
+  if (!isRecord(value) || !isRecord(value.analysis)) return null;
   const key = legacyOverviewKey(value);
   if (!key) return null;
   return overviewRecord(
@@ -123,7 +123,7 @@ function legacyOverview(value: unknown): OverviewRecord | null {
 }
 
 function legacyQa(value: unknown): QaRecord | null {
-  if (!isFields(value) || !isQaId(value.id)) return null;
+  if (!isRecord(value) || !isQaId(value.id)) return null;
   const video = legacyVideo(value.bvid, value.page);
   return video ? qaRecord(value.id, video, value, UNKNOWN_BASIS) : null;
 }

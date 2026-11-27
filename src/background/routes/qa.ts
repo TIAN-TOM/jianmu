@@ -6,7 +6,7 @@ import type { CardLimits } from "../limits.ts";
 import type { Route } from "../router.ts";
 import type { ExplainService } from "../services/explain.ts";
 import type { QaService } from "../services/qa.ts";
-import { isVideoKey } from "./validate.ts";
+import { hasOnly, isId, isPlainObject, isVideoKey } from "./validate.ts";
 
 export interface QaRouteDeps {
   readonly qa: QaService;
@@ -16,16 +16,7 @@ export interface QaRouteDeps {
 
 type QaRoutes = { readonly [K in "qa.ask" | "qa.history" | "qa.delete" | "explain.selection"]: Route<K> };
 
-const MAX_ID = 100;
 const PAGES = ["options", "triage"] as const;
-
-const isPlainObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
-
-const hasOnly = (value: Readonly<Record<string, unknown>>, keys: readonly string[]): boolean =>
-  Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
-
-const isId = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= MAX_ID;
 
 const isTaskRequest = (req: unknown): req is ExplainRequest =>
   isPlainObject(req) && hasOnly(req, ["video", "taskId"]) && isVideoKey(req.video) && isId(req.taskId);

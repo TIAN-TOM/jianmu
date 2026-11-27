@@ -12,7 +12,7 @@ import type { AutoGenerate } from "../services/auto-generate.ts";
 import type { OverviewService } from "../services/overview/index.ts";
 import type { PageTranscript } from "../services/page-transcript.ts";
 import { captionsInPage } from "../../sites/rules.ts";
-import { isVideoKey } from "./validate.ts";
+import { isId, isPlainObject, isTabId, isVideoKey, keysWithin } from "./validate.ts";
 
 export interface OverviewRouteDeps {
   readonly overview: OverviewService;
@@ -24,19 +24,8 @@ export interface OverviewRouteDeps {
 
 type OverviewRoutes = { readonly [K in "overview.start" | "overview.retryFailed" | "overview.get"]: Route<K> };
 
-const MAX_ID = 100;
-
-const isPlainObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
-
-const onlyKeys = (value: Readonly<Record<string, unknown>>, allowed: readonly string[]): boolean => Object.keys(value).every((key) => allowed.includes(key));
-
-const isId = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= MAX_ID;
-
-const isTabId = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0;
-
 function isStartRequest(req: unknown): req is OverviewStartRequest {
-  if (!isPlainObject(req) || !onlyKeys(req, ["video", "taskId", "token", "fresh", "tabId"]) || !isVideoKey(req.video)) return false;
+  if (!isPlainObject(req) || !keysWithin(req, [], ["video", "taskId", "token", "fresh", "tabId"]) || !isVideoKey(req.video)) return false;
   if (req.fresh !== undefined && typeof req.fresh !== "boolean") return false;
   if (req.tabId !== undefined && !isTabId(req.tabId)) return false;
   // 任务号和令牌恰好带一个。
@@ -44,12 +33,12 @@ function isStartRequest(req: unknown): req is OverviewStartRequest {
 }
 
 function isRetryRequest(req: unknown): req is OverviewRetryRequest {
-  if (!isPlainObject(req) || !onlyKeys(req, ["video", "taskId", "token"]) || !isVideoKey(req.video)) return false;
+  if (!isPlainObject(req) || !keysWithin(req, [], ["video", "taskId", "token"]) || !isVideoKey(req.video)) return false;
   return Object.hasOwn(req, "taskId") ? isId(req.taskId) && !Object.hasOwn(req, "token") : isId(req.token);
 }
 
 function isGetRequest(req: unknown): req is OverviewGetRequest {
-  return isPlainObject(req) && onlyKeys(req, ["video"]) && isVideoKey(req.video);
+  return isPlainObject(req) && keysWithin(req, [], ["video"]) && isVideoKey(req.video);
 }
 
 export function overviewRoutes({ overview, cardLimits, auto, pageTranscript }: OverviewRouteDeps): OverviewRoutes {

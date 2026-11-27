@@ -7,7 +7,7 @@ import { describe, type ErrorCode } from "../../core/errors.ts";
 import { fixedInSettings } from "../../core/errors/settings-codes.ts";
 import type { LearningAnalysis, OverviewTranscriptBasis } from "../../core/notes/records.ts";
 import type { TaskView } from "../../core/tasks.ts";
-import { parseVideoKey, videoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
+import { parseVideoKey, videoKeyOrNull, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
 import type { GuidesFailure } from "../../shared/messages/transcript.ts";
 import { captionsInPage } from "../../sites/rules.ts";
 import type { PageApi } from "../shared/api.ts";
@@ -63,14 +63,6 @@ const HIDDEN_CODES: ReadonlySet<ErrorCode> = new Set(["NOT_ENABLED", "CARD_DISAB
 export const NO_CAPTIONS_TEXT = CARD_ZH.noCaptions;
 export const NEED_LOGIN_TEXT = CARD_ZH.needLogin;
 export const NOT_READ_TEXT = CARD_ZH.notRead;
-
-const keyOf = (ref: VideoRef | null): VideoKey | null => {
-  try {
-    return ref ? videoKey(ref) : null;
-  } catch {
-    return null;
-  }
-};
 
 /** 这个视频的字幕后台会自己去读（登录着时）；要用户点了才经页面读的站和认不出的视频键都不算。 */
 const serviceReads = (video: VideoKey): boolean => {
@@ -158,7 +150,7 @@ export function createCardModel(deps: CardDeps) {
   }
 
   function syncVideo(url: string): void {
-    const next = keyOf(deps.parseVideo(url));
+    const next = videoKeyOrNull(deps.parseVideo(url));
     if (next === video && view.peek().phase !== "waiting") return;
     const changed = next !== video;
     video = next;

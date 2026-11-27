@@ -10,7 +10,7 @@ import type { Route } from "../router.ts";
 import { selectionInput } from "../services/explain.ts";
 import { questionInput } from "../services/qa.ts";
 import type { TaskRunner } from "../tasks.ts";
-import { isEmptyRequest, isVideoKey } from "./validate.ts";
+import { hasOnly, isEmptyRequest, isId, isPlainObject, isText, isVideoKey } from "./validate.ts";
 
 export interface TaskRouteDeps {
   readonly tasks: Pick<TaskRunner, "register" | "cancel" | "list">;
@@ -26,21 +26,8 @@ const FEATURE_OF: Readonly<Record<StartableTaskKind, FeatureSlotId>> = { overvie
 /** 任务里另几步用的功能，登记时一起取定配置：概览合并好以后写结论用结论那项的模型。 */
 const STAGES_OF: Readonly<Record<StartableTaskKind, readonly FeatureSlotId[]>> = { overview: ["verdict"], verdict: [], qa: [], explain: [] };
 
-/** 问题、选中的文字和附近的字幕，原样能收多长：再长的不像是用户输入，按请求不对拒掉。 */
-const RAW_TEXT_MAX = 20_000;
-
 /** 卡片只能登记的种类。 */
 const CARD_KINDS: ReadonlySet<string> = new Set<StartableTaskKind>(["overview", "verdict", "qa"]);
-
-const MAX_TASK_ID = 100;
-
-const isPlainObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
-
-const hasOnly = (value: Readonly<Record<string, unknown>>, keys: readonly string[]): boolean =>
-  Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
-
-const isText = (value: unknown): value is string => typeof value === "string" && value.length <= RAW_TEXT_MAX;
 
 /** 概览和写结论只收种类和视频；问答要带问题，解释要带选中的文字，附近的字幕可带可不带。 */
 function isStartRequest(req: unknown): req is TaskStartRequest {
@@ -61,7 +48,7 @@ function inputOf(req: TaskStartRequest): Result<unknown> {
 }
 
 function isCancelRequest(req: unknown): req is TaskCancelRequest {
-  return isPlainObject(req) && hasOnly(req, ["taskId"]) && typeof req.taskId === "string" && req.taskId.length > 0 && req.taskId.length <= MAX_TASK_ID;
+  return isPlainObject(req) && hasOnly(req, ["taskId"]) && isId(req.taskId);
 }
 
 export function taskRoutes({ tasks, cardLimits, ai }: TaskRouteDeps): TaskRoutes {

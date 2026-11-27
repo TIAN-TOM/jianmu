@@ -1,6 +1,7 @@
 // 强制流式的拼回：有的网关不管请求怎么写都回事件流。这里把三种协议的事件流拼成各自的普通响应，
 // 之后照原样解析正文、判断截断和拒答。流中途的错误事件拼成服务方报错，交给原有的限流和忙碌重发。
 // 首发不主动请求流式，这里只认、只拼。
+import { isRecord } from "../../../shared/guards.ts";
 import { PROTOCOLS, type Protocol } from "./endpoint.ts";
 import { providerText } from "./text.ts";
 
@@ -30,7 +31,6 @@ export function looksLikeEventStream(contentType: string | null | undefined, hea
   return SSE_FIELD.test(start) || EVENT_STREAM_TYPE.test(String(contentType ?? ""));
 }
 
-const isObject = (value: unknown): value is Payload => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 const textOf = (value: unknown): string => (typeof value === "string" ? value : "");
 
 interface Decoded {
@@ -53,7 +53,7 @@ function decode(text: string): Decoded {
       else if (raw.startsWith("{")) {
         try {
           const parsed: unknown = JSON.parse(raw);
-          if (isObject(parsed)) payloads.push(event && typeof parsed.type !== "string" ? { type: event, ...parsed } : parsed);
+          if (isRecord(parsed)) payloads.push(event && typeof parsed.type !== "string" ? { type: event, ...parsed } : parsed);
         } catch {
           broken = true;
         }
@@ -113,7 +113,7 @@ const stringOf = (value: unknown): string => (typeof value === "string" || typeo
 
 // Responses 以失败收尾时，错误在收尾带的响应里；没写原因也算失败，不把前面的增量当成功的正文交出去。
 function responseFailure(payload: Payload): unknown {
-  const response = isObject(payload.response) ? payload.response : {};
+  const response = isRecord(payload.response) ? payload.response : {};
   return response.error ?? {};
 }
 
@@ -122,7 +122,7 @@ function failureOf(payload: Payload): StreamAssembly | null {
   const raw =
     payload.type === "error" ? (payload.error ?? payload) : payload.type === "response.failed" ? responseFailure(payload) : payload.error;
   if (raw === undefined || raw === null || raw === false || raw === "") return null;
-  const detail: Payload = isObject(raw) ? raw : { message: stringOf(raw) };
+  const detail: Payload = isRecord(raw) ? raw : { message: stringOf(raw) };
   const type = stringOf(detail.type === "error" ? "" : detail.type);
   const code = stringOf(detail.code);
   const param = stringOf(detail.param);
@@ -153,13 +153,13 @@ function assembleChat(payloads: readonly Payload[], done: boolean): StreamAssemb
   let finished = false;
   for (const payload of payloads) {
     if (!head.id && payload.id) head = { id: payload.id, model: payload.model, created: payload.created };
-    if (isObject(payload.usage)) usage = payload.usage;
+    if (isRecord(payload.usage)) usage = payload.usage;
     for (const choice of Array.isArray(payload.choices) ? payload.choices : []) {
-      if (!isObject(choice)) continue;
+      if (!isRecord(choice)) continue;
       const index = Number(choice.index) || 0;
       const draft = drafts.get(index) ?? { role: "", content: "", reasoningContent: "", reasoning: "", refusal: "", finishReason: null };
       drafts.set(index, draft);
-      const delta = isObject(choice.delta) ? choice.delta : isObject(choice.message) ? choice.message : {};
+      const delta = isRecord(choice.delta) ? choice.delta : isRecord(choice.message) ? choice.message : {};
       if (typeof delta.role === "string") draft.role = delta.role;
       draft.content += textOf(delta.content);
       draft.reasoningContent += textOf(delta.reasoning_content);
@@ -201,21 +201,21 @@ function assembleAnthropic(payloads: readonly Payload[]): StreamAssembly {
   let stopped = false;
   for (const payload of payloads) {
     const index = Number(payload.index) || 0;
-    if (payload.type === "message_start" && isObject(payload.message)) {
+    if (payload.type === "message_start" && isRecord(payload.message)) {
       message = { ...payload.message };
-    } else if (payload.type === "content_block_start" && isObject(payload.content_block)) {
+    } else if (payload.type === "content_block_start" && isRecord(payload.content_block)) {
       blocks[index] = { ...payload.content_block };
-    } else if (payload.type === "content_block_delta" && isObject(payload.delta)) {
+    } else if (payload.type === "content_block_delta" && isRecord(payload.delta)) {
       const delta = payload.delta;
       const block = (blocks[index] ??= { ...(BLOCK_FOR_DELTA[textOf(delta.type)] ?? { type: "unknown" }) });
       if (delta.type === "text_delta") block.text = textOf(block.text) + textOf(delta.text);
       else if (delta.type === "thinking_delta") block.thinking = textOf(block.thinking) + textOf(delta.thinking);
       else if (delta.type === "signature_delta") block.signature = textOf(delta.signature);
     } else if (payload.type === "message_delta") {
-      const delta = isObject(payload.delta) ? payload.delta : {};
+      const delta = isRecord(payload.delta) ? payload.delta : {};
       for (const key of ["stop_reason", "stop_sequence"]) if (key in delta) message[key] = delta[key];
       if (typeof delta.stop_reason === "string" && delta.stop_reason) stopped = true;
-      if (isObject(payload.usage)) message.usage = { ...(isObject(message.usage) ? message.usage : {}), ...payload.usage };
+      if (isRecord(payload.usage)) message.usage = { ...(isRecord(message.usage) ? message.usage : {}), ...payload.usage };
     } else if (payload.type === "message_stop") {
       stopped = true;
     }
@@ -249,10 +249,10 @@ function assembleResponses(payloads: readonly Payload[]): StreamAssembly {
   };
   for (const payload of payloads) {
     const type = textOf(payload.type);
-    if (RESPONSE_DONE.has(type) && isObject(payload.response)) final = { ...payload.response };
-    else if ((type === "response.created" || type === "response.in_progress") && isObject(payload.response)) base = { ...payload.response };
-    else if (type === "response.output_item.added" && isObject(payload.item)) items.set(Number(payload.output_index) || 0, { ...payload.item });
-    else if (type === "response.output_item.done" && isObject(payload.item)) {
+    if (RESPONSE_DONE.has(type) && isRecord(payload.response)) final = { ...payload.response };
+    else if ((type === "response.created" || type === "response.in_progress") && isRecord(payload.response)) base = { ...payload.response };
+    else if (type === "response.output_item.added" && isRecord(payload.item)) items.set(Number(payload.output_index) || 0, { ...payload.item });
+    else if (type === "response.output_item.done" && isRecord(payload.item)) {
       const index = Number(payload.output_index) || 0;
       items.set(index, { ...payload.item });
       doneItems.add(index);

@@ -1,5 +1,6 @@
 // 内容脚本的生命周期：过了启用闸门才读页面，页面激活稳定后才挂界面，之后定时自查；启用失效时整套撤下、重新等确认。
 // 扩展重新加载后旧脚本和扩展断了联系：撤卡片，笔记图标留着只提示刷新页面；补注入的新一份挂上来时，旧的整套撤下。
+import { isRecord } from "../shared/guards.ts";
 import type { Broadcast } from "../shared/messages.ts";
 import { INJECTED } from "../shared/names.ts";
 import type { AppearanceView } from "../shared/messages/core.ts";
@@ -94,8 +95,6 @@ const repeat = (ms: number, run: () => void): (() => void) => {
   const timer = setInterval(run, ms);
   return () => clearInterval(timer);
 };
-
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null;
 
 /** 只认后台的这几种广播；内容脚本收到的其余消息是播放器指令。 */
 function broadcastOf(message: unknown): Broadcast | null {

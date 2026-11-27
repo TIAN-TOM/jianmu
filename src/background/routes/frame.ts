@@ -3,7 +3,7 @@
 // 分发时先打开侧边栏（要在用户手势还有效时），再截帧、调模型。两条共用每标签页每分钟 6 次的额度。
 // 设置页选好画面分析的模型后可以探一次能不能看图。
 import { fail, ok } from "../../core/errors.ts";
-import { videoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
+import { videoKeyOrNull } from "../../core/video-ref.ts";
 import { CONTENT_SENDERS } from "../../shared/messages.ts";
 import type { FrameExplainRequest, FrameHereRequest, FrameRecentRequest } from "../../shared/messages/frame.ts";
 import type { Messenger } from "../../platform/messaging.ts";
@@ -11,7 +11,7 @@ import type { AiWiring } from "../ai.ts";
 import type { ImageSupport } from "../image-support.ts";
 import type { Route } from "../router.ts";
 import { configFailure, type FrameExplainService } from "../services/frame-explain.ts";
-import { isEmptyRequest, isVideoKey } from "./validate.ts";
+import { hasOnly, isEmptyRequest, isPlainObject, isTabId, isVideoKey } from "./validate.ts";
 
 export interface FrameRouteDeps {
   readonly frame: { readonly service: FrameExplainService; readonly images: ImageSupport } | null;
@@ -20,22 +20,6 @@ export interface FrameRouteDeps {
 }
 
 type FrameRoutes = { readonly [K in "frame.explain" | "frame.explainHere" | "frame.recent" | "ai.probeImage"]: Route<K> };
-
-const isPlainObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
-
-const hasOnly = (value: Readonly<Record<string, unknown>>, keys: readonly string[]): boolean =>
-  Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
-
-function keyOf(ref: VideoRef): VideoKey | null {
-  try {
-    return videoKey(ref);
-  } catch {
-    return null;
-  }
-}
-
-const isTabId = (value: unknown): value is number => Number.isInteger(value) && Number(value) >= 0;
 
 const isExplainRequest = (req: unknown): req is FrameExplainRequest =>
   isPlainObject(req) && hasOnly(req, ["video", "tabId"]) && isVideoKey(req.video) && isTabId(req.tabId);
@@ -63,7 +47,7 @@ export function frameRoutes({ frame, ai, messenger }: FrameRouteDeps): FrameRout
       validate: isHereRequest,
       async handler(req, { sender, panelOpened }) {
         // 视频以标签页地址上的为准：页面脚本能伪造消息，改不了标签页正在放的视频。
-        const playing = "site" in sender ? keyOf(sender.video) : null;
+        const playing = "site" in sender ? videoKeyOrNull(sender.video) : null;
         if (!playing || playing !== req.video || sender.tabId === undefined) return fail("FORBIDDEN");
         if (!service.admit(sender.tabId)) return fail("FRAME_RATE_LIMITED");
         await service.start(sender.tabId, playing);

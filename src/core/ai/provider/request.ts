@@ -1,4 +1,5 @@
 // 构造对话和模型列表请求：配置 → {url, headers, body}。
+import { isRecord } from "../../../shared/guards.ts";
 import { apiVersionFor, claudeRequestTraits, isOfficialAnthropic, THINKING_BETWEEN_TOOLS, THINKING_DISABLED } from "./anthropic.ts";
 import { chatCompletionsUrl, modelsUrl, PROTOCOLS } from "./endpoint.ts";
 import { isOpenAiReasoningModel, openAiModelTraits, vendorExtras } from "./openai.ts";
@@ -18,16 +19,13 @@ import type {
 
 type Patch = Readonly<Record<string, unknown>>;
 
-const isPlainObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
 // 合并补丁：值为 null 的键删掉，两边都是对象的逐层合并，其余直接换上。不改动传进来的对象。
 function mergePatch(target: Record<string, unknown>, patch: Patch): void {
   for (const [key, value] of Object.entries(patch)) {
     if (value === null) {
       delete target[key];
-    } else if (isPlainObject(value)) {
-      const next: Record<string, unknown> = isPlainObject(target[key]) ? { ...target[key] } : {};
+    } else if (isRecord(value)) {
+      const next: Record<string, unknown> = isRecord(target[key]) ? { ...target[key] } : {};
       mergePatch(next, value);
       target[key] = next;
     } else {
