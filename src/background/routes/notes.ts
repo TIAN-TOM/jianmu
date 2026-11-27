@@ -6,7 +6,7 @@ import { videoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts"
 import type { NoteAtTimeRequest, NoteDeleteRequest, NoteListRequest, NoteSaveRequest, NoteUpdateRequest } from "../../shared/messages/notes.ts";
 import type { Route } from "../router.ts";
 import type { NotesService } from "../services/notes.ts";
-import { isPlainObject, isVideoKey } from "./validate.ts";
+import { isId, isPlainObject, isText, isVideoKey, keysWithin } from "./validate.ts";
 
 export interface NoteRouteDeps {
   readonly notes: NotesService;
@@ -16,20 +16,11 @@ export interface NoteRouteDeps {
 
 type NoteRoutes = { readonly [K in "notes.save" | "notes.saveAtTime" | "notes.list" | "notes.update" | "notes.delete"]: Route<K> };
 
-const MAX_ID = 100;
 // 一周：比任何正常的视频都长，挡掉离谱的数。
 const MAX_SECONDS = 7 * 24 * 3600;
-// 正文原样能收多长；超过笔记上限的由服务按太长报。
-const RAW_TEXT_MAX = 20_000;
 const PAGES = ["options", "triage"] as const;
 
-/** 必须有 required 里的键，别的键只能是 optional 里的。 */
-const keysWithin = (value: Readonly<Record<string, unknown>>, required: readonly string[], optional: readonly string[] = []): boolean =>
-  required.every((key) => Object.hasOwn(value, key)) && Object.keys(value).every((key) => required.includes(key) || optional.includes(key));
-
 const isSeconds = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= MAX_SECONDS;
-const isId = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= MAX_ID;
-const isText = (value: unknown): value is string => typeof value === "string" && value.length <= RAW_TEXT_MAX;
 
 function isSaveRequest(req: unknown): req is NoteSaveRequest {
   return isPlainObject(req) && keysWithin(req, ["video", "atSec"], ["text"]) && isVideoKey(req.video) && isSeconds(req.atSec) && (req.text === undefined || isText(req.text));

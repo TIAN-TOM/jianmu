@@ -5,7 +5,7 @@ import type { BatchIn, TriageStep } from "../../shared/messages/batch.ts";
 import type { SenderCtx } from "../senders.ts";
 import type { PortSpec, Route } from "../router.ts";
 import type { BatchService } from "../services/batch/index.ts";
-import { isEmptyRequest, isPlainObject, isVideoKey } from "./validate.ts";
+import { hasOnly, isEmptyRequest, isPlainObject, isVideoKey } from "./validate.ts";
 
 /** 本窗口全部生成里只带窗口号的几条。 */
 const WINDOW_PLAIN: ReadonlySet<unknown> = new Set(["window.count", "window.start", "window.stop", "window.watch", "window.dismiss"]);
@@ -20,9 +20,6 @@ export interface BatchRouteDeps {
 }
 
 const STEPS: ReadonlySet<unknown> = new Set<TriageStep>(["list", "official", "verdict"]);
-
-const hasOnly = (value: Readonly<Record<string, unknown>>, keys: readonly string[]): boolean =>
-  Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
 
 function isBatchIn(message: unknown, ctx: SenderCtx): message is BatchIn {
   if (!isPlainObject(message)) return false;

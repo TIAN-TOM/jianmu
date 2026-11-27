@@ -2,14 +2,11 @@
 import type { PortSpec } from "../router.ts";
 import type { TranslateService } from "../services/translate.ts";
 import type { TranslateIn } from "../../shared/messages/translate.ts";
-import { isPlainObject, isVideoKey } from "./validate.ts";
+import { hasOnly, isPlainObject, isVideoKey } from "./validate.ts";
 
 export interface TranslatePortDeps {
   readonly translate: Pick<TranslateService, "start" | "stop" | "leave">;
 }
-
-const hasOnly = (value: Readonly<Record<string, unknown>>, keys: readonly string[]): boolean =>
-  Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
 
 const isSecond = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0;
 

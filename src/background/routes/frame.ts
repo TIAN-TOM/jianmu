@@ -10,7 +10,7 @@ import type { AiWiring } from "../ai.ts";
 import type { ImageSupport } from "../image-support.ts";
 import type { Route } from "../router.ts";
 import { configFailure, type FrameExplainService } from "../services/frame-explain.ts";
-import { isEmptyRequest, isPlainObject, isTabId, isVideoKey } from "./validate.ts";
+import { hasOnly, isEmptyRequest, isPlainObject, isTabId, isVideoKey } from "./validate.ts";
 
 export interface FrameRouteDeps {
   readonly frame: { readonly service: FrameExplainService; readonly images: ImageSupport } | null;
@@ -19,9 +19,6 @@ export interface FrameRouteDeps {
 }
 
 type FrameRoutes = { readonly [K in "frame.explain" | "frame.explainHere" | "frame.recent" | "ai.probeImage"]: Route<K> };
-
-const hasOnly = (value: Readonly<Record<string, unknown>>, keys: readonly string[]): boolean =>
-  Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
 
 function keyOf(ref: VideoRef): VideoKey | null {
   try {

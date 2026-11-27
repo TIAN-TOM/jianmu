@@ -19,7 +19,7 @@ import type { HandlerCtx, Route } from "../router.ts";
 import type { SenderCtx } from "../senders.ts";
 import type { Sessions } from "../sessions.ts";
 import type { ChannelStore } from "../stores/channels.ts";
-import { isEmptyRequest, isPlainObject, isTabId, isVideoKey } from "./validate.ts";
+import { isEmptyRequest, isPlainObject, isTabId, isVideoKey, keysWithin } from "./validate.ts";
 
 export interface SessionRouteDeps {
   readonly sessions: Sessions;
@@ -38,10 +38,6 @@ const MAX_SECONDS = 7 * 24 * 3600;
 // 频道编号只用来记偏好，按两站都可能出现的字符收，长度设上限；YouTube 的频道 @ 名开头带 @。
 const CHANNEL_ID = /^@?[A-Za-z0-9_.-]{1,64}$/;
 const CARD_OVERRIDES: ReadonlySet<unknown> = new Set<CardOverride>(["expanded", "collapsed"]);
-
-/** 必须有 required 里的键，别的键只能是 optional 里的。 */
-const keysWithin = (value: Readonly<Record<string, unknown>>, required: readonly string[], optional: readonly string[] = []): boolean =>
-  required.every((key) => Object.hasOwn(value, key)) && Object.keys(value).every((key) => required.includes(key) || optional.includes(key));
 
 const isSeconds = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= MAX_SECONDS;
