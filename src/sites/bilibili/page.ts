@@ -1,6 +1,7 @@
 // B 站播放页：认当前视频、等页面激活、找主视频和两个挂载点、读作者栏上的 UP 主编号。只读页面结构，不插节点，不发请求。
-import { videoKey, type VideoRef } from "../../core/video-ref.ts";
+import type { VideoRef } from "../../core/video-ref.ts";
 import type { MainVideo, SitePage } from "../page-types.ts";
+import { keyOf, repeat, waitFor, watchAttribute } from "../page-util.ts";
 import { bilibiliRules } from "./url.ts";
 
 const VIDEO_SELECTORS = [".bpx-player-video-wrap video", "video"];
@@ -50,35 +51,6 @@ export interface BilibiliPageDeps {
   every?: (ms: number, run: () => void) => () => void; // 返回停止函数
   observeAttribute?: (element: Element, name: string, run: () => void) => () => void; // 属性变了就调，返回停止函数
 }
-
-function waitFor(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    signal.throwIfAborted();
-    const onAbort = (): void => {
-      clearTimeout(timer);
-      reject(signal.reason);
-    };
-    const timer = setTimeout(() => {
-      signal.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
-    signal.addEventListener("abort", onAbort, { once: true });
-  });
-}
-
-function repeat(ms: number, run: () => void): () => void {
-  const timer = setInterval(run, ms);
-  return () => clearInterval(timer);
-}
-
-function watchAttribute(element: Element, name: string, run: () => void): () => void {
-  if (typeof MutationObserver !== "function") return () => undefined;
-  const observer = new MutationObserver(run);
-  observer.observe(element, { attributes: true, attributeFilter: [name] });
-  return () => observer.disconnect();
-}
-
-const keyOf = (ref: VideoRef | null): string | null => (ref ? videoKey(ref) : null);
 
 // 播放器自己管着直接包视频的那一层，插进外来节点会让它重建，视频加载两遍。
 const holdsVideoDirectly = (element: Element): boolean =>

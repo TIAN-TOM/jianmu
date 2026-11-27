@@ -4,7 +4,9 @@
 import type { VideoRef } from "../../core/video-ref.ts";
 import type { CaptionTrack, Cue, PageChannel, SiteCtx, SiteFailure, SiteResult, SiteService, VideoInfo } from "../types.ts";
 import { panelCurrentOf, panelSnapshotOf, panelTracksOf, type PanelCue, type PanelSnapshot, type PlayerTrack, type PlayerTracks } from "./page/panel-types.ts";
+import { AUTO_KIND } from "./page/values.ts";
 import { pageCommentReader } from "./comments.ts";
+import { fail, malformed } from "./failure.ts";
 import { readCaughtCaptions, type PlayerFallback, type PlayerRead } from "./player-fallback.ts";
 import { TRACK_PREFIX, UNCONFIRMED_TRACK, UNNAMED_TRACK, youtubeRules } from "./url.ts";
 
@@ -21,7 +23,6 @@ const TRACKS_TIMEOUT_MS = 3_000;
 const RECHECK_DELAY_MS = 300;
 // 最后一句没有下一句可比时，按这么长算。
 const LAST_CUE_SEC = 5;
-const AUTO_KIND = "asr";
 
 // 菜单名里标着自动生成的几种写法。
 const AUTO_MARK = /auto-generated|automatisch|automática|automatique|automatico|automatyczn|автоматическ|自动生成|自動生成|自動產生|자동 생성/i;
@@ -29,9 +30,6 @@ const AUTO_MARK = /auto-generated|automatisch|automática|automatique|automatico
 const UI_LOCALES = ["en", "zh-Hans", "zh-Hant", "ja", "ko", "es", "fr", "de", "pt", "ru", "it"];
 const LANGS = ["en", "zh-Hans", "zh-Hant", "zh", "ja", "ko", "es", "fr", "de", "pt", "ru", "it", "ar", "hi", "vi", "th", "id", "tr", "nl", "pl", "uk", "sv", "he", "ms", "fa"];
 const UNKNOWN_LANG = "und";
-
-const fail = (code: Exclude<SiteFailure["code"], "MALFORMED">, detail?: string): SiteFailure => (detail ? { ok: false, code, detail } : { ok: false, code });
-const malformed = (detail: string): SiteFailure => ({ ok: false, code: "MALFORMED", reach: "item", detail });
 
 let nameTable: Map<string, string> | null = null;
 function langNames(): Map<string, string> {
