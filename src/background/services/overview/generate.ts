@@ -345,5 +345,4 @@ export function createGenerator(deps: GenerateDeps) {
   };
 }
 
-export type Generator = ReturnType<typeof createGenerator>;
 export type { Job };

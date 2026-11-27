@@ -15,13 +15,9 @@ export {
   effortSupport,
   hostOf,
   planEffort,
-  type EffortPlanInput,
-  type EffortSupport,
-  type EffortTarget,
 } from "./effort.ts";
 export { isLocalBaseUrl, PROTOCOLS, type Protocol } from "./endpoint.ts";
 export {
-  isRedirectResponse,
   KEYED_FETCH_REDIRECT,
   keyedHttpError,
   parseErrorText,
@@ -34,7 +30,6 @@ export {
   isMessageParts,
   toProtocolContent,
   withProtocolContent,
-  type MessageContent,
   type MessagePart,
 } from "./parts.ts";
 export { createRelaxMemory, RELAX_STORAGE_KEY, relaxRejectedParams, sendChatWithRelax } from "./relax.ts";
@@ -58,8 +53,6 @@ export {
   messageIn,
   providerText,
   withEnglish,
-  type ProviderText,
-  type WithEnglish,
 } from "./text.ts";
 export type {
   AiSettings,
@@ -68,7 +61,6 @@ export type {
   ChatRequestBody,
   ChatRequestInput,
   ClaudeCapabilities,
-  ClaudeTraits,
   EffortNote,
   EffortPlan,
   EmptyDiagnosis,
@@ -77,7 +69,6 @@ export type {
   ProviderError,
   RelaxMemory,
   RelaxState,
-  RelaxStorage,
   ResponseFormat,
   SendChatInput,
 } from "./types.ts";
