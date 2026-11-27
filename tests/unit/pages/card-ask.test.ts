@@ -6,6 +6,7 @@ import { ASK_IDLE, createCardAsk } from "../../../src/pages/card/ask.ts";
 import { cardTextOf } from "../../../src/pages/card/text.ts";
 import { createPageApi } from "../../../src/pages/shared/api.ts";
 import { videoKey } from "../../../src/core/video-ref.ts";
+import { deferred } from "../../helpers/deferred.ts";
 import { fakeRuntime } from "../../helpers/fake-runtime.ts";
 
 const KEY = videoKey({ platform: "bilibili", videoId: "BV1Sample001", segment: 1 });
@@ -36,8 +37,7 @@ test("只认真实的提交，空问题不问；问题随登记交，凭令牌�
 
 test("换了视频：迟到的回答不摆", async () => {
   const { fake, ask } = setup();
-  let release = (): void => undefined;
-  const gate = new Promise<void>((resolve) => (release = resolve));
+  const { promise: gate, resolve: release } = deferred();
   fake.reply("task.start", { value: { ok: true, value: { task: task("q2"), joined: false, token: "t2" } } });
   fake.reply("qa.ask", async () => (await gate, { ok: true, value: { entry: ENTRY, retrievalMode: "full" } }));
   const pending = ask.ask("样例问题", true);
@@ -49,8 +49,7 @@ test("换了视频：迟到的回答不摆", async () => {
 
 test("登记的回答回来之前点了停止：登记上了再取消一次，不开始答", async () => {
   const { fake, ask } = setup();
-  let release = (): void => undefined;
-  const gate = new Promise<void>((resolve) => (release = resolve));
+  const { promise: gate, resolve: release } = deferred();
   fake.reply("task.start", async () => (await gate, { ok: true, value: { task: task("q3"), joined: false, token: "t3" } }));
   fake.reply("task.cancel", { value: { ok: true, value: { task: task("q3") } } });
   const pending = ask.ask("样例问题", true);
@@ -79,8 +78,7 @@ test("别处正在答同一个问题：接不上结果，照实说去侧边栏�
 
 test("登记期间换了视频：新登记上的任务取消掉，不留没人认领的", async () => {
   const { fake, ask } = setup();
-  let release = (): void => undefined;
-  const gate = new Promise<void>((resolve) => (release = resolve));
+  const { promise: gate, resolve: release } = deferred();
   fake.reply("task.start", async () => (await gate, { ok: true, value: { task: task("q5"), joined: false, token: "t5" } }));
   fake.reply("task.cancel", { value: { ok: true, value: { task: task("q5") } } });
   const pending = ask.ask("样例问题", true);

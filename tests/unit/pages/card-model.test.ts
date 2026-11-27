@@ -16,6 +16,7 @@ import { cardTextOf } from "../../../src/pages/card/text.ts";
 import { createPageApi } from "../../../src/pages/shared/api.ts";
 import type { ConfigState } from "../../../src/pages/shared/config.ts";
 import { videoKey, type VideoRef } from "../../../src/core/video-ref.ts";
+import { deferred, nextTurn } from "../../helpers/deferred.ts";
 import { fakeRuntime } from "../../helpers/fake-runtime.ts";
 import { stillFalse, until } from "../../helpers/wait-until.ts";
 
@@ -99,7 +100,7 @@ test("没启用或卡片关着：不显示、不读；打开以后接着读", as
     const { fake, model, state } = setup({ state: "failed", failure: { ok: false, code } });
     model.configChanged();
     await model.start();
-    await new Promise((resolve) => setImmediate(resolve));
+    await nextTurn();
     assert.equal(model.view.value.visible, false);
     assert.equal(fake.attempts("transcript.get"), 0, code);
 
@@ -154,8 +155,7 @@ test("用官方总结写结论：有官方总结、还没有结论、AI 服务�
 
 test("用官方总结写结论：登记的回答回来之前就点了停止，登记上了再取消一次，不开始写", async () => {
   const { fake, model } = setup();
-  let release = (): void => undefined;
-  const gate = new Promise<void>((resolve) => (release = resolve));
+  const { promise: gate, resolve: release } = deferred();
   fake.reply("task.start", async () => (await gate, { ok: true, value: { task: { ...task("v2"), kind: "verdict" }, joined: false, token: "late" } }));
   fake.reply("task.cancel", { value: { ok: true, value: { task: { ...task("v2", "canceled"), kind: "verdict" } } } });
   model.configChanged();
@@ -229,7 +229,7 @@ test("已有概览：缺了分块才能补，凭令牌补；重新生成要先�
   assert.equal(model.view.value.more, "confirm");
   await model.regenerate(true);
   assert.equal(fake.attempts("overview.start"), 0, "确认刚摆出来就点的不算：连点两下的第二下");
-  await new Promise((resolve) => setImmediate(resolve));
+  await nextTurn();
   await model.regenerate(false);
   assert.equal(fake.attempts("overview.start"), 0, "合成的点击不算");
   await model.regenerate(true);
@@ -269,7 +269,7 @@ test("重新生成：结论没写成或被停时说原来的概览还留着；�
   assert.ok(await until(() => model.view.value.phase === "loaded"));
   const regenerate = async (): Promise<void> => {
     model.askRegenerate();
-    await new Promise((resolve) => setImmediate(resolve));
+    await nextTurn();
     await model.regenerate(true);
   };
   const t = cardTextOf("zh");
@@ -348,7 +348,7 @@ test("换了视频以后，上一个视频迟到的读取结果不渲染", async
   model.urlChanged("https://www.bilibili.com/video/BV1Sample002");
   assert.ok(await until(() => model.view.value.phase === "loaded"));
   release(guides(KEY, { info: { title: "旧视频", author: "", description: "", durationSec: 1 } }));
-  await new Promise((resolve) => setImmediate(resolve));
+  await nextTurn();
   assert.equal(model.view.value.title, "样例长视频");
   const last = fake.sent.filter(({ type }) => type === "transcript.get").at(-1);
   assert.equal((last?.req as { readonly video?: string } | undefined)?.video, videoKey(SECOND));

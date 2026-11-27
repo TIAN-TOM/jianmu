@@ -8,7 +8,7 @@ import { isChineseSubtitle, isEnglishSubtitle } from "../../core/transcript/lang
 import type { TranscriptSegment } from "../../core/transcript/segment.ts";
 import type { TranslateFailure } from "../../shared/messages/translate.ts";
 import { videoKey, type VideoKey } from "../../core/video-ref.ts";
-import { siteRules } from "../../sites/rules.ts";
+import { watchRefOf } from "../../sites/rules.ts";
 import { aiFailure } from "../ai.ts";
 import type { Timers } from "../tasks.ts";
 
@@ -72,9 +72,6 @@ export function waitOrStop(timers: Pick<Timers, "setTimeout" | "clearTimeout">, 
 /** 按各站的地址规则认视频；认不出或没有地址时是 null。 */
 export function videoOfUrl(url: string | null): VideoKey | null {
   if (url === null) return null;
-  for (const rules of Object.values(siteRules)) {
-    const ref = rules?.parseWatchUrl(url);
-    if (ref) return videoKey(ref);
-  }
-  return null;
+  const ref = watchRefOf(url);
+  return ref ? videoKey(ref) : null;
 }

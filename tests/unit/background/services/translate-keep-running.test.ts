@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { TRANSLATION_BATCH_MAX_SEGMENTS } from "../../../../src/core/ai/chunking.ts";
 import type { CompletionRequest } from "../../../../src/core/ai/transport/index.ts";
+import { deferred } from "../../../helpers/deferred.ts";
 import { cue, echo, page, transcriptView, translateHarness, VIDEO } from "../../../helpers/translate-service.ts";
 import { until } from "../../../helpers/wait-until.ts";
 
@@ -95,8 +96,7 @@ test("额度用完或密钥不对：后面的批次不再发，不补轮，任�
 test("还在准备（读字幕）时发起的标签页关掉或换了视频：不登记、一个模型请求都不发", async () => {
   for (const url of [null, "https://www.bilibili.com/video/BV1Sample999"]) {
     const view = await transcriptView(MANY);
-    let release: () => void = () => undefined;
-    const reading = new Promise<void>((resolve) => (release = resolve));
+    const { promise: reading, resolve: release } = deferred();
     const h = translateHarness(view, {
       transcript: {
         async ensure() {
@@ -121,8 +121,7 @@ test("登记的工夫点了停止，接着关掉面板：照样停，一个模�
   const view = await transcriptView(MANY);
   const h = translateHarness(view, { concurrency: 1 });
   const original = h.tasks.register.bind(h.tasks);
-  let release: () => void = () => undefined;
-  const gate = new Promise<void>((resolve) => (release = resolve));
+  const { promise: gate, resolve: release } = deferred();
   let registering = false;
   (h.tasks as { register: typeof original }).register = async (...args) => {
     registering = true;

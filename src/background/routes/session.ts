@@ -4,6 +4,7 @@ import { fail, ok } from "../../core/errors.ts";
 import { isMode } from "../../core/mode/decide.ts";
 import type { CardOverride } from "../../core/mode/types.ts";
 import { parseVideoKey, videoKey, type Platform, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
+import { CONTENT_SENDERS } from "../../shared/messages.ts";
 import type {
   CardOverrideRequest,
   ChannelForgetRequest,
@@ -126,7 +127,7 @@ export function sessionRoutes({ sessions, channels, playbackLimits, panels }: Se
 
   return {
     "playback.info": {
-      senders: ["content:bilibili", "content:youtube"],
+      senders: CONTENT_SENDERS,
       video: "from-sender",
       validate: isInfoRequest,
       async handler(req, ctx) {
@@ -144,7 +145,7 @@ export function sessionRoutes({ sessions, channels, playbackLimits, panels }: Se
       },
     },
     "playback.milestone": {
-      senders: ["content:bilibili", "content:youtube"],
+      senders: CONTENT_SENDERS,
       video: "from-sender",
       validate: isMilestoneRequest,
       async handler(req, ctx) {

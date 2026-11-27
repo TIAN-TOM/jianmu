@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { CHANNEL_WAIT_MS, createPlaybackReporter, PLAYBACK_INFO_INTERVAL_MS } from "../../../src/content/play-reporter.ts";
 import { videoKey, type VideoKey } from "../../../src/core/video-ref.ts";
 import type { MainVideo } from "../../../src/sites/page-types.ts";
+import { nextTurn } from "../../helpers/deferred.ts";
 import { until } from "../../helpers/wait-until.ts";
 
 const FIRST = videoKey({ platform: "bilibili", videoId: "BV1Sample001" });
@@ -38,7 +39,7 @@ function world({ channel = "4242" as string | null, report = true, startSec = 0 
       clock += 1000;
       video.currentTime += video.playbackRate;
       tick();
-      await new Promise((resolve) => setImmediate(resolve));
+      await nextTurn();
     }
   }
   return {

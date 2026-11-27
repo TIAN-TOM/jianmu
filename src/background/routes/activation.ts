@@ -2,6 +2,7 @@
 import { ok } from "../../core/errors.ts";
 import type { Messenger } from "../../platform/messaging.ts";
 import type { SettingsStore } from "../../platform/settings-store.ts";
+import { CONTENT_SENDERS } from "../../shared/messages.ts";
 import { SETTINGS_STORAGE_KEY } from "../../shared/names.ts";
 import { wasEnabled } from "../../core/consent-carry.ts";
 import { activationStatus } from "../../shared/settings-schema.ts";
@@ -26,7 +27,7 @@ type ActivationRoutes = { readonly [K in "activation.get" | "activation.confirm"
 export function activationRoutes({ settings, messenger, contentTargets, reinject, siteSwitch }: ActivationRouteDeps): ActivationRoutes {
   return {
     "activation.get": {
-      senders: ["panel", "page", "content:bilibili", "content:youtube"],
+      senders: ["panel", "page", ...CONTENT_SENDERS],
       pages: ["options", "triage"],
       beforeEnable: true,
       idempotent: true,

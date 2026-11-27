@@ -12,6 +12,7 @@ import { videoKey } from "../../../src/core/video-ref.ts";
 import { AUTO_LEDGER_KEY, SETTINGS_REVISION_KEY, SETTINGS_STORAGE_KEY } from "../../../src/shared/names.ts";
 import { readFileSync } from "node:fs";
 import { createFakeChrome, senders, TUBE_ORIGIN, watchUrl, tubeUrl } from "../../helpers/chrome.ts";
+import { deferred } from "../../helpers/deferred.ts";
 import { chatReply, keyedStorage, modelService, reply, type SentRequest } from "../../helpers/fake-model-service.ts";
 import { failed, fakeSiteService, sampleInfo } from "../../helpers/fake-site-service.ts";
 import { stillFalse, until } from "../../helpers/wait-until.ts";
@@ -69,7 +70,7 @@ function appOn({ enabled = true, on = true, handler = answer, captions = () => "
     activeTabs: { [FOCUSED]: { id: 3, url: watchUrl(LONG_ID) }, [BACKGROUND]: { id: 4, url: watchUrl(OTHER_ID) } } as Record<number, { id: number; url: string }>,
     urlTabs: { 3: watchUrl(LONG_ID), 4: watchUrl(OTHER_ID) } as Record<number, string>,
   };
-  const service = tube ? { ...site.service, rules: { ...site.service.rules, platform: "youtube" as const } } : site.service;
+  const service = tube ? { ...site.service, rules: { ...site.service.rules, platform: "youtube" as const, captions: "page" as const } } : site.service;
   const fake = createFakeChrome(
     withWindows(
       {
@@ -224,8 +225,7 @@ test("YouTube：授权了就排进来，经视频页替用户点开文字稿面�
 });
 
 test("自动生成在跑时侧边栏点「生成概览」：接上同一个任务，不另发", async () => {
-  let release = (): void => {};
-  const gate = new Promise<void>((resolve) => (release = resolve));
+  const { promise: gate, resolve: release } = deferred();
   const { app, ask, ai, overviewOf } = appOn({ handler: async (request) => (await gate, answer(request)) });
   app.onTabActivated();
   assert.ok(await until(() => ai.posts().length > 0));
