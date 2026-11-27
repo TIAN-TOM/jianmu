@@ -1,7 +1,8 @@
 // YouTube 观看页：认当前视频、听站内换视频、找主视频、悬停图标和卡片的挂载点、读控制栏显隐和频道。
 // 只读页面结构，不插节点，不发请求，不碰播放器。站内跳转不重新加载页面，脚本在整个站点上跑，只有观看页认得出视频。
-import { videoKey, type VideoRef } from "../../core/video-ref.ts";
+import type { VideoRef } from "../../core/video-ref.ts";
 import type { MainVideo, SitePage } from "../page-types.ts";
+import { keyOf, repeat, waitFor, watchAttribute } from "../page-util.ts";
 import { advertising, MAIN_VIDEO, PANELS, PLAYER, videoOnPage } from "./page/panel-dom.ts";
 import { youtubeRules } from "./url.ts";
 
@@ -34,35 +35,6 @@ export interface YoutubePageDeps {
   every?: (ms: number, run: () => void) => () => void; // 返回停止函数
   observeAttribute?: (element: Element, name: string, run: () => void) => () => void; // 属性变了就调，返回停止函数
 }
-
-function waitFor(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    signal.throwIfAborted();
-    const onAbort = (): void => {
-      clearTimeout(timer);
-      reject(signal.reason);
-    };
-    const timer = setTimeout(() => {
-      signal.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
-    signal.addEventListener("abort", onAbort, { once: true });
-  });
-}
-
-function repeat(ms: number, run: () => void): () => void {
-  const timer = setInterval(run, ms);
-  return () => clearInterval(timer);
-}
-
-function watchAttribute(element: Element, name: string, run: () => void): () => void {
-  if (typeof MutationObserver !== "function") return () => undefined;
-  const observer = new MutationObserver(run);
-  observer.observe(element, { attributes: true, attributeFilter: [name] });
-  return () => observer.disconnect();
-}
-
-const keyOf = (ref: VideoRef | null): string | null => (ref ? videoKey(ref) : null);
 
 /** 在侧栏面板里面：卡片不能插进去，也就不会被当成面板内容读到。 */
 const inPanel = (element: Element): boolean => element.closest(PANELS) !== null;
