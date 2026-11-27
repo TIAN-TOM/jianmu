@@ -13,7 +13,7 @@ import type { KeepAlive } from "../../../platform/keepalive.ts";
 import type { WindowTab } from "../../../platform/tabs.ts";
 import type { WindowCountItem, WindowEntryStatus, WindowEntryView, WindowOut, WindowRunView } from "../../../shared/messages/batch.ts";
 import type { OverviewResultView } from "../../../shared/messages/overview.ts";
-import { captionsInPage } from "../../../sites/rules.ts";
+import { captionsInPage, watchRefOf } from "../../../sites/rules.ts";
 import type { SiteRules } from "../../../sites/types.ts";
 import type { AiWiring } from "../../ai.ts";
 import { errorLabel, type Log } from "../../log.ts";
@@ -108,16 +108,13 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
   const counted = new Map<string, Map<number, readonly WindowCountItem[]>>();
 
   function videoOf(url: string): VideoKey | null {
-    for (const rule of rules) {
-      const ref = rule.parseWatchUrl(url);
-      if (!ref) continue;
-      try {
-        return videoKey(ref);
-      } catch {
-        return null;
-      }
+    const ref = watchRefOf(url, rules);
+    if (!ref) return null;
+    try {
+      return videoKey(ref);
+    } catch {
+      return null;
     }
-    return null;
   }
 
   const cleared = (since: ClearEpoch | undefined): boolean => deps.guard.clearedSince(since, "cache");

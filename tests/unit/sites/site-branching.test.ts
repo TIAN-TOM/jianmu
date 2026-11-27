@@ -6,7 +6,9 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { bilibiliRules } from "../../../src/sites/bilibili/url.ts";
-import { captionsInPage } from "../../../src/sites/rules.ts";
+import type { Platform } from "../../../src/core/video-ref.ts";
+import { captionsInPage, watchRefOf } from "../../../src/sites/rules.ts";
+import type { SiteRules } from "../../../src/sites/types.ts";
 import { youtubeRules } from "../../../src/sites/youtube/url.ts";
 import { stripComments } from "../../helpers/strip-comments.ts";
 
@@ -58,6 +60,19 @@ test("字幕由谁读按站点契约答：B 站后台自己读，YouTube 经页�
   assert.equal(captionsInPage("youtube", [bilibiliRules]), true);
   assert.equal(captionsInPage("bilibili", []), true);
   assert.equal(captionsInPage("bilibili", [{ ...bilibiliRules, captions: "page" }]), true);
+});
+
+test("认播放页上的视频：按传入的规则表逐条认，第一条认得出的说了算，都认不出是 null", () => {
+  const rule = (platform: Platform, prefix: string): SiteRules => ({
+    ...bilibiliRules,
+    platform,
+    parseWatchUrl: (url) => (url.startsWith(prefix) ? { platform, videoId: url.slice(prefix.length) } : null),
+  });
+  const rules = [rule("bilibili", "https://a.example/"), rule("youtube", "https://")];
+  assert.deepEqual(watchRefOf("https://a.example/x1", rules), { platform: "bilibili", videoId: "x1" });
+  assert.deepEqual(watchRefOf("https://b.example/x2", rules), { platform: "youtube", videoId: "b.example/x2" });
+  assert.equal(watchRefOf("ftp://a.example/x1", rules), null);
+  assert.equal(watchRefOf("https://a.example/x1", []), null);
 });
 
 test("检查本身拦得住：几种按站名分支的写法都认得出，注释里的和别的字符串不算", () => {

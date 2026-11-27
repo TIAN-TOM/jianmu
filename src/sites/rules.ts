@@ -1,5 +1,5 @@
 // 各站的地址规则，按平台取。YouTube 只在构建开关打开时登记：关着时整站的地址规则都不进包，哪儿都认不出 YouTube 的页面。
-import type { Platform } from "../core/video-ref.ts";
+import type { Platform, VideoRef } from "../core/video-ref.ts";
 import { bilibiliRules } from "./bilibili/url.ts";
 import type { SiteRules } from "./types.ts";
 import { youtubeRules } from "./youtube/url.ts";
@@ -14,4 +14,13 @@ export const siteRules: Readonly<Partial<Record<Platform, SiteRules>>> = FEATURE
  */
 export function captionsInPage(platform: Platform, rules: readonly SiteRules[] = Object.values(siteRules)): boolean {
   return rules.find((rule) => rule.platform === platform)?.captions !== "service";
+}
+
+/** 按各站的地址规则认播放页上的视频，第一条认得出的规则说了算；认不出是 null。rules 不传时用全局的规则表。 */
+export function watchRefOf(url: string, rules: readonly SiteRules[] = Object.values(siteRules)): VideoRef | null {
+  for (const rule of rules) {
+    const ref = rule.parseWatchUrl(url);
+    if (ref) return ref;
+  }
+  return null;
 }

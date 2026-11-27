@@ -11,7 +11,7 @@ import type { Broadcast } from "../shared/messages.ts";
 import type { TranscriptView } from "../shared/messages/transcript.ts";
 import { SETTINGS_REVISION_KEY, SETTINGS_STORAGE_KEY } from "../shared/names.ts";
 import { activationStatus } from "../shared/settings-schema.ts";
-import { captionsInPage } from "../sites/rules.ts";
+import { captionsInPage, watchRefOf } from "../sites/rules.ts";
 import type { SiteRules } from "../sites/types.ts";
 import type { AiWiring } from "./ai.ts";
 import type { Log } from "./log.ts";
@@ -46,13 +46,7 @@ export interface AutoWiringDeps {
 
 export function createAutoWiring(deps: AutoWiringDeps): AutoGenerate {
   const { tasks, ai } = deps;
-  const parseWatchUrl = (url: string): VideoRef | null => {
-    for (const rule of deps.rules) {
-      const ref = rule.parseWatchUrl(url);
-      if (ref) return ref;
-    }
-    return null;
-  };
+  const parseWatchUrl = (url: string): VideoRef | null => watchRefOf(url, deps.rules);
   return createAutoGenerate({
     async settings() {
       const settings = await deps.settings.loadPublic();
