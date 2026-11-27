@@ -11,6 +11,8 @@ export interface VerdictBlockProps {
   /** 结论可能来自旧记录，展示时再认出它的星数。 */
   readonly label: unknown;
   readonly text: string;
+  /** 卡片已在标题栏显示判断，正文先写理由再写摘要。旧记录缺理由时传空串。 */
+  readonly cardReason?: string;
   readonly basis?: BasisSource | null;
   /** 换过字幕：这份结论基于旧字幕。 */
   readonly staleTranscript?: boolean;
@@ -43,17 +45,19 @@ export function VerdictLabel({ rating, class: className = "verdict-label" }: { r
   );
 }
 
-export function VerdictBlock({ label, text, basis, staleTranscript = false, incomplete = false, menu, fresh = false }: VerdictBlockProps) {
+export function VerdictBlock({ label, text, cardReason, basis, staleTranscript = false, incomplete = false, menu, fresh = false }: VerdictBlockProps) {
   const t = sharedText().verdict;
   const lang = uiLang.value;
   const rating = verdictLabelOf(label);
   return (
     <section class="verdict" aria-label={t.label} data-band={bandOf(rating)} data-fresh={fresh ? "true" : undefined}>
-      <div class="verdict-head">
-        {rating ? <VerdictLabel rating={rating} /> : <span class="verdict-label" />}
-        {menu ? <span class="verdict-menu">{menu}</span> : null}
-      </div>
-      <p class="verdict-text">{text}</p>
+      {cardReason === undefined ? (
+        <div class="verdict-head">
+          {rating ? <VerdictLabel rating={rating} /> : <span class="verdict-label" />}
+          {menu ? <span class="verdict-menu">{menu}</span> : null}
+        </div>
+      ) : cardReason ? <p class="card-reason">{cardReason}</p> : null}
+      <p class={cardReason === undefined ? "verdict-text" : "card-summary"}>{text}</p>
       {basis || staleTranscript || incomplete ? (
         <p class="verdict-basis">
           {basis ? <span>{basisText(basis, lang)}</span> : null}

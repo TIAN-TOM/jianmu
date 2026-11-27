@@ -633,8 +633,10 @@ test("章节按开始时间排好再数第几章；时间不是数的不算", ()
 // 只有章节、还没写结论的概览：收起那一行写播放到的章节。
 const CHAPTERS_ONLY = { chapters: THREE.chapters };
 
-test("一句话结论：判断词和那句话都有、结论不在写时才算", () => {
-  assert.deepEqual(conclusionOf({ analysis: THREE, verdictPending: false }), { label: 3, summary: "样例结论" });
+test("收起卡片时优先写理由，缺理由或缺评分时仍有摘要，结论还在写时不显示", () => {
+  assert.deepEqual(conclusionOf({ analysis: THREE, verdictPending: false }), { label: 3, text: "样例结论" });
+  assert.deepEqual(conclusionOf({ analysis: { verdict: { ...THREE.verdict, reason: " 判断理由 " } }, verdictPending: false }), { label: 3, text: "判断理由" });
+  assert.deepEqual(conclusionOf({ analysis: { verdict: { summary: "只有摘要" } }, verdictPending: false }), { label: "", text: "只有摘要" });
   assert.equal(conclusionOf({ analysis: THREE, verdictPending: true }), null, "结论还在写");
   assert.equal(conclusionOf({ analysis: CHAPTERS_ONLY, verdictPending: false }), null);
   assert.equal(conclusionOf({ analysis: { verdict: { verdict: "可以看", summary: "  " } }, verdictPending: false }), null, "只有判断词");

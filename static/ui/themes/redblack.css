@@ -71,11 +71,6 @@
   line-height: 1.5rem;
 }
 
-:root[data-accent-theme="redblack"] .card .verdict-text {
-  font-size: 0.90625rem;
-  line-height: 1.4375rem;
-}
-
 /* ---------- 章节：重点章节名后面一个「重点」小标签 ---------- */
 
 :root[data-accent-theme="redblack"] .section-title {

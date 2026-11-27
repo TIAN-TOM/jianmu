@@ -113,16 +113,6 @@
   padding-block: 0.625rem 0.875rem;
 }
 
-:root[data-accent-theme="band"] .card .verdict .verdict-label {
-  font-size: 1.375rem;
-  line-height: 1.875rem;
-}
-
-:root[data-accent-theme="band"] .card .verdict .verdict-text {
-  font-size: 0.90625rem;
-  line-height: 1.4375rem;
-}
-
 /* ---------- 章节：重点章节时间前面一个小播放键 ---------- */
 
 :root[data-accent-theme="band"] .section-title {

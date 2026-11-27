@@ -22,10 +22,13 @@ import { cardTextOf } from "../../../src/pages/card/text.ts";
 import { SETTINGS_STORAGE_KEY } from "../../../src/shared/names.ts";
 
 const LONG = "这是一段自造的样例文字，用来把卡片撑得很高，看底部的按钮会不会被裁掉。";
+const REASON = "中段的演示能看清完整步骤，开头和结尾都在重复，可以略过。";
+const params = new URLSearchParams(location.search);
+const rating = params.get("verdict") ?? "3";
 const full = location.hash === "#full";
-// 收起的一行：#collapsed 只有名字（没读过）；#collapsed-glance 有结论、也知道播到哪，写的是一句话结论；
+// 收起的一行：#collapsed 只有名字（没读过）；#collapsed-glance 有结论、也知道播到哪，写判断理由；
 // #collapsed-chapters 只有章节没有结论，写播放到的章节；#collapsed-note 带临时说的那句话（打不开侧边栏时）；
-// #collapsed-verdict 有结论、不知道播到哪，同样写一句话结论；
+// #collapsed-verdict 有结论、不知道播到哪，同样写理由。带 ?reason=none 时模拟没有理由的旧记录，改写摘要；
 // #collapsed-yield 是侧边栏开着、让位收起，没有打开侧边栏的入口。#open-yield 是侧边栏开着时手动点开的，按钮行里没有「打开侧边栏」。
 const collapsed = location.hash.startsWith("#collapsed");
 const chaptersOnly = location.hash === "#collapsed-chapters";
@@ -39,14 +42,14 @@ const unread = location.hash === "#youtube" || location.hash === "#youtube-unrea
 const noOverview = location.hash === "#youtube-unread" || location.hash === "#youtube-ready";
 // 换过字幕：结论和章节都依据旧的那份。
 const stale = location.hash === "#stale";
-// 结论带着评论区：口碑一行，两条要点，各挂一条原评论。
-const withComments = location.hash === "#comments";
+// 标签和要点分别取样，覆盖有要点、只有一句话和评论还少的情况。
+const withComments = location.hash.startsWith("#comments");
 const SAMPLE_COMMENTS = {
-  tag: "有争议",
+  tag: location.hash.includes("few") ? "评论还少" : "有争议",
   line: "样例评论区的一句话",
-  points: [
+  points: location.hash.endsWith("-only") ? [] : [
     { text: "样例要点一", quotes: [{ text: "样例原评论一", likes: 120, pinned: true }] },
-    { text: "样例要点二", quotes: [{ text: "样例原评论二", likes: 8 }] },
+    { text: "样例要点二", quotes: [{ text: "样例原评论二", likes: 8 }, { text: "样例原评论三", likes: 2 }] },
   ],
   marks: [],
 };
@@ -70,7 +73,15 @@ const view = signal<CardView>({
   analysis: officialOnly || keyCleared || noOverview || location.hash === "#collapsed" ? null : {
     chapters: Array.from({ length: 16 }, (_, index) => ({ title: `样例章节 ${index + 1}：${LONG}`, timestampSeconds: index * 90 })),
     // 重点是第 2 章和第 11 章：一个时间四位、一个五位，章节名要和别的章对齐。
-    ...(chaptersOnly ? {} : { verdict: { verdict: Number(new URLSearchParams(location.search).get("verdict") ?? 3), summary: LONG.repeat(2), keyStarts: [90, 900], ...(withComments ? { comments: SAMPLE_COMMENTS } : {}) } }),
+    ...(chaptersOnly ? {} : {
+      verdict: {
+        verdict: rating === "unknown" ? "信息不足" : Number(rating),
+        ...(params.get("reason") === "none" ? {} : { reason: REASON }),
+        summary: LONG.repeat(2),
+        keyStarts: [90, 900],
+        ...(withComments ? { comments: SAMPLE_COMMENTS } : {}),
+      },
+    }),
   },
   transcriptBasis: stale ? { chapters: "old-sample", verdict: "old-sample" } : null,
   failedParts: location.hash === "#failed-parts" ? 2 : 0,
