@@ -1,8 +1,8 @@
 // 稍后再看粗筛页的界面文案，英文这份。形状由简体那份（text-zh.ts）定，少一条、多一条或者函数签名不一样，类型检查就报错。
 // 模块顶层只放字面量和函数。
+import { plural } from "../../core/output-lang.ts";
 import type { TriageText } from "./text-zh.ts";
 
-const plural = (count: number, one: string, many: string): string => `${count} ${count === 1 ? one : many}`;
 const videos = (count: number): string => plural(count, "video", "videos");
 
 export const TRIAGE_EN: TriageText = {

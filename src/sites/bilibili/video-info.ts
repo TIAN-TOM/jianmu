@@ -1,6 +1,6 @@
 // 读视频信息，判断付费内容；确认是付费、充电专属的内容到这里就停，后面的读取都不发；确认不了的照读。
 import type { VideoRef } from "../../core/video-ref.ts";
-import { isRecord } from "../../shared/guards.ts";
+import { isRecord, stringOrEmpty } from "../../shared/guards.ts";
 import type { SiteCtx, SiteResult, VideoInfo } from "../types.ts";
 import { VIEW_URL, type BiliHttp } from "./http.ts";
 
@@ -25,7 +25,6 @@ export type PaidStatus = "paid" | "free" | "unknown";
 
 const PAID_RIGHTS = ["pay", "ugc_pay", "arc_pay"] as const;
 
-const text = (value: unknown): string => (typeof value === "string" ? value : "");
 const pageNumber = (item: PageData, index: number): number => Number(item?.page) || index + 1;
 
 // 付费标记只认有限数字和布尔值，别的写法都算读不懂。
@@ -74,16 +73,16 @@ export function parseVideoInfo(data: unknown, ref: VideoRef): SiteResult<VideoIn
     value: {
       ref, // 上面核对过，和返回的是同一个视频
       // 分 P 视频用分 P 标题，更贴近用户在页面上看到的。
-      title: (pages.length > 1 && text(page?.part)) || text(video.title),
-      author: text(video.owner?.name),
+      title: (pages.length > 1 && stringOrEmpty(page?.part)) || stringOrEmpty(video.title),
+      author: stringOrEmpty(video.owner?.name),
       ...(mid ? { channel: { platform: "bilibili", channelId: String(mid) } as const } : {}),
-      description: text(video.desc),
+      description: stringOrEmpty(video.desc),
       durationSec: Number(page?.duration ?? video.duration) || 0,
       mediaVersion: String(cid),
       ...(aid ? { siteRef: String(aid) } : {}),
       segments: pages.map((item, index) => ({
         index: pageNumber(item, index),
-        title: text(item?.part),
+        title: stringOrEmpty(item?.part),
         durationSec: Number(item?.duration) || 0,
       })),
     },

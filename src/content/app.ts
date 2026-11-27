@@ -4,6 +4,7 @@ import { isRecord } from "../shared/guards.ts";
 import type { Broadcast } from "../shared/messages.ts";
 import { INJECTED } from "../shared/names.ts";
 import type { AppearanceView } from "../shared/messages/core.ts";
+import { repeat } from "../core/concurrency.ts";
 import type { Platform } from "../core/video-ref.ts";
 import type { SitePage } from "../sites/page-types.ts";
 import type { FrameIdentity, FrameTool } from "./frame.ts";
@@ -90,11 +91,6 @@ export interface ContentApp {
 }
 
 export const TICK_MS = 800;
-
-const repeat = (ms: number, run: () => void): (() => void) => {
-  const timer = setInterval(run, ms);
-  return () => clearInterval(timer);
-};
 
 /** 只认后台的这几种广播；内容脚本收到的其余消息是播放器指令。 */
 function broadcastOf(message: unknown): Broadcast | null {

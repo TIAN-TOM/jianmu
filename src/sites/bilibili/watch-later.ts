@@ -1,8 +1,8 @@
 // 读用户自己的稍后再看列表，规整成粗筛用的条目。
 import { videoKey } from "../../core/video-ref.ts";
+import { trimmedOrEmpty } from "../../shared/guards.ts";
 import type { SiteCtx, SiteResult, WatchLaterItem, WatchLaterList } from "../types.ts";
 import { isPlatformFileUrl, WATCH_LATER_URL, type BiliHttp } from "./http.ts";
-import { plainText } from "./raw-text.ts";
 import { parseBvid } from "./url.ts";
 import { paidStatus } from "./video-info.ts";
 
@@ -41,7 +41,7 @@ function positiveInt(value: unknown): number {
 
 // 只收 http(s) 和协议相对的地址，统一成 https，别的协议和平台静态文件主机以外的地址不放进图片地址。
 function httpsImageUrl(value: unknown): string {
-  const raw = plainText(value);
+  const raw = trimmedOrEmpty(value);
   if (!raw) return "";
   const absolute = raw.startsWith("//") ? `https:${raw}` : raw.replace(/^http:\/\//i, "https://");
   try {
@@ -60,8 +60,8 @@ export function parseWatchLaterItem(raw: RawItem | null): WatchLaterItem | null 
   const paid = paidStatus(raw);
   return {
     videoKey: videoKey({ platform: "bilibili", videoId: raw.bvid, segment: 1 }),
-    title: plainText(raw.title),
-    ownerName: plainText(raw.owner?.name),
+    title: trimmedOrEmpty(raw.title),
+    ownerName: trimmedOrEmpty(raw.owner?.name),
     ...(mid ? { channel: { platform: "bilibili", channelId: String(mid) } as const } : {}),
     ...(cid ? { mediaVersion: String(cid) } : {}),
     duration: positiveInt(raw.duration),
@@ -71,7 +71,7 @@ export function parseWatchLaterItem(raw: RawItem | null): WatchLaterItem | null 
     // 没给状态时算能看：宁可多问一次总结，也不把好视频标成失效。
     available: paid !== "paid" && !(Number(raw.state) < 0),
     cover: httpsImageUrl(raw.pic),
-    description: plainText(raw.desc),
+    description: trimmedOrEmpty(raw.desc),
     addedAt: positiveInt(raw.add_at),
     // 确认不了是否付费时仍算能看，但不算判断过：列表里不一定带全标记，读官方总结前先过一遍视频信息，确认是付费的就不读。
     paidChecked: paid !== "unknown",

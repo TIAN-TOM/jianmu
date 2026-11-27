@@ -9,6 +9,7 @@ import { keyChapterStarts } from "../../core/ai/verdict.ts";
 import type { LearningAnalysis } from "../../core/notes/records.ts";
 import { breaksToShow, lineBreaks, splitRuns } from "../../core/transcript/lines.ts";
 import { formatTimestamp, type TranscriptSegment } from "../../core/transcript/segment.ts";
+import { trimmedOrEmpty } from "../../shared/guards.ts";
 import type { CueView } from "../../shared/messages/transcript.ts";
 import { useMemo, useRef, useState } from "preact/hooks";
 import { Button } from "../shared/ui/button.tsx";
@@ -34,8 +35,6 @@ const BASIS: readonly BasisSource[] = ["transcript", "official-summary", "title-
 
 const NO_SEGMENTS: readonly TranscriptSegment[] = [];
 const NO_CUES: readonly CueView[] = [];
-
-const text = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
 
 function Quote({ panel, quote }: { readonly panel: Panel; readonly quote: QuotePart }) {
   const [saved, setSaved] = useState(false);
@@ -105,7 +104,7 @@ function Chapters({
   const breaks = useMemo(() => lineBreaks(segments, cues), [segments, cues]);
   const [expanded, setExpanded] = useState<readonly number[]>([]);
   const chapters = (analysis.chapters ?? []).filter((chapter): chapter is ChapterPart => Number.isFinite(chapter.timestampSeconds));
-  const quotes = (analysis.keyQuotes ?? []).filter((quote) => text(quote.quote));
+  const quotes = (analysis.keyQuotes ?? []).filter((quote) => trimmedOrEmpty(quote.quote));
   const { grouped, orphans: loose } = groupQuotesIntoChapters(chapters, quotes);
   const groups = grouped.map((group) => group.quotes);
   const comments = commentsOf?.(analysis.verdict) ?? null;
@@ -117,13 +116,13 @@ function Chapters({
           keyStarts={keyChapterStarts(analysis)}
           notes={notes}
           totalSec={totalSec}
-          chapters={chapters.map((chapter) => ({ startSec: chapter.timestampSeconds, title: text(chapter.title) || formatTimestamp(chapter.timestampSeconds) }))}
+          chapters={chapters.map((chapter) => ({ startSec: chapter.timestampSeconds, title: trimmedOrEmpty(chapter.title) || formatTimestamp(chapter.timestampSeconds) }))}
           expanded={expanded}
           onToggle={(index) => setExpanded(expanded.includes(index) ? expanded.filter((item) => item !== index) : [...expanded, index])}
           onSeek={(at) => void panel.seek(at)}
           renderDetail={(_, index) => (
             <>
-              {text(chapters[index]?.summary) ? <p class="chapter-summary">{text(chapters[index]?.summary)}</p> : null}
+              {trimmedOrEmpty(chapters[index]?.summary) ? <p class="chapter-summary">{trimmedOrEmpty(chapters[index]?.summary)}</p> : null}
               {groups[index]?.length ? (
                 <ul class="quotes">
                   {groups[index]?.map((quote) => <Quote key={quote.quote} panel={panel} quote={quote} />)}
@@ -165,8 +164,8 @@ function Verdict({
   const { verdictTask, task } = panel.overview.state.value;
   const p = panelText();
   const verdict = analysis?.verdict;
-  const summary = text(verdict?.summary);
-  const source = text(verdict?.source);
+  const summary = trimmedOrEmpty(verdict?.summary);
+  const source = trimmedOrEmpty(verdict?.source);
   // 这一屏上等过它（在写结论，或者还没有结论时在生成概览）：写好了进来时有「有结果了」那一下。
   const waited = useRef(false);
   if (verdictTask || (task && !summary)) waited.current = true;
@@ -225,7 +224,7 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
   const generate = (): void => void (readFirst && tabId !== null ? panel.overview.generate(false, tabId) : panel.overview.generate(false));
   const canGenerate = transcript.state === "ready" || readFirst;
   const t = panelText().skim;
-  const verdictShown = !state.verdictTask && text(state.saved?.analysis.verdict?.summary) !== "";
+  const verdictShown = !state.verdictTask && trimmedOrEmpty(state.saved?.analysis.verdict?.summary) !== "";
   const stale = staleOverviewMarks(state.saved?.transcriptBasis, view?.transcript.ref.fingerprint, verdictShown);
   const seek = (at: number): void => void panel.seek(at);
   const guides = (

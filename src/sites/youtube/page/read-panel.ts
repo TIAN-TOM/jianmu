@@ -1,8 +1,8 @@
 // 读观看页上已经显示的文字稿面板（新旧两种面板都认）：只看不动，不点、不滚动、不打开面板、不换页签，不碰播放器，不发请求。后台也可以只问页面现在是哪个视频、播放器上已有哪些字幕轨。
 // 字幕段落最后一次真的变了时页面放的是当前视频才认，同样的内容重建（切页签、关上再开）沿用原来的归属；简幕接上之前
 // 就有的内容认不出是谁的，要用户刷新视频页再开。读到的时间不超过视频时长，超过的整份不用；播广告时不拿时长。
+import { repeat } from "../../../core/concurrency.ts";
 import type { VideoRef } from "../../../core/video-ref.ts";
-import { repeat } from "../../page-util.ts";
 import { advertising, ENTRY, LANGUAGE_LABEL, MAIN_VIDEO, openPanelOf, PANELS, searching, SEGMENTS, SEGMENT_TEXT, SEGMENT_TIME, transcriptShell, videoOnPage } from "./panel-dom.ts";
 import {
   END_SLACK_SEC,

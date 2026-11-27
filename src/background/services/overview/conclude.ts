@@ -10,6 +10,7 @@ import type { Limiter } from "../../../core/concurrency.ts";
 import type { LearningAnalysis } from "../../../core/notes/records.ts";
 import type { OutputLang } from "../../../core/output-lang.ts";
 import { formatTimestamp } from "../../../core/transcript/segment.ts";
+import { stringOrEmpty } from "../../../shared/guards.ts";
 import { errorLabel, type Log } from "../../log.ts";
 import { progressText } from "../../progress-text.ts";
 import type { TaskAi } from "../../ai.ts";
@@ -108,13 +109,11 @@ export interface VerdictStage {
 
 export type VerdictOutcome = { readonly verdict: VerdictResult } | { readonly canceled: true } | { readonly failed: true };
 
-const text = (value: unknown): string => (typeof value === "string" ? value : "");
-
 /** 存着的概览里只取结论要喂的几样：章节的时间、标题、摘要，金句的时间和原话。 */
 export function verdictMaterial(analysis: LearningAnalysis): VerdictAnalysis {
   return {
-    chapters: (analysis.chapters ?? []).map((chapter) => ({ timestamp: text(chapter.timestamp), title: text(chapter.title), summary: text(chapter.summary) })),
-    keyQuotes: (analysis.keyQuotes ?? []).map((quote) => ({ timestamp: text(quote.timestamp), quote: text(quote.quote) })),
+    chapters: (analysis.chapters ?? []).map((chapter) => ({ timestamp: stringOrEmpty(chapter.timestamp), title: stringOrEmpty(chapter.title), summary: stringOrEmpty(chapter.summary) })),
+    keyQuotes: (analysis.keyQuotes ?? []).map((quote) => ({ timestamp: stringOrEmpty(quote.timestamp), quote: stringOrEmpty(quote.quote) })),
   };
 }
 

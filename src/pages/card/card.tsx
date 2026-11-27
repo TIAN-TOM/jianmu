@@ -3,6 +3,7 @@ import type { ComponentChildren, RefObject } from "preact";
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { LearningAnalysis } from "../../core/notes/records.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
+import { trimmedOrEmpty } from "../../shared/guards.ts";
 import type { OfficialSummaryView, OutlineSectionView } from "../../shared/messages/transcript.ts";
 import { keyChapterStarts, type VerdictRating } from "../../core/ai/verdict.ts";
 import type { ChapterItem } from "../shared/ui/chapter-list.tsx";
@@ -26,7 +27,6 @@ const commentsOf = FEATURE_COMMENTS ? commentViewOfVerdict : null;
 
 type ClickEvent = { readonly isTrusted: boolean };
 
-const text = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
 const validTime = (atSec: number | null): atSec is number => atSec !== null && Number.isFinite(atSec) && atSec >= 0;
 
 /** 时间这一列按最长的那个时间定宽，后面的标题才对得齐。 */
@@ -131,7 +131,7 @@ function OfficialBody({ official, chapters, limited, onSeek, onToggleAll }: { re
 
 // 卡片地方小，依据字幕是常态不标；只有没读字幕、靠官方总结写的结论才提醒一句。
 function basisOf(analysis: LearningAnalysis): BasisSource | null {
-  const source = text(analysis.verdict?.source);
+  const source = trimmedOrEmpty(analysis.verdict?.source);
   return source === "official" || source === "official-summary" ? "official-summary" : null;
 }
 
@@ -152,7 +152,7 @@ function Overview({
   readonly onSeek: (atSec: number) => void;
 }) {
   const verdict = analysis.verdict;
-  const summary = text(verdict?.summary);
+  const summary = trimmedOrEmpty(verdict?.summary);
   const comments = commentsOf?.(verdict) ?? null;
   // 卡片上等过它（先是「正在写结论」）：写好了进来时淡一下，标记有「有结果了」那一下。
   const waited = useRef(false);
@@ -161,13 +161,13 @@ function Overview({
   const all = analysis.chapters ?? [];
   const chapters: ChapterItem[] = all.map((chapter, index) => {
     const next = all[index + 1]?.timestampSeconds;
-    return { startSec: chapter.timestampSeconds, title: text(chapter.title), ...(next === undefined ? {} : { endSec: next }) };
+    return { startSec: chapter.timestampSeconds, title: trimmedOrEmpty(chapter.title), ...(next === undefined ? {} : { endSec: next }) };
   });
   const t = cardText();
   return (
     <section class="card-block" id="card-overview" aria-label={t.overview}>
       {!pending && summary ? (
-        <VerdictBlock label={verdict?.verdict} cardReason={text(verdict?.reason)} text={summary} basis={basisOf(analysis)} staleTranscript={stale.verdict} incomplete={verdict?.incomplete === true} fresh={waited.current} />
+        <VerdictBlock label={verdict?.verdict} cardReason={trimmedOrEmpty(verdict?.reason)} text={summary} basis={basisOf(analysis)} staleTranscript={stale.verdict} incomplete={verdict?.incomplete === true} fresh={waited.current} />
       ) : null}
       {CardComments && comments && summary && !pending ? <CardComments view={comments} open={commentsOpen} onToggle={onToggleComments} /> : null}
       {stale.chapters && chapters.length ? <StaleTranscriptLine /> : null}
@@ -430,7 +430,7 @@ export function Card({
           {analysis ? (
             <Overview
               analysis={analysis}
-              stale={staleOverviewMarks(view.transcriptBasis ?? undefined, view.transcriptFingerprint, !view.verdictPending && text(analysis.verdict?.summary) !== "")}
+              stale={staleOverviewMarks(view.transcriptBasis ?? undefined, view.transcriptFingerprint, !view.verdictPending && trimmedOrEmpty(analysis.verdict?.summary) !== "")}
               pending={Boolean(view.verdictPending || task)}
               commentsOpen={view.commentsOpen}
               onToggleComments={actions.toggleComments}

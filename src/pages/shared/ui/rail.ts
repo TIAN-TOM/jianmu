@@ -1,5 +1,6 @@
 // 时间轨的版面：把章节或分块进度、重点、播放位置换算成沿轨道的比例，组件只照着画。
 // 数据不够（不知道时长、没有落在时长里的章节）就只剩一根细线，不编分段。
+import { isSeconds } from "../../../shared/guards.ts";
 import { keyStartSet } from "./chapters.ts";
 
 export interface RailChapter {
@@ -53,7 +54,6 @@ export interface RailLayout {
 
 const EMPTY: RailLayout = Object.freeze({ pieces: Object.freeze([]), playhead: null });
 
-const isSecond = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0;
 const clamp01 = (value: number): number => Math.min(1, Math.max(0, value));
 
 function playedWithin(startSec: number, endSec: number, positionSec: number | null): number {
@@ -66,7 +66,7 @@ function chapterPieces(input: RailInput, durationSec: number, positionSec: numbe
   const seen = new Set<number>();
   const valid = (input.chapters ?? [])
     .map((chapter, index) => ({ chapter, index }))
-    .filter(({ chapter }) => isSecond(chapter?.startSec) && chapter.startSec < durationSec)
+    .filter(({ chapter }) => isSeconds(chapter?.startSec) && chapter.startSec < durationSec)
     .sort((a, b) => a.chapter.startSec - b.chapter.startSec || a.index - b.index)
     .filter(({ chapter }) => {
       // 同一秒开头的两章只画第一章，不让两段叠在一起。
@@ -92,7 +92,7 @@ function chapterPieces(input: RailInput, durationSec: number, positionSec: numbe
 
 function blockPieces(blocks: readonly RailBlock[], durationSec: number, positionSec: number | null): RailPiece[] {
   return blocks.flatMap((block, index) => {
-    if (!isSecond(block?.startSec) || !isSecond(block.endSec) || block.startSec >= durationSec) return [];
+    if (!isSeconds(block?.startSec) || !isSeconds(block.endSec) || block.startSec >= durationSec) return [];
     const endSec = Math.min(block.endSec, durationSec);
     if (endSec <= block.startSec) return [];
     return [
@@ -113,8 +113,8 @@ function blockPieces(blocks: readonly RailBlock[], durationSec: number, position
 
 export function railLayout(input: RailInput): RailLayout {
   const durationSec = input.durationSec;
-  if (!isSecond(durationSec) || durationSec === 0) return EMPTY;
-  const positionSec = isSecond(input.positionSec) ? Math.min(input.positionSec, durationSec) : null;
+  if (!isSeconds(durationSec) || durationSec === 0) return EMPTY;
+  const positionSec = isSeconds(input.positionSec) ? Math.min(input.positionSec, durationSec) : null;
   const pieces = input.blocks?.length
     ? blockPieces(input.blocks, durationSec, positionSec)
     : chapterPieces(input, durationSec, positionSec);
