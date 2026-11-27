@@ -501,7 +501,6 @@ body {
 
 /* 提纲里偶尔有比章节更长的时间，在这一列里折行。 */
 .outline .chapter-time {
-  width: min-content;
   overflow-wrap: anywhere;
 }
 

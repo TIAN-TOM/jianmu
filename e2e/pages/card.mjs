@@ -450,33 +450,42 @@ test("卡片：各档的判断词和星采用对应字色，在五套主题的�
 test("卡片：五套主题的官方提纲和章节列表时间列等宽，竖线和标题起点对齐", async ({ open }) => {
   const page = await open(`${SAMPLE}#full`);
   await page.setWidth(FRAME_WIDTH, CARD_HEIGHT.max);
+  const assertAligned = (positions, label) => {
+    const spread = Math.max(...positions) - Math.min(...positions);
+    assert.ok(positions.length && spread <= 0.5, `${label}最多相差 ${spread} 个 CSS 像素`);
+  };
   for (const accentTheme of Object.keys(ACCENT_THEMES)) {
     await page.setAppearance({ accentTheme, themeMode: "light", uiFontScale: 100 });
     const edges = await page.evaluate(`(() => {
       const nodes = (selector) => [...document.querySelectorAll(selector)];
-      const lefts = (selector) => [...new Set(nodes(selector).map((node) => node.getBoundingClientRect().left))];
-      const columns = (selector) => nodes(selector).map((node) => {
-        const rect = node.getBoundingClientRect();
-        return [rect.left, rect.right, getComputedStyle(node).borderRightWidth];
-      });
-      const times = nodes("#card-overview .chapter-time").map((node) => node.textContent);
+      const chapters = nodes("#card-overview .chapter-time");
+      const outline = nodes("#card-official .outline-item > .chapter-time");
+      const titles = nodes("#card-official .outline-title");
+      const cells = [...chapters, ...outline];
+      const names = nodes("#card-overview .chapter-name");
+      const keyTime = chapters.find((node) => node.closest(".chapter[data-key]") && node.textContent.length === 5);
+      const range = document.createRange();
+      range.selectNodeContents(keyTime);
       return {
-        names: lefts("#card-overview .chapter-name"),
-        titles: lefts("#card-official .outline-title"),
-        chapters: columns("#card-overview .chapter-time"),
-        outline: columns("#card-official .outline-item > .chapter-time"),
+        titleLefts: [...names, ...titles].map((node) => node.getBoundingClientRect().left),
+        timeLefts: cells.map((node) => node.getBoundingClientRect().left),
+        timeRights: cells.map((node) => node.getBoundingClientRect().right),
+        borders: [...new Set(cells.map((node) => getComputedStyle(node).borderRightWidth))],
+        outlineRows: outline.length,
+        keyTimeFits: range.getClientRects().length === 1 && range.getBoundingClientRect().right <= keyTime.getBoundingClientRect().right + 0.5,
         keys: nodes("#card-overview .chapter[data-key]").length,
-        lengths: [...new Set(times.map((time) => time.length))],
+        lengths: [...new Set(chapters.map((node) => node.textContent.length))],
       };
     })()`);
     assert.equal(edges.keys, 2, "样张里有两章重点");
     assert.deepEqual(edges.lengths, [4, 5], "样张里四位和五位的时间都有");
-    assert.equal(edges.names.length, 1, accentTheme);
-    assert.deepEqual(edges.titles, edges.names, `${accentTheme}：提纲标题和章节名从同一条线起`);
-    assert.ok(edges.outline.length > 0, accentTheme);
-    for (const column of [...edges.chapters, ...edges.outline]) {
-      assert.deepEqual(column, edges.chapters[0], `${accentTheme}：时间列的两端和右边线一致`);
-    }
+    assert.ok(edges.outlineRows > 0, accentTheme);
+    assert.equal(edges.titleLefts.length, edges.timeLefts.length, `${accentTheme}：每行都有标题和时间列`);
+    assertAligned(edges.titleLefts, `${accentTheme}：提纲标题和章节名的左边`);
+    assertAligned(edges.timeLefts, `${accentTheme}：时间列的左边`);
+    assertAligned(edges.timeRights, `${accentTheme}：时间列的右边`);
+    assert.equal(edges.borders.length, 1, `${accentTheme}：时间列的右边线一致`);
+    if (accentTheme === "band") assert.ok(edges.keyTimeFits, "看不看主题的加粗五位时间完整放在时间列里");
   }
 });
 

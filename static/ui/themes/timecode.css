@@ -76,7 +76,7 @@
 }
 
 :root[data-accent-theme="timecode"] .chapter-time {
-  min-width: max(2.875rem, calc(var(--time-ch, 4) * 0.62em));
+  --chapter-time-min: 2.875rem;
   padding: 0;
   color: var(--text-muted);
 }
