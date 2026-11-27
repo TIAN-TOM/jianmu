@@ -366,7 +366,7 @@ body {
   font-size: var(--fs-meta);
 }
 
-/* 提问（正文最后一块）：上面是这一次的问题和回答，下面一行输入框加「提问」。 */
+/* 提问（正文最后一块）：上面是这一次的问题和回答，发送图标在输入框右侧。 */
 .card-ask {
   display: flex;
   flex-direction: column;
@@ -374,20 +374,47 @@ body {
 }
 
 .card-ask-form {
-  display: flex;
-  gap: var(--space-2);
+  display: grid;
+  align-items: center;
 }
 
 .card-ask-input {
-  flex: 1;
+  grid-area: 1 / 1;
+  box-sizing: border-box;
   min-width: 0;
+  min-height: 2rem;
   padding: var(--space-1) var(--space-2);
+  padding-inline-end: 2.25rem;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   background: var(--input);
   color: var(--text);
   font: inherit;
   font-size: var(--fs-meta);
+}
+
+.card-ask-send {
+  grid-area: 1 / 1;
+  justify-self: end;
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-inline-end: var(--space-1);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.card-ask-send[data-ready] {
+  color: var(--accent-text);
+}
+
+.card-ask-send:hover:not(:disabled) {
+  background: var(--bg-hover);
 }
 
 .card-question {
@@ -406,8 +433,13 @@ body {
 }
 
 /* 回答里能点的时间点，样子同章节前面的时间。 */
+.card-stamp-group {
+  display: inline-block;
+  white-space: nowrap;
+}
+
 .card-stamp {
-  padding: 0 var(--space-1);
+  padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -457,26 +489,29 @@ body {
   overflow: hidden;
 }
 
-.outline,
-.points {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: 0;
-  list-style: none;
+/* 横向沿用主题的章节列，提纲上下仍只留原来的一小道间距。 */
+.card .outline.chapter-list,
+.card .points.chapter-list {
+  row-gap: var(--space-1);
 }
 
-/* 时间一列、标题一列：时间列按最长的时间定宽，有没有时间、能不能展开，标题都从同一条线起。 */
-.outline-item,
-.point {
-  display: grid;
-  grid-template-columns: calc(var(--time-ch, 4) * 1ch + 2 * var(--space-1)) minmax(0, 1fr);
-  column-gap: var(--space-2);
-  align-items: baseline;
-  font-size: var(--fs-ui);
+.card .outline .chapter-row {
+  padding-block: 0;
 }
 
+/* 提纲里偶尔有比章节更长的时间，在这一列里折行。 */
+.outline .chapter-time {
+  overflow-wrap: anywhere;
+}
+
+.outline .chapter-time[aria-hidden] {
+  pointer-events: none;
+}
+
+.outline-details,
+.point > span:last-child,
 .outline-title {
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 
@@ -581,8 +616,11 @@ body {
 }
 
 .card-chapter-count {
+  margin-top: var(--space-1);
   color: var(--text-muted);
   font-size: var(--fs-meta);
+  line-height: var(--lh-tight);
+  text-align: end;
 }
 
 /* 底部一行的「重新生成」靠左，和右边的按钮分在两端。 */

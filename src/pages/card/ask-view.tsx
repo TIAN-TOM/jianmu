@@ -1,8 +1,9 @@
-// 卡片底部的提问：一行输入框，Enter 或「提问」发出；上面摆这一次的问题和回答，回答里落在送给模型的范围内的时间点能点着跳。
+// 卡片底部的提问：按回车或点框里的发送图标发出；上面摆这一次的问题和回答，回答里落在送给模型的范围内的时间点能点着跳。
 // 正在答时可以停止；规则在 ask.ts。
 import { useEffect, useRef, useState } from "preact/hooks";
 import { splitAnswerByTimestamps } from "../../core/qa/citations.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
+import { Icon } from "../shared/ui/icon.tsx";
 import { ServiceSaid } from "../shared/ui/notice.tsx";
 import type { AskState } from "./ask.ts";
 import { cardText } from "./text.ts";
@@ -15,20 +16,33 @@ function Answer({ state, onSeek }: { readonly state: AskState; readonly onSeek: 
   if (!entry) return null;
   const t = cardText();
   const clickable = new Set(entry.clickable);
+  const parts = splitAnswerByTimestamps(entry.answer);
+  const content = [];
+  for (let index = 0; index < parts.length; index++) {
+    const { text, seconds } = parts[index]!;
+    if (seconds === undefined || !clickable.has(seconds)) {
+      content.push(text);
+      continue;
+    }
+    const next = parts[index + 1]?.text ?? "";
+    const punctuation = next.match(/^[。，、；：！？]+/)?.[0] ?? "";
+    content.push(
+      <span class="card-stamp-group" key={index}>
+        <button type="button" class="card-stamp" aria-label={t.jumpTo(formatTimestamp(seconds))} onClick={() => onSeek(seconds)}>
+          {text}
+        </button>
+        {punctuation}
+      </span>,
+    );
+    if (punctuation) {
+      content.push(next.slice(punctuation.length));
+      index++;
+    }
+  }
   return (
     <div class="card-answer" id="card-answer">
       <p class="card-question">{entry.question}</p>
-      <p class="card-answer-text">
-        {splitAnswerByTimestamps(entry.answer).map((part, index) =>
-          part.seconds !== undefined && clickable.has(part.seconds) ? (
-            <button key={index} type="button" class="card-stamp" aria-label={t.jumpTo(formatTimestamp(part.seconds))} onClick={() => onSeek(part.seconds ?? 0)}>
-              {part.text}
-            </button>
-          ) : (
-            <span key={index}>{part.text}</span>
-          ),
-        )}
-      </p>
+      <p class="card-answer-text">{content}</p>
       {entry.truncated ? <p class="card-note">{t.answerTruncated}</p> : null}
       {state.unsaved ? <p class="card-note">{t.answerUnsaved}</p> : null}
     </div>
@@ -73,18 +87,7 @@ export function CardAskBox({
           <ServiceSaid said={state.said} />
         </>
       ) : null}
-      <form
-        class="card-ask-form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          // 只认真实的提交。按框里这会儿的字算：刚输入完马上按 Enter 时，状态里的草稿可能还没跟上，清的时候框也一起清。
-          const question = input.current?.value ?? draft;
-          if (!event.isTrusted || asking || !question.trim()) return;
-          onAsk(question, event);
-          setDraft("");
-          if (input.current) input.current.value = "";
-        }}
-      >
+      <form class="card-ask-form" onSubmit={(event) => event.preventDefault()}>
         <input
           type="text"
           class="card-ask-input"
@@ -97,8 +100,26 @@ export function CardAskBox({
           disabled={asking}
           onInput={(event) => setDraft(event.currentTarget.value)}
         />
-        <button type="submit" class="button" data-variant="secondary" disabled={asking || !draft.trim()}>
-          {t.ask}
+        <button
+          type="submit"
+          class="card-ask-send"
+          aria-label={t.send}
+          data-ready={draft.trim() ? "" : undefined}
+          disabled={asking}
+          onClick={(event) => {
+            // 框里按回车也会触发这个按钮。用点击事件判断是不是用户发的。
+            if (!event.isTrusted || asking || !input.current) return;
+            const question = input.current.value;
+            if (!question.trim()) {
+              input.current.focus();
+              return;
+            }
+            onAsk(question, event);
+            input.current.value = "";
+            setDraft("");
+          }}
+        >
+          <Icon name="enter" />
         </button>
       </form>
     </section>

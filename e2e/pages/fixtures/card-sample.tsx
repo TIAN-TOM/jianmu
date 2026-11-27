@@ -66,8 +66,8 @@ const view = signal<CardView>({
     summary: officialOnly ? SHORT_SUMMARY : LONG.repeat(6),
     outline: Array.from({ length: officialOnly ? 3 : 12 }, (_, index) => ({
       title: officialOnly ? `样例小节 ${index + 1}` : `样例小节 ${index + 1}：${LONG}`,
-      timestamp: index * 60,
-      points: officialOnly ? [] : [{ timestamp: index * 60 + 10, content: LONG }],
+      timestamp: index === 0 ? null : index * 600,
+      points: officialOnly ? [] : [{ timestamp: index * 600 + 10, content: LONG }],
     })),
   },
   analysis: officialOnly || keyCleared || noOverview || location.hash === "#collapsed" ? null : {
@@ -131,7 +131,7 @@ const askRuntime: PageRuntime = {
   sendMessage: async (message) => {
     const { type, req } = message as { readonly type: string; readonly req: { readonly question?: string } };
     if (type === "task.start") return { ok: true, value: { task: { id: "ask-1", kind: "qa", origin: "card", video: videoKey(SAMPLE_REF), state: "running", done: 0, total: 0, phase: "", message: "", createdAt: 1, updatedAt: 1 }, joined: false, token: "ask-token" } };
-    if (type === "qa.ask") return { ok: true, value: { entry: { id: "qa-1", video: videoKey(SAMPLE_REF), question: "样例问题", answer: "样例回答在 [1:30] 讲到。", citations: [], clickable: [90], derived: {}, createdAt: 1 }, retrievalMode: "full" } };
+    if (type === "qa.ask") return { ok: true, value: { entry: { id: "qa-1", video: videoKey(SAMPLE_REF), question: "样例问题", answer: "样例回答见[1:30]。", citations: [], clickable: [90], derived: {}, createdAt: 1 }, retrievalMode: "full" } };
     return { ok: false, code: "UNKNOWN_ROUTE", req };
   },
   onMessage: { addListener: noop, removeListener: noop },

@@ -144,7 +144,7 @@
 }
 
 :root[data-accent-theme="band"] .chapter-time {
-  min-width: max(2.5rem, calc(var(--time-ch, 4) * 0.62em));
+  --chapter-time-min: 2.5rem;
   padding: 0;
   color: var(--text-muted);
 }

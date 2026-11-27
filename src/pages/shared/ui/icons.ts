@@ -50,6 +50,7 @@ export const ICONS = Object.freeze({
   chevron: [path("m4 6 4 4 4-4")],
   close: [path("m3.5 3.5 9 9M12.5 3.5l-9 9")],
   back: [path("M10 3 5 8l5 5")],
+  enter: [path("M13 3.5V9H3m4-4L3 9l4 4")],
   check: [path("m3 8.5 3.2 3.2L13 5")],
   alert: [path("M8 2.5 14 13H2Z"), path("M8 7v2.6M8 11.3v.1")],
   /** 重点章节：从这里看 */

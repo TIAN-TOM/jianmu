@@ -85,7 +85,7 @@
 }
 
 :root[data-accent-theme="redblack"] .chapter-time {
-  min-width: max(2.75rem, calc(var(--time-ch, 4) * 0.62em));
+  --chapter-time-min: 2.75rem;
   padding: 0;
 }
 

@@ -243,14 +243,17 @@
 
 .chapter-time {
   flex: none;
-  /* 按这一列里最长的时间定宽，后面的章节名才对得齐。 */
-  min-width: calc(var(--time-ch, 4) * 1ch + 2 * var(--space-1));
+  box-sizing: border-box;
+  /* 按最长时间的字符数定宽，给粗体数字留余量，重点章节的标题也从同一处起。 */
+  width: max(var(--chapter-time-min, 3rem), calc(var(--time-ch, 4) * 0.75em));
+  min-width: 0;
   padding: 0 var(--space-1);
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--accent-text);
   font-size: var(--fs-meta);
+  font-variant-numeric: tabular-nums;
   text-align: start;
   cursor: pointer;
 }
