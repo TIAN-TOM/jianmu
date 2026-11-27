@@ -23,8 +23,17 @@ import type { TranscriptApi } from "./messages/transcript.ts";
 import type { TranslateIn, TranslateOut } from "./messages/translate.ts";
 import type { AccentTheme } from "./settings-schema.ts";
 
+/** 各站的内容脚本，按平台细分。 */
+export type ContentSender = `content:${Platform}`;
+
 /** 路由表按这几类放行。page 再按页面细分，内容脚本按站点细分。 */
-export type SenderKind = "panel" | "page" | "card" | "content:bilibili" | "content:youtube";
+export type SenderKind = "panel" | "page" | "card" | ContentSender;
+
+// 平台表：加了平台这里不补就过不了类型检查，内容脚本的发送方跟着它生成。
+const PLATFORMS: Readonly<Record<Platform, true>> = { bilibili: true, youtube: true };
+
+/** 所有站的内容脚本：放行各站内容脚本的路由用它，不逐个写站名。 */
+export const CONTENT_SENDERS: readonly ContentSender[] = (Object.keys(PLATFORMS) as Platform[]).map((platform) => `content:${platform}` as const);
 
 /** 扩展页面里，路由能点名放行的几个。认不出的扩展页面一律不放行。 */
 export type PageName = "options" | "triage";

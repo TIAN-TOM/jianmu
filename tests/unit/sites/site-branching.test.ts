@@ -7,6 +7,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { bilibiliRules } from "../../../src/sites/bilibili/url.ts";
 import type { Platform } from "../../../src/core/video-ref.ts";
+import { CONTENT_SENDERS } from "../../../src/shared/messages.ts";
 import { captionsInPage, watchRefOf } from "../../../src/sites/rules.ts";
 import type { SiteRules } from "../../../src/sites/types.ts";
 import { youtubeRules } from "../../../src/sites/youtube/url.ts";
@@ -20,6 +21,7 @@ const SITE = "(?:bilibili|youtube)";
 const RULES: readonly { readonly name: string; readonly pattern: RegExp }[] = [
   { name: "拿平台和站名做相等比较", pattern: new RegExp(`[!=]==\\s*["'\`]${SITE}["'\`]|["'\`]${SITE}["'\`]\\s*[!=]==|\\bcase\\s+["'\`]${SITE}["'\`]`) },
   { name: "拿视频键的站名前缀判站", pattern: new RegExp(`["'\`]${SITE}:`) },
+  { name: "手写某个站的内容脚本发送方（用 CONTENT_SENDERS 或按平台拼）", pattern: new RegExp(`["'\`]content:${SITE}`) },
 ];
 
 // 确实只属于一个站的地方：文件、这一行里要有的片段、原因。
@@ -75,6 +77,10 @@ test("认播放页上的视频：按传入的规则表逐条认，第一条认�
   assert.equal(watchRefOf("https://a.example/x1", []), null);
 });
 
+test("内容脚本的发送方按平台表生成，每个平台一个", () => {
+  assert.deepEqual([...CONTENT_SENDERS].sort(), ["content:bilibili", "content:youtube"]);
+});
+
 test("检查本身拦得住：几种按站名分支的写法都认得出，注释里的和别的字符串不算", () => {
   const bad = [
     'if (ref.platform === "bilibili") return;',
@@ -83,6 +89,8 @@ test("检查本身拦得住：几种按站名分支的写法都认得出，注�
     "switch (platform) { case `bilibili`: break; }",
     'const canAsk = current.startsWith("bilibili:");',
     "const tube = key.startsWith(`youtube:`);",
+    'senders: ["panel", "content:bilibili"],',
+    "const kind = 'content:youtube';",
   ];
   for (const line of bad) assert.equal(scan("x.ts", line).length, 1, line);
   const fine = [
@@ -91,6 +99,8 @@ test("检查本身拦得住：几种按站名分支的写法都认得出，注�
     'openSettingsAt("youtube");',
     'const id = "youtube-section";',
     "const same = a.platform === b.platform;",
+    "if (!route.senders.includes(`content:${site.site}`)) return;",
+    'senders: ["panel", "page", ...CONTENT_SENDERS],',
   ];
   for (const line of fine) assert.deepEqual(scan("x.ts", line), [], line);
 });
