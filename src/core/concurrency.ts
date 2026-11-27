@@ -1,4 +1,4 @@
-// 并发控制：带上限的 map、串行队列、跨任务共享的并发闸门。
+// 并发控制：带上限的 map、串行队列、带超时的等待、能被停止的等待、跨任务共享的并发闸门。
 type Task<T> = () => T | PromiseLike<T>;
 
 export type SerialQueue = <T>(task: Task<T>) => Promise<T>;
@@ -75,6 +75,46 @@ export function createSerialQueue(): SerialQueue {
     );
     return result;
   };
+}
+
+/** 注入的计时器：等待只用到排和撤两项，测试换成手动推进的。 */
+export interface WaitTimers {
+  readonly setTimeout: (callback: () => void, delayMs: number) => unknown;
+  readonly clearTimeout: (timer: unknown) => void;
+}
+
+/**
+ * 等 work 最多 ms 毫秒：先到点就回 onTimeout，work 先有结果就照它的结果，出错照样抛给调用方。
+ * work 先结束时撤掉计时器；到点以后 work 再回来的结果和错误都不管。要出错也兜底的，调用方先接住错误再传进来。
+ */
+export function withTimeout<T, F>(timers: WaitTimers, work: PromiseLike<T>, ms: number, onTimeout: F): Promise<T | F> {
+  return new Promise<T | F>((resolve, reject) => {
+    const timer = timers.setTimeout(() => resolve(onTimeout), ms);
+    Promise.resolve(work).then(
+      (value) => {
+        timers.clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        timers.clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+/** 等 ms 毫秒，signal 中止时马上结束：两种都正常结束，不抛错。已经中止的不排计时器。 */
+export function waitOrStop(timers: WaitTimers, ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal?.aborted) return resolve();
+    const finish = (): void => {
+      timers.clearTimeout(timer);
+      signal?.removeEventListener?.("abort", finish);
+      resolve();
+    };
+    const timer = timers.setTimeout(finish, ms);
+    signal?.addEventListener?.("abort", finish, { once: true });
+  });
 }
 
 function taskCanceledError(): Error & { code?: string } {

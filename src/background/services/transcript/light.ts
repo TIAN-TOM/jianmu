@@ -8,6 +8,7 @@
 // 字幕要用户点了读取才读的站（YouTube）只看本机，也不并进完整读取；本机没有字幕时，再问一句卡片所在的页面：
 // 播放器上已有的字幕轨列表确定是空的，才告诉卡片没有字幕。不点、不发请求、不动播放器。
 import type { ClearGuard } from "../../../core/clear-guard.ts";
+import { withTimeout } from "../../../core/concurrency.ts";
 import { fail, ok, type Failure } from "../../../core/errors.ts";
 import { videoKey, type Platform, type VideoKey, type VideoRef } from "../../../core/video-ref.ts";
 import type {
@@ -200,11 +201,7 @@ export function createLight(deps: LightDeps): Light {
   }
 
   async function join(video: VideoKey, full: JoinableRead): Promise<GuidesReply | null> {
-    let timer: unknown;
-    const expired = new Promise<typeof EXPIRED>((resolve) => {
-      timer = timers.setTimeout(() => resolve(EXPIRED), LIGHT_JOIN_MS);
-    });
-    const reply = await Promise.race([full.reply, expired]).finally(() => timers.clearTimeout(timer));
+    const reply = await withTimeout(timers, full.reply, LIGHT_JOIN_MS, EXPIRED);
     const reading = full.reading();
     if (reply !== EXPIRED) return reply.ok ? fromView(video, reply.value, reading) : fromFailure(video, reply, reading);
     // 视频信息都还没读到：自己读。

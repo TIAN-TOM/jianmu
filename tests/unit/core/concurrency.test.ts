@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createLimiter, createSerialQueue, mapWithConcurrency } from "../../../src/core/concurrency.ts";
+import { createLimiter, createSerialQueue, mapWithConcurrency, waitOrStop, withTimeout } from "../../../src/core/concurrency.ts";
+import { manualTimers } from "../../helpers/manual-timers.ts";
+import { stillFalse, until } from "../../helpers/wait-until.ts";
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -344,4 +346,62 @@ test("队首被取消后，后面能放行的立刻补上", async () => {
 
   for (const holder of holders) holder.resolve();
   await Promise.all(running);
+});
+
+// 带超时的等待
+
+test("带超时的等待：work 先回来就照它的结果，计时器撤掉", async () => {
+  const timers = manualTimers();
+  assert.equal(await withTimeout(timers, Promise.resolve("到了"), 2000, "超时"), "到了");
+  assert.equal(timers.pending(), 0);
+});
+
+test("带超时的等待：先到点回调用方给的值，work 之后再回来也不管", async () => {
+  const timers = manualTimers();
+  let finish!: (value: string) => void;
+  const work = new Promise<string>((resolve) => (finish = resolve));
+  const waiting = withTimeout(timers, work, 2000, null);
+  assert.equal(timers.fire(2000), 1);
+  assert.equal(await waiting, null);
+  finish("晚了");
+  assert.equal(await waiting, null);
+});
+
+test("带超时的等待：work 出错照样抛出，计时器撤掉；到点以后才出错的不管", async () => {
+  const timers = manualTimers();
+  await assert.rejects(withTimeout(timers, Promise.reject(new Error("坏了")), 2000, "超时"), /坏了/);
+  assert.equal(timers.pending(), 0);
+
+  let fail!: (error: Error) => void;
+  const late = withTimeout(timers, new Promise<string>((_, reject) => (fail = reject)), 2000, "超时");
+  timers.fire(2000);
+  fail(new Error("晚了"));
+  assert.equal(await late, "超时");
+});
+
+// 能被停止的等待
+
+test("能被停止的等待：到点才结束", async () => {
+  const timers = manualTimers();
+  let done = false;
+  const waiting = waitOrStop(timers, 1500).then(() => (done = true));
+  assert.ok(await stillFalse(() => done), "没到点不结束");
+  timers.advance(1500);
+  await waiting;
+  assert.equal(done, true);
+});
+
+test("能被停止的等待：中止时马上正常结束，计时器撤掉；已经中止的不排计时器", async () => {
+  const timers = manualTimers();
+  const controller = new AbortController();
+  let done = false;
+  const waiting = waitOrStop(timers, 1500, controller.signal).then(() => (done = true));
+  assert.equal(timers.pending(), 1);
+  controller.abort();
+  assert.ok(await until(() => done));
+  await waiting;
+  assert.equal(timers.pending(), 0);
+
+  await waitOrStop(timers, 1500, controller.signal);
+  assert.equal(timers.pending(), 0);
 });

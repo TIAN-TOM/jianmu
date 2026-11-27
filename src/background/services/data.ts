@@ -7,6 +7,7 @@ import { buildBackup, type Backup } from "../../core/backup/format.ts";
 import { mergeNotes, mergeOverviews, mergeQa, mergeTranslations, type MergeResult } from "../../core/backup/merge.ts";
 import { checkNote, checkOverview, checkQa, checkTranslation, keepValid, type RecordKind } from "../../core/backup/records.ts";
 import type { ClearEpoch, ClearGuard, ClearScope } from "../../core/clear-guard.ts";
+import { withTimeout, type WaitTimers } from "../../core/concurrency.ts";
 import { fail, ok, type Result } from "../../core/errors.ts";
 import type { ExtensionStorage } from "../../platform/storage.ts";
 import type { SettingsStore } from "../../platform/settings-store.ts";
@@ -20,19 +21,7 @@ import type { TranslationStore } from "../stores/translations.ts";
 import type { TaskRunner } from "../tasks.ts";
 
 // 清除全部数据前查已开的视频页最多等这么久，等不到就只靠设置变化时按登记的编号通知。
-const OPEN_PAGES_WAIT_MS = 2000;
-
-/** 等 work 最多 ms 毫秒，超时或出错都给 fallback。 */
-function within<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(fallback), ms);
-    const settle = (value: T): void => {
-      clearTimeout(timer);
-      resolve(value);
-    };
-    work.then(settle, () => settle(fallback));
-  });
-}
+export const OPEN_PAGES_WAIT_MS = 2000;
 
 export interface DataServiceDeps {
   readonly notes: Pick<NoteStore, "all" | "update">;
@@ -55,6 +44,8 @@ export interface DataServiceDeps {
   readonly openPages?: () => Promise<readonly number[]>;
   readonly toTabs?: (tabIds: readonly number[], message: { readonly type: "activation.changed"; readonly confirmed: false }) => Promise<void>;
   readonly now: () => number;
+  /** 查已开的页面等多久用。 */
+  readonly timers: WaitTimers;
 }
 
 /** 合并完的一段：新增和更新的主键，核对时跳过的条数。 */
@@ -183,7 +174,7 @@ export function createDataService(deps: DataServiceDeps): DataService {
       await guard.clear(scope, async () => {
         if (scope !== "notes") deps.forgetMemory(scope);
         // 清完启用就失效了，那时不能再按地址查标签页：代数已经递增，趁设置还没清查好。查不到、查太久都不拦着清除。
-        if (scope === "all" && deps.openPages) pages = await within(deps.openPages(), OPEN_PAGES_WAIT_MS, []);
+        if (scope === "all" && deps.openPages) pages = await withTimeout(deps.timers, deps.openPages().catch(() => []), OPEN_PAGES_WAIT_MS, []);
         await Promise.all(targets.stores.map((name) => deps.clearStore(name)));
         if (scope === "all") {
           await deps.settings.clearAll();

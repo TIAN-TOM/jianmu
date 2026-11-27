@@ -12,7 +12,7 @@ import { SEGMENT_BATCH } from "../../core/ai/schemas.ts";
 import { taskCanceledError, throwIfTaskCanceled } from "../../core/ai/transport/index.ts";
 import { alignTranslatedSegments } from "../../core/ai/validate.ts";
 import type { ClearEpoch, ClearGuard } from "../../core/clear-guard.ts";
-import { mapWithConcurrency } from "../../core/concurrency.ts";
+import { mapWithConcurrency, waitOrStop } from "../../core/concurrency.ts";
 import { fail, ok, type Result } from "../../core/errors.ts";
 import type { Basis, Derived, TranscriptRef } from "../../core/notes/records.ts";
 import { outputLangOf, type OutputLang } from "../../core/output-lang.ts";
@@ -25,7 +25,7 @@ import { AI_CONCURRENCY } from "../../shared/settings-schema.ts";
 import { pauseReasonOf } from "./auto-generate.ts";
 import { errorLabel, type Log } from "../log.ts";
 import { progressText } from "../progress-text.ts";
-import { bare, failureOf, fromPlayback, genInfo, parseFailed, targetOf, tidiedOf, videoOfUrl, waitOrStop } from "./translate-parts.ts";
+import { bare, failureOf, fromPlayback, genInfo, parseFailed, targetOf, tidiedOf, videoOfUrl } from "./translate-parts.ts";
 
 export { targetOf };
 import { translationId, type TranslationStore } from "../stores/translations.ts";

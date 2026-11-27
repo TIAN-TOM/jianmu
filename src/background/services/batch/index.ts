@@ -3,6 +3,7 @@
 // 第一步逐个读、两次请求之间隔 1.5 秒，被限流、连着要登录、这条读取路线读不了就整批停下；第二步同时最多 3 个，排在概览那道并发闸门后面。
 // 订阅的页面都断开了、或者用户点了停止：不再开始新的条目，正在读的读完，已经发给模型的照常回来、存下，钱已经花了。
 import type { ClearEpoch, ClearGuard } from "../../../core/clear-guard.ts";
+import { waitOrStop } from "../../../core/concurrency.ts";
 import type { ErrorCode } from "../../../core/errors.ts";
 import { OFFICIAL_INTERVAL_MS, officialTodo, runOfficialBatch, runVerdictBatch, verdictTodo, type Outcome, type SleepFn } from "../../../core/triage/batch.ts";
 import { hasVerdict, type TriageVerdict } from "../../../core/triage/groups.ts";
@@ -98,17 +99,7 @@ export function createBatchService(deps: BatchServiceDeps): BatchService {
   let current: Run | null = null;
 
   // 两项之间的间隔按注入的计时器等，用户停止时马上结束。
-  const sleep: SleepFn = (ms, signal) =>
-    new Promise((resolve) => {
-      if (signal?.aborted) return resolve();
-      const finish = (): void => {
-        timers.clearTimeout(timer);
-        signal?.removeEventListener("abort", finish);
-        resolve();
-      };
-      const timer = timers.setTimeout(finish, ms);
-      signal?.addEventListener("abort", finish, { once: true });
-    });
+  const sleep: SleepFn = (ms, signal) => waitOrStop(timers, ms, signal);
 
   const windows: WindowBatch = createWindowBatch({
     rules: deps.rules,
