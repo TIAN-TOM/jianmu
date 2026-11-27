@@ -16,6 +16,7 @@ import {
   type PanelTracks,
   type PlayerTracks,
 } from "./panel-types.ts";
+import { squash } from "./values.ts";
 
 // 观看页的标题、作者和简介。
 const TITLE = "ytd-watch-metadata h1";
@@ -70,7 +71,6 @@ export function parseTimestamp(text: string): number | null {
 }
 
 const clip = (text: string, max: number): string => (text.length > max ? text.slice(0, max) : text);
-const squash = (text: string | null | undefined): string => (text ?? "").replace(/\s+/g, " ").trim();
 
 /** 全部段落文字的校验和：中间哪一段变了也看得出，又不用把全部文字拼成一个大字符串。 */
 function checksumOf(texts: readonly string[]): string {

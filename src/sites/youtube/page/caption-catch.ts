@@ -4,11 +4,10 @@
 import { INJECTED } from "../../../shared/names.ts";
 import { CAPTION_LIMITS, type PlayerCaption } from "./caption-types.ts";
 import { LANG_CODE, VIDEO_ID } from "./panel-types.ts";
+import { AUTO_KIND, TOKEN } from "./values.ts";
 
 // 播放器取字幕的请求：同一个站点上路径以它结尾，带着视频编号和语言。
 const CAPTION_PATH_END = "/timedtext";
-const AUTO_KIND = "asr";
-const TOKEN = /^[\w-]{8,64}$/;
 const DONE = 4;
 const OK_STATUS = 200;
 
