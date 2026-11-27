@@ -40,11 +40,11 @@
 动图和截图里的视频、频道和字幕都是为演示自造的，截的是中文界面。
 
 <p>
-  <img src=".github/assets/skim.png" width="49%" alt="速读：一句话结论带观看判断，加带时间点的章节，重点章节标出来；展开一章能读这一段的摘要和字幕">
+  <img src=".github/assets/skim.png" width="49%" alt="速读：一句话结论带星级和观看建议，加带时间点的章节，重点章节标出来；展开一章能读这一段的摘要和字幕">
   <img src=".github/assets/study-qa.png" width="49%" alt="精读：字幕跟着播放高亮；问答的回答带时间点，下面列着引用的字幕原文">
 </p>
 <p>
-  <img src=".github/assets/card.png" width="49%" alt="播放页右边的卡片：结论、章节和打开侧边栏的入口">
+  <img src=".github/assets/card.png" width="49%" alt="播放页右边的卡片：头部是星级和观看建议，下面先写判断理由再写摘要，接着是章节和提问框">
   <img src=".github/assets/settings-ai.png" width="49%" alt="设置页：选 AI 服务和模型，每个功能单独调推理强度">
 </p>
 
