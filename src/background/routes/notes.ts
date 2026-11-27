@@ -2,7 +2,7 @@
 // 字段只收视频和时间，不许夹带正文（带正文的笔记跳过字幕原文直接入库）；视频以发送方标签页地址上的为准，
 // 消息里的视频对不上就拒。播放页来的笔记每分钟只润色几条。
 import { fail } from "../../core/errors.ts";
-import { videoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
+import { videoKeyOrNull } from "../../core/video-ref.ts";
 import type { NoteAtTimeRequest, NoteDeleteRequest, NoteListRequest, NoteSaveRequest, NoteUpdateRequest } from "../../shared/messages/notes.ts";
 import type { Route } from "../router.ts";
 import type { NotesService } from "../services/notes.ts";
@@ -36,14 +36,6 @@ const isUpdateRequest = (req: unknown): req is NoteUpdateRequest => isPlainObjec
 
 const isDeleteRequest = (req: unknown): req is NoteDeleteRequest => isPlainObject(req) && keysWithin(req, ["id"]) && isId(req.id);
 
-function keyOf(ref: VideoRef): VideoKey | null {
-  try {
-    return videoKey(ref);
-  } catch {
-    return null;
-  }
-}
-
 export function noteRoutes({ notes, playerNotePolish }: NoteRouteDeps): NoteRoutes {
   return {
     "notes.save": {
@@ -58,7 +50,7 @@ export function noteRoutes({ notes, playerNotePolish }: NoteRouteDeps): NoteRout
       validate: isAtTimeRequest,
       async handler(req, { sender, since }) {
         // 视频以标签页地址上的为准：页面脚本能伪造消息，改不了标签页正在放的视频。
-        const playing = "site" in sender ? keyOf(sender.video) : null;
+        const playing = "site" in sender ? videoKeyOrNull(sender.video) : null;
         if (!playing || playing !== req.video) return fail("FORBIDDEN");
         return notes.save({ video: playing, atSec: req.atSec }, { mayPolish: playerNotePolish, since });
       },

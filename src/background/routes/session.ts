@@ -3,7 +3,7 @@
 import { fail, ok } from "../../core/errors.ts";
 import { isMode } from "../../core/mode/decide.ts";
 import type { CardOverride } from "../../core/mode/types.ts";
-import { parseVideoKey, videoKey, type Platform, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
+import { parseVideoKey, videoKeyOrNull, type Platform, type VideoKey } from "../../core/video-ref.ts";
 import type {
   CardOverrideRequest,
   ChannelForgetRequest,
@@ -91,14 +91,6 @@ function isOverrideRequest(req: unknown): req is CardOverrideRequest {
   return isPlainObject(req) && keysWithin(req, ["video", "value"]) && isVideoKey(req.video) && CARD_OVERRIDES.has(req.value);
 }
 
-function keyOf(ref: VideoRef): VideoKey | null {
-  try {
-    return videoKey(ref);
-  } catch {
-    return null;
-  }
-}
-
 interface ContentTab {
   readonly tabId: number;
   readonly site: Platform;
@@ -108,7 +100,7 @@ interface ContentTab {
 /** 内容脚本所在的标签页和地址上的视频。消息里的视频只作提示，和地址上的对不上就不认。 */
 function contentTab({ sender }: HandlerCtx, claimed: VideoKey): ContentTab | "FORBIDDEN" | "VIDEO_CHANGED" {
   if (!("site" in sender) || sender.tabId === undefined) return "FORBIDDEN";
-  const actual = keyOf(sender.video);
+  const actual = videoKeyOrNull(sender.video);
   return actual === claimed ? { tabId: sender.tabId, site: sender.site, video: actual } : "VIDEO_CHANGED";
 }
 

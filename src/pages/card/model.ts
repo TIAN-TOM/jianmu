@@ -8,7 +8,7 @@ import { fixedInSettings } from "../../core/errors/settings-codes.ts";
 import type { LearningAnalysis } from "../../core/notes/markdown.ts";
 import type { OverviewTranscriptBasis } from "../../core/notes/records.ts";
 import type { TaskView } from "../../core/tasks.ts";
-import { videoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
+import { videoKeyOrNull, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
 import type { GuidesFailure } from "../../shared/messages/transcript.ts";
 import type { PageApi } from "../shared/api.ts";
 import type { ConfigState } from "../shared/config.ts";
@@ -63,14 +63,6 @@ const HIDDEN_CODES: ReadonlySet<ErrorCode> = new Set(["NOT_ENABLED", "CARD_DISAB
 export const NO_CAPTIONS_TEXT = CARD_ZH.noCaptions;
 export const NEED_LOGIN_TEXT = CARD_ZH.needLogin;
 export const NOT_READ_TEXT = CARD_ZH.notRead;
-
-const keyOf = (ref: VideoRef | null): VideoKey | null => {
-  try {
-    return ref ? videoKey(ref) : null;
-  } catch {
-    return null;
-  }
-};
 
 export function createCardModel(deps: CardDeps) {
   const { api, timers = realTimers, position, lang = (): UiLang => "zh" } = deps;
@@ -152,7 +144,7 @@ export function createCardModel(deps: CardDeps) {
   }
 
   function syncVideo(url: string): void {
-    const next = keyOf(deps.parseVideo(url));
+    const next = videoKeyOrNull(deps.parseVideo(url));
     if (next === video && view.peek().phase !== "waiting") return;
     const changed = next !== video;
     video = next;

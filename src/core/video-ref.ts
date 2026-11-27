@@ -36,6 +36,16 @@ export function videoKey(ref: VideoRef): VideoKey {
   return `youtube:${ref.videoId}` as VideoKey;
 }
 
+/** 视频身份转成键；没有身份或身份无效时回 null，不抛。 */
+export function videoKeyOrNull(ref: VideoRef | null): VideoKey | null {
+  if (!ref) return null;
+  try {
+    return videoKey(ref);
+  } catch {
+    return null;
+  }
+}
+
 export function parseVideoKey(key: string): VideoRef | null {
   const bilibili = /^bilibili:([^:]+):p([1-9][0-9]*)$/.exec(key);
   if (bilibili) {
