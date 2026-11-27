@@ -12,7 +12,7 @@ import { SEGMENT_BATCH } from "../../core/ai/schemas.ts";
 import { taskCanceledError, throwIfTaskCanceled } from "../../core/ai/transport/index.ts";
 import { alignTranslatedSegments } from "../../core/ai/validate.ts";
 import type { ClearEpoch, ClearGuard } from "../../core/clear-guard.ts";
-import { mapWithConcurrency } from "../../core/concurrency.ts";
+import { mapWithConcurrency, waitOrStop } from "../../core/concurrency.ts";
 import { fail, ok, type Result } from "../../core/errors.ts";
 import type { Basis, Derived, TextTarget, TranscriptRef } from "../../core/notes/records.ts";
 import { outputLangOf, type OutputLang } from "../../core/output-lang.ts";
@@ -25,7 +25,7 @@ import { AI_CONCURRENCY } from "../../shared/settings-schema.ts";
 import { pauseReasonOf } from "./auto-generate.ts";
 import { errorLabel, type Log } from "../log.ts";
 import { progressText } from "../progress-text.ts";
-import { bare, failureOf, fromPlayback, genInfo, parseFailed, targetOf, tidiedOf, videoOfUrl, waitOrStop } from "./translate-parts.ts";
+import { failureOf, fromPlayback, genInfo, parseFailed, targetOf, tidiedOf, toTranslateFailure, videoOfUrl } from "./translate-parts.ts";
 
 export { targetOf };
 import { translationId, type TranslationStore } from "../stores/translations.ts";
@@ -345,7 +345,7 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
     );
     const { outcome, lang } = counted;
     const canceled = !result.ok && result.code === "TASK_CANCELED";
-    const failure = canceled || result.ok ? undefined : outcome?.first !== undefined && lang ? failureOf(outcome.first, lang) : bare(result);
+    const failure = canceled || result.ok ? undefined : outcome?.first !== undefined && lang ? failureOf(outcome.first, lang) : toTranslateFailure(result);
     broadcast(session, {
       type: "translate.done",
       taskId: session.taskId,
@@ -374,7 +374,7 @@ export function createTranslateService(deps: TranslateServiceDeps): TranslateSer
     let snapshot = await deps.transcript.ensure(ref);
     // 读的工夫换过字幕文件：快照记的是换之前的代数，再读一次，拿前后一致的那一份。
     if (snapshot.ok && deps.transcript.generation(ref) !== snapshot.value.generation) snapshot = await deps.transcript.ensure(ref);
-    if (!snapshot.ok) return refuse(bare(snapshot));
+    if (!snapshot.ok) return refuse(toTranslateFailure(snapshot));
     const { view, generation } = snapshot.value;
     const transcript = view.transcript.ref;
     const segments = view.transcript.segments.filter((segment) => segment.text.trim() !== "");

@@ -8,8 +8,9 @@
 // 字幕要用户点了读取才读的站（YouTube）只看本机，也不并进完整读取；本机没有字幕时，再问一句卡片所在的页面：
 // 播放器上已有的字幕轨列表确定是空的，才告诉卡片没有字幕。不点、不发请求、不动播放器。
 import type { ClearGuard } from "../../../core/clear-guard.ts";
-import { fail, ok, type Failure } from "../../../core/errors.ts";
-import { videoKey, type VideoKey, type VideoRef } from "../../../core/video-ref.ts";
+import { withTimeout } from "../../../core/concurrency.ts";
+import { fail, ok, trimFailure, type Failure } from "../../../core/errors.ts";
+import type { VideoKey, VideoRef } from "../../../core/video-ref.ts";
 import type {
   GuidesFailure,
   GuidesReply,
@@ -29,7 +30,7 @@ import type { OverviewStore } from "../../stores/overviews.ts";
 import { overviewView } from "../overview/view.ts";
 import type { Timers } from "../../tasks.ts";
 import { needsRetry, settledWithoutCaptions, type OfficialRead, type Officials, type RememberedOfficial } from "./official.ts";
-import type { SiteAccess } from "./read.ts";
+import { sameVideo, type SiteAccess } from "./read.ts";
 import { failureOf } from "./tracks.ts";
 import { hasTranscript, infoView, officialView, type TranscriptCache, type TranscriptRecord } from "./write.ts";
 
@@ -99,19 +100,6 @@ interface Memo {
 
 const EXPIRED = Symbol("expired");
 
-function sameVideo(info: VideoInfo, video: VideoKey): boolean {
-  try {
-    return videoKey(info.ref) === video;
-  } catch {
-    return false;
-  }
-}
-
-/** 只带失败本身的几样，不带完整读取的字幕轨和分段。 */
-function bareFailure({ code, detail, retryAfterSec }: Failure): Failure {
-  return { ok: false, code, ...(detail === undefined ? {} : { detail }), ...(retryAfterSec === undefined ? {} : { retryAfterSec }) };
-}
-
 export function createLight(deps: LightDeps): Light {
   const { cache, guard, timers, log } = deps;
   const memo = new Map<VideoKey, Memo>();
@@ -175,7 +163,7 @@ export function createLight(deps: LightDeps): Light {
 
   async function failure(video: VideoKey, failed: Failure): Promise<GuidesFailure> {
     const overview = await overviewOf(video);
-    return { ...bareFailure(failed), ...(overview ? { overview } : {}) };
+    return { ...trimFailure(failed), ...(overview ? { overview } : {}) };
   }
 
   // 并进的完整读取读到了字幕：官方总结还是占位（字幕先交了）就等它回来，不说成没有官方总结。
@@ -199,11 +187,7 @@ export function createLight(deps: LightDeps): Light {
   }
 
   async function join(video: VideoKey, full: JoinableRead): Promise<GuidesReply | null> {
-    let timer: unknown;
-    const expired = new Promise<typeof EXPIRED>((resolve) => {
-      timer = timers.setTimeout(() => resolve(EXPIRED), LIGHT_JOIN_MS);
-    });
-    const reply = await Promise.race([full.reply, expired]).finally(() => timers.clearTimeout(timer));
+    const reply = await withTimeout(timers, full.reply, LIGHT_JOIN_MS, EXPIRED);
     const reading = full.reading();
     if (reply !== EXPIRED) return reply.ok ? fromView(video, reply.value, reading) : fromFailure(video, reply, reading);
     // 视频信息都还没读到：自己读。

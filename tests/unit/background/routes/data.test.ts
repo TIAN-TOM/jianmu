@@ -20,6 +20,7 @@ import { SAMPLE_ID } from "../../../helpers/fake-site-service.ts";
 import { studyBackground } from "../../../helpers/study-background.ts";
 import { exportOver, importOver, pageApiOver } from "../../../helpers/backup-port.ts";
 import { until } from "../../../helpers/wait-until.ts";
+import { manualTimers } from "../../../helpers/manual-timers.ts";
 
 const VIDEO = videoKey({ platform: "bilibili", videoId: SAMPLE_ID, segment: 1 });
 const NOTE = { id: "note_sample", kind: "note", origin: "user", video: VIDEO, snapshot: { title: "样例", author: "作者" }, atSec: 5, text: "一条", createdAt: 1, updatedAt: 2 };
@@ -339,6 +340,7 @@ test("清缓存和清全部会停任务、在闸门里忘掉字幕；只删笔�
     clearStore: async () => {},
     broadcast: () => {},
     now: () => 0,
+    timers: manualTimers(),
   });
   await data.clear("notes");
   assert.equal(cancelled, 0);

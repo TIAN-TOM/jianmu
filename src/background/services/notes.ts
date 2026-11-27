@@ -5,7 +5,7 @@
 import { parseLooseJson } from "../../core/ai/parse.ts";
 import { NOTE_QUOTE } from "../../core/ai/schemas.ts";
 import type { ClearEpoch, ClearGuard } from "../../core/clear-guard.ts";
-import { fail, ok, type Failure, type Result } from "../../core/errors.ts";
+import { fail, ok, trimFailure, type Failure, type Result } from "../../core/errors.ts";
 import { AUTHOR_MAX, TITLE_MAX, type Derived, type NoteRecord } from "../../core/notes/records.ts";
 import { budgetEffort, genInfo, type FrozenGen } from "../../core/tasks.ts";
 import { noteContextAt, type NoteContext } from "../../core/transcript/note-context.ts";
@@ -74,13 +74,6 @@ interface Polish {
   readonly view: TranscriptView;
 }
 
-const bare = ({ code, detail, retryAfterSec }: Failure): Failure => ({
-  ok: false,
-  code,
-  ...(detail === undefined ? {} : { detail }),
-  ...(retryAfterSec === undefined ? {} : { retryAfterSec }),
-});
-
 
 const budgetOf = (gen: FrozenGen): number => keepAliveBudget(EFFORT_TIMEOUT_SECONDS[budgetEffort(gen)] * 1000);
 
@@ -109,7 +102,7 @@ export function createNotesService(deps: NotesServiceDeps): NotesService {
   async function sourceOf(ref: VideoRef): Promise<Result<Source>> {
     if (captionsInPage(ref.platform)) return localSource(ref);
     const snapshot = await deps.transcript.ensure(ref);
-    return snapshot.ok ? ok({ view: snapshot.value.view }) : bare(snapshot);
+    return snapshot.ok ? ok({ view: snapshot.value.view }) : trimFailure(snapshot);
   }
 
   async function polishText({ context, title }: Polish, gen: FrozenGen): Promise<string | null> {

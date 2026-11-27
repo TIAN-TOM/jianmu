@@ -348,6 +348,7 @@ function assembleData(deps: AppDeps, parts: OverviewParts, stores: ReturnType<ty
     broadcast: (message) => void parts.messenger.toPages(message),
     ...pages,
     now: deps.timers.now,
+    timers: deps.timers,
   });
 }
 

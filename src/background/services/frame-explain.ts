@@ -31,6 +31,7 @@ import { FRAME_RESULTS_KEY } from "../../shared/names.ts";
 import { createImageSupport, isImageRejection, requireImage, type ImageSupport } from "../image-support.ts";
 import { createRateLimit } from "../limits.ts";
 import { errorLabel, type Log } from "../log.ts";
+import { createWriteGate } from "../stores/write-gate.ts";
 import type { TaskRunner } from "../tasks.ts";
 import type { TranscriptService } from "./transcript/index.ts";
 import { captionsInPage } from "../../sites/rules.ts";
@@ -156,7 +157,7 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
   let entries = new Map<string, FrameEntryView>();
   let loaded: Promise<void> | null = null;
   let loadedAt = deps.clearGuard.epoch();
-  let writing: Promise<void> = Promise.resolve();
+  const write = createWriteGate(deps.clearGuard, "cache");
   const running = new Map<string, Promise<void>>();
   const limits = new Map<number, () => boolean>();
   // 同一帧连点接上同一个任务时，等那一次的结果，不另跑。
@@ -207,14 +208,7 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
   function persist(): void {
     const since = loadedAt;
     const snapshot = [...entries.values()];
-    writing = writing
-      .then(() =>
-        deps.clearGuard.track(async () => {
-          if (deps.clearGuard.clearedSince(since, "cache")) return;
-          await deps.session.set({ [FRAME_RESULTS_KEY]: snapshot });
-        }),
-      )
-      .catch((error: unknown) => deps.log.warn("记下画面解释失败", errorLabel(error)));
+    void write(since, () => deps.session.set({ [FRAME_RESULTS_KEY]: snapshot })).catch((error: unknown) => deps.log.warn("记下画面解释失败", errorLabel(error)));
   }
 
   function update(id: string, patch: Partial<FrameEntryView>): void {

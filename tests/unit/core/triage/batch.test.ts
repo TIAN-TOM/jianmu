@@ -7,6 +7,7 @@ import {
   runPool,
   runSerial,
   runVerdictBatch,
+  sleep,
   verdictTodo,
   type OfficialRequest,
   type ReadFailure,
@@ -16,7 +17,7 @@ import type { TriageVerdict } from "../../../../src/core/triage/groups.ts";
 import type { OfficialRecord, TriageItem } from "../../../../src/core/triage/state.ts";
 import { videoKey, type VideoKey, type VideoRef } from "../../../../src/core/video-ref.ts";
 import { nextTurn } from "../../../helpers/deferred.ts";
-import { stillFalse } from "../../../helpers/wait-until.ts";
+import { stillFalse, until } from "../../../helpers/wait-until.ts";
 
 // 用例里用短名字称呼视频，身份按出现顺序造。
 const refs = new Map<string, VideoRef>();
@@ -173,6 +174,19 @@ test("停止：等间隔时点停止立刻结束，不再开始下一个", async
   const result = await running;
   assert.deepEqual(started, [keyOf("A")]);
   assert.deepEqual(result, { done: 1, total: 3, stopped: true });
+});
+
+test("默认的等待：没到点不结束，中途中止马上结束，不等到点", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const controller = new AbortController();
+  let done = false;
+  const waiting = sleep(OFFICIAL_INTERVAL_MS, controller.signal).then(() => (done = true));
+  assert.ok(await stillFalse(() => done), "没到点不结束");
+  controller.abort();
+  // 不再推时钟：排着的那个计时器永远不会到点，结束只能是中止带来的。
+  t.mock.timers.reset();
+  assert.ok(await until(() => done), "中止以后马上结束");
+  await waiting;
 });
 
 test("停止：请求进行中点停止，等这一个回来就结束", async () => {

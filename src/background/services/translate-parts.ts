@@ -10,7 +10,6 @@ import type { TranslateFailure } from "../../shared/messages/translate.ts";
 import { videoKey, type VideoKey } from "../../core/video-ref.ts";
 import { watchRefOf } from "../../sites/rules.ts";
 import { aiFailure } from "../ai.ts";
-import type { Timers } from "../tasks.ts";
 
 /** 整理字幕一批的结果：改得太多的段记成原文（照旧显示原文、下次不再请求）；漏的、编号对不上的不记，交给补轮。 */
 export function tidiedOf(parsed: unknown, batch: readonly TranslationItem[], job: { readonly sources: ReadonlyMap<string, string> }): Record<string, string> {
@@ -43,30 +42,16 @@ export function parseFailed(sends: number): TransportError {
 
 export function failureOf(error: unknown, lang: OutputLang): TranslateFailure {
   if ((error as { readonly code?: unknown } | null)?.code === "TRANSLATE_PARSE_FAILED") return { code: "TRANSLATE_PARSE_FAILED" };
-  return bare(aiFailure(error, lang));
+  return toTranslateFailure(aiFailure(error, lang));
 }
 
-export const bare = ({ code, detail, said }: Failure): TranslateFailure => ({ code, ...(detail === undefined ? {} : { detail }), ...(said ? { said } : {}) });
+/** 翻译那一种失败：留着服务说的话（said），不带重试秒数。 */
+export const toTranslateFailure = ({ code, detail, said }: Failure): TranslateFailure => ({ code, ...(detail === undefined ? {} : { detail }), ...(said ? { said } : {}) });
 
 /** 从这一秒往后的先译：眼前的内容几秒内就有结果，前面的随后补齐，总量和费用不变。 */
 export function fromPlayback(segments: readonly TranscriptSegment[], fromSec: number | undefined): TranscriptSegment[] {
   if (fromSec === undefined) return [...segments];
   return [...segments.filter((segment) => segment.start >= fromSec), ...segments.filter((segment) => segment.start < fromSec)];
-}
-
-export function waitOrStop(timers: Pick<Timers, "setTimeout" | "clearTimeout">, ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    if (signal.aborted) return resolve();
-    const timer = timers.setTimeout(() => {
-      signal.removeEventListener("abort", stop);
-      resolve();
-    }, ms);
-    const stop = (): void => {
-      timers.clearTimeout(timer);
-      resolve();
-    };
-    signal.addEventListener("abort", stop, { once: true });
-  });
 }
 
 /** 按各站的地址规则认视频；认不出或没有地址时是 null。 */

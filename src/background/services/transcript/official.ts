@@ -3,6 +3,7 @@
 // 附带的 AI 字幕只在播放器字幕取不到、没点名语言时兜底，注明来源；被限流、被平台拒绝、要登录、看不了时不用。
 // 用着附带字幕的，隔一段时间再打开时取字幕服务再试一次平台字幕，读到了就换回来。
 import type { ClearEpoch, ClearGuard } from "../../../core/clear-guard.ts";
+import { withTimeout } from "../../../core/concurrency.ts";
 import type { ErrorCode, Failure } from "../../../core/errors.ts";
 import { officialFingerprint, transcriptFingerprint } from "../../../core/transcript/fingerprint.ts";
 import { OFFICIAL_SUBTITLE_LABEL } from "../../../core/transcript/sources.ts";
@@ -131,14 +132,6 @@ export function createOfficials({ writer, guard, timers, log, captionsFallback, 
     return started;
   }
 
-  function within<T>(promise: Promise<T>, ms: number): Promise<T | typeof EXPIRED> {
-    let timer: unknown;
-    const expired = new Promise<typeof EXPIRED>((resolve) => {
-      timer = timers.setTimeout(() => resolve(EXPIRED), ms);
-    });
-    return Promise.race([promise, expired]).finally(() => timers.clearTimeout(timer));
-  }
-
   // 先交了字幕的读取：官方总结回来后只填回还是占位的那条，别处已经写了别的就不动。清除之后建的记录不归它管。
   // 这期间导入、移除字幕文件作废了字幕的那条照样填：官方总结不跟字幕走，之后用导入的字幕时不再重问。
   function fillLate(video: VideoKey, info: VideoInfo, pending: Promise<OfficialRead>, since: ClearEpoch | undefined): void {
@@ -190,7 +183,7 @@ export function createOfficials({ writer, guard, timers, log, captionsFallback, 
 
     async attach(video, record, pending, since) {
       if (!pending) return record;
-      const settled = await within(pending, OFFICIAL_GRACE_MS);
+      const settled = await withTimeout(timers, pending, OFFICIAL_GRACE_MS, EXPIRED);
       if (settled !== EXPIRED) return { ...record, official: settled.record };
       fillLate(video, record.info, pending, since);
       return { ...record, official: blank("pending") };

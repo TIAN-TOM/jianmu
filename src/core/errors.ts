@@ -174,3 +174,11 @@ export function ok<T>(value: T): Result<T> {
 export function fail(code: ErrorCode, detail?: string): Failure {
   return detail === undefined ? { ok: false, code } : { ok: false, code, detail };
 }
+
+/**
+ * 只留码、detail 和重试秒数，裁掉别的：取字幕失败时顺手带回的视频信息、字幕轨，站点退避的标记，模型自己说的话（said）。
+ * 一个服务把下游的失败原样交出去之前用它。
+ */
+export function trimFailure({ code, detail, retryAfterSec }: Failure): Failure {
+  return { ok: false, code, ...(detail === undefined ? {} : { detail }), ...(retryAfterSec === undefined ? {} : { retryAfterSec }) };
+}

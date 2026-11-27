@@ -3,6 +3,7 @@
 // 一次读取的所有下载共用一份总预算（点名语言时重新列轨后的那轮也算在内），从第一次下载开始算，
 // 到点中止这次读取的环境，剩不到 1 秒就不再开始新的一条。
 import { fail, type Failure } from "../../../core/errors.ts";
+import { baseLang } from "../../../core/transcript/language.ts";
 import type { CaptionTrack, Cue, SiteCtx, SiteResult, SiteService, VideoInfo } from "../../../sites/types.ts";
 import type { Timers } from "../../tasks.ts";
 
@@ -12,11 +13,6 @@ import type { Timers } from "../../tasks.ts";
  */
 export const DOWNLOAD_BUDGET_MS = 30_000;
 export const MIN_ATTEMPT_MS = 1_000;
-
-function baseLang(lang: string): string {
-  const [base = ""] = lang.replace(/^ai[-_]/i, "").split("-");
-  return base.toLowerCase();
-}
 
 /** 先试选中的那条，再试同语种的其他轨（简体空了换中文（中国））；没点名语言时最后试其余语言。 */
 export function candidatesOf(tracks: readonly CaptionTrack[], chosen: CaptionTrack, lang: string): CaptionTrack[] {

@@ -169,7 +169,8 @@ export interface TokenUsage {
   readonly total?: number;
 }
 
-const countOf = (value: unknown): number | undefined =>
+/** 服务报的用量数字：非负的安全整数才算，别的当作没报。 */
+export const countOf = (value: unknown): number | undefined =>
   typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
 
 const recordOf = (value: unknown): Record<string, unknown> =>

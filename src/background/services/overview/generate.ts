@@ -7,8 +7,8 @@ import { isInputTooLong } from "../../../core/ai/too-long.ts";
 import { hasAnalysisContent } from "../../../core/ai/verdict.ts";
 import type { ClearEpoch, ClearGuard } from "../../../core/clear-guard.ts";
 import type { Limiter } from "../../../core/concurrency.ts";
-import { fail, isErrorCode, ok, type Failure, type Result } from "../../../core/errors.ts";
-import { normalizeAnalysisFailures, overviewTranscriptBasis, type Basis, type LearningAnalysis, type OverviewPart, type OverviewRecord } from "../../../core/notes/records.ts";
+import { fail, isErrorCode, ok, trimFailure, type Failure, type Result } from "../../../core/errors.ts";
+import { normalizeAnalysisFailures, type Basis, type LearningAnalysis, type OverviewPart } from "../../../core/notes/records.ts";
 import { genInfo } from "../../../core/tasks.ts";
 import { localizePrompt } from "../../../core/ai/prompt.ts";
 import { outputLangOf, type OutputLang } from "../../../core/output-lang.ts";
@@ -29,6 +29,7 @@ import { COMMENT_VERDICT_PROMPT } from "./conclude-comments.ts";
 import type { CommentRead } from "../comments.ts";
 import type { CommentMaterial } from "../../../core/ai/comments.ts";
 import { CLEARED, createPersist, type ChapterWrite, type Saved, type SnapshotFields } from "./persist.ts";
+import { storedView } from "./view.ts";
 
 export const ANALYSIS_PROMPT = "skim/chapters.md";
 const VERDICT_FEATURE = "verdict";
@@ -69,14 +70,6 @@ type TranscriptBasis = Extract<Basis, { readonly source: "transcript" }>;
 
 const reasonCode = (signal: AbortSignal): unknown => (signal.reason as { readonly code?: unknown } | null | undefined)?.code;
 
-/** 只带失败本身，不带取字幕失败时顺手带回的视频信息、字幕轨这些。 */
-const bare = ({ code, detail, retryAfterSec }: Failure): Failure => ({
-  ok: false,
-  code,
-  ...(detail === undefined ? {} : { detail }),
-  ...(retryAfterSec === undefined ? {} : { retryAfterSec }),
-});
-
 // 「尽量整份」的块太大时常见的两种失败：等太久被掐断，或者模型一次装不下。
 const TOO_BIG_CODES: ReadonlySet<unknown> = new Set(["AI_HARD_TIMEOUT", "AI_IDLE_TIMEOUT"]);
 const tooBig = (error: unknown): boolean => TOO_BIG_CODES.has((error as { readonly code?: unknown } | null)?.code) || isInputTooLong(error);
@@ -91,12 +84,6 @@ function failureOf(error: unknown, lang: OutputLang, whole = false): Failure {
   if (code === "EMPTY_CHUNK") return fail("EMPTY_ANALYSIS");
   if (code === "ANALYSIS_PARSE_FAILED" && isErrorCode(code)) return fail(code);
   return aiFailure(error, lang);
-}
-
-function storedView(video: VideoKey, record: OverviewRecord): OverviewResultView {
-  const failures = normalizeAnalysisFailures(record.analysisFailures);
-  const transcriptBasis = overviewTranscriptBasis(record.parts);
-  return { video, analysis: record.analysis, analysisFailures: failures, ...(transcriptBasis ? { transcriptBasis } : {}), fromCache: true, failedChunks: failures.length };
 }
 
 function commonOf(view: TranscriptView): PromptCommon {
@@ -124,7 +111,7 @@ export function createGenerator(deps: GenerateDeps) {
     const ref = parseVideoKey(job.video);
     if (!ref) return fail("INVALID_REQUEST");
     const snapshot = await deps.transcript.ensure(ref);
-    return snapshot.ok ? ok(snapshot.value.view) : bare(snapshot);
+    return snapshot.ok ? ok(snapshot.value.view) : trimFailure(snapshot);
   }
 
   interface Finishing {

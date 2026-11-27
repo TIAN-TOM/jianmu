@@ -1,13 +1,13 @@
 // 打开就出结论的尝试记录：存在会话存储的 jianmu_auto_ledger 里，浏览器重开就清空，清除全部数据时也删。
 // 记试过的视频、最近 10 分钟发出的时刻、额度用完或密钥不对的暂停，以及读平台定下来的结果，后台被回收以后不再为同一个视频读。
 import type { ClearEpoch, ClearGuard } from "../../core/clear-guard.ts";
-import { createSerialQueue } from "../../core/concurrency.ts";
 import type { VideoKey } from "../../core/video-ref.ts";
 import type { StorageArea } from "../../platform/storage.ts";
 import { isRecord } from "../../shared/guards.ts";
 import type { AutoPauseReason } from "../../shared/messages/ai.ts";
 import { AUTO_LEDGER_KEY } from "../../shared/names.ts";
 import { errorLabel, type Log } from "../log.ts";
+import { createWriteGate } from "../stores/write-gate.ts";
 
 export const AUTO_WINDOW_MS = 10 * 60_000;
 /** 记下的读到过的时长最多这么多个，再多挤掉最早的。 */
@@ -76,7 +76,7 @@ export interface LedgerDeps {
 }
 
 export function createLedger({ storage, guard, now, log }: LedgerDeps) {
-  const queue = createSerialQueue();
+  const write = createWriteGate(guard, "all");
   async function read(): Promise<AutoLedger> {
     try {
       return parseLedger((await storage.get(AUTO_LEDGER_KEY))[AUTO_LEDGER_KEY], now());
@@ -85,16 +85,14 @@ export function createLedger({ storage, guard, now, log }: LedgerDeps) {
       return parseLedger(undefined, now());
     }
   }
-  function change(since: ClearEpoch | undefined, mutate: (ledger: AutoLedger) => AutoLedger | null): Promise<boolean> {
-    return queue(() =>
-      guard.track(async () => {
-        if (guard.clearedSince(since, "all")) return false;
-        const next = mutate(await read());
-        if (!next) return false;
-        await storage.set({ [AUTO_LEDGER_KEY]: next });
-        return true;
-      }),
-    );
+  async function change(since: ClearEpoch | undefined, mutate: (ledger: AutoLedger) => AutoLedger | null): Promise<boolean> {
+    const written = await write(since, async () => {
+      const next = mutate(await read());
+      if (!next) return false;
+      await storage.set({ [AUTO_LEDGER_KEY]: next });
+      return true;
+    });
+    return written ?? false;
   }
   return { read, change };
 }

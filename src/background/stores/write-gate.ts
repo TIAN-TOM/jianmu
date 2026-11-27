@@ -1,4 +1,4 @@
-// 仓储写入的关口：排进这个仓储的串行队列，进清除闸门，查代数和写在同一段里。
+// 本机写入的关口（仓储和几个后台服务共用）：排进各自的串行队列，进清除闸门，查代数和写在同一段里。
 // 闸门不能嵌套，清除进行中里外两层会互相等，所以调用仓储的服务不要在外面再包 track。
 import type { ClearEpoch, ClearGuard, ClearScope } from "../../core/clear-guard.ts";
 import { createSerialQueue } from "../../core/concurrency.ts";
@@ -11,7 +11,7 @@ export interface WriteOptions {
 /** 执行一段写入，返回它的结果；清除过就不执行，返回 null。 */
 export type WriteGate = <R>(since: ClearEpoch | undefined, write: () => Promise<R>) => Promise<R | null>;
 
-export function createWriteGate(guard: ClearGuard, scope: ClearScope): WriteGate {
+export function createWriteGate(guard: Pick<ClearGuard, "epoch" | "clearedSince" | "track">, scope: ClearScope): WriteGate {
   const queue = createSerialQueue();
   return <R>(since: ClearEpoch | undefined, write: () => Promise<R>): Promise<R | null> => {
     const from = since ?? guard.epoch();

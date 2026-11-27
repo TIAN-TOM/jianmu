@@ -4,7 +4,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { describe, errorCopy, fail, isErrorCode, ok, type ErrorCode, type ErrorCopy } from "../../../src/core/errors.ts";
+import { describe, errorCopy, fail, isErrorCode, ok, trimFailure, type ErrorCode, type ErrorCopy, type Failure } from "../../../src/core/errors.ts";
 import { AI_ERROR_TEXT } from "../../../src/core/errors/ai.ts";
 import { BACKUP_ERROR_TEXT } from "../../../src/core/errors/backup.ts";
 import { BATCH_ERROR_TEXT } from "../../../src/core/errors/batch.ts";
@@ -166,6 +166,12 @@ test("成功和失败的结果形状", () => {
   assert.deepEqual(ok({ a: 1 }), { ok: true, value: { a: 1 } });
   assert.deepEqual(fail("FORBIDDEN"), { ok: false, code: "FORBIDDEN" });
   assert.deepEqual(fail("UNPLAYABLE", "detail"), { ok: false, code: "UNPLAYABLE", detail: "detail" });
+});
+
+test("裁失败：只留码、detail 和重试秒数，附带的视频信息、退避标记和服务说的话都去掉；没有的不补", () => {
+  const loaded = { ok: false, code: "RATE_LIMITED", detail: "busy", retryAfterSec: 30, rejected: true, said: "slow down", info: { title: "样例" } } as Failure;
+  assert.deepEqual(trimFailure(loaded), { ok: false, code: "RATE_LIMITED", detail: "busy", retryAfterSec: 30 });
+  assert.deepEqual(trimFailure({ ok: false, code: "NO_CAPTIONS" }), { ok: false, code: "NO_CAPTIONS" });
 });
 
 test("连不上模型服务时提一句可能被学校、公司的网络拦了，只提醒、不下结论", () => {

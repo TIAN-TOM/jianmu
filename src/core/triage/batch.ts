@@ -1,6 +1,7 @@
 // 粗筛的两步批次。两步都由用户点按钮开始，在后台批次服务里跑，每一项怎么做由它注入：
 //  第一步：逐个取官方总结。串行，真正发了请求的两次之间至少隔 1 秒；读不成时按停止规则看要不要整批停下。
 //  第二步：只对有官方总结、还没有结论的视频写一句话结论，同时最多 3 个。
+import { waitOrStop, type WaitTimers } from "../concurrency.ts";
 import type { SiteFailureReach } from "../errors/site.ts";
 import type { VideoRef } from "../video-ref.ts";
 import { hasVerdict, type VerdictMap } from "./groups.ts";
@@ -143,20 +144,14 @@ export function needsVideoInfo(item: Pick<TriageItem, "paidChecked" | "mediaVers
   return item.paidChecked !== true || !item.mediaVersion;
 }
 
+// 没注入等待时用全局的计时器。
+const GLOBAL_TIMERS: WaitTimers = {
+  setTimeout: (callback, delayMs) => setTimeout(callback, delayMs),
+  clearTimeout: (timer) => clearTimeout(timer as Parameters<typeof clearTimeout>[0]),
+};
+
 export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    if (signal?.aborted) {
-      resolve();
-      return;
-    }
-    const finish = (): void => {
-      clearTimeout(timer);
-      signal?.removeEventListener?.("abort", finish);
-      resolve();
-    };
-    const timer = setTimeout(finish, ms);
-    signal?.addEventListener?.("abort", finish, { once: true });
-  });
+  return waitOrStop(GLOBAL_TIMERS, ms, signal);
 }
 
 /**

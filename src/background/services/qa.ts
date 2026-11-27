@@ -10,7 +10,7 @@ import { QA_ANSWER } from "../../core/ai/schemas.ts";
 import { isInputTooLong } from "../../core/ai/too-long.ts";
 import { throwIfTaskCanceled } from "../../core/ai/transport/index.ts";
 import type { ClearEpoch, ClearGuard } from "../../core/clear-guard.ts";
-import { fail, ok, type Failure, type Result } from "../../core/errors.ts";
+import { fail, ok, trimFailure, type Result } from "../../core/errors.ts";
 import type { QaRecord } from "../../core/notes/records.ts";
 import { groundQaAnswer } from "../../core/qa/citations.ts";
 import { QA_BUDGET_CHARS, QA_FALLBACK_BUDGET_CHARS } from "../../core/qa/budget.ts";
@@ -109,14 +109,6 @@ export interface QaService {
   remove(id: string): Promise<Result<EmptyRequest>>;
 }
 
-/** 只带失败本身，不带取字幕失败时顺手带回的视频信息、字幕轨这些。 */
-const bare = ({ code, detail, retryAfterSec }: Failure): Failure => ({
-  ok: false,
-  code,
-  ...(detail === undefined ? {} : { detail }),
-  ...(retryAfterSec === undefined ? {} : { retryAfterSec }),
-});
-
 /**
  * 不认结构化输出的中转站、不守约定的模型会直接用散文回答。回答已经付过费：一个花括号都没有时整段当回答，
  * 后面的引用校验照旧把关。像 JSON 却读不出来的说不清哪段是回答，按读不出来报，不透出解析器的报错。
@@ -168,7 +160,7 @@ export function createQaService(deps: QaServiceDeps): QaService {
     run.progress({ phase: "generating", message: say.qaSearching });
     // 缓存优先：重复提问不向平台发新请求。
     const snapshot = await deps.transcript.ensure(ref);
-    if (!snapshot.ok) return bare(snapshot);
+    if (!snapshot.ok) return trimFailure(snapshot);
     throwIfTaskCanceled(run.signal);
     const view: TranscriptView = snapshot.value.view;
     const chunks = planAnalysisChunks(view.transcript.segments, await deps.chunkOptions());

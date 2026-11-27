@@ -13,6 +13,7 @@ import { createFakeChrome, senders } from "../../helpers/chrome.ts";
 import { deferred } from "../../helpers/deferred.ts";
 import { SAMPLE_ID } from "../../helpers/fake-site-service.ts";
 import { studyBackground } from "../../helpers/study-background.ts";
+import { manualTimers } from "../../helpers/manual-timers.ts";
 import { stillFalse, until } from "../../helpers/wait-until.ts";
 
 const VIDEO = videoKey({ platform: "bilibili", videoId: SAMPLE_ID, segment: 1 });
@@ -32,6 +33,7 @@ function service(overrides: Partial<DataServiceDeps> = {}) {
     clearStore: async () => {},
     broadcast: () => {},
     now: () => 0,
+    timers: manualTimers(),
     ...overrides,
   });
 }

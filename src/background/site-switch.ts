@@ -3,6 +3,7 @@
 // 只从 app.ts 的构建开关分支引用，开关关着时整个模块不进包。同步一次一次排着做，不交叉。
 // 「上一次的状态」看浏览器持久保存的注册：没注册而授权在是新给的，往已开页面补注入；注册着而授权没了是撤掉的，
 // 按编号通知全部已开标签页和扩展页面，删掉这个站的观看会话（注销撤不回已经注入的脚本）。安装、更新后浏览器清掉注册，先撤再注册。
+import { createSerialQueue } from "../core/concurrency.ts";
 import type { Platform } from "../core/video-ref.ts";
 import type { Messenger } from "../platform/messaging.ts";
 import type { Permissions } from "../platform/permissions.ts";
@@ -75,12 +76,7 @@ export function createSiteSwitch({ rules, permissions, scripts, tabs, messenger,
     return rule.optionalPermission && scripts.length > 0 && rule.permissionOrigins.length > 0 && rule.scriptMatches.length > 0 ? [{ rules: rule, scripts }] : [];
   });
   // 同步排成一条队：刚给就撤这类连着来的事件，后一次看到的是前一次做完的样子。
-  let queue: Promise<unknown> = Promise.resolve();
-  const inTurn = <T>(work: () => Promise<T>): Promise<T> => {
-    const next = queue.then(work, work);
-    queue = next.catch(() => undefined);
-    return next;
-  };
+  const inTurn = createSerialQueue();
 
   const contentScripts = (site: OptionalSite): ContentScript[] =>
     site.scripts.map(({ file, world }) => ({ matches: site.rules.scriptMatches, js: [file], css: [], allFrames: false, ...(world ? { world } : {}) }));
