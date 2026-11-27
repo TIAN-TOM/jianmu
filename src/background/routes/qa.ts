@@ -6,7 +6,7 @@ import type { CardLimits } from "../limits.ts";
 import type { Route } from "../router.ts";
 import type { ExplainService } from "../services/explain.ts";
 import type { QaService } from "../services/qa.ts";
-import { isVideoKey } from "./validate.ts";
+import { isPlainObject, isVideoKey } from "./validate.ts";
 
 export interface QaRouteDeps {
   readonly qa: QaService;
@@ -18,9 +18,6 @@ type QaRoutes = { readonly [K in "qa.ask" | "qa.history" | "qa.delete" | "explai
 
 const MAX_ID = 100;
 const PAGES = ["options", "triage"] as const;
-
-const isPlainObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
 
 const hasOnly = (value: Readonly<Record<string, unknown>>, keys: readonly string[]): boolean =>
   Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));

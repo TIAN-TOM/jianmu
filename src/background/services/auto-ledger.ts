@@ -4,6 +4,7 @@ import type { ClearEpoch, ClearGuard } from "../../core/clear-guard.ts";
 import { createSerialQueue } from "../../core/concurrency.ts";
 import type { VideoKey } from "../../core/video-ref.ts";
 import type { StorageArea } from "../../platform/storage.ts";
+import { isRecord } from "../../shared/guards.ts";
 import type { AutoPauseReason } from "../../shared/messages/ai.ts";
 import { AUTO_LEDGER_KEY } from "../../shared/names.ts";
 import { errorLabel, type Log } from "../log.ts";
@@ -32,25 +33,24 @@ export interface AutoLedger {
 
 export const triedKey = (feature: AutoFeature, video: VideoKey): string => `${feature}:${video}`;
 
-const isPlainObject = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null && !Array.isArray(value);
 const isTime = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 const isPauseReason = (value: unknown): value is AutoPauseReason => value === "quota" || value === "key" || value === "local-origin";
 
 /** 存储里的记录形状不可信，逐项核对。早先只记 attempts 的写法照样认概览那种，别的（翻译）忽略。 */
 export function parseLedger(stored: unknown, now: number): AutoLedger {
-  const record = isPlainObject(stored) ? stored : {};
+  const record = isRecord(stored) ? stored : {};
   const tried = new Set<string>(Array.isArray(record.tried) ? record.tried.filter((item): item is string => typeof item === "string") : []);
   const sent = Array.isArray(record.sent) ? record.sent.filter(isTime) : [];
   for (const item of Array.isArray(record.attempts) ? record.attempts : []) {
-    if (!isPlainObject(item) || item.feature !== FEATURE || typeof item.video !== "string" || !isTime(item.at)) continue;
+    if (!isRecord(item) || item.feature !== FEATURE || typeof item.video !== "string" || !isTime(item.at)) continue;
     tried.add(triedKey(FEATURE, item.video as VideoKey));
     sent.push(item.at);
   }
-  const paused = isPlainObject(record.paused) && isPauseReason(record.paused.reason) && isTime(record.paused.at) ? { reason: record.paused.reason, at: record.paused.at } : undefined;
+  const paused = isRecord(record.paused) && isPauseReason(record.paused.reason) && isTime(record.paused.at) ? { reason: record.paused.reason, at: record.paused.at } : undefined;
   const durations = Object.fromEntries(
-    (isPlainObject(record.durations) ? Object.entries(record.durations) : []).filter(([, seconds]) => isTime(seconds) && seconds >= 0).slice(-AUTO_DURATION_LIMIT),
+    (isRecord(record.durations) ? Object.entries(record.durations) : []).filter(([, seconds]) => isTime(seconds) && seconds >= 0).slice(-AUTO_DURATION_LIMIT),
   ) as Record<string, number>;
-  const unavailable = Object.fromEntries((isPlainObject(record.unavailable) ? Object.entries(record.unavailable) : []).filter(([, until]) => isTime(until) && until > now)) as Record<
+  const unavailable = Object.fromEntries((isRecord(record.unavailable) ? Object.entries(record.unavailable) : []).filter(([, until]) => isTime(until) && until > now)) as Record<
     string,
     number
   >;

@@ -11,7 +11,7 @@ import type { Route } from "../router.ts";
 import type { AutoGenerate } from "../services/auto-generate.ts";
 import type { OverviewService } from "../services/overview/index.ts";
 import type { PageTranscript } from "../services/page-transcript.ts";
-import { isVideoKey } from "./validate.ts";
+import { isPlainObject, isTabId, isVideoKey } from "./validate.ts";
 
 export interface OverviewRouteDeps {
   readonly overview: OverviewService;
@@ -25,14 +25,9 @@ type OverviewRoutes = { readonly [K in "overview.start" | "overview.retryFailed"
 
 const MAX_ID = 100;
 
-const isPlainObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
-
 const onlyKeys = (value: Readonly<Record<string, unknown>>, allowed: readonly string[]): boolean => Object.keys(value).every((key) => allowed.includes(key));
 
 const isId = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= MAX_ID;
-
-const isTabId = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0;
 
 function isStartRequest(req: unknown): req is OverviewStartRequest {
   if (!isPlainObject(req) || !onlyKeys(req, ["video", "taskId", "token", "fresh", "tabId"]) || !isVideoKey(req.video)) return false;

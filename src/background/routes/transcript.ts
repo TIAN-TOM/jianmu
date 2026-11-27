@@ -9,7 +9,7 @@ import type { TranscriptService } from "../services/transcript/index.ts";
 import type { ClearGuard } from "../../core/clear-guard.ts";
 import type { StorageArea } from "../../platform/storage.ts";
 import { createTranscriptModes } from "../stores/transcript-modes.ts";
-import { isVideoKey } from "./validate.ts";
+import { isPlainObject, isTabId, isVideoKey } from "./validate.ts";
 
 export interface TranscriptRouteDeps {
   readonly sessionStorage: StorageArea;
@@ -23,13 +23,8 @@ const MODES: ReadonlySet<unknown> = new Set(["full", "cache-only", "local", "lig
 // 语言码只用来在列出的字幕轨里找同名的那条。
 const LANG = /^[A-Za-z0-9_-]{1,32}$/;
 
-const isPlainObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
-
 const keysWithin = (value: Readonly<Record<string, unknown>>, required: readonly string[], optional: readonly string[] = []): boolean =>
   required.every((key) => Object.hasOwn(value, key)) && Object.keys(value).every((key) => required.includes(key) || optional.includes(key));
-
-const isTabId = (value: unknown): boolean => Number.isSafeInteger(value) && Number(value) >= 0;
 
 function isGetRequest(req: unknown, ctx: SenderCtx): req is TranscriptGetRequest {
   if (!isPlainObject(req) || !isVideoKey(req.video) || !MODES.has(req.mode)) return false;

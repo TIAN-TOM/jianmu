@@ -4,6 +4,7 @@
 import { fail, isErrorCode, type ErrorCode } from "../../core/errors.ts";
 import type { VideoKey } from "../../core/video-ref.ts";
 import type { PortLike } from "../../platform/messaging.ts";
+import { isTabId } from "../../shared/guards.ts";
 import type { Api, Broadcast, BroadcastType, PortEvent, PortMessage, PortName, Reply, RouteName } from "../../shared/messages.ts";
 import { FRAME_BROADCAST_SHAPES, FRAME_IDEMPOTENT_ROUTES } from "./frame-api.ts";
 
@@ -84,7 +85,6 @@ interface BroadcastKeys {
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null;
 const isText = (value: unknown): value is string => typeof value === "string" && value !== "";
-const isTabId = (value: unknown): value is number => Number.isInteger(value) && Number(value) >= 0;
 
 // 只核对过滤和收件方要用的字段：缺了它们的广播一律不收，免得被当成发给所有视频的。
 // 解释当前画面那一种只在构建开关打开时认。

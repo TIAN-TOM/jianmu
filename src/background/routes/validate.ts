@@ -1,9 +1,10 @@
 // 路由共用的形状核对：只看消息本身，不碰地址和存储。
 import { parseVideoKey, type VideoKey } from "../../core/video-ref.ts";
+import { isPlainObject } from "../../shared/guards.ts";
 import type { EmptyRequest } from "../../shared/messages/core.ts";
 
-const isPlainObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
+// 路由一律从这里取守卫，不直接导入 shared/guards.ts。
+export { isPlainObject, isRecord, isTabId } from "../../shared/guards.ts";
 
 /** 不带参数的请求只收空对象，多带字段也拒。 */
 export function isEmptyRequest(req: unknown): req is EmptyRequest {

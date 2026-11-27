@@ -6,7 +6,7 @@ import { videoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts"
 import type { NoteAtTimeRequest, NoteDeleteRequest, NoteListRequest, NoteSaveRequest, NoteUpdateRequest } from "../../shared/messages/notes.ts";
 import type { Route } from "../router.ts";
 import type { NotesService } from "../services/notes.ts";
-import { isVideoKey } from "./validate.ts";
+import { isPlainObject, isVideoKey } from "./validate.ts";
 
 export interface NoteRouteDeps {
   readonly notes: NotesService;
@@ -22,9 +22,6 @@ const MAX_SECONDS = 7 * 24 * 3600;
 // 正文原样能收多长；超过笔记上限的由服务按太长报。
 const RAW_TEXT_MAX = 20_000;
 const PAGES = ["options", "triage"] as const;
-
-const isPlainObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
 
 /** 必须有 required 里的键，别的键只能是 optional 里的。 */
 const keysWithin = (value: Readonly<Record<string, unknown>>, required: readonly string[], optional: readonly string[] = []): boolean =>

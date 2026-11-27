@@ -1,5 +1,6 @@
 /// <reference types="chrome" />
 // 卡片页入口：先核对后台是不是同一次构建，再接上消息、配置检查、外观、标签页地址和高度上报。父页面的来源按所在标签页的地址算，高度只报给它。
+import { isRecord } from "../../shared/guards.ts";
 import { effect, signal } from "@preact/signals";
 import { render } from "preact";
 import type { VideoRef } from "../../core/video-ref.ts";
@@ -18,8 +19,6 @@ import { cardText, cardTextOf } from "./text.ts";
 
 // 读取中不报高度：「正在读取」那一下报上去，右栏就要多重排一次，推荐列表跟着跳。读得太慢也不一直压着。
 const HEIGHT_HOLD_MS = 500;
-
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null;
 
 async function currentTab(): Promise<CardTab | null> {
   try {

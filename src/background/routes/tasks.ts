@@ -10,7 +10,7 @@ import type { Route } from "../router.ts";
 import { selectionInput } from "../services/explain.ts";
 import { questionInput } from "../services/qa.ts";
 import type { TaskRunner } from "../tasks.ts";
-import { isEmptyRequest, isVideoKey } from "./validate.ts";
+import { isEmptyRequest, isPlainObject, isVideoKey } from "./validate.ts";
 
 export interface TaskRouteDeps {
   readonly tasks: Pick<TaskRunner, "register" | "cancel" | "list">;
@@ -33,9 +33,6 @@ const RAW_TEXT_MAX = 20_000;
 const CARD_KINDS: ReadonlySet<string> = new Set<StartableTaskKind>(["overview", "verdict", "qa"]);
 
 const MAX_TASK_ID = 100;
-
-const isPlainObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
 
 const hasOnly = (value: Readonly<Record<string, unknown>>, keys: readonly string[]): boolean =>
   Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));

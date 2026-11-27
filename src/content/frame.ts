@@ -4,6 +4,7 @@
 // 拒绝分开报：视频已换、找不到视频、正在播广告、受保护（加密播放，或者认不出是不是加密播放）、画面没加载好、
 // 不在前台、画布被污染。加密播放在截取前就认出来，不靠截出来是不是黑帧判断。
 import type { VideoKey } from "../core/video-ref.ts";
+import { isRecord } from "../shared/guards.ts";
 import type { ContentReply, FrameRefusal } from "../shared/messages/content.ts";
 import type { MainVideo } from "../sites/page-types.ts";
 
@@ -70,8 +71,6 @@ export function scaledSize(width: number, height: number, maxEdge: number): { wi
   const scale = Math.min(1, maxEdge / Math.max(width, height));
   return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
 }
-
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null;
 
 /** 只收形状对的截帧指令。 */
 export function frameRequestOf(message: unknown): FrameRequest | null {

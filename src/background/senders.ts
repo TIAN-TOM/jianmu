@@ -1,6 +1,7 @@
 // 认发送方，分两段。启用闸门之前的 authenticate 只看扩展编号、来源、扩展页面自己的路径和标签页、窗口、框架编号，
 // 不读网页地址；内容脚本在哪个站、看的哪个视频，过了闸门才由 resolveSite 按标签页地址认。
 import type { Platform, VideoRef } from "../core/video-ref.ts";
+import { isTabId } from "../shared/guards.ts";
 import type { PageName } from "../shared/messages.ts";
 import { PAGE_PATHS } from "../shared/names.ts";
 import type { SiteRules } from "../sites/types.ts";
@@ -74,8 +75,6 @@ function pathAfter(prefix: string, url: string | undefined): string | null {
     return null;
   }
 }
-
-const isTabId = (value: unknown): value is number => Number.isInteger(value) && Number(value) >= 0;
 
 export function createSenders({ extensionId, extensionUrl, rules }: SenderDeps): Senders {
   const prefix = extensionUrl("");

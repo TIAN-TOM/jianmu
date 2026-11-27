@@ -1,6 +1,7 @@
 // 后台和观看页之间读评论区的一问一答（PRD F23、第 8.2 节第 9 条）：问的形状、页面回的结果，以及后台对结果的核对。只有类型和纯函数。
 // 页面和网页共享这块地方，回来的结果按不可信输入核对：字段、类型、大小、视频身份都要对得上，不对的整份不用。
 // 只在构建开关 FEATURE_COMMENTS 打开时进包。顶层只放字面量和函数。
+import { isRecord } from "../../../shared/guards.ts";
 
 /** 两种问法：只读页面上已经加载出来的评论；或者评论区还没加载时替用户滚过去一次，等页面自己加载。 */
 export type CommentRequest =
@@ -36,8 +37,6 @@ export const COMMENT_LIMITS = { count: 20, text: 1000 } as const;
 const VIDEO_ID = /^[A-Za-z0-9_-]{0,64}$/;
 const OUTCOMES: readonly string[] = ["loaded", "hidden", "ad", "busy", "video-changed", "no-section", "timeout", "interrupted"];
 const MAX_LIKES = 1e12;
-
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null && !Array.isArray(value);
 
 function commentOf(value: unknown): PageComment | null {
   if (!isRecord(value)) return null;

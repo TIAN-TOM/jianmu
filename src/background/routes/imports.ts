@@ -4,7 +4,7 @@ import type { ImportAddRequest, ImportRemoveRequest } from "../../shared/message
 import type { Messenger } from "../../platform/messaging.ts";
 import type { Route } from "../router.ts";
 import type { TranscriptService } from "../services/transcript/index.ts";
-import { isVideoKey } from "./validate.ts";
+import { isPlainObject, isVideoKey } from "./validate.ts";
 
 export interface ImportRouteDeps {
   readonly transcript: Pick<TranscriptService, "importFile" | "removeImport">;
@@ -15,9 +15,6 @@ type ImportRoutes = { readonly [K in "imports.add" | "imports.remove"]: Route<K>
 
 // 文件名只用来认扩展名和显示，过长的截掉；正文的大小由解析时核对，给出能看懂的原因。
 const MAX_FILE_NAME = 1000;
-
-const isPlainObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
 
 const hasOnly = (value: Readonly<Record<string, unknown>>, keys: readonly string[]): boolean =>
   keys.every((key) => Object.hasOwn(value, key)) && Object.keys(value).every((key) => keys.includes(key));

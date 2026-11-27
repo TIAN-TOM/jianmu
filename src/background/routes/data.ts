@@ -10,6 +10,7 @@ import type { BackupExportIn, BackupImportIn, DataClearRequest } from "../../sha
 import { errorLabel, type Log } from "../log.ts";
 import type { PortHandle, PortSpec, Route } from "../router.ts";
 import type { DataService } from "../services/data.ts";
+import { isRecord } from "./validate.ts";
 
 export interface DataRouteDeps {
   readonly data: DataService;
@@ -17,9 +18,6 @@ export interface DataRouteDeps {
 }
 
 type DataPorts = { readonly [P in "backup.export" | "backup.import"]: PortSpec<P> };
-
-const isRecord = (req: unknown): req is Readonly<Record<string, unknown>> =>
-  typeof req === "object" && req !== null && !Array.isArray(req);
 
 const hasOnly = (value: Readonly<Record<string, unknown>>, keys: readonly string[]): boolean =>
   Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));

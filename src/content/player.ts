@@ -1,6 +1,7 @@
 // 播放器指令和播放信息上报。指令带视频身份：要和地址上的视频一致，还要确认播放器已经换上这个视频，否则按视频已换拒绝。
 // 地址变了以后，等到媒体元素开始加载新内容才算换上；地址变化前后很短的时间里已经开始加载的，也算。
 import { videoKey, type VideoKey, type VideoRef } from "../core/video-ref.ts";
+import { isRecord } from "../shared/guards.ts";
 import type { ContentCommand, ContentCommandName, ContentReply, PlayerState } from "../shared/messages/content.ts";
 import type { MainVideo } from "../sites/page-types.ts";
 
@@ -48,7 +49,6 @@ const keyOf = (ref: VideoRef | null): VideoKey | null => {
   }
 };
 
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null;
 const isSeconds = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0;
 
 /** 只收这一轮接的两条指令，形状不对的当作认不出。 */

@@ -1,6 +1,7 @@
 /// <reference types="chrome" />
 // 侧边栏发给视频页内容脚本的播放器指令：跳转、读播放位置。每条都带视频身份，内容脚本核对正在放的视频。
 // 送不到内容脚本（安装、更新之前就开着的页面）算没连上，提示用户刷新视频页。
+import { isRecord } from "../../shared/guards.ts";
 import { signal, type ReadonlySignal } from "@preact/signals";
 import type { VideoKey } from "../../core/video-ref.ts";
 import type { ContentCommandName, ContentCommands, ContentReply } from "../../shared/messages/content.ts";
@@ -38,8 +39,6 @@ export interface Player {
   setPolling(on: boolean): void;
   stop(): void;
 }
-
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null;
 
 /** 每秒问一次播放位置：字幕跟随只要到句子这一级。 */
 export const POLL_MS = 1000;
