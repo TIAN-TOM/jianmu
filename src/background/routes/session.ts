@@ -20,7 +20,7 @@ import type { HandlerCtx, Route } from "../router.ts";
 import type { SenderCtx } from "../senders.ts";
 import type { Sessions } from "../sessions.ts";
 import type { ChannelStore } from "../stores/channels.ts";
-import { isEmptyRequest, isPlainObject, isTabId, isVideoKey, keysWithin } from "./validate.ts";
+import { isBoundedSeconds, isEmptyRequest, isPlainObject, isTabId, isVideoKey, keysWithin } from "./validate.ts";
 
 export interface SessionRouteDeps {
   readonly sessions: Sessions;
@@ -34,27 +34,22 @@ type SessionRoutes = {
   readonly [K in "playback.info" | "playback.milestone" | "session.get" | "session.describe" | "session.setMode" | "card.setOverride" | "channels.clear" | "channels.forget" | "channels.count"]: Route<K>;
 };
 
-// 一周：比任何正常的视频和累计播放都长，挡掉离谱的数。
-const MAX_SECONDS = 7 * 24 * 3600;
 // 频道编号只用来记偏好，按两站都可能出现的字符收，长度设上限；YouTube 的频道 @ 名开头带 @。
 const CHANNEL_ID = /^@?[A-Za-z0-9_.-]{1,64}$/;
 const CARD_OVERRIDES: ReadonlySet<unknown> = new Set<CardOverride>(["expanded", "collapsed"]);
-
-const isSeconds = (value: unknown): value is number =>
-  typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= MAX_SECONDS;
 
 function isInfoRequest(req: unknown): req is PlaybackInfoRequest {
   return (
     isPlainObject(req) &&
     keysWithin(req, ["video"], ["durationSec", "channel"]) &&
     isVideoKey(req.video) &&
-    (req.durationSec === undefined || (isSeconds(req.durationSec) && req.durationSec > 0)) &&
+    (req.durationSec === undefined || (isBoundedSeconds(req.durationSec) && req.durationSec > 0)) &&
     (req.channel === undefined || (typeof req.channel === "string" && CHANNEL_ID.test(req.channel)))
   );
 }
 
 function isMilestoneRequest(req: unknown): req is PlaybackMilestoneRequest {
-  return isPlainObject(req) && keysWithin(req, ["video", "playedSec"]) && isVideoKey(req.video) && isSeconds(req.playedSec);
+  return isPlainObject(req) && keysWithin(req, ["video", "playedSec"]) && isVideoKey(req.video) && isBoundedSeconds(req.playedSec);
 }
 
 // 卡片只读自己所在的标签页，不带参数；侧边栏点名标签页。
@@ -71,7 +66,7 @@ function isDescribeRequest(req: unknown): req is SessionDescribeRequest {
     keysWithin(req, ["tabId", "video"], ["durationSec", "channel"]) &&
     isTabId(req.tabId) &&
     isVideoKey(req.video) &&
-    (req.durationSec === undefined || (isSeconds(req.durationSec) && req.durationSec > 0)) &&
+    (req.durationSec === undefined || (isBoundedSeconds(req.durationSec) && req.durationSec > 0)) &&
     (req.channel === undefined || isChannelId(req.channel))
   );
 }

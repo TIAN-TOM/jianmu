@@ -1,8 +1,8 @@
 // 读视频的官方总结：摘要、提纲和附带的 AI 字幕，这份字幕用不用由取字幕服务决定。
 import { secondsOrNull } from "../../core/transcript/seconds.ts";
+import { trimmedOrEmpty } from "../../shared/guards.ts";
 import type { Cue, OfficialSummary, OutlineSection, SiteCtx, SiteResult, VideoInfo } from "../types.ts";
 import { SUMMARY_URL, type BiliHttp } from "./http.ts";
-import { plainText } from "./raw-text.ts";
 
 interface RawPoint {
   readonly timestamp?: unknown;
@@ -41,11 +41,11 @@ const SUMMARY_TIMEOUT_MS = 8_000;
 function parseSection(section: RawSection | null): OutlineSection {
   const list: readonly (RawPoint | null)[] = Array.isArray(section?.part_outline) ? section.part_outline : [];
   const points = list
-    .map((point) => ({ timestamp: secondsOrNull(point?.timestamp), content: plainText(point?.content) }))
+    .map((point) => ({ timestamp: secondsOrNull(point?.timestamp), content: trimmedOrEmpty(point?.content) }))
     .filter((point) => point.content);
   // 分段缺时间时退到第一条带时间的要点，点击仍有落点。
   const timestamp = secondsOrNull(section?.timestamp) ?? points.find((point) => point.timestamp !== null)?.timestamp ?? null;
-  return { title: plainText(section?.title), timestamp, points };
+  return { title: trimmedOrEmpty(section?.title), timestamp, points };
 }
 
 function parseOutline(raw: unknown): OutlineSection[] {
@@ -60,7 +60,7 @@ function parseCues(raw: unknown): Cue[] {
   for (const part of parts) {
     const lines: readonly (RawLine | null)[] = Array.isArray(part?.part_subtitle) ? part.part_subtitle : [];
     for (const line of lines) {
-      const text = plainText(line?.content);
+      const text = trimmedOrEmpty(line?.content);
       const start = secondsOrNull(line?.start_timestamp);
       if (!text || start === null) continue;
       const end = secondsOrNull(line?.end_timestamp);
@@ -84,7 +84,7 @@ export function parseOfficialSummary(data: unknown): SiteResult<OfficialSummary>
   if (code !== 0) {
     return { ok: false, code: "MALFORMED", reach: "item", detail: Number.isFinite(code) ? `summary-code:${code}` : "no-summary-code" };
   }
-  const summary = plainText(raw.model_result?.summary);
+  const summary = trimmedOrEmpty(raw.model_result?.summary);
   const outline = parseOutline(raw.model_result?.outline);
   const cues = parseCues(raw.model_result?.subtitle);
   return summaryOf(summary || outline.length > 0 ? "ok" : "none", { summary, outline, cues });

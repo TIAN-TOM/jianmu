@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createLimiter, createSerialQueue, mapWithConcurrency, waitOrStop, withTimeout } from "../../../src/core/concurrency.ts";
+import { createLimiter, createSerialQueue, mapWithConcurrency, repeat, waitOrStop, withTimeout } from "../../../src/core/concurrency.ts";
 import { deferred, nextTurn, type Deferred } from "../../helpers/deferred.ts";
 import { manualTimers } from "../../helpers/manual-timers.ts";
 import { stillFalse, until } from "../../helpers/wait-until.ts";
@@ -443,4 +443,17 @@ test("能被停止的等待：中止时马上正常结束，计时器撤掉；�
 
   await waitOrStop(timers, 1500, controller.signal);
   assert.equal(timers.pending(), 0);
+});
+
+test("repeat 每隔一段时间调一次，停了以后不再调", (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  let runs = 0;
+  const stop = repeat(50, () => {
+    runs += 1;
+  });
+  t.mock.timers.tick(150);
+  assert.equal(runs, 3);
+  stop();
+  t.mock.timers.tick(150);
+  assert.equal(runs, 3);
 });

@@ -1,8 +1,9 @@
 // YouTube 观看页：认当前视频、听站内换视频、找主视频、悬停图标和卡片的挂载点、读控制栏显隐和频道。
 // 只读页面结构，不插节点，不发请求，不碰播放器。站内跳转不重新加载页面，脚本在整个站点上跑，只有观看页认得出视频。
+import { repeat } from "../../core/concurrency.ts";
 import type { VideoRef } from "../../core/video-ref.ts";
 import type { MainVideo, SitePage } from "../page-types.ts";
-import { keyOf, repeat, waitFor, watchAttribute } from "../page-util.ts";
+import { keyOf, waitFor, watchAttribute } from "../page-util.ts";
 import { advertising, MAIN_VIDEO, PANELS, PLAYER, videoOnPage } from "./page/panel-dom.ts";
 import { youtubeRules } from "./url.ts";
 

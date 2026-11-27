@@ -1,4 +1,4 @@
-// 两站页面模块共用的小工具：按时等待、定时重复、听元素的一个属性、把视频引用换成键。只读页面，不插节点，不发请求。
+// 两站页面模块共用的小工具：按时等待、听元素的一个属性、把视频引用换成键。只读页面，不插节点，不发请求。
 import { videoKey, type VideoRef } from "../core/video-ref.ts";
 
 /** 等 ms 毫秒；中止时拒绝。 */
@@ -15,12 +15,6 @@ export function waitFor(ms: number, signal: AbortSignal): Promise<void> {
     }, ms);
     signal.addEventListener("abort", onAbort, { once: true });
   });
-}
-
-/** 每隔 ms 毫秒调一次，返回停止函数。 */
-export function repeat(ms: number, run: () => void): () => void {
-  const timer = setInterval(run, ms);
-  return () => clearInterval(timer);
 }
 
 /** 元素的这个属性变了就调，返回停止函数；没有 MutationObserver 时什么也不做。 */

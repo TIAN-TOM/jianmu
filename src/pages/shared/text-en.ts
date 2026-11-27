@@ -1,8 +1,7 @@
 // 几个页面共用的界面文案，英文这份。形状由简体那份（text-zh.ts）定，少一条、多一条或者函数签名不一样，类型检查就报错。
 // 模块顶层只放字面量和函数。
+import { plural } from "../../core/output-lang.ts";
 import type { SharedText } from "./text-zh.ts";
-
-const plural = (count: number, one: string, many: string): string => `${count} ${count === 1 ? one : many}`;
 
 export const SHARED_EN: SharedText = {
   close: "Close",

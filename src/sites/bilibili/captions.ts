@@ -3,9 +3,9 @@
 import { baseLang } from "../../core/transcript/language.ts";
 import { secondsOrNull } from "../../core/transcript/seconds.ts";
 import { videoKey } from "../../core/video-ref.ts";
+import { trimmedOrEmpty } from "../../shared/guards.ts";
 import type { CaptionTrack, Chapter, Cue, SiteCtx, SiteErrorCode, SiteResult, SiteService, VideoInfo } from "../types.ts";
 import { ABORTED, isCaptionFileUrl, PLAYER_URL, untilAborted, type BiliHttp } from "./http.ts";
-import { plainText } from "./raw-text.ts";
 
 interface RawTrack {
   readonly lan?: unknown;
@@ -126,7 +126,7 @@ export function parseChapters(data: unknown): Chapter[] {
     const start = secondsOrNull(point?.from);
     if (start === null) continue;
     const end = secondsOrNull(point?.to);
-    chapters.push({ title: plainText(point?.content), start, end: end !== null && end > start ? end : null });
+    chapters.push({ title: trimmedOrEmpty(point?.content), start, end: end !== null && end > start ? end : null });
   }
   return chapters.sort((left, right) => left.start - right.start);
 }

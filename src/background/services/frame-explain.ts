@@ -35,6 +35,7 @@ import { createWriteGate } from "../stores/write-gate.ts";
 import type { TaskRunner } from "../tasks.ts";
 import type { TranscriptService } from "./transcript/index.ts";
 import { captionsInPage } from "../../sites/rules.ts";
+import { isObjectLike } from "../../shared/guards.ts";
 
 /** 截图长边，和内容脚本的初值一致。 */
 export const FRAME_MAX_EDGE = 1456;
@@ -75,18 +76,17 @@ const REFUSAL_CODES: Readonly<Record<FrameRefusal, ErrorCode>> = {
   NOT_FOREGROUND: "FRAME_NOT_FOREGROUND",
 };
 
-// 数组也算对象，不用 shared/guards.ts 的 isRecord：内容脚本回个数组时要按截图不对（FRAME_BAD_CAPTURE）报，不按连不上报。
-const isObject = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null;
+// 这里数组也算对象（isObjectLike，不用 isRecord）：内容脚本回个数组时要按截图不对（FRAME_BAD_CAPTURE）报，不按连不上报。
 const isSide = (value: unknown): value is number => Number.isInteger(value) && Number(value) >= 1 && Number(value) <= FRAME_MAX_SIDE;
 
 /** 内容脚本回的截图：形状、前缀、大小、尺寸和视频身份都对上才用，不对就不发给模型。 */
 export function checkCapture(reply: unknown, video: VideoKey): Result<FrameCapture> {
-  if (!isObject(reply)) return fail("FRAME_UNREACHABLE");
+  if (!isObjectLike(reply)) return fail("FRAME_UNREACHABLE");
   if (reply.ok === false) {
     const code = typeof reply.code === "string" && Object.hasOwn(REFUSAL_CODES, reply.code) ? REFUSAL_CODES[reply.code as FrameRefusal] : "FRAME_BAD_CAPTURE";
     return fail(code);
   }
-  const value = reply.ok === true && isObject(reply.value) ? reply.value : null;
+  const value = reply.ok === true && isObjectLike(reply.value) ? reply.value : null;
   if (!value) return fail("FRAME_BAD_CAPTURE");
   const { dataUrl, width, height, atSec } = value;
   if (typeof dataUrl !== "string" || !dataUrl.startsWith(FRAME_PREFIX) || dataUrl.length <= FRAME_PREFIX.length || dataUrl.length > FRAME_MAX_CHARS) {
@@ -151,7 +151,7 @@ export interface FrameExplainService {
 }
 
 const isEntry = (value: unknown): value is FrameEntryView =>
-  isObject(value) && typeof value.id === "string" && Number.isInteger(value.tabId) && typeof value.video === "string" && typeof value.createdAt === "number";
+  isObjectLike(value) && typeof value.id === "string" && Number.isInteger(value.tabId) && typeof value.video === "string" && typeof value.createdAt === "number";
 
 export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainService {
   let entries = new Map<string, FrameEntryView>();

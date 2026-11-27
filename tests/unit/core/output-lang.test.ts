@@ -9,7 +9,7 @@ import { extractPromptSection, langVariables, localizePrompt } from "../../../sr
 import { validateVerdict, VERDICT_CLIP } from "../../../src/core/ai/verdict.ts";
 import { buildBackup, readBackup } from "../../../src/core/backup/format.ts";
 import type { Derived, GenInfo, OverviewRecord, QaRecord } from "../../../src/core/notes/records.ts";
-import { outputLangOf, resolveOutputLang } from "../../../src/core/output-lang.ts";
+import { outputLangOf, plural, resolveOutputLang } from "../../../src/core/output-lang.ts";
 import { equivalenceKey } from "../../../src/core/task-keys.ts";
 import { genInfo, type FrozenGen } from "../../../src/core/tasks.ts";
 import { videoKey } from "../../../src/core/video-ref.ts";
@@ -200,4 +200,10 @@ test("翻译方向：译成设置的语言，字幕本身已经是这种语言�
 test("问答的兜底回答按语言存；中文那句和以前一样", () => {
   assert.equal(FALLBACK_ANSWERS.zh, FALLBACK_ANSWER);
   assert.doesNotMatch(FALLBACK_ANSWERS.en, /\p{Script=Han}/u);
+});
+
+test("英文的数量加名词：1 用单数，0 和别的数用复数", () => {
+  assert.equal(plural(1, "video", "videos"), "1 video");
+  assert.equal(plural(0, "video", "videos"), "0 videos");
+  assert.equal(plural(3, "video", "videos"), "3 videos");
 });

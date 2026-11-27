@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { hasOnly, isId, isText, keysWithin, MAX_ID, RAW_TEXT_MAX, refOf } from "../../../../src/background/routes/validate.ts";
+import { hasOnly, isBoundedSeconds, isId, isText, keysWithin, MAX_ID, MAX_SECONDS, RAW_TEXT_MAX, refOf } from "../../../../src/background/routes/validate.ts";
 import { videoKey } from "../../../../src/core/video-ref.ts";
 
 test("hasOnly：键正好是给的这几个，多一个少一个都不行", () => {
@@ -47,4 +47,10 @@ test("refOf：视频键转回视频身份", () => {
   assert.deepEqual(refOf(videoKey(ref)), ref);
   const bili = { platform: "bilibili", videoId: "BV1Sample000", segment: 2 } as const;
   assert.deepEqual(refOf(videoKey(bili)), bili);
+});
+
+test("isBoundedSeconds：有限、不小于 0、不超过一周的秒数", () => {
+  assert.equal(MAX_SECONDS, 7 * 24 * 3600);
+  for (const value of [0, 1.5, MAX_SECONDS]) assert.equal(isBoundedSeconds(value), true);
+  for (const value of [-1, MAX_SECONDS + 1, Number.NaN, Number.POSITIVE_INFINITY, "1", null]) assert.equal(isBoundedSeconds(value), false);
 });

@@ -44,3 +44,6 @@ export function inLang<T>(lang: OutputLang, zh: T, en: T, hant: T): T {
   if (lang === "en") return en;
   return lang === "zh-Hant" ? hant : zh;
 }
+
+/** 英文文案里的「数量加名词」：1 用单数，别的用复数，例如 plural(3, "video", "videos")。 */
+export const plural = (count: number, one: string, many: string): string => `${count} ${count === 1 ? one : many}`;

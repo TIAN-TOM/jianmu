@@ -1,4 +1,4 @@
-// 并发控制：带上限的 map、串行队列、带超时的等待、能被停止的等待、跨任务共享的并发闸门。
+// 并发控制：带上限的 map、串行队列、带超时的等待、能被停止的等待、定时重复、跨任务共享的并发闸门。
 type Task<T> = () => T | PromiseLike<T>;
 
 export type SerialQueue = <T>(task: Task<T>) => Promise<T>;
@@ -115,6 +115,12 @@ export function waitOrStop(timers: WaitTimers, ms: number, signal?: AbortSignal)
     const timer = timers.setTimeout(finish, ms);
     signal?.addEventListener?.("abort", finish, { once: true });
   });
+}
+
+/** 每隔 ms 毫秒调一次，返回停止函数。用的是全局计时器：调用方把它当缺省值注入，测试换成手动推进的。 */
+export function repeat(ms: number, run: () => void): () => void {
+  const timer = setInterval(run, ms);
+  return () => clearInterval(timer);
 }
 
 function taskCanceledError(): Error & { code?: string } {

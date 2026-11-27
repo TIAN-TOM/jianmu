@@ -2,6 +2,7 @@
 // 只在看得见、点得到时计时：侧边栏在前台、没被抽屉或层盖住、没被更要紧的提示挡住。看够 30 秒就收起，
 // 之后要回速读只能手动切。计时按标签页和视频记，换视频再回来接着算；撤销以后会话不在自动切的结果上，这一行自然消失。
 import { computed, signal, type ReadonlySignal } from "@preact/signals";
+import { repeat } from "../../core/concurrency.ts";
 import type { ModeView } from "./mode.ts";
 
 /** 这一行看得见、点得到时最多留这么久。 */
@@ -25,11 +26,6 @@ export interface UndoLineDeps {
   readonly every?: (ms: number, run: () => void) => () => void;
   readonly now?: () => number;
 }
-
-const repeat = (ms: number, run: () => void): (() => void) => {
-  const timer = setInterval(run, ms);
-  return () => clearInterval(timer);
-};
 
 export function createUndoLine({ mode, every = repeat, now = Date.now }: UndoLineDeps): UndoLine {
   const spent = new Map<string, number>();

@@ -7,7 +7,7 @@ import { CONTENT_SENDERS } from "../../shared/messages.ts";
 import type { NoteAtTimeRequest, NoteDeleteRequest, NoteListRequest, NoteSaveRequest, NoteUpdateRequest } from "../../shared/messages/notes.ts";
 import type { Route } from "../router.ts";
 import type { NotesService } from "../services/notes.ts";
-import { isId, isPlainObject, isText, isVideoKey, keysWithin } from "./validate.ts";
+import { isBoundedSeconds, isId, isPlainObject, isText, isVideoKey, keysWithin } from "./validate.ts";
 
 export interface NoteRouteDeps {
   readonly notes: NotesService;
@@ -17,18 +17,14 @@ export interface NoteRouteDeps {
 
 type NoteRoutes = { readonly [K in "notes.save" | "notes.saveAtTime" | "notes.list" | "notes.update" | "notes.delete"]: Route<K> };
 
-// 一周：比任何正常的视频都长，挡掉离谱的数。
-const MAX_SECONDS = 7 * 24 * 3600;
 const PAGES = ["options", "triage"] as const;
 
-const isSeconds = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= MAX_SECONDS;
-
 function isSaveRequest(req: unknown): req is NoteSaveRequest {
-  return isPlainObject(req) && keysWithin(req, ["video", "atSec"], ["text"]) && isVideoKey(req.video) && isSeconds(req.atSec) && (req.text === undefined || isText(req.text));
+  return isPlainObject(req) && keysWithin(req, ["video", "atSec"], ["text"]) && isVideoKey(req.video) && isBoundedSeconds(req.atSec) && (req.text === undefined || isText(req.text));
 }
 
 function isAtTimeRequest(req: unknown): req is NoteAtTimeRequest {
-  return isPlainObject(req) && keysWithin(req, ["video", "atSec"]) && isVideoKey(req.video) && isSeconds(req.atSec);
+  return isPlainObject(req) && keysWithin(req, ["video", "atSec"]) && isVideoKey(req.video) && isBoundedSeconds(req.atSec);
 }
 
 const isListRequest = (req: unknown): req is NoteListRequest => isPlainObject(req) && keysWithin(req, [], ["video"]) && (req.video === undefined || isVideoKey(req.video));

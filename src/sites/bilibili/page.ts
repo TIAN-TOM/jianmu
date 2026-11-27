@@ -1,7 +1,8 @@
 // B 站播放页：认当前视频、等页面激活、找主视频和两个挂载点、读作者栏上的 UP 主编号。只读页面结构，不插节点，不发请求。
+import { repeat } from "../../core/concurrency.ts";
 import type { VideoRef } from "../../core/video-ref.ts";
 import type { MainVideo, SitePage } from "../page-types.ts";
-import { keyOf, repeat, waitFor, watchAttribute } from "../page-util.ts";
+import { keyOf, waitFor, watchAttribute } from "../page-util.ts";
 import { bilibiliRules } from "./url.ts";
 
 const VIDEO_SELECTORS = [".bpx-player-video-wrap video", "video"];

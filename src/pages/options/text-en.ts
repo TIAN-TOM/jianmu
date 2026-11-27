@@ -1,8 +1,7 @@
 // 设置页的界面文案，英文这份。形状由简体那份（text-zh.ts）定，少一条、多一条或者函数签名不一样，类型检查就报错。
 // 构建开关保护的功能的文案不放这里，见 text-zh.ts 开头。模块顶层只放字面量和函数。
+import { plural } from "../../core/output-lang.ts";
 import type { OptionsText } from "./text-zh.ts";
-
-const plural = (count: number, one: string, many: string): string => `${count} ${count === 1 ? one : many}`;
 
 export const OPTIONS_EN: OptionsText = {
   title: "Jianmu settings",

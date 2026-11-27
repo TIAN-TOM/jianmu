@@ -1,6 +1,6 @@
 // 粗筛的展示文字和 Markdown 清单导出。视频地址的前缀由调用方传入。固定文字按语言出，缺省中文；
 // 标题、UP 主名、官方总结和模型写的结论原样写。
-import { inLang, type OutputLang } from "../output-lang.ts";
+import { inLang, plural, type OutputLang } from "../output-lang.ts";
 import { EXPORT_HANT } from "./export-hant.ts";
 import { parseVideoKey } from "../video-ref.ts";
 import { hasOfficialContent } from "./batch.ts";
@@ -43,8 +43,6 @@ const EXPORT_ZH = {
 };
 
 export type ExportText = typeof EXPORT_ZH;
-
-const plural = (count: number, one: string, many: string): string => `${count} ${count === 1 ? one : many}`;
 
 const EXPORT_EN: ExportText = {
   status: {

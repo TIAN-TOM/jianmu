@@ -2,13 +2,11 @@
 import type { PortSpec } from "../router.ts";
 import type { TranslateService } from "../services/translate.ts";
 import type { TranslateIn } from "../../shared/messages/translate.ts";
-import { hasOnly, isPlainObject, isVideoKey } from "./validate.ts";
+import { hasOnly, isPlainObject, isSeconds, isVideoKey } from "./validate.ts";
 
 export interface TranslatePortDeps {
   readonly translate: Pick<TranslateService, "start" | "stop" | "leave">;
 }
-
-const isSecond = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0;
 
 function isTranslateIn(message: unknown): message is TranslateIn {
   if (!isPlainObject(message)) return false;
@@ -17,7 +15,7 @@ function isTranslateIn(message: unknown): message is TranslateIn {
   const optional = ["fromSec", "purpose", "storedOnly", "tabId"].filter((key) => Object.hasOwn(message, key));
   return (
     hasOnly(message, ["type", "video", ...optional]) &&
-    (!optional.includes("fromSec") || isSecond(message.fromSec)) &&
+    (!optional.includes("fromSec") || isSeconds(message.fromSec)) &&
     (!optional.includes("purpose") || message.purpose === "tidy") &&
     (!optional.includes("storedOnly") || message.storedOnly === true) &&
     (!optional.includes("tabId") || (Number.isSafeInteger(message.tabId) && Number(message.tabId) >= 0))

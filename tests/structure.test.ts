@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { bundlesFor } from "../scripts/lib/bundles.mjs";
 import { FEATURE_NAMES, type FeatureSet } from "../src/shared/features.ts";
 import { AV_XOR_CODE, BV_ALPHABET } from "../src/sites/bilibili/url.ts";
-import { findStructureViolations, SCRIPT_ONLY, UNIMPORTED_ALLOWED, type SourceFile, type Violation } from "./helpers/structure-rules.ts";
+import { DUPLICATE_ALLOWED, findStructureViolations, SCRIPT_ONLY, UNIMPORTED_ALLOWED, type SourceFile, type Violation } from "./helpers/structure-rules.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -38,8 +38,9 @@ test("src/ 没有违反结构规则", () => {
   assert.deepEqual(findStructureViolations(sourceFiles(join(ROOT, "src")), { entries: ENTRIES }), []);
 });
 
-test("第 9 条：只给脚本读的文件和放行表里的文件都还在", () => {
-  const gone = [...Object.keys(SCRIPT_ONLY), ...Object.keys(UNIMPORTED_ALLOWED)].filter((path) => !existsSync(join(ROOT, path)));
+test("第 9、10 条：只给脚本读的文件和放行表里的文件都还在", () => {
+  const duplicates = Object.keys(DUPLICATE_ALLOWED).map((key) => key.slice(0, key.indexOf(" ")));
+  const gone = [...Object.keys(SCRIPT_ONLY), ...Object.keys(UNIMPORTED_ALLOWED), ...duplicates].filter((path) => !existsSync(join(ROOT, path)));
   assert.deepEqual(gone, [], "文件删掉了，表里那一条也要删");
 });
 
@@ -365,6 +366,27 @@ describe("规则能拦下造好的违规", () => {
       "src/core/notes/filter.ts": "export const filter = 1;\n",
     };
     assert.deepEqual(wholeHit(wired), ["9 src/core/notes/filter.ts"], "放行表里的模块接进产品以后，这一条要从放行表删掉");
+  });
+
+  test("第 10 条：逐字相同的顶层函数定义只留一份", () => {
+    const arrow = 'const clean = (value: unknown): string => (typeof value === "string" ? value.trim() : "");\n';
+    assert.deepEqual(filesHit({ "src/core/a.ts": `export ${arrow}`, "src/pages/b.ts": arrow }), ["10 src/core/a.ts", "10 src/pages/b.ts"], "去掉 export 再比");
+    const fn = 'function pick(list: readonly string[], index: number): string {\n  return list[index] ?? "";\n}\n';
+    const reflowed = 'export function pick(list: readonly string[],   index: number): string {\n    // 注释不算\n    return list[index] ?? "";\n}\n';
+    assert.deepEqual(filesHit({ "src/core/a.ts": fn, "src/background/b.ts": reflowed, "src/content/c.ts": `${fn}const x = 1;\n` }), ["10 src/core/a.ts", "10 src/background/b.ts", "10 src/content/c.ts"]);
+  });
+
+  test("第 10 条：太短的、只在一个文件里的、名字不同的和放行表里的不拦，放行表里用不上的条目要删", () => {
+    const short = "const one = (value: number): number => value + 1;\n";
+    assert.deepEqual(filesHit({ "src/core/a.ts": short, "src/pages/b.ts": short }), []);
+    const arrow = '(value: unknown): string => (typeof value === "string" ? value.trim() : "");\n';
+    assert.deepEqual(filesHit({ "src/core/a.ts": `const clean = ${arrow}` }), []);
+    assert.deepEqual(filesHit({ "src/core/a.ts": `const clean = ${arrow}`, "src/pages/b.ts": `const tidy = ${arrow}` }), []);
+    assert.deepEqual(filesHit({ "src/core/a.ts": `const clean = ${arrow}`, "src/pages/b.ts": `const clean = { size: 1 };\n` }), []);
+    const table = 'export const frameText = (lang: UiLang = "zh"): FrameText => inLang(lang, FRAME_ZH, FRAME_EN, FRAME_HANT);\n';
+    assert.deepEqual(filesHit({ "src/pages/options/frame-text.ts": table, "src/pages/sidepanel/frame-text.ts": table }), []);
+    assert.deepEqual(filesHit({ "src/pages/options/frame-text.ts": table, "src/pages/card/frame-text.ts": table }), ["10 src/pages/card/frame-text.ts"], "放行只按文件加名字");
+    assert.deepEqual(filesHit({ "src/pages/options/frame-text.ts": table }), ["10 src/pages/options/frame-text.ts"], "不再和别处重复的放行条目要删");
   });
 
   test("第 6 条：经 http.ts 发请求、只导入类型，都不算绕过请求出口", () => {
