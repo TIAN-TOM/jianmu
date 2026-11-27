@@ -1,6 +1,8 @@
 // 读视频的官方总结：摘要、提纲和附带的 AI 字幕，这份字幕用不用由取字幕服务决定。
+import { secondsOrNull } from "../../core/transcript/seconds.ts";
 import type { Cue, OfficialSummary, OutlineSection, SiteCtx, SiteResult, VideoInfo } from "../types.ts";
 import { SUMMARY_URL, type BiliHttp } from "./http.ts";
+import { plainText } from "./raw-text.ts";
 
 interface RawPoint {
   readonly timestamp?: unknown;
@@ -35,15 +37,6 @@ export interface OfficialSummaryDeps {
 
 // 只算这一个请求，取密钥不计入：冷启动时取密钥常常慢，不该连累总结和附带的字幕。
 const SUMMARY_TIMEOUT_MS = 8_000;
-
-const plainText = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
-
-// 空值换成数字会变 0，跳到片头比没有落点更糟。
-function secondsOrNull(value: unknown): number | null {
-  if (value === null || value === undefined || value === "") return null;
-  const seconds = Number(value);
-  return Number.isFinite(seconds) && seconds >= 0 ? seconds : null;
-}
 
 function parseSection(section: RawSection | null): OutlineSection {
   const list: readonly (RawPoint | null)[] = Array.isArray(section?.part_outline) ? section.part_outline : [];

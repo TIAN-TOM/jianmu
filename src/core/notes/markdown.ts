@@ -5,6 +5,7 @@ import { keyChapterStarts, verdictText, type OfficialSummary } from "../ai/verdi
 import { inLang, type OutputLang } from "../output-lang.ts";
 import { MARKDOWN_HANT } from "./markdown-hant.ts";
 import { formatTimestamp } from "../transcript/segment.ts";
+import { secondsOrNull } from "../transcript/seconds.ts";
 import { parseVideoKey, type VideoKey, type VideoRef } from "../video-ref.ts";
 import {
   normalizeAnalysisFailures,
@@ -273,12 +274,6 @@ function localDate(value: string | number | Date | undefined): string {
   if (Number.isNaN(date.getTime())) return "";
   const pad = (part: number): string => String(part).padStart(2, "0");
   return `${String(date.getFullYear()).padStart(4, "0")}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-function secondsOrNull(value: unknown): number | null {
-  if (value === null || value === undefined || value === "") return null;
-  const seconds = Number(value);
-  return Number.isFinite(seconds) && seconds >= 0 ? seconds : null;
 }
 
 // 时间戳缺失时只写文字，不编一个 0:00 出来。text 是调用方已经转义、续行过的正文。
