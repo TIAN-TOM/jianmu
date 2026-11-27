@@ -63,11 +63,6 @@
   line-height: 1.75;
 }
 
-:root[data-accent-theme="marker"] .card .verdict-text {
-  font-size: var(--fs-body);
-  line-height: 1.625rem;
-}
-
 /* ---------- 章节：页边栏里的时间戳，重点用荧光笔划 ---------- */
 
 :root[data-accent-theme="marker"] .chapters-head,

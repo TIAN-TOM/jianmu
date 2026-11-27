@@ -71,11 +71,6 @@
   line-height: 1.625rem;
 }
 
-:root[data-accent-theme="pinkblue"] .card .verdict-text {
-  font-size: var(--fs-body);
-  line-height: 1.5rem;
-}
-
 /* ---------- 章节：重点整行铺浅粉 ---------- */
 
 :root[data-accent-theme="pinkblue"] .section-title {

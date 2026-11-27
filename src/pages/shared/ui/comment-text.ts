@@ -6,6 +6,7 @@ import { COMMENT_TEXT_HANT } from "./comment-text-hant.ts";
 
 export interface CommentText {
   readonly title: string;
+  readonly cardLabel: string;
   /** 和 COMMENT_TAGS 一一对应。 */
   readonly tags: readonly string[];
   /** 和 MARK_KINDS 一一对应。 */
@@ -17,6 +18,7 @@ export interface CommentText {
 
 export const COMMENT_TEXT_ZH: CommentText = {
   title: "评论区",
+  cardLabel: "评论",
   tags: ["好评居多", "有争议", "有人指出错误", "说是标题党", "评论还少"],
   marks: ["评论说有误", "评论说可跳过", "评论说精彩"],
   pinned: "置顶",
@@ -26,6 +28,7 @@ export const COMMENT_TEXT_ZH: CommentText = {
 
 export const COMMENT_TEXT_EN: CommentText = {
   title: "Comments",
+  cardLabel: "Comments",
   tags: ["Mostly positive", "Divided", "Errors pointed out", "Called clickbait", "Few comments yet"],
   marks: ["Comments flag an error", "Comments say skip", "Comments' favourite"],
   pinned: "Pinned",

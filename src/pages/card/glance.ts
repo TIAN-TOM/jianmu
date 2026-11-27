@@ -15,12 +15,12 @@ export const PANEL_REFUSED_NOTE = CARD_ZH.panelRefusedNote;
 
 const trimmed = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
 
-/** 本机已有的一句话结论（判断词和那句话），结论还在写或者没有时是 null。收起那一行有它就写它，不写播放到的章节。 */
-export function conclusionOf(view: { readonly analysis: LearningAnalysis | null; readonly verdictPending: boolean | string }): { readonly label: VerdictRating; readonly summary: string } | null {
+/** 收起时优先写判断理由，缺理由就写摘要。评分无效的结论仍有摘要。 */
+export function conclusionOf(view: { readonly analysis: LearningAnalysis | null; readonly verdictPending: boolean | string }): { readonly label: VerdictRating | ""; readonly text: string } | null {
   const verdict = view.verdictPending ? undefined : view.analysis?.verdict;
   const summary = trimmed(verdict?.summary);
-  const label = summary ? verdictLabelOf(verdict?.verdict) : "";
-  return label ? { label, summary } : null;
+  if (!summary) return null;
+  return { label: verdictLabelOf(verdict?.verdict), text: trimmed(verdict?.reason) || summary };
 }
 
 export interface GlanceState {

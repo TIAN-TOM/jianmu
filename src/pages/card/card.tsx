@@ -1,5 +1,5 @@
 // 卡片的界面：标题栏（展开收起）、提示、AI 概览（结论在最前，评论区那一行点开露出要点，章节默认只露前几章）、B 站官方总结（有概览时收成一行）、进度和底部一行。
-// 标题栏展开时写名字，收起时写判断记号、判断档和一句话结论（没有结论时写播放到的章节，或者临时的一句话），旁边是打开侧边栏的入口；侧边栏开着时不摆这个入口。
+// 标题栏的图标后面写星级和短词，没有判断时写名字。收起时再接一句话，旁边是打开侧边栏的入口；侧边栏开着时不摆这个入口。
 // 底部一行左边是章节的「展开全部」，右边是按钮。按钮在内容还在来时先不摆（规则在 model.ts），摆出来以后不被晚到的内容顶走。
 // 各套主题的版面差异都在样式表里，标记不分主题。
 // 规则在 model.ts。视频标题不在卡片里再写一遍：页面顶上就是。
@@ -170,7 +170,7 @@ function Overview({
           {typeof pending === "string" ? pending : t.writingVerdict}
         </p>
       ) : summary ? (
-        <VerdictBlock label={verdict?.verdict} text={summary} basis={basisOf(analysis)} staleTranscript={stale.verdict} incomplete={verdict?.incomplete === true} fresh={waited.current} />
+        <VerdictBlock label={verdict?.verdict} cardReason={text(verdict?.reason)} text={summary} basis={basisOf(analysis)} staleTranscript={stale.verdict} incomplete={verdict?.incomplete === true} fresh={waited.current} />
       ) : null}
       {CardComments && comments && summary && !pending ? <CardComments view={comments} open={commentsOpen} onToggle={onToggleComments} /> : null}
       {stale.chapters && chapters.length ? <StaleTranscriptLine /> : null}
@@ -189,31 +189,18 @@ function progressText(task: TaskProgress): string {
 }
 
 /**
- * 标题栏上的判断档和后面那句话。判断档有结论时就有（展开时只给读屏和看不看那套的色带用）；那句话只在收起时有：
- * 临时的一句话最优先，其次是一句话结论；没有结论时写播放到的章节（和侧边栏精读顶上那一条同一个写法）。
+ * 标题栏上的判断和收起时后面那句话。临时的一句话最优先，其次是理由或摘要；没有结论时写播放到的章节。
  */
 export function glanceOf(view: CardView): { readonly label: VerdictRating | ""; readonly text: string } {
   const conclusion = conclusionOf(view);
   const label = conclusion?.label ?? "";
   if (!view.collapsed) return { label, text: "" };
   if (view.headNote) return { label, text: view.headNote };
-  if (conclusion) return { label, text: conclusion.summary };
+  if (conclusion) return conclusion;
   const chapters = chaptersInOrder(view.analysis);
   const now = view.chapterNow === null ? undefined : chapters[view.chapterNow];
   if (now && view.chapterNow !== null) return { label, text: `${view.chapterNow + 1}/${chapters.length} ${now.title || formatTimestamp(now.startSec)}` };
   return { label, text: "" };
-}
-
-/** 头部名字前的小记号：只有时间码那套显示，别的主题由样式表藏起来。 */
-function BrandMark() {
-  return (
-    <svg class="card-brand-mark" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
-      <rect x="1" y="4" width="6" height="3" rx="1" fill="currentColor" />
-      <rect x="8" y="4" width="7" height="3" rx="1" fill="currentColor" opacity="0.45" />
-      <rect x="1" y="9" width="10" height="3" rx="1" fill="currentColor" opacity="0.45" />
-      <rect class="card-brand-head" x="5" y="1" width="1.6" height="14" />
-    </svg>
-  );
 }
 
 export interface CardActions {
@@ -325,11 +312,8 @@ export function Card({
     <div class="card" id="card" data-collapsed={view.collapsed ? "true" : "false"} data-band={bandOf(glance.label)}>
       <div class="card-head-row">
         <button type="button" class="card-head" id="card-toggle" aria-expanded={!view.collapsed} aria-controls="card-body" title={view.collapsed ? t.expand : t.collapse} onClick={actions.toggle}>
-          {/* 名字和判断档两样都在读屏的名称里；看不见的那样由样式表只藏起样子。 */}
-          <span class="card-brand">
-            <BrandMark />
-            <span class="card-name">{t.name}</span>
-          </span>
+          <img class="card-logo" src="../icons/icon-32.png" width="16" height="16" alt="" aria-hidden="true" />
+          <span class={glance.label ? "card-name sr-only" : "card-name"}>{t.name}</span>
           {glance.label ? <VerdictLabel class="card-verdict" rating={glance.label} /> : null}
           {glance.text ? (
             <span class="card-glance" id="card-glance" role={view.headNote ? "status" : undefined}>

@@ -33,10 +33,11 @@ body {
 }
 
 /* 头部那一行：左边整块点了展开收起，收起时右边另有一个打开侧边栏的入口。
- * 展开时写名字，收起时有判断档就写判断记号、判断档和后面那句话，还没有判断档时照样写名字；看不见的那样只藏起样子，读屏照样读到名字和判断档。
+ * 图标和判断在展开收起时位置相同。没有判断时写名字，有判断时名字只给读屏。
  * 这一行展开收起都是上下留白加展开按钮那么高：收起时和内容脚本载入前占位的高度一样（card-frame.ts 的 CARD_HEIGHT），载入完不跳；
- * 点收起那一刻头部不变高，高度一路往下走。各套主题只改上下留白怎么分，加起来不变，画板上头部下面多出或少了的那一截挪到正文区顶上。 */
+ * 点收起那一刻头部不变高，高度一路往下走。各套主题需要的额外留白放在正文区顶上。 */
 .card-head-row {
+  container-type: inline-size;
   display: flex;
   align-items: center;
 }
@@ -48,7 +49,9 @@ body {
   align-items: center;
   gap: var(--space-2);
   min-width: min-content;
-  padding: var(--card-head-pad, 0.5rem 0.375rem 0.5rem 0.875rem);
+  box-sizing: border-box;
+  height: 2.875rem;
+  padding: 0 0.375rem 0 0.75rem;
   border: 0;
   background: transparent;
   color: var(--text);
@@ -58,53 +61,41 @@ body {
   text-align: left;
 }
 
-.card[data-collapsed="true"] .card-head {
-  box-sizing: border-box;
-  height: 2.875rem;
-  padding: 0.5rem 0.375rem 0.5rem var(--card-mini-left, 0.75rem);
+.card-logo {
+  flex: none;
 }
 
-.card-brand {
-  display: inline-flex;
+.card-name {
   flex: none;
-  align-items: center;
-  gap: 0.375rem;
-  margin-right: auto;
   font-weight: var(--fw-semibold);
   white-space: nowrap;
 }
 
-.card-brand-mark {
-  display: none;
-  flex: none;
-}
-
-.card-brand-head {
-  fill: var(--mark);
-}
-
-/* 判断词是这张卡片最要紧的字，不截断：放不下时按词换行，一个词也不拆。 */
+/* 两种状态给判断留同样的宽度：除了图标，还要留出箭头、侧边栏入口和间距。窄时先让短词换行。 */
 .card-verdict {
   display: inline-flex;
-  flex: 0 1 auto;
+  flex: none;
   align-items: center;
-  column-gap: var(--space-2);
-  min-width: min-content;
+  column-gap: var(--space-1);
+  max-width: calc(100cqi - 16px - 8.5rem);
   color: var(--verdict);
   font-weight: var(--fw-semibold);
-}
-
-/* 收起的一行高度固定，判断词换行时用紧凑行距。 */
-.card[data-collapsed="true"] .card-verdict {
   line-height: 0.9375rem;
 }
 
-/* 判断词在星旁边放不下时换到星的下一行，避免英文在窄栏里一行只放一个词。 */
-.card[data-collapsed="true"] .verdict-name {
+.card-verdict .verdict-name {
   flex-basis: auto;
 }
 
-/* 收起时判断档后面：临时的一句话、播放到的章节或者一句话结论，一行，放不下就截断。 */
+.card[data-band="skip"] .card-verdict {
+  color: var(--text);
+}
+
+.card[data-band="unknown"] .card-verdict {
+  color: var(--text-muted);
+}
+
+/* 收起时判断档后面：临时的一句话、判断理由、摘要或者播放到的章节，一行，放不下就截断。 */
 /* 只占判断词和按钮剩下的地方，不跟判断词抢：剩下的不够就整句让出去。 */
 .card-glance {
   flex: 1 1 0;
@@ -113,16 +104,6 @@ body {
   overflow: hidden;
   color: var(--text-muted);
   text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.card[data-collapsed="false"] .card-verdict,
-.card[data-collapsed="true"]:has(.card-verdict) .card-brand {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
   white-space: nowrap;
 }
 
@@ -230,8 +211,10 @@ body {
   animation: appear var(--dur) var(--ease);
 }
 
-.card .verdict[data-fresh] .verdict-stars {
-  animation: done-pop var(--dur-mode) var(--ease-pop) 60ms backwards;
+@media (prefers-reduced-motion: no-preference) {
+  .card:has(.verdict[data-fresh]) .card-verdict .verdict-stars {
+    animation: done-pop var(--dur-mode) var(--ease-pop) 60ms backwards;
+  }
 }
 
 .card-body {
@@ -257,13 +240,16 @@ body {
   gap: var(--space-1);
 }
 
-.card .verdict-head {
-  min-height: 0;
-}
-
-.card .verdict-text {
+.card-reason,
+.card-summary {
   font-size: var(--fs-body);
   line-height: var(--lh-snug);
+  font-weight: var(--fw-regular);
+  overflow-wrap: anywhere;
+}
+
+.card-reason {
+  font-weight: var(--fw-medium);
 }
 
 .card .chapter-title,
@@ -312,16 +298,32 @@ body {
   color: var(--text);
 }
 
-/* 评论区那一行（PRD F23）有要点时整行是开关：字照旧是正文的样子，只多一个小箭头。 */
-.comment-fold-head {
-  color: inherit;
-  font-size: inherit;
-  font-weight: inherit;
+/* 口碑和那句话接着排，长句可以从行中换行；只有能点开的行才在右边留出箭头的位置。 */
+.card-comment-line {
+  display: block;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-snug);
+  overflow-wrap: anywhere;
 }
 
-.comment-fold-head .comment-line {
-  flex: 1;
-  min-width: 0;
+.comment-tag {
+  color: var(--text);
+  font-weight: var(--fw-medium);
+}
+
+.comment-tag[data-tone="ok"] {
+  color: var(--ok);
+}
+
+.comment-tag[data-tone="warn"] {
+  color: var(--warn);
+}
+
+.comment-tag[data-tone="danger"] {
+  color: var(--danger);
 }
 
 .card-fold-head .card-chevron {
@@ -644,17 +646,13 @@ body {
 /* ---------- 各套主题的卡片外壳：头部、底部一行、收起的一行、外框 ----------
  * 卡片在播放页的框架里，框架和卡片一样大，往外的投影会被裁掉，所以外框只画边线，不画投影。 */
 
-/* 时间码：头部铺页面底色，名字前一个时间轴的小记号；底部的「展开全部」是带下划线的正文色字，主按钮是正文色底。 */
+/* 时间码：头部铺页面底色，底部的「展开全部」是带下划线的正文色字，主按钮是正文色底。 */
 :root[data-accent-theme="timecode"] .card[data-collapsed="false"] .card-head-row {
   background: var(--bg);
 }
 
 :root[data-accent-theme="timecode"] .card {
   --card-link: var(--text);
-}
-
-:root[data-accent-theme="timecode"] .card-brand-mark {
-  display: block;
 }
 
 :root[data-accent-theme="timecode"] .card .card-verdict {
@@ -667,13 +665,12 @@ body {
 
 /* 荧光笔：名字划一道荧光笔，判断是钢笔蓝的星；底部一行和章节名从同一条线起，主按钮是钢笔蓝的细边框。 */
 :root[data-accent-theme="marker"] .card {
-  --card-head-pad: 0.5rem 0.375rem 0.5rem 0.875rem;
   --card-body-top: 0.125rem;
   /* 和章节名对齐：页边栏按五位的时间算宽，再加页边栏和正文之间那道间距。 */
   --card-foot-left: calc(var(--card-pad) + max(var(--margin-col), 2.765625rem) + var(--margin-gap));
 }
 
-:root[data-accent-theme="marker"] .card-name {
+:root[data-accent-theme="marker"] .card-name:not(.sr-only) {
   padding: 0 2px;
   color: var(--on-highlight);
   background-image: linear-gradient(transparent 50%, var(--highlight) 50%, var(--highlight) 92%, transparent 92%);
@@ -698,16 +695,15 @@ body {
   background: var(--accent-soft);
 }
 
-/* 看不看：有判断时头部就在色带里，判断词特粗排在左边，名字小一号靠右；收起的一行整条铺判断档位的色带。
+/* 看不看：有判断时头部就在色带里，展开和收起都沿用对应档位的颜色。
  * 外框是一圈分隔线色的细线，没有投影。 */
 :root[data-accent-theme="band"] .card {
   --card-gap: 0.625rem;
-  --card-head-pad: 0.625rem 0.375rem 0.375rem 0.875rem;
-  --card-mini-left: 0.875rem;
   --card-link: var(--text);
+  --card-band-muted: color-mix(in oklab, var(--text-muted), var(--band-unknown-ink));
 }
 
-:root[data-accent-theme="band"] .card-brand {
+:root[data-accent-theme="band"] .card-name {
   font-size: 0.75rem;
 }
 
@@ -722,7 +718,6 @@ body {
 }
 
 :root[data-accent-theme="band"] .card[data-band] .card-head,
-:root[data-accent-theme="band"] .card[data-band] .card-verdict,
 :root[data-accent-theme="band"] .card[data-band] .card-glance,
 :root[data-accent-theme="band"] .card[data-band] .card-head-panel {
   color: inherit;
@@ -732,36 +727,19 @@ body {
   background: color-mix(in srgb, currentColor 12%, transparent);
 }
 
-:root[data-accent-theme="band"] .card[data-collapsed="true"] .card-verdict {
+:root[data-accent-theme="band"] .card .card-verdict {
+  color: var(--band-ink);
   font-size: 0.9375rem;
   font-weight: 800;
 }
 
-/* 展开时判断词排在名字前面，和下面的结论句连成一整条色带。 */
-:root[data-accent-theme="band"] .card[data-collapsed="false"][data-band] .card-head {
-  padding: 0.625rem 0.375rem 0.375rem 0.875rem;
+/* 低星用色带上的正文色；斜纹上的次要字稍靠近色带墨色，两种条纹都能读清。 */
+:root[data-accent-theme="band"] .card[data-band="skip"] .card-verdict {
+  color: var(--band-say);
 }
 
-:root[data-accent-theme="band"] .card[data-collapsed="false"][data-band] .card-verdict {
-  position: static;
-  order: -1;
-  width: auto;
-  height: auto;
-  margin-right: auto;
-  overflow: visible;
-  clip-path: none;
-  white-space: normal;
-  font-size: 1.375rem;
-  font-weight: 800;
-  line-height: 1.875rem;
-}
-
-:root[data-accent-theme="band"] .card[data-collapsed="false"][data-band] .card-brand {
-  margin-right: 0;
-}
-
-:root[data-accent-theme="band"] .card[data-collapsed="false"][data-band] .card-collapse {
-  margin-left: 0;
+:root[data-accent-theme="band"] .card[data-band="unknown"] .card-verdict {
+  color: var(--card-band-muted);
 }
 
 :root[data-accent-theme="band"] .card[data-band] .card-body {
@@ -770,10 +748,6 @@ body {
 
 :root[data-accent-theme="band"] .card[data-band] #card-overview {
   order: -1;
-}
-
-:root[data-accent-theme="band"] .card[data-band] #card-overview > .verdict:first-child .verdict-head {
-  display: none;
 }
 
 :root[data-accent-theme="band"] .card[data-band] #card-overview > .verdict:first-child {
@@ -785,17 +759,17 @@ body {
   font-weight: 700;
 }
 
-/* 粉蓝：头部只写名字；判断是浅粉胶囊，「展开全部」是不带下划线的蓝字，主按钮是蓝底。圆角比侧边栏的卡片小一档。 */
+/* 粉蓝：头部的判断用浅粉胶囊，「展开全部」是不带下划线的蓝字，主按钮是蓝底。圆角比侧边栏的卡片小一档。 */
 :root[data-accent-theme="pinkblue"] .card {
   --card-gap: 0.625rem;
-  --card-head-pad: 0.625rem 0.375rem 0.375rem 0.875rem;
   --card-body-top: 0.25rem;
   border-radius: 8px;
 }
 
-:root[data-accent-theme="pinkblue"] .card[data-collapsed="true"] .card-verdict {
+:root[data-accent-theme="pinkblue"] .card .card-verdict {
   column-gap: 0.375rem;
-  padding: 0.1875rem 0.625rem 0.1875rem 0.5rem;
+  box-sizing: border-box;
+  padding: 0 0.375rem;
   border-radius: var(--radius-pill);
   background: var(--key-tint);
 }
@@ -808,14 +782,13 @@ body {
   padding-inline: 0.875rem;
 }
 
-/* 红黑：名字加粗，判断前是红色记号；「展开全部」是灰底胶囊，主按钮是正文色底的胶囊。 */
+/* 红黑：名字和判断加粗；「展开全部」是灰底胶囊，主按钮是正文色底的胶囊。 */
 :root[data-accent-theme="redblack"] .card {
   --card-gap: 0.625rem;
-  --card-head-pad: 0.625rem 0.375rem 0.375rem 0.875rem;
   --card-body-top: 0;
 }
 
-:root[data-accent-theme="redblack"] .card-brand {
+:root[data-accent-theme="redblack"] .card-name {
   font-weight: 700;
 }
 
@@ -832,6 +805,10 @@ body {
 :root[data-accent-theme="redblack"] .card .card-verdict {
   font-size: var(--fs-ui);
   font-weight: 700;
+}
+
+:root[data-accent-theme="redblack"] .card-verdict .verdict-stars {
+  color: inherit;
 }
 
 :root[data-accent-theme="redblack"] .card-actions > .card-more {
