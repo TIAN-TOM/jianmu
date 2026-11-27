@@ -13,10 +13,10 @@ import {
   type KnownEndpointPreset,
   type PresetId,
 } from "../core/ai/provider/endpoint.ts";
-import { EFFORT_BUDGETS, EFFORTS, isEffort } from "../core/ai/provider/effort.ts";
+import { isEffort, type Effort } from "../core/ai/effort-level.ts";
+import { EFFORT_BUDGETS } from "../core/ai/provider/effort.ts";
 import type { AiSettings } from "../core/ai/provider/index.ts";
 import type { TransportSettingsRules } from "../core/ai/transport/index.ts";
-import type { Effort } from "../core/notes/records.ts";
 import {
   ACTIVATION_FINGERPRINT,
   ACTIVATION_TABLE,
@@ -130,8 +130,6 @@ export type FeatureSlotId = (typeof FEATURE_MODEL_SLOTS)[number]["id"];
 
 /** 每项功能用户选的推理强度。和按功能选的模型不同，换服务商或地址时保留，按新的服务重新解析实际档位；读的地方一律经 effortForFeature。 */
 export type FeatureEfforts = Readonly<Record<FeatureSlotId, Effort>>;
-
-export { EFFORTS };
 
 /** 来自存储或表单，形状不可信，规整时逐项核对。 */
 export interface SettingsInput {

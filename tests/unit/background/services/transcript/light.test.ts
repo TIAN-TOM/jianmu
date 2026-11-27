@@ -8,7 +8,7 @@ import { test } from "node:test";
 import { LIGHT_JOIN_MS, LIGHT_MEMO_LIMIT } from "../../../../../src/background/services/transcript/light.ts";
 import { OFFICIAL_GRACE_MS } from "../../../../../src/background/services/transcript/official.ts";
 import { createOverviewStore } from "../../../../../src/background/stores/overviews.ts";
-import type { LearningAnalysis } from "../../../../../src/core/notes/markdown.ts";
+import type { LearningAnalysis } from "../../../../../src/core/notes/records.ts";
 import { videoKey, type VideoRef } from "../../../../../src/core/video-ref.ts";
 import type { GuidesReply, GuidesView } from "../../../../../src/shared/messages/transcript.ts";
 import type { Cue, OfficialSummary, SiteResult } from "../../../../../src/sites/types.ts";

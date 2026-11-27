@@ -8,7 +8,7 @@ export interface SourceFile {
 }
 
 export interface Violation {
-  readonly rule: 1 | 2 | 3 | 4 | 5 | 6;
+  readonly rule: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
   readonly file: string;
   readonly detail: string;
 }
@@ -104,6 +104,17 @@ const PAGE_READER = /^src\/sites\/[^/]+\/page\/read-[^/]+\.ts$/;
 const PAGE_COMMANDS = /^src\/sites\/[^/]+\/page\/commands\.ts$/;
 // 第 6 条：YouTube 读取不发任何请求，放行表也不给它开出口。
 const YOUTUBE_FILE = /^src\/sites\/youtube\//;
+// 第 8 条：消息的形状依赖领域类型，core 不反过来导入消息模块。
+const MESSAGES = /^src\/shared\/messages(?:\.ts$|\/)/;
+// 第 9 条：不经打包、只给脚本读的文件没有 src/ 里的导入方，加一条要写原因。包的入口由调用方从包清单算好传进来。
+export const SCRIPT_ONLY: Readonly<Record<string, string>> = {
+  "src/shared/features.ts": "构建脚本和测试从这里读各种构建的开关取值，产品代码只认构建时换进来的常量",
+};
+// 第 9 条：暂时没有导入方也放行的模块，加一条要写原因。
+export const UNIMPORTED_ALLOWED: Readonly<Record<string, string>> = {
+  "src/core/notes/filter.ts": "笔记过滤还没接进产品，去留待定",
+  "src/pages/shared/ui/time-rail.tsx": "时间轴组件还没接进产品，只有页面测试的样品页用，去留待定",
+};
 
 // 只有协议头不算地址：把 http 换成 https 时要写这个字符串。
 const isAddress = (value: string): boolean =>
@@ -205,6 +216,7 @@ function checkFile(file: Module): Violation[] {
   for (const edge of edges) {
     const problem = checkImport(path, edge);
     if (problem) report(1, problem);
+    if (path.startsWith("src/core/") && MESSAGES.test(edge.target)) report(8, `core 不导入 shared/messages，消息的形状依赖领域类型：${edge.specifier}`);
   }
   if (path.startsWith("src/core/") && /\bchrome\./.test(code.replace(/"[^"\n]*"|'[^'\n]*'/g, ""))) {
     report(1, "core 里不能出现 chrome.");
@@ -372,8 +384,71 @@ function checkReach(file: Module, modules: ReadonlyMap<string, Module>): Violati
   return found;
 }
 
-export function findStructureViolations(files: readonly SourceFile[]): Violation[] {
+// 第 7 条：值的导入不成环，只导入类型的边运行时不加载，不算。每个环报一次，记在路径最小的文件上。
+function valueCycles(modules: ReadonlyMap<string, Module>): Violation[] {
+  const order = new Map<string, number>();
+  const low = new Map<string, number>();
+  const stack: string[] = [];
+  const onStack = new Set<string>();
+  const found: Violation[] = [];
+  const visit = (path: string): void => {
+    order.set(path, order.size);
+    low.set(path, order.size - 1);
+    stack.push(path);
+    onStack.add(path);
+    for (const { target, typeOnly } of modules.get(path)?.edges ?? []) {
+      if (typeOnly || !modules.has(target)) continue;
+      if (!order.has(target)) visit(target);
+      if (onStack.has(target)) low.set(path, Math.min(low.get(path) ?? 0, low.get(target) ?? 0));
+    }
+    if (low.get(path) !== order.get(path)) return;
+    const members: string[] = [];
+    let member: string | undefined;
+    do {
+      member = stack.pop();
+      if (member === undefined) break;
+      onStack.delete(member);
+      members.push(member);
+    } while (member !== path);
+    const selfLoop = modules.get(path)?.edges.some((edge) => !edge.typeOnly && edge.target === path) ?? false;
+    if (members.length > 1 || selfLoop) {
+      const [first = path, ...rest] = members.sort();
+      found.push({ rule: 7, file: first, detail: `值的导入成环：${[first, ...rest].map((step) => step.replace(/^src\//, "")).join("、")}` });
+    }
+  };
+  for (const path of modules.keys()) if (!order.has(path)) visit(path);
+  return found;
+}
+
+// 第 9 条：每个模块都有 src/ 里的导入方，只导入类型的也算。包的入口、只给脚本读的文件、.d.ts 和放行表里的不查。
+function unimported(modules: ReadonlyMap<string, Module>, entries: ReadonlySet<string>): Violation[] {
+  const imported = new Set<string>();
+  for (const { path, edges } of modules.values()) {
+    for (const { target } of edges) if (target !== path) imported.add(target);
+  }
+  const orphans = [...modules.keys()]
+    .filter((path) => !imported.has(path) && !entries.has(path) && !(path in SCRIPT_ONLY) && !path.endsWith(".d.ts") && !(path in UNIMPORTED_ALLOWED))
+    .map((path): Violation => ({ rule: 9, file: path, detail: "src/ 里没有模块导入它：删掉，或者接进产品" }));
+  // 放行表里的模块接进了产品，这一条也要跟着删；文件删掉了的，结构测试另外查。
+  const stale = Object.keys(UNIMPORTED_ALLOWED)
+    .filter((path) => modules.has(path) && imported.has(path))
+    .map((path): Violation => ({ rule: 9, file: path, detail: "放行表里的这一条已经用不上，从放行表删掉" }));
+  return [...orphans, ...stale];
+}
+
+export interface StructureOptions {
+  /**
+   * 包的入口，从包清单算出来。给了才查第 9 条：要拿整棵 src/ 才查得了，样例只给几个文件时不给。
+   */
+  readonly entries?: ReadonlySet<string>;
+}
+
+export function findStructureViolations(files: readonly SourceFile[], options: StructureOptions = {}): Violation[] {
   const list = files.map(toModule);
   const modules = new Map(list.map((file) => [file.path, file]));
-  return list.flatMap((file) => [...checkFile(file), ...checkReach(file, modules)]);
+  return [
+    ...list.flatMap((file) => [...checkFile(file), ...checkReach(file, modules)]),
+    ...valueCycles(modules),
+    ...(options.entries ? unimported(modules, options.entries) : []),
+  ];
 }

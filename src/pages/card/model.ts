@@ -5,8 +5,7 @@
 import { computed, signal, type ReadonlySignal } from "@preact/signals";
 import { describe, type ErrorCode } from "../../core/errors.ts";
 import { fixedInSettings } from "../../core/errors/settings-codes.ts";
-import type { LearningAnalysis } from "../../core/notes/markdown.ts";
-import type { OverviewTranscriptBasis } from "../../core/notes/records.ts";
+import type { LearningAnalysis, OverviewTranscriptBasis } from "../../core/notes/records.ts";
 import type { TaskView } from "../../core/tasks.ts";
 import { parseVideoKey, videoKeyOrNull, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
 import type { GuidesFailure } from "../../shared/messages/transcript.ts";

@@ -4,7 +4,7 @@
 import { verdictLabelOf } from "../../../core/ai/verdict.ts";
 import type { ClearEpoch, ClearGuard } from "../../../core/clear-guard.ts";
 import { fail, ok, type ErrorCode, type Result } from "../../../core/errors.ts";
-import type { LearningVerdict } from "../../../core/notes/markdown.ts";
+import type { LearningVerdict } from "../../../core/notes/records.ts";
 import type { FrozenGen } from "../../../core/tasks.ts";
 import { officialFingerprint } from "../../../core/transcript/fingerprint.ts";
 import { hasOfficialContent, isOfficialDone, needsVideoInfo, type PacedOutcome, type ReadFailure, type VerdictRequest } from "../../../core/triage/batch.ts";

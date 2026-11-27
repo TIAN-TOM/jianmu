@@ -1,11 +1,11 @@
 // 一次模型调用的完整过程：校验配置、查能力、发送，以及空响应、截断、限流各自的自愈。
 import { dataConsentErrorText, dataConsentGiven } from "../../consent.ts";
+import { EFFORTS } from "../effort-level.ts";
 import { resolveCapabilities } from "../capabilities.ts";
 import {
   canRaiseBudget,
   createRelaxMemory,
   diagnoseEmptyResponse,
-  EFFORTS,
   hostOf,
   isTruncated,
   parseChatResponse,

@@ -7,7 +7,7 @@ import * as P from "../../../../src/core/ai/provider/index.ts";
 import type { AiSettings, ChatRequestBody, ClaudeCapabilities, EffortPlan, RelaxState } from "../../../../src/core/ai/provider/index.ts";
 import * as TRANSPORT from "../../../../src/core/ai/transport/index.ts";
 import type { AiFetch, TransportResponse } from "../../../../src/core/ai/transport/index.ts";
-import type { Effort } from "../../../../src/core/notes/records.ts";
+import { EFFORTS, type Effort } from "../../../../src/core/ai/effort-level.ts";
 import * as SETTINGS from "../../../../src/shared/settings-schema.ts";
 import { memoryStorage } from "../../../helpers/memory-storage.ts";
 
@@ -222,7 +222,7 @@ test("照样会思考的模型按低档留输出余量：关不掉思考又选�
     assert.deepEqual([plan.outputHeadroom, plan.timeoutSec], [low, 120], settings.aiModel);
   }
   // 设不了档位：不管选的哪档都按低档留，不按选的高档留。
-  for (const requested of P.EFFORTS) {
+  for (const requested of EFFORTS) {
     const plan = planFor(GATEWAY, requested);
     assert.equal(plan.note, "unknown", requested);
     assert.deepEqual([plan.outputHeadroom, plan.timeoutSec], [low, 120], requested);

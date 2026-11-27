@@ -1,6 +1,6 @@
 // 模型服务这几条消息的请求和回复：配置检查、拉模型列表、测试连接、推理强度预览（带最近一次的用量），以及让停着的打开就出结论恢复。回复里都不带密钥。
 import type { EffortNote, TokenUsage } from "../../core/ai/provider/index.ts";
-import type { Effort } from "../../core/notes/records.ts";
+import type { Effort } from "../../core/ai/effort-level.ts";
 import type { FeatureSlotId } from "../settings-schema.ts";
 import type { EmptyRequest } from "./core.ts";
 

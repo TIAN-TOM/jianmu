@@ -11,6 +11,7 @@ import {
   normalizeAnalysisFailures,
   noteList,
   videoIdOf,
+  type LearningAnalysis,
   type NoteFields,
   type NoteList,
 } from "./records.ts";
@@ -82,27 +83,6 @@ const textOf = (lang: OutputLang | undefined): MarkdownText => inLang(lang ?? "z
 /** 导出文件在视频没有标题时用的名字：笔记导出（notes）和学习稿（learning）各一个。 */
 export function markdownFallbackName(kind: "notes" | "learning", lang: OutputLang = "zh"): string {
   return kind === "notes" ? textOf(lang).fileNotes : textOf(lang).fileLearning;
-}
-
-export interface LearningVerdict {
-  readonly summary?: unknown;
-  readonly value?: unknown;
-  readonly verdict?: unknown;
-  readonly reason?: unknown;
-  readonly source?: unknown;
-  readonly incomplete?: unknown;
-  /** 重点章节的起始秒，只认和现有章节对得上的。 */
-  readonly keyStarts?: unknown;
-  /** 模型的正文被截断，靠补齐读出来：摘要或理由可能只有半句。 */
-  readonly truncated?: unknown;
-  /** 视频标题译成结论语言的样子，只有侧边栏顶上的标题用；导出照旧用原标题。 */
-  readonly translatedTitle?: unknown;
-}
-
-export interface LearningAnalysis {
-  readonly chapters?: readonly ChapterPart[] | null;
-  readonly keyQuotes?: readonly QuotePart[] | null;
-  readonly verdict?: LearningVerdict | null;
 }
 
 /** UP 主给视频划的一段。 */

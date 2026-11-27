@@ -3,7 +3,7 @@
 // 模块顶层只放字面量和函数。带变量的文案写成函数。
 import type { PresetId } from "../../core/ai/provider/endpoint.ts";
 import type { DataConsentKind } from "../../core/consent.ts";
-import type { Effort } from "../../core/notes/records.ts";
+import type { Effort } from "../../core/ai/effort-level.ts";
 import type { BackupImportReply } from "../../shared/messages/data.ts";
 import type { AccentTheme, AnalysisChunkMode, FeatureSlotId, ThemeMode } from "../../shared/settings-schema.ts";
 

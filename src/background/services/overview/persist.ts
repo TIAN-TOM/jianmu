@@ -5,11 +5,14 @@
 // 写入经仓储的清除闸门，等模型的工夫清除了本机数据就不写，按取消收尾。
 import type { FailureRange } from "../../../core/ai/chunking.ts";
 import type { ClearEpoch } from "../../../core/clear-guard.ts";
-import type { LearningAnalysis, LearningVerdict } from "../../../core/notes/markdown.ts";
 import {
+  AUTHOR_MAX,
   normalizeAnalysisFailures,
   OVERVIEW_RECORD_VERSION,
   overviewTranscriptBasis,
+  TITLE_MAX,
+  type LearningAnalysis,
+  type LearningVerdict,
   type OverviewPart,
   type OverviewRecord,
   type OverviewTranscriptBasis,
@@ -17,9 +20,6 @@ import {
 import type { VideoKey } from "../../../core/video-ref.ts";
 import { errorLabel, type Log } from "../../log.ts";
 import type { OverviewChange, OverviewStore } from "../../stores/overviews.ts";
-
-const TITLE_MAX = 500;
-const AUTHOR_MAX = 300;
 
 /** 清除过本机数据：这次不写，调用方按取消收尾。 */
 export const CLEARED = Symbol("cleared");

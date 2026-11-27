@@ -3,7 +3,7 @@
 import type { ErrorCode, Result } from "../core/errors.ts";
 import type { SessionView } from "../core/mode/types.ts";
 import type { LanguageSetting } from "../core/output-lang.ts";
-import type { LearningAnalysis } from "../core/notes/markdown.ts";
+import type { LearningAnalysis } from "../core/notes/records.ts";
 import type { TaskView } from "../core/tasks.ts";
 import type { Platform, VideoKey } from "../core/video-ref.ts";
 import type { AiApi, AutoPauseReason } from "./messages/ai.ts";

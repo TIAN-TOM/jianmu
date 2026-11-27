@@ -1,7 +1,7 @@
 // 传输层对外的形状：注入的依赖、入参、结果和错误。
 import type { StoredDataConsent } from "../../consent.ts";
 import type { OutputLang } from "../../output-lang.ts";
-import type { Effort } from "../../notes/records.ts";
+import type { Effort } from "../effort-level.ts";
 import type {
   AiSettings,
   ChatRequest,

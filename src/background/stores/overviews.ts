@@ -1,14 +1,10 @@
 // 概览仓储：每个视频一条，不随字幕缓存过期。生成、补块、补存和导入都写这里，
 // 都排在同一条写队列上；要先读再写的用 update、updateRecord，读和写一次做完。
 import type { ClearGuard } from "../../core/clear-guard.ts";
-import type { LearningAnalysis } from "../../core/notes/markdown.ts";
-import { normalizeAnalysisFailures, OVERVIEW_RECORD_VERSION, type OverviewRecord } from "../../core/notes/records.ts";
+import { AUTHOR_MAX, normalizeAnalysisFailures, OVERVIEW_RECORD_VERSION, TITLE_MAX, type LearningAnalysis, type OverviewRecord } from "../../core/notes/records.ts";
 import { parseVideoKey, type VideoKey } from "../../core/video-ref.ts";
 import type { ObjectStoreDriver } from "../../platform/idb.ts";
 import { createWriteGate, type WriteOptions } from "./write-gate.ts";
-
-const TITLE_MAX = 500;
-const AUTHOR_MAX = 300;
 
 export interface OverviewFields {
   readonly videoKey: VideoKey;

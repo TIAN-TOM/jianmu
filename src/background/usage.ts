@@ -1,6 +1,7 @@
 // 每项功能最近一次模型请求服务回报的用量，设置页「推理强度」一节显示。只记数字和当时的模型、实际按的档位，
 // 不记请求和回复的内容，也不记密钥。放在会话存储里：后台被回收以后还在，关掉浏览器就没了；不进备份，两种清除都清掉。
-import { isEffort, type EffortNote, type TokenUsage } from "../core/ai/provider/index.ts";
+import { isEffort } from "../core/ai/effort-level.ts";
+import type { EffortNote, TokenUsage } from "../core/ai/provider/index.ts";
 import type { ClearEpoch, ClearGuard } from "../core/clear-guard.ts";
 import type { StorageArea } from "../platform/storage.ts";
 import type { LastUsageView } from "../shared/messages/ai.ts";

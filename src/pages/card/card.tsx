@@ -1,7 +1,7 @@
 // 播放页卡片。头部的更多操作和生成进度在滚动正文上方，展开收起沿用框架的高度上报。
 import type { ComponentChildren, RefObject } from "preact";
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
-import type { LearningAnalysis } from "../../core/notes/markdown.ts";
+import type { LearningAnalysis } from "../../core/notes/records.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
 import type { OfficialSummaryView, OutlineSectionView } from "../../shared/messages/transcript.ts";
 import { keyChapterStarts, type VerdictRating } from "../../core/ai/verdict.ts";

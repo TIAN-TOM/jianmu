@@ -5,7 +5,7 @@ import type { TaskView } from "../../core/tasks.ts";
 import type { VideoKey } from "../../core/video-ref.ts";
 import type { OverviewResultView } from "../../shared/messages/overview.ts";
 import type { PageApi } from "../shared/api.ts";
-import type { CardView } from "./model.ts";
+import type { CardView } from "./view.ts";
 
 /** 这会儿能不能摆「用官方总结写结论」：官方总结读到了、AI 服务设置好了、没有在跑的任务、还没有一句话结论。 */
 export function canWriteFromOfficial(view: CardView, aiReady: boolean | null): boolean {

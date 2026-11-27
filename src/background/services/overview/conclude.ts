@@ -7,7 +7,7 @@ import { VERDICT } from "../../../core/ai/schemas.ts";
 import { taskCanceledError, throwIfTaskCanceled } from "../../../core/ai/transport/index.ts";
 import { validateVerdict, verdictInputs, type CoverageGap, type Verdict, type VerdictAnalysis } from "../../../core/ai/verdict.ts";
 import type { Limiter } from "../../../core/concurrency.ts";
-import type { LearningAnalysis } from "../../../core/notes/markdown.ts";
+import type { LearningAnalysis } from "../../../core/notes/records.ts";
 import type { OutputLang } from "../../../core/output-lang.ts";
 import { formatTimestamp } from "../../../core/transcript/segment.ts";
 import { errorLabel, type Log } from "../../log.ts";
