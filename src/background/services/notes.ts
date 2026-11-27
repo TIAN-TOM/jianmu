@@ -22,6 +22,7 @@ import { errorLabel, type Log } from "../log.ts";
 import type { NoteStore, NoteView } from "../stores/notes.ts";
 import { promptMessages } from "./overview/chunks.ts";
 import type { TranscriptService } from "./transcript/index.ts";
+import { captionsInPage } from "../../sites/rules.ts";
 
 export const NOTE_PROMPT = "study/note-polish.md";
 export const NOTE_TEXT_MAX = 3000;
@@ -108,7 +109,7 @@ export function createNotesService(deps: NotesServiceDeps): NotesService {
   }
 
   async function sourceOf(ref: VideoRef): Promise<Result<Source>> {
-    if (ref.platform === "youtube") return localSource(ref);
+    if (captionsInPage(ref.platform)) return localSource(ref);
     const snapshot = await deps.transcript.ensure(ref);
     return snapshot.ok ? ok({ view: snapshot.value.view }) : bare(snapshot);
   }

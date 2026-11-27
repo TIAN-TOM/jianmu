@@ -15,7 +15,7 @@ const ADD = { video: VIDEO, fileName: "课程.srt", text: SRT };
 
 function appOn(script: Partial<SiteScript> = {}, options: FakeChromeOptions = {}, platform: "bilibili" | "youtube" = "bilibili") {
   const fakeSite = fakeSiteService(script);
-  const site = platform === "bilibili" ? fakeSite : { ...fakeSite, service: { ...fakeSite.service, rules: { ...fakeSite.service.rules, platform } } };
+  const site = platform === "bilibili" ? fakeSite : { ...fakeSite, service: { ...fakeSite.service, rules: { ...fakeSite.service.rules, platform, captions: "page" as const } } };
   const fake = createFakeChrome({ local: { [SETTINGS_STORAGE_KEY]: CONFIRMED }, site: site.service, ...options });
   const app = createApp(fake.deps({ warn() {}, error() {} }));
   const send = (type: string, req: unknown, sender: MessageSender = senders.panel()) => app.dispatch({ type, req }, sender);

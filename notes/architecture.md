@@ -268,6 +268,7 @@ type R<T> = Promise<SiteResult<T>>;
 
 export interface SiteRules {                 // 纯函数，后台、页面、内容脚本共用
   platform: Platform; optionalPermission: boolean;          // B 站 false；YouTube true
+  captions: "service" | "page";   // 字幕由谁读：B 站是后台自己读；YouTube 是用户点了才经视频页读，后台不为它自己去读。调用方经 sites/rules.ts 的函数问这项能力，不按站名分支；没登记的站按经页面读算
   parseWatchUrl(url: string): VideoRef | null;              // 只认首发支持的页面
   canonicalUrl(ref: VideoRef, atSec?: number): string;
 }

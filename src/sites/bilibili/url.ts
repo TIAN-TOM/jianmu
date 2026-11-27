@@ -128,6 +128,7 @@ export function trackName(trackId: string, lang: OutputLang, kind?: CaptionKind)
 export const bilibiliRules: SiteRules = {
   platform: "bilibili",
   optionalPermission: false,
+  captions: "service",
   parseWatchUrl,
   canonicalUrl,
   permissionOrigins: [],

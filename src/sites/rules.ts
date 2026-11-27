@@ -7,3 +7,11 @@ import { youtubeRules } from "./youtube/url.ts";
 export const siteRules: Readonly<Partial<Record<Platform, SiteRules>>> = FEATURE_YOUTUBE
   ? { bilibili: bilibiliRules, youtube: youtubeRules }
   : { bilibili: bilibiliRules };
+
+/**
+ * 这个平台的字幕是不是要用户点了才经视频页读。调用方只经这里问，不按站名分支。
+ * 没登记的平台按经页面读算：后台不为它自己去读，这是最保守的答案。rules 不传时用全局的规则表，测试可以注入替身。
+ */
+export function captionsInPage(platform: Platform, rules: readonly SiteRules[] = Object.values(siteRules)): boolean {
+  return rules.find((rule) => rule.platform === platform)?.captions !== "service";
+}

@@ -13,6 +13,7 @@ import type { KeepAlive } from "../../../platform/keepalive.ts";
 import type { WindowTab } from "../../../platform/tabs.ts";
 import type { WindowCountItem, WindowEntryStatus, WindowEntryView, WindowOut, WindowRunView } from "../../../shared/messages/batch.ts";
 import type { OverviewResultView } from "../../../shared/messages/overview.ts";
+import { captionsInPage } from "../../../sites/rules.ts";
 import type { SiteRules } from "../../../sites/types.ts";
 import type { AiWiring } from "../../ai.ts";
 import { errorLabel, type Log } from "../../log.ts";
@@ -120,8 +121,8 @@ export function createWindowBatch(deps: WindowBatchDeps): WindowBatch {
   }
 
   const cleared = (since: ClearEpoch | undefined): boolean => deps.guard.clearedSince(since, "cache");
-  /** 要经页面读字幕的站：B 站以外的都是。 */
-  const inPage = (platform: Platform): boolean => platform !== "bilibili";
+  /** 要经页面读字幕的站：按注入的地址规则问，没登记的站也算。 */
+  const inPage = (platform: Platform): boolean => captionsInPage(platform, rules);
 
   /**
    * 读一项的字幕。经页面读的站找到视频所在的标签页去读，页面还没准备好时隔一会儿再问，问够了报暂时读不了；
