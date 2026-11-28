@@ -2,9 +2,10 @@
 import type { ComponentChildren, RefObject } from "preact";
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { LearningAnalysis } from "../../core/notes/records.ts";
+import type { OutlineSection } from "../../core/transcript/outline.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
 import { trimmedOrEmpty } from "../../shared/guards.ts";
-import type { OfficialSummaryView, OutlineSectionView } from "../../shared/messages/transcript.ts";
+import type { OfficialSummaryView } from "../../shared/messages/transcript.ts";
 import { keyChapterStarts, type VerdictRating } from "../../core/ai/verdict.ts";
 import type { ChapterItem } from "../shared/ui/chapter-list.tsx";
 import { Collapse } from "../shared/ui/collapse.tsx";
@@ -47,7 +48,7 @@ function TimeCell({ atSec, onSeek }: { readonly atSec: number | null; readonly o
   );
 }
 
-function OutlineItem({ part, index, onSeek }: { readonly part: OutlineSectionView; readonly index: number; readonly onSeek: (atSec: number) => void }) {
+function OutlineItem({ part, index, onSeek }: { readonly part: OutlineSection; readonly index: number; readonly onSeek: (atSec: number) => void }) {
   const title = part.title.trim() || cardText().section(index + 1);
   const points = part.points.filter((point) => point.content.trim());
   return (

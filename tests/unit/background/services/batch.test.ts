@@ -296,6 +296,50 @@ test("第二步：只发模型请求，不向平台读；结论跟着概览存�
   assert.equal(tab.last("triage.done")?.done, 2);
 });
 
+/** 取完官方总结以后把存下的提纲换成给定的，再走第二步，交回写结论拿到的材料和发给模型的请求。 */
+async function verdictWithStoredOutline(outline: unknown, summary = "官方摘要") {
+  const site = fakeSiteService({
+    watchLater: () => ({ ok: true, value: { total: 1, dropped: 0, items: [listItem(ids[0])] } }),
+    officialSummary: officialOk,
+  });
+  const { service, harness, storage, page, materials } = setup({ site, respond: (ask) => (ask.isVerdict ? verdictReply("讲了一件事", 1) : undefined) });
+  const tab = page("p1");
+  await service.handle({ type: "triage.start", step: "list" }, tab.listener);
+  await service.handle({ type: "triage.start", step: "official" }, tab.listener);
+  const stored = storage.data[STORAGE_KEY] as { official: Record<string, Record<string, unknown>> };
+  const record = stored.official[keyOf(ids[0])];
+  assert.ok(record?.fingerprint, "官方总结存下了，带着指纹");
+  Object.assign(record, { outline, summary });
+  await service.handle({ type: "triage.start", step: "verdict" }, tab.listener);
+  assert.equal(materials.length, 1);
+  return { reply: await materials[0]!(refOf(ids[0])), asks: harness.verdictAsks() };
+}
+
+test("第二步：粗筛存的提纲读回时先核对，形状不对的段丢掉，不进写结论的材料", async () => {
+  const good = { title: "样例好段", timestamp: 10, points: [{ timestamp: 12, content: "样例好要点" }] };
+  const bad = [
+    null,
+    "样例散字",
+    { title: 7, timestamp: 1, points: [] },
+    { title: "样例坏起点", timestamp: "30", points: [] },
+    { title: "样例缺要点", timestamp: null },
+    { title: "样例坏要点", timestamp: null, points: [{ content: "缺起点" }] },
+  ];
+  const { reply, asks } = await verdictWithStoredOutline([bad[0], good, ...bad.slice(1)]);
+  assert.equal(reply.ok, false);
+  assert.deepEqual(reply.ok ? null : reply.official?.outline, [good]);
+  assert.equal(asks.length, 1);
+  const request = JSON.stringify(asks[0]!.request);
+  assert.ok(request.includes("样例好段"), "合法的段进了请求");
+  for (const title of ["样例坏起点", "样例缺要点", "样例坏要点"]) assert.ok(!request.includes(title), `${title}没进请求`);
+});
+
+test("第二步：粗筛存的提纲全不合法、摘要也空着时，按没有官方总结处理，不发模型请求", async () => {
+  const { reply, asks } = await verdictWithStoredOutline([{ title: "样例缺要点", timestamp: null }, null], "");
+  assert.equal(reply.ok ? null : reply.code, "NO_OFFICIAL_SUMMARY");
+  assert.equal(asks.length, 0);
+});
+
 test("第二步：页面都关了撤掉还在排队的；已经发出的那次照常收尾、存下，收尾前再点回正在收尾，之后不重发", async () => {
   const site = fakeSiteService({
     watchLater: () => ({ ok: true, value: { total: 3, dropped: 0, items: ids.slice(0, 3).map((id) => listItem(id)) } }),
