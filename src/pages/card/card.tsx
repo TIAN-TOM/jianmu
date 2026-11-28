@@ -8,6 +8,8 @@ import { trimmedOrEmpty } from "../../shared/guards.ts";
 import type { OfficialSummaryView } from "../../shared/messages/transcript.ts";
 import { keyChapterStarts, type VerdictRating } from "../../core/ai/verdict.ts";
 import type { ChapterItem } from "../shared/ui/chapter-list.tsx";
+import { cardPanelText } from "../shared/card-panel-text.ts";
+import { sharedText } from "../shared/text.ts";
 import { Collapse } from "../shared/ui/collapse.tsx";
 import { CommentFold, commentViewOfVerdict } from "../shared/ui/comment-block.tsx";
 import { Icon } from "../shared/ui/icon.tsx";
@@ -38,7 +40,7 @@ function TimeCell({ atSec, onSeek }: { readonly atSec: number | null; readonly o
     <>
       <span class="key-play" aria-hidden="true" />
       {validTime(atSec) ? (
-        <button type="button" class="chapter-time" aria-label={cardText().jumpTo(formatTimestamp(atSec))} onClick={() => onSeek(atSec)}>
+        <button type="button" class="chapter-time" aria-label={sharedText().jumpTo(formatTimestamp(atSec))} onClick={() => onSeek(atSec)}>
           {formatTimestamp(atSec)}
         </button>
       ) : (
@@ -179,10 +181,11 @@ function Overview({
 
 function progressText(task: TaskProgress, pending: CardView["verdictPending"]): string {
   const t = cardText();
+  const shared = cardPanelText();
   if (task.canceling) return t.stopping;
-  if (task.verdict) return t.writingVerdict;
+  if (task.verdict) return shared.overview.writingVerdict;
   const fallback = task.total > 0 ? t.chunksDone(task.done, task.total) : typeof pending === "string" ? pending : "";
-  const text = pending === true ? t.writingVerdict : task.message || fallback;
+  const text = pending === true ? shared.overview.writingVerdict : task.message || fallback;
   if (task.auto) return text ? t.auto(text) : t.autoStarting;
   return text || t.preparing;
 }
@@ -228,8 +231,9 @@ function RegenerateConfirm({ onConfirm, onCancel }: { readonly onConfirm: (event
   const cancel = useRef<HTMLButtonElement>(null);
   useLayoutEffect(() => cancel.current?.focus(), []);
   const t = cardText();
+  const shared = cardPanelText();
   return (
-    <div class="card-confirm" id="card-regenerate-confirm" role="group" aria-label={t.regenerate}>
+    <div class="card-confirm" id="card-regenerate-confirm" role="group" aria-label={shared.overview.regenerate}>
       <p class="card-confirm-note">{t.regenerateCost}</p>
       <div class="card-confirm-buttons">
         <button type="button" class="button" data-variant="text" ref={cancel} onClick={onCancel}>
@@ -326,6 +330,7 @@ export function Card({
   const analysis = view.analysis && (view.analysis.verdict || withOverview || view.verdictPending) ? view.analysis : null;
   const official = view.official?.status === "ok" ? view.official : null;
   const t = cardText();
+  const shared = cardPanelText();
   const officialNotes: Readonly<Partial<Record<OfficialSummaryView["status"], string>>> = t.officialNotes;
   // 没登录时上面已经说了要登录，官方总结那块不再重复。
   const officialNote = view.official && view.phase === "loaded" && !(view.needLogin && view.official.status === "need-login") ? (officialNotes[view.official.status] ?? "") : "";
@@ -386,7 +391,7 @@ export function Card({
             <>
               {canRedo && !view.holdActions ? (
                 <button type="button" id="card-regenerate" ref={regenerateButton} onClick={actions.askRegenerate}>
-                  {t.regenerate}<small>{t.regenerateNote}</small>
+                  {shared.overview.regenerate}<small>{t.regenerateNote}</small>
                 </button>
               ) : null}
               {withOverview && official ? (
@@ -415,8 +420,8 @@ export function Card({
           {showStart ? (
             <div class="card-offer" id="card-start">
               {needsSetup ? <span class="card-note" id="card-setup">{setupHint}</span> : null}
-              {showGenerate ? <button type="button" class="button" data-variant="primary" id="card-generate" onClick={actions.generate}>{t.generate}</button> : null}
-              {showSettings ? <button type="button" class="button" data-variant={needsSetup ? "primary" : "secondary"} id="card-settings" onClick={actions.openSettings}>{t.openSettings}</button> : null}
+              {showGenerate ? <button type="button" class="button" data-variant="primary" id="card-generate" onClick={actions.generate}>{shared.overview.generate}</button> : null}
+              {showSettings ? <button type="button" class="button" data-variant={needsSetup ? "primary" : "secondary"} id="card-settings" onClick={actions.openSettings}>{shared.openSettings}</button> : null}
               {officialLink}
             </div>
           ) : null}
@@ -451,7 +456,7 @@ export function Card({
           ) : null}
           {canRedo && view.failedParts > 0 ? (
             <p class="card-note" id="card-failed-parts">
-              {t.failedParts}{" "}<button type="button" class="card-link" onClick={actions.retryFailed}>{t.retryFailed}</button>
+              {shared.overview.failedParts}{" "}<button type="button" class="card-link" onClick={actions.retryFailed}>{shared.overview.retryFailed}</button>
             </p>
           ) : null}
           {(view.phase === "loaded" && aiReady === true && view.canAsk) || ask.phase !== "idle" ? <CardAskBox state={ask} onAsk={actions.ask} onCancel={actions.cancelAsk} onSeek={actions.seek} /> : null}

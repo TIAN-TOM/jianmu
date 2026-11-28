@@ -22,9 +22,9 @@ import { formatTimestamp } from "../../core/transcript/segment.ts";
 import { parseVideoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
 import type { Broadcast } from "../../shared/messages.ts";
 import type { FrameCapture, FrameRefusal } from "../../shared/messages/content.ts";
+import type { ConfigCheckView } from "../../shared/messages/ai.ts";
 import type { FrameEntryView } from "../../shared/messages/frame.ts";
 import type { CueView, TranscriptView } from "../../shared/messages/transcript.ts";
-import { DATA_CONSENT_ERROR } from "../../core/consent.ts";
 import { FRAME_PROMPT_FILE } from "../../shared/frame-slot.ts";
 import { aiFailure, type AiWiring } from "../ai.ts";
 import { FRAME_RESULTS_KEY } from "../../shared/names.ts";
@@ -110,8 +110,8 @@ export function frameContext(cues: readonly Pick<CueView, "start" | "text">[], a
 }
 
 // 配置没好的两种：没同意数据说明、别的设置没填好。在截帧之前就拦下。
-export function configFailure(errors: readonly string[]): Failure {
-  return errors.includes(DATA_CONSENT_ERROR) ? fail("NO_DATA_CONSENT") : fail("NO_AI_CONFIG", errors.join(" ") || undefined);
+export function configFailure({ errors, needsConsent }: Pick<ConfigCheckView, "errors" | "needsConsent">): Failure {
+  return needsConsent ? fail("NO_DATA_CONSENT") : fail("NO_AI_CONFIG", errors.join(" ") || undefined);
 }
 
 interface Material {
@@ -317,7 +317,7 @@ export function createFrameExplainService(deps: FrameExplainDeps): FrameExplainS
     const since = deps.clearGuard.epoch();
     const canceled = (): boolean => deps.clearGuard.clearedSince(since, "cache");
     const config = await deps.ai.configCheck();
-    if (!config.ready) return failed(id, configFailure(config.errors));
+    if (!config.ready) return failed(id, configFailure(config));
     const gen = await deps.ai.freeze("frame");
     // 不能看图就不截、不发。说不准时发一张 8×8 的图探一次，结果记在本机。
     const image = requireImage(await deps.images.ensure(gen));

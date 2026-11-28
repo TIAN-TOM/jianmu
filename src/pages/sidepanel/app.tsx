@@ -28,6 +28,7 @@ import { trackLabel } from "./files.ts";
 import { FrameButton, FrameResults } from "./frame-view.tsx";
 import { YoutubeNoVideo } from "./youtube-gate.tsx";
 import { setupNotice } from "../shared/config.ts";
+import { cardPanelText } from "../shared/card-panel-text.ts";
 import { sharedText } from "../shared/text.ts";
 import { uiLang } from "../shared/ui-lang.ts";
 import { panelText } from "./text.ts";
@@ -86,7 +87,7 @@ function Header({ panel }: { readonly panel: Panel }) {
         <h1 class="video-title" title={translated ? original : title}>
           {title}
         </h1>
-        <IconButton icon="settings" label={t.openSettings} onClick={panel.openOptions} />
+        <IconButton icon="settings" label={cardPanelText().openSettings} onClick={panel.openOptions} />
       </div>
       <div class="video-meta">
         {info?.author ? <span>{info.author}</span> : null}
@@ -144,7 +145,7 @@ function AskBox({ panel }: { readonly panel: Panel }) {
   return (
     <>
       <form class="ask-entry" onSubmit={submit}>
-        <input class="search-input" type="text" aria-label={t.dock.ask} placeholder={t.qa.placeholder} value={question} onInput={(event) => (panel.draft.value = event.currentTarget.value)} />
+        <input class="search-input" type="text" aria-label={cardPanelText().ask.label} placeholder={t.qa.placeholder} value={question} onInput={(event) => (panel.draft.value = event.currentTarget.value)} />
       </form>
       <IconButton icon="task" label={t.dock.history} onClick={open} />
     </>
@@ -203,7 +204,7 @@ function notices(panel: Panel): (NoticeEntry | null)[] {
       : null,
     now.state === "ready" && now.view.subtitleMismatch ? { id: "mismatch", priority: 2, text: errorCopy("SUBTITLE_MISMATCH", undefined, uiLang.value).cause, tone: "warn" } : null,
     config.state === "checked" && !config.view.ready
-      ? { id: "config", priority: 3, text: setupNotice(config, uiLang.value), tone: "plain", action: { label: p.openSettings, run: () => panel.openSettingsAt("ai-service") } }
+      ? { id: "config", priority: 3, text: setupNotice(config, uiLang.value), tone: "plain", action: { label: cardPanelText().openSettings, run: () => panel.openSettingsAt("ai-service") } }
       : null,
     FEATURE_KEEP_CONSENT ? carriedNotice(panel) : null,
     config.state === "checked" && config.view.autoPaused
@@ -215,7 +216,7 @@ function notices(panel: Panel): (NoticeEntry | null)[] {
           // 额度用完、本机服务拒绝：用户自己决定什么时候接着花额度，点「恢复」就接着做。密钥被拒：去设置页改，保存以后后台自己恢复。
           action:
             config.view.autoPaused === "key"
-              ? { label: p.openSettings, run: () => panel.openSettingsAt("ai-service") }
+              ? { label: cardPanelText().openSettings, run: () => panel.openSettingsAt("ai-service") }
               : { label: sharedText().autoPaused.resume, run: () => void panel.resumeAuto() },
         }
       : null,

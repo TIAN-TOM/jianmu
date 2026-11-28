@@ -14,6 +14,8 @@ export interface ConfigCheckView {
   readonly autoPaused?: AutoPauseReason;
   /** 没设置好、只差一样时是哪一样：页面据此直接说该补什么。 */
   readonly missing?: "key" | "consent";
+  /** 没同意当前的数据说明，不管还缺不缺别的：后台据此报「没同意」而不是「没设置好」。只在没同意时带。 */
+  readonly needsConsent?: true;
 }
 
 export interface ModelListView {

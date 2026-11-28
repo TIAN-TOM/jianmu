@@ -163,7 +163,7 @@ test("配置没好、没同意数据说明、模型不能看图：都不截、�
   assert.deepEqual([first.state, first.error?.code], ["failed", "NO_AI_CONFIG"]);
   assert.equal(unset.ensured(), 0);
 
-  const consent = setup({ ai: { config: { ready: false, errors: [DATA_CONSENT_ERROR] } } });
+  const consent = setup({ ai: { config: { ready: false, errors: [DATA_CONSENT_ERROR], missing: "consent", needsConsent: true } } });
   assert.equal((await consent.run()).error?.code, "NO_DATA_CONSENT");
 
   const blind = setup({ image: ok({ imageInput: false }) });

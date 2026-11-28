@@ -41,10 +41,12 @@ import { WIRING_HANT } from "./ai-hant.ts";
 import type { ClearGuard } from "../core/clear-guard.ts";
 import { fail, ok, type Failure, type Result } from "../core/errors.ts";
 import { AI_ERROR_TEXT, type AiErrorCode } from "../core/errors/ai.ts";
+import { dataConsentGiven } from "../core/consent.ts";
 import type { Effort } from "../core/ai/effort-level.ts";
 import { inLang, outputLangOf, resolveOutputLang, type OutputLang } from "../core/output-lang.ts";
 import { sha256Hex } from "../core/task-keys.ts";
 import { budgetEffort, type FrozenGen } from "../core/tasks.ts";
+import { keepAliveBudget } from "../platform/keepalive.ts";
 import type { Permissions } from "../platform/permissions.ts";
 import { FRAME_PROMPT_FILE } from "../shared/frame-slot.ts";
 import type { LoadedSettings, SettingsStore } from "../platform/settings-store.ts";
@@ -178,9 +180,21 @@ export function aiFailure(error: unknown, lang: OutputLang): Failure {
   return said ? { ...failure, said } : failure;
 }
 
-// 硬超时随档位放宽，和任务的保活预算用同一张表；关和低档用设置规则里的默认值。
-function taskTimeoutMs(effort: Effort): number | undefined {
-  return EFFORT_TIMEOUT_SECONDS[effort] > EFFORT_TIMEOUT_SECONDS.off ? EFFORT_TIMEOUT_SECONDS[effort] * 1000 : undefined;
+type BudgetGen = Pick<FrozenGen, "effort" | "requestedEffort">;
+
+/** 任务每次模型请求的硬超时：按选的和实际的两档中高的那档查档位表。 */
+function hardTimeoutMs(gen: BudgetGen): number {
+  return EFFORT_TIMEOUT_SECONDS[budgetEffort(gen)] * 1000;
+}
+
+/** 一个任务的保活预算，由它的硬超时推出来；任务运行器和笔记润色都用这一个。 */
+export function taskKeepAliveMs(gen: BudgetGen): number {
+  return keepAliveBudget(hardTimeoutMs(gen));
+}
+
+// 传给传输层的硬超时：中档以上按档位放宽，关和低档不传，用设置规则里的默认值。
+function taskTimeoutMs(gen: BudgetGen): number | undefined {
+  return EFFORT_TIMEOUT_SECONDS[budgetEffort(gen)] > EFFORT_TIMEOUT_SECONDS.off ? hardTimeoutMs(gen) : undefined;
 }
 
 // 冻结的地址和现在的对不上：密钥属于现在的地址，按冻结的地址取不到，按配置错误收尾。
@@ -319,11 +333,14 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
   return {
     async configCheck() {
       const settings = await load();
-      const { ok: ready, errors } = rules.validate(settings, "zh");
+      // 提示按界面语言写；缺的是什么直接看设置，不认提示的文字。
+      const { ok: ready, errors } = rules.validate(settings, resolveOutputLang(settings.language, uiLanguage()));
       if (ready) return { ready, errors: [...errors] };
+      const needsConsent = !dataConsentGiven(rules.normalize(settings), rules);
       // 只缺密钥：补上一个密钥就够了，说明服务商、模型和同意都在，是以前配好过的。本机服务不要密钥，不会落到这里。
-      const missing = rules.validate({ ...settings, aiApiKey: "-" }, "zh").ok ? "key" : errors.length === 1 && errors[0] === rules.dataConsentError ? "consent" : null;
-      return missing ? { ready, errors: [...errors], missing } : { ready, errors: [...errors] };
+      // 只缺同意：没同意，而且提示只有这一条。
+      const missing = rules.validate({ ...settings, aiApiKey: "-" }, "zh").ok ? "key" : needsConsent && errors.length === 1 ? "consent" : null;
+      return { ready, errors: [...errors], ...(missing ? { missing } : {}), ...(needsConsent ? { needsConsent } : {}) };
     },
     requestAiCompletion: (request) => transport.requestAiCompletion(request),
     async freeze(feature) {
@@ -346,7 +363,7 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
       const since = clearGuard.epoch();
       const onUsage = (usage: TokenUsage, sent: Pick<EffortPlan, "effective" | "note">): void =>
         void usageLog.record(frozen.feature, { model: frozen.model, effort: sent.effective, ...(sent.note ? { note: sent.note } : {}), usage }, since);
-      const bound = build(async () => frozenSettings(await load(), frozen), taskTimeoutMs(budgetEffort(frozen)), onUsage);
+      const bound = build(async () => frozenSettings(await load(), frozen), taskTimeoutMs(frozen), onUsage);
       // 重试时的进度和报错默认按冻结的语言写，服务没传 lang 也不会在英文、繁体界面里露出简体。
       return { requestAiCompletion: (request) => bound.requestAiCompletion({ lang: outputLangOf(frozen), ...request, feature: frozen.feature, effort }) };
     },

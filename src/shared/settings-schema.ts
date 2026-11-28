@@ -428,7 +428,7 @@ export function validateForSave(settings: unknown, lang: OutputLang): SettingsCh
 
 /**
  * 配置是否足以发起一次 AI 请求。设置页和后台共用同一套判断。本机地址的服务通常不要密钥，可以不填。
- * errors 按 lang 写；后台按中文的 DATA_CONSENT_ERROR 认出是同意的问题，要认的地方传简体。
+ * errors 按 lang 写，只给用户看；要知道是不是没同意，看 dataConsentGiven，不认这里的文字。
  */
 export function validate(settings: unknown, lang: OutputLang): SettingsCheck {
   const normalized = normalize(settings);
