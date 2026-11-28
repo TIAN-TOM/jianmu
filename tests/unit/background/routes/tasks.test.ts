@@ -109,6 +109,19 @@ test("取消只收一个任务号：多带字段、空串、太长的都不处�
   assert.deepEqual(await app.dispatch({ type: "task.cancel", req: { taskId: "missing" } }, senders.panel()), { ok: false, code: "TASK_NOT_FOUND" });
 });
 
+test("登记概览只按种类和视频算等价：请求里带不进生成、重新生成、补失败块的区别，侧边栏的任务跑着时卡片再登记就接上它", async () => {
+  const { app, start } = appOn();
+  for (const extra of [{ fresh: true }, { retry: true }, { ranges: [[0, 150]] }]) {
+    assert.deepEqual(await app.dispatch({ type: "task.start", req: { kind: "overview", video: VIDEO, ...extra } }, senders.panel()), { ok: false, code: "INVALID_REQUEST" }, JSON.stringify(extra));
+  }
+  const panel = await start(VIDEO, senders.panel());
+  const card = await start(VIDEO);
+  assert.ok(panel.ok && card.ok);
+  assert.equal(card.value.joined, true, "卡片这次不管想重新生成还是补块，都接上侧边栏那个任务");
+  assert.equal(card.value.task.id, panel.value.task.id);
+  assert.equal(card.value.token, undefined, "接上的不换令牌，卡片只跟着进度，不再开始");
+});
+
 test("令牌用一次就作废，过了认领时限也作废，认不出的换不到任务", () => {
   let clock = 0;
   let next = 0;

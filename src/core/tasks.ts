@@ -7,7 +7,7 @@ import type { VideoKey } from "./video-ref.ts";
 export type TaskState = "running" | "completed" | "failed" | "canceled";
 
 /** 后台登记的任务种类。页面按它显示进度、决定跟不跟。 */
-export type TaskKind = "overview" | "verdict" | "translate" | "qa" | "explain" | "frame-explain" | "triage-verdict" | "batch";
+export type TaskKind = "overview" | "verdict" | "translate" | "qa" | "explain" | "frame-explain" | "triage-verdict";
 
 /** 谁发起的：用户在侧边栏或扩展页面、播放页卡片、自动生成、批量处理。 */
 export type TaskOrigin = "user" | "card" | "auto" | "batch";

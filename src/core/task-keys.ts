@@ -21,7 +21,6 @@ export const TASK_KEY_RULES: Readonly<Record<TaskKind, TaskKeyRule>> = {
   explain: { mutexScope: "none", holdsKeyAfterCancel: false },
   "frame-explain": { mutexScope: "none", holdsKeyAfterCancel: false },
   "triage-verdict": { mutexScope: "video", holdsKeyAfterCancel: true },
-  batch: { mutexScope: "video", holdsKeyAfterCancel: true },
 };
 
 /** 任务管理器里的种类是字符串：认不出的种类按不占键算。 */

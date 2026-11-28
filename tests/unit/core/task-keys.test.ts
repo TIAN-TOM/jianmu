@@ -27,7 +27,6 @@ test("每种任务的互斥方式和取消后占不占键", () => {
     explain: { mutexScope: "none", holdsKeyAfterCancel: false },
     "frame-explain": { mutexScope: "none", holdsKeyAfterCancel: false },
     "triage-verdict": { mutexScope: "video", holdsKeyAfterCancel: true },
-    batch: { mutexScope: "video", holdsKeyAfterCancel: true },
   });
   for (const kind of ["analysis", "constructor", "toString", ""]) assert.equal(kindHoldsKeyAfterCancel(kind), false, kind);
 });
