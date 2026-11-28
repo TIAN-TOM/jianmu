@@ -1,11 +1,12 @@
 // 站点适配层的契约，后台和内容脚本共用，不带 DOM 类型。
 import type { SiteErrorCode, SiteFailureReach } from "../core/errors/site.ts";
 import type { OutputLang } from "../core/output-lang.ts";
+import type { OutlineSection } from "../core/transcript/outline.ts";
 import type { CaptionKind } from "../core/transcript/sources.ts";
 import type { TriageItem } from "../core/triage/state.ts";
 import type { ChannelRef, Platform, VideoRef } from "../core/video-ref.ts";
 
-export type { CaptionKind, SiteErrorCode, SiteFailureReach };
+export type { CaptionKind, OutlineSection, SiteErrorCode, SiteFailureReach };
 
 export interface CaptionTrack {
   trackId: string;
@@ -39,13 +40,6 @@ export interface Chapter {
   title: string;
   start: number;
   end: number | null;
-}
-
-// 字段和 core 已读的、用户备份里已有的形状一致。
-export interface OutlineSection {
-  title: string;
-  timestamp: number | null;
-  points: { timestamp: number | null; content: string }[];
 }
 
 export interface OfficialSummary {

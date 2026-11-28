@@ -1,4 +1,27 @@
-// 把源码切成代码、注释和字符串三部分，结构规则才不会把注释当代码、把字符串当注释；另从代码里取出顶层的函数定义。
+// 把源码切成代码、注释和字符串三部分，结构规则才不会把注释当代码、把字符串当注释；另从代码里取出顶层的函数定义，列出目录下的源码文件。
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { join, relative, sep } from "node:path";
+
+export interface SourceListOptions {
+  /** 给了就返回相对这个目录、用 / 分隔的路径；不给返回绝对路径。 */
+  readonly relativeTo?: string;
+  /** 跳过 .d.ts 声明文件。 */
+  readonly skipDeclarations?: boolean;
+  /** 目录不存在时返回空表；不给时照常报错。 */
+  readonly allowMissing?: boolean;
+}
+
+/** 递归列出目录下的 .ts、.tsx 文件，按目录项的顺序深度优先。 */
+export function listSourceFiles(dir: string, options: SourceListOptions = {}): string[] {
+  if (options.allowMissing && !existsSync(dir)) return [];
+  return readdirSync(dir).flatMap((name) => {
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) return listSourceFiles(path, options);
+    if (!/\.tsx?$/.test(name) || (options.skipDeclarations && name.endsWith(".d.ts"))) return [];
+    return [options.relativeTo === undefined ? path : relative(options.relativeTo, path).split(sep).join("/")];
+  });
+}
+
 export interface Comment {
   readonly line: number; // 从 1 开始
   readonly text: string;

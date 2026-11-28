@@ -1,11 +1,12 @@
 // 繁体文字只写在文件名以 -hant.ts 结尾的模块里：这些模块去掉注释以后不许有简体专用字；
 // 反过来，src/ 下别的文件不许有繁体专用字，例外写在下面的放行表里，并写明原因。字表取自 OpenCC（tests/helpers/hant-chars.ts）。
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { charsIn, SIMPLIFIED_ONLY, TRADITIONAL_ONLY } from "../helpers/hant-chars.ts";
+import { listSourceFiles } from "../helpers/source-scan.ts";
 import { stripComments } from "../helpers/strip-comments.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -19,15 +20,7 @@ const ALLOWED_TRADITIONAL: Readonly<Record<string, string>> = {
   "src/sites/youtube/page/comment-types.ts": "萬億",
 };
 
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir).flatMap((name) => {
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) return sourceFiles(path);
-    return /\.tsx?$/.test(name) ? [relative(ROOT, path).split(sep).join("/")] : [];
-  });
-}
-
-const FILES = sourceFiles(join(ROOT, "src"));
+const FILES = listSourceFiles(join(ROOT, "src"), { relativeTo: ROOT });
 
 test("字表认得出简繁专用字，简繁通用的字两边都不算", () => {
   for (const char of "为体简这说设钥览") assert.ok(SIMPLIFIED_ONLY.has(char), char);

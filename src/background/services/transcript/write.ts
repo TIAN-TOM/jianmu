@@ -3,13 +3,13 @@
 // 只作废字幕，视频信息、分段和官方总结留着，所以缓存记录里可以没有字幕。
 import type { ClearEpoch } from "../../../core/clear-guard.ts";
 import type { TranscriptRef } from "../../../core/notes/records.ts";
+import type { OutlineSection } from "../../../core/transcript/outline.ts";
 import { groupTranscriptEntries } from "../../../core/transcript/segment.ts";
 import type { VideoKey } from "../../../core/video-ref.ts";
 import type {
   ChapterView,
   OfficialStatus,
   OfficialSummaryView,
-  OutlineSectionView,
   TrackView,
   TranscriptView,
   VideoInfoView,
@@ -33,7 +33,7 @@ export interface StoredTranscript {
 export interface StoredOfficial {
   readonly status: OfficialStatus;
   readonly summary: string;
-  readonly outline: readonly OutlineSectionView[];
+  readonly outline: readonly OutlineSection[];
   /** 平台这次附带了 AI 字幕。缓存里沿用这份时就没有字幕可兜底了，兜底要用时得重新问。 */
   readonly hasCaptions: boolean;
   /** 问到的时间：排队中、要登录、没问成的过一阵再问。 */
@@ -70,7 +70,7 @@ const trackOf = ({ trackId, lang, label, kind, isOriginalLang }: CaptionTrack): 
 const cueOf = ({ start, duration, text }: Cue): Cue => ({ start, duration, text });
 const chapterOf = ({ title, start, end }: Chapter): Chapter => ({ title, start, end });
 const segmentOf = ({ index, title, durationSec }: NonNullable<VideoInfo["segments"]>[number]) => ({ index, title, durationSec });
-const outlineOf = ({ title, timestamp, points }: OutlineSectionView): OutlineSectionView => ({
+const outlineOf = ({ title, timestamp, points }: OutlineSection): OutlineSection => ({
   title,
   timestamp,
   points: points.map((point) => ({ timestamp: point.timestamp, content: point.content })),

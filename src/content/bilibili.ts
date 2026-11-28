@@ -1,12 +1,7 @@
 /// <reference types="chrome" />
-// B 站播放页的内容脚本入口。同一页面再注入一份时（安装、更新或确认启用后的补注入），新的一份把旧的整套撤下再接手：
-// 同一个扩展上下文里的旧一份靠全局变量找，扩展重新加载以前的旧一份靠页面事件叫（见 app.ts 的 Superseded）。
-import { INJECTED, PAGE_PATHS } from "../shared/names.ts";
+// B 站播放页的内容脚本入口：建 B 站的页面对象，给出小窗配置和取封闭 shadow root 的办法，其余的启动见 boot.ts。
 import { createBilibiliPage } from "../sites/bilibili/page.ts";
-import { createContentApp, pageSuperseded, type ContentApp } from "./app.ts";
-import { createBrowserFrameTool } from "./frame.ts";
-import { createContentRuntime } from "./runtime.ts";
-import { createSurface } from "./surface.ts";
+import { bootContent } from "./boot.ts";
 
 const MINI_PLAYER = {
   container: () => document.querySelector(".bpx-player-container") ?? document.querySelector("#bilibili-player"),
@@ -23,35 +18,4 @@ function shadowRootOf(element: Element): ShadowRoot | null {
   }
 }
 
-type Registry = { [INJECTED.instance]?: ContentApp };
-const registry = globalThis as Registry;
-registry[INJECTED.instance]?.stop();
-
-const runtime = createContentRuntime(() => (typeof chrome === "undefined" ? undefined : chrome.runtime));
-const page = createBilibiliPage({ document, location });
-
-const app = createContentApp({
-  runtime,
-  page,
-  createSurface: (env) => createSurface({ ...env, document, page, runtime, cardPath: PAGE_PATHS.card, miniPlayer: MINI_PLAYER, shadowRootOf }),
-  visibility: {
-    hidden: () => document.hidden,
-    onChange(run) {
-      const onVisibility = (): void => {
-        if (!document.hidden) run();
-      };
-      document.addEventListener("visibilitychange", onVisibility);
-      return () => document.removeEventListener("visibilitychange", onVisibility);
-    },
-  },
-  superseded: pageSuperseded(document),
-  // 媒体事件不冒泡，在捕获阶段听整个文档。
-  onMediaLoading(run) {
-    document.addEventListener("loadstart", run, true);
-    return () => document.removeEventListener("loadstart", run, true);
-  },
-  // 开关关着的构建里这一支连同截帧代码一起裁掉。
-  ...(FEATURE_FRAME_EXPLAIN ? { frame: (identity) => createBrowserFrameTool(document, identity) } : {}),
-});
-registry[INJECTED.instance] = app;
-app.start();
+bootContent(() => createBilibiliPage({ document, location }), () => ({ miniPlayer: MINI_PLAYER, shadowRootOf }));

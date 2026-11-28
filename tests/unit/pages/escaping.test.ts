@@ -2,11 +2,11 @@
 // 卡片开放给视频网站嵌入，侧边栏显示平台和模型给的文字，这道检查和严格的 CSP 一起守住它们。
 // 只看源码里去掉注释以后的部分；写法再绕的由审查把关，这里拦常见的几种。
 import assert from "node:assert/strict";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { splitSource } from "../../helpers/source-scan.ts";
+import { listSourceFiles, splitSource } from "../../helpers/source-scan.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const SCANNED = ["src/pages", "src/content"];
@@ -31,13 +31,7 @@ interface Source {
 }
 
 function sources(dir: string): Source[] {
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir).flatMap((name) => {
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) return sources(path);
-    if (!/\.tsx?$/.test(name)) return [];
-    return [{ path: relative(ROOT, path).split(sep).join("/"), text: readFileSync(path, "utf8") }];
-  });
+  return listSourceFiles(dir, { relativeTo: ROOT, allowMissing: true }).map((path) => ({ path, text: readFileSync(join(ROOT, path), "utf8") }));
 }
 
 /** 每处命中写成「文件：哪一种」。去掉块注释后行号会错位，所以不报行号。 */

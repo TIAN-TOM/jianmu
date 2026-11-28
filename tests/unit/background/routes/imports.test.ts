@@ -7,9 +7,9 @@ import type { MessageSender } from "../../../../src/background/senders.ts";
 import { videoKey } from "../../../../src/core/video-ref.ts";
 import { SETTINGS_STORAGE_KEY } from "../../../../src/shared/names.ts";
 import { CONFIRMED, createFakeChrome, senders, STALE_CONFIRMATION, tubeUrl, type FakeChromeOptions } from "../../../helpers/chrome.ts";
-import { failed, fakeSiteService, SAMPLE_ID, type SiteScript } from "../../../helpers/fake-site-service.ts";
+import { failed, fakeSiteService, type SiteScript } from "../../../helpers/fake-site-service.ts";
+import { SAMPLE_KEY as VIDEO } from "../../../helpers/sample-videos.ts";
 
-const VIDEO = videoKey({ platform: "bilibili", videoId: SAMPLE_ID });
 const SRT = "1\n00:00:01,000 --> 00:00:04,000\n导入的第一句\n";
 const ADD = { video: VIDEO, fileName: "课程.srt", text: SRT };
 

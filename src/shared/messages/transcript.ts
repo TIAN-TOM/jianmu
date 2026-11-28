@@ -2,6 +2,7 @@
 import type { FailureRange } from "../../core/ai/chunking.ts";
 import type { Failure } from "../../core/errors.ts";
 import type { LearningAnalysis, OverviewTranscriptBasis, TranscriptRef } from "../../core/notes/records.ts";
+import type { OutlineSection } from "../../core/transcript/outline.ts";
 import type { TranscriptSegment } from "../../core/transcript/segment.ts";
 import type { CaptionKind } from "../../core/transcript/sources.ts";
 import type { ChannelRef, VideoKey } from "../../core/video-ref.ts";
@@ -71,22 +72,11 @@ export interface TranscriptBody {
  */
 export type OfficialStatus = "ok" | "none" | "queued" | "unsupported" | "need-login" | "failed" | "pending";
 
-export interface OutlinePointView {
-  readonly timestamp: number | null;
-  readonly content: string;
-}
-
-export interface OutlineSectionView {
-  readonly title: string;
-  readonly timestamp: number | null;
-  readonly points: readonly OutlinePointView[];
-}
-
 /** 平台给的官方总结：摘要和提纲。附带的 AI 字幕只在兜底时当字幕用，不在这里。 */
 export interface OfficialSummaryView {
   readonly status: OfficialStatus;
   readonly summary: string;
-  readonly outline: readonly OutlineSectionView[];
+  readonly outline: readonly OutlineSection[];
   /** 有内容时的正文指纹：用官方总结写的结论据此记下依据的是哪一版。 */
   readonly fingerprint?: string;
 }
