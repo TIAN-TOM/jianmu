@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Basis } from "../../../src/core/notes/records.ts";
-import { equivalenceKey, mutexKey, type EquivalenceInput } from "../../../src/core/task-keys.ts";
+import { equivalenceKey, kindHoldsKeyAfterCancel, mutexKey, TASK_KEY_RULES, type EquivalenceInput } from "../../../src/core/task-keys.ts";
 import { videoKey } from "../../../src/core/video-ref.ts";
 
 const VIDEO = videoKey({ platform: "bilibili", videoId: "BV1Sample000", segment: 1 });
@@ -16,6 +16,20 @@ test("互斥键是种类加视频键，翻译另加目标语言；问答、划�
   assert.equal(mutexKey({ kind: "translate", video: VIDEO, lang: "en" }), `translate:${VIDEO}:en`);
   assert.notEqual(mutexKey({ kind: "translate", video: VIDEO, lang: "en" }), mutexKey({ kind: "translate", video: VIDEO, lang: "ja" }));
   for (const kind of ["qa", "explain", "frame-explain"] as const) assert.equal(mutexKey({ kind, video: VIDEO }), null, kind);
+});
+
+test("每种任务的互斥方式和取消后占不占键", () => {
+  assert.deepEqual(TASK_KEY_RULES, {
+    overview: { mutexScope: "video", holdsKeyAfterCancel: false },
+    verdict: { mutexScope: "video", holdsKeyAfterCancel: false },
+    translate: { mutexScope: "video-and-target", holdsKeyAfterCancel: false },
+    qa: { mutexScope: "none", holdsKeyAfterCancel: false },
+    explain: { mutexScope: "none", holdsKeyAfterCancel: false },
+    "frame-explain": { mutexScope: "none", holdsKeyAfterCancel: false },
+    "triage-verdict": { mutexScope: "video", holdsKeyAfterCancel: true },
+    batch: { mutexScope: "video", holdsKeyAfterCancel: true },
+  });
+  for (const kind of ["analysis", "constructor", "toString", ""]) assert.equal(kindHoldsKeyAfterCancel(kind), false, kind);
 });
 
 test("等价键：键的先后、没写的可选项不影响结果，内容相同就相同", async () => {

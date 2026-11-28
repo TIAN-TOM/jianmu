@@ -3,8 +3,30 @@ import type { Basis } from "./notes/records.ts";
 import type { FrozenGen, TaskKind } from "./tasks.ts";
 import type { VideoKey } from "./video-ref.ts";
 
-/** 不设互斥键的种类：同一视频可以同时问几个不同的问题，只按等价键合并连点。 */
-const WITHOUT_MUTEX: ReadonlySet<TaskKind> = new Set<TaskKind>(["qa", "explain", "frame-explain"]);
+/** 互斥键怎么取：不设（同一视频可以同时问几个不同的问题，只按等价键合并连点）、按视频、按视频和目标语言。 */
+export type MutexScope = "none" | "video" | "video-and-target";
+
+export interface TaskKeyRule {
+  readonly mutexScope: MutexScope;
+  /** 取消后、已经发出的那次收尾之前仍占着键。来源是自动生成的任务也占，那一条按来源判断，不在这里。 */
+  readonly holdsKeyAfterCancel: boolean;
+}
+
+/** 每种任务的键怎么取、取消后占不占键。加种类时类型要求这里补一行。 */
+export const TASK_KEY_RULES: Readonly<Record<TaskKind, TaskKeyRule>> = {
+  overview: { mutexScope: "video", holdsKeyAfterCancel: false },
+  verdict: { mutexScope: "video", holdsKeyAfterCancel: false },
+  translate: { mutexScope: "video-and-target", holdsKeyAfterCancel: false },
+  qa: { mutexScope: "none", holdsKeyAfterCancel: false },
+  explain: { mutexScope: "none", holdsKeyAfterCancel: false },
+  "frame-explain": { mutexScope: "none", holdsKeyAfterCancel: false },
+  "triage-verdict": { mutexScope: "video", holdsKeyAfterCancel: true },
+  batch: { mutexScope: "video", holdsKeyAfterCancel: true },
+};
+
+/** 任务管理器里的种类是字符串：认不出的种类按不占键算。 */
+export const kindHoldsKeyAfterCancel = (kind: string): boolean =>
+  Object.hasOwn(TASK_KEY_RULES, kind) && TASK_KEY_RULES[kind as TaskKind].holdsKeyAfterCancel;
 
 export interface MutexInput {
   readonly kind: TaskKind;
@@ -25,8 +47,9 @@ export interface EquivalenceInput extends MutexInput {
 
 /** `<种类>:<视频键>`，翻译再加目标语言；问答、划词解释、画面解释没有互斥键。 */
 export function mutexKey({ kind, video, lang }: MutexInput): string | null {
-  if (WITHOUT_MUTEX.has(kind)) return null;
-  return kind === "translate" ? `${kind}:${video}:${lang ?? ""}` : `${kind}:${video}`;
+  const scope = TASK_KEY_RULES[kind].mutexScope;
+  if (scope === "none") return null;
+  return scope === "video-and-target" ? `${kind}:${video}:${lang ?? ""}` : `${kind}:${video}`;
 }
 
 // 对象的键排好序、去掉值为 undefined 的键，同样的内容换个写法得出同一串。
