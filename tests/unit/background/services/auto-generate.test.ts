@@ -733,7 +733,7 @@ test("本机服务回 403 按来源被拒暂停，不算密钥不对；非本机
   assert.equal(pauseReasonOf(keyedHttpError({}, 403, { ...sample, aiBaseUrl: "https://api.example.com/v1" })), "key");
   assert.equal(pauseReasonOf(keyedHttpError({}, 401, { ...sample, aiBaseUrl: "https://api.example.com/v1" })), "key");
   assert.equal(pauseReasonOf({ code: "AI_LOCAL_ORIGIN_REJECTED", status: 403 }), "local-origin");
-  assert.deepEqual(parseLedger({ attempts: [], paused: { reason: "local-origin", at: START } }, START).paused, { reason: "local-origin", at: START });
+  assert.deepEqual(parseLedger({ paused: { reason: "local-origin", at: START } }, START).paused, { reason: "local-origin", at: START });
 });
 
 test("试过的整个会话都留着，不按条数挤掉；计数只留最近 10 分钟", async () => {
@@ -745,15 +745,11 @@ test("试过的整个会话都留着，不按条数挤掉；计数只留最近 1
   assert.deepEqual(ledger().sent, [START - 1000], "滑出窗口的不算");
 });
 
-test("早先的尝试记录：概览那种照认，翻译那种读到时忽略；形状不对的丢掉", () => {
+test("尝试记录的形状不对的逐项丢掉", () => {
   const parsed = parseLedger(
     {
-      attempts: [
-        { feature: "translate", video: VIDEO, at: START - 1000 },
-        { feature: "overview", video: OTHER, at: START - 2000 },
-        { feature: "overview", video: 42, at: START },
-        "坏的",
-      ],
+      tried: [triedKey("overview", OTHER), 42, null, triedKey("overview", OTHER)],
+      sent: [START - 2000, "坏的", Number.NaN],
       paused: { reason: "unknown", at: START },
     },
     START,

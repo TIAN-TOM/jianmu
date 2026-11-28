@@ -1,4 +1,4 @@
-// 共用组件的样张：章节和时间轨、判断标记、状态块、一行提示、模式切换、抽屉层菜单、首次启用说明，
+// 共用组件的样张：章节、判断标记、状态块、一行提示、模式切换、抽屉层菜单、首次启用说明，
 // 以及两档宽度乘五套主题、两种明暗、三档字号下不出横向滚动条、关键文字对比度达标，有边框的按钮里文字行上下留整像素的空。
 import assert from "node:assert/strict";
 import { ACTIVATION_TABLE } from "../../src/core/consent.ts";
@@ -9,10 +9,9 @@ import { APPEARANCES, PANEL_WIDTHS, scenario } from "./harness.mjs";
 const test = scenario(import.meta.url);
 const GALLERY = "pages/gallery.html";
 
-// 样张里的章节：时长 600 秒，四章从 0、120、300、540 秒开始，重点是第 2、4 章，播放到 210 秒。
-const STARTS = ["0%", "20%", "50%", "90%"];
+// 样张里的章节：时长 600 秒，四章从 0、120、300、540 秒开始，重点是第 2、4 章。
 
-test("组件样张：有重点和没重点两种章节显示，时间轨和章节列表标的是同一几章", async ({ open }) => {
+test("组件样张：有重点和没重点两种章节显示", async ({ open }) => {
   const page = await open(GALLERY);
   const read = (id) =>
     page.call(
@@ -24,7 +23,6 @@ test("组件样张：有重点和没重点两种章节显示，时间轨和章�
           spoken: [...root.querySelectorAll(".chapter .sr-only")].map((node) => node.textContent.trim()),
           tags: [...root.querySelectorAll(".chapter .key-tag")].map((node) => node.getAttribute("aria-hidden")),
           keyRows: [...root.querySelectorAll(".chapter[data-key]")].map((row) => row.dataset.index),
-          keyPieces: [...root.querySelectorAll(".rail-piece[data-key]")].map((piece) => piece.dataset.index),
           names: [...root.querySelectorAll(".chapter-name")].map((name) => name.textContent),
         };
       }`,
@@ -35,10 +33,9 @@ test("组件样张：有重点和没重点两种章节显示，时间轨和章�
   assert.deepEqual(withKeys.spoken, ["重点", "重点"]);
   assert.deepEqual(withKeys.tags, ["true", "true"]);
   assert.deepEqual(withKeys.keyRows, ["1", "3"]);
-  assert.deepEqual(withKeys.keyPieces, ["1", "3"], "时间轨上加粗的是同两章");
   const plain = await read("rail-plain");
   assert.equal(plain.heading, "章节 4");
-  assert.deepEqual([plain.spoken, plain.tags, plain.keyRows, plain.keyPieces], [[], [], [], []]);
+  assert.deepEqual([plain.spoken, plain.tags, plain.keyRows], [[], [], []]);
   assert.deepEqual(plain.names, withKeys.names, "章节名原样，不因为是重点改写");
 });
 
@@ -61,43 +58,6 @@ test("组件样张：章节的时间是单独的按钮，点了跳到这一章�
   await page.waitFor("展开第 3 章", `document.querySelector("#rail-key .chapter[data-index='2'] .chapter-toggle").getAttribute("aria-expanded") === "true"`);
   const detail = await page.evaluate(`(() => { const toggle = document.querySelector("#rail-key .chapter[data-index='2'] .chapter-toggle"); return document.getElementById(toggle.getAttribute("aria-controls"))?.textContent ?? null; })()`);
   assert.match(detail, /这一章的要点/);
-});
-
-test("组件样张：时间轨竖着横着都按时长比例分段，播放头在播放位置，整条轨道不进读屏；生成中画分块进度、不画重点", async ({ open }) => {
-  const page = await open(GALLERY, { width: 360 });
-  const rails = await page.evaluate(`(() => {
-    const read = (selector) => {
-      const rail = document.querySelector(selector + " .rail");
-      const box = rail.getBoundingClientRect();
-      const pieces = [...rail.querySelectorAll(".rail-piece")];
-      return {
-        orientation: rail.dataset.orientation,
-        hidden: rail.getAttribute("aria-hidden"),
-        focusable: [...rail.querySelectorAll("button, [tabindex]")].length,
-        starts: pieces.map((piece) => piece.style.getPropertyValue("--start")),
-        kinds: pieces.map((piece) => piece.dataset.kind),
-        keys: pieces.filter((piece) => piece.dataset.key).length,
-        offsets: pieces.map((piece) => {
-          const at = piece.getBoundingClientRect();
-          return rail.dataset.orientation === "horizontal" ? (at.left - box.left) / box.width : (at.top - box.top) / box.height;
-        }),
-        head: rail.querySelector(".rail-head")?.style.getPropertyValue("--at") ?? null,
-      };
-    };
-    return { vertical: read("#rail-key"), horizontal: read("#rail-horizontal"), blocks: read("#rail-blocks") };
-  })()`);
-  for (const name of ["vertical", "horizontal"]) {
-    const rail = rails[name];
-    assert.equal(rail.orientation, name);
-    assert.equal(rail.hidden, "true", `${name}：不进读屏`);
-    assert.equal(rail.focusable, 0, `${name}：不进 Tab 顺序`);
-    assert.deepEqual(rail.starts, STARTS, `${name}：段的起点按时长比例`);
-    assert.equal(rail.head, "35%", `${name}：播放头在 210 秒`);
-    rail.offsets.forEach((offset, index) => assert.ok(Math.abs(offset - Number.parseFloat(STARTS[index] ?? "0") / 100) < 0.03, `${name}：第 ${index + 1} 段画在对应位置（${offset}）`));
-  }
-  assert.equal(rails.vertical.keys, 2);
-  assert.deepEqual(rails.blocks.kinds, ["done", "writing", "failed", "pending"]);
-  assert.equal(rails.blocks.keys, 0, "生成中不显示重点");
 });
 
 test("组件样张：每种星数配短词，读屏只读一次星数和短词，信息不足只写短词", async ({ open }) => {
