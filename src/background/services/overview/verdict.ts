@@ -9,7 +9,7 @@ import type { Limiter } from "../../../core/concurrency.ts";
 import { fail, ok, trimFailure, type Result } from "../../../core/errors.ts";
 import type { Basis, OverviewPart, OverviewRecord } from "../../../core/notes/records.ts";
 import { equivalenceKey } from "../../../core/task-keys.ts";
-import { genInfo } from "../../../core/tasks.ts";
+import { genInfo, type TaskKind } from "../../../core/tasks.ts";
 import { outputLangOf } from "../../../core/output-lang.ts";
 import { formatTimestamp } from "../../../core/transcript/segment.ts";
 import { parseVideoKey, type VideoKey, type VideoRef } from "../../../core/video-ref.ts";
@@ -54,7 +54,7 @@ export interface VerdictService {
 }
 
 /** 认领得了的种类：侧边栏登记的结论、粗筛登记的写结论。 */
-const VERDICT_KINDS: ReadonlySet<string> = new Set(["verdict", "triage-verdict"]);
+const VERDICT_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(["verdict", "triage-verdict"]);
 
 /** 写结论的材料：视频信息、有内容的官方总结、字幕最后一句的起点（字幕读不到时是 0）。 */
 interface Material {

@@ -3,7 +3,7 @@
 import { fail, type Result } from "../core/errors.ts";
 import { outputLangOf } from "../core/output-lang.ts";
 import type { Basis } from "../core/notes/records.ts";
-import { equivalenceKey, mutexKey } from "../core/task-keys.ts";
+import { equivalenceKey, kindHoldsKeyAfterCancel, mutexKey } from "../core/task-keys.ts";
 import {
   budgetEffort,
   createTaskManager,
@@ -28,11 +28,9 @@ import { aiFailure, type AiWiring, type TaskAi } from "./ai.ts";
  */
 export const CLAIM_MS = 15_000;
 
-const HOLDING_KINDS: ReadonlySet<string> = new Set<TaskKind>(["triage-verdict", "batch"]);
-
-/** 取消后、已经发出的那次收尾之前仍占着键：粗筛写结论、批次，以及自动生成发起的任务。 */
+/** 取消后、已经发出的那次收尾之前仍占着键：种类表里占键的（粗筛写结论、批次），以及自动生成发起的任务。 */
 export const holdsKeyAfterCancel = (task: Pick<Task, "kind" | "origin">): boolean =>
-  HOLDING_KINDS.has(task.kind) || task.origin === "auto";
+  kindHoldsKeyAfterCancel(task.kind) || task.origin === "auto";
 
 /** 跟着页面走的任务，订阅它的页面都断开了：只停还没开始的部分，已经发出的请求由服务决定等不等。 */
 export const PAGES_LEFT = Object.freeze({ code: "PAGES_LEFT" });
