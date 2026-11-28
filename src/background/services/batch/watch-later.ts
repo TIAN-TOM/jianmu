@@ -7,12 +7,13 @@ import { fail, ok, type ErrorCode, type Result } from "../../../core/errors.ts";
 import type { LearningVerdict } from "../../../core/notes/records.ts";
 import type { FrozenGen } from "../../../core/tasks.ts";
 import { officialFingerprint } from "../../../core/transcript/fingerprint.ts";
+import { isOutlineSection } from "../../../core/transcript/outline.ts";
 import { hasOfficialContent, isOfficialDone, needsVideoInfo, type PacedOutcome, type ReadFailure, type VerdictRequest } from "../../../core/triage/batch.ts";
 import type { TriageVerdict } from "../../../core/triage/groups.ts";
 import { findItem, triageRef, withList, withOfficial, withUnavailable, type OfficialRecord, type TriageItem, type TriageState } from "../../../core/triage/state.ts";
 import { videoKey, type VideoKey, type VideoRef } from "../../../core/video-ref.ts";
 import type { BatchFailure } from "../../../shared/messages/batch.ts";
-import type { OfficialSummaryView, OutlineSectionView, TranscriptReply, VideoInfoView } from "../../../shared/messages/transcript.ts";
+import type { OfficialSummaryView, TranscriptReply, VideoInfoView } from "../../../shared/messages/transcript.ts";
 import type { OfficialSummary, SiteFailure, VideoInfo } from "../../../sites/types.ts";
 import type { TriageStore } from "../../stores/triage.ts";
 import type { TaskRunner } from "../../tasks.ts";
@@ -156,12 +157,12 @@ export async function fetchOfficial(deps: WatchLaterDeps, key: VideoKey, since: 
   return save(deps, key, await recordOf(summary.value, deps.now()), since, true);
 }
 
-/** 粗筛存的官方总结，有内容、记着指纹时才拿来写结论。 */
+/** 粗筛存的官方总结，有内容、记着指纹时才拿来写结论。提纲是从存储读回来的，形状不对的段丢掉，丢完没有内容就不用。 */
 function storedOfficial(record: OfficialRecord | undefined): OfficialSummaryView | null {
-  if (record?.status !== "ok" || !hasOfficialContent(record) || typeof record.fingerprint !== "string") return null;
-  // 这份是从平台读到时原样存下的提纲，写结论只拿它拼提示词。
-  const outline = (record.outline ?? []) as readonly OutlineSectionView[];
-  return { status: "ok", summary: record.summary ?? "", outline, fingerprint: record.fingerprint };
+  if (record?.status !== "ok" || typeof record.fingerprint !== "string") return null;
+  const outline = Array.isArray(record.outline) ? record.outline.filter(isOutlineSection) : [];
+  const official = { status: "ok" as const, summary: record.summary ?? "", outline, fingerprint: record.fingerprint };
+  return hasOfficialContent(official) ? official : null;
 }
 
 const usable = (official: OfficialSummaryView | undefined): boolean =>
