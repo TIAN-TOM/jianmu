@@ -111,6 +111,15 @@ npm ci
 npm run check
 ```
 
+## Sponsor
+
+Jianmu is free and open source, with no paid features. If you find it useful, you can buy the developer a coffee. Sponsoring is voluntary and unlocks nothing.
+
+- [GitHub Sponsors](https://github.com/sponsors/TIAN-TOM): one-off or monthly, paid by card.
+- WeChat tip code, for readers in mainland China:
+
+<img src=".github/assets/sponsor-wechat.png" width="200" alt="WeChat tip code">
+
 ## Licence and acknowledgements
 
 Released under the MIT License, see [LICENSE](LICENSE).

@@ -70,6 +70,7 @@ export const OPTIONS_HANT: OptionsText = {
     source: "原始碼",
     privacy: "隱私權政策",
     issues: "回報問題",
+    sponsor: "贊助",
   },
 
   modes: {

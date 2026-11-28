@@ -1,7 +1,8 @@
-// 设置页「关于」一节：装的是哪一版、哪一次构建，以及更新记录、源码、隐私政策和反馈问题的链接。不受构建开关控制，启用前后都有。
+// 设置页「关于」一节：装的是哪一版、哪一次构建，以及更新记录、源码、隐私政策、反馈问题和赞助的链接；赞助指向界面语言那份 README 的赞助一节，繁体界面指向中文那份。不受构建开关控制，启用前后都有。
 import { useId } from "preact/hooks";
 import { BUILD_ID } from "../../shared/build-id.ts";
-import { ISSUES_URL, PRIVACY_POLICY_URL, RELEASES_URL, SOURCE_URL } from "../../shared/names.ts";
+import { ISSUES_URL, PRIVACY_POLICY_URL, RELEASES_URL, SOURCE_URL, SPONSOR_URLS } from "../../shared/names.ts";
+import { byLang } from "../shared/ui-lang.ts";
 import { optionsText } from "./text.ts";
 
 export function AboutSection({ version }: { readonly version: string }) {
@@ -31,6 +32,9 @@ export function AboutSection({ version }: { readonly version: string }) {
         </a>
         <a id="aboutIssues" href={ISSUES_URL} target="_blank" rel="noopener noreferrer">
           {t.issues}
+        </a>
+        <a id="aboutSponsor" href={byLang(SPONSOR_URLS.zh, SPONSOR_URLS.en, SPONSOR_URLS.zh)} target="_blank" rel="noopener noreferrer">
+          {t.sponsor}
         </a>
       </p>
     </section>

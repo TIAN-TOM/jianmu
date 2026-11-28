@@ -111,6 +111,15 @@ npm ci
 npm run check
 ```
 
+## 赞助
+
+简幕免费、开源，没有付费功能。觉得有用的话，可以请开发者喝杯咖啡。赞助完全自愿，不解锁任何功能。
+
+- [GitHub Sponsors](https://github.com/sponsors/TIAN-TOM)：可以一次性赞助，要用能付外币的银行卡。
+- 微信赞赏码：
+
+<img src=".github/assets/sponsor-wechat.png" width="200" alt="微信赞赏码">
+
 ## 许可和致谢
 
 MIT 许可，见 [LICENSE](LICENSE)。
