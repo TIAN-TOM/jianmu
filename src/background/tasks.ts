@@ -26,7 +26,7 @@ import { aiFailure, taskKeepAliveMs, type AiWiring, type TaskAi } from "./ai.ts"
  */
 export const CLAIM_MS = 15_000;
 
-/** 取消后、已经发出的那次收尾之前仍占着键：种类表里占键的（粗筛写结论、批次），以及自动生成发起的任务。 */
+/** 取消后、已经发出的那次收尾之前仍占着键：种类表里占键的（粗筛写结论），以及自动生成发起的任务。 */
 export const holdsKeyAfterCancel = (task: Pick<Task, "kind" | "origin">): boolean =>
   kindHoldsKeyAfterCancel(task.kind) || task.origin === "auto";
 

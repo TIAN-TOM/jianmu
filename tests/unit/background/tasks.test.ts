@@ -176,13 +176,13 @@ test("互斥键被占着：用户发起的交回在跑的任务；自动生成�
   assert.equal(h.tasks.list().length, 2);
 });
 
-test("粗筛写结论、批次、来源是自动生成的任务，取消后已经开始的那次收尾前仍占键；用户发起的概览取消后马上让出", async () => {
+test("粗筛写结论、来源是自动生成的任务，取消后已经开始的那次收尾前仍占键；用户和本窗口全部生成发起的概览取消后马上让出", async () => {
   const cases = [
     { value: spec({ kind: "triage-verdict" }), holds: true },
-    { value: spec({ kind: "batch" }), holds: true },
     { value: spec({ origin: "auto" }), holds: true },
     { value: spec(), holds: false },
     { value: spec({ origin: "card" }), holds: false },
+    { value: spec({ origin: "batch" }), holds: false },
   ];
   for (const { value, holds } of cases) {
     const h = harness();
