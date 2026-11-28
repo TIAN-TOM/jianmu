@@ -8,6 +8,7 @@ import { isOptionsSection } from "../../shared/messages/core.ts";
 import { createActivation } from "../shared/activation.ts";
 import { createPageApi } from "../shared/api.ts";
 import { startWhenCurrent } from "../shared/build-check.ts";
+import { downloadFile } from "../shared/download.ts";
 import { requestPersistence } from "../shared/persist.ts";
 import { pageAppearanceSources, watchAppearance } from "../shared/theme.ts";
 import { bindDocumentLang, initUiLang, uiLang } from "../shared/ui-lang.ts";
@@ -17,13 +18,7 @@ import { createOptionsState } from "./state.ts";
 import { textOf } from "./text.ts";
 
 function download(filename: string, chunks: readonly string[]): void {
-  const url = URL.createObjectURL(new Blob([...chunks], { type: "application/json" }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  // 浏览器拿到地址就开始下载，稍后再收回。
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  downloadFile(filename, chunks, "application/json");
 }
 
 /** 等这一节渲染出来，最多等两秒左右；没确认启用时设置页没有这一节，等不到就算了。后台标签页里动画帧不走，所以按定时器等。 */

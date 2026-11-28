@@ -8,6 +8,7 @@ import { siteRules } from "../../sites/rules.ts";
 import { createActivation } from "../shared/activation.ts";
 import { createPageApi } from "../shared/api.ts";
 import { startWhenCurrent } from "../shared/build-check.ts";
+import { downloadFile } from "../shared/download.ts";
 import { pageAppearanceSources, watchAppearance } from "../shared/theme.ts";
 import { renderStaleBackground } from "../shared/ui/stale-background.tsx";
 import { bindDocumentLang, initUiLang, uiLang } from "../shared/ui-lang.ts";
@@ -30,13 +31,7 @@ function videoBase(key: string): string {
 }
 
 function download(filename: string, text: string): void {
-  const url = URL.createObjectURL(new Blob([text], { type: "text/markdown;charset=utf-8" }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  // 浏览器拿到地址就开始下载，稍后再收回。
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  downloadFile(filename, [text], "text/markdown;charset=utf-8");
 }
 
 // 第一帧就是对的语言；读回设置以后由外观那边纠正，<html lang> 和标题跟着换。
