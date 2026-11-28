@@ -344,7 +344,7 @@ const activation = currentStamp(ACTIVATION_TABLE);
 
 export const DATA_CONSENT_VERSION = dataConsent.version;
 export const DATA_CONSENT_FINGERPRINT = dataConsent.fingerprint;
-/** 没同意数据说明时的提示，中文。校验结果里按它认出是同意的问题，所以它同时是标识，措辞不随语言变；给用户看的用 dataConsentErrorText。 */
+/** 没同意数据说明时的提示，简体那份；按语言取用 dataConsentErrorText。 */
 export const DATA_CONSENT_ERROR = "请先在设置页「AI 服务」一节读一下数据说明，勾选「我已了解」。";
 export const DATA_CONSENT_ERROR_EN = "Read the data notice in the “AI service” section of settings and tick the box to agree first.";
 

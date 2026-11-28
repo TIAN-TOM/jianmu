@@ -14,6 +14,7 @@ import { aiErrorResponse } from "../../../src/core/ai/transport/errors.ts";
 import type { CompletionRequest, TransportError } from "../../../src/core/ai/transport/index.ts";
 import { createClearGuard } from "../../../src/core/clear-guard.ts";
 import * as CONSENT from "../../../src/core/consent.ts";
+import * as FRAME from "../../../src/background/services/frame-explain.ts";
 import { DATA_CONSENT_ERROR } from "../../../src/core/consent.ts";
 import type { FrozenGen } from "../../../src/core/tasks.ts";
 import { createLocks } from "../../../src/platform/locks.ts";
@@ -221,7 +222,7 @@ test("后台：有密钥但没确认数据说明时，配置检查回没设置�
   const stored = keyedStorage({ ...DEEPSEEK, dataConsentVersion: 0, dataConsentFingerprint: "" }, DEEPSEEK_ORIGIN);
   const { ai, ask, service } = setup({ ...stored, handler: () => chatReply("不该发出") });
 
-  assert.deepEqual(await ask("config.check"), { ok: true, value: { ready: false, errors: [DATA_CONSENT_ERROR], missing: "consent" } });
+  assert.deepEqual(await ask("config.check"), { ok: true, value: { ready: false, errors: [DATA_CONSENT_ERROR], missing: "consent", needsConsent: true } });
   await rejectsWith(ai.requestAiCompletion(EXPLAIN), "NO_AI_CONFIG");
   assert.equal(((await ask("models.list", senders.options())) as { code?: string }).code, "NO_DATA_CONSENT");
   assert.equal(((await ask("ai.testConnection", senders.options())) as { code?: string }).code, "NO_AI_CONFIG");
@@ -647,7 +648,7 @@ test("后台：配置检查分得清缺什么：只是密钥没了回 missing �
 
   // 有密钥，只差勾选当前的数据说明。
   const consent = setup(keyedStorage({ ...DEEPSEEK, dataConsentVersion: 0, dataConsentFingerprint: "" }, DEEPSEEK_ORIGIN));
-  assert.deepEqual(await consent.ask("config.check"), { ok: true, value: { ready: false, errors: [DATA_CONSENT_ERROR], missing: "consent" } });
+  assert.deepEqual(await consent.ask("config.check"), { ok: true, value: { ready: false, errors: [DATA_CONSENT_ERROR], missing: "consent", needsConsent: true } });
 
   // 从没配过：没同意、没密钥，不说成密钥没了。
   const fresh = await setup({ local: { [SETTINGS_STORAGE_KEY]: { ...SETTINGS.ACTIVATION_CONFIRMED } } }).ask("config.check");
@@ -661,6 +662,46 @@ test("后台：配置检查分得清缺什么：只是密钥没了回 missing �
   const noModel = await setup(keyedStorage({ ...LOCAL, aiModel: "" }, "http://127.0.0.1:1234/", "")).ask("config.check");
   assert.ok(noModel.ok);
   assert.equal(Object.hasOwn(noModel.value as object, "missing"), false);
+});
+
+test("后台：配置检查的提示按界面语言写，缺什么、报哪种失败在三种语言下都一样", async () => {
+  const LOCAL = { presetId: "custom", protocol: PROTOCOLS.OPENAI, aiBaseUrl: "http://127.0.0.1:1234/v1", aiModel: "" };
+  const cases = {
+    // 以前配好过，会话里的密钥没了。
+    key: { local: keyedStorage(DEEPSEEK, DEEPSEEK_ORIGIN).local },
+    // 有密钥，只差勾选当前的数据说明。
+    consent: keyedStorage({ ...DEEPSEEK, dataConsentVersion: 0, dataConsentFingerprint: "" }, DEEPSEEK_ORIGIN),
+    // 从没配过：没同意、没密钥。
+    fresh: { local: { [SETTINGS_STORAGE_KEY]: { ...SETTINGS.ACTIVATION_CONFIRMED } } },
+    // 同意过的本机服务，只是没填模型。
+    model: keyedStorage(LOCAL, "http://127.0.0.1:1234/", ""),
+  };
+  const expected = {
+    key: { missing: "key", needsConsent: false, code: "NO_AI_CONFIG" },
+    consent: { missing: "consent", needsConsent: true, code: "NO_DATA_CONSENT" },
+    fresh: { missing: undefined, needsConsent: true, code: "NO_DATA_CONSENT" },
+    model: { missing: undefined, needsConsent: false, code: "NO_AI_CONFIG" },
+  };
+  for (const lang of ["zh", "en", "zh-Hant"] as const) {
+    for (const [name, stored] of Object.entries(cases) as [keyof typeof cases, (typeof cases)[keyof typeof cases]][]) {
+      const settings = { ...(stored.local[SETTINGS_STORAGE_KEY] as object), language: lang };
+      const { ai } = setup({ ...stored, local: { ...stored.local, [SETTINGS_STORAGE_KEY]: settings } });
+      const view = await ai.configCheck();
+      const label = `${lang} ${name}`;
+      assert.equal(view.ready, false, label);
+      const key = "session" in stored ? (stored.session[API_KEY_SESSION_KEY] as { key: string }).key : "";
+      assert.deepEqual(view.errors, SETTINGS.validate({ ...settings, aiApiKey: key }, lang).errors, label);
+      assert.equal(view.missing, expected[name].missing, label);
+      assert.equal(view.needsConsent ?? false, expected[name].needsConsent, label);
+      const failure = FRAME.configFailure(view);
+      assert.equal(failure.code, expected[name].code, label);
+      if (failure.code === "NO_AI_CONFIG") assert.equal(failure.detail, view.errors.join(" "), label);
+      if (lang === "en") assert.doesNotMatch(view.errors.join(" "), /[\u4e00-\u9fff]/, label);
+    }
+  }
+  // 跟着界面：设置是「自动」时按浏览器的语言。
+  const auto = setup({ ...cases.consent, wiring: { uiLanguage: () => "en-AU" } });
+  assert.deepEqual(await auto.ai.configCheck(), { ready: false, errors: [CONSENT.dataConsentErrorText("en")], missing: "consent", needsConsent: true });
 });
 
 test("模型服务的失败带上服务的原话；鉴权失败、取消不带", () => {

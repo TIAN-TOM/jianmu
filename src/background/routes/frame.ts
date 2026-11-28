@@ -69,7 +69,7 @@ export function frameRoutes({ frame, ai, messenger }: FrameRouteDeps): FrameRout
       validate: isEmptyRequest,
       async handler() {
         const config = await ai.configCheck();
-        if (!config.ready) return configFailure(config.errors);
+        if (!config.ready) return configFailure(config);
         const gen = await ai.freeze("frame");
         const probed = await images.probe(gen);
         return probed.ok ? ok({ model: gen.model, imageInput: probed.value.imageInput }) : probed;
