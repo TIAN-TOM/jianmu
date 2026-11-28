@@ -37,7 +37,7 @@ function world(initial: PageTone | null) {
       node.isConnected = true;
     },
   });
-  const state = { tone: initial, parent: column("右栏") };
+  const state = { tone: initial, parent: column("右栏"), title: "简幕卡片" };
   const document = {
     defaultView: { addEventListener: (_type: string, listener: (event: unknown) => void) => void listeners.push(listener), removeEventListener: () => undefined },
     body: column("页面"),
@@ -54,6 +54,7 @@ function world(initial: PageTone | null) {
     slot: () => ({ parent: state.parent, before: null }) as unknown as CardSlot,
     fillsScreen: () => false,
     tone: () => state.tone,
+    title: () => state.title,
   });
   return {
     card,
@@ -79,6 +80,16 @@ test("插入时把周围页面的明暗写在卡片地址的 # 后面；认不�
   const unknown = world(null);
   unknown.card.ensure();
   assert.equal(unknown.frames[0]?.src, CARD_URL);
+});
+
+test("框架的名字用调用方给的，界面语言换了跟着换，不重新插", () => {
+  const { card, state, frames } = world("light");
+  card.ensure();
+  assert.equal(frames[0]?.title, "简幕卡片");
+  state.title = "Jianmu card";
+  card.ensure();
+  assert.equal(frames.length, 1);
+  assert.equal(frames[0]?.title, "Jianmu card");
 });
 
 test("页面换了明暗：卡片在听了才告诉它，只发给扩展自己的来源；没变不发，同一个明暗不重复发", () => {

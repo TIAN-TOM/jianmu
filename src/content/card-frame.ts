@@ -4,7 +4,6 @@
 import { isRecord } from "../shared/guards.ts";
 import { CARD_TONE, INJECTED } from "../shared/names.ts";
 import type { PageTone } from "./page-tone.ts";
-import { contentText } from "./text.ts";
 
 export interface CardSlot {
   readonly parent: Element;
@@ -22,8 +21,8 @@ export interface CardFrameDeps {
   readonly fillsScreen: () => boolean;
   /** 卡片周围的页面是浅色还是深色，认不出时是 null。不给就不管明暗，卡片按设置来。 */
   readonly tone?: () => PageTone | null;
-  /** 框架的名字（读屏读的那个），跟着界面语言；不给时用中文。 */
-  readonly title?: () => string;
+  /** 框架的名字（读屏读的那个），跟着界面语言。 */
+  readonly title: () => string;
 }
 
 export interface CardFrame {
@@ -47,7 +46,7 @@ export function extensionOrigin(url: string): string {
   return /^[a-z-]+:\/\/[^/]+/i.exec(url)?.[0] ?? "";
 }
 
-export function createCardFrame({ document, cardUrl, extensionRoot, slot, fillsScreen, tone, title = () => contentText("zh").cardTitle }: CardFrameDeps): CardFrame {
+export function createCardFrame({ document, cardUrl, extensionRoot, slot, fillsScreen, tone, title }: CardFrameDeps): CardFrame {
   const view = document.defaultView;
   let frame: HTMLIFrameElement | null = null;
   let origin = "";

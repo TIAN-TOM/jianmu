@@ -41,6 +41,7 @@ import { WIRING_HANT } from "./ai-hant.ts";
 import type { ClearGuard } from "../core/clear-guard.ts";
 import { fail, ok, type Failure, type Result } from "../core/errors.ts";
 import { AI_ERROR_TEXT, type AiErrorCode } from "../core/errors/ai.ts";
+import { dataConsentGiven } from "../core/consent.ts";
 import type { Effort } from "../core/ai/effort-level.ts";
 import { inLang, outputLangOf, resolveOutputLang, type OutputLang } from "../core/output-lang.ts";
 import { sha256Hex } from "../core/task-keys.ts";
@@ -319,11 +320,14 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
   return {
     async configCheck() {
       const settings = await load();
-      const { ok: ready, errors } = rules.validate(settings, "zh");
+      // 提示按界面语言写；缺的是什么直接看设置，不认提示的文字。
+      const { ok: ready, errors } = rules.validate(settings, resolveOutputLang(settings.language, uiLanguage()));
       if (ready) return { ready, errors: [...errors] };
+      const needsConsent = !dataConsentGiven(rules.normalize(settings), rules);
       // 只缺密钥：补上一个密钥就够了，说明服务商、模型和同意都在，是以前配好过的。本机服务不要密钥，不会落到这里。
-      const missing = rules.validate({ ...settings, aiApiKey: "-" }, "zh").ok ? "key" : errors.length === 1 && errors[0] === rules.dataConsentError ? "consent" : null;
-      return missing ? { ready, errors: [...errors], missing } : { ready, errors: [...errors] };
+      // 只缺同意：没同意，而且提示只有这一条。
+      const missing = rules.validate({ ...settings, aiApiKey: "-" }, "zh").ok ? "key" : needsConsent && errors.length === 1 ? "consent" : null;
+      return { ready, errors: [...errors], ...(missing ? { missing } : {}), ...(needsConsent ? { needsConsent } : {}) };
     },
     requestAiCompletion: (request) => transport.requestAiCompletion(request),
     async freeze(feature) {
