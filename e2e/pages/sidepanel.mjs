@@ -24,6 +24,7 @@ const test = scenario(import.meta.url);
 const LAUNCHER = "pages/gallery.html";
 const [FIRST_ID = ""] = Object.keys(VIDEOS);
 const FIRST_TITLE = VIDEOS[FIRST_ID]?.title ?? "";
+const FIRST_AUTHOR = VIDEOS[FIRST_ID]?.owner ?? "";
 const VIDEO = videoKey({ platform: "bilibili", videoId: FIRST_ID });
 const FULL_ACTIVATION = noticeStatus(ACTIVATION_TABLE, {});
 const FULL_ACTIVATION_ITEMS = FULL_ACTIVATION.state === "needed" ? FULL_ACTIVATION.items : [];
@@ -134,12 +135,15 @@ test("侧边栏：没登录时也读到视频信息，长视频进速读；字�
       next: document.querySelector(".state-block .state-next")?.textContent,
       actions: [...document.querySelectorAll(".state-block .button")].map((button) => button.textContent),
       title: document.querySelector(".video-title")?.textContent ?? "",
+      author: document.querySelector(".video-meta")?.textContent ?? "",
     })`);
     assert.deepEqual(state.modes, SKIM);
     assert.deepEqual(state.actions, ["重试", "导入字幕文件"]);
     assert.equal(state.impact, login.impact);
     assert.equal(state.next, login.next);
-    assert.ok(state.title.includes(FIRST_TITLE), `没登录也用读到的视频标题：${state.title}`);
+    // 标签页标题里也带着视频标题：标题逐字相同、作者摆出来，才说明是读到的视频信息，不是退回标签页标题。
+    assert.equal(state.title, FIRST_TITLE, "没登录也用读到的视频标题");
+    assert.equal(state.author, FIRST_AUTHOR, "没登录也摆出读到的作者");
 
     // English 下同一块的原因、影响、下一步和按钮是英文。
     const english = errorCopy("NEED_LOGIN", undefined, "en");
@@ -741,6 +745,8 @@ test("侧边栏：换了字幕以后，依据原来那份字幕的结论和问�
     // 同一份字幕：结论和问答都不标。
     tabId = await reopen(tabId);
     await waitIn(panel, "结论摆出来", `${textOf(".verdict-text")} === "页面测试的结论"`);
+    // 现在用的字幕没读到时哪处都不标：等顶上摆出在用的那条字幕，「不标」才是比过以后的结果。
+    await waitIn(panel, "在用的字幕读到", `${textOf(".video-meta")}.includes("中文（中国）")`);
     assert.doesNotMatch(await panel.evaluate(appText), /基于旧字幕/);
     await askedSheet();
     assert.doesNotMatch(await panel.evaluate(textOf(".qa-entry")), /基于旧字幕/);
