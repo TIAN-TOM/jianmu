@@ -19,7 +19,8 @@ import { ServiceSaid } from "../shared/ui/notice.tsx";
 import { StaleTranscriptLine, VerdictBlock } from "../shared/ui/verdict-block.tsx";
 import { staleOverviewMarks, type BasisSource } from "../shared/ui/verdict.ts";
 import { BatchBar, BatchStart } from "./batch-bar.tsx";
-import { downloadText, learningExport } from "./files.ts";
+import { downloadFile } from "../shared/download.ts";
+import { learningExport } from "./files.ts";
 import { CreatorChapters, OfficialSummary } from "./guides.tsx";
 import type { Panel } from "./panel.ts";
 import { segmentsBetween } from "./reading.ts";
@@ -251,7 +252,7 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
   const exportLearning = (): void => {
     const file = learningExport(learning(Date.now()), uiLang.peek());
     if (!file) return panel.say(t.nothingToExport);
-    downloadText(file.fileName, file.markdown, "text/markdown");
+    downloadFile(file.fileName, [file.markdown], "text/markdown;charset=utf-8");
   };
 
   return (

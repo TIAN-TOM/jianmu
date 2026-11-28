@@ -12,8 +12,8 @@ import type { Derived, GenInfo, OverviewRecord, QaRecord } from "../../../src/co
 import { outputLangOf, plural, resolveOutputLang } from "../../../src/core/output-lang.ts";
 import { equivalenceKey } from "../../../src/core/task-keys.ts";
 import { genInfo, type FrozenGen } from "../../../src/core/tasks.ts";
-import { videoKey } from "../../../src/core/video-ref.ts";
 import { DEFAULTS, normalize } from "../../../src/shared/settings-schema.ts";
+import { SAMPLE_KEY as VIDEO } from "../../helpers/sample-videos.ts";
 
 const PROMPTS_DIR = new URL("../../../prompts/", import.meta.url);
 const read = (file: string): string => readFileSync(new URL(file, PROMPTS_DIR), "utf8");
@@ -102,7 +102,6 @@ test("没有语言小节的模板原样交回；整理字幕和笔记润色不�
 });
 
 const GEN: FrozenGen = { feature: "analysis", baseUrl: "https://ai.example.test/v1", model: "m", effort: "off", promptVersion: "p1" };
-const VIDEO = videoKey({ platform: "bilibili", videoId: "BV1Sample000" });
 
 test("等价键随写内容的语言变：两种语言的同类任务不合并；同一种语言照旧合并", async () => {
   const key = (gen: FrozenGen) => equivalenceKey({ kind: "overview", video: VIDEO, gen });

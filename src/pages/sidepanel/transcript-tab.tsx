@@ -19,7 +19,8 @@ import { ServiceSaid } from "../shared/ui/notice.tsx";
 import { Sheet } from "../shared/ui/overlay.tsx";
 import { StateBlock } from "../shared/ui/state-block.tsx";
 import { stateCopy } from "../shared/ui/state.ts";
-import { downloadText, safeFileName } from "./files.ts";
+import { downloadFile } from "../shared/download.ts";
+import { safeFileName } from "./files.ts";
 import { copyText } from "./copy.ts";
 import { CreatorChapters, OfficialSummary } from "./guides.tsx";
 import type { Panel } from "./panel.ts";
@@ -97,7 +98,7 @@ function Toolbar({ panel, view, onSearch, searching, onImport }: { readonly pane
   }));
   const exportSrt = (): void => {
     const text = srtOf(view.transcript.segments, view.transcript.cues, view.info.durationSec, mode, translation.lines.peek(), tidiedOf(panel));
-    downloadText(`${safeFileName(view.info.title, t.file)}.srt`, text, "application/x-subrip");
+    downloadFile(`${safeFileName(view.info.title, t.file)}.srt`, [text], "application/x-subrip;charset=utf-8");
   };
   const copyAll = (): void => {
     const text = copyTextOf(view.transcript.segments, mode, translation.lines.peek(), tidiedOf(panel));

@@ -6,11 +6,10 @@ import { createFramePress, frameIconEntries } from "../../../src/content/frame-i
 import type { FrameTool } from "../../../src/content/frame.ts";
 import type { HoverIcons } from "../../../src/content/hover-icons.ts";
 import { fail, ok, type Result } from "../../../src/core/errors.ts";
-import { videoKey } from "../../../src/core/video-ref.ts";
 import type { FrameHereView } from "../../../src/shared/messages/frame.ts";
 import type { MainVideo } from "../../../src/sites/page-types.ts";
+import { SAMPLE_VIDEO_KEY as VIDEO } from "../../helpers/sample-videos.ts";
 
-const VIDEO = videoKey({ platform: "bilibili", videoId: "BV1Sample001", segment: 1 });
 
 function setup(options: { readonly main?: MainVideo; readonly confirmed?: boolean; readonly key?: typeof VIDEO | null; readonly reply?: Result<FrameHereView> } = {}) {
   const flashes: string[] = [];

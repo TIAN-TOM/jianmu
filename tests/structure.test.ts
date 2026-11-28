@@ -1,23 +1,18 @@
 import assert from "node:assert/strict";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { bundlesFor } from "../scripts/lib/bundles.mjs";
 import { FEATURE_NAMES, type FeatureSet } from "../src/shared/features.ts";
 import { AV_XOR_CODE, BV_ALPHABET } from "../src/sites/bilibili/url.ts";
+import { listSourceFiles } from "./helpers/source-scan.ts";
 import { DUPLICATE_ALLOWED, findStructureViolations, SCRIPT_ONLY, UNIMPORTED_ALLOWED, type SourceFile, type Violation } from "./helpers/structure-rules.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 function sourceFiles(dir: string): SourceFile[] {
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir).flatMap((name) => {
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) return sourceFiles(path);
-    if (!/\.tsx?$/.test(name)) return [];
-    return [{ path: relative(ROOT, path).split(sep).join("/"), text: readFileSync(path, "utf8") }];
-  });
+  return listSourceFiles(dir, { relativeTo: ROOT, allowMissing: true }).map((path) => ({ path, text: readFileSync(join(ROOT, path), "utf8") }));
 }
 
 function rulesHit(path: string, text: string): Violation["rule"][] {

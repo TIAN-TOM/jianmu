@@ -6,9 +6,9 @@ import { CARD_GENERATE_WINDOW_MS, createCardLimits, createRateLimit } from "../.
 import type { TaskView } from "../../../../src/core/tasks.ts";
 import { videoKey, type VideoKey } from "../../../../src/core/video-ref.ts";
 import { SETTINGS_STORAGE_KEY } from "../../../../src/shared/names.ts";
-import { CONFIRMED, createFakeChrome, SAMPLE_VIDEO_ID, senders } from "../../../helpers/chrome.ts";
+import { CONFIRMED, createFakeChrome, senders } from "../../../helpers/chrome.ts";
+import { SAMPLE_VIDEO_KEY as VIDEO } from "../../../helpers/sample-videos.ts";
 
-const VIDEO = videoKey({ platform: "bilibili", videoId: SAMPLE_VIDEO_ID });
 const tubeVideo = (index: number): VideoKey => videoKey({ platform: "youtube", videoId: `tube-${index}` });
 
 type Started = { ok: true; value: { task: TaskView; joined: boolean; token?: string } } | { ok: false; code: string };

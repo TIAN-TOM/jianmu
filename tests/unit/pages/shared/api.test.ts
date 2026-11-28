@@ -12,8 +12,8 @@ import type { RouteName } from "../../../../src/shared/messages.ts";
 import { EXTENSION_ID, SAMPLE_VIDEO_ID } from "../../../helpers/chrome.ts";
 import { nextTurn } from "../../../helpers/deferred.ts";
 import { BROWSER_ERRORS, fakeRuntime } from "../../../helpers/fake-runtime.ts";
+import { SAMPLE_VIDEO_KEY as VIDEO } from "../../../helpers/sample-videos.ts";
 
-const VIDEO = videoKey({ platform: "bilibili", videoId: SAMPLE_VIDEO_ID });
 const OTHER_VIDEO = videoKey({ platform: "bilibili", videoId: SAMPLE_VIDEO_ID, segment: 2 });
 
 function client() {

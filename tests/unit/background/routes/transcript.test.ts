@@ -7,9 +7,9 @@ import type { MessageSender } from "../../../../src/background/senders.ts";
 import { videoKey } from "../../../../src/core/video-ref.ts";
 import { SETTINGS_STORAGE_KEY, TRANSCRIPT_MODES_KEY } from "../../../../src/shared/names.ts";
 import { CONFIRMED, createFakeChrome, senders, STALE_CONFIRMATION, type FakeChromeOptions } from "../../../helpers/chrome.ts";
-import { failed, fakeSiteService, SAMPLE_ID, type SiteScript } from "../../../helpers/fake-site-service.ts";
+import { failed, fakeSiteService, type SiteScript } from "../../../helpers/fake-site-service.ts";
+import { SAMPLE_KEY as VIDEO } from "../../../helpers/sample-videos.ts";
 
-const VIDEO = videoKey({ platform: "bilibili", videoId: SAMPLE_ID });
 const TAB = 41;
 
 function appOn(script: Partial<SiteScript> = {}, options: FakeChromeOptions = {}) {

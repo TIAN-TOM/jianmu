@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { deferred } from "../../../helpers/deferred.ts";
+import { SAMPLE_VIDEO_KEY as VIDEO } from "../../../helpers/sample-videos.ts";
 import { stillFalse, until } from "../../../helpers/wait-until.ts";
 import type { TranscriptMode, TranscriptModeRequest } from "../../../../src/shared/messages/transcript.ts";
 import { videoKey } from "../../../../src/core/video-ref.ts";
@@ -11,7 +12,6 @@ import { linesOf, mainBreaks, srtOf } from "../../../../src/pages/sidepanel/read
 import { createTidy, createTranslation } from "../../../../src/pages/sidepanel/translate.ts";
 import type { TranslateIn } from "../../../../src/shared/messages/translate.ts";
 
-const VIDEO = videoKey({ platform: "bilibili", videoId: "BV1Sample001" });
 
 function fakeApi(send: (type: string, req: TranscriptModeRequest) => Promise<{ ok: true; value: { mode: TranscriptMode } }> = async () => ({ ok: true, value: { mode: "original" } })) {
   const posted: TranslateIn[] = [];

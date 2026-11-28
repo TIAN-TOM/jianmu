@@ -9,7 +9,8 @@ import { useListExit, type ExitRowProps } from "../shared/ui/list-exit.ts";
 import { Menu } from "../shared/ui/menu.tsx";
 import { StateBlock } from "../shared/ui/state-block.tsx";
 import { copyText } from "./copy.ts";
-import { downloadText, notesExport } from "./files.ts";
+import { downloadFile } from "../shared/download.ts";
+import { notesExport } from "./files.ts";
 import type { NotesScope } from "./notes.ts";
 import type { Panel } from "./panel.ts";
 import { sharedText } from "../shared/text.ts";
@@ -106,7 +107,7 @@ export function NotesTab({ panel }: { readonly panel: Panel }) {
     const title = state.scope === "video" ? (shown[0]?.snapshot.title ?? "") : t.allNotes;
     const file = notesExport(shown, { grouped: state.scope === "all", title }, uiLang.peek());
     if (!file) return panel.say(t.nothingToExport);
-    downloadText(file.fileName, file.markdown, "text/markdown");
+    downloadFile(file.fileName, [file.markdown], "text/markdown;charset=utf-8");
   };
   return (
     <div class="notes">

@@ -12,6 +12,7 @@ import type { SiteCtx, SiteRules, SiteService } from "../../src/sites/types.ts";
 import { manualTimers } from "./manual-timers.ts";
 import { createMemoryIndexedDb } from "./memory-idb.ts";
 import { memoryStorage, type MemoryStorage } from "./memory-storage.ts";
+import { SAMPLE_VIDEO_ID } from "./sample-videos.ts";
 
 export const EXTENSION_ID = "abcdefghijklmnopabcdefghijklmnop";
 export const EXTENSION_ORIGIN = `chrome-extension://${EXTENSION_ID}`;
@@ -20,7 +21,7 @@ export const extensionUrl = (path: string): string => `${EXTENSION_ORIGIN}/${pat
 // 两个自造的视频站，分别顶替两站的地址规则。
 export const WATCH_ORIGIN = "https://watch.example";
 export const TUBE_ORIGIN = "https://tube.example";
-export const SAMPLE_VIDEO_ID = "BV1Sample001";
+export { SAMPLE_VIDEO_ID };
 export const watchUrl = (videoId: string = SAMPLE_VIDEO_ID): string => `${WATCH_ORIGIN}/watch/${videoId}`;
 export const tubeUrl = (videoId = "tube-sample"): string => `${TUBE_ORIGIN}/v/${videoId}`;
 

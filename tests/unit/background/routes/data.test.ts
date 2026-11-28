@@ -12,17 +12,15 @@ import { createClearGuard } from "../../../../src/core/clear-guard.ts";
 import { readFileSync } from "node:fs";
 import { readBackup } from "../../../../src/core/backup/format.ts";
 import { PART_BUDGET } from "../../../../src/core/backup/parts.ts";
-import { videoKey } from "../../../../src/core/video-ref.ts";
 import type { NoteListView } from "../../../../src/shared/messages/notes.ts";
 import { SETTINGS_STORAGE_KEY, TRIAGE_STORAGE_KEY } from "../../../../src/shared/names.ts";
 import { createFakeChrome, senders } from "../../../helpers/chrome.ts";
-import { SAMPLE_ID } from "../../../helpers/fake-site-service.ts";
+import { SAMPLE_KEY as VIDEO } from "../../../helpers/sample-videos.ts";
 import { studyBackground } from "../../../helpers/study-background.ts";
 import { exportOver, importOver, pageApiOver } from "../../../helpers/backup-port.ts";
 import { until } from "../../../helpers/wait-until.ts";
 import { manualTimers } from "../../../helpers/manual-timers.ts";
 
-const VIDEO = videoKey({ platform: "bilibili", videoId: SAMPLE_ID, segment: 1 });
 const NOTE = { id: "note_sample", kind: "note", origin: "user", video: VIDEO, snapshot: { title: "样例", author: "作者" }, atSec: 5, text: "一条", createdAt: 1, updatedAt: 2 };
 
 async function noteCount(bg: ReturnType<typeof studyBackground>): Promise<number> {

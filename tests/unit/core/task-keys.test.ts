@@ -4,8 +4,8 @@ import { test } from "node:test";
 import type { Basis } from "../../../src/core/notes/records.ts";
 import { equivalenceKey, mutexKey, type EquivalenceInput } from "../../../src/core/task-keys.ts";
 import { videoKey } from "../../../src/core/video-ref.ts";
+import { SAMPLE_KEY as VIDEO } from "../../helpers/sample-videos.ts";
 
-const VIDEO = videoKey({ platform: "bilibili", videoId: "BV1Sample000", segment: 1 });
 const OTHER = videoKey({ platform: "youtube", videoId: "tube-sample" });
 const GEN = { feature: "analysis", baseUrl: "https://ai.example.test/v1", model: "model-a", effort: "off", promptVersion: "p1" } as const;
 const BASIS: Basis = { source: "transcript", transcript: { video: VIDEO, kind: "human", lang: "zh-CN", fingerprint: "f1" } };
