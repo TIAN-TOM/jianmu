@@ -7,9 +7,9 @@ import { fail, ok } from "../../../../src/core/errors.ts";
 import { videoKey } from "../../../../src/core/video-ref.ts";
 import { createFrameStore, type FrameTarget } from "../../../../src/pages/sidepanel/frame.ts";
 import type { FrameEntryView } from "../../../../src/shared/messages/frame.ts";
+import { SAMPLE_VIDEO_KEY as VIDEO } from "../../../helpers/sample-videos.ts";
 import { until } from "../../../helpers/wait-until.ts";
 
-const VIDEO = videoKey({ platform: "bilibili", videoId: "BV1Sample001", segment: 1 });
 const OTHER = videoKey({ platform: "bilibili", videoId: "BV1Sample002", segment: 1 });
 
 const entry = (id: string, video = VIDEO, extra: Partial<FrameEntryView> = {}): FrameEntryView => ({

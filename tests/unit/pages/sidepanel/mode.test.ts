@@ -8,9 +8,9 @@ import { createPageApi } from "../../../../src/pages/shared/api.ts";
 import { createModeStore } from "../../../../src/pages/sidepanel/mode.ts";
 import { deferred } from "../../../helpers/deferred.ts";
 import { fakeRuntime } from "../../../helpers/fake-runtime.ts";
+import { SAMPLE_VIDEO_KEY as VIDEO } from "../../../helpers/sample-videos.ts";
 import { stillFalse, until } from "../../../helpers/wait-until.ts";
 
-const VIDEO = videoKey({ platform: "bilibili", videoId: "BV1Sample001" });
 const OTHER = videoKey({ platform: "bilibili", videoId: "BV1Sample002" });
 const TAB = 7;
 

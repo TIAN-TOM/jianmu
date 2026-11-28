@@ -18,12 +18,12 @@ import { inLang, isChineseLang, isOutputLang, OUTPUT_LANGS, outputLangOf } from 
 import { equivalenceKey } from "../../../src/core/task-keys.ts";
 import type { FrozenGen } from "../../../src/core/tasks.ts";
 import { groupName } from "../../../src/core/triage/groups.ts";
-import { videoKey } from "../../../src/core/video-ref.ts";
 import { HTML_LANG } from "../../../src/pages/shared/ui-lang.ts";
 import { settingsCheckText } from "../../../src/shared/settings-text.ts";
 import { CHECK_HANT } from "../../../src/shared/settings-text-hant.ts";
 import { trackName as biliTrackName } from "../../../src/sites/bilibili/url.ts";
 import { trackName as youtubeTrackName } from "../../../src/sites/youtube/url.ts";
+import { SAMPLE_KEY as VIDEO } from "../../helpers/sample-videos.ts";
 
 test("inLang：三种语言各取各的那份，繁体那份是空串、null 也照用", () => {
   assert.equal(inLang("zh", "简", "en", "繁"), "简");
@@ -59,7 +59,6 @@ test("提示词：繁体有自己那一节，填出来和简体不一样；结�
 });
 
 const GEN: FrozenGen = { feature: "analysis", baseUrl: "https://ai.example.test/v1", model: "m", effort: "off", promptVersion: "p1" };
-const VIDEO = videoKey({ platform: "bilibili", videoId: "BV1Sample000" });
 
 test("等价键：繁体和简体的同类任务不合并", async () => {
   const key = (gen: FrozenGen) => equivalenceKey({ kind: "overview", video: VIDEO, gen });

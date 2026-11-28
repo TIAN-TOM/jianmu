@@ -20,10 +20,10 @@ import {
   watchUrl,
   type FakeChromeOptions,
 } from "../../../helpers/chrome.ts";
+import { SAMPLE_VIDEO_KEY as VIDEO } from "../../../helpers/sample-videos.ts";
 import { until } from "../../../helpers/wait-until.ts";
 
 const OTHER_ID = "BV1Sample002";
-const VIDEO = videoKey({ platform: "bilibili", videoId: SAMPLE_VIDEO_ID });
 const OTHER = videoKey({ platform: "bilibili", videoId: OTHER_ID });
 const TUBE = videoKey({ platform: "youtube", videoId: "tube-sample" });
 const LONG = 20 * 60;

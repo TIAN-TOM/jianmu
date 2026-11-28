@@ -1,7 +1,7 @@
 // 英文的报错文案、启用说明、数据说明和各界面的说明里，用弯引号引了按钮、设置项和小节的名字。
 // 每一个都要和界面上那个按钮或标题的英文一字不差，用户才找得到。繁体同理：-hant.ts 模块里用「」引的名字，要和繁体界面上的一字不差。
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -21,6 +21,7 @@ import { PANEL_HANT } from "../../../src/pages/sidepanel/text-hant.ts";
 import { youtubeText as panelYoutubeText } from "../../../src/pages/sidepanel/youtube-text.ts";
 import { TRIAGE_EN } from "../../../src/pages/triage/text-en.ts";
 import { TRIAGE_HANT } from "../../../src/pages/triage/text-hant.ts";
+import { listSourceFiles } from "../../helpers/source-scan.ts";
 import { stripComments } from "../../helpers/strip-comments.ts";
 
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
@@ -31,18 +32,10 @@ const SITE_NAMES: Readonly<Record<string, string>> = {
   "Show transcript": "YouTube 视频简介下面打开文字稿的按钮，报错的下一步教用户去点它",
 };
 
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir).flatMap((name) => {
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) return sourceFiles(path);
-    return /\.tsx?$/.test(name) ? [path] : [];
-  });
-}
-
 /** 源码里所有弯引号引用的名字（中文用「」，弯引号只出现在英文里）。带插值的是运行时才定的值，不算。 */
 function quotedNames(): Map<string, string[]> {
   const names = new Map<string, string[]>();
-  for (const file of sourceFiles(SRC)) {
+  for (const file of listSourceFiles(SRC)) {
     for (const match of readFileSync(file, "utf8").matchAll(/“([^”]+)”/g)) {
       const name = match[1] ?? "";
       if (name.includes("${")) continue;
@@ -111,7 +104,7 @@ const SITE_NAMES_HANT: Readonly<Record<string, string>> = {
 /** -hant.ts 模块里（去掉注释以后）用「」引的名字。带插值的是运行时才定的值，不算。 */
 function quotedNamesHant(): Map<string, string[]> {
   const names = new Map<string, string[]>();
-  for (const file of sourceFiles(SRC).filter((path) => /-hant\.ts$/.test(path))) {
+  for (const file of listSourceFiles(SRC).filter((path) => /-hant\.ts$/.test(path))) {
     for (const match of stripComments(readFileSync(file, "utf8")).matchAll(/「([^」]+)」/g)) {
       const name = match[1] ?? "";
       if (name.includes("${")) continue;

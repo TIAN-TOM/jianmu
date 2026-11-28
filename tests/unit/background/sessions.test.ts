@@ -11,9 +11,9 @@ import { SAMPLE_VIDEO_ID } from "../../helpers/chrome.ts";
 import { deferred } from "../../helpers/deferred.ts";
 import { createMemoryDriver } from "../../helpers/memory-driver.ts";
 import { memoryStorage } from "../../helpers/memory-storage.ts";
+import { SAMPLE_VIDEO_KEY as VIDEO } from "../../helpers/sample-videos.ts";
 import { until } from "../../helpers/wait-until.ts";
 
-const VIDEO = videoKey({ platform: "bilibili", videoId: SAMPLE_VIDEO_ID });
 const NEXT = videoKey({ platform: "bilibili", videoId: SAMPLE_VIDEO_ID, segment: 2 });
 const CHANNEL_REF = { platform: "bilibili", channelId: "4242" } as const;
 const CHANNEL = channelKey(CHANNEL_REF);

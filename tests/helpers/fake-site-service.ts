@@ -49,7 +49,7 @@ export interface FakeSiteService {
 }
 
 /** 自造的视频号，和 B 站读取测试的样例同一个。 */
-export const SAMPLE_ID = "BV1Sample000";
+export { SAMPLE_ID } from "./sample-videos.ts";
 
 export const ZH: CaptionTrack = { trackId: "zh-CN", lang: "zh-CN", label: "中文（中国）", kind: "human" };
 export const EN: CaptionTrack = { trackId: "en-US", lang: "en-US", label: "英语", kind: "human" };

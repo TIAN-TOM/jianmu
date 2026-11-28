@@ -1,8 +1,8 @@
 // 后台、扩展页面和内容脚本不按站名分支：要问一个站能做什么，经站点契约的能力问（例如 sites/rules.ts 的 captionsInPage）。
 // 这里读源码文本，去掉注释以后拦几种按站名分支的写法；确实只属于一个站的地方进放行表，并写明原因。
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { bilibiliRules } from "../../../src/sites/bilibili/url.ts";
@@ -11,6 +11,7 @@ import { CONTENT_SENDERS } from "../../../src/shared/messages.ts";
 import { captionsInPage, watchRefOf } from "../../../src/sites/rules.ts";
 import type { SiteRules } from "../../../src/sites/types.ts";
 import { youtubeRules } from "../../../src/sites/youtube/url.ts";
+import { listSourceFiles } from "../../helpers/source-scan.ts";
 import { stripComments } from "../../helpers/strip-comments.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -29,14 +30,6 @@ const ALLOWED: readonly { readonly file: string; readonly snippet: string; reado
   { file: "src/background/routes/youtube.ts", snippet: '?.platform === "youtube"', reason: "YouTube 专属的路由，只收 YouTube 的视频" },
   { file: "src/pages/sidepanel/panel.ts", snippet: '?.platform === "bilibili"', reason: "只为挑「UP 主」还是「频道」这个词，不决定能做什么" },
 ];
-
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir).flatMap((name) => {
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) return sourceFiles(path);
-    return /\.tsx?$/.test(name) ? [relative(ROOT, path).split(sep).join("/")] : [];
-  });
-}
 
 interface Hit {
   readonly file: string;
@@ -106,7 +99,7 @@ test("检查本身拦得住：几种按站名分支的写法都认得出，注�
 });
 
 test("后台、扩展页面和内容脚本里没有按站名分支的写法，放行表里写明的除外", () => {
-  const hits = SCANNED.flatMap((dir) => sourceFiles(join(ROOT, dir))).flatMap((file) => scan(file, readFileSync(join(ROOT, file), "utf8")));
+  const hits = SCANNED.flatMap((dir) => listSourceFiles(join(ROOT, dir), { relativeTo: ROOT })).flatMap((file) => scan(file, readFileSync(join(ROOT, file), "utf8")));
   assert.deepEqual(hits.filter((hit) => !allowed(hit)).map(({ file, line, rule, text }) => `${file}:${line} ${rule}：${text}`), []);
   // 放行表里的每一条都还用得着，用不着了就删掉那一条。
   for (const entry of ALLOWED) assert.ok(hits.some((hit) => hit.file === entry.file && hit.text.includes(entry.snippet)), `${entry.file}：${entry.reason}`);
