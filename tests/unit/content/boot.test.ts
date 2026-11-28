@@ -58,11 +58,11 @@ test("媒体开始加载在捕获阶段听到，取消以后不再通知", () =>
   const doc = {
     addEventListener: (type: string, run: () => void, capture?: boolean) => {
       calls.push([`add ${type}`, capture]);
-      target.addEventListener(type, run, capture);
+      target.addEventListener(type, run, { capture });
     },
     removeEventListener: (type: string, run: () => void, capture?: boolean) => {
       calls.push([`remove ${type}`, capture]);
-      target.removeEventListener(type, run, capture);
+      target.removeEventListener(type, run, { capture });
     },
   } as unknown as Pick<Document, "addEventListener" | "removeEventListener">;
   let runs = 0;
