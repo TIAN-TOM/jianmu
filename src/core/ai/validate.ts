@@ -194,7 +194,7 @@ const latinCount = (text: string | null | undefined): number => (String(text || 
 export function looksLikeTranslation(
   translated: string | null | undefined,
   source: string | null | undefined,
-  targetLang = "zh",
+  targetLang: string,
 ): boolean {
   if (targetLang === "en") {
     const sourceCjk = cjkCount(source);
@@ -208,7 +208,7 @@ export function looksLikeTranslation(
 export function alignTranslatedSegments(
   parsed: unknown,
   sourceSegments: readonly SourceSegment[] | null | undefined,
-  { targetLang = "zh" }: { readonly targetLang?: string } = {},
+  { targetLang }: { readonly targetLang: string },
 ): { translated: Record<string, string>; rejected: RejectedSegment[] } {
   const { accepted, rejected } = alignSegmentBatch(
     parsed,

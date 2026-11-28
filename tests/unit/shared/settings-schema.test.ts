@@ -39,13 +39,13 @@ const custom = (overrides: SETTINGS.SettingsInput): SETTINGS.SettingsInput => ({
 });
 
 const urlOf = (input: unknown, protocol?: Protocol): string => {
-  const check = validateBaseUrl(input, protocol);
+  const check = validateBaseUrl(input, protocol, "zh");
   assert.equal(check.ok, true, String(input));
   return check.ok ? check.url : "";
 };
 
 const errorOf = (input: unknown, protocol?: Protocol): string => {
-  const check = validateBaseUrl(input, protocol);
+  const check = validateBaseUrl(input, protocol, "zh");
   assert.equal(check.ok, false, String(input));
   return check.ok ? "" : check.error;
 };
@@ -55,7 +55,7 @@ const errorOf = (input: unknown, protocol?: Protocol): string => {
 // ============================================================
 
 test("接受 https 地址并去掉尾部斜杠", () => {
-  assert.deepEqual(validateBaseUrl("https://api.deepseek.com/"), {
+  assert.deepEqual(validateBaseUrl("https://api.deepseek.com/", undefined, "zh"), {
     ok: true,
     url: "https://api.deepseek.com",
     origin: "https://api.deepseek.com/",
@@ -99,7 +99,7 @@ test("地址只认 https：明文 http 只放行 localhost 和 127.0.0.1，局�
     assert.equal(chatCompletionsUrl(stored), null, http);
     assert.equal(modelsUrl(stored), null, http);
     assert.equal(SETTINGS.originOf(http), null, http);
-    assert.deepEqual(SETTINGS.validate(stored).errors, [HTTPS_ERROR], http);
+    assert.deepEqual(SETTINGS.validate(stored, "zh").errors, [HTTPS_ERROR], http);
   }
   const locals: readonly (readonly [string, string, string])[] = [
     ["http://localhost:11434/v1", "http://localhost:11434/v1", "http://localhost:11434/"],
@@ -108,29 +108,29 @@ test("地址只认 https：明文 http 只放行 localhost 和 127.0.0.1，局�
     ["http://localhost/v1", "http://localhost/v1", "http://localhost/"],
   ];
   for (const [http, url, origin] of locals) {
-    assert.deepEqual(validateBaseUrl(http), { ok: true, url, origin }, http);
+    assert.deepEqual(validateBaseUrl(http, undefined, "zh"), { ok: true, url, origin }, http);
     const stored = custom({ aiBaseUrl: http, aiApiKey: "k", aiModel: "m", ...CONSENTED });
     assert.equal(chatCompletionsUrl(stored), `${url}/chat/completions`, http);
     assert.equal(modelsUrl(stored), `${url}/models`, http);
     assert.equal(SETTINGS.originOf(http), origin, http);
-    assert.deepEqual(SETTINGS.validate(stored).errors, [], http);
+    assert.deepEqual(SETTINGS.validate(stored, "zh").errors, [], http);
   }
   // https 的本机地址照常可用。
-  assert.deepEqual(validateBaseUrl("https://localhost:8443/v1"), {
+  assert.deepEqual(validateBaseUrl("https://localhost:8443/v1", undefined, "zh"), {
     ok: true,
     url: "https://localhost:8443/v1",
     origin: "https://localhost:8443/",
   });
 
   // Chrome 权限系统申请不到 IPv6 字面量，仍然拦下，http 的本机 IPv6 也一样。
-  assert.equal(validateBaseUrl("https://[::1]:11434/v1").ok, false);
-  assert.equal(validateBaseUrl("http://[::1]:11434/v1").ok, false);
+  assert.equal(validateBaseUrl("https://[::1]:11434/v1", undefined, "zh").ok, false);
+  assert.equal(validateBaseUrl("http://[::1]:11434/v1", undefined, "zh").ok, false);
   assert.match(errorOf("https://[2001:db8::1]/v1"), /IPv6/);
 });
 
 test("拒绝非 http(s) 协议与非法 URL", () => {
   for (const bad of ["ftp://example.com", "javascript:alert(1)", "file:///etc/passwd", "not a url", ""]) {
-    assert.equal(validateBaseUrl(bad).ok, false, `不该接受：${bad}`);
+    assert.equal(validateBaseUrl(bad, undefined, "zh").ok, false, `不该接受：${bad}`);
   }
 });
 
@@ -217,10 +217,10 @@ test("这五家走 OpenAI 兼容协议和 https 大陆端点，不带默认模�
     assert.equal(chatCompletionsUrl(SETTINGS.normalize({ presetId })), `${baseUrl}/chat/completions`, presetId);
     assert.equal(modelsUrl(SETTINGS.normalize({ presetId })), `${baseUrl}/models`, presetId);
     // 没选模型就发不出请求，也不拿列表第一个凑数。
-    const ready = SETTINGS.validate({ presetId, aiApiKey: "sk-test", ...CONSENTED });
+    const ready = SETTINGS.validate({ presetId, aiApiKey: "sk-test", ...CONSENTED }, "zh");
     assert.equal(ready.ok, false, presetId);
     assert.deepEqual(ready.errors, [MODEL_ERROR], presetId);
-    assert.equal(SETTINGS.validate({ presetId, aiApiKey: "sk-test", aiModel: "m", ...CONSENTED }).ok, true, presetId);
+    assert.equal(SETTINGS.validate({ presetId, aiApiKey: "sk-test", aiModel: "m", ...CONSENTED }, "zh").ok, true, presetId);
   }
 });
 
@@ -247,7 +247,7 @@ test("存着这五家的配置原样读出：服务商、模型、密钥和按�
     assert.equal(normalized.aiApiKeyOrigin, origin, presetId);
     assert.deepEqual(normalized.featureModels, { verdict: `${presetId}-small`, explain: `${presetId}-mini` }, presetId);
     assert.equal(normalized.featureModelsOwner, `${presetId}|${origin}`, presetId);
-    assert.equal(SETTINGS.validate(stored).ok, true, presetId);
+    assert.equal(SETTINGS.validate(stored, "zh").ok, true, presetId);
     assert.deepEqual(SETTINGS.normalize(normalized), normalized, presetId);
   }
 });
@@ -340,7 +340,7 @@ test("只有「自定义」才认用户填的地址与协议", () => {
 test("自定义时不填地址会落到空值，由 validate 报错而不是静默用 DeepSeek", () => {
   const normalized = SETTINGS.normalize({ presetId: SETTINGS.CUSTOM_PRESET_ID, aiApiKey: "k", aiModel: "m" });
   assert.equal(normalized.aiBaseUrl, "");
-  assert.equal(SETTINGS.validate(normalized).ok, false);
+  assert.equal(SETTINGS.validate(normalized, "zh").ok, false);
 });
 
 test("换预设时模型回落到该预设的默认值", () => {
@@ -361,7 +361,7 @@ test("未知的协议或预设回落到默认值", () => {
 test("非法地址原样保留，交给设置页报错，而不是悄悄改回默认值", () => {
   const normalized = SETTINGS.normalize({ presetId: "custom", aiBaseUrl: "ftp://api.example.com" });
   assert.equal(normalized.aiBaseUrl, "ftp://api.example.com");
-  assert.equal(SETTINGS.validate(normalized).ok, false);
+  assert.equal(SETTINGS.validate(normalized, "zh").ok, false);
 });
 
 test("normalize 能接受 null 与非对象输入", () => {
@@ -375,34 +375,34 @@ test("normalize 能接受 null 与非对象输入", () => {
 // ============================================================
 
 test("远程服务缺密钥或缺模型都算没配好", () => {
-  const noKey = SETTINGS.validate({ presetId: "custom", aiBaseUrl: "https://api.example.com/v1", aiModel: "m" });
+  const noKey = SETTINGS.validate({ presetId: "custom", aiBaseUrl: "https://api.example.com/v1", aiModel: "m" }, "zh");
   assert.equal(noKey.ok, false);
   assert.match(noKey.errors.join(""), /密钥/);
 
-  const noModel = SETTINGS.validate({ presetId: "custom", aiBaseUrl: "https://api.example.com/v1", aiApiKey: "k" });
+  const noModel = SETTINGS.validate({ presetId: "custom", aiBaseUrl: "https://api.example.com/v1", aiApiKey: "k" }, "zh");
   assert.equal(noModel.ok, false);
   assert.match(noModel.errors.join(""), /模型/);
 });
 
 test("没确认数据说明时不通过校验，确认的是旧版本也不行", () => {
   const configured = { presetId: "deepseek", aiApiKey: "sk-test", aiModel: "deepseek-v4-flash" };
-  assert.deepEqual(SETTINGS.validate(configured).errors, [DATA_CONSENT_ERROR]);
+  assert.deepEqual(SETTINGS.validate(configured, "zh").errors, [DATA_CONSENT_ERROR]);
   assert.deepEqual(
-    SETTINGS.validate({ ...configured, ...CONSENTED, dataConsentVersion: DATA_CONSENT_VERSION - 1 }).errors,
+    SETTINGS.validate({ ...configured, ...CONSENTED, dataConsentVersion: DATA_CONSENT_VERSION - 1 }, "zh").errors,
     [DATA_CONSENT_ERROR],
   );
   // 版本对得上、指纹对不上或没存，同样按没确认处理。
   assert.deepEqual(
-    SETTINGS.validate({ ...configured, ...CONSENTED, dataConsentFingerprint: STALE_FINGERPRINT }).errors,
+    SETTINGS.validate({ ...configured, ...CONSENTED, dataConsentFingerprint: STALE_FINGERPRINT }, "zh").errors,
     [DATA_CONSENT_ERROR],
   );
-  assert.deepEqual(SETTINGS.validate({ ...configured, dataConsentVersion: DATA_CONSENT_VERSION }).errors, [
+  assert.deepEqual(SETTINGS.validate({ ...configured, dataConsentVersion: DATA_CONSENT_VERSION }, "zh").errors, [
     DATA_CONSENT_ERROR,
   ]);
-  assert.deepEqual(SETTINGS.validate({ ...configured, dataConsentFingerprint: DATA_CONSENT_FINGERPRINT }).errors, [
+  assert.deepEqual(SETTINGS.validate({ ...configured, dataConsentFingerprint: DATA_CONSENT_FINGERPRINT }, "zh").errors, [
     DATA_CONSENT_ERROR,
   ]);
-  assert.equal(SETTINGS.validate({ ...configured, ...CONSENTED }).ok, true);
+  assert.equal(SETTINGS.validate({ ...configured, ...CONSENTED }, "zh").ok, true);
   for (const bad of ["1", 1.5, -1, null, true]) {
     assert.equal(SETTINGS.normalize({ dataConsentVersion: bad }).dataConsentVersion, 0, String(bad));
   }
@@ -417,7 +417,7 @@ test("配置齐全时通过校验", () => {
     aiBaseUrl: "https://api.deepseek.com",
     aiModel: "deepseek-v4-flash",
     ...CONSENTED,
-  });
+  }, "zh");
   assert.equal(ok.ok, true, ok.errors.join(" "));
 });
 
@@ -558,7 +558,7 @@ test("「尽量整份」是可选的一档，默认还是自动；问答检索�
 test("每个预设的地址都能通过自身协议的校验", () => {
   for (const preset of SETTINGS.PRESETS) {
     if (!preset.baseUrl) continue; // 「自定义」故意留空
-    const result = validateBaseUrl(preset.baseUrl, preset.protocol);
+    const result = validateBaseUrl(preset.baseUrl, preset.protocol, "zh");
     assert.equal(result.ok, true, `${preset.id} 的地址不合法`);
     assert.equal(SETTINGS.normalize({ presetId: preset.id }).aiBaseUrl, preset.baseUrl, preset.id);
   }
@@ -619,8 +619,8 @@ test("Ollama 预设指向本机的 OpenAI 兼容地址，不预置模型、没�
   assert.equal(SETTINGS.originOf(normalized.aiBaseUrl), "http://localhost:11434/");
   assert.equal(chatCompletionsUrl(normalized), "http://localhost:11434/v1/chat/completions");
   assert.equal(modelsUrl(normalized), "http://localhost:11434/v1/models");
-  assert.equal(SETTINGS.validate({ presetId: "ollama", aiModel: "local-model", ...CONSENTED }).ok, true);
-  assert.deepEqual(SETTINGS.validate({ presetId: "ollama", ...CONSENTED }).errors, [MODEL_ERROR]);
+  assert.equal(SETTINGS.validate({ presetId: "ollama", aiModel: "local-model", ...CONSENTED }, "zh").ok, true);
+  assert.deepEqual(SETTINGS.validate({ presetId: "ollama", ...CONSENTED }, "zh").errors, [MODEL_ERROR]);
 });
 
 test("快捷选择指向真实的预设，国内在前", () => {
@@ -672,16 +672,16 @@ test("认不出的键规整后不留下，其余设置照常读出", () => {
 
 test("没填密钥和模型也能保存，但还不能调用 AI", () => {
   const input = { presetId: "openai" };
-  const save = SETTINGS.validateForSave(input);
+  const save = SETTINGS.validateForSave(input, "zh");
   assert.equal(save.ok, true);
   assert.deepEqual(save.errors, []);
-  const ready = SETTINGS.validate(input);
+  const ready = SETTINGS.validate(input, "zh");
   assert.equal(ready.ok, false);
   assert.match(ready.errors.join(" "), /请填写 API 密钥/);
 });
 
 test("地址不合法时不能保存", () => {
-  const save = SETTINGS.validateForSave({ presetId: SETTINGS.CUSTOM_PRESET_ID, aiBaseUrl: "ftp://api.example.com" });
+  const save = SETTINGS.validateForSave({ presetId: SETTINGS.CUSTOM_PRESET_ID, aiBaseUrl: "ftp://api.example.com" }, "zh");
   assert.equal(save.ok, false);
   assert.deepEqual(save.errors, [HTTPS_ERROR]);
 });
@@ -744,7 +744,7 @@ test("覆盖只认已知功能下的非空字符串，去掉首尾空白", () =>
 
 test("功能列表就是设置页那七项，构建开关打开时多一项画面解释，id 不重复", () => {
   assert.deepEqual(
-    SETTINGS.FEATURE_MODEL_SLOTS.map((slot) => [slot.id, slotLabel(slot.id)]),
+    SETTINGS.FEATURE_MODEL_SLOTS.map((slot) => [slot.id, slotLabel(slot.id, "zh")]),
     [
       ["analysis", "概览"],
       ["verdict", "一句话结论"],
@@ -830,18 +830,18 @@ test("validate：覆盖不能代替默认模型，无效的覆盖不挡请求", 
     aiApiKey: "sk-openai-test",
     ...CONSENTED,
     featureModels: Object.fromEntries(SETTINGS.FEATURE_MODEL_SLOTS.map((slot) => [slot.id, "m"])),
-  });
+  }, "zh");
   assert.equal(noDefault.ok, false);
   assert.deepEqual(noDefault.errors, [MODEL_ERROR]);
 
   const messy = SETTINGS.validate({
     ...ANTHROPIC_SAVED,
     featureModels: { analysis: "", verdict: "  claude-haiku-5-0 ", qa: 7 },
-  });
+  }, "zh");
   assert.equal(messy.ok, true, JSON.stringify(messy.errors));
   assert.deepEqual(messy.settings.featureModels, { verdict: "claude-haiku-5-0" });
 
-  const ready = SETTINGS.validateForSave({ ...ANTHROPIC_SAVED, featureModels: { qa: "x" } });
+  const ready = SETTINGS.validateForSave({ ...ANTHROPIC_SAVED, featureModels: { qa: "x" } }, "zh");
   assert.equal(ready.ok, true);
   assert.deepEqual(ready.settings.featureModels, { qa: "x" });
 });
@@ -875,7 +875,7 @@ test("密钥记录的来源与当前地址不一致时视为没填", () => {
   assert.equal(normalized.aiBaseUrl, "https://api.deepseek.com");
   assert.equal(normalized.aiApiKey, "", "OpenAI 的密钥不能跟着 DeepSeek 的地址走");
   assert.equal(normalized.aiApiKeyOrigin, "");
-  assert.deepEqual(SETTINGS.validate(normalized).errors, [KEY_ERROR, DATA_CONSENT_ERROR]);
+  assert.deepEqual(SETTINGS.validate(normalized, "zh").errors, [KEY_ERROR, DATA_CONSENT_ERROR]);
 });
 
 test("自定义地址换了域名，旧密钥同样作废；只换路径不受影响", () => {
@@ -967,7 +967,7 @@ test("启用确认和数据同意分开判断：确认了一边不等于确认�
   assert.equal(SETTINGS.activationStatus(onlyConsent).state, "needed");
 
   const onlyActivated = { presetId: "deepseek", aiApiKey: "sk-test", ...SETTINGS.ACTIVATION_CONFIRMED };
-  assert.deepEqual(SETTINGS.validate(onlyActivated).errors, [DATA_CONSENT_ERROR]);
+  assert.deepEqual(SETTINGS.validate(onlyActivated, "zh").errors, [DATA_CONSENT_ERROR]);
 });
 
 test("推理强度：新安装六项功能全是关；只认已知功能下的四档，别的值按关，认不出的功能不写出来", () => {

@@ -71,9 +71,9 @@ const NOTICES: readonly NoticeEntry[] = [
 ];
 
 const fullStatus = noticeStatus(ACTIVATION_TABLE, {});
-const FULL_SECTIONS = activationSections(fullStatus.state === "needed" ? fullStatus.items : []);
-const NEW_SECTIONS = activationSections([{ kind: "read", text: "示例：说明新增的一项读取" }]);
-const noCaptions = stateCopy("NO_CAPTIONS");
+const FULL_SECTIONS = activationSections(fullStatus.state === "needed" ? fullStatus.items : [], "zh");
+const NEW_SECTIONS = activationSections([{ kind: "read", text: "示例：说明新增的一项读取" }], "zh");
+const noCaptions = stateCopy("NO_CAPTIONS", undefined, "zh");
 // 各类错误各挑一个，看三段在状态块里怎么排。
 const ERROR_SAMPLES: readonly (readonly [ErrorCode, string?])[] = [
   ["NEED_LOGIN"],
@@ -132,7 +132,7 @@ function Gallery() {
       <section id="errors-demo">
         {ERROR_SAMPLES.map(([code, detail]) => (
           <div key={`${code}/${detail ?? ""}`} data-code={code}>
-            <StateBlock {...stateCopy(code, detail)} primary={{ label: "重试", onClick: () => (picked.value = code) }} />
+            <StateBlock {...stateCopy(code, detail, "zh")} primary={{ label: "重试", onClick: () => (picked.value = code) }} />
           </div>
         ))}
       </section>

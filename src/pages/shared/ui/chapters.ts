@@ -54,11 +54,11 @@ export function lengthShares(lengths: readonly (number | null)[]): number[] {
 export const knownLength = validLength;
 
 /** 「全长 56:00」。 */
-export function totalLengthText(time: string, lang: UiLang = "zh"): string {
+export function totalLengthText(time: string, lang: UiLang): string {
   return sharedTextOf(lang).chapters.total(time);
 }
 
 /** 「章节 6，重点 2」，没有重点时只写「章节 6」。 */
-export function chapterHeading(count: number, keyCount: number, lang: UiLang = "zh"): string {
+export function chapterHeading(count: number, keyCount: number, lang: UiLang): string {
   return sharedTextOf(lang).chapters.heading(count, keyCount);
 }

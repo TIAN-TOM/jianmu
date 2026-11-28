@@ -47,7 +47,7 @@ export function extensionOrigin(url: string): string {
   return /^[a-z-]+:\/\/[^/]+/i.exec(url)?.[0] ?? "";
 }
 
-export function createCardFrame({ document, cardUrl, extensionRoot, slot, fillsScreen, tone, title = () => contentText().cardTitle }: CardFrameDeps): CardFrame {
+export function createCardFrame({ document, cardUrl, extensionRoot, slot, fillsScreen, tone, title = () => contentText("zh").cardTitle }: CardFrameDeps): CardFrame {
   const view = document.defaultView;
   let frame: HTMLIFrameElement | null = null;
   let origin = "";

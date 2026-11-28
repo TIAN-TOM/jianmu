@@ -106,7 +106,7 @@ test("规整后的提纲直接交给结论输入和学习稿，时间和要点�
     "[4:01] 再说移栽。：阴天移栽成活高。",
   ]);
 
-  const lines = learningAsMarkdown({ videoKey: videoKey(INFO.ref), officialSummary: summary }, LINK).split("\n");
+  const lines = learningAsMarkdown({ videoKey: videoKey(INFO.ref), officialSummary: summary }, LINK, "zh").split("\n");
   const link = (stamp: string, seconds: number): string => `[${stamp}](${VIDEO_BASE}${BVID}?t=${seconds})`;
   for (const line of [
     `### ${link("0:01", 1)} 先选种子。`,

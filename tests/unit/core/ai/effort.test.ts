@@ -357,10 +357,10 @@ test("传输层按档位加输出余量、并进补丁；选关时预算和请�
     settingsRules: SETTINGS.settingsRules,
     fetch,
   });
-  await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 1000 });
-  await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 1000, effort: "off" });
-  await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 1000, effort: "high" });
-  await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 30000, effort: "high" });
+  await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 1000, lang: "zh" });
+  await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 1000, effort: "off", lang: "zh" });
+  await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 1000, effort: "high", lang: "zh" });
+  await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 30000, effort: "high", lang: "zh" });
 
   assert.deepEqual(sent.map((body) => body.max_tokens), [1000, 1000, 1000 + 16384, TRANSPORT.OUTPUT_TOKENS_CEILING]);
   assert.equal(JSON.stringify(sent[1]), JSON.stringify(sent[0]));
@@ -385,7 +385,7 @@ test("Google 兼容端点回数组形状的额度报错：读出原因，按额�
     sleep: async () => {},
     fetch,
   });
-  const error = await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }).then(
+  const error = await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }).then(
     () => assert.fail("应当报错"),
     (failure: TRANSPORT.TransportError) => failure,
   );

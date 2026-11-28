@@ -83,8 +83,8 @@ export interface AppDeps {
   /** 端口表，默认用路由表旁边的那份；测试接上造好的端口。 */
   readonly ports?: Readonly<Record<string, AnyPortSpec>>;
   readonly log: Log;
-  /** 浏览器的界面语言，语言设置是跟随浏览器时用。没给时按中文。 */
-  readonly uiLanguage?: () => string;
+  /** 浏览器的界面语言，语言设置是跟随浏览器时用。 */
+  readonly uiLanguage: () => string;
 }
 
 export interface App {
@@ -161,7 +161,7 @@ function assembleAi(deps: AppDeps, settings: SettingsStore, clearGuard: ClearGua
     fetch: deps.fetch,
     clearGuard,
     prompts: deps.prompts,
-    ...(deps.uiLanguage ? { uiLanguage: deps.uiLanguage } : {}),
+    uiLanguage: deps.uiLanguage,
   });
 }
 

@@ -70,8 +70,8 @@ export function isLocalBaseUrl(input: unknown): boolean {
   }
 }
 
-// 密钥会随请求发到这个地址，所以只认 https；本机地址（localhost、127.0.0.1）也可以用 http。error 按 lang 写，不传时是中文。
-export function validateBaseUrl(input: unknown, protocol: Protocol = PROTOCOLS.OPENAI, lang: OutputLang = "zh"): BaseUrlCheck {
+// 密钥会随请求发到这个地址，所以只认 https；本机地址（localhost、127.0.0.1）也可以用 http。error 按 lang 写。
+export function validateBaseUrl(input: unknown, protocol: Protocol = PROTOCOLS.OPENAI, lang: OutputLang): BaseUrlCheck {
   const say = providerText(lang);
   const text = String(input || "").trim();
   if (!text) return { ok: false, error: say.baseUrlMissing };
@@ -139,14 +139,14 @@ export function resolveEndpoint(input: EndpointSource = {}): { protocol: Protoco
     : typeof source.aiBaseUrl === "string" && source.aiBaseUrl.trim()
       ? source.aiBaseUrl.trim()
       : preset.baseUrl;
-  const checked = validateBaseUrl(rawBaseUrl, protocol);
+  const checked = validateBaseUrl(rawBaseUrl, protocol, "zh");
   return { protocol, aiBaseUrl: checked.ok ? checked.url : rawBaseUrl };
 }
 
 // 对话请求的端点。名字沿用 Chat Completions 时代，三种协议都从这里取。
 export function chatCompletionsUrl(settings: EndpointSource): string | null {
   const { aiBaseUrl, protocol } = resolveEndpoint(settings);
-  const base = validateBaseUrl(aiBaseUrl, protocol);
+  const base = validateBaseUrl(aiBaseUrl, protocol, "zh");
   if (!base.ok) return null;
   if (protocol === PROTOCOLS.ANTHROPIC) return `${base.url}/v1/messages`;
   if (protocol === PROTOCOLS.RESPONSES) return `${base.url}/responses`;
@@ -155,7 +155,7 @@ export function chatCompletionsUrl(settings: EndpointSource): string | null {
 
 export function modelsUrl(settings: EndpointSource): string | null {
   const { aiBaseUrl, protocol } = resolveEndpoint(settings);
-  const base = validateBaseUrl(aiBaseUrl, protocol);
+  const base = validateBaseUrl(aiBaseUrl, protocol, "zh");
   if (!base.ok) return null;
   return protocol === PROTOCOLS.ANTHROPIC
     ? `${base.url}/v1/models`

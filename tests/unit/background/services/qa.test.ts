@@ -298,8 +298,8 @@ test("像 JSON 又解析不了的回答报 QA_PARSE_FAILED，提示换模型，�
   const h = studyHarness({ ai: { replies: { qa: "{oops 不是 JSON [" } } });
   const result = await h.ask("结论？").result;
   assert.deepEqual(result, { ok: false, code: "QA_PARSE_FAILED" }, "不带解析器的报错");
-  assert.match(describe("QA_PARSE_FAILED"), /按功能选模型/);
-  assert.doesNotMatch(describe("QA_PARSE_FAILED"), /Unexpected token|JSON/);
+  assert.match(describe("QA_PARSE_FAILED", undefined, "zh"), /按功能选模型/);
+  assert.doesNotMatch(describe("QA_PARSE_FAILED", undefined, "zh"), /Unexpected token|JSON/);
   assert.deepEqual(await h.qaStore.byVideo(VIDEO), []);
 });
 

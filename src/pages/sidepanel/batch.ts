@@ -34,8 +34,8 @@ export interface WindowBatchDeps {
   readonly api: Pick<PageApi, "connect">;
   /** 侧边栏所在的窗口。 */
   readonly windowId?: () => Promise<number | null>;
-  /** 说明用哪种语言写，缺省中文。 */
-  readonly lang?: () => UiLang;
+  /** 说明用哪种语言写。 */
+  readonly lang: () => UiLang;
 }
 
 const IDLE: BatchPhase = { phase: "idle" };
@@ -44,7 +44,7 @@ const IDLE: BatchPhase = { phase: "idle" };
 export const RETRYABLE: ReadonlySet<WindowEntryView["status"]> = new Set(["failed", "canceled"]);
 
 /** 确认前的说明：本窗口有几个视频、跳过几个、要新生成几个。 */
-export function confirmText(items: readonly WindowCountItem[], lang: UiLang = "zh"): string {
+export function confirmText(items: readonly WindowCountItem[], lang: UiLang): string {
   const t = panelTextOf(lang).batch;
   if (!items.length) return t.empty;
   const head = confirmHead(items, lang);
@@ -91,7 +91,7 @@ export function countsOf(run: WindowRunView): Counts {
 export const busyOf = (run: WindowRunView): boolean => run.entries.some((entry) => entry.status === "pending" || entry.status === "running");
 
 /** 进度那一行。 */
-export function progressText(run: WindowRunView, lang: UiLang = "zh"): string {
+export function progressText(run: WindowRunView, lang: UiLang): string {
   const t = panelTextOf(lang).batch;
   const counts = countsOf(run);
   const text = t.progress({ ...counts, total: counts.total - counts.skipped });
@@ -100,7 +100,7 @@ export function progressText(run: WindowRunView, lang: UiLang = "zh"): string {
 
 const realWindowId = (): Promise<number | null> => chrome.windows.getCurrent().then((win) => win.id ?? null, () => null);
 
-export function createWindowBatch({ api, windowId: readWindowId = realWindowId, lang = () => "zh" }: WindowBatchDeps): WindowBatchStore {
+export function createWindowBatch({ api, windowId: readWindowId = realWindowId, lang }: WindowBatchDeps): WindowBatchStore {
   const state = signal<BatchPhase>(IDLE);
   const error = signal("");
   let port: PagePort<"batch"> | null = null;

@@ -54,9 +54,9 @@ const FRAME_EN: FrameIconText = {
   },
 };
 
-const frameIconText = (lang: OutputLang = "zh"): FrameIconText => inLang(lang, FRAME_ZH, FRAME_EN, FRAME_ICON_HANT);
+const frameIconText = (lang: OutputLang): FrameIconText => inLang(lang, FRAME_ZH, FRAME_EN, FRAME_ICON_HANT);
 
-export function frameIcon(lang: OutputLang = "zh"): IconSpec {
+export function frameIcon(lang: OutputLang): IconSpec {
   return {
     id: INJECTED.frameButton,
     labelClass: INJECTED.frameLabel,
@@ -67,7 +67,7 @@ export function frameIcon(lang: OutputLang = "zh"): IconSpec {
 }
 
 /** 浮层里排在笔记图标下面的那一项；没有截帧工具时不排。 */
-export function frameIconEntries(tool: FrameTool | undefined, onPress: () => void, lang: OutputLang = "zh"): HoverIconEntry[] {
+export function frameIconEntries(tool: FrameTool | undefined, onPress: () => void, lang: OutputLang): HoverIconEntry[] {
   return tool ? [{ spec: frameIcon(lang), onPress }] : [];
 }
 
@@ -87,12 +87,12 @@ export interface FramePressDeps {
   /** 扩展断了联系：交给界面收场。 */
   readonly gone: () => boolean;
   readonly onGone: () => void;
-  /** 界面语言，不给时是中文。 */
-  readonly lang?: () => OutputLang;
+  /** 界面语言。 */
+  readonly lang: () => OutputLang;
 }
 
 /** 回点图标时要做的事：页面上看得出的拒绝就地提示，不发；其余交给后台，结果在侧边栏里看。 */
-export function createFramePress({ icons, runtime, currentKey, findMainVideo, confirmed, gone, onGone, lang = () => "zh" }: FramePressDeps): () => Promise<void> {
+export function createFramePress({ icons, runtime, currentKey, findMainVideo, confirmed, gone, onGone, lang }: FramePressDeps): () => Promise<void> {
   let busy = false;
   const icon = (): ReturnType<HoverIcons["icon"]> => icons.icon(INJECTED.frameButton);
   const text = (): FrameIconText => frameIconText(lang());

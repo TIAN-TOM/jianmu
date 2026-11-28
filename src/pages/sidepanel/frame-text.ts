@@ -38,4 +38,4 @@ const FRAME_EN: FrameText = {
   },
 };
 
-export const frameText = (lang: UiLang = "zh"): FrameText => inLang(lang, FRAME_ZH, FRAME_EN, FRAME_HANT);
+export const frameText = (lang: UiLang): FrameText => inLang(lang, FRAME_ZH, FRAME_EN, FRAME_HANT);

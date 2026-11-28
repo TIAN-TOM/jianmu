@@ -22,7 +22,7 @@ const INPUT: LearningInput = {
 
 test("学习稿：中文时内容和原来逐字一样，没标题时文件名是「学习稿」；英文时固定文字和文件名是英文", () => {
   const zh = learningExport(INPUT, "zh");
-  assert.deepEqual(zh, { fileName: "学习稿.md", markdown: learningAsMarkdown(INPUT, videoLink) });
+  assert.deepEqual(zh, { fileName: "学习稿.md", markdown: learningAsMarkdown(INPUT, videoLink, "zh") });
   assert.equal(learningExport({ ...INPUT, title: "样例/标题" }, "zh")?.fileName, "样例 标题.md");
 
   const en = learningExport(INPUT, "en");
@@ -36,7 +36,7 @@ test("学习稿：中文时内容和原来逐字一样，没标题时文件名�
 
 test("笔记：中文时内容和原来逐字一样，英文时固定文字是英文；没标题时的文件名按语言给", () => {
   const zh = notesExport([NOTE], { grouped: false, title: "" }, "zh");
-  assert.deepEqual(zh, { fileName: "笔记.md", markdown: notesAsMarkdown([NOTE], videoLink, { grouped: false }) });
+  assert.deepEqual(zh, { fileName: "笔记.md", markdown: notesAsMarkdown([NOTE], videoLink, { grouped: false, lang: "zh" }) });
   const en = notesExport([NOTE], { grouped: true, title: "" }, "en");
   assert.equal(en?.fileName, "notes.md");
   assert.equal(en?.markdown, notesAsMarkdown([NOTE], videoLink, { grouped: true, lang: "en" }));

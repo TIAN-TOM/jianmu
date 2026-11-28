@@ -19,7 +19,7 @@ export interface TriageVerdict {
 export type VerdictMap = Readonly<Record<string, TriageVerdict | undefined>>;
 
 /** Markdown 分组标题；没有星数的两组只写状态。 */
-export function groupName(key: GroupKey, lang: OutputLang = "zh"): string {
+export function groupName(key: GroupKey, lang: OutputLang): string {
   if (key === "pending") return inLang(lang, "还没判断", "Not judged yet", PENDING_HANT);
   return verdictText(key === "unknown" ? "信息不足" : key, lang);
 }

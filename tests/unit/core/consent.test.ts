@@ -107,7 +107,7 @@ test("有密钥但没确认数据说明时校验不过，AI 请求一个都不�
   let lookups = 0;
   const stored = SETTINGS.normalize({ ...CONFIGURED, dataConsentVersion: 0, dataConsentFingerprint: "" });
 
-  const check = SETTINGS.validate(stored);
+  const check = SETTINGS.validate(stored, "zh");
   assert.equal(check.ok, false);
   assert.deepEqual(check.errors, [DATA_CONSENT_ERROR]);
 
@@ -126,8 +126,8 @@ test("有密钥但没确认数据说明时校验不过，AI 请求一个都不�
     },
   );
 
-  const error = await failureOf(transport.requestAiCompletion({ feature: "explain", messages: MESSAGES, maxTokens: 100 }));
-  const reply = aiErrorResponse(error);
+  const error = await failureOf(transport.requestAiCompletion({ feature: "explain", messages: MESSAGES, maxTokens: 100, lang: "zh" }));
+  const reply = aiErrorResponse(error, "zh");
   assert.equal(reply.success, false);
   assert.equal(reply.error, "NO_AI_CONFIG");
   assert.ok(error.message.includes(DATA_CONSENT_ERROR), "说的是同意的问题，不是密钥的问题");
@@ -153,7 +153,7 @@ test("版本相同、说明指纹对不上：传输层按没确认拦下，一�
         settingsRules: { ...SETTINGS.settingsRules, validate: () => ({ ok: true, errors: [] }) },
       },
     );
-    await assert.rejects(() => transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }), blocked);
+    await assert.rejects(() => transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }), blocked);
     assert.equal(sends, 0, `指纹 ${String(fingerprint)}`);
   }
 
@@ -173,7 +173,7 @@ test("版本相同、说明指纹对不上：传输层按没确认拦下，一�
       },
     },
   );
-  await assert.rejects(() => midway.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }), blocked);
+  await assert.rejects(() => midway.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }), blocked);
   assert.equal(sends, 0);
 
   // 已经发出的那次照常回来，之后的加码重试不再发，不多计费。
@@ -187,7 +187,7 @@ test("版本相同、说明指纹对不上：传输层按没确认拦下，一�
     },
     { getSettings: async () => SETTINGS.normalize({ ...CONFIGURED, dataConsentFingerprint: fingerprint }) },
   );
-  await assert.rejects(() => retrying.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }), blocked);
+  await assert.rejects(() => retrying.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }), blocked);
   assert.equal(sends, 1, "只发了说明变化之前的那一次");
 });
 
@@ -227,7 +227,7 @@ test("版本和指纹都对得上才放行，传输层照常发", async () => {
     sends += 1;
     return openaiReply("回复");
   });
-  const { text } = await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 });
+  const { text } = await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" });
   assert.equal(text, "回复");
   assert.equal(sends, 1);
 });
@@ -263,7 +263,7 @@ test("「版本 → 指纹」快照：改了条目没升版就失败", () => {
 });
 
 const entryKeys = (items: readonly NoticeItem<string>[]): string[] => items.map(({ kind, id }) => `${kind}:${id}`);
-const lines = (items: readonly NoticeItem<string>[]) => noticeLines(items).map(({ ids: lineIds, text }) => ({ ids: lineIds, text }));
+const lines = (items: readonly NoticeItem<string>[]) => noticeLines(items, "zh").map(({ ids: lineIds, text }) => ({ ids: lineIds, text }));
 
 // 首发前的版本号是开发期间留下的，首发的包从第 1 版算起，开发期间加过的条目都算第 1 版的内容（PRD 第 7.2、7.3 节）。
 test("首发的两份说明都是第 1 版，表里只有这一版，开发期间加过的条目都在里面", () => {
@@ -323,7 +323,7 @@ test("评论区只在日用包里：两份说明各多一版，只有评论这�
   assert.deepEqual(ACTIVATION_TABLE[1]?.items.length, 1);
   assert.deepEqual(versionStamps(DATA_CONSENT_TABLE)[0], currentStamp(releaseOf(DATA_CONSENT_TABLE)), "第 1 版的指纹和发行包一样");
   assert.deepEqual(versionStamps(ACTIVATION_TABLE)[0], currentStamp(releaseOf(ACTIVATION_TABLE)));
-  const shown = noticeLines(DATA_CONSENT_TABLE.flatMap((row) => row.items)).find((line) => line.ids.includes("top-comments"));
+  const shown = noticeLines(DATA_CONSENT_TABLE.flatMap((row) => row.items), "zh").find((line) => line.ids.includes("top-comments"));
   assert.ok(shown?.text.includes("不含昵称"));
 });
 
@@ -332,7 +332,7 @@ test("解释当前画面首发带上：两份说明的第 1 版各多几条；�
     table.flatMap((row) => row.items.filter(({ id }) => ["current-frame", "frame-explain"].includes(id)).map(({ kind, id }) => `${row.version} ${kind}:${id}`));
   assert.deepEqual(frameItems(ACTIVATION_TABLE), ["1 read:current-frame"]);
   assert.deepEqual(frameItems(DATA_CONSENT_TABLE), ["1 category:current-frame", "1 purpose:frame-explain"]);
-  const shown = noticeLines(DATA_CONSENT_TABLE.flatMap((row) => row.items));
+  const shown = noticeLines(DATA_CONSENT_TABLE.flatMap((row) => row.items), "zh");
   assert.ok(shown.some((line) => line.ids.includes("ai-features") && line.ids.includes("frame-explain") && line.text.endsWith("解释当前画面")));
 });
 
@@ -452,12 +452,12 @@ test("完整说明：从没同意过的人看到「视频标题和时长」一�
 test("完整说明里的并显示：自动发送和「只在你点按钮时发出」并成一行，整理字幕和用途并成一行，关掉侧边栏也接着发另起一行", () => {
   const full = noticeStatus(DATA_CONSENT_TABLE, {});
   assert.ok(full.state === "needed");
-  const trigger = noticeLines(full.items).filter((line) => line.kind === "trigger");
+  const trigger = noticeLines(full.items, "zh").filter((line) => line.kind === "trigger");
   assert.deepEqual(trigger.map((line) => line.ids), [["on-click", "auto-on-open-tabs"], ["keep-running"]]);
   assert.match(trigger[0]?.text ?? "", /^平时只在你点按钮时发出；打开「打开就出结论」以后/);
   for (const word of ["字幕", "视频标题和时长", "UP 主名或频道名和简介", "超过设定时长", "B 站和已启用的 YouTube"]) assert.ok(trigger[0]?.text.includes(word), word);
   for (const word of ["关掉侧边栏也继续", "API 额度", "点停止", "标签页换了视频或关掉"]) assert.ok(trigger[1]?.text.includes(word), word);
-  const purpose = noticeLines(full.items).find((line) => line.ids.includes("ai-features"));
+  const purpose = noticeLines(full.items, "zh").find((line) => line.ids.includes("ai-features"));
   assert.deepEqual(purpose?.ids, ["ai-features", "tidy-transcript", "frame-explain"]);
   assert.match(purpose?.text ?? "", /整理字幕（补标点、改同音错字）/);
 });

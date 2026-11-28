@@ -16,7 +16,7 @@ const SNAPSHOT: TriageSnapshot = {
   running: null,
 };
 
-function setup(lang?: UiLang) {
+function setup(lang: UiLang) {
   const downloads: { filename: string; text: string }[] = [];
   const api = {
     send: async () => ({ ok: true, value: SNAPSHOT }),
@@ -28,13 +28,13 @@ function setup(lang?: UiLang) {
     videoBase: () => "https://video.example/",
     download: (filename, text) => void downloads.push({ filename, text }),
     now: () => 0,
-    ...(lang ? { lang: () => lang } : {}),
+    lang: () => lang,
   });
   return { state, downloads };
 }
 
-test("不给语言时状态行、确认和导出都是中文", async () => {
-  const { state, downloads } = setup();
+test("简体时状态行、确认和导出都是中文", async () => {
+  const { state, downloads } = setup("zh");
   await state.load();
   assert.match(state.listStatus.value?.text ?? "", /^共 1 个视频，读取于 .+。要看最新的列表就再读取一次。$/);
   assert.equal(state.officialStatus.value?.text, "有官方总结 0 个，还没取 1 个。");
@@ -64,7 +64,7 @@ test("选英文时状态行、确认和导出都是英文", async () => {
 test("视频行上官方总结的状态按语言写", () => {
   const item = SNAPSHOT.list?.items[0];
   assert.ok(item);
-  assert.equal(officialRecordText(undefined, item), "还没取官方总结");
+  assert.equal(officialRecordText(undefined, item, "zh"), "还没取官方总结");
   assert.equal(officialRecordText(undefined, item, "en"), "Official summary not fetched yet");
   assert.equal(officialRecordText({ status: "queued" } as never, item, "en"), "Bilibili has no official summary for this video yet. You can come back to it later");
 });

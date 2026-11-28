@@ -76,8 +76,8 @@ const PROVIDER_EN: ProviderText = {
   reasoningOnlyResponses: "The model only reasoned and didn't write a reply. Try a model that reasons less.",
 };
 
-/** 指定语言那份说明。不传语言时是简体。 */
-export const providerText = (lang: OutputLang = "zh"): ProviderText => inLang(lang, PROVIDER_ZH, PROVIDER_EN, PROVIDER_HANT);
+/** 指定语言那份说明。 */
+export const providerText = (lang: OutputLang): ProviderText => inLang(lang, PROVIDER_ZH, PROVIDER_EN, PROVIDER_HANT);
 
 /** 一句说明的简体、英文、繁体三种写法。 */
 export interface LangMessages {
@@ -112,8 +112,8 @@ export const HIDDEN_WORDS = "[已隐藏]";
 
 const HIDDEN_EN = { secret: "[key hidden]", words: "[hidden]" };
 
-/** 把文字里的占位字换成指定语言的说法。不传语言时是简体，原样返回。 */
-export function hiddenIn(text: string, lang: OutputLang = "zh"): string {
+/** 把文字里的占位字换成指定语言的说法，简体原样返回。 */
+export function hiddenIn(text: string, lang: OutputLang): string {
   const words = inLang(lang, null, HIDDEN_EN, HIDDEN_HANT);
   if (!words) return text;
   return text.split(HIDDEN_SECRET).join(words.secret).split(HIDDEN_WORDS).join(words.words);
@@ -123,9 +123,9 @@ const STATUS_ONLY = /^服务返回 (\d+)$/;
 
 /**
  * 按语言挑说明：要英文或繁体、又挂着那种语言的用它；没挂的（服务自己的原话）照原样。
- * 协议层只写了状态码、或者流里报错没带原话时用的那两句简体认得出，也换成那种语言；遮掉密钥的占位字也换。不传语言时是简体。
+ * 协议层只写了状态码、或者流里报错没带原话时用的那两句简体认得出，也换成那种语言；遮掉密钥的占位字也换。
  */
-export function messageIn(source: WithEnglish | null | undefined, lang: OutputLang = "zh"): string {
+export function messageIn(source: WithEnglish | null | undefined, lang: OutputLang): string {
   const message = String(source?.message ?? "");
   if (lang === "zh") return message;
   const attached = inLang(lang, undefined, source?.messageEn, source?.messageHant);

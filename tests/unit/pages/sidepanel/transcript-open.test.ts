@@ -17,7 +17,7 @@ function setup(outcome = "opened") {
       return { ok: false, code: "PAGE_ACTION_NEEDED" };
     },
   };
-  const store = createTranscriptStore({ api: api as never });
+  const store = createTranscriptStore({ api: api as never, lang: () => "zh" });
   return { store, sent };
 }
 

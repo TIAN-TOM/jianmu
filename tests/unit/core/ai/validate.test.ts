@@ -109,6 +109,7 @@ test("翻译按 id 对齐，不受返回顺序影响", () => {
       ],
     },
     EN_BATCH,
+    { targetLang: "zh" },
   );
 
   assert.deepEqual(translated, {
@@ -127,6 +128,7 @@ test("模型把英文原样抄回来时判定为没翻译", () => {
       ],
     },
     EN_BATCH,
+    { targetLang: "zh" },
   );
 
   assert.deepEqual(translated, { s2: "接下来是第二句。" });
@@ -140,6 +142,7 @@ test("原文本来就没多少拉丁字母时，不拿「有没有中文」当�
   const { translated, rejected } = alignTranslatedSegments(
     { segments: [{ id: "s1", text: "これは日本語の字幕です" }] },
     source,
+    { targetLang: "zh" },
   );
 
   assert.equal(translated.s1, "これは日本語の字幕です");
@@ -200,6 +203,7 @@ test("翻译同样拒绝漏条、编造 id 和空文本", () => {
       ],
     },
     EN_BATCH,
+    { targetLang: "zh" },
   );
 
   assert.deepEqual(translated, {});
@@ -216,6 +220,7 @@ test("翻译拒绝重复的 id，只采用第一条", () => {
       ],
     },
     EN_BATCH,
+    { targetLang: "zh" },
   );
 
   assert.deepEqual(translated, { s1: "这是这场演讲的第一句。", s2: "这是紧跟着的第二句。" });
@@ -223,9 +228,9 @@ test("翻译拒绝重复的 id，只采用第一条", () => {
 });
 
 test("翻译返回结构完全畸形时，整批退回原文而不是抛错", () => {
-  assert.deepEqual(alignTranslatedSegments(null, EN_BATCH).translated, {});
-  assert.deepEqual(alignTranslatedSegments({ segments: "不是数组" }, EN_BATCH).translated, {});
-  assert.equal(alignTranslatedSegments(null, EN_BATCH).rejected.length, 2);
+  assert.deepEqual(alignTranslatedSegments(null, EN_BATCH, { targetLang: "zh" }).translated, {});
+  assert.deepEqual(alignTranslatedSegments({ segments: "不是数组" }, EN_BATCH, { targetLang: "zh" }).translated, {});
+  assert.equal(alignTranslatedSegments(null, EN_BATCH, { targetLang: "zh" }).rejected.length, 2);
 });
 
 test("正好等于视频时长的时间戳保留，超出才丢", () => {
@@ -341,9 +346,9 @@ test("中译英：原文 10 个汉字起才检查，译文汉字少于原文一�
 test("译成中文：原文 20 个拉丁字母起才检查，译文出现一个汉字就算翻译了", () => {
   const nineteen = "word ".repeat(4) + "abc";
   const twenty = "word ".repeat(5);
-  assert.equal(looksLikeTranslation(nineteen, nineteen), true, "不到 20 个字母不检查");
-  assert.equal(looksLikeTranslation(twenty, twenty), false, "20 个字母原样抄回来算没翻译");
-  assert.equal(looksLikeTranslation(`${twenty}好`, twenty), true, "出现一个汉字就算");
+  assert.equal(looksLikeTranslation(nineteen, nineteen, "zh"), true, "不到 20 个字母不检查");
+  assert.equal(looksLikeTranslation(twenty, twenty, "zh"), false, "20 个字母原样抄回来算没翻译");
+  assert.equal(looksLikeTranslation(`${twenty}好`, twenty, "zh"), true, "出现一个汉字就算");
 });
 
 test("分块输出以照抄的时间为准：start 优先，其次旧写法的 timestamp，都读不出才用模型算的秒数", () => {

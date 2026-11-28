@@ -8,7 +8,7 @@ export interface SourceFile {
 }
 
 export interface Violation {
-  readonly rule: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+  readonly rule: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11;
   readonly file: string;
   readonly detail: string;
 }
@@ -124,6 +124,15 @@ export const DUPLICATE_ALLOWED: Readonly<Record<string, string>> = {
   "src/pages/options/youtube-text.ts youtubeText": "设置页 YouTube 一节文案表的取表函数，取的是本文件的三份表，和侧边栏那张只是写法一样",
   "src/pages/sidepanel/youtube-text.ts youtubeText": "侧边栏 YouTube 文案表的取表函数，取的是本文件的三份表，和设置页那张只是写法一样",
 };
+
+// 第 11 条：语言参数不写缺省值，调用方漏传时类型检查才报得出来。认参数和解构的缺省值（含返回语言的函数）和 ?? 兜底两种写法；
+// 名字带 lang 或 Language 的局部变量（const、let、var）和类型别名不算参数。
+const LANG_NAME = String.raw`\b\w*(?:[lL]ang|Language)\w*`;
+const LANG_VALUE = String.raw`(?:\([^()]*\)\s*(?::\s*\w+\s*)?=>\s*)?["'](?:zh|zh-Hant|en)["']`;
+const LANG_DEFAULTS: readonly RegExp[] = [
+  new RegExp(String.raw`(?<!\b(?:const|let|var|type)\s+)${LANG_NAME}\??\s*(?::\s*[^,;{}=]*(?:=>[^,;{}=]*)?)?(?<![=!<>])=(?![=>])\s*${LANG_VALUE}`, "g"),
+  new RegExp(String.raw`${LANG_NAME}(?:\?\.\(\))?\s*\?\?\s*\(?\s*${LANG_VALUE}`, "g"),
+];
 
 // 只有协议头不算地址：把 http 换成 https 时要写这个字符串。
 const isAddress = (value: string): boolean =>
@@ -266,6 +275,10 @@ function checkFile(file: Module): Violation[] {
     for (const value of splitSource(block).strings) {
       if (!/^(?:--)?jianmu-/.test(value)) report(5, `注入页面的标识要以 jianmu- 开头：${value}`);
     }
+  }
+
+  for (const pattern of LANG_DEFAULTS) {
+    for (const [hit] of code.matchAll(pattern)) report(11, `语言参数不写缺省值，调用方明确传：${hit.trim()}`);
   }
 
   if (COOKIE_ACCESS.test(code)) report(6, "代码不读 Cookie，登录状态只由浏览器随请求带上");

@@ -70,7 +70,7 @@ test("导入备份时笔记链接重新拼：备份里存的任意网址不进�
     assert.equal(Object.hasOwn(note ?? {}, field), false, field);
   }
   assert.equal(JSON.stringify(imported).includes("login.example"), false);
-  const markdown = notesAsMarkdown(imported.contents.notes, LINK);
+  const markdown = notesAsMarkdown(imported.contents.notes, LINK, { lang: "zh" });
   assert.match(markdown, /- \[1:05\]\(https:\/\/video\.example\/BV1Sample000\?p=2&t=65\) 看这里/);
 });
 
@@ -156,7 +156,7 @@ test("备份的报错用简幕的名字；旧格式的备份照常认", () => {
     assert.equal(result.ok, false, JSON.stringify(payload));
     if (!result.ok) {
       assert.equal(result.code, "BACKUP_UNRECOGNIZED");
-      assert.equal(errorCopy(result.code).cause, "这不是简幕的备份文件。");
+      assert.equal(errorCopy(result.code, undefined, "zh").cause, "这不是简幕的备份文件。");
     }
   }
   assert.equal(read(legacyBackup()).format, "legacy", "Digest for Bilibili 和以前的版本导出的备份照常导入");

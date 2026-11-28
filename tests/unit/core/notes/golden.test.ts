@@ -80,8 +80,8 @@ function toLearningInput(sample: unknown): LearningInput {
 // 链接用侧边栏导出时的那个函数生成，样本里 B 站的链接要逐字对上。
 const FUNCTIONS: Readonly<Record<string, (args: unknown[]) => unknown>> = {
   filterNotes: ([notes, query]) => filterNotes(toNotes(notes), query as string),
-  learningAsMarkdown: ([input]) => learningAsMarkdown(toLearningInput(input), videoLink),
-  notesAsMarkdown: ([notes, options]) => notesAsMarkdown(toNotes(notes), videoLink, options as NotesExportOptions),
+  learningAsMarkdown: ([input]) => learningAsMarkdown(toLearningInput(input), videoLink, "zh"),
+  notesAsMarkdown: ([notes, options]) => notesAsMarkdown(toNotes(notes), videoLink, { lang: "zh", ...(options as Partial<NotesExportOptions> | undefined) }),
 };
 
 // 过滤原样返回笔记，结果也要换成记录的字段才比得上。

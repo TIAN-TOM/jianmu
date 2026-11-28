@@ -50,12 +50,12 @@ type MissingWords = { readonly key: string; readonly consent: string; readonly n
 const pick = (words: MissingWords, missing: ConfigCheckView["missing"]): string => (missing === "key" ? words.key : missing === "consent" ? words.consent : words.none);
 
 /** 侧边栏头部下面那行提示。只在检查过、没设置好时显示。 */
-export function setupNotice(state: ConfigState, lang: UiLang = "zh"): string {
+export function setupNotice(state: ConfigState, lang: UiLang): string {
   return pick(sharedTextOf(lang).setup.notice, missingOf(state));
 }
 
 /** 要用 AI 的按钮点不了的原因；设置好了是 undefined。 */
-export function setupReason(state: ConfigState, lang: UiLang = "zh"): string | undefined {
+export function setupReason(state: ConfigState, lang: UiLang): string | undefined {
   if (state.state === "checked" && state.view.ready) return undefined;
   return pick(sharedTextOf(lang).setup.reason, missingOf(state));
 }
@@ -66,12 +66,12 @@ export function needsSetup(state: ConfigState): boolean {
 }
 
 /** 没设置好时摆在「生成概览」位置上的按钮写什么：缺密钥、缺同意各说各的，其余说去设置 AI 服务。 */
-export function setupAction(state: ConfigState, lang: UiLang = "zh"): string {
+export function setupAction(state: ConfigState, lang: UiLang): string {
   return pick(sharedTextOf(lang).setup.action, missingOf(state));
 }
 
 /** 卡片上生成概览按钮旁的说明。 */
-export function cardSetupHint(state: ConfigState, lang: UiLang = "zh"): string {
+export function cardSetupHint(state: ConfigState, lang: UiLang): string {
   return pick(sharedTextOf(lang).setup.card, missingOf(state));
 }
 

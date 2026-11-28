@@ -1179,11 +1179,11 @@ test("redactSecret 替换每一处密钥，太短的密钥不动", () => {
 
 test("按英文挑说明时，遮掉密钥的占位字换成英文；中文和错误本身的字段照旧", () => {
   const error = new Error(provider.redactSecret(`rejected ${KEY}, token [已隐藏]`, KEY));
-  assert.equal(provider.messageIn(error), "rejected [已隐藏的密钥], token [已隐藏]");
+  assert.equal(provider.messageIn(error, "zh"), "rejected [已隐藏的密钥], token [已隐藏]");
   assert.equal(provider.messageIn(error, "en"), "rejected [key hidden], token [hidden]");
   const withEn = provider.withEnglish(new Error("拒绝了：[已隐藏的密钥]"), "Refused: [已隐藏的密钥]", "拒絕了：[已隐藏的密钥]");
   assert.equal(provider.messageIn(withEn, "en"), "Refused: [key hidden]");
-  assert.equal(provider.messageIn(withEn), "拒绝了：[已隐藏的密钥]");
+  assert.equal(provider.messageIn(withEn, "zh"), "拒绝了：[已隐藏的密钥]");
   assert.equal(error.message, "rejected [已隐藏的密钥], token [已隐藏]");
 });
 

@@ -191,7 +191,7 @@ test("缓存里有正常字幕、换到一条对不上的语言：报错并留�
 
   const english = failure(await h.service.get(REF, { mode: "full", lang: "en-US" }));
   assert.equal(english.code, "SUBTITLE_MISMATCH");
-  assert.match(describe(english.code), /对不上/);
+  assert.match(describe(english.code, undefined, "zh"), /对不上/);
   assert.deepEqual(english.tracks?.map((track) => track.lang), ["zh-CN", "en-US"], "语言菜单照样能换回去");
   assert.equal(english.info?.durationSec, 120);
 

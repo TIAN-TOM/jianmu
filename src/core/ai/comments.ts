@@ -139,7 +139,7 @@ function marksOf(raw: unknown, chapterStarts: readonly unknown[]): CommentMark[]
  * 模型写回来的评论区那一块，当不可信数据处理：标签不在几种里就整块不要；要点只留挂得上原评论的，
  * 原评论按序号从发出去的那批里取；章节标记要和现有章节的开始时间精确对上。坏了只丢这一块，不连累结论。
  */
-export function commentViewOf(raw: unknown, kept: readonly CommentQuote[], chapterStarts: readonly unknown[], lang: OutputLang = "zh"): CommentView | null {
+export function commentViewOf(raw: unknown, kept: readonly CommentQuote[], chapterStarts: readonly unknown[], lang: OutputLang): CommentView | null {
   if (!raw || typeof raw !== "object") return null;
   const source = raw as { readonly tag?: unknown; readonly line?: unknown; readonly points?: unknown; readonly marks?: unknown };
   const tag = typeof source.tag === "string" ? source.tag.trim() : "";

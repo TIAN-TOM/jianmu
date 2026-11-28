@@ -77,6 +77,7 @@ function setup(config: ConfigState = READY, page?: { visible(): boolean; onVisib
       },
     },
     ...(page ? { page } : {}),
+    lang: () => "zh",
   });
   return {
     fake,

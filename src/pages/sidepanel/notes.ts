@@ -34,7 +34,7 @@ export function sortNotes(notes: readonly NoteItemView[], scope: NotesScope): No
   return [...notes].sort(scope === "video" ? (a, b) => a.atSec - b.atSec : (a, b) => b.updatedAt - a.updatedAt);
 }
 
-export function createNotesStore({ api, lang = () => "zh" }: { readonly api: Pick<PageApi, "send" | "on">; readonly lang?: () => UiLang }): NotesStore {
+export function createNotesStore({ api, lang }: { readonly api: Pick<PageApi, "send" | "on">; readonly lang: () => UiLang }): NotesStore {
   const state = signal<NotesState>({ video: null, scope: "video", loaded: false, notes: [], error: "" });
   let generation = 0;
   const off = api.on("notes.changed", ({ video }) => {

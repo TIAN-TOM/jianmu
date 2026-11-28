@@ -27,9 +27,9 @@ const KEY_LIKE = [
 
 /**
  * 服务原话给界面显示前的清洗：纯文本、一行、限长，遮掉像密钥的片段。先遮再截，截断处不会露出半截密钥。
- * 占位字按 lang 写，不传时是中文。
+ * 占位字按 lang 写。
  */
-export function serviceWords(text: unknown, lang: OutputLang = "zh"): string {
+export function serviceWords(text: unknown, lang: OutputLang): string {
   let words = String(text ?? "").replace(CONTROL_CHARS, " ").replace(/\s+/g, " ").trim();
   words = words.replace(AUTH_VALUE, `$1 ${HIDDEN_WORDS}`);
   for (const pattern of KEY_LIKE) words = words.replace(pattern, HIDDEN_WORDS);
@@ -67,10 +67,10 @@ export function refusedError(reason: string): TransportError {
   return transportError("AI_REFUSED", (text) => (reason ? text.refusedWith(reason) : text.refused));
 }
 
-/** 把模型服务的错误翻译成用户能看懂、且知道下一步该干什么的提示。message 按 lang 写，不传时是中文。 */
+/** 把模型服务的错误翻译成用户能看懂、且知道下一步该干什么的提示。message 按 lang 写。 */
 // 错误回执跨消息传给页面时带上 noAutoRetry：传输层已经重发过或特意不重发（额度用完、
 // 等待超过上限），页面那一层的补轮也不该再发。
-export function aiErrorResponse(error: unknown, lang: OutputLang = "zh"): AiErrorResponse {
+export function aiErrorResponse(error: unknown, lang: OutputLang): AiErrorResponse {
   const failure = error as AiErrorLike;
   const response = errorResponseOf(failure, lang);
   return failure?.noAutoRetry && !response.success ? { ...response, noAutoRetry: true } : response;
@@ -78,9 +78,9 @@ export function aiErrorResponse(error: unknown, lang: OutputLang = "zh"): AiErro
 
 /**
  * 服务报错时自己说的话，给界面在三段式下面另起一行显示：清洗、截短、遮掉像密钥的片段以后的纯文本。
- * 取消、要用户去设置页动手的、鉴权失败的都没有；它只跟着这次的结果走，不进存储和备份。占位字按 lang 写，不传时是中文。
+ * 取消、要用户去设置页动手的、鉴权失败的都没有；它只跟着这次的结果走，不进存储和备份。占位字按 lang 写。
  */
-export function serviceSaid(error: unknown, lang: OutputLang = "zh"): string {
+export function serviceSaid(error: unknown, lang: OutputLang): string {
   const failure = (error ?? {}) as AiErrorLike;
   if (failure.code === "TASK_CANCELED" || (failure.code !== undefined && ACTIONABLE.has(failure.code))) return "";
   return saidOf(failure, lang);

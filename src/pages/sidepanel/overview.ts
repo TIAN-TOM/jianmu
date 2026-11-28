@@ -59,8 +59,8 @@ function failureFields(failure: Failure, lang: UiLang): Pick<OverviewState, "err
 
 const NO_ERROR: Pick<OverviewState, "error" | "errorCode" | "errorSaid"> = { error: "", errorCode: null, errorSaid: "" };
 
-/** lang：说明用哪种语言写，缺省中文。页面传当前的界面语言。 */
-export function createOverviewStore({ api, lang = () => "zh" }: { readonly api: Pick<PageApi, "send" | "on">; readonly lang?: () => UiLang }): OverviewStore {
+/** lang：说明用哪种语言写，页面传当前的界面语言。 */
+export function createOverviewStore({ api, lang }: { readonly api: Pick<PageApi, "send" | "on">; readonly lang: () => UiLang }): OverviewStore {
   const state = signal<OverviewState>(EMPTY);
   let generation = 0;
   let offs: (() => void)[] = [];

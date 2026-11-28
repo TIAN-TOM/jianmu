@@ -44,8 +44,8 @@ export interface CardDeps {
   readonly page?: { visible(): boolean; onVisible(run: () => void): () => void };
   /** 本标签页的播放器播到第几秒；问不到（没连上、在播广告、视频换了）时是 null。不给就不写当前章节。 */
   readonly position?: (tabId: number, video: VideoKey) => Promise<number | null>;
-  /** 界面语言：状态按写出来那一刻的语言写。不给时是中文。 */
-  readonly lang?: () => UiLang;
+  /** 界面语言：状态按写出来那一刻的语言写。 */
+  readonly lang: () => UiLang;
 }
 
 export { CARD_ROWS, cardRows, chaptersInOrder, hasOverview } from "./rows.ts";
@@ -71,7 +71,7 @@ const serviceReads = (video: VideoKey): boolean => {
 };
 
 export function createCardModel(deps: CardDeps) {
-  const { api, timers = realTimers, position, lang = (): UiLang => "zh" } = deps;
+  const { api, timers = realTimers, position, lang } = deps;
   const view = signal<CardView>(INITIAL);
   const t = () => cardTextOf(lang());
   const ask = createCardAsk({ api, video: () => video, lang });

@@ -60,7 +60,7 @@ test("每个码都有原因，各领域之间不重名", () => {
       assert.equal(seen.has(code), false, `${code} 在 ${seen.get(code)} 和 ${domain} 里都有`);
       seen.set(code, domain);
       assert.ok(isErrorCode(code), code);
-      assert.equal(errorCopy(code as ErrorCode), copy);
+      assert.equal(errorCopy(code as ErrorCode, undefined, "zh"), copy);
     }
   }
 });
@@ -74,9 +74,9 @@ test("每一段都是以句号结尾的整句，没有空段", () => {
 
 test("一段话的说法是三段按原因、影响、下一步连起来", () => {
   for (const code of Object.values(DOMAINS).flatMap((table) => Object.keys(table)) as ErrorCode[]) {
-    assert.equal(describe(code), partsOf(errorCopy(code)).join(""), code);
+    assert.equal(describe(code, undefined, "zh"), partsOf(errorCopy(code, undefined, "zh")).join(""), code);
   }
-  assert.equal(describe("UNPLAYABLE", "paid"), partsOf(SITE_DETAIL_TEXT.UNPLAYABLE?.paid as ErrorCopy).join(""));
+  assert.equal(describe("UNPLAYABLE", "paid", "zh"), partsOf(SITE_DETAIL_TEXT.UNPLAYABLE?.paid as ErrorCopy).join(""));
 });
 
 test("费用只说可能计费或没发请求，不承诺免费或不计费", () => {
@@ -121,11 +121,11 @@ test("不提已经没有的页签：侧边栏现在分速读和精读两种模�
 
 test("按说明换说法的只有认得的那几个，说明对不上时用码本身的说法", () => {
   for (const [detail, copy] of Object.entries(SITE_DETAIL_TEXT.UNPLAYABLE ?? {})) {
-    assert.equal(errorCopy("UNPLAYABLE", detail), copy);
+    assert.equal(errorCopy("UNPLAYABLE", detail, "zh"), copy);
     assert.notEqual(copy.cause, SITE_ERROR_TEXT.UNPLAYABLE.cause);
   }
-  assert.equal(errorCopy("UNPLAYABLE", "toString"), SITE_ERROR_TEXT.UNPLAYABLE, "原型上的名字不算");
-  assert.equal(errorCopy("UNPLAYABLE", ""), SITE_ERROR_TEXT.UNPLAYABLE);
+  assert.equal(errorCopy("UNPLAYABLE", "toString", "zh"), SITE_ERROR_TEXT.UNPLAYABLE, "原型上的名字不算");
+  assert.equal(errorCopy("UNPLAYABLE", "", "zh"), SITE_ERROR_TEXT.UNPLAYABLE);
 });
 
 test("字幕文件读不了时按原因换说法，原因一段和解析时给的说法一致", () => {
@@ -142,9 +142,9 @@ test("字幕文件读不了时按原因换说法，原因一段和解析时给�
     assert.equal(parsed.ok, false, detail);
     if (parsed.ok) continue;
     assert.equal(parsed.error, detail);
-    assert.equal(errorCopy("UNSUPPORTED_FILE", detail).cause, parsed.message, detail);
+    assert.equal(errorCopy("UNSUPPORTED_FILE", detail, "zh").cause, parsed.message, detail);
   }
-  assert.equal(errorCopy("UNSUPPORTED_FILE"), TRANSCRIPT_ERROR_TEXT.UNSUPPORTED_FILE);
+  assert.equal(errorCopy("UNSUPPORTED_FILE", undefined, "zh"), TRANSCRIPT_ERROR_TEXT.UNSUPPORTED_FILE);
 });
 
 test("认不出的码不算，原型上的名字也不算", () => {

@@ -104,10 +104,10 @@ test("不传语言、传中文和原来一样：三段取中文那份，一段�
   for (const [zh] of PAIRS) {
     for (const [code, copy] of Object.entries(zh)) {
       assert.ok(isErrorCode(code), code);
-      assert.equal(errorCopy(code as ErrorCode), copy);
+      assert.equal(errorCopy(code as ErrorCode, undefined, "zh"), copy);
       assert.equal(errorCopy(code as ErrorCode, undefined, "zh"), copy);
       const joined = [copy.cause, copy.impact, copy.next].filter(Boolean).join("");
-      assert.equal(describe(code as ErrorCode), joined);
+      assert.equal(describe(code as ErrorCode, undefined, "zh"), joined);
       assert.equal(describe(code as ErrorCode, undefined, "zh"), joined);
     }
   }

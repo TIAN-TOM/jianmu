@@ -292,8 +292,8 @@ export function noticeHant(item: Pick<NoticeItem<string>, "kind" | "id">): Notic
   return hant;
 }
 
-/** 一个条目给用户看的措辞。不传语言时是简体。 */
-export const noticeText = (item: Pick<NoticeItem<string>, "kind" | "id" | "text" | "en">, lang: OutputLang = "zh"): string =>
+/** 一个条目给用户看的措辞。 */
+export const noticeText = (item: Pick<NoticeItem<string>, "kind" | "id" | "text" | "en">, lang: OutputLang): string =>
   inLang(lang, () => item.text, () => item.en, () => noticeHant(item).text)();
 
 // 并显示的条目的繁体合成措辞，措辞表的类型保证有。
@@ -303,8 +303,8 @@ function combinedHant(item: Pick<NoticeItem<string>, "kind" | "id">): string {
   return combined;
 }
 
-/** noticeStatus 给出的一组条目排成给用户看的行：带 shownWith 的并进它指向的那一行，指向的不在这组里就单列。不传语言时是中文。 */
-export function noticeLines<Kind extends string>(items: readonly NoticeItem<Kind>[], lang: OutputLang = "zh"): NoticeLine<Kind>[] {
+/** noticeStatus 给出的一组条目排成给用户看的行：带 shownWith 的并进它指向的那一行，指向的不在这组里就单列。 */
+export function noticeLines<Kind extends string>(items: readonly NoticeItem<Kind>[], lang: OutputLang): NoticeLine<Kind>[] {
   const keyOf = (kind: string, id: string): string => `${kind}:${id}`;
   const present = new Set(items.map((item) => keyOf(item.kind, item.id)));
   const merges = (item: NoticeItem<Kind>): boolean => item.shownWith !== undefined && present.has(keyOf(item.kind, item.shownWith.id));
@@ -348,7 +348,7 @@ export const DATA_CONSENT_FINGERPRINT = dataConsent.fingerprint;
 export const DATA_CONSENT_ERROR = "请先在设置页「AI 服务」一节读一下数据说明，勾选「我已了解」。";
 export const DATA_CONSENT_ERROR_EN = "Read the data notice in the “AI service” section of settings and tick the box to agree first.";
 
-/** 没同意数据说明时给用户看的提示。不传语言时是简体，和 DATA_CONSENT_ERROR 一样。 */
-export const dataConsentErrorText = (lang: OutputLang = "zh"): string => inLang(lang, DATA_CONSENT_ERROR, DATA_CONSENT_ERROR_EN, DATA_CONSENT_ERROR_HANT);
+/** 没同意数据说明时给用户看的提示；简体那份和 DATA_CONSENT_ERROR 一样。 */
+export const dataConsentErrorText = (lang: OutputLang): string => inLang(lang, DATA_CONSENT_ERROR, DATA_CONSENT_ERROR_EN, DATA_CONSENT_ERROR_HANT);
 export const ACTIVATION_VERSION = activation.version;
 export const ACTIVATION_FINGERPRINT = activation.fingerprint;

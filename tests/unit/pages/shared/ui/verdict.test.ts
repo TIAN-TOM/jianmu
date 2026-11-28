@@ -8,10 +8,10 @@ test("五星和四星共用推荐色带，一星和二星共用可跳过色带�
 });
 
 test("依据行按四种依据写", () => {
-  assert.equal(basisText("transcript"), "依据字幕");
-  assert.equal(basisText("official-summary"), "依据 B 站官方总结，没有通读字幕");
-  assert.equal(basisText("title-description"), "依据标题和简介");
-  assert.equal(basisText("legacy-unknown"), "依据未知（旧版）");
+  assert.equal(basisText("transcript", "zh"), "依据字幕");
+  assert.equal(basisText("official-summary", "zh"), "依据 B 站官方总结，没有通读字幕");
+  assert.equal(basisText("title-description", "zh"), "依据标题和简介");
+  assert.equal(basisText("legacy-unknown", "zh"), "依据未知（旧版）");
 });
 
 test("基于旧字幕标在哪：结论块标结论自己的，章节基于旧字幕而结论块没标时单独标一行，同一件事不标两遍", () => {

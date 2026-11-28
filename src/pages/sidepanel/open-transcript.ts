@@ -7,7 +7,7 @@ import { inLang, type UiLang } from "../shared/ui-lang.ts";
 import { OPEN_READ_HINT_HANT } from "./open-transcript-hant.ts";
 
 /** 还没读过字幕时的说明：点读取，简幕替你点开文字稿。 */
-export const openReadHint = (lang: UiLang = "zh"): string =>
+export const openReadHint = (lang: UiLang): string =>
   inLang(
     lang,
     "点读取，简幕会替你点开视频页上的文字稿，读里面显示的内容。",

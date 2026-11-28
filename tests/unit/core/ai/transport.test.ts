@@ -291,6 +291,7 @@ test("正常请求返回模型文本与本次设置", async () => {
   const result = await t.requestAiCompletion({
     messages: MESSAGES,
     maxTokens: 512,
+    lang: "zh",
   });
   assert.equal(result.text, "模型的话");
   assert.equal(result.settings.aiModel, "test-model");
@@ -302,7 +303,7 @@ test("发出的请求体照构造时的键序原样序列化，不重排", async
     sent.push(init.body);
     return openaiReply("{}");
   });
-  await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 512, temperature: 0.2, responseFormat: SCHEMAS.VERDICT });
+  await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 512, temperature: 0.2, responseFormat: SCHEMAS.VERDICT, lang: "zh" });
   assert.deepEqual(sent, [
     JSON.stringify({
       model: "test-model",
@@ -327,7 +328,7 @@ test("配置不完整时拒绝请求，不发起网络调用", async () => {
   });
 
   await assert.rejects(
-    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 1 }),
+    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 1, lang: "zh" }),
     { code: "NO_AI_CONFIG" },
   );
   assert.equal(called, 0);
@@ -346,7 +347,7 @@ test("缺少主机权限时原样透出，提示用户去设置页授权", async
   });
 
   await assert.rejects(
-    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 1 }),
+    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 1, lang: "zh" }),
     (error) => error === permissionError,
   );
 });
@@ -367,7 +368,7 @@ test("确认过数据说明但没填密钥时同样拒绝，不申请权限也�
     },
   );
   await assert.rejects(
-    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 1 }),
+    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 1, lang: "zh" }),
     (error: TransportError) => error.code === "NO_AI_CONFIG" && /API 密钥/.test(error.message),
   );
   assert.equal(fetches, 0);
@@ -391,7 +392,7 @@ test("校验放行时，发出之前的同意核对照样拦下", async () => {
     },
   );
   await assert.rejects(
-    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }),
+    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }),
     (error: TransportError) => error.code === "NO_AI_CONFIG" && error.message.includes(DATA_CONSENT_ERROR),
   );
   assert.deepEqual(requests, []);
@@ -432,6 +433,7 @@ test("JSON 模式返回空时脱掉 response_format 重试一次", async () => {
         messages: MESSAGES,
         maxTokens: 100,
         responseFormat: { type: "json_object" },
+        lang: "zh",
       }),
     { code: "EMPTY_AI_RESPONSE" },
   );
@@ -454,6 +456,7 @@ test("加码之后脱掉 JSON 模式重发，也不超过合计预算", async ()
         messages: MESSAGES,
         maxTokens: 8192,
         responseFormat: { type: "json_object" },
+        lang: "zh",
       }),
     { code: "EMPTY_AI_RESPONSE" },
   );
@@ -473,7 +476,7 @@ test("输出被截断时按四倍放大预算，直到天花板", async () => {
     return openaiReply("", { finish_reason: "length" });
   });
 
-  await assert.rejects(() => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }));
+  await assert.rejects(() => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }));
 
   assert.deepEqual(
     requests.map((request) => request.max_tokens),
@@ -495,7 +498,7 @@ test("请求途中取消了数据说明的确认：已经发出的那次照常�
   );
 
   await assert.rejects(
-    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }),
+    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }),
     (error: TransportError) => error.code === "NO_AI_CONFIG" && error.message.includes(DATA_CONSENT_ERROR),
   );
   assert.equal(requests.length, 1, "只发了取消之前的那一次");
@@ -520,7 +523,7 @@ test("查模型能力期间取消了数据说明的确认：第一次请求也�
   );
 
   await assert.rejects(
-    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }),
+    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }),
     (error: TransportError) => error.code === "NO_AI_CONFIG",
   );
   assert.deepEqual(requests, []);
@@ -545,7 +548,7 @@ test("发前核对读到的同意版本不是当前版本：报 NO_AI_CONFIG，�
     );
 
     await assert.rejects(
-      () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }),
+      () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }),
       (error: TransportError) => error.code === "NO_AI_CONFIG" && error.message.includes(DATA_CONSENT_ERROR),
     );
     assert.equal(reads, 2, `版本 ${version}`);
@@ -574,7 +577,7 @@ test("发前核对同意的工夫取消了：fetch 收到的信号已经中止�
   );
 
   await assert.rejects(
-    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, signal: controller.signal }),
+    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, signal: controller.signal, lang: "zh" }),
     { code: "TASK_CANCELED" },
   );
   assert.deepEqual(received, [true], "取消之后不发出计费请求");
@@ -618,8 +621,8 @@ test("后台：查模型能力途中取消了确认，后面的页和模型请�
     }),
   });
 
-  const error = await failureOf(t.requestAiCompletion({ feature: "explain", messages: MESSAGES, maxTokens: 100 }));
-  const result = TRANSPORT.aiErrorResponse(error);
+  const error = await failureOf(t.requestAiCompletion({ feature: "explain", messages: MESSAGES, maxTokens: 100, lang: "zh" }));
+  const result = TRANSPORT.aiErrorResponse(error, "zh");
   assert.equal(result.success, false);
   assert.equal(result.error, "NO_AI_CONFIG");
   assert.deepEqual(urls, ["https://api.anthropic.com/v1/models?limit=1000"]);
@@ -633,7 +636,7 @@ test("有正文但被截断时，放大预算要一次完整的", async () => {
     return requests.length === 1 ? openaiThinkingTruncated('{"chapters": [') : openaiReply('{"chapters": []}');
   });
 
-  const { text } = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 });
+  const { text } = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" });
   assert.equal(text, '{"chapters": []}');
   assert.deepEqual(requests.map((request) => request.max_tokens), [100 + H, 4 * (100 + H)]);
 });
@@ -645,7 +648,7 @@ test("截断的正文轮次用完后交出已有部分，由调用方补齐", as
     return openaiThinkingTruncated("部分正文");
   });
 
-  const { text, truncated } = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 });
+  const { text, truncated } = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" });
   assert.equal(text, "部分正文");
   assert.equal(truncated, true);
   assert.equal(requests.length, 3);
@@ -671,7 +674,7 @@ test("新型号拒绝 thinking 和 temperature 时逐个放宽重发，不占自
     },
   );
 
-  const { text } = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, temperature: 0.2 });
+  const { text } = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, temperature: 0.2, lang: "zh" });
   assert.equal(text, "可用");
   assert.equal(requests.length, 3);
   assert.equal("thinking" in requests[2]!, false);
@@ -690,7 +693,7 @@ test("只带 retrySignal：在途时停止，回来的是参数被拒，不再�
     { getSettings: async () => gatewaySettings() },
   );
   await assert.rejects(
-    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, retrySignal: controller.signal }),
+    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, retrySignal: controller.signal, lang: "zh" }),
     { code: "TASK_CANCELED" },
   );
   assert.equal(requests.length, 1, "停止之后不再发放宽后的计费请求");
@@ -708,7 +711,7 @@ test("只带 retrySignal：加码那一轮在途时停止、又碰上参数被�
     },
     { getSettings: async () => gatewaySettings() },
   );
-  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, retrySignal: controller.signal });
+  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, retrySignal: controller.signal, lang: "zh" });
   assert.equal(fetches, 2, "停止之后不再发放宽后的计费请求");
   assert.equal(result.truncated, true);
   assert.equal(result.text, "只写了一半");
@@ -730,7 +733,7 @@ test("只带 retrySignal：查模型能力的工夫停止了，首发也不再�
     },
   );
   await assert.rejects(
-    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, retrySignal: controller.signal }),
+    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, retrySignal: controller.signal, lang: "zh" }),
     { code: "TASK_CANCELED" },
   );
   assert.equal(fetches, 0);
@@ -755,7 +758,7 @@ test("只带 retrySignal：重发前读同意状态的工夫停止了，不再�
     },
   );
   await assert.rejects(
-    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, retrySignal: controller.signal }),
+    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, retrySignal: controller.signal, lang: "zh" }),
     { code: "TASK_CANCELED" },
   );
   assert.equal(fetches, 1);
@@ -767,10 +770,10 @@ test("限流重发过一次还是失败：错误标 noAutoRetry，错误回执�
     fetches += 1;
     return limitedWithRetryAfter("1");
   });
-  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }));
+  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }));
   assert.equal(fetches, 2);
   assert.equal(error.noAutoRetry, true);
-  const response = TRANSPORT.aiErrorResponse(error);
+  const response = TRANSPORT.aiErrorResponse(error, "zh");
   assert.equal(response.error, "RATE_LIMITED");
   assert.equal(response.noAutoRetry, true);
 });
@@ -781,8 +784,8 @@ test("额度用完这类传输层特意不重发的 429，错误回执带 noAuto
     status: 429,
     text: json({ error: { message: "You exceeded your current quota, please check your plan and billing details." } }),
   }));
-  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }));
-  assert.equal(TRANSPORT.aiErrorResponse(error).noAutoRetry, true);
+  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }));
+  assert.equal(TRANSPORT.aiErrorResponse(error, "zh").noAutoRetry, true);
 });
 
 test("这次调用自己重发过（脱掉 JSON 模式）后又失败：错误标 noAutoRetry，上层不再补发", async () => {
@@ -793,16 +796,16 @@ test("这次调用自己重发过（脱掉 JSON 模式）后又失败：错误�
     return { ok: false, status: 500, text: async () => "" };
   });
   const error = await failureOf(
-    t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, responseFormat: { type: "json_object" } }),
+    t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, responseFormat: { type: "json_object" }, lang: "zh" }),
   );
   assert.equal(fetches, 2);
   assert.equal(error.noAutoRetry, true);
-  assert.equal(TRANSPORT.aiErrorResponse(error).noAutoRetry, true);
+  assert.equal(TRANSPORT.aiErrorResponse(error, "zh").noAutoRetry, true);
 });
 
 test("只发过一次就失败的偶发错误不标 noAutoRetry，上层照常可以补一次", async () => {
   const t = makeTransport(async () => ({ ok: false, status: 500, text: async () => "" }));
-  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }));
+  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }));
   assert.notEqual(error.noAutoRetry, true);
 });
 
@@ -815,7 +818,7 @@ test("拒答一律标 noAutoRetry：换个时间再问也一样，上层不补�
     }),
     { getSettings: async () => gatewaySettings() },
   );
-  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }));
+  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }));
   assert.equal(error.noAutoRetry, true);
 });
 
@@ -825,7 +828,7 @@ test("结果带上这次调用实际发了几次，上层解析失败时据此�
     fetches += 1;
     return fetches === 1 ? openaiReply("") : openaiReply("不是 JSON");
   });
-  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, responseFormat: { type: "json_object" } });
+  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, responseFormat: { type: "json_object" }, lang: "zh" });
   assert.equal(result.sends, 2);
 });
 
@@ -837,7 +840,7 @@ test("selfRetry: false（上层补轮里那一次）：限流不再等着重发�
       return reply();
     });
     await t
-      .requestAiCompletion({ messages: MESSAGES, maxTokens: 100, responseFormat: { type: "json_object" }, selfRetry: false })
+      .requestAiCompletion({ messages: MESSAGES, maxTokens: 100, responseFormat: { type: "json_object" }, selfRetry: false, lang: "zh" })
       .catch(() => {});
     assert.equal(fetches, 1);
   }
@@ -850,7 +853,7 @@ test("selfRetry: false：撑满预算的空响应和截断正文都不加码，�
       fetches += 1;
       return reply();
     });
-    await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, selfRetry: false }).catch(() => {});
+    await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, selfRetry: false, lang: "zh" }).catch(() => {});
     assert.equal(fetches, 1);
   }
 });
@@ -884,7 +887,7 @@ test("业务请求经共用的 sendChatWithRelax 发出，和设置页的测试�
     },
     { relaxMemory: memory },
   );
-  const { text } = await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 512 });
+  const { text } = await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 512, lang: "zh" });
   assert.equal(text, "模型的话");
   assert.deepEqual(used, ["ready", "epoch", "recall", "remember"]);
   assert.deepEqual(requests.map((request) => request.max_tokens), [512 + H]);
@@ -901,7 +904,7 @@ test("放宽过的参数再被拒绝时，原样报错，不无限重发", async
   );
 
   await assert.rejects(
-    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, temperature: 0.2 }),
+    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, temperature: 0.2, lang: "zh" }),
     (error: TransportError) => error.status === 400,
   );
   assert.equal(calls, 2);
@@ -917,7 +920,7 @@ test("型号名认不出时，按 Sonnet 5.5 报错原文点名的 between_tools
     getSettings: async () => anthropicSettingsFor("gateway-sonnet-latest"),
   });
 
-  const { text } = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 });
+  const { text } = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" });
   assert.equal(text, "可用");
   assert.equal(requests.length, 2);
   assert.deepEqual(requests[1]!.thinking, { type: "between_tools" });
@@ -930,10 +933,10 @@ test("放宽成功后记住，同一组设置的下一个请求直接按放宽�
     getSettings: async () => anthropicSettingsFor("claude-next-unknown"),
   });
 
-  await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 });
+  await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" });
   assert.equal(requests.length, 2, "第一次要挨一次 400");
 
-  await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 });
+  await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" });
   assert.equal(requests.length, 3, "第二次一发就成");
   assert.equal("thinking" in requests[2]!, false);
 });
@@ -944,11 +947,11 @@ test("换了模型或 API 地址，放宽记忆不沿用", async () => {
   const t = makeTransport(rejectDisabledThinking(requests, ALWAYS_ON_DISABLED_REJECTED), {
     getSettings: async () => settings,
   });
-  await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 });
+  await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" });
 
   settings = anthropicSettingsFor("claude-another-unknown");
   requests.length = 0;
-  await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 });
+  await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" });
   assert.deepEqual(requests[0]!.thinking, { type: "disabled" }, "换模型后从头判断");
 
   settings = anthropicSettingsFor("claude-next-unknown", {
@@ -956,7 +959,7 @@ test("换了模型或 API 地址，放宽记忆不沿用", async () => {
     aiBaseUrl: "https://gateway.example.com",
   });
   requests.length = 0;
-  await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 });
+  await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" });
   assert.deepEqual(requests[0]!.thinking, { type: "disabled" }, "换地址后从头判断");
 });
 
@@ -973,13 +976,13 @@ test("放宽后的请求没成功就不记，避免一次偶然的错误永久�
   );
 
   await assert.rejects(
-    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }),
+    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }),
     (error: TransportError) => error.status === 429,
   );
 
   limited = false;
   requests.length = 0;
-  await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 });
+  await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" });
   assert.deepEqual(requests[0]!.thinking, { type: "disabled" }, "上次放宽没成功，这次照常先发 disabled");
 });
 
@@ -995,7 +998,7 @@ test("加大预算的重试返回 400 时，交回已有的截断正文并标明
     CLAUDE_46,
   );
 
-  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 });
+  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" });
   assert.equal(result.text, '{"chapters": [');
   assert.equal(result.truncated, true);
   assert.deepEqual(requests.map((request) => request.max_tokens), [100, 400]);
@@ -1012,7 +1015,7 @@ test("加大预算的重试被限流时，同样交回已有的截断正文", as
     CLAUDE_46,
   );
 
-  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 });
+  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" });
   assert.equal(result.text, '{"chapters": [');
   assert.equal(result.truncated, true);
   assert.equal(requests.length, 2);
@@ -1027,7 +1030,7 @@ test("加大预算的重试连不上时，同样交回已有的截断正文", as
     CLAUDE_46,
   );
 
-  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 });
+  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" });
   assert.equal(result.text, '{"chapters": [');
   assert.equal(result.truncated, true);
 });
@@ -1047,7 +1050,7 @@ test("加大预算的重试被取消时报取消，不交回截断正文", async
   );
 
   await assert.rejects(
-    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, signal: controller.signal }),
+    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, signal: controller.signal, lang: "zh" }),
     { code: "TASK_CANCELED" },
   );
   assert.equal(requests.length, 2);
@@ -1064,7 +1067,7 @@ test("重试只换来空响应时，交回先前的截断正文，不报空响�
     CLAUDE_46,
   );
 
-  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 });
+  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" });
   assert.equal(result.text, '{"chapters": [');
   assert.equal(result.truncated, true);
   assert.equal(requests.length, 3);
@@ -1080,7 +1083,7 @@ test("重试拿到更短的截断正文时，交回最长的那一份", async ()
     CLAUDE_46,
   );
 
-  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 });
+  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" });
   assert.equal(result.text, '{"chapters": [{"title": "开场"}');
   assert.equal(result.truncated, true);
 });
@@ -1092,7 +1095,7 @@ test("OpenAI 兼容服务的截断正文看不到思考时不重试，直接交�
     return openaiReply("部分正文", { finish_reason: "length" });
   });
 
-  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 2048 });
+  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 2048, lang: "zh" });
   assert.equal(requests.length, 1, "重发是一次新的完整请求，没把握补全就不花这份钱");
   assert.equal(result.text, "部分正文");
   assert.equal(result.truncated, true);
@@ -1113,7 +1116,7 @@ test("OpenAI 兼容服务报告了思考 token 时，截断正文照样加码重
     };
   });
 
-  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 2048 });
+  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 2048, lang: "zh" });
   assert.equal(result.text, "完整正文");
   assert.equal(result.truncated, undefined);
   assert.deepEqual(requests.map((request) => request.max_tokens), [2048 + H, 4 * (2048 + H)]);
@@ -1129,7 +1132,7 @@ test("各轮预算合计有上限：额度不够再放大一轮时就不再重�
     CLAUDE_46,
   );
 
-  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 8000 });
+  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 8000, lang: "zh" });
   const budgets = requests.map((request) => request.max_tokens ?? 0);
   assert.deepEqual(budgets, [8000, 32000], "第三轮只剩 25,536 的额度，比上一轮还小，不值得再发");
   assert.ok(budgets.reduce((sum, value) => sum + value, 0) <= TRANSPORT.TOTAL_OUTPUT_TOKENS_CAP);
@@ -1149,6 +1152,7 @@ test("body 被掐断在字符串中间时补齐解析，保住已到达的内容
   const result = await t.requestAiCompletion({
     messages: MESSAGES,
     maxTokens: 100,
+    lang: "zh",
   });
   assert.equal(result.text, "模型说到一半就被掐");
 });
@@ -1162,6 +1166,7 @@ test("body 掐在嵌套结构中间时同样补齐", async () => {
   const result = await t.requestAiCompletion({
     messages: MESSAGES,
     maxTokens: 100,
+    lang: "zh",
   });
   assert.equal(result.text, "[0:02] 引用");
 });
@@ -1173,7 +1178,7 @@ test("完全修不动的 body 报 AI_RESPONSE_TRUNCATED 而不是生硬的 V8 �
     text: async () => "这不是 JSON 也不是截断的 JSON",
   }));
   await assert.rejects(
-    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }),
+    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }),
     { code: "AI_RESPONSE_TRUNCATED" },
   );
 });
@@ -1201,7 +1206,7 @@ test("Opus 5.5 思考占满预算时，报错提示另选型号或把概览分�
   );
 
   await assert.rejects(
-    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }),
+    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }),
     (error: TransportError) =>
       error.code === "AI_THINKING_EXHAUSTED_LOCKED" &&
       error.reason === "TRUNCATED" &&
@@ -1227,7 +1232,7 @@ test("思考把额度用完、档位还能调低：报思考用完了额度，�
   const t = makeTransport(async () => usageOnlyThinkingTruncated(), {
     getSettings: async () => makeSettings({ aiBaseUrl: "https://api.deepseek.com", aiModel: "deepseek-sample" }),
   });
-  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, effort: "high" }));
+  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, effort: "high", lang: "zh" }));
   assert.equal(error.code, "AI_THINKING_EXHAUSTED");
   assert.equal(error.reason, "TRUNCATED");
   assert.doesNotMatch(error.message, /更简洁/, "用量里报了思考，不再说成普通的截断");
@@ -1235,7 +1240,7 @@ test("思考把额度用完、档位还能调低：报思考用完了额度，�
 
 test("思考把额度用完、简幕认不出这个服务的档位：只让人换型号，不让人去调推理强度", async () => {
   const t = makeTransport(async () => usageOnlyThinkingTruncated());
-  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, effort: "high" }));
+  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, effort: "high", lang: "zh" }));
   assert.equal(error.code, "AI_THINKING_EXHAUSTED_LOCKED");
 });
 
@@ -1243,20 +1248,20 @@ test("思考把额度用完、已经在能选的最低档：同样只让人换�
   const t = makeTransport(async () => usageOnlyThinkingTruncated(), {
     getSettings: async () => makeSettings({ aiBaseUrl: "https://api.deepseek.com", aiModel: "deepseek-sample" }),
   });
-  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, effort: "off" }));
+  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, effort: "off", lang: "zh" }));
   assert.equal(error.code, "AI_THINKING_EXHAUSTED_LOCKED");
 });
 
 test("截断了、看不出有思考：照旧报模型没写出内容", async () => {
   const t = makeTransport(async () => openaiReply("", { finish_reason: "length" }));
-  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, effort: "high" }));
+  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, effort: "high", lang: "zh" }));
   assert.equal(error.code, "EMPTY_AI_RESPONSE");
   assert.equal(error.reason, "TRUNCATED");
 });
 
 test("只有思考、没到上限就停了：不是额度的事，照旧报模型没写出内容", async () => {
   const t = makeTransport(async () => openaiReply("", { message: { content: "", reasoning_content: "想完了" }, finish_reason: "stop" }));
-  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }));
+  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }));
   assert.equal(error.code, "EMPTY_AI_RESPONSE");
   assert.equal(error.reason, "REASONING_ONLY");
 });
@@ -1273,6 +1278,7 @@ test("预算已到天花板就不再加码，两轮后放弃", async () => {
       t.requestAiCompletion({
         messages: MESSAGES,
         maxTokens: TRANSPORT.OUTPUT_TOKENS_CEILING - 1000 - H,
+        lang: "zh",
       }),
     (error: TransportError) => error.reason === "TRUNCATED",
   );
@@ -1416,7 +1422,7 @@ test("Anthropic 密钥没限定工作区的 400 翻成中文，指向设置页�
   assert.equal(error.code, "ANTHROPIC_WORKSPACE_REQUIRED");
   assert.equal(error.status, 400);
   assert.match(error.message, /没有限定工作区/);
-  const response = TRANSPORT.aiErrorResponse(error);
+  const response = TRANSPORT.aiErrorResponse(error, "zh");
   assert.equal(response.error, "ANTHROPIC_WORKSPACE_REQUIRED");
   assert.equal(response.message, error.message);
 
@@ -1431,15 +1437,15 @@ test("本机地址回 403 单独报来源被拒，三种语言都说不是密钥
     const error = PROVIDER.keyedHttpError({}, 403, { aiBaseUrl, aiApiKey: "" });
     assert.equal(error.code, "AI_LOCAL_ORIGIN_REJECTED", aiBaseUrl);
     assert.equal(error.status, 403, aiBaseUrl);
-    const response = TRANSPORT.aiErrorResponse(error);
+    const response = TRANSPORT.aiErrorResponse(error, "zh");
     assert.equal(response.error, "AI_LOCAL_ORIGIN_REJECTED", aiBaseUrl);
     assert.match(response.message, /多半不是密钥的问题.*OLLAMA_ORIGINS/, aiBaseUrl);
     assert.match(TRANSPORT.aiErrorResponse(error, "en").message, /usually isn't a key problem.*OLLAMA_ORIGINS/, aiBaseUrl);
     assert.match(TRANSPORT.aiErrorResponse(error, "zh-Hant").message, /多半不是金鑰的問題.*OLLAMA_ORIGINS/, aiBaseUrl);
-    assert.equal(TRANSPORT.serviceSaid(error), "", aiBaseUrl);
+    assert.equal(TRANSPORT.serviceSaid(error, "zh"), "", aiBaseUrl);
   }
   const keyError = (status: number, aiBaseUrl: string) =>
-    TRANSPORT.aiErrorResponse(PROVIDER.keyedHttpError({}, status, { aiBaseUrl, aiApiKey: "sk-sample" })).error;
+    TRANSPORT.aiErrorResponse(PROVIDER.keyedHttpError({}, status, { aiBaseUrl, aiApiKey: "sk-sample" }), "zh").error;
   assert.equal(keyError(403, "https://api.example.com/v1"), "INVALID_AI_KEY");
   assert.equal(keyError(401, "https://api.example.com/v1"), "INVALID_AI_KEY");
   assert.equal(keyError(401, "http://localhost:11434/v1"), "INVALID_AI_KEY");
@@ -1451,12 +1457,12 @@ test("经传输层发到本机的请求回 403：错误码是来源被拒，状�
   const error = await failureOf(t.sendAiRequest({ aiBaseUrl: "http://localhost:11434/v1", aiApiKey: "" }, SEND_REQUEST));
   assert.equal(error.code, "AI_LOCAL_ORIGIN_REJECTED");
   assert.equal(error.status, 403);
-  assert.equal(TRANSPORT.aiErrorResponse(error).error, "AI_LOCAL_ORIGIN_REJECTED");
+  assert.equal(TRANSPORT.aiErrorResponse(error, "zh").error, "AI_LOCAL_ORIGIN_REJECTED");
 });
 
 test("本机地址回的 403 带着服务自己的说明时仍是密钥错误：JSON 说明、纯文本说明都算，空的和 HTML 错误页才算来源被拒", async () => {
   const local = { aiBaseUrl: "http://localhost:11434/v1", aiApiKey: "sk-sample-local" };
-  const codeOf = (data: unknown) => TRANSPORT.aiErrorResponse(PROVIDER.keyedHttpError(data, 403, local)).error;
+  const codeOf = (data: unknown) => TRANSPORT.aiErrorResponse(PROVIDER.keyedHttpError(data, 403, local), "zh").error;
   assert.equal(codeOf({ error: { message: "this key cannot use the model" } }), "INVALID_AI_KEY");
   assert.equal(codeOf({ error: { type: "permission_error" } }), "INVALID_AI_KEY");
   assert.equal(codeOf({ message: "forbidden by gateway policy" }), "INVALID_AI_KEY");
@@ -1468,7 +1474,7 @@ test("本机地址回的 403 带着服务自己的说明时仍是密钥错误：
     return failureOf(t.sendAiRequest(local, SEND_REQUEST));
   };
   assert.equal((await sent("this key cannot use the model")).code, undefined, "纯文本说明按密钥错误");
-  assert.equal(TRANSPORT.aiErrorResponse(await sent("this key cannot use the model")).error, "INVALID_AI_KEY");
+  assert.equal(TRANSPORT.aiErrorResponse(await sent("this key cannot use the model"), "zh").error, "INVALID_AI_KEY");
   assert.equal((await sent(JSON.stringify({ error: { message: "no access to this model" } }))).code, undefined);
   assert.equal((await sent("<html><body>403 Forbidden</body></html>")).code, "AI_LOCAL_ORIGIN_REJECTED");
   assert.equal((await sent("")).code, "AI_LOCAL_ORIGIN_REJECTED");
@@ -1482,12 +1488,12 @@ test("本机网关在事件流里报权限错误：映射成 403 也带着说明
   );
   assert.equal(error.status, 403);
   assert.equal(error.code, undefined);
-  assert.equal(TRANSPORT.aiErrorResponse(error).error, "INVALID_AI_KEY");
+  assert.equal(TRANSPORT.aiErrorResponse(error, "zh").error, "INVALID_AI_KEY");
 });
 
 test("HTTP 状态映射成用户能行动的错误码", () => {
   const aiError = (props: { readonly status?: number; readonly baseUrl?: string }) =>
-    TRANSPORT.aiErrorResponse(Object.assign(new Error("x"), props));
+    TRANSPORT.aiErrorResponse(Object.assign(new Error("x"), props), "zh");
 
   assert.equal(aiError({ status: 401 }).error, "INVALID_AI_KEY");
   assert.equal(aiError({ status: 403 }).error, "INVALID_AI_KEY");
@@ -1509,11 +1515,11 @@ test("纯文本报错回显密钥时先脱敏再截断，密钥跨过截断线�
 test("错误响应不是 JSON 时照样保留状态码：纯文本 429 认得出限流，401 认得出密钥被拒", async () => {
   const limited = await sendOnce(new Response("Too Many Requests", { status: 429 }));
   assert.equal(limited.status, 429);
-  assert.equal(TRANSPORT.aiErrorResponse(limited).error, "RATE_LIMITED");
+  assert.equal(TRANSPORT.aiErrorResponse(limited, "zh").error, "RATE_LIMITED");
 
   const unauthorized = await sendOnce(new Response("Unauthorized", { status: 401 }));
   assert.equal(unauthorized.status, 401);
-  assert.equal(TRANSPORT.aiErrorResponse(unauthorized).error, "INVALID_AI_KEY");
+  assert.equal(TRANSPORT.aiErrorResponse(unauthorized, "zh").error, "INVALID_AI_KEY");
 });
 
 test("HTML 的 502 错误页：保留状态码，提示里不出现网页源码", async () => {
@@ -1525,7 +1531,7 @@ test("HTML 的 502 错误页：保留状态码，提示里不出现网页源码"
   );
   assert.equal(error.status, 502);
   assert.doesNotMatch(error.message, /<html|<body/i);
-  const response = TRANSPORT.aiErrorResponse(error);
+  const response = TRANSPORT.aiErrorResponse(error, "zh");
   assert.equal(response.error, "AI_SERVICE_BUSY");
   assert.match(response.message, /繁忙/);
   assert.match(response.message, /502/);
@@ -1534,7 +1540,7 @@ test("HTML 的 502 错误页：保留状态码，提示里不出现网页源码"
 test("空 body 的 503 保留状态码；纯文本错误里的密钥照样打码", async () => {
   const empty = await sendOnce(new Response("", { status: 503 }));
   assert.equal(empty.status, 503);
-  assert.equal(TRANSPORT.aiErrorResponse(empty).error, "AI_SERVICE_BUSY");
+  assert.equal(TRANSPORT.aiErrorResponse(empty, "zh").error, "AI_SERVICE_BUSY");
 
   const echoed = await sendOnce(new Response("bad key sk-secret-123456", { status: 400 }));
   assert.equal(echoed.status, 400);
@@ -1543,7 +1549,7 @@ test("空 body 的 503 保留状态码；纯文本错误里的密钥照样打码
 
 test("5xx 和 529 翻成中文的「服务繁忙」，不显示英文原文", () => {
   for (const status of [500, 502, 503, 504, 529]) {
-    const response = TRANSPORT.aiErrorResponse(Object.assign(new Error("Overloaded"), { status }));
+    const response = TRANSPORT.aiErrorResponse(Object.assign(new Error("Overloaded"), { status }), "zh");
     assert.equal(response.error, "AI_SERVICE_BUSY", `HTTP ${status}`);
     assert.doesNotMatch(response.message, /Overloaded/);
     assert.match(response.message, new RegExp(String(status)));
@@ -1562,7 +1568,7 @@ test("5xx 带着可读的说明（中转站模型名配错）：附在中文提�
       { status: 503 },
     ),
   );
-  const response = TRANSPORT.aiErrorResponse(relay);
+  const response = TRANSPORT.aiErrorResponse(relay, "zh");
   assert.match(response.message, /HTTP 503/);
   assert.match(response.message, /无可用渠道/);
   assert.doesNotMatch(response.message, /稍后再试/, "不是等一等就会好的问题");
@@ -1570,12 +1576,13 @@ test("5xx 带着可读的说明（中转站模型名配错）：附在中文提�
 
   const long = TRANSPORT.aiErrorResponse(
     Object.assign(new Error(`服务配置有误：${"很长的说明".repeat(100)}`), { status: 500 }),
+    "zh",
   );
   assert.match(long.message, /服务配置有误/);
   assert.ok(long.message.length < 300, `说明要截断，实际 ${long.message.length} 字`);
 
   for (const generic of ["Service Unavailable", "Internal Server Error", "Bad Gateway", "服务返回 502", "upstream connect error", "upstream error"]) {
-    const plain = TRANSPORT.aiErrorResponse(Object.assign(new Error(generic), { status: 502 }));
+    const plain = TRANSPORT.aiErrorResponse(Object.assign(new Error(generic), { status: 502 }), "zh");
     assert.doesNotMatch(plain.message, new RegExp(generic), "笼统的状态说明照旧不显示");
     assert.match(plain.message, /繁忙/);
   }
@@ -1593,7 +1600,7 @@ test("中转站说没有这个模型的 503：不自动重发，标 noAutoRetry�
   const { waits, sleep } = recordingSleep();
   const t = makeTransport(server.fetch, { sleep });
   await assert.rejects(
-    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }),
+    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }),
     (error: TransportError) => error.status === 503 && error.noAutoRetry === true,
   );
   assert.equal(server.fetches, 1);
@@ -1625,6 +1632,7 @@ test("官方地址的结构化输出：请求带 output_config.format，正文�
     maxTokens: 1024,
     temperature: 0.2,
     responseFormat: SCHEMAS.QA_ANSWER,
+    lang: "zh",
   });
   assert.equal(result.text, answer);
   assert.equal(requests.length, 1);
@@ -1648,12 +1656,12 @@ test("schema 被拒后退回提示词约束重发，成功后记住，下次直�
     { getSettings: async () => anthropicSettingsFor("claude-sonnet-4-6") },
   );
 
-  const first = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 512, responseFormat: SCHEMAS.NOTE_QUOTE });
+  const first = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 512, responseFormat: SCHEMAS.NOTE_QUOTE, lang: "zh" });
   assert.equal(first.text, '{"quote":"整理好的笔记"}');
   assert.equal(requests.length, 2);
   assert.equal("output_config" in requests[1]!, false);
 
-  await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 512, responseFormat: SCHEMAS.NOTE_QUOTE });
+  await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 512, responseFormat: SCHEMAS.NOTE_QUOTE, lang: "zh" });
   assert.equal(requests.length, 3, "第二次一发就成");
   assert.equal("output_config" in requests[2]!, false);
 });
@@ -1669,11 +1677,11 @@ test("模型拒绝回答时报 AI_REFUSED，不重试也不当成空响应", asy
   );
 
   await assert.rejects(
-    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 512, responseFormat: { type: "json_object" } }),
+    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 512, responseFormat: { type: "json_object" }, lang: "zh" }),
     (error: TransportError) => error.code === "AI_REFUSED" && /拒绝/.test(error.message),
   );
   assert.equal(calls, 1);
-  assert.deepEqual(TRANSPORT.aiErrorResponse({ code: "AI_REFUSED", message: "模型拒绝了这次请求。" }), {
+  assert.deepEqual(TRANSPORT.aiErrorResponse({ code: "AI_REFUSED", message: "模型拒绝了这次请求。" }, "zh"), {
     success: false,
     error: "AI_REFUSED",
     message: "模型拒绝了这次请求。",
@@ -1687,7 +1695,7 @@ test("模型拒绝回答时报 AI_REFUSED，不重试也不当成空响应", asy
 test("Responses：completed 的正文原样交回，请求发到 /responses 且不在服务端保存", async () => {
   const requests: SentRequest[] = [];
   const t = responsesTransport("gpt-6-astra", () => RESP.asFetchResponse(RESP.completed('{"answer":"可用"}')), requests);
-  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 1200, responseFormat: SCHEMAS.QA_ANSWER });
+  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 1200, responseFormat: SCHEMAS.QA_ANSWER, lang: "zh" });
   assert.equal(result.text, '{"answer":"可用"}');
   assert.equal(result.truncated, undefined);
   assert.equal(requests.length, 1);
@@ -1704,7 +1712,7 @@ test("Responses：推理占满预算被截断时加大预算重发，补全后�
     (count) => RESP.asFetchResponse(count === 1 ? RESP.incomplete('{"chapters": [') : RESP.completed('{"chapters": []}')),
     requests,
   );
-  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 2048 });
+  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 2048, lang: "zh" });
   assert.equal(result.text, '{"chapters": []}');
   assert.deepEqual(requests.map((request) => request.body.max_output_tokens), [2048 + H, 4 * (2048 + H)]);
 });
@@ -1716,7 +1724,7 @@ test("Responses：一个字没写就用完预算时同样加码重发", async ()
     (count) => RESP.asFetchResponse(count === 1 ? RESP.incomplete() : RESP.completed('{"quote":"好"}')),
     requests,
   );
-  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 512 });
+  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 512, lang: "zh" });
   assert.equal(result.text, '{"quote":"好"}');
   assert.deepEqual(requests.map((request) => request.body.max_output_tokens), [512 + H, 4 * (512 + H)]);
 });
@@ -1728,7 +1736,7 @@ test("Responses：内容过滤截停时不重发，交回已有正文并标明�
     () => RESP.asFetchResponse(RESP.incomplete('{"answer":"一半', { reason: "content_filter" })),
     requests,
   );
-  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 1024 });
+  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 1024, lang: "zh" });
   assert.equal(requests.length, 1);
   assert.equal(result.truncated, true);
   assert.equal(result.text, '{"answer":"一半');
@@ -1738,7 +1746,7 @@ test("Responses：拒绝回答时报 AI_REFUSED 并带上模型的说明，不�
   const requests: SentRequest[] = [];
   const t = responsesTransport("gpt-6-astra", () => RESP.asFetchResponse(RESP.refusal()), requests);
   await assert.rejects(
-    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 1024, responseFormat: { type: "json_object" } }),
+    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 1024, responseFormat: { type: "json_object" }, lang: "zh" }),
     (error: TransportError) => error.code === "AI_REFUSED" && error.message.includes("I'm sorry, I cannot assist with that request."),
   );
   assert.equal(requests.length, 1);
@@ -1757,12 +1765,12 @@ test("Responses：推理档位被拒后不发档位重试，成功后记住", as
         : RESP.asFetchResponse(RESP.completed("可用")),
     requests,
   );
-  const first = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 512 });
+  const first = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 512, lang: "zh" });
   assert.equal(first.text, "可用");
   assert.deepEqual(requests[0]!.body.reasoning, { effort: "none" });
   assert.equal("reasoning" in requests[1]!.body, false);
 
-  await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 512 });
+  await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 512, lang: "zh" });
   assert.equal(requests.length, 3, "第二次一发就成");
   assert.equal("reasoning" in requests[2]!.body, false);
 });
@@ -1774,7 +1782,7 @@ test("Responses：JSON 模式返回空时脱掉 text.format 重试一次", async
     (count) => RESP.asFetchResponse(count === 1 ? RESP.completed("") : RESP.completed('{"quote":"好"}')),
     requests,
   );
-  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 512, responseFormat: { type: "json_object" } });
+  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 512, responseFormat: { type: "json_object" }, lang: "zh" });
   assert.equal(result.text, '{"quote":"好"}');
   assert.deepEqual(requests[0]!.body.text, { format: { type: "json_object" } });
   assert.equal("text" in requests[1]!.body, false);
@@ -1796,7 +1804,7 @@ test("模型的 max_tokens 上限低于请求预算时按上限发，也不再�
       getModelCapabilities: async () => MODEL_CAPS(),
     },
   );
-  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 6000 });
+  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 6000, lang: "zh" });
   assert.deepEqual(requests.map((body) => body.max_tokens), [4096], "超过上限的请求会被直接拒绝");
   assert.equal(result.truncated, true);
 });
@@ -1813,7 +1821,7 @@ test("上限够用时照常按四倍加码，但不超过模型上限", async ()
       getModelCapabilities: async () => MODEL_CAPS({ maxTokens: 20000 }),
     },
   );
-  await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 2048 });
+  await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 2048, lang: "zh" });
   assert.deepEqual(requests.map((body) => body.max_tokens), [2048, 8192, 20000]);
 });
 
@@ -1829,7 +1837,7 @@ test("能力数据直接决定请求参数；查能力出错不挡请求", async
       getModelCapabilities: async () => MODEL_CAPS({ thinking: { disabled: false, betweenTools: true, adaptive: true } }),
     },
   );
-  await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 });
+  await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" });
   assert.equal(requests.length, 1, "能力表说关不掉思考，一发就对");
   assert.deepEqual(requests[0]!.thinking, { type: "between_tools" });
 
@@ -1845,7 +1853,7 @@ test("能力数据直接决定请求参数；查能力出错不挡请求", async
       },
     },
   );
-  const { text } = await failing.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 });
+  const { text } = await failing.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" });
   assert.equal(text, "可用");
   assert.deepEqual(requests.at(-1)?.thinking, { type: "disabled" }, "退回按型号名判断");
 });
@@ -1864,6 +1872,7 @@ test("529 过载后等几秒重发一次，第二次成功就交回结果，并�
     messages: MESSAGES,
     maxTokens: 100,
     onRetry: (notice) => notices.push(notice),
+    lang: "zh",
   });
 
   assert.equal(result.text, "恢复了");
@@ -1887,13 +1896,13 @@ test("429 带 Retry-After 时按它等；第二次还是限流就报 RATE_LIMITE
   const t = makeTransport(server.fetch, { sleep });
 
   const error = await failureOf(
-    t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, onRetry: (notice) => notices.push(notice) }),
+    t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, onRetry: (notice) => notices.push(notice), lang: "zh" }),
   );
 
   assert.equal(server.fetches, 2, "只自动重发一次");
   assert.deepEqual(waits, [3000]);
   assert.match(notices[0]!.message, /限流，3 秒后重试/);
-  assert.equal(TRANSPORT.aiErrorResponse(error).error, "RATE_LIMITED");
+  assert.equal(TRANSPORT.aiErrorResponse(error, "zh").error, "RATE_LIMITED");
 });
 
 test("Retry-After 是 HTTP 日期时换算成等待时长", async () => {
@@ -1905,7 +1914,7 @@ test("Retry-After 是 HTTP 日期时换算成等待时长", async () => {
   const { waits, sleep } = recordingSleep();
   const t = makeTransport(server.fetch, { sleep });
 
-  await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 });
+  await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" });
   assert.equal(server.fetches, 2);
   assert.ok(waits[0]! > 1000 && waits[0]! <= 4000, `实际 ${waits[0]}`);
 });
@@ -1919,7 +1928,7 @@ test("Retry-After 超过 20 秒不自动等，直接报限流", async () => {
   const t = makeTransport(server.fetch, { sleep });
 
   await assert.rejects(
-    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }),
+    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }),
     // 标上 noAutoRetry：概览的自动补轮也不替它重发。
     (error: TransportError) => error.status === 429 && error.noAutoRetry === true,
   );
@@ -1940,7 +1949,7 @@ test("额度用完的 429 不重发：等多久都不会恢复", async () => {
   ]);
   const t = makeTransport(server.fetch);
   await assert.rejects(
-    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }),
+    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }),
     (error: TransportError) => error.quotaExhausted === true && error.noAutoRetry === true,
   );
   assert.equal(server.fetches, 1);
@@ -1949,9 +1958,9 @@ test("额度用完的 429 不重发：等多久都不会恢复", async () => {
 test("503 连续两次：重发一次后报 AI_SERVICE_BUSY", async () => {
   const server = replay([() => new Response("Service Unavailable", { status: 503 })]);
   const t = makeTransport(server.fetch);
-  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }));
+  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }));
   assert.equal(server.fetches, 2);
-  assert.equal(TRANSPORT.aiErrorResponse(error).error, "AI_SERVICE_BUSY");
+  assert.equal(TRANSPORT.aiErrorResponse(error, "zh").error, "AI_SERVICE_BUSY");
   assert.equal(error.noAutoRetry, true, "这次调用已经重发过一次，概览和翻译的补轮不再补发，同一批不会被发四次");
 });
 
@@ -1960,7 +1969,7 @@ test("说不准有没有计费的 500、502、504 和 4xx 都不自动重发", a
     const server = replay([() => new Response("nope", { status }), ok200]);
     const t = makeTransport(server.fetch);
     await assert.rejects(
-      () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }),
+      () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }),
       (error: TransportError) => error.status === status,
     );
     assert.equal(server.fetches, 1, `HTTP ${status} 不重发`);
@@ -1978,7 +1987,7 @@ test("限流重发不占自愈轮次：重发之后三轮加码照常走完", as
     { sleep },
   );
   await assert.rejects(
-    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }),
+    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }),
     { code: "EMPTY_AI_RESPONSE" },
   );
   assert.equal(waits.length, 1);
@@ -1994,7 +2003,7 @@ test("任务取消之后，在途那次回来的截断正文不再加码重发",
     return openaiThinkingTruncated("只写了一半");
   });
   await assert.rejects(
-    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, signal: controller.signal }),
+    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, signal: controller.signal, lang: "zh" }),
     { code: "TASK_CANCELED" },
   );
   assert.equal(fetches, 1);
@@ -2014,6 +2023,7 @@ test("等待重发期间取消：立刻报 TASK_CANCELED，不再发请求", asy
     maxTokens: 100,
     signal: controller.signal,
     onRetry: () => controller.abort(),
+    lang: "zh",
   });
   await assert.rejects(() => pending, { code: "TASK_CANCELED" });
   assert.ok(Date.now() - started < 5000, "不必等满 20 秒");
@@ -2033,6 +2043,7 @@ test("只带 retrySignal（粗筛写结论的排队信号）：等待重发期�
     maxTokens: 100,
     retrySignal: controller.signal,
     onRetry: () => controller.abort(),
+    lang: "zh",
   });
   await assert.rejects(() => pending, { code: "TASK_CANCELED" });
   assert.ok(Date.now() - started < 5000, "不必等满 20 秒");
@@ -2062,6 +2073,7 @@ test("signal 和 retrySignal 都带：等待重发时任一个中止，等待都
           maxTokens: 100,
           signal: controllers.signal.signal,
           retrySignal: controllers.retrySignal.signal,
+          lang: "zh",
         }),
       { code: "TASK_CANCELED" },
     );
@@ -2082,6 +2094,7 @@ test("只带 retrySignal：在途时停止，回来的是截断正文也不再�
     messages: MESSAGES,
     maxTokens: 100,
     retrySignal: controller.signal,
+    lang: "zh",
   });
   assert.equal(fetches, 1, "停止之后不再发新的计费请求");
   assert.equal(result.truncated, true);
@@ -2103,6 +2116,7 @@ test("只带 retrySignal：在途时停止，回来的是 JSON 模式空响应�
         maxTokens: 100,
         responseFormat: { type: "json_object" },
         retrySignal: controller.signal,
+        lang: "zh",
       }),
     { code: "TASK_CANCELED" },
   );
@@ -2122,6 +2136,7 @@ test("retrySignal 不中止已经发出的请求：在途时中止，照常等�
     messages: MESSAGES,
     maxTokens: 100,
     retrySignal: controller.signal,
+    lang: "zh",
   });
   assert.equal(result.text, "回来了");
   assert.equal((fetchSignal as AbortSignal | null)?.aborted, false);
@@ -2138,7 +2153,7 @@ test("硬超时和空闲超时不自动重发：服务端可能已经在生成�
     { timeoutMs: 30 },
   );
   await assert.rejects(
-    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }),
+    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }),
     { code: "AI_HARD_TIMEOUT" },
   );
   assert.equal(fetches, 1);
@@ -2148,7 +2163,7 @@ test("截断正文已经到手时，加码重试遇到过载直接交回截断�
   const requests: ChatRequestBody[] = [];
   const { waits, sleep } = recordingSleep();
   const t = makeTransport(truncatedThen(requests, overloaded), { ...CLAUDE_46, sleep });
-  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 });
+  const result = await t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" });
   assert.equal(result.truncated, true);
   assert.equal(requests.length, 2);
   assert.deepEqual(waits, []);
@@ -2161,7 +2176,7 @@ test("stillWanted 回 false：传输层准备完、真正发出之前拦下，�
     return openaiReply("{}");
   });
   await assert.rejects(
-    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, stillWanted: () => false }),
+    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, stillWanted: () => false, lang: "zh" }),
     { code: "TASK_CANCELED" },
   );
   assert.equal(requests.length, 0);
@@ -2186,7 +2201,7 @@ test("beforeSend：查完模型能力、真正发出之前才问，回 false 就
     order.push("beforeSend");
     return false;
   };
-  await assert.rejects(() => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, beforeSend }), { code: "TASK_CANCELED" });
+  await assert.rejects(() => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, beforeSend, lang: "zh" }), { code: "TASK_CANCELED" });
   assert.deepEqual(order, ["capabilities", "beforeSend"]);
   assert.equal(requests.length, 0);
 });
@@ -2205,7 +2220,7 @@ test("beforeSend 里等的工夫撤回了同意：问完钩子再核对一次，
     settings = makeSettings({ dataConsentVersion: 0 });
     return true;
   };
-  await assert.rejects(() => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, beforeSend }), { code: "NO_AI_CONFIG" });
+  await assert.rejects(() => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, beforeSend, lang: "zh" }), { code: "NO_AI_CONFIG" });
   assert.equal(requests.length, 0);
 });
 
@@ -2223,7 +2238,7 @@ test("stillWanted 在首发之后变成 false：限流后的重发不再发出",
     };
   });
   await assert.rejects(
-    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, stillWanted: () => wanted }),
+    () => t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, stillWanted: () => wanted, lang: "zh" }),
     { code: "TASK_CANCELED" },
   );
   assert.equal(requests.length, 1, "清除之后不再重发");
@@ -2273,6 +2288,7 @@ test("Chat Completions 的信封被截断、补齐后解析：带上 truncated�
   const result = await transport.requestAiCompletion({
     messages: [{ role: "user", content: "离线测试" }],
     maxTokens: 256,
+    lang: "zh",
   });
   assert.equal(result.truncated, true);
   assert.match(result.text, /前半句已经到达/);
@@ -2293,6 +2309,7 @@ test("Anthropic 的信封被截断时同样标成截断", async () => {
   const result = await transport.requestAiCompletion({
     messages: [{ role: "user", content: "离线测试" }],
     maxTokens: 256,
+    lang: "zh",
   });
   assert.equal(result.truncated, true);
   assert.equal(calls(), 1);
@@ -2303,6 +2320,7 @@ test("完整的信封不带 truncated", async () => {
   const result = await transport.requestAiCompletion({
     messages: [{ role: "user", content: "离线测试" }],
     maxTokens: 256,
+    lang: "zh",
   });
   assert.equal("truncated" in result, false);
 });
@@ -2346,9 +2364,9 @@ function recordingTransport(settings: AiSettings, extra: Overrides = {}) {
 
 test("requestAiCompletion 按 feature 发实际模型，返回的设置也是实际模型", async () => {
   const { transport, bodies } = recordingTransport(customSettings({ featureModels: { verdict: "m-fast" } }));
-  const fast = await transport.requestAiCompletion({ feature: "verdict", messages: MESSAGES, maxTokens: 64 });
-  const strong = await transport.requestAiCompletion({ feature: "analysis", messages: MESSAGES, maxTokens: 64 });
-  const plain = await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 64 });
+  const fast = await transport.requestAiCompletion({ feature: "verdict", messages: MESSAGES, maxTokens: 64, lang: "zh" });
+  const strong = await transport.requestAiCompletion({ feature: "analysis", messages: MESSAGES, maxTokens: 64, lang: "zh" });
+  const plain = await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 64, lang: "zh" });
 
   assert.deepEqual(bodies.map((body) => body.model), ["m-fast", "m-default", "m-default"]);
   assert.equal(fast.settings.aiModel, "m-fast");
@@ -2358,8 +2376,8 @@ test("requestAiCompletion 按 feature 发实际模型，返回的设置也是实
 
 test("覆盖留空或只有空白时回到默认模型", async () => {
   const { transport, bodies } = recordingTransport(customSettings({ featureModels: { verdict: "", explain: "   " } }));
-  await transport.requestAiCompletion({ feature: "verdict", messages: MESSAGES, maxTokens: 64 });
-  await transport.requestAiCompletion({ feature: "explain", messages: MESSAGES, maxTokens: 64 });
+  await transport.requestAiCompletion({ feature: "verdict", messages: MESSAGES, maxTokens: 64, lang: "zh" });
+  await transport.requestAiCompletion({ feature: "explain", messages: MESSAGES, maxTokens: 64, lang: "zh" });
   assert.deepEqual(bodies.map((body) => body.model), ["m-default", "m-default"]);
 });
 
@@ -2368,8 +2386,8 @@ test("记住了不加余量、上限又被型号上限封住时，只减掉实�
   const relaxMemory = PROVIDER.createRelaxMemory();
   await relaxMemory.remember(settings, { headroom: true });
   const { transport, bodies } = recordingTransport(settings, { relaxMemory, getModelCapabilities: async () => ({ maxTokens: 2048 }) });
-  await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 1024 });
-  await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 4096 });
+  await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 1024, lang: "zh" });
+  await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 4096, lang: "zh" });
   assert.deepEqual(bodies.map((body) => body.max_tokens), [1024, 2048]);
 });
 
@@ -2381,8 +2399,8 @@ test("模型能力按实际模型查询，单轮预算按它的上限封顶", as
       return settings.aiModel === "m-small" ? { maxTokens: 1000 } : null;
     },
   });
-  await transport.requestAiCompletion({ feature: "rewrite", messages: MESSAGES, maxTokens: 4096 });
-  await transport.requestAiCompletion({ feature: "qa", messages: MESSAGES, maxTokens: 4096 });
+  await transport.requestAiCompletion({ feature: "rewrite", messages: MESSAGES, maxTokens: 4096, lang: "zh" });
+  await transport.requestAiCompletion({ feature: "qa", messages: MESSAGES, maxTokens: 4096, lang: "zh" });
 
   assert.deepEqual(asked, ["m-small", "m-default"]);
   assert.deepEqual(bodies.map((body) => body.max_tokens), [1000, 4096 + H], "余量也不超过型号的上限");
@@ -2414,7 +2432,7 @@ test("放宽记忆按实际模型区分：一个模型拒绝过的参数不连�
       return anthropicReply("好");
     },
   });
-  const ask = (feature: string) => transport.requestAiCompletion({ feature, messages: MESSAGES, maxTokens: 64 });
+  const ask = (feature: string) => transport.requestAiCompletion({ feature, messages: MESSAGES, maxTokens: 64, lang: "zh" });
 
   await ask("analysis");
   assert.equal(posts.length, 2, "第一次要挨一次 400");
@@ -2502,7 +2520,7 @@ test("Anthropic 地址跨域重定向时不跟过去，x-api-key 不会发到新
   try {
     const transport = transportFor(anthropicKeyedSettings(base), viaLoopback(base, await listen(origin)));
     await assert.rejects(
-      transport.requestAiCompletion({ messages: [{ role: "user", content: "离线测试" }], maxTokens: 64 }),
+      transport.requestAiCompletion({ messages: [{ role: "user", content: "离线测试" }], maxTokens: 64, lang: "zh" }),
       (error: TransportError) => {
         assert.equal(error.code, "AI_REDIRECT_BLOCKED");
         assert.match(error.message, /重定向/);
@@ -2534,7 +2552,7 @@ test("本机 http 地址带着密钥时也不跟随重定向，密钥不会发�
   try {
     const transport = transportFor(anthropicKeyedSettings(base), (url, init) => fetch(url, init));
     await assert.rejects(
-      transport.requestAiCompletion({ messages: [{ role: "user", content: "离线测试" }], maxTokens: 64 }),
+      transport.requestAiCompletion({ messages: [{ role: "user", content: "离线测试" }], maxTokens: 64, lang: "zh" }),
       (error: TransportError) => {
         assert.equal(error.code, "AI_REDIRECT_BLOCKED");
         assert.ok(error.message.includes(base), "报错要点名是哪个地址在重定向");
@@ -2554,11 +2572,11 @@ test("模型调用用 manual 模式发请求，浏览器的 opaqueredirect 响�
     return opaqueRedirect();
   });
   const error = await failureOf(
-    transport.requestAiCompletion({ messages: [{ role: "user", content: "离线测试" }], maxTokens: 64 }),
+    transport.requestAiCompletion({ messages: [{ role: "user", content: "离线测试" }], maxTokens: 64, lang: "zh" }),
   );
   assert.equal(error.code, "AI_REDIRECT_BLOCKED");
   assert.deepEqual(inits.map((init) => init.redirect), ["manual"]);
-  const response = TRANSPORT.aiErrorResponse(error);
+  const response = TRANSPORT.aiErrorResponse(error, "zh");
   assert.equal(response.error, "AI_REDIRECT_BLOCKED");
   assert.match(response.message, /不跟随重定向/);
 });
@@ -2578,16 +2596,16 @@ test("模型服务在 HTTP 报错里回显密钥时，错误和给界面的提�
     text: json({ error: { message: `rejected credential: ${KEY}`, param: `key=${KEY}` } }),
   }));
   const error = await failureOf(
-    transport.requestAiCompletion({ messages: [{ role: "user", content: "离线测试" }], maxTokens: 64 }),
+    transport.requestAiCompletion({ messages: [{ role: "user", content: "离线测试" }], maxTokens: 64, lang: "zh" }),
   );
   assert.equal(error.status, 400);
   assert.equal(error.message, "rejected credential: [已隐藏的密钥]");
   assert.equal(error.param, "key=[已隐藏的密钥]");
-  assert.ok(!JSON.stringify(TRANSPORT.aiErrorResponse(error)).includes(KEY));
+  assert.ok(!JSON.stringify(TRANSPORT.aiErrorResponse(error, "zh")).includes(KEY));
   // 占位字按显示的语言写，错误本身的字段不变。
-  assert.equal(TRANSPORT.aiErrorResponse(error).message, "rejected credential: [已隐藏的密钥]");
+  assert.equal(TRANSPORT.aiErrorResponse(error, "zh").message, "rejected credential: [已隐藏的密钥]");
   assert.equal(TRANSPORT.aiErrorResponse(error, "en").message, "rejected credential: [key hidden]");
-  assert.equal(TRANSPORT.serviceSaid(error), "rejected credential: [已隐藏的密钥]");
+  assert.equal(TRANSPORT.serviceSaid(error, "zh"), "rejected credential: [已隐藏的密钥]");
   assert.equal(TRANSPORT.serviceSaid(error, "en"), "rejected credential: [key hidden]");
   assert.equal(error.message, "rejected credential: [已隐藏的密钥]");
 });
@@ -2607,11 +2625,11 @@ test("Responses 返回 200 但生成失败、报错里回显密钥时，空响�
     text: json({ status: "failed", error: { message: `service rejected ${KEY}` }, output: [] }),
   }));
   const error = await failureOf(
-    transport.requestAiCompletion({ messages: [{ role: "user", content: "离线测试" }], maxTokens: 64 }),
+    transport.requestAiCompletion({ messages: [{ role: "user", content: "离线测试" }], maxTokens: 64, lang: "zh" }),
   );
   assert.equal(error.code, "EMPTY_AI_RESPONSE");
   assert.equal(error.message, "模型生成失败，服务说：service rejected [已隐藏的密钥]");
-  assert.equal(TRANSPORT.aiErrorResponse(error).message, "模型生成失败，服务说：service rejected [已隐藏的密钥]");
+  assert.equal(TRANSPORT.aiErrorResponse(error, "zh").message, "模型生成失败，服务说：service rejected [已隐藏的密钥]");
   assert.equal(TRANSPORT.aiErrorResponse(error, "en").message, "The model couldn't generate a reply. The service said: service rejected [key hidden]");
 });
 
@@ -2626,7 +2644,7 @@ test("拒答说明里回显密钥时，报错同样脱敏", async () => {
   });
   const transport = transportFor(settings, async () => RESP.asFetchResponse(RESP.refusal(`cannot use ${KEY}`)));
   const error = await failureOf(
-    transport.requestAiCompletion({ messages: [{ role: "user", content: "离线测试" }], maxTokens: 64 }),
+    transport.requestAiCompletion({ messages: [{ role: "user", content: "离线测试" }], maxTokens: 64, lang: "zh" }),
   );
   assert.equal(error.code, "AI_REFUSED");
   assert.equal(error.message, "模型拒绝了这次请求：cannot use [已隐藏的密钥]");
@@ -2796,11 +2814,11 @@ test("这条放宽只针对 JSON 模式：发结构化输出时的 schema 报错
 test("Responses：思考把额度用完时，档位参数被拒、放宽以后不再发档位的，只让人换型号", async () => {
   const rejected = { error: { message: "Unsupported parameter: reasoning.effort", type: "invalid_request_error", param: "reasoning.effort", code: "unsupported_parameter" } };
   const relaxed = responsesTransport("gpt-6.1-terra", (_count, body) => (body.reasoning ? RESP.asFetchResponse(rejected, 400) : RESP.asFetchResponse(RESP.incomplete(""))), []);
-  const locked = await failureOf(relaxed.requestAiCompletion({ messages: MESSAGES, maxTokens: 512, effort: "high" }));
+  const locked = await failureOf(relaxed.requestAiCompletion({ messages: MESSAGES, maxTokens: 512, effort: "high", lang: "zh" }));
   assert.equal(locked.code, "AI_THINKING_EXHAUSTED_LOCKED");
 
   const accepted = responsesTransport("gpt-6.1-terra", () => RESP.asFetchResponse(RESP.incomplete("")), []);
-  const lowerable = await failureOf(accepted.requestAiCompletion({ messages: MESSAGES, maxTokens: 512, effort: "high" }));
+  const lowerable = await failureOf(accepted.requestAiCompletion({ messages: MESSAGES, maxTokens: 512, effort: "high", lang: "zh" }));
   assert.equal(lowerable.code, "AI_THINKING_EXHAUSTED", "档位照常发出去的还能调低");
 });
 
@@ -2809,11 +2827,11 @@ test("Responses：思考把额度用完时，档位参数被拒、放宽以后�
 // ============================================================
 
 test("服务的原话：去掉控制字符、压成一行、限长", () => {
-  assert.equal(TRANSPORT.serviceWords("  第一行\n\t第二行\u0000\u202e尾巴  "), "第一行 第二行 尾巴");
-  const long = TRANSPORT.serviceWords("字".repeat(500));
+  assert.equal(TRANSPORT.serviceWords("  第一行\n\t第二行\u0000\u202e尾巴  ", "zh"), "第一行 第二行 尾巴");
+  const long = TRANSPORT.serviceWords("字".repeat(500), "zh");
   assert.equal(long.length, 201);
   assert.ok(long.endsWith("…"));
-  assert.equal(TRANSPORT.serviceWords(""), "");
+  assert.equal(TRANSPORT.serviceWords("", "zh"), "");
 });
 
 test("服务的原话：像密钥、令牌的片段遮掉，型号名照留", () => {
@@ -2825,18 +2843,18 @@ test("服务的原话：像密钥、令牌的片段遮掉，型号名照留", ()
     ["token 9f8e7d6c5b4a39281706f5e4d3c2b1a0 expired", /9f8e7d6c5b4a/],
   ];
   for (const [raw, leak] of cases) {
-    const shown = TRANSPORT.serviceWords(raw);
+    const shown = TRANSPORT.serviceWords(raw, "zh");
     assert.doesNotMatch(shown, leak, raw);
     assert.match(shown, /\[已隐藏\]/, raw);
   }
   const model = "The model sample-chat-2-5-20990101 has been retired; use sample-chat-3-flash instead.";
-  assert.equal(TRANSPORT.serviceWords(model), model, "带连字符的型号名不当成密钥");
+  assert.equal(TRANSPORT.serviceWords(model, "zh"), model, "带连字符的型号名不当成密钥");
 });
 
 test("服务的原话：按英文显示时占位字是英文，中文照旧", () => {
   const raw = "header Authorization: Bearer abc.def.ghi rejected, key sk-test-abcd****wxyz, credential [已隐藏的密钥]";
   assert.equal(
-    TRANSPORT.serviceWords(raw),
+    TRANSPORT.serviceWords(raw, "zh"),
     "header Authorization: Bearer [已隐藏] rejected, key [已隐藏], credential [已隐藏的密钥]",
   );
   assert.equal(
@@ -2845,28 +2863,28 @@ test("服务的原话：按英文显示时占位字是英文，中文照旧", ()
   );
   // 5xx 带着具体说明时附在提示后面，说明里的占位字同样按语言写。
   const busy = Object.assign(new Error("upstream rejected [已隐藏的密钥]"), { status: 503 });
-  assert.match(TRANSPORT.aiErrorResponse(busy).message, /upstream rejected \[已隐藏的密钥\]/);
+  assert.match(TRANSPORT.aiErrorResponse(busy, "zh").message, /upstream rejected \[已隐藏的密钥\]/);
   assert.match(TRANSPORT.aiErrorResponse(busy, "en").message, /upstream rejected \[key hidden\]/);
   assert.doesNotMatch(TRANSPORT.aiErrorResponse(busy, "en").message, /已隐藏/);
 });
 
 test("服务的原话：只在服务回了带说明的 HTTP 报错时才有", () => {
   const http = (status: number, message: string, extra: Record<string, unknown> = {}) => Object.assign(new Error(message), { status, ...extra });
-  assert.equal(TRANSPORT.serviceSaid(http(404, "model sample-old is no longer available, try sample-new")), "model sample-old is no longer available, try sample-new");
-  assert.equal(TRANSPORT.serviceSaid(http(400, "max_tokens is too large")), "max_tokens is too large");
-  assert.equal(TRANSPORT.serviceSaid(http(429, "You exceeded your current quota")), "You exceeded your current quota");
-  assert.equal(TRANSPORT.serviceSaid(http(503, "无可用渠道")), "无可用渠道");
+  assert.equal(TRANSPORT.serviceSaid(http(404, "model sample-old is no longer available, try sample-new"), "zh"), "model sample-old is no longer available, try sample-new");
+  assert.equal(TRANSPORT.serviceSaid(http(400, "max_tokens is too large"), "zh"), "max_tokens is too large");
+  assert.equal(TRANSPORT.serviceSaid(http(429, "You exceeded your current quota"), "zh"), "You exceeded your current quota");
+  assert.equal(TRANSPORT.serviceSaid(http(503, "无可用渠道"), "zh"), "无可用渠道");
   // 鉴权失败不带：有的服务在这里回显密钥的一部分。
-  assert.equal(TRANSPORT.serviceSaid(http(401, "Incorrect API key provided: sk-test-abcd****wxyz")), "");
-  assert.equal(TRANSPORT.serviceSaid(http(403, "key sample is not allowed")), "");
+  assert.equal(TRANSPORT.serviceSaid(http(401, "Incorrect API key provided: sk-test-abcd****wxyz"), "zh"), "");
+  assert.equal(TRANSPORT.serviceSaid(http(403, "key sample is not allowed"), "zh"), "");
   // 没说什么具体的、简幕自己写的提示、取消、没有状态码的都不带。
-  assert.equal(TRANSPORT.serviceSaid(http(404, "服务返回 404")), "");
-  assert.equal(TRANSPORT.serviceSaid(http(502, "Bad Gateway")), "");
-  assert.equal(TRANSPORT.serviceSaid(http(400, "这把 Anthropic 密钥没有限定工作区", { code: "ANTHROPIC_WORKSPACE_REQUIRED" })), "");
-  assert.equal(TRANSPORT.serviceSaid(Object.assign(new Error("连不上"), { code: "AI_NETWORK_ERROR" })), "");
-  assert.equal(TRANSPORT.serviceSaid(Object.assign(new Error("任务已取消。"), { code: "TASK_CANCELED", status: 499 })), "");
-  assert.equal(TRANSPORT.serviceSaid(new Error("模型没有写出内容")), "");
-  assert.equal(TRANSPORT.serviceSaid(null), "");
+  assert.equal(TRANSPORT.serviceSaid(http(404, "服务返回 404"), "zh"), "");
+  assert.equal(TRANSPORT.serviceSaid(http(502, "Bad Gateway"), "zh"), "");
+  assert.equal(TRANSPORT.serviceSaid(http(400, "这把 Anthropic 密钥没有限定工作区", { code: "ANTHROPIC_WORKSPACE_REQUIRED" }), "zh"), "");
+  assert.equal(TRANSPORT.serviceSaid(Object.assign(new Error("连不上"), { code: "AI_NETWORK_ERROR" }), "zh"), "");
+  assert.equal(TRANSPORT.serviceSaid(Object.assign(new Error("任务已取消。"), { code: "TASK_CANCELED", status: 499 }), "zh"), "");
+  assert.equal(TRANSPORT.serviceSaid(new Error("模型没有写出内容"), "zh"), "");
+  assert.equal(TRANSPORT.serviceSaid(null, "zh"), "");
 });
 
 test("服务的原话：请求时回显了完整密钥，原话里也看不到", async () => {
@@ -2875,8 +2893,8 @@ test("服务的原话：请求时回显了完整密钥，原话里也看不到",
     async () => ({ ok: false, status: 400, text: json({ error: { message: `key ${key} cannot use model sample-x` } }) }),
     { getSettings: async () => makeSettings({ aiApiKey: key }) },
   );
-  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }));
-  const said = TRANSPORT.serviceSaid(error);
+  const error = await failureOf(t.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }));
+  const said = TRANSPORT.serviceSaid(error, "zh");
   assert.match(said, /cannot use model sample-x/);
   assert.ok(!said.includes(key));
   assert.ok(!said.includes("0000aaaa"));

@@ -113,16 +113,16 @@ async function sendBackup({ port, next }: Channel<"backup.import">, imported: Im
   return ok({ counts, promptsDropped: imported.promptsDropped });
 }
 
-/** 导入完给用户看的一句话，语言缺省中文。 */
-export function importSummary(reply: BackupImportReply, lang: UiLang = "zh"): string {
+/** 导入完给用户看的一句话。 */
+export function importSummary(reply: BackupImportReply, lang: UiLang): string {
   return textOf(lang).backup.importSummary(reply);
 }
 
 /**
- * 备份收发失败时给用户看的一句话，语言缺省中文。中途断开对备份来说不是「可能计费、先别重试」：导出再点一次就行；
+ * 备份收发失败时给用户看的一句话。中途断开对备份来说不是「可能计费、先别重试」：导出再点一次就行；
  * 导入可能已经写进去一部分，再导一次同一个文件不会重复。其余的失败按 failureText 说。
  */
-export function backupFailureText(failure: Failure, kind: "export" | "import", failureText: (failure: Failure) => string, lang: UiLang = "zh"): string {
+export function backupFailureText(failure: Failure, kind: "export" | "import", failureText: (failure: Failure) => string, lang: UiLang): string {
   const t = textOf(lang).backup;
   if (failure.code === "BACKGROUND_DROPPED" || failure.code === "BACKGROUND_UNREACHABLE") return kind === "export" ? t.exportDropped : t.importDropped;
   return (kind === "export" ? t.exportFailed : t.importFailed)(failureText(failure));

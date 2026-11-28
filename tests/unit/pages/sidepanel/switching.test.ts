@@ -128,7 +128,7 @@ test("换视频：旧视频的字幕回复晚到，不盖掉新视频", async ()
     if (video === FIRST) await gate.promise;
     return { ok: false, code: "NO_CAPTIONS", info: { title: video } };
   });
-  const store = createTranscriptStore({ api });
+  const store = createTranscriptStore({ api, lang: () => "zh" });
   const slow = store.load(FIRST, 5);
   await store.load(SECOND, 5);
   gate.resolve();
@@ -148,7 +148,7 @@ test("换视频：还在路上的回答回来时不放进新视频的问答列�
     await gate.promise;
     return { ok: true, value: { entry: { id: "q1", video: FIRST, question: "问", answer: "答", citations: [], clickable: [], createdAt: 1 }, retrievalMode: "full" } };
   });
-  const qa = createQaStore({ api });
+  const qa = createQaStore({ api, lang: () => "zh" });
   qa.bind(FIRST);
   const asking = qa.ask("问");
   await until(() => qa.state.value.pending.length === 1);
@@ -169,7 +169,7 @@ test("概览：接上别处在跑的任务只跟着广播，不再认领；任�
   fake.reply("overview.get", () => ({ ok: true, value: saved ? { video: FIRST, overview: { analysis: { chapters: [] }, analysisFailures: [] } } : { video: FIRST } }));
   fake.reply("task.list", { value: { ok: true, value: { tasks: [] } } });
   fake.reply("task.start", { value: { ok: true, value: { task: running, joined: true } } });
-  const overview = createOverviewStore({ api });
+  const overview = createOverviewStore({ api, lang: () => "zh" });
   overview.bind(FIRST);
   await until(() => overview.state.value.loaded);
   await overview.generate(false);
@@ -192,7 +192,7 @@ test("问答：没存进历史的回答，收尾广播先到也不被历史盖�
     await gate.promise;
     return { ok: true, value: { entry: { id: "q2", video: FIRST, question: "问", answer: "答", citations: [], clickable: [], createdAt: 2 }, retrievalMode: "full", historySaved: false } };
   });
-  const qa = createQaStore({ api });
+  const qa = createQaStore({ api, lang: () => "zh" });
   qa.bind(FIRST);
   await until(() => qa.state.value.loaded);
   const asking = qa.ask("问");
@@ -262,7 +262,7 @@ test("概览：没存进本机的概览，收尾广播和更新广播都不拿�
     await gate.promise;
     return { ok: true, value: { video: FIRST, analysis: fresh, analysisFailures: [], fromCache: false, failedChunks: 0, saveFailed: true } };
   });
-  const overview = createOverviewStore({ api });
+  const overview = createOverviewStore({ api, lang: () => "zh" });
   overview.bind(FIRST);
   await until(() => overview.state.value.loaded);
   const running = overview.generate(true);
@@ -335,7 +335,7 @@ test("同一个视频换了标签页：概览重读本机、接上别处在跑�
   let tasks: TaskView[] = [];
   fake.reply("overview.get", () => ({ ok: true, value: stored ? { video: FIRST, overview: { analysis: { chapters: [{ title: "别处写的", timestampSeconds: 0 }] }, analysisFailures: [] } } : { video: FIRST } }));
   fake.reply("task.list", () => ({ ok: true, value: { tasks } }));
-  const overview = createOverviewStore({ api });
+  const overview = createOverviewStore({ api, lang: () => "zh" });
   overview.bind(FIRST);
   await until(() => overview.state.value.loaded);
   assert.equal(overview.state.value.saved, null);
@@ -361,7 +361,7 @@ test("同一个视频换了标签页：问答重读历史、接上别处在答�
   fake.reply("task.list", () => ({ ok: true, value: { tasks } }));
   fake.reply("task.start", { value: { ok: true, value: { task: { id: "t1" }, joined: false } } });
   fake.reply("qa.ask", { value: { ok: true, value: { entry: entry("mine", 1), retrievalMode: "full", historySaved: false } } });
-  const qa = createQaStore({ api });
+  const qa = createQaStore({ api, lang: () => "zh" });
   qa.bind(FIRST);
   await until(() => qa.state.value.loaded);
   await qa.ask("问mine");

@@ -32,4 +32,4 @@ const YOUTUBE_EN: YoutubeText = {
   disableFailed: "Couldn't turn it off. Try again later.",
 };
 
-export const youtubeText = (lang: UiLang = "zh"): YoutubeText => inLang(lang, YOUTUBE_ZH, YOUTUBE_EN, YOUTUBE_HANT);
+export const youtubeText = (lang: UiLang): YoutubeText => inLang(lang, YOUTUBE_ZH, YOUTUBE_EN, YOUTUBE_HANT);

@@ -47,12 +47,12 @@ test("没带语言选项、选项认不出时按跟随浏览器", () => {
 });
 
 test("播放页上的字：中文照旧，英文是英文", () => {
-  assert.equal(contentText().noteTitle, "在当前时间点记一条笔记（快捷键 n）");
+  assert.equal(contentText("zh").noteTitle, "在当前时间点记一条笔记（快捷键 n）");
   assert.equal(NOTE_TITLE, contentText("zh").noteTitle);
-  assert.equal(noteIcon().title, NOTE_TITLE);
+  assert.equal(noteIcon("zh").title, NOTE_TITLE);
   assert.equal(noteIcon("en").title, "Add a note at the current time (shortcut: n)");
   assert.equal(contentText("en").cardTitle, "Jianmu summary card");
-  assert.equal(frameIcon().title, "解释当前画面");
+  assert.equal(frameIcon("zh").title, "解释当前画面");
   assert.equal(frameIcon("en").title, "Explain this frame");
 });
 
@@ -68,6 +68,6 @@ test("记笔记以后图标旁闪的字：简体、繁体都不超过 8 个字�
     const flashes = [text.saving, text.duplicate, text.savedUnpolished, text.saved, text.saveFailed, ...Object.values(text.shortFailures)];
     for (const flash of flashes) assert.ok([...flash].length <= 8, `${lang}：「${flash}」太长`);
   }
-  assert.equal(contentText().duplicate, "这里已经记过了");
+  assert.equal(contentText("zh").duplicate, "这里已经记过了");
   assert.equal(contentText("zh-Hant").shortFailures.NEED_LOGIN, "要先登入");
 });

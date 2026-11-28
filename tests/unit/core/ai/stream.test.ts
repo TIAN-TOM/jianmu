@@ -298,7 +298,7 @@ test("传输层：三种协议的强制流式响应都拼回普通回复，只�
   ];
   for (const [protocol, stream] of cases) {
     const { transport, sends } = transportWith(protocol, [streamed(stream)]);
-    const result = await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 });
+    const result = await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" });
     assert.equal(result.text, "可用", protocol);
     assert.equal(result.truncated, undefined, protocol);
     assert.equal(sends(), 1, protocol);
@@ -313,7 +313,7 @@ test("传输层：流中途限流或过载，按忙碌重发一次，不占自�
       waits.push(ms);
     },
   });
-  assert.equal((await ok.transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 })).text, "可用");
+  assert.equal((await ok.transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" })).text, "可用");
   assert.equal(ok.sends(), 2);
   assert.equal(waits.length, 1, "按限流过载的办法等一会儿再发");
 
@@ -321,7 +321,7 @@ test("传输层：流中途限流或过载，按忙碌重发一次，不占自�
   const limited = sse([[null, { error: { code: 429, message: "slow down" } }]]);
   const thinking = (text: string) => streamed(sse([chunk({ reasoning_content: "想", content: text }), chunk({}, "length")], { done: true }));
   const rounds = transportWith(PROTOCOLS.OPENAI, [streamed(limited), thinking("{"), thinking('{"a"'), thinking('{"a":')]);
-  const result = await rounds.transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 });
+  const result = await rounds.transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" });
   assert.equal(rounds.sends(), 4, "流中途的报错不算一轮自愈");
   assert.equal(result.truncated, true);
   assert.equal(result.text, '{"a":');
@@ -331,30 +331,30 @@ test("传输层：流中途报额度用完，不重发；报错里不带密钥�
   const logs: string[] = [];
   const quota = sse([[null, { error: { code: "insufficient_quota", message: `quota exceeded for key ${SECRET}` } }]]);
   const { transport, sends } = transportWith(PROTOCOLS.OPENAI, [streamed(quota)], { log: (...args) => logs.push(args.map(String).join(" ")) });
-  const error = await failureOf(transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }));
+  const error = await failureOf(transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }));
   assert.equal(sends(), 1);
   assert.equal(error.status, 429);
   assert.equal(error.quotaExhausted, true);
   assert.equal(error.noAutoRetry, true);
   assert.doesNotMatch(error.message, new RegExp(SECRET));
-  assert.doesNotMatch(JSON.stringify(TRANSPORT.aiErrorResponse(error)), new RegExp(SECRET));
+  assert.doesNotMatch(JSON.stringify(TRANSPORT.aiErrorResponse(error, "zh")), new RegExp(SECRET));
   for (const line of logs) assert.doesNotMatch(line, new RegExp(SECRET));
 });
 
 test("传输层：断在半截的流交回已有正文并标截断，不加码重发；一个事件都没有就报响应不完整", async () => {
   const cut = transportWith(PROTOCOLS.ANTHROPIC, [streamed(sse([messageStart, blockStart(0, { type: "text", text: "" }), blockDelta(0, { type: "text_delta", text: '{"chapters": [' })]))]);
-  const partial = await cut.transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 });
+  const partial = await cut.transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" });
   assert.deepEqual([partial.text, partial.truncated, cut.sends()], ['{"chapters": [', true, 1]);
 
   const empty = transportWith(PROTOCOLS.OPENAI, [streamed(": keep-alive\n\n")]);
-  const error = await failureOf(empty.transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }));
+  const error = await failureOf(empty.transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }));
   assert.equal(error.code, "AI_RESPONSE_TRUNCATED");
 });
 
 test("传输层：响应大小上限照旧按原始正文算", async () => {
   const long = sse(Array.from({ length: 50 }, () => chunk({ content: "很长的一段" })), { done: true });
   const { transport } = transportWith(PROTOCOLS.OPENAI, [streamed(long)], { maxResponseBytes: 1024 });
-  const error = await failureOf(transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 100 }));
+  const error = await failureOf(transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 100, lang: "zh" }));
   assert.equal(error.code, "AI_RESPONSE_TOO_LARGE");
 });
 

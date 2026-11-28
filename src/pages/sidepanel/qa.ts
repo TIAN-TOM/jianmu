@@ -49,7 +49,7 @@ export interface QaStore {
 
 const EXPLAIN_IDLE: ExplainState = { phase: "idle", selection: "", text: "" };
 
-export function createQaStore({ api, lang = () => "zh" }: { readonly api: Pick<PageApi, "send" | "on">; readonly lang?: () => UiLang }): QaStore {
+export function createQaStore({ api, lang }: { readonly api: Pick<PageApi, "send" | "on">; readonly lang: () => UiLang }): QaStore {
   const state = signal<QaState>({ video: null, loaded: false, entries: [], pending: [], error: "", errorCode: null, errorSaid: "", unsavedId: null });
   const explain = signal<ExplainState>(EXPLAIN_IDLE);
   let generation = 0;

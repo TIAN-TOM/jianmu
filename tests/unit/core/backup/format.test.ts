@@ -70,7 +70,7 @@ test("导出备份和 Markdown 都不沿用存着的链接字段", () => {
   assert.equal(JSON.stringify(backup).includes("login.example"), false);
   assert.deepEqual(backup.notes, [NOTE]);
 
-  const markdown = notesAsMarkdown([stored], LINK);
+  const markdown = notesAsMarkdown([stored], LINK, { lang: "zh" });
   assert.equal(markdown.includes("login.example"), false, markdown);
   assert.match(markdown, /- \[1:05\]\(https:\/\/video\.example\/BV1Sample000\?p=2&t=65\) 看这里/);
 });

@@ -59,21 +59,21 @@ async function throughTransport({ protocol, baseUrl, model, sample }: ChainCase)
     },
   });
   try {
-    const result = await transport.requestAiCompletion({ messages: [{ role: "user", content: "搭架子" }], maxTokens: 100 });
+    const result = await transport.requestAiCompletion({ messages: [{ role: "user", content: "搭架子" }], maxTokens: 100, lang: "zh" });
     return { calls, result: { text: result.text ?? null, truncated: result.truncated ?? false, attempts: null } };
   } catch (error) {
     const failure = error as TransportError;
     return {
       calls,
       error: { code: failure.code ?? null, status: failure.status ?? null, noAutoRetry: failure.noAutoRetry ?? false },
-      response: aiErrorResponse(failure),
+      response: aiErrorResponse(failure, "zh"),
     };
   }
 }
 
 // 入参是带 code、status 的 Error。
 function translated({ message, ...fields }: { readonly message: string }): unknown {
-  return aiErrorResponse(Object.assign(new Error(message), fields));
+  return aiErrorResponse(Object.assign(new Error(message), fields), "zh");
 }
 
 const REPLAY: Readonly<Record<string, (arg: never) => unknown>> = {

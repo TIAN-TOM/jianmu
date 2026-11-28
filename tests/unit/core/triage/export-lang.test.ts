@@ -34,7 +34,7 @@ const INPUT = {
 };
 
 test("导出：不传语言和传中文逐字一样，固定文字是中文", () => {
-  const zh = toMarkdown(INPUT, VIDEO_BASE);
+  const zh = toMarkdown(INPUT, VIDEO_BASE, "zh");
   assert.equal(toMarkdown(INPUT, VIDEO_BASE, "zh"), zh);
   assert.ok(zh.startsWith("# 稍后再看粗筛\n\n导出于 "));
   assert.match(zh, /共 5 个视频。/);
@@ -65,23 +65,23 @@ test("导出：一个视频时英文用单数", () => {
 
 test("观看进度和官方总结的状态按语言写，中文照旧", () => {
   const watched = item("1", { progress: 125 });
-  assert.equal(progressText(watched), "看到 2:05（21%）");
+  assert.equal(progressText(watched, "zh"), "看到 2:05（21%）");
   assert.equal(progressText(watched, "en"), "Watched to 2:05 (21%)");
   assert.equal(progressText(item("1", { finished: true }), "en"), "Finished");
   assert.equal(progressText(item("1"), "en"), "Not started");
-  assert.equal(officialStatusText(null), "还没取官方总结");
+  assert.equal(officialStatusText(null, undefined, "zh"), "还没取官方总结");
   assert.equal(officialStatusText(null, null, "en"), "Official summary not fetched yet");
   assert.equal(officialStatusText({ status: "unsupported" } as OfficialRecord, null, "en"), "Bilibili doesn't summarise this video");
 });
 
 test("导出的文件名：中文照旧，英文是英文名，都带导出时刻", () => {
   const stamp = formatDateTime(0).replace(/[-: ]/g, "");
-  assert.equal(exportFileName(0), `简幕-稍后再看-${stamp}.md`);
+  assert.equal(exportFileName(0, "zh"), `简幕-稍后再看-${stamp}.md`);
   assert.equal(exportFileName(0, "en"), `jianmu-watch-later-${stamp}.md`);
 });
 
 test("导出的星级分组标题按界面语言写，同时标明星数和意思", () => {
-  assert.deepEqual(GROUPS.map((key) => groupName(key)), [
+  assert.deepEqual(GROUPS.map((key) => groupName(key, "zh")), [
     "★★★★★ 推荐看", "★★★★☆ 值得看", "★★★☆☆ 挑着看", "★★☆☆☆ 可略过", "★☆☆☆☆ 可跳过", "还没判断", "信息不足",
   ]);
   assert.deepEqual(GROUPS.map((key) => groupName(key, "en")), [

@@ -48,7 +48,7 @@ export interface TranscriptStore {
 const IDLE: TranscriptState = { state: "idle" };
 
 /** 读文件之前先拦一道：扩展名和大小。 */
-export function fileProblem(name: string, size: number, lang: UiLang = "zh"): string | null {
+export function fileProblem(name: string, size: number, lang: UiLang): string | null {
   const lower = name.toLowerCase();
   if (!EXTENSIONS.some((ext) => lower.endsWith(ext))) return describe("UNSUPPORTED_FILE", undefined, lang);
   if (size > MAX_FILE_BYTES) return describe("UNSUPPORTED_FILE", "FILE_TOO_LARGE", lang);
@@ -56,7 +56,7 @@ export function fileProblem(name: string, size: number, lang: UiLang = "zh"): st
   return null;
 }
 
-export function createTranscriptStore({ api, lang = () => "zh" }: { readonly api: Pick<PageApi, "send">; readonly lang?: () => UiLang }): TranscriptStore {
+export function createTranscriptStore({ api, lang }: { readonly api: Pick<PageApi, "send">; readonly lang: () => UiLang }): TranscriptStore {
   const state = signal<TranscriptState>(IDLE);
   const busy = signal(false);
   let generation = 0;

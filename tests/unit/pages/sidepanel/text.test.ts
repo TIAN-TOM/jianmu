@@ -42,11 +42,11 @@ test("英文表里没有中文：档位的键是数据里的中文词，只看�
 test("共用组件的纯逻辑：缺省中文，传 en 写英文", () => {
   assert.equal(chapterHeading(6, 2, "en"), "6 chapters, 2 key");
   assert.equal(chapterHeading(1, 0, "en"), "1 chapter");
-  assert.equal(chapterHeading(6, 2), "章节 6，重点 2");
+  assert.equal(chapterHeading(6, 2, "zh"), "章节 6，重点 2");
   assert.equal(verdictName("推荐看", "en"), "Must watch");
   assert.equal(verdictName("值得看完整视频", "en"), "Must watch", "旧版改了名的按新名字显示");
   assert.equal(verdictName("看概览就够", "en"), "Mostly skippable");
-  assert.equal(verdictName("可以跳过"), "可跳过");
+  assert.equal(verdictName("可以跳过", "zh"), "可跳过");
   assert.equal(basisText("transcript", "en"), "Based on the subtitles");
   assert.equal(activationCopy(false, "en").confirm, "Turn on Jianmu");
   assert.equal(activationCopy(true, "en").confirm, "Keep using Jianmu");
@@ -98,7 +98,7 @@ test("本窗口全部生成：英文的确认说明和进度", () => {
 
 test("跳转失败、存笔记的结果：按语言写，存上没存上两种语言都认得出", () => {
   assert.equal(playerFailureText("NO_VIDEO", "en"), "Couldn't find a video on the page.");
-  assert.equal(playerFailureText("NO_VIDEO"), "页面上没找到视频。");
+  assert.equal(playerFailureText("NO_VIDEO", "zh"), "页面上没找到视频。");
   for (const lang of ["zh", "en"] as const) {
     assert.ok(noteStored(panelTextOf(lang).notes.saved));
     assert.ok(noteStored(panelTextOf(lang).notes.duplicate));

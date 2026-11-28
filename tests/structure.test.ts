@@ -378,10 +378,46 @@ describe("规则能拦下造好的违规", () => {
     assert.deepEqual(filesHit({ "src/core/a.ts": `const clean = ${arrow}` }), []);
     assert.deepEqual(filesHit({ "src/core/a.ts": `const clean = ${arrow}`, "src/pages/b.ts": `const tidy = ${arrow}` }), []);
     assert.deepEqual(filesHit({ "src/core/a.ts": `const clean = ${arrow}`, "src/pages/b.ts": `const clean = { size: 1 };\n` }), []);
-    const table = 'export const frameText = (lang: UiLang = "zh"): FrameText => inLang(lang, FRAME_ZH, FRAME_EN, FRAME_HANT);\n';
+    const table = 'export const frameText = (lang: UiLang): FrameText => inLang(lang, FRAME_ZH, FRAME_EN, FRAME_HANT);\n';
     assert.deepEqual(filesHit({ "src/pages/options/frame-text.ts": table, "src/pages/sidepanel/frame-text.ts": table }), []);
     assert.deepEqual(filesHit({ "src/pages/options/frame-text.ts": table, "src/pages/card/frame-text.ts": table }), ["10 src/pages/card/frame-text.ts"], "放行只按文件加名字");
     assert.deepEqual(filesHit({ "src/pages/options/frame-text.ts": table }), ["10 src/pages/options/frame-text.ts"], "不再和别处重复的放行条目要删");
+  });
+
+  test("第 11 条：语言参数不写缺省值", () => {
+    const defaults = [
+      'export const textOf = (lang: UiLang = "zh"): Text => inLang(lang, A, B, C);',
+      'export function describe(code: ErrorCode, detail?: string, lang: OutputLang = "zh"): string {}',
+      'function notes(list: Notes, { grouped = false, lang = "zh" }: Options = {}) {}',
+      'function looks(text: string, targetLang = "en"): boolean {}',
+      'function target(lang: string, outputLang: OutputLang = "zh-Hant"): OutputLang {}',
+      'export function createStore({ api, lang = () => "zh" }: Deps): Store {}',
+      'const { api, lang = (): UiLang => "zh" } = deps;',
+      'export function createAiStatus(lang: () => UiLang = () => "zh"): AiStatus {}',
+      'export function createMenu({ settings, uiLanguage = () => "zh", ...deps }: Deps): Menu {}',
+      'const lang = deps.outputLang ?? "zh";',
+      'const lang = (): UiLang => deps.lang?.() ?? "zh";',
+      'const uiLanguage = deps.uiLanguage ?? ((): string => "zh");',
+    ];
+    for (const line of defaults) assert.deepEqual(rulesHit("src/core/a.ts", `${line}\n`), [11], line);
+    assert.deepEqual(rulesHit("src/pages/b.tsx", 'export function A({ lang = "en" }: Props) {}\n'), [11], ".tsx 也查");
+  });
+
+  test("第 11 条：明确传的语言、比较、局部变量、别的设置值和注释不拦", () => {
+    const fine = [
+      "export const textOf = (lang: UiLang): Text => inLang(lang, A, B, C);",
+      'const text = textOf("zh");',
+      'if (lang === "zh") run();',
+      'const same = lang !== "en";',
+      'const lang = "zh";',
+      'export type OutputLang = "zh" | "zh-Hant" | "en";',
+      'let targetLang = "en";',
+      'const setting = saved?.language ?? "auto";',
+      'const ok = validateBaseUrl(url, protocol, "zh");',
+      'return isOutputLang(lang) ? lang : "zh";',
+      '// 以前写成 lang = "zh"',
+    ];
+    for (const line of fine) assert.deepEqual(rulesHit("src/core/a.ts", `${line}\n`), [], line);
   });
 
   test("第 6 条：经 http.ts 发请求、只导入类型，都不算绕过请求出口", () => {

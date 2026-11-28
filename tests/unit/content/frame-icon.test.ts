@@ -36,6 +36,7 @@ function setup(options: { readonly main?: MainVideo; readonly confirmed?: boolea
     confirmed: () => options.confirmed ?? true,
     gone: () => gone,
     onGone: () => void (goneCalls += 1),
+    lang: () => "zh",
   });
   const pressAndFinish = async (): Promise<void> => {
     const pending = press();
@@ -97,6 +98,6 @@ test("在途时连点不重发；扩展断了联系交给界面收场", async ()
 });
 
 test("没有截帧工具时浮层里不排这个图标", () => {
-  assert.deepEqual(frameIconEntries(undefined, () => undefined), []);
-  assert.equal(frameIconEntries({} as FrameTool, () => undefined).length, 1);
+  assert.deepEqual(frameIconEntries(undefined, () => undefined, "zh"), []);
+  assert.equal(frameIconEntries({} as FrameTool, () => undefined, "zh").length, 1);
 });

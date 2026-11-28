@@ -142,8 +142,8 @@ async function analyzeChunk(deps: ChunkDeps, chunk: Chunk, chunkCount: number, c
 }
 
 export interface PlannedRun {
-  /** gen 定进度那句话的语言，不给时是中文。 */
-  readonly run: Pick<TaskRun, "signal" | "progress"> & Partial<Pick<TaskRun, "gen">>;
+  /** gen 定进度那句话的语言。 */
+  readonly run: Pick<TaskRun, "signal" | "progress" | "gen">;
   /** 进度条上的说法。 */
   readonly label: (done: number, total: number) => string;
   readonly phase: string;

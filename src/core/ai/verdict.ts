@@ -37,7 +37,7 @@ const VERDICT_ZH = { 5: "推荐看", 4: "值得看", 3: "挑着看", 2: "可略�
 const VERDICT_EN = { 5: "Must watch", 4: "Worth watching", 3: "Watch the key parts", 2: "Mostly skippable", 1: "Skip", unknown: "Not enough info" };
 
 /** 页面和导出共用的星级短词。 */
-export function verdictName(raw: unknown, lang: OutputLang = "zh"): string {
+export function verdictName(raw: unknown, lang: OutputLang): string {
   const rating = verdictLabelOf(raw);
   if (!rating) return "";
   const names = inLang(lang, VERDICT_ZH, VERDICT_EN, VERDICT_HANT);
@@ -45,7 +45,7 @@ export function verdictName(raw: unknown, lang: OutputLang = "zh"): string {
 }
 
 /** 写进 Markdown 的星级和短词。 */
-export function verdictText(raw: unknown, lang: OutputLang = "zh"): string {
+export function verdictText(raw: unknown, lang: OutputLang): string {
   const rating = verdictLabelOf(raw);
   const name = verdictName(rating, lang);
   return typeof rating === "number" ? `${"★".repeat(rating)}${"☆".repeat(5 - rating)} ${name}` : name;
@@ -280,8 +280,8 @@ export interface VerdictCheck {
   readonly stored?: boolean;
   /** 写结论时看到的章节的起始秒。不给时不收重点章节。 */
   readonly chapterStarts?: readonly unknown[] | undefined;
-  /** 结论的语言，截断上限按它取；不给时按中文。 */
-  readonly lang?: OutputLang | undefined;
+  /** 结论的语言，截断上限按它取。 */
+  readonly lang: OutputLang;
   /** 发给模型的原标题，标题译名要和它比；读存着的结论时不给。 */
   readonly title?: string | undefined;
 }
@@ -302,7 +302,7 @@ export const VERDICT_CLIP: Readonly<Record<OutputLang, { readonly summary: numbe
  */
 export function validateVerdict(
   parsed: unknown,
-  { incomplete = false, stored = false, chapterStarts, lang = "zh", title }: VerdictCheck = {},
+  { incomplete = false, stored = false, chapterStarts, lang, title }: VerdictCheck,
 ): Verdict | null {
   if (!parsed || typeof parsed !== "object") return null;
   const source = parsed as {

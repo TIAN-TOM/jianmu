@@ -39,8 +39,8 @@ export interface AiStatus {
   clear(): void;
 }
 
-/** lang：状态写出来时用哪种语言，缺省中文。 */
-export function createAiStatus(lang: () => UiLang = () => "zh"): AiStatus {
+/** lang：状态写出来时用哪种语言。 */
+export function createAiStatus(lang: () => UiLang): AiStatus {
   const t = () => textOf(lang()).status;
   const current = signal<PlacedStatus | null>(null);
   // 眼前这条是保存以后那句时，记着它的落点。

@@ -150,30 +150,30 @@ test("没设置好时的说法按缺什么分开：密钥没了直说重新填�
   const local = checked({ ready: true, errors: [] });
 
   // 侧边栏头部下面那行提示。
-  assert.equal(setupNotice(fresh), "字幕不用设置就能看；概览和问答要先设置 AI 服务");
-  assert.match(setupNotice(keyGone), /API 密钥.*清空.*重新填/);
-  assert.match(setupNotice(keyGone), /「在这台电脑上记住密钥」/);
-  assert.match(setupNotice(consent), /数据说明/);
-  assert.doesNotMatch(setupNotice(consent), /密钥/);
+  assert.equal(setupNotice(fresh, "zh"), "字幕不用设置就能看；概览和问答要先设置 AI 服务");
+  assert.match(setupNotice(keyGone, "zh"), /API 密钥.*清空.*重新填/);
+  assert.match(setupNotice(keyGone, "zh"), /「在这台电脑上记住密钥」/);
+  assert.match(setupNotice(consent, "zh"), /数据说明/);
+  assert.doesNotMatch(setupNotice(consent, "zh"), /密钥/);
 
   // 按钮下面的原因。
-  assert.equal(setupReason(fresh), "先在设置页设置 AI 服务");
-  assert.equal(setupReason({ state: "unknown" }), "先在设置页设置 AI 服务");
-  assert.equal(setupReason(keyGone), "先在设置页重新填 API 密钥");
-  assert.equal(setupReason(consent), "先在设置页勾选数据说明");
-  assert.equal(setupReason(local), undefined);
+  assert.equal(setupReason(fresh, "zh"), "先在设置页设置 AI 服务");
+  assert.equal(setupReason({ state: "unknown" }, "zh"), "先在设置页设置 AI 服务");
+  assert.equal(setupReason(keyGone, "zh"), "先在设置页重新填 API 密钥");
+  assert.equal(setupReason(consent, "zh"), "先在设置页勾选数据说明");
+  assert.equal(setupReason(local, "zh"), undefined);
 
   // 卡片：原来并在一句里的三种原因各说各的。
-  assert.equal(cardSetupHint(fresh), "还没设置 AI 服务，生成概览要先填服务商和密钥。");
-  assert.match(cardSetupHint(keyGone), /API 密钥.*清空.*重新填/);
-  assert.match(cardSetupHint(keyGone), /「在这台电脑上记住密钥」/);
-  assert.match(cardSetupHint(consent), /勾选数据说明/);
-  for (const hint of [cardSetupHint(fresh), cardSetupHint(keyGone), cardSetupHint(consent)]) assert.doesNotMatch(hint, /（或/);
+  assert.equal(cardSetupHint(fresh, "zh"), "还没设置 AI 服务，生成概览要先填服务商和密钥。");
+  assert.match(cardSetupHint(keyGone, "zh"), /API 密钥.*清空.*重新填/);
+  assert.match(cardSetupHint(keyGone, "zh"), /「在这台电脑上记住密钥」/);
+  assert.match(cardSetupHint(consent, "zh"), /勾选数据说明/);
+  for (const hint of [cardSetupHint(fresh, "zh"), cardSetupHint(keyGone, "zh"), cardSetupHint(consent, "zh")]) assert.doesNotMatch(hint, /（或/);
 
   // 侧边栏摆在「生成概览」位置上的按钮：缺什么写什么。还没问到、问失败了都不算没设置好，不换按钮。
-  assert.equal(setupAction(fresh), "设置 AI 服务");
-  assert.equal(setupAction(keyGone), "重新填密钥");
-  assert.equal(setupAction(consent), "去看数据说明");
+  assert.equal(setupAction(fresh, "zh"), "设置 AI 服务");
+  assert.equal(setupAction(keyGone, "zh"), "重新填密钥");
+  assert.equal(setupAction(consent, "zh"), "去看数据说明");
   assert.equal(setupAction(keyGone, "en"), "Re-enter API key");
   assert.deepEqual([fresh, keyGone, consent, local, { state: "unknown" } as ConfigState].map(needsSetup), [true, true, true, false, false]);
   assert.equal(needsSetup({ state: "failed", failure: { ok: false, code: "BACKGROUND_FAILED" } }), false);

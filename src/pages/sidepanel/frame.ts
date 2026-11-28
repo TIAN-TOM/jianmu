@@ -27,11 +27,11 @@ export interface FrameStoreDeps {
   readonly api: Pick<PageApi, "send" | "on">;
   readonly target: ReadonlySignal<FrameTarget>;
   readonly enabled: ReadonlySignal<boolean>;
-  /** 回给用户的话用哪种语言写，缺省中文。 */
-  readonly lang?: () => UiLang;
+  /** 回给用户的话用哪种语言写。 */
+  readonly lang: () => UiLang;
 }
 
-export function createFrameStore({ api, target, enabled, lang = () => "zh" }: FrameStoreDeps): FrameStore {
+export function createFrameStore({ api, target, enabled, lang }: FrameStoreDeps): FrameStore {
   const all = signal<readonly FrameEntryView[]>([]);
   const dismissed = signal<ReadonlySet<string>>(new Set());
   let generation = 0;

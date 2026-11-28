@@ -1,4 +1,4 @@
-// 粗筛的展示文字和 Markdown 清单导出。视频地址的前缀由调用方传入。固定文字按语言出，缺省中文；
+// 粗筛的展示文字和 Markdown 清单导出。视频地址的前缀由调用方传入。固定文字按语言出；
 // 标题、UP 主名、官方总结和模型写的结论原样写。
 import { inLang, plural, type OutputLang } from "../output-lang.ts";
 import { EXPORT_HANT } from "./export-hant.ts";
@@ -77,7 +77,7 @@ const textOf = (lang: OutputLang): ExportText => inLang(lang, EXPORT_ZH, EXPORT_
 export function officialStatusText(
   record: OfficialRecord | null | undefined,
   item: TriageItem | null = null,
-  lang: OutputLang = "zh",
+  lang: OutputLang,
 ): string {
   const t = textOf(lang);
   if (item && item.available === false) return t.unavailable;
@@ -109,7 +109,7 @@ export function formatDateTime(timestamp: number): string {
 }
 
 // 分 P 视频的进度只是当前那一 P 的位置，总时长却是全部分 P 的，不算百分比。
-export function progressText(item: TriageItem | null | undefined, lang: OutputLang = "zh"): string {
+export function progressText(item: TriageItem | null | undefined, lang: OutputLang): string {
   const t = textOf(lang);
   if (item?.finished) return t.finished;
   const progress = Math.floor(Number(item?.progress) || 0);
@@ -131,12 +131,12 @@ function escapeMarkdown(text: string | undefined): string {
   return oneLine(text).replace(/([\\`*_[\]<>])/g, "\\$1");
 }
 
-export function verdictSourceText(verdict: TriageVerdict | null | undefined, lang: OutputLang = "zh"): string {
+export function verdictSourceText(verdict: TriageVerdict | null | undefined, lang: OutputLang): string {
   return verdict?.source === "official" ? textOf(lang).fromOfficial : textOf(lang).fromOverview;
 }
 
 /** 导出的文件名：按导出时刻（本机时区）编号。 */
-export function exportFileName(exportedAt: number, lang: OutputLang = "zh"): string {
+export function exportFileName(exportedAt: number, lang: OutputLang): string {
   return textOf(lang).fileName(formatDateTime(exportedAt).replace(/[-: ]/g, ""));
 }
 
@@ -149,7 +149,7 @@ function videoIdOf(item: TriageItem): string {
 export function toMarkdown(
   { items = [], official = {}, verdicts = {}, exportedAt = Date.now() }: MarkdownInput = {},
   videoBaseUrl: string,
-  lang: OutputLang = "zh",
+  lang: OutputLang,
 ): string {
   const t = textOf(lang);
   const groups = groupItems(items, verdicts);

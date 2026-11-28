@@ -15,5 +15,5 @@ const CHECK_EN: SettingsCheckText = {
   missingModel: "Enter a model name, or click “Fetch model list” and choose one.",
 };
 
-/** 指定语言那份提示。不传语言时是简体。 */
-export const settingsCheckText = (lang: OutputLang = "zh"): SettingsCheckText => inLang(lang, CHECK_ZH, CHECK_EN, CHECK_HANT);
+/** 指定语言那份提示。 */
+export const settingsCheckText = (lang: OutputLang): SettingsCheckText => inLang(lang, CHECK_ZH, CHECK_EN, CHECK_HANT);

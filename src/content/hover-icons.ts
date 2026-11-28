@@ -28,7 +28,7 @@ const DEFAULT_SWATCH: Swatch = { fill: "#0969da", ink: "#ffffff" };
 const swatchOf = (theme: unknown): Swatch => (typeof theme === "string" && Object.hasOwn(ACCENT_SWATCHES, theme) ? ACCENT_SWATCHES[theme] : undefined) ?? DEFAULT_SWATCH;
 
 /** 笔记图标中文的悬停提示。 */
-export const NOTE_TITLE = contentText().noteTitle;
+export const NOTE_TITLE = contentText("zh").noteTitle;
 const FLASH_MS = 1800;
 
 // 防点击劫持核对的那几项在内联样式里钉死，点击时和下面的常量比：页面不带 !important 的通用规则改不动它们，
@@ -61,7 +61,7 @@ export const NOTE_ICON: IconSpec = {
 };
 
 /** 按界面语言写悬停提示的笔记图标。 */
-export const noteIcon = (lang: OutputLang = "zh"): IconSpec => ({ ...NOTE_ICON, title: contentText(lang).noteTitle });
+export const noteIcon = (lang: OutputLang): IconSpec => ({ ...NOTE_ICON, title: contentText(lang).noteTitle });
 
 export interface HoverIconEntry {
   readonly spec: IconSpec;
