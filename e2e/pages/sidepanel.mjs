@@ -18,6 +18,7 @@ import { charsIn, SIMPLIFIED_ONLY } from "../../tests/helpers/hant-chars.ts";
 import { stillFalse } from "../../tests/helpers/wait-until.ts";
 import { PANEL_HANT } from "../../src/pages/sidepanel/text-hant.ts";
 import { SHARED_HANT } from "../../src/pages/shared/text-hant.ts";
+import { CARD_PANEL_HANT } from "../../src/pages/shared/card-panel-text-hant.ts";
 import { scenario, until } from "./harness.mjs";
 
 const test = scenario(import.meta.url);
@@ -1426,7 +1427,7 @@ test("侧边栏：语言选繁体以后，模式切换、底部工具条、各�
         assert.deepEqual(simplifiedIn(text), [], `${name}：${text}`);
       }
       assert.equal(view.modeView, "速讀");
-      assert.equal(view.ask, PANEL_HANT.dock.ask);
+      assert.equal(view.ask, CARD_PANEL_HANT.ask.label);
       assert.equal(view.history, PANEL_HANT.dock.history);
       assert.equal(view.notes, PANEL_HANT.head.notes);
       assert.ok(view.buttons.split("|").includes(SHARED_HANT.setup.action.none), view.buttons);
@@ -1445,7 +1446,7 @@ test("侧边栏：语言选繁体以后，模式切换、底部工具条、各�
         all: (${sheet}).innerText,
       })`);
       assert.equal(qa.placeholder, PANEL_HANT.qa.placeholder);
-      assert.equal(qa.button, PANEL_HANT.openSettings);
+      assert.equal(qa.button, CARD_PANEL_HANT.openSettings);
       assert.equal(qa.hint, PANEL_HANT.qa.hint);
       for (const [name, text] of Object.entries(qa)) assert.deepEqual(simplifiedIn(text), [], `问答抽屉 ${name}：${text}`);
       await panel.evaluate(`(${sheet}).querySelector(".overlay-head .icon-button").click(), true`);

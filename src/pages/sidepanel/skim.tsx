@@ -28,6 +28,7 @@ import { readsFirst } from "./generate-read.ts";
 import { SettingsExit } from "./settings-exit.tsx";
 import { TranscriptTab } from "./transcript-tab.tsx";
 import { needsSetup, setupAction, setupReason } from "../shared/config.ts";
+import { cardPanelText } from "../shared/card-panel-text.ts";
 import { sharedText } from "../shared/text.ts";
 import { uiLang } from "../shared/ui-lang.ts";
 import { noteStored, panelText } from "./text.ts";
@@ -173,7 +174,7 @@ function Verdict({
   if (verdictTask) {
     return (
       <div class="progress-row" role="status">
-        <span>{p.skim.writingVerdict}</span>
+        <span>{cardPanelText().overview.writingVerdict}</span>
         <Button variant="text" onClick={() => void panel.overview.cancel(verdictTask.id)}>
           {p.stop}
         </Button>
@@ -274,7 +275,7 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
       ) : null}
       {state.error ? <ServiceSaid said={state.errorSaid} /> : null}
       {state.error ? <SettingsExit panel={panel} code={state.errorCode} /> : null}
-      {state.result?.failedChunks ? <p class="note-line">{t.failedChunks}</p> : null}
+      {state.result?.failedChunks ? <p class="note-line">{cardPanelText().overview.failedParts}</p> : null}
       {state.result?.saveFailed ? <p class="note-line">{t.saveFailed}</p> : null}
       {state.result?.canceled ? <p class="note-line">{t.canceled}</p> : null}
       {hasOverview ? null : guides}
@@ -288,11 +289,11 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
               <>
                 {failures > 0 ? (
                   <Button onClick={() => void panel.overview.retryFailed()} disabled={!ready} {...(notReady ? { disabledReason: notReady } : {})}>
-                    {t.retryFailed}
+                    {cardPanelText().overview.retryFailed}
                   </Button>
                 ) : null}
                 <Button variant="text" onClick={() => void panel.overview.generate(true)} disabled={!ready} {...(notReady ? { disabledReason: notReady } : {})}>
-                  {t.regenerate}
+                  {cardPanelText().overview.regenerate}
                 </Button>
               </>
             ) : setup ? (
@@ -301,7 +302,7 @@ export function SkimView({ panel }: { readonly panel: Panel }) {
               </Button>
             ) : (
               <Button variant="primary" onClick={generate} disabled={!ready || !canGenerate} {...(notReady ? { disabledReason: notReady } : !canGenerate ? { disabledReason: t.needTranscript } : {})}>
-                {t.generate}
+                {cardPanelText().overview.generate}
               </Button>
             )}
             {setup ? null : <BatchStart panel={panel} ready={ready} />}

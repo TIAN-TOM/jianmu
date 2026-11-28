@@ -13,6 +13,7 @@ import { frameText as optionsFrameText } from "../../../src/pages/options/frame-
 import { OPTIONS_EN } from "../../../src/pages/options/text-en.ts";
 import { OPTIONS_HANT } from "../../../src/pages/options/text-hant.ts";
 import { youtubeText as optionsYoutubeText } from "../../../src/pages/options/youtube-text.ts";
+import { cardPanelTextOf } from "../../../src/pages/shared/card-panel-text.ts";
 import { SHARED_EN } from "../../../src/pages/shared/text-en.ts";
 import { SHARED_HANT } from "../../../src/pages/shared/text-hant.ts";
 import { frameText as panelFrameText } from "../../../src/pages/sidepanel/frame-text.ts";
@@ -58,6 +59,7 @@ function strings(value: unknown, out: string[] = []): string[] {
 function labels(): Set<string> {
   const tables: unknown[] = [
     SHARED_EN,
+    cardPanelTextOf("en"),
     OPTIONS_EN,
     PANEL_EN,
     CARD_EN,
@@ -121,6 +123,7 @@ function quotedNamesHant(): Map<string, string[]> {
 function labelsHant(): Set<string> {
   const tables: unknown[] = [
     SHARED_HANT,
+    cardPanelTextOf("zh-Hant"),
     OPTIONS_HANT,
     PANEL_HANT,
     CARD_HANT,

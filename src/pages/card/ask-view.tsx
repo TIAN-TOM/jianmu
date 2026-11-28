@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { splitAnswerByTimestamps } from "../../core/qa/citations.ts";
 import { formatTimestamp } from "../../core/transcript/segment.ts";
+import { cardPanelText } from "../shared/card-panel-text.ts";
+import { sharedText } from "../shared/text.ts";
 import { Icon } from "../shared/ui/icon.tsx";
 import { ServiceSaid } from "../shared/ui/notice.tsx";
 import type { AskState } from "./ask.ts";
@@ -14,7 +16,7 @@ const QUESTION_MAX = 500;
 function Answer({ state, onSeek }: { readonly state: AskState; readonly onSeek: (atSec: number) => void }) {
   const entry = state.entry;
   if (!entry) return null;
-  const t = cardText();
+  const shared = cardPanelText();
   const clickable = new Set(entry.clickable);
   const parts = splitAnswerByTimestamps(entry.answer);
   const content = [];
@@ -28,7 +30,7 @@ function Answer({ state, onSeek }: { readonly state: AskState; readonly onSeek: 
     const punctuation = next.match(/^[。，、；：！？]+/)?.[0] ?? "";
     content.push(
       <span class="card-stamp-group" key={index}>
-        <button type="button" class="card-stamp" aria-label={t.jumpTo(formatTimestamp(seconds))} onClick={() => onSeek(seconds)}>
+        <button type="button" class="card-stamp" aria-label={sharedText().jumpTo(formatTimestamp(seconds))} onClick={() => onSeek(seconds)}>
           {text}
         </button>
         {punctuation}
@@ -43,8 +45,8 @@ function Answer({ state, onSeek }: { readonly state: AskState; readonly onSeek: 
     <div class="card-answer" id="card-answer">
       <p class="card-question">{entry.question}</p>
       <p class="card-answer-text">{content}</p>
-      {entry.truncated ? <p class="card-note">{t.answerTruncated}</p> : null}
-      {state.unsaved ? <p class="card-note">{t.answerUnsaved}</p> : null}
+      {entry.truncated ? <p class="card-note">{shared.ask.truncated}</p> : null}
+      {state.unsaved ? <p class="card-note">{shared.ask.unsaved}</p> : null}
     </div>
   );
 }
@@ -63,17 +65,18 @@ export function CardAskBox({
   const [draft, setDraft] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const t = cardText();
+  const shared = cardPanelText();
   // 没发出去（限频、没设置好、别处在答）：把问题放回框里，不用重打。
   useEffect(() => {
     if (state.phase === "failed" && state.question) setDraft((now) => now || state.question);
   }, [state.phase, state.question]);
   const asking = state.phase === "asking";
   return (
-    <section class="card-ask" aria-label={t.askLabel}>
+    <section class="card-ask" aria-label={shared.ask.label}>
       {state.phase === "done" ? <Answer state={state} onSeek={onSeek} /> : null}
       {asking ? (
         <div class="card-asking" role="status">
-          <span>{state.canceling ? t.stopping : t.answering}</span>
+          <span>{state.canceling ? t.stopping : shared.ask.answering}</span>
           <button type="button" class="button" data-variant="text" disabled={state.canceling} onClick={onCancel}>
             {t.stop}
           </button>
@@ -93,7 +96,7 @@ export function CardAskBox({
           class="card-ask-input"
           id="card-ask-input"
           ref={input}
-          aria-label={t.askLabel}
+          aria-label={shared.ask.label}
           placeholder={t.askPlaceholder}
           maxLength={QUESTION_MAX}
           value={draft}
