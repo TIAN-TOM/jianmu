@@ -1,6 +1,6 @@
 // 错误码汇总：每个领域的码都有原因、影响、下一步三段文案，领域之间不重名，结果的形状统一。
 import assert from "node:assert/strict";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -20,6 +20,7 @@ import { TASK_ERROR_TEXT } from "../../../src/core/errors/tasks.ts";
 import { TRANSCRIPT_DETAIL_TEXT, TRANSCRIPT_ERROR_TEXT } from "../../../src/core/errors/transcript.ts";
 import { TRANSLATE_ERROR_TEXT } from "../../../src/core/errors/translate.ts";
 import { parseSubtitleFile } from "../../../src/core/transcript/import-file.ts";
+import { listSourceFiles } from "../../helpers/source-scan.ts";
 
 const DOMAINS = {
   site: SITE_ERROR_TEXT,
@@ -86,15 +87,7 @@ test("费用只说可能计费或没发请求，不承诺免费或不计费", ()
 
 /** 页面和共用代码的源码，去掉「」引起来的说明文字，只留真正的标签和标题。 */
 function pageSources(): string {
-  const files: string[] = [];
-  const walk = (dir: string) => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const path = join(dir, entry.name);
-      if (entry.isDirectory()) walk(path);
-      else if (/\.tsx?$/.test(entry.name)) files.push(path);
-    }
-  };
-  for (const dir of ["src/pages", "src/content", "src/shared"]) walk(join(ROOT, dir));
+  const files = ["src/pages", "src/content", "src/shared"].flatMap((dir) => listSourceFiles(join(ROOT, dir)));
   return files.map((file) => readFileSync(file, "utf8").replace(/「[^」]*」/g, "")).join("\n");
 }
 

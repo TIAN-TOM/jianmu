@@ -7,16 +7,14 @@ import { dataPorts } from "../../../src/background/routes/data.ts";
 import { createDataService, type DataServiceDeps } from "../../../src/background/services/data.ts";
 import { BUSY_RECHECK_MS } from "../../../src/background/self-update.ts";
 import { createClearGuard } from "../../../src/core/clear-guard.ts";
-import { videoKey } from "../../../src/core/video-ref.ts";
 import type { PortLike } from "../../../src/platform/messaging.ts";
 import { createFakeChrome, senders } from "../../helpers/chrome.ts";
 import { deferred } from "../../helpers/deferred.ts";
-import { SAMPLE_ID } from "../../helpers/fake-site-service.ts";
+import { SAMPLE_KEY as VIDEO } from "../../helpers/sample-videos.ts";
 import { studyBackground } from "../../helpers/study-background.ts";
 import { manualTimers } from "../../helpers/manual-timers.ts";
 import { stillFalse, until } from "../../helpers/wait-until.ts";
 
-const VIDEO = videoKey({ platform: "bilibili", videoId: SAMPLE_ID, segment: 1 });
 const note = (id: string) => ({ id, kind: "note", origin: "user", video: VIDEO, snapshot: { title: "样例", author: "作者" }, atSec: 5, text: id, createdAt: 1, updatedAt: 2 });
 
 function service(overrides: Partial<DataServiceDeps> = {}) {

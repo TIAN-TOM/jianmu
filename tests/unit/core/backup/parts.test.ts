@@ -7,9 +7,8 @@ import { mergeNotes, mergeTranslations } from "../../../../src/core/backup/merge
 import { joinParts, splitBackup } from "../../../../src/core/backup/parts.ts";
 import type { BackupContents } from "../../../../src/core/backup/records.ts";
 import { translationId, type NoteRecord, type TranslationRecord } from "../../../../src/core/notes/records.ts";
-import { videoKey } from "../../../../src/core/video-ref.ts";
+import { SAMPLE_KEY as VIDEO } from "../../../helpers/sample-videos.ts";
 
-const VIDEO = videoKey({ platform: "bilibili", videoId: "BV1Sample000", segment: 1 });
 const TRANSCRIPT = { video: VIDEO, kind: "auto" as const, lang: "zh-CN", fingerprint: "fp-parts" };
 
 const note = (index: number, text = `笔记 ${index}`): NoteRecord => ({

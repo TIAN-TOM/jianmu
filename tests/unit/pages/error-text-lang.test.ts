@@ -1,11 +1,11 @@
 // 报错文案的取法不传语言时是简体：页面、内容脚本和后台里取它们的地方都要把语言传进去，漏传就会在英文、繁体界面里露出简体。
 // 只认直接调用；按名字导入、改了名导入的都算。后台的 aiFailure 不传语言过不了类型检查，这里不管。
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { splitSource } from "../../helpers/source-scan.ts";
+import { listSourceFiles, splitSource } from "../../helpers/source-scan.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const SCANNED = ["src/pages", "src/content", "src/background"];
@@ -16,15 +16,6 @@ const HELPERS: readonly { readonly module: RegExp; readonly name: string; readon
   { module: /\/core\/errors\.ts$/, name: "errorCopy", langArg: 3 },
   { module: /\/shared\/ui\/state\.ts$/, name: "stateCopy", langArg: 3 },
 ];
-
-function sourceFiles(dir: string, out: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) sourceFiles(path, out);
-    else if (/\.tsx?$/.test(name) && !name.endsWith(".d.ts")) out.push(path);
-  }
-  return out;
-}
 
 /** 字符串的内容换成空格，数参数时不被里面的逗号、括号带偏。 */
 function blankStrings(code: string): string {
@@ -72,7 +63,7 @@ test("页面、内容脚本和后台取报错文案时都传了语言", () => {
   const missing: string[] = [];
   let checked = 0;
   for (const dir of SCANNED) {
-    for (const path of sourceFiles(join(ROOT, dir))) {
+    for (const path of listSourceFiles(join(ROOT, dir), { skipDeclarations: true })) {
       const { code: source } = splitSource(readFileSync(path, "utf8"));
       const code = blankStrings(source);
       for (const { local, name, langArg } of localNames(source)) {

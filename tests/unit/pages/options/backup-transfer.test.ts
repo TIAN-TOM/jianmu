@@ -4,11 +4,10 @@ import { test } from "node:test";
 import type { ImportedBackup } from "../../../../src/core/backup/records.ts";
 import { fail, type ErrorCode } from "../../../../src/core/errors.ts";
 import type { NoteRecord } from "../../../../src/core/notes/records.ts";
-import { videoKey } from "../../../../src/core/video-ref.ts";
 import { backupFailureText, importSummary, receiveBackup, withBackupImport } from "../../../../src/pages/options/backup-transfer.ts";
 import type { PageApi, PortHandlers } from "../../../../src/pages/shared/api.ts";
+import { SAMPLE_KEY as VIDEO } from "../../../helpers/sample-videos.ts";
 
-const VIDEO = videoKey({ platform: "bilibili", videoId: "BV1Sample000", segment: 1 });
 
 const note = (index: number): NoteRecord => ({
   id: `note_${index}`,

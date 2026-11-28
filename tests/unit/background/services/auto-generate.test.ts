@@ -35,11 +35,11 @@ import { deferred, nextTurn } from "../../../helpers/deferred.ts";
 import { SAMPLE_ID } from "../../../helpers/fake-site-service.ts";
 import { manualTimers } from "../../../helpers/manual-timers.ts";
 import { memoryStorage } from "../../../helpers/memory-storage.ts";
+import { SAMPLE_KEY as VIDEO } from "../../../helpers/sample-videos.ts";
 import { stillFalse, until } from "../../../helpers/wait-until.ts";
 
 const OTHER_ID = "BV1Sample999";
 const THIRD_ID = "BV1Sample888";
-const VIDEO = videoKey({ platform: "bilibili", videoId: SAMPLE_ID, segment: 1 });
 const OTHER = videoKey({ platform: "bilibili", videoId: OTHER_ID, segment: 1 });
 const THIRD = videoKey({ platform: "bilibili", videoId: THIRD_ID, segment: 1 });
 const WINDOW = 7;

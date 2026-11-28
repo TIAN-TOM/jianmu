@@ -11,14 +11,14 @@ import { videoKey } from "../../../src/core/video-ref.ts";
 import { createKeepAlive, type KeepAlive } from "../../../src/platform/keepalive.ts";
 import type { Broadcast } from "../../../src/shared/messages.ts";
 import { SETTINGS_STORAGE_KEY } from "../../../src/shared/names.ts";
-import { CONFIRMED, createFakeChrome, SAMPLE_VIDEO_ID, senders } from "../../helpers/chrome.ts";
+import { CONFIRMED, createFakeChrome, senders } from "../../helpers/chrome.ts";
 import { deferred } from "../../helpers/deferred.ts";
 import { createFakeAi } from "../../helpers/fake-ai.ts";
 import { manualTimers } from "../../helpers/manual-timers.ts";
+import { SAMPLE_VIDEO_KEY as VIDEO } from "../../helpers/sample-videos.ts";
 import { until } from "../../helpers/wait-until.ts";
 
 const INTERVAL = 20 * 1000;
-const VIDEO = videoKey({ platform: "bilibili", videoId: SAMPLE_VIDEO_ID });
 const OTHER_VIDEO = videoKey({ platform: "youtube", videoId: "tube-sample" });
 const GEN: FrozenGen = { feature: "analysis", baseUrl: "https://ai.example.test/v1", model: "fake-model", effort: "off", promptVersion: "p1" };
 const MESSAGES = [{ role: "user" as const, content: "概览" }];
