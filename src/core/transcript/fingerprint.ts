@@ -1,5 +1,6 @@
 // 内容指纹：派生结果记下依据的哪一版字幕或文字，依据变了才看得出来。只算内容，不算地址、凭据和抓取时间。
 import { sha256Hex } from "../task-keys.ts";
+import type { OutlineSection } from "./outline.ts";
 import { normalizeCaptionText, type CaptionEntries } from "./segment.ts";
 
 const FINGERPRINT_LENGTH = 16;
@@ -24,11 +25,7 @@ export async function textFingerprint(text: string): Promise<string> {
 
 export interface OfficialContent {
   readonly summary: string;
-  readonly outline: readonly {
-    readonly title: string;
-    readonly timestamp: number | null;
-    readonly points: readonly { readonly timestamp: number | null; readonly content: string }[];
-  }[];
+  readonly outline: readonly OutlineSection[];
 }
 
 const stamp = (value: number | null): string => (value === null ? "-" : millis(value));
