@@ -12,7 +12,8 @@ import type { AutoGenerate } from "../services/auto-generate.ts";
 import type { OverviewService } from "../services/overview/index.ts";
 import type { PageTranscript } from "../services/page-transcript.ts";
 import { captionsInPage } from "../../sites/rules.ts";
-import { isId, isPlainObject, isTabId, isVideoKey, keysWithin } from "./validate.ts";
+import { claimTaskId, hasTaskIdOrToken } from "./task-claim.ts";
+import { isPlainObject, isTabId, isVideoKey, keysWithin } from "./validate.ts";
 
 export interface OverviewRouteDeps {
   readonly overview: OverviewService;
@@ -25,16 +26,14 @@ export interface OverviewRouteDeps {
 type OverviewRoutes = { readonly [K in "overview.start" | "overview.retryFailed" | "overview.get"]: Route<K> };
 
 function isStartRequest(req: unknown): req is OverviewStartRequest {
-  if (!isPlainObject(req) || !keysWithin(req, [], ["video", "taskId", "token", "fresh", "tabId"]) || !isVideoKey(req.video)) return false;
+  if (!isPlainObject(req) || !keysWithin(req, ["video"], ["taskId", "token", "fresh", "tabId"]) || !isVideoKey(req.video)) return false;
   if (req.fresh !== undefined && typeof req.fresh !== "boolean") return false;
   if (req.tabId !== undefined && !isTabId(req.tabId)) return false;
-  // 任务号和令牌恰好带一个。
-  return Object.hasOwn(req, "taskId") ? isId(req.taskId) && !Object.hasOwn(req, "token") : isId(req.token);
+  return hasTaskIdOrToken(req);
 }
 
 function isRetryRequest(req: unknown): req is OverviewRetryRequest {
-  if (!isPlainObject(req) || !keysWithin(req, [], ["video", "taskId", "token"]) || !isVideoKey(req.video)) return false;
-  return Object.hasOwn(req, "taskId") ? isId(req.taskId) && !Object.hasOwn(req, "token") : isId(req.token);
+  return isPlainObject(req) && keysWithin(req, ["video"], ["taskId", "token"]) && isVideoKey(req.video) && hasTaskIdOrToken(req);
 }
 
 function isGetRequest(req: unknown): req is OverviewGetRequest {
@@ -69,11 +68,12 @@ export function overviewRoutes({ overview, cardLimits, auto, pageTranscript }: O
       senders: ["panel", "card"],
       validate: isStartRequest,
       async handler(req, { sender }) {
+        // 卡片不点名标签页，先拒、不碰令牌。重新生成在卡片上先确认一次才发。
+        if (sender.kind === "card" && req.tabId !== undefined) return fail("FORBIDDEN");
+        const claim = claimTaskId(sender, req, cardLimits);
+        if (!claim.ok) return claim;
+        const { taskId } = claim;
         if (sender.kind === "card") {
-          // 卡片不收任务号、不点名标签页：只认登记时换到的令牌，用一次就作废。重新生成在卡片上先确认一次才发。
-          if (req.taskId !== undefined || req.token === undefined || req.tabId !== undefined) return fail("FORBIDDEN");
-          const taskId = cardLimits.redeemToken(req.token);
-          if (!taskId) return fail("TASK_NOT_FOUND");
           // 同一视频十分钟内在卡片上重新生成过：认领下这个任务、按太频繁收尾，不花额度。
           if (req.fresh && !cardLimits.admitRegenerate(req.video)) {
             return overview.generate(taskId, req.video, { fresh: true, prepare: async () => fail("CARD_RATE_LIMITED", "regenerate") });
@@ -81,10 +81,9 @@ export function overviewRoutes({ overview, cardLimits, auto, pageTranscript }: O
           const prepare = readInPage(req.video, sender.tabId);
           return generated(overview.generate(taskId, req.video, { fresh: req.fresh === true, ...(prepare ? { prepare } : {}), comments: { tabId: sender.tabId } }));
         }
-        if (req.taskId === undefined) return fail("FORBIDDEN");
         // 侧边栏在 YouTube 上还没读到字幕时点生成：和卡片一样，先经视频所在的标签页读到字幕。
         const prepare = req.tabId === undefined ? null : readInPage(req.video, req.tabId);
-        return generated(overview.generate(req.taskId, req.video, { fresh: req.fresh === true, ...(prepare ? { prepare } : {}), comments: { tabId: req.tabId } }));
+        return generated(overview.generate(taskId, req.video, { fresh: req.fresh === true, ...(prepare ? { prepare } : {}), comments: { tabId: req.tabId } }));
       },
     },
     "overview.retryFailed": {
@@ -92,15 +91,14 @@ export function overviewRoutes({ overview, cardLimits, auto, pageTranscript }: O
       pages: ["options", "triage"],
       validate: isRetryRequest,
       handler(req, { sender }) {
+        const claim = claimTaskId(sender, req, cardLimits);
+        if (!claim.ok) return Promise.resolve(claim);
         if (sender.kind === "card") {
-          if (req.taskId !== undefined || req.token === undefined) return Promise.resolve(fail("FORBIDDEN"));
-          const taskId = cardLimits.redeemToken(req.token);
-          if (!taskId) return Promise.resolve(fail("TASK_NOT_FOUND"));
           // 和卡片上的生成一样：要经页面读的站，本机的字幕没了就先经卡片所在的标签页读回来再补。
           const prepare = readInPage(req.video, sender.tabId);
-          return retried(overview.retryFailed(taskId, req.video, prepare ? { prepare } : {}));
+          return retried(overview.retryFailed(claim.taskId, req.video, prepare ? { prepare } : {}));
         }
-        return req.taskId === undefined ? Promise.resolve(fail("FORBIDDEN")) : retried(overview.retryFailed(req.taskId, req.video));
+        return retried(overview.retryFailed(claim.taskId, req.video));
       },
     },
     "overview.get": {
