@@ -14,6 +14,7 @@ import { answerCopyText, copyText } from "./copy.ts";
 import type { Panel } from "./panel.ts";
 import { SettingsExit } from "./settings-exit.tsx";
 import { needsSetup, setupReason } from "../shared/config.ts";
+import { cardPanelText } from "../shared/card-panel-text.ts";
 import { sharedText } from "../shared/text.ts";
 import { uiLang } from "../shared/ui-lang.ts";
 import { panelText } from "./text.ts";
@@ -51,8 +52,8 @@ function Entry({ panel, entry, unsaved, current, row, onDelete }: { readonly pan
       </div>
       {onOldTranscript(transcriptFingerprintOf(entry.derived), current) ? <StaleTranscriptLine /> : null}
       <Answer panel={panel} entry={entry} />
-      {entry.truncated ? <p class="note-line">{t.truncated}</p> : null}
-      {unsaved ? <p class="note-line">{t.unsaved}</p> : null}
+      {entry.truncated ? <p class="note-line">{cardPanelText().ask.truncated}</p> : null}
+      {unsaved ? <p class="note-line">{cardPanelText().ask.unsaved}</p> : null}
       {entry.citations.length > 0 ? (
         <ul class="citations" aria-label={t.citations}>
           {entry.citations.map((citation) => (
@@ -108,7 +109,7 @@ export function QaTab({ panel }: { readonly panel: Panel }) {
         <input class="search-input" type="text" autoFocus placeholder={t.placeholder} aria-label={t.ask} value={question} onInput={(event) => (panel.draft.value = event.currentTarget.value)} />
         {setup ? (
           <Button variant="primary" note={reason} onClick={() => panel.openSettingsAt("ai-service")}>
-            {panelText().openSettings}
+            {cardPanelText().openSettings}
           </Button>
         ) : (
           <Button type="submit" variant="primary" disabled={!canSend(reason, question)} {...(reason ? { disabledReason: reason } : {})}>
@@ -130,7 +131,7 @@ export function QaTab({ panel }: { readonly panel: Panel }) {
             <div class="qa-question">
               <span>{item.question}</span>
             </div>
-            <p class="qa-answer">{t.answering}</p>
+            <p class="qa-answer">{cardPanelText().ask.answering}</p>
           </li>
         ))}
         {exit.rows.map((row) => (

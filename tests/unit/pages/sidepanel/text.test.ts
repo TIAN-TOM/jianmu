@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { VideoKey } from "../../../../src/core/video-ref.ts";
 import { cardSetupHint, setupNotice, setupReason, type ConfigState } from "../../../../src/pages/shared/config.ts";
+import { cardPanelTextOf } from "../../../../src/pages/shared/card-panel-text.ts";
 import { SHARED_EN } from "../../../../src/pages/shared/text-en.ts";
 import { SHARED_HANT } from "../../../../src/pages/shared/text-hant.ts";
 import { verdictName } from "../../../../src/core/ai/verdict.ts";
@@ -34,7 +35,7 @@ function strings(value: unknown, path = ""): [string, string][] {
 }
 
 test("英文表里没有中文：档位的键是数据里的中文词，只看显示名", () => {
-  for (const [path, text] of [...strings(PANEL_EN), ...strings(SHARED_EN), ...strings(frameText("en")), ...strings(youtubeText("en")), ["openReadHint", openReadHint("en")] as [string, string]]) {
+  for (const [path, text] of [...strings(PANEL_EN), ...strings(SHARED_EN), ...strings(cardPanelTextOf("en")), ...strings(frameText("en")), ...strings(youtubeText("en")), ["openReadHint", openReadHint("en")] as [string, string]]) {
     assert.doesNotMatch(text, HAN, path);
   }
 });
