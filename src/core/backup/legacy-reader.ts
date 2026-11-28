@@ -119,6 +119,7 @@ function legacyOverview(value: unknown): OverviewRecord | null {
     value.analysisFailures,
     finite(value.updatedAt) ?? 0,
     legacyParts,
+    "zh",
   );
 }
 

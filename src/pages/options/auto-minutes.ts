@@ -1,4 +1,4 @@
-// 设置页「打开就出结论」的分钟数：范围说明，以及填的数被规整成另一个数时就地给的一句话。语言缺省中文。
+// 设置页「打开就出结论」的分钟数：范围说明，以及填的数被规整成另一个数时就地给的一句话。
 import { AUTO_OVERVIEW_MINUTES, normalizeAutoMinutes } from "../../shared/settings-schema.ts";
 import type { UiLang } from "../shared/ui-lang.ts";
 import { textOf } from "./text.ts";
@@ -6,7 +6,7 @@ import { textOf } from "./text.ts";
 const { min, max } = AUTO_OVERVIEW_MINUTES;
 
 /** 输入框下面的范围说明。 */
-export const autoMinutesHint = (lang: UiLang = "zh"): string => textOf(lang).auto.minutesHint(min, max);
+export const autoMinutesHint = (lang: UiLang): string => textOf(lang).auto.minutesHint(min, max);
 
 export interface SettledMinutes {
   readonly minutes: number;
@@ -15,7 +15,7 @@ export interface SettledMinutes {
 }
 
 /** 输入框里的文字规整成要存的分钟数；清空或填不成数时回 null，由页面填回原来的数。 */
-export function settleAutoMinutes(raw: string, lang: UiLang = "zh"): SettledMinutes | null {
+export function settleAutoMinutes(raw: string, lang: UiLang): SettledMinutes | null {
   const text = raw.trim();
   const typed = text === "" ? Number.NaN : Number(text);
   if (!Number.isFinite(typed)) return null;

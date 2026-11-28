@@ -29,8 +29,8 @@ const MENU_EN: ActionMenuText = {
   autoOverview: "Verdict on open (uses API credit)",
 };
 
-/** 指定语言的菜单文字。不传语言时是中文。 */
-export const actionMenuText = (lang: OutputLang = "zh"): ActionMenuText => inLang(lang, MENU_ZH, MENU_EN, MENU_HANT);
+/** 指定语言的菜单文字。 */
+export const actionMenuText = (lang: OutputLang): ActionMenuText => inLang(lang, MENU_ZH, MENU_EN, MENU_HANT);
 
 /** 菜单上的两个开关各自对应的设置项，和改不成时设置页要滚到的那一节（卡片开关只在没启用时改不成，那时设置页只有启用说明，不用滚）。 */
 const SWITCHES: readonly { readonly id: string; readonly field: "inPageCard" | "autoOverview"; readonly section: OptionsSection | null }[] = [
@@ -52,8 +52,8 @@ export interface ActionMenuDeps extends ContextMenusDeps {
   readonly settings: Pick<SettingsStore, "loadPublic" | "update" | "activation">;
   readonly tabs: Pick<Tabs, "openPage" | "openOptionsPage" | "openOptionsAt" | "hasOptionsPage">;
   readonly log: Log;
-  /** 浏览器的界面语言，语言选「跟随浏览器」时用；不给时按中文。 */
-  readonly uiLanguage?: (() => string) | undefined;
+  /** 浏览器的界面语言，语言选「跟随浏览器」时用。 */
+  readonly uiLanguage: () => string;
 }
 
 export interface ActionMenu {
@@ -65,7 +65,7 @@ export interface ActionMenu {
   readonly settingsChanged: (changes: Readonly<Record<string, StorageChange>>, area: string) => Promise<void>;
 }
 
-export function createActionMenu({ settings, tabs, log, uiLanguage = () => "zh", ...deps }: ActionMenuDeps): ActionMenu {
+export function createActionMenu({ settings, tabs, log, uiLanguage, ...deps }: ActionMenuDeps): ActionMenu {
   const menus = createContextMenus(deps);
   const fail = (what: string) => (error: unknown) => void log.error(what, errorLabel(error));
   // 菜单还没建好时改勾选会报错，这时不用管：下次建的时候按设置定。

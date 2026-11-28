@@ -63,8 +63,8 @@ test("菜单不出视口：左边贴着边距，太高的贴着上边距", () =>
 });
 
 test("状态块的文案：原因当标题，影响当说明，下一步单独一段；没有的那段不出现", () => {
-  const copy = errorCopy("NO_CAPTIONS");
-  assert.deepEqual(stateCopy("NO_CAPTIONS"), { title: copy.cause, impact: copy.impact, next: copy.next });
-  assert.deepEqual(stateCopy("NOTE_NOT_FOUND"), { title: errorCopy("NOTE_NOT_FOUND").cause });
-  assert.deepEqual(stateCopy("UNPLAYABLE", "paid"), { title: "这是付费内容。", impact: errorCopy("UNPLAYABLE", "paid").impact });
+  const copy = errorCopy("NO_CAPTIONS", undefined, "zh");
+  assert.deepEqual(stateCopy("NO_CAPTIONS", undefined, "zh"), { title: copy.cause, impact: copy.impact, next: copy.next });
+  assert.deepEqual(stateCopy("NOTE_NOT_FOUND", undefined, "zh"), { title: errorCopy("NOTE_NOT_FOUND", undefined, "zh").cause });
+  assert.deepEqual(stateCopy("UNPLAYABLE", "paid", "zh"), { title: "这是付费内容。", impact: errorCopy("UNPLAYABLE", "paid", "zh").impact });
 });

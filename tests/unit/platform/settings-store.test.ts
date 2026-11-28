@@ -145,7 +145,7 @@ function transportOn(store: SettingsStore) {
       };
     },
   });
-  const ask = () => transport.requestAiCompletion({ messages: [{ role: "user", content: "词" }], maxTokens: 64 });
+  const ask = () => transport.requestAiCompletion({ messages: [{ role: "user", content: "词" }], maxTokens: 64, lang: "zh" });
   return { ask, sent };
 }
 
@@ -172,7 +172,7 @@ test("没选记住时，保存的密钥只进会话存储，storage.local 里没
 
   const loaded = await store.load();
   assert.equal(loaded.aiApiKey, "sk-ds");
-  assert.equal(validate(loaded).ok, true);
+  assert.equal(validate(loaded, "zh").ok, true);
 });
 
 test("storage.local 写不进去（存储写满）：保存失败，会话里的旧密钥也不被新密钥换掉", async () => {
@@ -247,7 +247,7 @@ test("会话清空以后（浏览器重启、扩展更新）其余设置还在�
   assert.equal(loaded.presetId, "deepseek");
   assert.equal(loaded.accentTheme, "redblack");
   assert.equal(loaded.aiApiKey, "");
-  assert.deepEqual(validate(loaded).errors, [KEY_ERROR], "数据说明的确认留着，只差密钥");
+  assert.deepEqual(validate(loaded, "zh").errors, [KEY_ERROR], "数据说明的确认留着，只差密钥");
 });
 
 test("存储里留着早先版本的主题名：读出来是默认主题，改别的设置时写回去的也是默认主题，旧值不留", async () => {
@@ -375,7 +375,7 @@ test("地址不合法时存下的密钥没有来源，换了服务商也不跟�
   );
 
   assert.equal(moved.aiApiKey, "");
-  assert.deepEqual(validate(moved).errors, [KEY_ERROR]);
+  assert.deepEqual(validate(moved, "zh").errors, [KEY_ERROR]);
   assert.equal(Object.hasOwn(world.session.data, API_KEY_SESSION_KEY), false);
 });
 
@@ -384,7 +384,7 @@ test("后台只认会话里的密钥：会话清空后报没设置好", async ()
   const store = storeOn(world);
   const { ask, sent } = transportOn(store);
 
-  assert.deepEqual(validate(await store.load()).errors, [KEY_ERROR]);
+  assert.deepEqual(validate(await store.load(), "zh").errors, [KEY_ERROR]);
   assert.equal((await failureOf(ask())).code, "NO_AI_CONFIG");
   assert.deepEqual(sent, []);
 });
@@ -499,7 +499,7 @@ test("勾上记住并保存：密钥和来源存进本机那份，设置里没�
   const loaded = await storeOn(restarted(world)).load();
   assert.equal(loaded.aiApiKey, "sk-ds");
   assert.equal(loaded.rememberApiKey, true);
-  assert.equal(validate(loaded).ok, true);
+  assert.equal(validate(loaded, "zh").ok, true);
 });
 
 test("没法限制本机存储的访问：整次不存，原来只在会话里的密钥和设置都不动", async () => {
@@ -841,7 +841,7 @@ test("记住和数据同意分开算：没同意也能记住，撤销同意不�
 
   assert.deepEqual(world.local.data[API_KEY_LOCAL_KEY], REMEMBERED_RECORD);
   assert.equal(saved.dataConsentVersion, 0);
-  assert.deepEqual(validate(saved).errors, [DATA_CONSENT_ERROR]);
+  assert.deepEqual(validate(saved, "zh").errors, [DATA_CONSENT_ERROR]);
 
   await store.setDataConsent(true);
   await store.setDataConsent(false);
@@ -1323,7 +1323,7 @@ test("数据同意单独写入：勾上记下当前的版本和指纹，取消�
   const given = await store.setDataConsent(true);
   assert.equal(given.dataConsentVersion, DATA_CONSENT_CONFIRMED.dataConsentVersion);
   assert.equal(given.dataConsentFingerprint, DATA_CONSENT_CONFIRMED.dataConsentFingerprint);
-  assert.equal(validate(given).ok, true);
+  assert.equal(validate(given, "zh").ok, true);
 
   const withdrawn = await store.setDataConsent(false);
   assert.equal(withdrawn.dataConsentVersion, 0);

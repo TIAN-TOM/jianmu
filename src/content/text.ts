@@ -47,4 +47,4 @@ const CONTENT_EN: ContentText = {
   },
 };
 
-export const contentText = (lang: OutputLang = "zh"): ContentText => inLang(lang, CONTENT_ZH, CONTENT_EN, CONTENT_HANT);
+export const contentText = (lang: OutputLang): ContentText => inLang(lang, CONTENT_ZH, CONTENT_EN, CONTENT_HANT);

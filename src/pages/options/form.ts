@@ -1,4 +1,4 @@
-// 设置页「AI 服务」表单的纯逻辑：从存着的设置填表、换服务商、拼出保存用的设置、推理强度旁边的说明（语言缺省中文）。不碰存储和浏览器接口。
+// 设置页「AI 服务」表单的纯逻辑：从存着的设置填表、换服务商、拼出保存用的设置、推理强度旁边的说明。不碰存储和浏览器接口。
 // 表单只装要点「保存」才生效的几项：服务商、地址、密钥、模型、记住密钥。推理强度和概览分块即改即存，不在表单里。
 import type { LoadedSettings } from "../../platform/settings-store.ts";
 import type { EffortPreviewItem } from "../../shared/messages/ai.ts";
@@ -132,7 +132,7 @@ export function serviceChanged(form: AiForm, saved: LoadedSettings): boolean {
 }
 
 /** 实际生效的档位和选的不一样时，旁边那一句；一样、或者选关而服务说不准时不说。 */
-export function effortNoteText(item: Pick<EffortPreviewItem, "requested" | "effective" | "note">, lang: UiLang = "zh"): string | null {
+export function effortNoteText(item: Pick<EffortPreviewItem, "requested" | "effective" | "note">, lang: UiLang): string | null {
   const { requested, effective, note } = item;
   const t = textOf(lang).efforts;
   if (note === "cannot-disable") return t.cannotDisable(t.labels[effective]);
@@ -147,7 +147,7 @@ export function effortNoteText(item: Pick<EffortPreviewItem, "requested" | "effe
  * 扩展设不了时写由服务决定；那次用的模型和现在的不一样时带上模型名。没请求过时不说。
  * 服务报的合计比输入加输出多时在最后写上：多出来的那部分服务没说是什么，照原样摆出来，不替它算成思考；一样多时不重复写。
  */
-export function usageText(item: Pick<EffortPreviewItem, "model" | "lastUsage">, lang: UiLang = "zh"): string | null {
+export function usageText(item: Pick<EffortPreviewItem, "model" | "lastUsage">, lang: UiLang): string | null {
   const last = item.lastUsage;
   if (!last) return null;
   const t = textOf(lang).efforts;

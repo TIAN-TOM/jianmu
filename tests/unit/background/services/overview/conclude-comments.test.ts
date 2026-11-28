@@ -30,6 +30,7 @@ function deps(reply: unknown, sent: Sent[], extra: Partial<VerdictRequestDeps> =
     gate: (async (_n: number, work: () => Promise<unknown>) => work()) as unknown as VerdictRequestDeps["gate"],
     concurrency: 1,
     log: { error: () => undefined, warn: () => undefined, info: () => undefined } as unknown as VerdictRequestDeps["log"],
+    outputLang: "zh",
     ...extra,
   };
 }

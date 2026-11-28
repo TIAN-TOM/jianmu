@@ -50,6 +50,7 @@ test("模型写回来的那一块：要点按序号挂上原评论，章节标�
     },
     KEPT,
     STARTS,
+    "zh",
   );
   assert.deepEqual(view, {
     tag: "有人指出错误",
@@ -66,9 +67,9 @@ test("模型写回来的那一块：要点按序号挂上原评论，章节标�
 });
 
 test("标签不在几种里就整块不要；没有这一块也是空", () => {
-  assert.equal(commentViewOf({ tag: "还行", line: "x", points: [], marks: [] }, KEPT, STARTS), null);
-  assert.equal(commentViewOf(undefined, KEPT, STARTS), null);
-  assert.deepEqual(commentViewOf({ tag: "评论还少" }, KEPT, STARTS), { tag: "评论还少", line: "", points: [], marks: [] });
+  assert.equal(commentViewOf({ tag: "还行", line: "x", points: [], marks: [] }, KEPT, STARTS, "zh"), null);
+  assert.equal(commentViewOf(undefined, KEPT, STARTS, "zh"), null);
+  assert.deepEqual(commentViewOf({ tag: "评论还少" }, KEPT, STARTS, "zh"), { tag: "评论还少", line: "", points: [], marks: [] });
 });
 
 test("存着的那一块：照形状核一遍；读存着的结论时留下，读模型新写的结论时不从这里收", () => {
@@ -76,7 +77,7 @@ test("存着的那一块：照形状核一遍；读存着的结论时留下，�
   const view = storedCommentView(stored);
   assert.deepEqual(view, { tag: "有争议", line: "两派意见", points: [{ text: "有人说好", quotes: [{ text: "讲得好", likes: 5, pinned: false }] }], marks: [{ start: 300, kind: "可跳过" }] });
   const verdict = { summary: "讲了什么", value: "", verdict: 3, reason: "理由", comments: stored };
-  assert.deepEqual(validateVerdict(verdict, { stored: true })?.comments, view);
-  assert.equal(validateVerdict(verdict)?.comments, undefined, "模型新写的由调用方按发出去的评论另外核对");
-  assert.equal(validateVerdict({ ...verdict, comments: { tag: "还行" } }, { stored: true })?.comments, undefined);
+  assert.deepEqual(validateVerdict(verdict, { stored: true, lang: "zh" })?.comments, view);
+  assert.equal(validateVerdict(verdict, { lang: "zh" })?.comments, undefined, "模型新写的由调用方按发出去的评论另外核对");
+  assert.equal(validateVerdict({ ...verdict, comments: { tag: "还行" } }, { stored: true, lang: "zh" })?.comments, undefined);
 });

@@ -105,14 +105,14 @@ export function createAiTransport({
     stillWanted = null,
     beforeSend = null,
     effort: requested = "off",
-    lang = "zh",
+    lang,
   }: CompletionRequest): Promise<CompletionResult> {
     throwIfTaskCanceled(signal);
     const configured = await getSettings();
-    const check = settingsRules.validate(configured);
+    const check = settingsRules.validate(configured, "zh");
     if (!check.ok) {
       const error: TransportError = withEnglish(
-        new Error(transportText().notConfigured(check.errors.join(" "))),
+        new Error(transportText("zh").notConfigured(check.errors.join(" "))),
         transportText("en").notConfigured(settingsRules.validate(configured, "en").errors.join(" ")),
         transportText("zh-Hant").notConfigured(settingsRules.validate(configured, "zh-Hant").errors.join(" ")),
       );
@@ -349,7 +349,7 @@ export function createAiTransport({
   async function assertConsentStillGiven(): Promise<void> {
     if (dataConsentGiven(settingsRules.normalize(await getSettings()), settingsRules)) return;
     const error: TransportError = withEnglish(
-      new Error(transportText().notConfigured(settingsRules.dataConsentError)),
+      new Error(transportText("zh").notConfigured(settingsRules.dataConsentError)),
       transportText("en").notConfigured(dataConsentErrorText("en")),
       transportText("zh-Hant").notConfigured(dataConsentErrorText("zh-Hant")),
     );

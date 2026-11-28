@@ -41,7 +41,7 @@ function setup(initial: FrameTarget = { tabId: 7, video: VIDEO }) {
       return () => listeners.splice(listeners.indexOf(entry), 1);
     },
   };
-  const store = createFrameStore({ api: api as never, target, enabled });
+  const store = createFrameStore({ api: api as never, target, enabled, lang: () => "zh" });
   return {
     store,
     target,

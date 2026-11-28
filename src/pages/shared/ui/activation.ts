@@ -18,7 +18,7 @@ export interface ActivationSection {
 const SECTIONS: readonly ActivationKind[] = ["read", "purpose", "store"];
 
 /** 按固定顺序分三节，节内保持原来的顺序；没有条目的一节不显示。 */
-export function activationSections(lines: readonly ActivationLine[], lang: UiLang = "zh"): ActivationSection[] {
+export function activationSections(lines: readonly ActivationLine[], lang: UiLang): ActivationSection[] {
   const headings = sharedTextOf(lang).activation.sections;
   return SECTIONS.map((kind) => ({
     kind,
@@ -36,7 +36,7 @@ export interface ActivationCopy {
 }
 
 /** updated：确认过旧版说明，这次只列新增的内容。 */
-export function activationCopy(updated: boolean, lang: UiLang = "zh"): ActivationCopy {
+export function activationCopy(updated: boolean, lang: UiLang): ActivationCopy {
   const t = sharedTextOf(lang).activation;
   return {
     title: updated ? t.titleUpdated : t.title,

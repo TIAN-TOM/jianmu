@@ -353,7 +353,7 @@ test("不是 SRT/VTT、或者读不出字幕：不存，说明原因", async () 
   assert.equal(wrongType.code, "UNSUPPORTED_FILE");
   const unreadable = failure(await h.service.importFile(REF, { name: "课程.srt", text: "这不是字幕" }));
   assert.equal(unreadable.code, "UNSUPPORTED_FILE");
-  assert.match(describe(unreadable.code, unreadable.detail), /SRT 和 VTT/);
+  assert.match(describe(unreadable.code, unreadable.detail, "zh"), /SRT 和 VTT/);
   const badVideo = failure(await h.service.importFile({ platform: "bilibili", videoId: "not-a-video" }, FILE));
   assert.equal(badVideo.code, "INVALID_REQUEST");
   assert.deepEqual(await h.importsDriver.getAll(), []);
@@ -369,7 +369,7 @@ test("缓存写不进去时导入算失败：存着的文件撤回，界面和�
   const h = harness({ seed: [cachedRow()], wrapDriver: faulty(faults) });
   const imported = failure(await h.service.importFile(REF, FILE));
   assert.equal(imported.code, "CACHE_WRITE_FAILED");
-  assert.match(describe(imported.code), /没有改/);
+  assert.match(describe(imported.code, undefined, "zh"), /没有改/);
   assert.deepEqual(await h.importsDriver.getAll(), [], "文件没留下");
   const result = view(await h.service.get(REF, { mode: "full" }));
   assert.equal(result.transcript.ref.kind, "human");

@@ -11,7 +11,7 @@ export interface ProbeStatus {
 }
 
 /** 探一次，交回给状态行看的一句话。 */
-export async function probeFrameImage(api: Pick<PageApi, "send">, failureText: (failure: Failure) => string, lang: UiLang = "zh"): Promise<ProbeStatus> {
+export async function probeFrameImage(api: Pick<PageApi, "send">, failureText: (failure: Failure) => string, lang: UiLang): Promise<ProbeStatus> {
   const t = frameText(lang);
   const reply = await api.send("ai.probeImage", {});
   if (!reply.ok) return { text: t.probeFailed(failureText(reply)), tone: "error" };

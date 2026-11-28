@@ -511,6 +511,7 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
       timers,
       ...(options.ports ? { ports: options.ports } : {}),
       log,
+      uiLanguage: () => "zh",
     }),
   };
 }

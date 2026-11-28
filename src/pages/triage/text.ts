@@ -1,4 +1,4 @@
-// 粗筛页取文案：组件渲染时用 triageText()，跟着界面语言重画；纯逻辑用 triageTextOf(lang)，语言由调用方传，缺省简体。
+// 粗筛页取文案：组件渲染时用 triageText()，跟着界面语言重画；纯逻辑用 triageTextOf(lang)，语言由调用方传。
 import { byLang, inLang, type UiLang } from "../shared/ui-lang.ts";
 import { TRIAGE_EN } from "./text-en.ts";
 import { TRIAGE_HANT } from "./text-hant.ts";
@@ -10,4 +10,4 @@ export type { TriageText } from "./text-zh.ts";
 export const triageText = (): TriageText => byLang(TRIAGE_ZH, TRIAGE_EN, TRIAGE_HANT);
 
 /** 指定语言那份文案，纯逻辑用。 */
-export const triageTextOf = (lang: UiLang = "zh"): TriageText => inLang(lang, TRIAGE_ZH, TRIAGE_EN, TRIAGE_HANT);
+export const triageTextOf = (lang: UiLang): TriageText => inLang(lang, TRIAGE_ZH, TRIAGE_EN, TRIAGE_HANT);

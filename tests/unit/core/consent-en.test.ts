@@ -36,7 +36,7 @@ test("每个条目都有英文措辞，并显示的条目也有英文的合成�
     const label = `${item.kind}:${item.id}`;
     assert.ok(item.en.trim(), `${label} 没有英文`);
     assert.doesNotMatch(item.en, CJK, `${label}：${item.en}`);
-    assert.equal(noticeText(item), item.text);
+    assert.equal(noticeText(item, "zh"), item.text);
     assert.equal(noticeText(item, "en"), item.en);
     if (!item.shownWith) continue;
     assert.ok(item.shownWith.combinedEn.trim(), `${label} 没有英文的合成措辞`);
@@ -47,7 +47,7 @@ test("每个条目都有英文措辞，并显示的条目也有英文的合成�
 test("排成行：不传语言和传中文一样，英文的行和中文的行一一对应", () => {
   for (const table of [DATA_CONSENT_TABLE, ACTIVATION_TABLE] as readonly NoticeTable<string>[]) {
     const items = itemsOf(table);
-    const zh = noticeLines(items);
+    const zh = noticeLines(items, "zh");
     assert.deepEqual(noticeLines(items, "zh"), zh);
     const en = noticeLines(items, "en");
     assert.deepEqual(en.map(({ kind, ids }) => ({ kind, ids })), zh.map(({ kind, ids }) => ({ kind, ids })));
@@ -70,7 +70,7 @@ test("加英文不动版本和指纹：指纹只算条目的类别和标识", ()
 });
 
 test("没同意数据说明的提示：中文那句仍是标识，英文另取", () => {
-  assert.equal(dataConsentErrorText(), DATA_CONSENT_ERROR);
+  assert.equal(dataConsentErrorText("zh"), DATA_CONSENT_ERROR);
   assert.equal(dataConsentErrorText("zh"), DATA_CONSENT_ERROR);
   assert.equal(dataConsentErrorText("en"), DATA_CONSENT_ERROR_EN);
   assert.doesNotMatch(DATA_CONSENT_ERROR_EN, CJK);
@@ -85,13 +85,13 @@ test("设置的校验提示：不传语言和原来一样是中文，英文每�
     { presetId: "custom", aiBaseUrl: "" },
   ];
   for (const settings of cases) {
-    const zh = validate(settings);
+    const zh = validate(settings, "zh");
     assert.deepEqual(validate(settings, "zh"), zh);
     const en = validate(settings, "en");
     assert.equal(en.ok, zh.ok);
     assert.equal(en.errors.length, zh.errors.length, JSON.stringify(settings));
     for (const error of en.errors) assert.doesNotMatch(error, CJK, error);
-    const save = validateForSave(settings);
+    const save = validateForSave(settings, "zh");
     assert.deepEqual(validateForSave(settings, "zh"), save);
     const saveEn = validateForSave(settings, "en");
     assert.equal(saveEn.ok, save.ok);
@@ -99,7 +99,7 @@ test("设置的校验提示：不传语言和原来一样是中文，英文每�
   }
   // 后台按中文那句认出只差同意：不传语言时那一句还是 DATA_CONSENT_ERROR。
   const onlyConsent = { presetId: "custom", aiBaseUrl: "https://example.test", aiApiKey: "k", aiModel: "m" };
-  assert.deepEqual(validate(onlyConsent).errors, [DATA_CONSENT_ERROR]);
+  assert.deepEqual(validate(onlyConsent, "zh").errors, [DATA_CONSENT_ERROR]);
   assert.deepEqual(validate(onlyConsent, "en").errors, [DATA_CONSENT_ERROR_EN]);
   assert.deepEqual(validate({ ...onlyConsent, ...DATA_CONSENT_CONFIRMED }, "en").errors, []);
 });

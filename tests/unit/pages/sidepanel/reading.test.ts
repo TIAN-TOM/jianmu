@@ -76,11 +76,11 @@ test("导出：文件名去掉系统不认的字符，空了用后备名字", ()
 });
 
 test("导入字幕文件之前：只收 .srt、.vtt，太大和空文件先拦下", () => {
-  assert.equal(fileProblem("a.SRT", 10), null);
-  assert.equal(fileProblem("a.vtt", 10), null);
-  assert.ok(fileProblem("a.ass", 10));
-  assert.ok(fileProblem("a.srt", 0));
-  assert.ok(fileProblem("a.srt", 3 * 1024 * 1024));
+  assert.equal(fileProblem("a.SRT", 10, "zh"), null);
+  assert.equal(fileProblem("a.vtt", 10, "zh"), null);
+  assert.ok(fileProblem("a.ass", 10, "zh"));
+  assert.ok(fileProblem("a.srt", 0, "zh"));
+  assert.ok(fileProblem("a.srt", 3 * 1024 * 1024, "zh"));
 });
 
 test("精读的当前章节：开始时间不晚于播放位置的最后一章；还没到第一章、没有章节或不知道位置时是 -1", () => {

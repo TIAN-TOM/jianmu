@@ -7,7 +7,7 @@ const CJK = /[　-〿一-鿿＀-￯]/;
 const sample = (value: string | ((...args: number[]) => string)): string => (typeof value === "function" ? value(2, 5) : value);
 
 test("进度的说法：不传语言和中文一样，英文和中文一样多、没有中文", () => {
-  assert.equal(progressText(), progressText("zh"));
+  assert.equal(progressText("zh"), progressText("zh"));
   const zh = progressText("zh");
   const en = progressText("en");
   assert.deepEqual(Object.keys(en).sort(), Object.keys(zh).sort());

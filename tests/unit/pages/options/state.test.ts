@@ -449,6 +449,7 @@ test("恢复备份：读文件的工夫就占着，这期间点导出、清除�
     },
     requestHost: async () => true,
     download: () => assert.fail("读文件时不该导出"),
+    lang: () => "zh",
   });
   let finishReading!: (text: string) => void;
   const reading = new Promise<string>((resolve) => (finishReading = resolve));
@@ -493,6 +494,7 @@ test("选好备份还在读文件时另一页删除了全部笔记，等文件�
     api,
     requestHost: async () => true,
     download: () => assert.fail(),
+    lang: () => "zh",
   });
   const reading = deferred();
   const importing = state.importBackup(async () => {

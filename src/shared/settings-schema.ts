@@ -262,7 +262,7 @@ export function normalizeUiFontScale(value: unknown): UiFontScale {
 
 /** 申请主机权限时用的来源，地址不合法时为 null。 */
 export function originOf(baseUrl: unknown): string | null {
-  const result = validateBaseUrl(baseUrl);
+  const result = validateBaseUrl(baseUrl, undefined, "zh");
   return result.ok ? result.origin : null;
 }
 
@@ -331,7 +331,7 @@ export function normalize(input: unknown = {}): NormalizedSettings {
   const preset = presetById(source.presetId) ?? DEFAULT_PRESET;
   const { protocol, aiBaseUrl } = resolveEndpoint(source);
   const model = stringOrEmpty(source.aiModel).trim() || preset.model;
-  const checked = validateBaseUrl(aiBaseUrl, protocol);
+  const checked = validateBaseUrl(aiBaseUrl, protocol, "zh");
   const apiKey = bindApiKey(source, checked);
   const featureModels = bindFeatureModels(source, preset.id, checked);
   return {
@@ -370,7 +370,7 @@ export function normalize(input: unknown = {}): NormalizedSettings {
 /** 设置页用：表单当前的服务商和地址对应的归属，地址不合法时为空串。 */
 export function featureModelsOwnerOf(settings: unknown): string {
   const normalized = normalize(settings);
-  return featureModelsOwner(normalized.presetId, validateBaseUrl(normalized.aiBaseUrl, normalized.protocol));
+  return featureModelsOwner(normalized.presetId, validateBaseUrl(normalized.aiBaseUrl, normalized.protocol, "zh"));
 }
 
 /** 某项功能实际要用的模型：设置了就用它，没设置或功能名认不出时用默认模型。 */
@@ -419,8 +419,8 @@ export interface SettingsCheck {
   readonly settings: NormalizedSettings;
 }
 
-/** 配置能不能保存。保存要按地址申请主机权限，所以地址必须合法；密钥和模型可以先空着，清空密钥再保存就是删除密钥。errors 按 lang 写，不传时是中文。 */
-export function validateForSave(settings: unknown, lang: OutputLang = "zh"): SettingsCheck {
+/** 配置能不能保存。保存要按地址申请主机权限，所以地址必须合法；密钥和模型可以先空着，清空密钥再保存就是删除密钥。errors 按 lang 写。 */
+export function validateForSave(settings: unknown, lang: OutputLang): SettingsCheck {
   const normalized = normalize(settings);
   const base = validateBaseUrl(normalized.aiBaseUrl, normalized.protocol, lang);
   return { ok: base.ok, errors: base.ok ? [] : [base.error], settings: normalized };
@@ -428,9 +428,9 @@ export function validateForSave(settings: unknown, lang: OutputLang = "zh"): Set
 
 /**
  * 配置是否足以发起一次 AI 请求。设置页和后台共用同一套判断。本机地址的服务通常不要密钥，可以不填。
- * errors 按 lang 写，不传时是中文；后台按中文的 DATA_CONSENT_ERROR 认出是同意的问题，要认的地方别传语言。
+ * errors 按 lang 写；后台按中文的 DATA_CONSENT_ERROR 认出是同意的问题，要认的地方传简体。
  */
-export function validate(settings: unknown, lang: OutputLang = "zh"): SettingsCheck {
+export function validate(settings: unknown, lang: OutputLang): SettingsCheck {
   const normalized = normalize(settings);
   const say = settingsCheckText(lang);
   const errors: string[] = [];

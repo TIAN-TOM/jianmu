@@ -8,8 +8,8 @@ export interface StateCopy {
   readonly next?: string;
 }
 
-/** 不传语言时是中文；组件渲染时传当前的界面语言。 */
-export function stateCopy(code: ErrorCode, detail?: string, lang: UiLang = "zh"): StateCopy {
+/** 组件渲染时传当前的界面语言。 */
+export function stateCopy(code: ErrorCode, detail: string | undefined, lang: UiLang): StateCopy {
   const { cause, impact, next } = errorCopy(code, detail, lang);
   return { title: cause, ...(impact ? { impact } : {}), ...(next ? { next } : {}) };
 }

@@ -16,13 +16,13 @@ import {
 const { OPENAI, RESPONSES, ANTHROPIC } = PROTOCOLS;
 
 const errorOf = (input: unknown, protocol?: Protocol): string => {
-  const check = validateBaseUrl(input, protocol);
+  const check = validateBaseUrl(input, protocol, "zh");
   assert.equal(check.ok, false, String(input));
   return check.ok ? "" : check.error;
 };
 
 const urlOf = (input: unknown, protocol?: Protocol): string => {
-  const check = validateBaseUrl(input, protocol);
+  const check = validateBaseUrl(input, protocol, "zh");
   assert.equal(check.ok, true, String(input));
   return check.ok ? check.url : "";
 };
@@ -58,7 +58,7 @@ test("地址只认 https，只有本机地址可以用 http", () => {
     assert.match(errorOf(url), /要以 https:\/\/ 开头/, url);
   }
   for (const url of ["http://localhost:8080/v1", "http://127.0.0.1:8080/v1"]) {
-    assert.equal(validateBaseUrl(url).ok, true, url);
+    assert.equal(validateBaseUrl(url, undefined, "zh").ok, true, url);
   }
 });
 
@@ -83,7 +83,7 @@ test("IPv6 字面量地址申请不到访问权限，直接拦下", () => {
 });
 
 test("通过校验时给出整理后的地址和权限来源", () => {
-  assert.deepEqual(validateBaseUrl("  https://gw.example.com:8443/v1/  "), {
+  assert.deepEqual(validateBaseUrl("  https://gw.example.com:8443/v1/  ", undefined, "zh"), {
     ok: true,
     url: "https://gw.example.com:8443/v1",
     origin: "https://gw.example.com:8443/",

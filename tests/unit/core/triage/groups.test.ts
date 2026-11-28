@@ -85,6 +85,7 @@ test("导出 Markdown：按判断分组，空组不写，链接、结论、理�
       exportedAt,
     },
     VIDEO_BASE,
+    "zh",
   );
   assert.equal(
     markdown,

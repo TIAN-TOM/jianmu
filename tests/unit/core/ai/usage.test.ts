@@ -130,7 +130,7 @@ test("传输层每收到一份回复交出一次用量：加码重发的那次�
   ];
   const seen: TokenUsage[] = [];
   const transport = transportWith(async () => replies.shift() ?? assert.fail("多发了一次"), (usage) => seen.push(usage));
-  const result = await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 64 });
+  const result = await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 64, lang: "zh" });
   assert.equal(result.text, "{\"a\":1}");
   assert.deepEqual(seen, [
     { input: 10, output: 100, reasoning: 90 },
@@ -141,14 +141,14 @@ test("传输层每收到一份回复交出一次用量：加码重发的那次�
 test("传输层：服务没回用量照样交出一份空的；请求被拒的不交；记用量出错不影响请求", async () => {
   const seen: TokenUsage[] = [];
   const quiet = transportWith(async () => reply({ choices: [{ message: { content: "好" }, finish_reason: "stop" }] }), (usage) => seen.push(usage));
-  await quiet.requestAiCompletion({ messages: MESSAGES, maxTokens: 64 });
+  await quiet.requestAiCompletion({ messages: MESSAGES, maxTokens: 64, lang: "zh" });
   assert.deepEqual(seen, [{}]);
 
   const denied = transportWith(
     async () => ({ ok: false, status: 401, text: async () => JSON.stringify({ error: { message: "密钥不对" } }) }),
     (usage) => seen.push(usage),
   );
-  await assert.rejects(denied.requestAiCompletion({ messages: MESSAGES, maxTokens: 64 }));
+  await assert.rejects(denied.requestAiCompletion({ messages: MESSAGES, maxTokens: 64, lang: "zh" }));
   assert.equal(seen.length, 1, "被拒的请求没有回复，不交用量");
 
   const broken = transportWith(
@@ -157,7 +157,7 @@ test("传输层：服务没回用量照样交出一份空的；请求被拒的�
       throw new Error("记不下");
     },
   );
-  assert.equal((await broken.requestAiCompletion({ messages: MESSAGES, maxTokens: 64 })).text, "照常");
+  assert.equal((await broken.requestAiCompletion({ messages: MESSAGES, maxTokens: 64, lang: "zh" })).text, "照常");
 });
 
 test("传输层交出的档位是这次实际按的：服务拒掉档位参数、去掉以后发成功的，记成由服务决定，不记成选的那档", async () => {
@@ -191,7 +191,7 @@ test("传输层交出的档位是这次实际按的：服务拒掉档位参数�
     onUsage: (usage, effort) => seen.push({ usage, effective: effort.effective, note: effort.note }),
   });
 
-  assert.equal((await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 64, effort: "high" })).text, "好");
+  assert.equal((await transport.requestAiCompletion({ messages: MESSAGES, maxTokens: 64, effort: "high", lang: "zh" })).text, "好");
   assert.equal(bodies.length, 2, "第一次带着档位被拒，去掉以后重发");
   assert.deepEqual(seen, [{ usage: { input: 20, output: 8, reasoning: 5 }, effective: "off", note: "unknown" }]);
 });
@@ -206,6 +206,6 @@ test("传输层：没有放宽过的，交出的就是按选的档位算出来�
     fetch: async () => reply({ choices: [{ message: { content: "好" }, finish_reason: "stop" }], usage: { prompt_tokens: 1, completion_tokens: 1 } }),
     onUsage: (_usage, effort) => seen.push([effort.effective, effort.note ?? null]),
   });
-  await deepseek.requestAiCompletion({ messages: MESSAGES, maxTokens: 64, effort: "high" });
+  await deepseek.requestAiCompletion({ messages: MESSAGES, maxTokens: 64, effort: "high", lang: "zh" });
   assert.deepEqual(seen, [["high", null]]);
 });

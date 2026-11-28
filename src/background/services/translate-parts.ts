@@ -26,7 +26,7 @@ export function tidiedOf(parsed: unknown, batch: readonly TranslationItem[], job
  * 译成设置的语言；字幕本身已经是这种语言时译成另一种。选简体或繁体时就是：中文字幕（不分简繁）译成英文，其他语言的字幕译成所选的中文；
  * 选英文时英文字幕译成简体中文。
  */
-export function targetOf(lang: string, outputLang: OutputLang = "zh"): OutputLang {
+export function targetOf(lang: string, outputLang: OutputLang): OutputLang {
   if (outputLang === "en") return isEnglishSubtitle(lang) ? "zh" : "en";
   return isChineseSubtitle(lang) ? "en" : outputLang;
 }

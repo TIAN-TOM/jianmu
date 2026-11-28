@@ -84,13 +84,13 @@ export interface AiWiringDeps {
   /** 默认是设置模块的那一份；超时、同意版本都按它来。 */
   readonly settingsRules?: TransportSettingsRules;
   readonly now?: () => number;
-  /** 浏览器的界面语言，语言设置是跟随浏览器时用。没给时按中文。 */
-  readonly uiLanguage?: () => string;
+  /** 浏览器的界面语言，语言设置是跟随浏览器时用。 */
+  readonly uiLanguage: () => string;
 }
 
-/** 服务发模型请求的入口：一个任务一份，按任务创建时取定的配置发。 */
+/** 服务发模型请求的入口：一个任务一份，按任务创建时取定的配置发；不给 lang 时用任务取定的语言。 */
 export interface TaskAi {
-  readonly requestAiCompletion: (request: Omit<CompletionRequest, "feature">) => Promise<CompletionResult>;
+  readonly requestAiCompletion: (request: Omit<CompletionRequest, "feature" | "lang"> & { readonly lang?: OutputLang }) => Promise<CompletionResult>;
 }
 
 export interface AiWiring {
@@ -194,7 +194,7 @@ function frozenSettings(current: LoadedSettings, frozen: FrozenGen): LoadedSetti
 
 export function createAiWiring(deps: AiWiringDeps): AiWiring {
   const { settings, storage, permissions, clearGuard, prompts, now } = deps;
-  const uiLanguage = deps.uiLanguage ?? ((): string => "zh");
+  const uiLanguage = deps.uiLanguage;
   const rules = deps.settingsRules ?? SETTINGS_RULES;
   const load = settings.load;
 
@@ -266,7 +266,7 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
   async function listModels(): Promise<Result<ModelListView>> {
     try {
       const current = await load();
-      const base = validateForSave(current);
+      const base = validateForSave(current, "zh");
       if (!base.ok) {
         const english = validateForSave(current, "en").errors.join(" ");
         const hant = validateForSave(current, "zh-Hant").errors.join(" ");
@@ -319,10 +319,10 @@ export function createAiWiring(deps: AiWiringDeps): AiWiring {
   return {
     async configCheck() {
       const settings = await load();
-      const { ok: ready, errors } = rules.validate(settings);
+      const { ok: ready, errors } = rules.validate(settings, "zh");
       if (ready) return { ready, errors: [...errors] };
       // 只缺密钥：补上一个密钥就够了，说明服务商、模型和同意都在，是以前配好过的。本机服务不要密钥，不会落到这里。
-      const missing = rules.validate({ ...settings, aiApiKey: "-" }).ok ? "key" : errors.length === 1 && errors[0] === rules.dataConsentError ? "consent" : null;
+      const missing = rules.validate({ ...settings, aiApiKey: "-" }, "zh").ok ? "key" : errors.length === 1 && errors[0] === rules.dataConsentError ? "consent" : null;
       return missing ? { ready, errors: [...errors], missing } : { ready, errors: [...errors] };
     },
     requestAiCompletion: (request) => transport.requestAiCompletion(request),

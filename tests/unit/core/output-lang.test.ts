@@ -173,7 +173,7 @@ test("备份里认不出的语言当没写，读的时候按中文；旧备份�
 test("结论截断：中文照旧按 200、120、120 字截；英文另给一组更宽的上限，不截成半句", () => {
   const long = (n: number) => "x".repeat(n);
   const raw = { summary: long(1000), value: long(1000), reason: long(1000), verdict: 3 };
-  const zh = validateVerdict(raw);
+  const zh = validateVerdict(raw, { lang: "zh" });
   assert.deepEqual([zh?.summary.length, zh?.value.length, zh?.reason.length], [200, 120, 120]);
   const en = validateVerdict(raw, { lang: "en" });
   assert.deepEqual([en?.summary.length, en?.value.length, en?.reason.length], [VERDICT_CLIP.en.summary, VERDICT_CLIP.en.value, VERDICT_CLIP.en.reason]);
@@ -194,7 +194,7 @@ test("翻译方向：译成设置的语言，字幕本身已经是这种语言�
   assert.equal(targetOf("ja", "en"), "en");
   assert.equal(targetOf("en", "en"), "zh");
   assert.equal(targetOf("ai-en", "en"), "zh");
-  assert.equal(targetOf("en-GB"), "zh", "不给语言时按中文");
+  assert.equal(targetOf("en-GB", "zh"), "zh", "不给语言时按中文");
 });
 
 test("问答的兜底回答按语言存；中文那句和以前一样", () => {

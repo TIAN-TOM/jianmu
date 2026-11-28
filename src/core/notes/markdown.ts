@@ -1,5 +1,5 @@
 // 笔记和学习稿的 Markdown 导出。视频链接由调用方给的函数按视频身份现生成。
-// 标题、小标题、来源说明这些固定文字按语言出，缺省中文；模型写的内容、平台来的内容和用户自己的笔记原样写。
+// 标题、小标题、来源说明这些固定文字按语言出；模型写的内容、平台来的内容和用户自己的笔记原样写。
 import { groupQuotesIntoChapters, type ChapterPart, type QuotePart } from "../ai/chunking.ts";
 import { keyChapterStarts, verdictText, type OfficialSummary } from "../ai/verdict.ts";
 import { inLang, type OutputLang } from "../output-lang.ts";
@@ -18,8 +18,8 @@ import {
 
 export interface NotesExportOptions {
   readonly grouped?: boolean;
-  /** 固定文字用哪种语言，缺省中文。 */
-  readonly lang?: OutputLang;
+  /** 固定文字用哪种语言。 */
+  readonly lang: OutputLang;
 }
 
 const MARKDOWN_ZH = {
@@ -78,10 +78,10 @@ const MARKDOWN_EN: MarkdownText = {
   fileLearning: "study notes",
 };
 
-const textOf = (lang: OutputLang | undefined): MarkdownText => inLang(lang ?? "zh", MARKDOWN_ZH, MARKDOWN_EN, MARKDOWN_HANT);
+const textOf = (lang: OutputLang): MarkdownText => inLang(lang, MARKDOWN_ZH, MARKDOWN_EN, MARKDOWN_HANT);
 
 /** 导出文件在视频没有标题时用的名字：笔记导出（notes）和学习稿（learning）各一个。 */
-export function markdownFallbackName(kind: "notes" | "learning", lang: OutputLang = "zh"): string {
+export function markdownFallbackName(kind: "notes" | "learning", lang: OutputLang): string {
   return kind === "notes" ? textOf(lang).fileNotes : textOf(lang).fileLearning;
 }
 
@@ -200,7 +200,7 @@ function formatGroup(notes: readonly NoteFields[], linkOf: VideoLinkOf, t: Markd
 export function notesAsMarkdown(
   notes: NoteList,
   linkOf: VideoLinkOf,
-  { grouped = false, lang = "zh" }: NotesExportOptions = {},
+  { grouped = false, lang }: NotesExportOptions,
 ): string {
   const t = textOf(lang);
   const list = noteList(notes);
@@ -330,7 +330,7 @@ export function learningAsMarkdown(
     notes,
   }: LearningInput = {},
   linkOf: VideoLinkOf,
-  lang: OutputLang = "zh",
+  lang: OutputLang,
 ): string {
   const t = textOf(lang);
   const chapters: readonly ChapterPart[] = Array.isArray(analysis?.chapters) ? analysis.chapters : [];

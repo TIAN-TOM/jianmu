@@ -22,7 +22,7 @@ type Payload = Record<string, unknown>;
 
 const SSE_FIELD = /^(?:(?:data|event|id|retry)[ \t]*:|:)/;
 const EVENT_STREAM_TYPE = /\btext\/event-stream\b/i;
-const STREAM_ERROR_MESSAGE = providerText().streamError;
+const STREAM_ERROR_MESSAGE = providerText("zh").streamError;
 
 /** 按响应类型或正文开头认事件流。正文是 JSON 就按 JSON，哪怕响应类型写的是事件流。 */
 export function looksLikeEventStream(contentType: string | null | undefined, head: string): boolean {

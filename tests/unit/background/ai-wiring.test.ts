@@ -45,7 +45,8 @@ const GATEWAY = { presetId: "custom", protocol: PROTOCOLS.OPENAI, aiBaseUrl: "ht
 const GATEWAY_ORIGIN = "https://api.example.com/";
 const GRANTED = [DEEPSEEK_ORIGIN, ANTHROPIC_ORIGIN, GATEWAY_ORIGIN, "https://gateway.example.com/", "https://api.openai.com/"];
 
-const EXPLAIN: CompletionRequest = {
+// 不带语言的那份给任务入口用：任务入口按冻结的语言补。
+const EXPLAIN_UNLABELLED = {
   feature: "explain",
   messages: [
     { role: "system", content: "解释选中的词" },
@@ -54,6 +55,7 @@ const EXPLAIN: CompletionRequest = {
   maxTokens: 512,
   temperature: 0.3,
 };
+const EXPLAIN: CompletionRequest = { ...EXPLAIN_UNLABELLED, lang: "zh" };
 
 interface Setup {
   readonly local?: Record<string, unknown>;
@@ -77,6 +79,7 @@ function setup({ local = {}, session = {}, granted = GRANTED, handler, wiring = 
     fetch: service.fetch,
     clearGuard,
     prompts: {},
+    uiLanguage: () => "zh",
     ...wiring,
   });
   const ask = (type: string, sender = senders.panel(), req: unknown = {}) => app.dispatch({ type, req }, sender);
@@ -421,10 +424,10 @@ const frozenFor = (model: string, baseUrl = "https://api.example.com/v1"): Froze
 test("任务按创建时取定的模型发：跑到一半改了按功能选的模型，这个任务照旧", async () => {
   const { ai, service, fake } = featureSetup({ qa: "m-qa" });
   const task = ai.forTask(frozenFor("m-qa"));
-  await task.requestAiCompletion(EXPLAIN);
+  await task.requestAiCompletion(EXPLAIN_UNLABELLED);
 
   (fake.local.data[SETTINGS_STORAGE_KEY] as Record<string, unknown>)["featureModels"] = { qa: "m-qa-new" };
-  await task.requestAiCompletion(EXPLAIN);
+  await task.requestAiCompletion(EXPLAIN_UNLABELLED);
   await ai.requestAiCompletion({ ...EXPLAIN, feature: "qa" });
   assert.deepEqual(modelsOf(service), ["m-qa", "m-qa", "m-qa-new"], "新的请求才用新选的模型");
 });
@@ -432,13 +435,13 @@ test("任务按创建时取定的模型发：跑到一半改了按功能选的�
 test("任务创建后换了服务地址：按密钥错误收尾，不把密钥发到新地址", async () => {
   const { ai, service, fake } = setup({ ...keyedStorage(DEEPSEEK, DEEPSEEK_ORIGIN), handler: () => chatReply("好") });
   const task = ai.forTask(frozenFor("deepseek-v4-flash", "https://api.deepseek.com"));
-  await task.requestAiCompletion(EXPLAIN);
+  await task.requestAiCompletion(EXPLAIN_UNLABELLED);
   assert.equal(service.sent.length, 1);
 
   // 换成自定义地址，密钥也换成新地址的那把。
   fake.local.data[SETTINGS_STORAGE_KEY] = { ...(fake.local.data[SETTINGS_STORAGE_KEY] as object), ...GATEWAY };
   fake.session.data[API_KEY_SESSION_KEY] = { key: "sk-gateway", origin: GATEWAY_ORIGIN };
-  await rejectsWith(task.requestAiCompletion(EXPLAIN), "NO_AI_CONFIG");
+  await rejectsWith(task.requestAiCompletion(EXPLAIN_UNLABELLED), "NO_AI_CONFIG");
   assert.equal(service.sent.length, 1, "一个请求都没发到新地址");
 });
 
@@ -450,7 +453,7 @@ test("任务创建后换成了不要密钥的本机地址：照样按配置错�
     handler: () => chatReply("不该发出"),
   });
   const task = ai.forTask(frozenFor("deepseek-v4-flash", "https://api.deepseek.com"));
-  await rejectsWith(task.requestAiCompletion(EXPLAIN), "NO_AI_CONFIG");
+  await rejectsWith(task.requestAiCompletion(EXPLAIN_UNLABELLED), "NO_AI_CONFIG");
   assert.deepEqual(service.sent, []);
 });
 
@@ -514,7 +517,7 @@ test("建任务时的档位和请求实际用的一致：缓存没有时和发�
   });
   const frozen = await ai.freeze("qa");
   assert.deepEqual([frozen.effort, frozen.requestedEffort], ["low", "medium"], "按拉到的能力：没有中档，退到低档");
-  await ai.forTask(frozen).requestAiCompletion(EXPLAIN);
+  await ai.forTask(frozen).requestAiCompletion(EXPLAIN_UNLABELLED);
   assert.equal(service.sent.filter((request) => isModelList(request.url)).length, 1, "能力只拉一次，请求直接用缓存");
   assert.deepEqual(service.posts()[0]?.body?.output_config, { effort: "low" }, "请求按记下的档位发");
 });
@@ -528,12 +531,12 @@ test("建任务时没有这个地址的主机权限：不去拉模型能力，�
 test("任务按冻结的档位发：请求带上档位和给思考留的余量；跑到一半把档位改成关，这个任务照旧", async () => {
   const { ai, service, fake } = setup({ ...keyedStorage(withEfforts(DEEPSEEK, { qa: "high" }), DEEPSEEK_ORIGIN), handler: () => chatReply("好"), ...ALL_PROMPTS });
   const task = ai.forTask(await ai.freeze("qa"));
-  await task.requestAiCompletion(EXPLAIN);
+  await task.requestAiCompletion(EXPLAIN_UNLABELLED);
 
   (fake.local.data[SETTINGS_STORAGE_KEY] as Record<string, unknown>)["featureEfforts"] = { qa: "off" };
-  await task.requestAiCompletion(EXPLAIN);
+  await task.requestAiCompletion(EXPLAIN_UNLABELLED);
   const fresh = ai.forTask(await ai.freeze("qa"));
-  await fresh.requestAiCompletion(EXPLAIN);
+  await fresh.requestAiCompletion(EXPLAIN_UNLABELLED);
 
   const bodies = service.posts().map((request) => request.body);
   assert.deepEqual(
@@ -550,14 +553,14 @@ test("关不掉思考时任务按用户选的关发：按最低档发，按低�
     handler: ({ url }) => (isModelList(url) ? reply({ data: [] }) : anthropicReply("好")),
     ...ALL_PROMPTS,
   });
-  await opus.ai.forTask(await opus.ai.freeze("qa")).requestAiCompletion(EXPLAIN);
+  await opus.ai.forTask(await opus.ai.freeze("qa")).requestAiCompletion(EXPLAIN_UNLABELLED);
   const body = opus.service.posts()[0]?.body;
   assert.equal(body?.max_tokens, 512 + 2048, "关不掉思考，选关也按低档留余量");
   assert.equal(body && "thinking" in body, false);
   assert.deepEqual(body?.output_config, { effort: "low" });
 
   const deepseek = setup({ ...keyedStorage(withEfforts(DEEPSEEK, { qa: "medium" }), DEEPSEEK_ORIGIN), handler: () => chatReply("好"), ...ALL_PROMPTS });
-  await deepseek.ai.forTask(await deepseek.ai.freeze("qa")).requestAiCompletion(EXPLAIN);
+  await deepseek.ai.forTask(await deepseek.ai.freeze("qa")).requestAiCompletion(EXPLAIN_UNLABELLED);
   const fallback = deepseek.service.posts()[0]?.body;
   assert.deepEqual([fallback?.reasoning_effort, fallback?.max_tokens], ["low", 512 + 2048]);
 });
@@ -576,7 +579,7 @@ test("任务的硬超时跟着冻结的档位：中档 180 秒、高档 300 秒�
     const { ai, service } = setup({ ...keyedStorage(DEEPSEEK, DEEPSEEK_ORIGIN), handler: hangUntilAborted });
     const task = ai.forTask({ ...frozenFor("deepseek-flash", "https://api.deepseek.com"), ...efforts });
     let settled: TransportError | "resolved" | undefined;
-    void task.requestAiCompletion(EXPLAIN).then(
+    void task.requestAiCompletion(EXPLAIN_UNLABELLED).then(
       () => (settled = "resolved"),
       (error: TransportError) => (settled = error),
     );
@@ -739,7 +742,7 @@ test("任务里的请求没写语言时按冻结的语言写：英文任务被�
   const { ai } = setup({ ...keyedStorage(DEEPSEEK, DEEPSEEK_ORIGIN), handler: () => (++sends === 1 ? limited : chatReply("done")) });
   const notices: string[] = [];
   const frozen: FrozenGen = { ...frozenFor("deepseek-v4-flash", "https://api.deepseek.com"), outputLang: "en" };
-  const { text } = await ai.forTask(frozen).requestAiCompletion({ ...EXPLAIN, onRetry: ({ message }) => notices.push(message) });
+  const { text } = await ai.forTask(frozen).requestAiCompletion({ ...EXPLAIN_UNLABELLED, onRetry: ({ message }) => notices.push(message) });
   assert.equal(text, "done");
   assert.equal(notices.length, 1);
   const [notice = ""] = notices;

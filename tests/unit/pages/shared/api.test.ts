@@ -41,7 +41,7 @@ function codeOf(reply: { readonly ok: boolean; readonly code?: ErrorCode }): Err
 
 /** 状态块上三段合起来的文字。 */
 function blockText(code: ErrorCode): string {
-  const { title, impact = "", next = "" } = stateCopy(code);
+  const { title, impact = "", next = "" } = stateCopy(code, undefined, "zh");
   return title + impact + next;
 }
 
@@ -140,14 +140,14 @@ test("后台始终不可达时，不再把它伪装成字幕失败", async () =>
   assert.deepEqual(reply, { ok: false, code: "BACKGROUND_UNREACHABLE" }, "浏览器的原文也不夹在结果里");
   const code = codeOf(reply);
   assert.equal(Object.hasOwn(TRANSCRIPT_ERROR_TEXT, code), false, "不是字幕那一类的码，页面不会摆登录、导入这些按钮");
-  const { title, impact = "" } = stateCopy(code);
+  const { title, impact = "" } = stateCopy(code, undefined, "zh");
   assert.match(title, /^简幕的后台没有响应/);
   assert.match(impact, /和视频网站的账号、模型服务的密钥和网络都无关/, "用户会照着提示去折腾密钥和网络，先把这条路堵死");
   assertUnreachableText(blockText(code));
 });
 
 test("后台无响应时先建议停用再启用；提到重装时先说怎么备份", () => {
-  const text = describeError("BACKGROUND_UNREACHABLE");
+  const text = describeError("BACKGROUND_UNREACHABLE", undefined, "zh");
   assert.match(text, /关掉再打开/);
   assert.match(text, /不会删掉笔记和概览/);
   const backupAt = text.indexOf("导出备份");
@@ -181,7 +181,7 @@ test("侧边栏：取字幕一直断线时，错误页写中文标题和说明",
   assert.equal(fake.attempts("transcript.get"), 2);
   assert.deepEqual(reply, { ok: false, code: "BACKGROUND_DROPPED" }, "浏览器的原文也不夹在结果里");
   const code = codeOf(reply);
-  assert.match(stateCopy(code).title, /^简幕的后台处理到一半断开了/);
+  assert.match(stateCopy(code, undefined, "zh").title, /^简幕的后台处理到一半断开了/);
   assertDroppedText(blockText(code));
 });
 
@@ -194,7 +194,7 @@ test("侧边栏：问答时断线，提示条写中文说明", async () => {
     fake.reply(type, throwing(BROWSER_ERRORS.channelClosed));
     const code = codeOf(await api.send(type, {} as never));
     assert.equal(fake.attempts(type), 1, type);
-    assertDroppedText(describeError(code));
+    assertDroppedText(describeError(code, undefined, "zh"));
   }
 });
 
@@ -212,13 +212,13 @@ test("卡片：生成概览时断线，状态行写中文说明，可能已经�
   fake.reply("task.start", throwing(BROWSER_ERRORS.channelClosed));
   const code = codeOf(await startOverview(api));
   assert.equal(fake.attempts("task.start"), 1);
-  assertDroppedText(describeError(code));
+  assertDroppedText(describeError(code, undefined, "zh"));
 });
 
 test("卡片：后台一直够不着时，说没发出去，不显示英文原文", async () => {
   const { fake, api } = client();
   fake.reply("task.start", throwing(BROWSER_ERRORS.unreachable));
-  const text = describeError(codeOf(await startOverview(api)));
+  const text = describeError(codeOf(await startOverview(api)), undefined, "zh");
   assert.match(text, /请求没发出去/);
   assert.doesNotMatch(text, /Receiving end/);
 });

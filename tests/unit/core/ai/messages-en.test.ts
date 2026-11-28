@@ -47,7 +47,7 @@ const failureOf = (pending: Promise<unknown>): Promise<TransportError> =>
 
 /** 不传语言和传中文一样，英文那份没有中文、码不变。 */
 function checkBoth(error: unknown, label: string): TRANSPORT.AiErrorResponse {
-  const zh = TRANSPORT.aiErrorResponse(error);
+  const zh = TRANSPORT.aiErrorResponse(error, "zh");
   assert.deepEqual(TRANSPORT.aiErrorResponse(error, "zh"), zh, label);
   const en = TRANSPORT.aiErrorResponse(error, "en");
   assert.equal(en.error, zh.error, label);
@@ -94,7 +94,7 @@ test("空响应的诊断：英文说明挂在不可枚举的 messageEn 上，可
 
 test("API 地址的校验：不传语言是中文，英文每一种都有", () => {
   for (const input of ["", "not a url", "http://example.com", "https://[::1]/v1"]) {
-    const zh = validateBaseUrl(input);
+    const zh = validateBaseUrl(input, undefined, "zh");
     const en = validateBaseUrl(input, PROTOCOLS.OPENAI, "en");
     assert.equal(zh.ok, false);
     assert.equal(en.ok, false);
@@ -102,7 +102,7 @@ test("API 地址的校验：不传语言是中文，英文每一种都有", () =
     assert.match(zh.error, CJK, input);
     assert.doesNotMatch(en.error, CJK, `${input}：${en.error}`);
   }
-  assert.deepEqual(validateBaseUrl("https://api.example.com/v1/chat/completions", PROTOCOLS.OPENAI, "en"), validateBaseUrl("https://api.example.com/v1/chat/completions"));
+  assert.deepEqual(validateBaseUrl("https://api.example.com/v1/chat/completions", PROTOCOLS.OPENAI, "en"), validateBaseUrl("https://api.example.com/v1/chat/completions", undefined, "zh"));
 });
 
 test("按状态码归类的回执：英文按同一个码写，不传语言和原来一样", () => {
@@ -140,26 +140,26 @@ test("简幕自己写的说明：重定向、工作区密钥、地址拼不出�
 });
 
 test("传输层：配置没好、连不上、拒答、模型没写内容，回执按语言挑；限流后重发的进度按请求的语言", async () => {
-  const notConfigured = await failureOf(makeTransport(async () => reply(200, {}), { aiApiKey: "" }).requestAiCompletion({ messages: [], maxTokens: 10 }));
+  const notConfigured = await failureOf(makeTransport(async () => reply(200, {}), { aiApiKey: "" }).requestAiCompletion({ messages: [], maxTokens: 10, lang: "zh" }));
   assert.equal(notConfigured.code, "NO_AI_CONFIG");
   assert.match(checkBoth(notConfigured, "配置").message, /^The AI service isn't set up yet: Enter your API key/);
 
-  const unreachable = await failureOf(makeTransport(async () => { throw new TypeError("fetch failed"); }).requestAiCompletion({ messages: [], maxTokens: 10 }));
+  const unreachable = await failureOf(makeTransport(async () => { throw new TypeError("fetch failed"); }).requestAiCompletion({ messages: [], maxTokens: 10, lang: "zh" }));
   assert.equal(unreachable.code, "AI_NETWORK_ERROR");
   assert.match(checkBoth(unreachable, "连不上").message, /^Couldn't reach https:\/\/api\.example\.com\/v1\./);
 
-  const refused = await failureOf(makeTransport(async () => reply(200, { choices: [{ finish_reason: "content_filter", message: { content: "", refusal: "no thanks" } }] })).requestAiCompletion({ messages: [], maxTokens: 10 }));
+  const refused = await failureOf(makeTransport(async () => reply(200, { choices: [{ finish_reason: "content_filter", message: { content: "", refusal: "no thanks" } }] })).requestAiCompletion({ messages: [], maxTokens: 10, lang: "zh" }));
   if (refused.code === "AI_REFUSED") assert.equal(checkBoth(refused, "拒答").message, "The model refused this request: no thanks");
 
-  const empty = await failureOf(makeTransport(async () => reply(200, { choices: [{ message: { content: "" } }] })).requestAiCompletion({ messages: [], maxTokens: 10, selfRetry: false }));
+  const empty = await failureOf(makeTransport(async () => reply(200, { choices: [{ message: { content: "" } }] })).requestAiCompletion({ messages: [], maxTokens: 10, selfRetry: false, lang: "zh" }));
   assert.equal(empty.code, "EMPTY_AI_RESPONSE");
   assert.equal(checkBoth(empty, "空响应").message, "The model returned nothing. Try again.");
 
-  for (const lang of ["zh", "en", undefined] as const) {
+  for (const lang of ["zh", "en"] as const) {
     const notices: RetryNotice[] = [];
     let calls = 0;
     const transport = makeTransport(async () => (++calls === 1 ? reply(503, { error: { message: "overloaded" } }) : reply(200, { choices: [{ message: { content: "ok" } }] })));
-    await transport.requestAiCompletion({ messages: [], maxTokens: 10, onRetry: (notice) => notices.push(notice), ...(lang ? { lang } : {}) });
+    await transport.requestAiCompletion({ messages: [], maxTokens: 10, onRetry: (notice) => notices.push(notice), lang });
     assert.equal(notices.length, 1);
     if (lang === "en") assert.match(notices[0]?.message ?? "", /^The service is busy\. Retrying in \d+ s…$/);
     else assert.match(notices[0]?.message ?? "", /^服务繁忙，\d+ 秒后重试…$/);

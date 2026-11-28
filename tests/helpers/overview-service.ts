@@ -15,7 +15,7 @@ import { ok, type ErrorCode, type Failure, type Result } from "../../src/core/er
 import type { ClearEpoch } from "../../src/core/clear-guard.ts";
 import type { OverviewRecord } from "../../src/core/notes/records.ts";
 import type { FrozenGen, TaskKind, TaskOrigin, TaskView } from "../../src/core/tasks.ts";
-import type { OutputLang } from "../../src/core/output-lang.ts";
+import { outputLangOf, type OutputLang } from "../../src/core/output-lang.ts";
 import type { TranscriptSegment } from "../../src/core/transcript/segment.ts";
 import { videoKey, type VideoKey, type VideoRef } from "../../src/core/video-ref.ts";
 import { createKeepAlive, type KeepAlive } from "../../src/platform/keepalive.ts";
@@ -271,7 +271,7 @@ export function overviewHarness(options: OverviewHarnessOptions = {}): OverviewH
 
   const keepAlive = options.keepAlive ?? createKeepAlive({ ping: () => {}, now: timers.now, setTimeout: timers.setTimeout, clearTimeout: timers.clearTimeout });
   const tasks = createTaskRunner({
-    ai: { forTask: (frozen) => ({ requestAiCompletion: (request) => complete({ ...request, feature: frozen.feature }) }) },
+    ai: { forTask: (frozen) => ({ requestAiCompletion: (request) => complete({ lang: outputLangOf(frozen), ...request, feature: frozen.feature }) }) },
     keepAlive,
     timers,
     broadcast: (message) => void broadcasts.push(message),

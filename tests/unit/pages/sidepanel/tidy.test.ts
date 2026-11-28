@@ -36,7 +36,7 @@ function fakeApi(send: (type: string, req: TranscriptModeRequest) => Promise<{ o
 
 test("打开就取本机存着的整理结果：只取存着的，不显示进度，取完不留说明", () => {
   const fake = fakeApi();
-  const tidy = createTidy({ api: fake.api });
+  const tidy = createTidy({ api: fake.api, lang: () => "zh" });
   tidy.bind(VIDEO, "fp1");
   assert.deepEqual(fake.posted, [{ type: "translate.start", video: VIDEO, storedOnly: true, purpose: "tidy" }]);
   fake.emit({ type: "translate.segments", fingerprint: "fp1", translated: { s0: "大家好。" }, stored: true });
@@ -49,7 +49,7 @@ test("打开就取本机存着的整理结果：只取存着的，不显示进�
 
 test("点「整理字幕」：带 purpose 从播放位置往后先做，显示进度；能停止；换字幕版本清空", () => {
   const fake = fakeApi();
-  const tidy = createTidy({ api: fake.api });
+  const tidy = createTidy({ api: fake.api, lang: () => "zh" });
   tidy.bind(VIDEO, "fp1");
   fake.emit({ type: "translate.done", state: "completed", totalBatches: 0, failedBatches: 0 });
   tidy.start(42.7);
@@ -68,7 +68,7 @@ test("点「整理字幕」：带 purpose 从播放位置往后先做，显示�
 
 test("翻译不带 purpose，仍然基于原文；打开视频先只取存着的、接上后台在跑的，再按切换发起；都带上视频所在的标签页", () => {
   const fake = fakeApi();
-  const translation = createTranslation({ api: fake.api });
+  const translation = createTranslation({ api: fake.api, lang: () => "zh" });
   translation.bind(VIDEO, "fp1", 3);
   assert.deepEqual(fake.posted, [{ type: "translate.start", video: VIDEO, storedOnly: true, tabId: 3 }]);
   fake.emit({ type: "translate.done", state: "completed", totalBatches: 0, failedBatches: 0 });
@@ -78,7 +78,7 @@ test("翻译不带 purpose，仍然基于原文；打开视频先只取存着的
 
 test("打开视频时后台还在跑：接上它，显示进度；做完以后照常收尾", () => {
   const fake = fakeApi();
-  const tidy = createTidy({ api: fake.api });
+  const tidy = createTidy({ api: fake.api, lang: () => "zh" });
   tidy.bind(VIDEO, "fp1", 3);
   fake.emit({ type: "translate.started", task: {} as never, joined: true, transcript: {} as never, target: "tidy", pending: 10 });
   fake.emit({ type: "translate.segments", fingerprint: "fp1", translated: { s0: "一。" } });
@@ -104,7 +104,7 @@ test("显示：整理后的替换原文，双语时译文照旧在下面；切�
 
 test("同一个视频开在两个标签页里，切过去以后发起的算现在这个标签页的", () => {
   const fake = fakeApi();
-  const tidy = createTidy({ api: fake.api });
+  const tidy = createTidy({ api: fake.api, lang: () => "zh" });
   tidy.bind(VIDEO, "fp1", 3);
   fake.emit({ type: "translate.done", state: "completed", totalBatches: 0, failedBatches: 0 });
   tidy.bind(VIDEO, "fp1", 9);
@@ -115,7 +115,7 @@ test("同一个视频开在两个标签页里，切过去以后发起的算现�
 
 test("打开视频时只取存着的那一下还没回来，用户就切到了双语：取完以后接着发起翻译，不会被吞掉", () => {
   const fake = fakeApi();
-  const translation = createTranslation({ api: fake.api });
+  const translation = createTranslation({ api: fake.api, lang: () => "zh" });
   translation.bind(VIDEO, "fp1", 3);
   translation.setMode("bilingual", 42);
   assert.equal(fake.posted.length, 1, "还在取，先记下");
@@ -127,7 +127,7 @@ test("打开视频时只取存着的那一下还没回来，用户就切到了�
 
 test("只取存着的那一下碰上后台在跑：接上了，期间点的开始不用再发", () => {
   const fake = fakeApi();
-  const translation = createTranslation({ api: fake.api });
+  const translation = createTranslation({ api: fake.api, lang: () => "zh" });
   translation.bind(VIDEO, "fp1", 3);
   translation.setMode("translated", 0);
   fake.emit({ type: "translate.started", task: {} as never, joined: true, transcript: {} as never, target: "en", pending: 5 });
@@ -137,7 +137,7 @@ test("只取存着的那一下碰上后台在跑：接上了，期间点的开�
 
 test("恢复译文只取已经存好的，缺的段落仍显示原文；主动再选译文才开始翻译", async () => {
   const fake = fakeApi(async () => ({ ok: true, value: { mode: "translated" } }));
-  const translation = createTranslation({ api: fake.api });
+  const translation = createTranslation({ api: fake.api, lang: () => "zh" });
   translation.bind(VIDEO, "fp1");
   fake.emit({ type: "translate.segments", fingerprint: "fp1", translated: { s0: "Moonlight" }, stored: true });
   fake.emit({ type: "translate.done", state: "completed", totalBatches: 0, failedBatches: 0 });
@@ -163,7 +163,7 @@ test("旧视频和主动改选前的恢复回复都不能覆盖当前选择", as
     await (req.video === VIDEO ? old : current).promise;
     return { ok: true, value: { mode: "translated" } };
   });
-  const translation = createTranslation({ api: fake.api });
+  const translation = createTranslation({ api: fake.api, lang: () => "zh" });
   translation.bind(VIDEO, "one");
   translation.bind(other, "two");
   old.resolve();

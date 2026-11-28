@@ -14,7 +14,7 @@ export function bandOf(rating: VerdictRating | ""): "go" | "fair" | "skip" | "un
 export type BasisSource = Basis["source"];
 
 /** 依据行：结论按实际依据标注。 */
-export function basisText(source: BasisSource, lang: UiLang = "zh"): string {
+export function basisText(source: BasisSource, lang: UiLang): string {
   return sharedTextOf(lang).verdict.basis[source];
 }
 

@@ -40,6 +40,7 @@ function setup(handler: ServiceHandler) {
     fetch: service.fetch,
     clearGuard,
     prompts: PROMPTS,
+    uiLanguage: () => "zh",
   });
   const preview = async () => {
     const answer = (await app.dispatch({ type: "ai.effortPreview", req: {} }, senders.options())) as {
@@ -175,22 +176,22 @@ test("几项功能的用量差不多同时回来：排队写，哪一项都不�
 
 test("设置页那一行：报了几项写几项，思考没单独报照实说，服务一项都没报时说没回报；扩展设不了档位时写由服务决定；换过模型带上那次的模型名", () => {
   const item = (usage: object, model = "m") => ({ model: "m", lastUsage: { model, effort: "high" as const, usage } });
-  assert.equal(usageText(item({ input: 12345, output: 2345, reasoning: 1800 })), "最近一次（高）：输入 12,345 · 输出 2,345 · 思考 1,800");
-  assert.equal(usageText(item({ input: 30, output: 7 })), "最近一次（高）：输入 30 · 输出 7 · 思考没单独报");
-  assert.equal(usageText(item({ input: 30, output: 7, reasoning: 0 })), "最近一次（高）：输入 30 · 输出 7 · 思考 0");
-  assert.equal(usageText(item({})), "最近一次（高）：服务没回报用量");
-  assert.equal(usageText(item({ input: 1, output: 1 }, "old-model")), "最近一次（高，old-model）：输入 1 · 输出 1 · 思考没单独报");
-  assert.equal(usageText({ model: "m", lastUsage: { model: "m", effort: "off", note: "unknown", usage: { input: 5, output: 2 } } }), "最近一次（由服务决定）：输入 5 · 输出 2 · 思考没单独报");
-  assert.equal(usageText({ model: "m" }), null);
+  assert.equal(usageText(item({ input: 12345, output: 2345, reasoning: 1800 }), "zh"), "最近一次（高）：输入 12,345 · 输出 2,345 · 思考 1,800");
+  assert.equal(usageText(item({ input: 30, output: 7 }), "zh"), "最近一次（高）：输入 30 · 输出 7 · 思考没单独报");
+  assert.equal(usageText(item({ input: 30, output: 7, reasoning: 0 }), "zh"), "最近一次（高）：输入 30 · 输出 7 · 思考 0");
+  assert.equal(usageText(item({}), "zh"), "最近一次（高）：服务没回报用量");
+  assert.equal(usageText(item({ input: 1, output: 1 }, "old-model"), "zh"), "最近一次（高，old-model）：输入 1 · 输出 1 · 思考没单独报");
+  assert.equal(usageText({ model: "m", lastUsage: { model: "m", effort: "off", note: "unknown", usage: { input: 5, output: 2 } } }, "zh"), "最近一次（由服务决定）：输入 5 · 输出 2 · 思考没单独报");
+  assert.equal(usageText({ model: "m" }, "zh"), null);
 });
 
 test("设置页那一行：服务报的合计比输入加输出多时在最后写上，不替它算成思考；一样多或更少时不写", () => {
   const item = (usage: object) => ({ model: "m", lastUsage: { model: "m", effort: "high" as const, usage } });
-  assert.equal(usageText(item({ input: 1000, output: 200, total: 1900 })), "最近一次（高）：输入 1,000 · 输出 200 · 思考没单独报 · 合计 1,900");
-  assert.equal(usageText(item({ input: 1000, output: 200, reasoning: 700, total: 1900 })), "最近一次（高）：输入 1,000 · 输出 200 · 思考 700 · 合计 1,900");
-  assert.equal(usageText(item({ input: 1000, output: 200, total: 1200 })), "最近一次（高）：输入 1,000 · 输出 200 · 思考没单独报");
-  assert.equal(usageText(item({ input: 1000, output: 200, total: 900 })), "最近一次（高）：输入 1,000 · 输出 200 · 思考没单独报");
+  assert.equal(usageText(item({ input: 1000, output: 200, total: 1900 }), "zh"), "最近一次（高）：输入 1,000 · 输出 200 · 思考没单独报 · 合计 1,900");
+  assert.equal(usageText(item({ input: 1000, output: 200, reasoning: 700, total: 1900 }), "zh"), "最近一次（高）：输入 1,000 · 输出 200 · 思考 700 · 合计 1,900");
+  assert.equal(usageText(item({ input: 1000, output: 200, total: 1200 }), "zh"), "最近一次（高）：输入 1,000 · 输出 200 · 思考没单独报");
+  assert.equal(usageText(item({ input: 1000, output: 200, total: 900 }), "zh"), "最近一次（高）：输入 1,000 · 输出 200 · 思考没单独报");
   // 输入或输出有一项没报时没法比，合计照样写出来；只报了合计也不算「没回报用量」。
-  assert.equal(usageText(item({ output: 200, total: 1900 })), "最近一次（高）：输出 200 · 思考没单独报 · 合计 1,900");
-  assert.equal(usageText(item({ total: 1900 })), "最近一次（高）：思考没单独报 · 合计 1,900");
+  assert.equal(usageText(item({ output: 200, total: 1900 }), "zh"), "最近一次（高）：输出 200 · 思考没单独报 · 合计 1,900");
+  assert.equal(usageText(item({ total: 1900 }), "zh"), "最近一次（高）：思考没单独报 · 合计 1,900");
 });

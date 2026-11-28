@@ -39,7 +39,7 @@ const deps = { videoUrl: () => "", videoBase: () => "", download() {} };
 
 test("打开时别的页面正在取官方总结：发同一步的开始接上它，进度和收尾这一页都收得到", async () => {
   const fake = fakeApi({ list: { fetchedAt: 1, count: 0, items: [] }, official: {}, verdicts: {}, running: "official" });
-  const state = createTriageState({ api: fake.api as never, ...deps });
+  const state = createTriageState({ api: fake.api as never, ...deps, lang: () => "zh" });
   await state.load();
   assert.deepEqual(fake.posted, [{ type: "triage.start", step: "official" }]);
   fake.emit({ type: "triage.started", step: "official", total: 3, skipped: 0, joined: true });
@@ -51,14 +51,14 @@ test("打开时别的页面正在取官方总结：发同一步的开始接上�
 
 test("打开时没有在跑的一步：不连端口、不发消息", async () => {
   const fake = fakeApi({ list: null, official: {}, verdicts: {}, running: null });
-  const state = createTriageState({ api: fake.api as never, ...deps });
+  const state = createTriageState({ api: fake.api as never, ...deps, lang: () => "zh" });
   await state.load();
   assert.deepEqual(fake.posted, []);
 });
 
 test("这一页读完列表直接摆出第一步的确认，照样先写数量；读列表失败不弹", async () => {
   const fake = fakeApi({ list: null, official: {}, verdicts: {}, running: null });
-  const state = createTriageState({ api: fake.api as never, ...deps });
+  const state = createTriageState({ api: fake.api as never, ...deps, lang: () => "zh" });
   await state.load();
   state.readList();
   assert.deepEqual(fake.posted, [{ type: "triage.start", step: "list" }]);
@@ -75,12 +75,12 @@ test("这一页读完列表直接摆出第一步的确认，照样先写数量�
 
 test("重新打开页面时本机已有列表不弹确认；接上别的页面读的列表读完也不弹", async () => {
   const fake = fakeApi(LISTED);
-  const state = createTriageState({ api: fake.api as never, ...deps });
+  const state = createTriageState({ api: fake.api as never, ...deps, lang: () => "zh" });
   await state.load();
   assert.equal(state.pending.value, null);
 
   const joining = fakeApi({ ...LISTED, list: null, running: "list" });
-  const joined = createTriageState({ api: joining.api as never, ...deps });
+  const joined = createTriageState({ api: joining.api as never, ...deps, lang: () => "zh" });
   await joined.load();
   joining.emit({ type: "triage.started", step: "list", total: 0, skipped: 0, joined: true });
   joining.emit({ type: "triage.done", step: "list", done: 2, total: 2, state: LISTED });
@@ -88,28 +88,28 @@ test("重新打开页面时本机已有列表不弹确认；接上别的页面�
 });
 
 test("第二步没有可写结论的视频时说为什么：还没取到官方总结、都已经写过；有可写的或正在写时不说", async () => {
-  const noOfficial = createTriageState({ api: fakeApi(LISTED).api as never, ...deps });
+  const noOfficial = createTriageState({ api: fakeApi(LISTED).api as never, ...deps, lang: () => "zh" });
   await noOfficial.load();
   assert.equal(noOfficial.verdictIdle.value, "no-official");
 
   const withOfficial = { ...LISTED, official: { [KEYS[0] as string]: OFFICIAL } } as TriageSnapshot;
-  const ready = createTriageState({ api: fakeApi(withOfficial).api as never, ...deps });
+  const ready = createTriageState({ api: fakeApi(withOfficial).api as never, ...deps, lang: () => "zh" });
   await ready.load();
   assert.equal(ready.verdictIdle.value, null);
 
   const written = { ...withOfficial, verdicts: { [KEYS[0] as string]: { summary: "样例结论" } } } as TriageSnapshot;
-  const done = createTriageState({ api: fakeApi(written).api as never, ...deps });
+  const done = createTriageState({ api: fakeApi(written).api as never, ...deps, lang: () => "zh" });
   await done.load();
   assert.equal(done.verdictIdle.value, "all-written");
 
   const running = fakeApi({ ...written, running: "verdict" });
-  const busy = createTriageState({ api: running.api as never, ...deps });
+  const busy = createTriageState({ api: running.api as never, ...deps, lang: () => "zh" });
   await busy.load();
   assert.equal(busy.verdictIdle.value, null);
 
   // 第一步取完了，可每个视频都没有官方总结：不再叫人「先做第一步」，说明写不了、可以去视频页生成概览。
   const fetchedNone = { ...LISTED, official: Object.fromEntries(KEYS.map((key) => [key, { status: "none" }])) } as TriageSnapshot;
-  const none = createTriageState({ api: fakeApi(fetchedNone).api as never, ...deps });
+  const none = createTriageState({ api: fakeApi(fetchedNone).api as never, ...deps, lang: () => "zh" });
   await none.load();
   assert.equal(none.verdictIdle.value, "none-available");
   await none.askVerdicts();
@@ -119,7 +119,7 @@ test("第二步没有可写结论的视频时说为什么：还没取到官方�
 test("AI 服务没设置好时第二步不弹确认，状态行带「打开设置」；打开设置时带上 AI 服务那一节", async () => {
   const withOfficial = { ...LISTED, official: { [KEYS[0] as string]: OFFICIAL } } as TriageSnapshot;
   const fake = fakeApi(withOfficial, { "config.check": { ok: true, value: { ready: false } }, "options.open": { ok: true, value: {} } });
-  const state = createTriageState({ api: fake.api as never, ...deps });
+  const state = createTriageState({ api: fake.api as never, ...deps, lang: () => "zh" });
   await state.load();
   await state.askVerdicts();
   assert.equal(state.pending.value, null);
@@ -136,7 +136,7 @@ test("设置好 AI 服务回来再点「开始写结论」：上次「还没设�
   const withOfficial = { ...LISTED, official: { [KEYS[0] as string]: OFFICIAL } } as TriageSnapshot;
   let ready = false;
   const fake = fakeApi(withOfficial, { "config.check": () => ({ ok: true, value: { ready } }) });
-  const state = createTriageState({ api: fake.api as never, ...deps });
+  const state = createTriageState({ api: fake.api as never, ...deps, lang: () => "zh" });
   await state.load();
   await state.askVerdicts();
   assert.equal(state.verdictStatus.value?.settings, true);

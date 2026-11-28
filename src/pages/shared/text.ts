@@ -1,4 +1,4 @@
-// 共用组件取文案：组件渲染时用 sharedText()，跟着界面语言重画；纯逻辑用 sharedTextOf(lang)，语言由调用方传，缺省简体。
+// 共用组件取文案：组件渲染时用 sharedText()，跟着界面语言重画；纯逻辑用 sharedTextOf(lang)，语言由调用方传。
 import { byLang, inLang, type UiLang } from "./ui-lang.ts";
 import { SHARED_EN } from "./text-en.ts";
 import { SHARED_HANT } from "./text-hant.ts";
@@ -10,4 +10,4 @@ export type { SharedText } from "./text-zh.ts";
 export const sharedText = (): SharedText => byLang(SHARED_ZH, SHARED_EN, SHARED_HANT);
 
 /** 指定语言那份文案，纯逻辑用。 */
-export const sharedTextOf = (lang: UiLang = "zh"): SharedText => inLang(lang, SHARED_ZH, SHARED_EN, SHARED_HANT);
+export const sharedTextOf = (lang: UiLang): SharedText => inLang(lang, SHARED_ZH, SHARED_EN, SHARED_HANT);

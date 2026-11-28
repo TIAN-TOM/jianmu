@@ -126,7 +126,7 @@ const fieldsOf = (value: unknown): Readonly<Record<string, unknown>> =>
   typeof value === "object" && value !== null ? { ...value } : {};
 
 function settingsError(code: SettingsErrorCode, cause?: unknown): SettingsError {
-  return Object.assign(new Error(describe(code), { cause }), { code });
+  return Object.assign(new Error(describe(code, undefined, "zh"), { cause }), { code });
 }
 
 const remembers = ({ stored }: Snapshot): boolean => fieldsOf(stored)["rememberApiKey"] === true;

@@ -31,18 +31,18 @@ test("结论输入把章节和金句压成一行一条", () => {
 test("模型直接给一到五颗星，没有 summary 就当没生成", () => {
   for (const stars of [1, 2, 3, 4, 5]) {
     for (const raw of [stars, String(stars), ` ${stars}\n`]) {
-      assert.deepEqual(validateVerdict({ summary: " 讲了 A ", value: "B", verdict: raw, reason: "C" }),
+      assert.deepEqual(validateVerdict({ summary: " 讲了 A ", value: "B", verdict: raw, reason: "C" }, { lang: "zh" }),
         { summary: "讲了 A", value: "B", verdict: stars, reason: "C" });
     }
   }
   const incomplete = { summary: "讲了 A", value: "B", reason: "C" };
   for (const invalid of [0, 6, 3.5, -1, "0", "6", "3.5", "03", "+3", "3e0", "4星", "4 stars", "四星", "推荐看", "还行", null, true, [4], {}, undefined]) {
-    assert.deepEqual(validateVerdict({ ...incomplete, verdict: invalid }),
+    assert.deepEqual(validateVerdict({ ...incomplete, verdict: invalid }, { lang: "zh" }),
       { summary: "讲了 A", value: "B", reason: "", verdict: "" }, String(invalid));
   }
-  assert.equal(validateVerdict({ verdict: 1 }), null);
-  assert.equal(validateVerdict(null), null);
-  assert.equal(validateVerdict({ summary: "字".repeat(500) })?.summary.length, 200);
+  assert.equal(validateVerdict({ verdict: 1 }, { lang: "zh" }), null);
+  assert.equal(validateVerdict(null, { lang: "zh" }), null);
+  assert.equal(validateVerdict({ summary: "字".repeat(500) }, { lang: "zh" })?.summary.length, 200);
 });
 
 test("结论输入带上覆盖情况：完整时说明覆盖全片，缺块时逐段列出缺失时段", () => {
@@ -90,12 +90,12 @@ test("只有结论、没有章节和金句的概览不算有内容；官方总�
 });
 
 test("结论可明确标为「信息不足」，概览缺块时标成不完整", () => {
-  const unsure = validateVerdict({ summary: "讲了前半", verdict: "信息不足", reason: "后半缺失" }, { incomplete: true });
+  const unsure = validateVerdict({ summary: "讲了前半", verdict: "信息不足", reason: "后半缺失" }, { incomplete: true, lang: "zh" });
   assert.equal(unsure?.verdict, "信息不足");
   assert.equal(unsure?.reason, "后半缺失");
   assert.equal(unsure?.incomplete, true);
   assert.equal(
-    validateVerdict({ summary: "讲了 A", verdict: 1 })?.incomplete,
+    validateVerdict({ summary: "讲了 A", verdict: 1 }, { lang: "zh" })?.incomplete,
     undefined,
     "完整概览的结论不带不完整标记",
   );
@@ -146,7 +146,7 @@ test("结论的价值和理由超过 120 字截断", () => {
     value: "值".repeat(121),
     verdict: 1,
     reason: "因".repeat(121),
-  });
+  }, { lang: "zh" });
   assert.equal(verdict?.verdict, 1);
   assert.equal(verdict?.value.length, 120);
   assert.equal(verdict?.reason.length, 120);
@@ -177,12 +177,12 @@ test("重点章节：精确对上现有章节才留，去重，最多三个，�
 
 test("结论带重点章节：只在给了章节时收，坏了只丢重点、结论照存", () => {
   const raw = { summary: "讲了 A", value: "B", verdict: 3, reason: "C", keyChapters: ["2:30", "8:00"] };
-  assert.deepEqual(validateVerdict(raw, { chapterStarts: [0, 150] })?.keyStarts, [150]);
-  assert.equal("keyStarts" in (validateVerdict(raw) ?? {}), false, "没给章节时不收");
-  const broken = validateVerdict({ ...raw, keyChapters: "全部" }, { chapterStarts: [0, 150] });
+  assert.deepEqual(validateVerdict(raw, { chapterStarts: [0, 150], lang: "zh" })?.keyStarts, [150]);
+  assert.equal("keyStarts" in (validateVerdict(raw, { lang: "zh" }) ?? {}), false, "没给章节时不收");
+  const broken = validateVerdict({ ...raw, keyChapters: "全部" }, { chapterStarts: [0, 150], lang: "zh" });
   assert.equal(broken?.summary, "讲了 A");
   assert.equal(broken && "keyStarts" in broken, false, "一个都没有时不写这个字段");
-  assert.equal(validateVerdict({ keyChapters: ["0:00"] }, { chapterStarts: [0] }), null, "重点救不了没有结论的输出");
+  assert.equal(validateVerdict({ keyChapters: ["0:00"] }, { chapterStarts: [0], lang: "zh" }), null, "重点救不了没有结论的输出");
 });
 
 test("交给页面的重点再和当前章节核对：章节换过以后对不上的不标", () => {
@@ -199,8 +199,8 @@ test("读旧结论时把旧档位换算成星，保留理由和存储里的旧�
   ] as const) {
     const stored = Object.freeze({ summary: "讲了 A", value: "B", verdict: label, reason: "旧理由" });
     assert.equal(verdictLabelOf(label), stars);
-    assert.deepEqual(validateVerdict(stored, { stored: true }), { ...stored, verdict: stars });
-    assert.deepEqual(validateVerdict(stored), { ...stored, verdict: "", reason: "" });
+    assert.deepEqual(validateVerdict(stored, { stored: true, lang: "zh" }), { ...stored, verdict: stars });
+    assert.deepEqual(validateVerdict(stored, { lang: "zh" }), { ...stored, verdict: "", reason: "" });
   }
   for (const stars of VERDICT_STARS) assert.equal(verdictLabelOf(stars), stars);
   for (const odd of ["3", " 3 ", "还行", "", "constructor", "__proto__", null, 0, 6, 3.5]) {
@@ -226,12 +226,12 @@ test("标题译名：去掉首尾空白；没有、不是字符串、空的、�
 test("结论带标题译名：合格的写进 translatedTitle，不合格的只丢译名，结论其余部分照存", () => {
   const raw = { summary: "讲了 A", value: "B", verdict: 3, reason: "C", keyChapters: [] };
   const title = "一周计划怎么做";
-  assert.equal(validateVerdict({ ...raw, translatedTitle: "How to Plan a Week" }, { title })?.translatedTitle, "How to Plan a Week");
+  assert.equal(validateVerdict({ ...raw, translatedTitle: "How to Plan a Week" }, { title, lang: "zh" })?.translatedTitle, "How to Plan a Week");
   for (const bad of [undefined, "", title, "x".repeat(TRANSLATED_TITLE_MAX + 1), ["How"]]) {
-    const verdict = validateVerdict({ ...raw, translatedTitle: bad }, { title });
+    const verdict = validateVerdict({ ...raw, translatedTitle: bad }, { title, lang: "zh" });
     assert.deepEqual(verdict, { summary: "讲了 A", value: "B", verdict: 3, reason: "C" }, String(bad));
   }
-  assert.equal(validateVerdict({ ...raw, translatedTitle: "How to Plan a Week" }, { title: "" })?.translatedTitle, undefined, "没有原标题时不收");
-  assert.equal(validateVerdict({ ...raw, translatedTitle: "How to Plan a Week" }, { stored: true })?.translatedTitle, "How to Plan a Week", "存着的照读");
-  assert.equal(validateVerdict({ translatedTitle: "How to Plan a Week" }, { title }), null, "译名救不了没有结论的输出");
+  assert.equal(validateVerdict({ ...raw, translatedTitle: "How to Plan a Week" }, { title: "", lang: "zh" })?.translatedTitle, undefined, "没有原标题时不收");
+  assert.equal(validateVerdict({ ...raw, translatedTitle: "How to Plan a Week" }, { stored: true, lang: "zh" })?.translatedTitle, "How to Plan a Week", "存着的照读");
+  assert.equal(validateVerdict({ translatedTitle: "How to Plan a Week" }, { title, lang: "zh" }), null, "译名救不了没有结论的输出");
 });

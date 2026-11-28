@@ -1,5 +1,5 @@
 // 错误码汇总和统一的结果形状。各领域的码和三段文案在 errors/ 下各一份，这里拼成一张表；漏写文案编译就报错。
-// 文案简体、英文、繁体各一张，繁体的在 errors/ 下以 -hant.ts 结尾的模块里；取文案的函数最后一个参数是语言，不传时是简体。
+// 文案简体、英文、繁体各一张，繁体的在 errors/ 下以 -hant.ts 结尾的模块里；取文案的函数最后一个参数是语言，必须传。
 import { AI_ERROR_TEXT, AI_ERROR_TEXT_EN, type AiErrorCode } from "./errors/ai.ts";
 import { AI_ERROR_TEXT_HANT } from "./errors/ai-hant.ts";
 import { BACKUP_ERROR_TEXT_HANT } from "./errors/backup-hant.ts";
@@ -148,16 +148,16 @@ const DETAIL_TEXT: DetailText = { ...SITE_DETAIL_TEXT, ...TRANSCRIPT_DETAIL_TEXT
 const DETAIL_TEXT_EN: DetailText = { ...SITE_DETAIL_TEXT_EN, ...TRANSCRIPT_DETAIL_TEXT_EN };
 const DETAIL_TEXT_HANT: DetailText = { ...SITE_DETAIL_TEXT_HANT, ...TRANSCRIPT_DETAIL_TEXT_HANT };
 
-/** 给用户看的三段：原因、影响、下一步。有的码按 detail 换说法，认不出的 detail 用码本身的说法。不传语言时是简体。 */
-export function errorCopy(code: ErrorCode, detail?: string, lang: OutputLang = "zh"): ErrorCopy {
+/** 给用户看的三段：原因、影响、下一步。有的码按 detail 换说法，认不出的 detail 用码本身的说法。 */
+export function errorCopy(code: ErrorCode, detail: string | undefined, lang: OutputLang): ErrorCopy {
   const text = inLang(lang, TEXT, TEXT_EN, TEXT_HANT);
   const byDetail = inLang(lang, DETAIL_TEXT, DETAIL_TEXT_EN, DETAIL_TEXT_HANT)[code];
   if (detail !== undefined && byDetail && Object.hasOwn(byDetail, detail)) return byDetail[detail] ?? text[code];
   return text[code];
 }
 
-/** 三段拼成的一段话，给只放得下一段文字的地方。英文的句子之间隔一个空格，简体、繁体直接连写。不传语言时是简体。 */
-export function describe(code: ErrorCode, detail?: string, lang: OutputLang = "zh"): string {
+/** 三段拼成的一段话，给只放得下一段文字的地方。英文的句子之间隔一个空格，简体、繁体直接连写。 */
+export function describe(code: ErrorCode, detail: string | undefined, lang: OutputLang): string {
   const { cause, impact = "", next = "" } = errorCopy(code, detail, lang);
   return isChineseLang(lang) ? cause + impact + next : [cause, impact, next].filter(Boolean).join(" ");
 }

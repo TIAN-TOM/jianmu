@@ -24,6 +24,7 @@ import {
   officialVerdictInputs,
   validateVerdict,
   verdictInputs,
+  type VerdictCheck,
 } from "../../../../src/core/ai/verdict.ts";
 import { noteContextAt } from "../../../../src/core/transcript/note-context.ts";
 
@@ -62,11 +63,13 @@ const REPLAY: Readonly<Record<string, (...args: never[]) => unknown>> = {
   officialVerdictInputs,
   hasAnalysisContent,
   hasOfficialSummaryContent,
-  validateVerdict,
+  // 样本里的选项不写语言，按简体重放。
+  validateVerdict: (parsed: unknown, options?: Partial<VerdictCheck>) => validateVerdict(parsed, { lang: "zh", ...options }),
   noteContextAt,
   planTranslationBatches,
   looksLikeTranslation,
-  alignTranslatedSegments,
+  alignTranslatedSegments: (parsed: unknown, segments: Parameters<typeof alignTranslatedSegments>[1], options?: { readonly targetLang?: string }) =>
+    alignTranslatedSegments(parsed, segments, { targetLang: "zh", ...options }),
 };
 
 // 样本把 JSON 表达不了的值编码成带 $ 的标记，这里互逆地读写。

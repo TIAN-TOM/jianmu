@@ -160,7 +160,7 @@ export function translateHarness(view: TranscriptView, options: TranslateHarness
     guard,
     timers,
     ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
-    ...(options.outputLang ? { outputLang: fake.ai.outputLang } : {}),
+    outputLang: fake.ai.outputLang,
     log,
   };
   const service = createTranslateService(deps);

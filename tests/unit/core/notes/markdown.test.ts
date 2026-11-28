@@ -13,7 +13,7 @@ const KEY_A = videoKey({ platform: "bilibili", videoId: ID_A });
 const KEY_B = videoKey({ platform: "bilibili", videoId: ID_B, segment: 2 });
 const KEY_YOUTUBE = videoKey({ platform: "youtube", videoId: "sample_id" });
 
-const learning = (input?: LearningInput): string => learningAsMarkdown(input, LINK_OF);
+const learning = (input?: LearningInput): string => learningAsMarkdown(input, LINK_OF, "zh");
 
 const note = (extra: Partial<NoteRecord>): NoteRecord => ({
   id: "note_x",
@@ -58,12 +58,12 @@ const NOTE_C = note({
 });
 
 test("空笔记列表导出为空字符串", () => {
-  assert.equal(notesAsMarkdown([], LINK_OF), "");
-  assert.equal(notesAsMarkdown(null, LINK_OF, { grouped: true }), "");
+  assert.equal(notesAsMarkdown([], LINK_OF, { lang: "zh" }), "");
+  assert.equal(notesAsMarkdown(null, LINK_OF, { grouped: true, lang: "zh" }), "");
 });
 
 test("单视频导出按时间戳升序，且不含 AI 草稿", () => {
-  const markdown = notesAsMarkdown([NOTE_A, NOTE_B], LINK_OF);
+  const markdown = notesAsMarkdown([NOTE_A, NOTE_B], LINK_OF, { lang: "zh" });
   assert.equal(
     markdown,
     [
@@ -82,7 +82,7 @@ test("单视频导出按时间戳升序，且不含 AI 草稿", () => {
 });
 
 test("全部分组时组内升序、组之间按最新笔记倒序", () => {
-  const markdown = notesAsMarkdown([NOTE_A, NOTE_B, NOTE_C], LINK_OF, { grouped: true });
+  const markdown = notesAsMarkdown([NOTE_A, NOTE_B, NOTE_C], LINK_OF, { grouped: true, lang: "zh" });
   assert.equal(
     markdown,
     [
@@ -474,7 +474,7 @@ test("学习稿和笔记导出：笔记正文、视频标题和 UP 主都转义"
     atSec: 5,
     text: `笔记 ${LINK}\n第二行 ${HTML}`,
   });
-  const exported = notesAsMarkdown([unsafe], LINK_OF);
+  const exported = notesAsMarkdown([unsafe], LINK_OF, { lang: "zh" });
   assertNoRawMarkup(exported);
   assert.ok(exported.startsWith(`# 标题 ${ESCAPED_HTML}\n`), exported);
   assert.ok(exported.includes(`UP ${ESCAPED_LINK}`), exported);
@@ -492,6 +492,7 @@ test("没有特殊字符的文字原样输出", () => {
   const exported = notesAsMarkdown(
     [note({ snapshot: { title: "普通标题", author: "" }, atSec: 65, text: "普通的一句话。" })],
     LINK_OF,
+    { lang: "zh" },
   );
   assert.ok(exported.includes(`- [1:05](${VIDEO_BASE}${ID_A}?t=65) 普通的一句话。`), exported);
   assert.ok(exported.startsWith("# 普通标题\n"));
@@ -525,6 +526,7 @@ test("链接由调用方给的函数按视频身份生成，秒数取整、负�
   const exported = notesAsMarkdown(
     [note({ video: KEY_YOUTUBE, atSec: 65.8, text: "一句" }), note({ video: KEY_YOUTUBE, atSec: -3, text: "开头" })],
     linkOf,
+    { lang: "zh" },
   );
   assert.equal(
     exported,
@@ -533,7 +535,7 @@ test("链接由调用方给的函数按视频身份生成，秒数取整、负�
   assert.deepEqual(asked, ["youtube:sample_id:@0", "youtube:sample_id:@0", "youtube:sample_id:@65"]);
 
   asked.length = 0;
-  assert.equal(notesAsMarkdown([note({ video: KEY_B, atSec: 5, text: "一句" })], linkOf), `# ${ID_B}\n\nP2\n\n- 0:05 一句\n`);
+  assert.equal(notesAsMarkdown([note({ video: KEY_B, atSec: 5, text: "一句" })], linkOf, { lang: "zh" }), `# ${ID_B}\n\nP2\n\n- 0:05 一句\n`);
   assert.deepEqual(asked, [`bilibili:${ID_B}:2@0`, `bilibili:${ID_B}:2@5`]);
 });
 
@@ -548,7 +550,7 @@ test("学习稿文件头的日期按本机时区写，不按世界标准时间",
 test("笔记的时间点缺失时按 0:00 排在最前，夹着的坏记录跳过", () => {
   const list: (NoteFields | null)[] = [note({ atSec: 5, text: "后" }), null, { video: KEY_A, text: "前" }];
   assert.equal(
-    notesAsMarkdown(list, LINK_OF),
+    notesAsMarkdown(list, LINK_OF, { lang: "zh" }),
     [`# ${ID_A}`, "", `${VIDEO_BASE}${ID_A}`, "", `- [0:00](${VIDEO_BASE}${ID_A}) 前`, `- [0:05](${VIDEO_BASE}${ID_A}?t=5) 后`, ""].join("\n"),
   );
 });

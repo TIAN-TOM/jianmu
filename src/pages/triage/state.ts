@@ -35,7 +35,7 @@ function idleReason(list: readonly TriageItem[], official: TriageSnapshot["offic
 }
 
 /** 第二步没有可写的视频时说的那句。 */
-export function idleText(idle: VerdictIdle, lang: UiLang = "zh"): string {
+export function idleText(idle: VerdictIdle, lang: UiLang): string {
   const t = triageTextOf(lang);
   return idle === "all-written" ? t.allWritten : idle === "none-available" ? t.noneAvailable : t.noneToWrite;
 }
@@ -56,8 +56,8 @@ export interface TriageDeps {
   readonly videoBase: (videoKey: string) => string;
   readonly download: (filename: string, text: string) => void;
   readonly now?: () => number;
-  /** 界面语言：状态行和确认的几行按写出来那一刻的语言写，导出的清单和文件名也按它。不给时是中文。 */
-  readonly lang?: () => UiLang;
+  /** 界面语言：状态行和确认的几行按写出来那一刻的语言写，导出的清单和文件名也按它。 */
+  readonly lang: () => UiLang;
 }
 
 export interface TriageState {
@@ -103,7 +103,7 @@ export interface ItemError {
 }
 
 /** 官方总结没取成的原因：被限流单说一句，别的照错误码的说明。 */
-export function officialRecordText(record: OfficialRecord | undefined, item: TriageItem, lang: UiLang = "zh"): string {
+export function officialRecordText(record: OfficialRecord | undefined, item: TriageItem, lang: UiLang): string {
   const t = triageTextOf(lang).record;
   if (item.available === false) return t.unavailable;
   if (!record) return t.notFetched;
@@ -124,7 +124,7 @@ export function officialRecordText(record: OfficialRecord | undefined, item: Tri
 }
 
 /** 第一步取完以后的分类计数。 */
-export function officialCounts(items: readonly TriageItem[], official: Readonly<Record<string, OfficialRecord | undefined>>, lang: UiLang = "zh"): string {
+export function officialCounts(items: readonly TriageItem[], official: Readonly<Record<string, OfficialRecord | undefined>>, lang: UiLang): string {
   const t = triageTextOf(lang).counts;
   let ok = 0;
   let none = 0;
@@ -145,7 +145,7 @@ export function officialCounts(items: readonly TriageItem[], official: Readonly<
   return t.join(parts);
 }
 
-export function listSummary(snapshot: TriageSnapshot, lang: UiLang = "zh"): string {
+export function listSummary(snapshot: TriageSnapshot, lang: UiLang): string {
   const t = triageTextOf(lang).summary;
   const list = snapshot.list;
   if (!list) return "";
@@ -177,7 +177,7 @@ function stopText(stop: TriageStop | undefined, done: number, total: number, aga
 export function createTriageState(deps: TriageDeps): TriageState {
   const { api } = deps;
   const now = deps.now ?? Date.now;
-  const lang = (): UiLang => deps.lang?.() ?? "zh";
+  const lang = (): UiLang => deps.lang();
   const t = () => triageTextOf(lang());
   const failureText = (failure: BatchFailure): string => describe(failure.code, undefined, lang());
   const snapshot = signal<TriageSnapshot | null>(null);

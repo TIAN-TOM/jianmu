@@ -37,6 +37,7 @@ test("导出：概览写的结论注明来源，没有理由时不写空行", ()
       exportedAt: 0,
     },
     VIDEO_BASE,
+    "zh",
   );
   assert.match(markdown, /## ★☆☆☆☆ 可跳过（1）/);
   assert.match(markdown, /结论：讲了 可跳过（基于概览）\n$/);
@@ -44,25 +45,25 @@ test("导出：概览写的结论注明来源，没有理由时不写空行", ()
 });
 
 test("没有标题时用视频编号，键认不出时原样用键", () => {
-  const titled = toMarkdown({ items: [item({ title: "" })], exportedAt: 0 }, VIDEO_BASE);
+  const titled = toMarkdown({ items: [item({ title: "" })], exportedAt: 0 }, VIDEO_BASE, "zh");
   assert.ok(titled.includes(`[BV1Sample000](${VIDEO_BASE}BV1Sample000)`));
-  const odd = toMarkdown({ items: [item({ videoKey: "认不出" as VideoKey, title: "" })], exportedAt: 0 }, VIDEO_BASE);
+  const odd = toMarkdown({ items: [item({ videoKey: "认不出" as VideoKey, title: "" })], exportedAt: 0 }, VIDEO_BASE, "zh");
   assert.ok(odd.includes(`[认不出](${VIDEO_BASE}认不出)`));
 });
 
 test("时长、观看进度和官方总结状态的文字", () => {
   assert.equal(formatDuration(59), "0:59");
   assert.equal(formatDuration(3725), "1:02:05");
-  assert.equal(progressText(item({ progress: 150, duration: 600 })), "看到 2:30（25%）");
-  assert.equal(progressText(item({ progress: 150, pageCount: 3 })), "看到 2:30");
-  assert.equal(progressText(item({ finished: true })), "已看完");
-  assert.equal(progressText(item()), "还没看");
+  assert.equal(progressText(item({ progress: 150, duration: 600 }), "zh"), "看到 2:30（25%）");
+  assert.equal(progressText(item({ progress: 150, pageCount: 3 }), "zh"), "看到 2:30");
+  assert.equal(progressText(item({ finished: true }), "zh"), "已看完");
+  assert.equal(progressText(item(), "zh"), "还没看");
 
-  assert.equal(officialStatusText(undefined), "还没取官方总结");
-  assert.equal(officialStatusText({ status: "queued" }), "B站现在没有这个视频的官方总结");
-  assert.equal(officialStatusText({ status: "failed", reason: "TIMEOUT" }), "请求失败，再点开始会重试（TIMEOUT）");
-  assert.equal(officialStatusText({ status: "ok", summary: "" }), "没有官方总结");
-  assert.equal(officialStatusText({ status: "weird" }), "请求失败，再点开始会重试");
+  assert.equal(officialStatusText(undefined, undefined, "zh"), "还没取官方总结");
+  assert.equal(officialStatusText({ status: "queued" }, undefined, "zh"), "B站现在没有这个视频的官方总结");
+  assert.equal(officialStatusText({ status: "failed", reason: "TIMEOUT" }, undefined, "zh"), "请求失败，再点开始会重试（TIMEOUT）");
+  assert.equal(officialStatusText({ status: "ok", summary: "" }, undefined, "zh"), "没有官方总结");
+  assert.equal(officialStatusText({ status: "weird" }, undefined, "zh"), "请求失败，再点开始会重试");
 });
 
 test("导出：旧版的「看概览就够」归入二星，两种推荐看的旧名字都归入五星", () => {
@@ -78,6 +79,7 @@ test("导出：旧版的「看概览就够」归入二星，两种推荐看的�
       exportedAt: 0,
     },
     VIDEO_BASE,
+    "zh",
   );
   const headings = [...markdown.matchAll(/^## (.+)$/gm)].map((match) => match[1]);
   assert.deepEqual(headings, ["★★★★★ 推荐看（2）", "★★☆☆☆ 可略过（1）"]);

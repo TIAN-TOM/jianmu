@@ -188,7 +188,7 @@ function truncatedRangesOf(value: unknown): TimeRange[] {
 export type CheckedAnalysis = LearningAnalysis & { readonly truncatedRanges?: readonly TimeRange[] };
 
 /** lang 是结论的语言，按结论那部分记下的生成配置；不知道时按简体截。 */
-function checkAnalysis(value: Fields, lang: OutputLang = "zh"): CheckedAnalysis {
+function checkAnalysis(value: Fields, lang: OutputLang): CheckedAnalysis {
   const { chapters, keyQuotes } = validateAnalysis(value, undefined);
   const verdict = checkVerdict(value.verdict, chapters.map((chapter) => chapter.timestampSeconds), lang);
   const truncatedRanges = truncatedRangesOf(value.truncatedRanges);
@@ -248,7 +248,7 @@ export function overviewRecord(
   failures: unknown,
   updatedAt: number,
   parts: (checked: CheckedAnalysis) => OverviewParts | undefined,
-  verdictLang: OutputLang = "zh",
+  verdictLang: OutputLang,
 ): OverviewRecord {
   const analysisFailures = normalizeAnalysisFailures(failures);
   const checked = checkAnalysis(analysis, verdictLang);

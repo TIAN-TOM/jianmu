@@ -31,7 +31,7 @@ const INPUT: LearningInput = {
 };
 
 test("学习稿：不传语言和传中文逐字一样", () => {
-  const zh = learningAsMarkdown(INPUT, LINK);
+  const zh = learningAsMarkdown(INPUT, LINK, "zh");
   assert.equal(learningAsMarkdown(INPUT, LINK, "zh"), zh);
   for (const line of ["## B站官方总结", "## UP 主分段", "## 一句话结论", "**★☆☆☆☆ 可跳过**", "## 视频概览", "## 章节", "## 我的时间戳笔记", "  - 简幕", "title: BV1Sample000"]) {
     assert.ok(zh.includes(line), line);
@@ -68,16 +68,16 @@ test("学习稿：英文时固定文字是英文，档位写英文名，内容�
 
 test("笔记导出：没有标题时的名字按语言写，中文照旧", () => {
   const notes = INPUT.notes ?? [];
-  const zh = notesAsMarkdown(notes, LINK);
+  const zh = notesAsMarkdown(notes, LINK, { lang: "zh" });
   assert.equal(notesAsMarkdown(notes, LINK, { lang: "zh" }), zh);
   assert.ok(zh.startsWith("# BV1Sample000\n"));
   const untitled = [{ ...(notes[0] as NoteRecord), video: "" as typeof KEY }];
-  assert.ok(notesAsMarkdown(untitled, LINK).startsWith("# 未命名视频\n"));
+  assert.ok(notesAsMarkdown(untitled, LINK, { lang: "zh" }).startsWith("# 未命名视频\n"));
   assert.ok(notesAsMarkdown(untitled, LINK, { lang: "en" }).startsWith("# Untitled video\n"));
 });
 
 test("导出文件在没有标题时的名字：中文照旧，英文是英文", () => {
-  assert.deepEqual([markdownFallbackName("notes"), markdownFallbackName("learning")], ["笔记", "学习稿"]);
+  assert.deepEqual([markdownFallbackName("notes", "zh"), markdownFallbackName("learning", "zh")], ["笔记", "学习稿"]);
   assert.deepEqual([markdownFallbackName("notes", "en"), markdownFallbackName("learning", "en")], ["notes", "study notes"]);
 });
 

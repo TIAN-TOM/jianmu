@@ -96,12 +96,12 @@ test("推理强度：表单上的服务商、地址、模型和保存的不一�
 });
 
 test("推理强度旁边那一句：一样时不说；退了一档、关不掉、服务调不了各说一句；选关而服务说不准时不说", () => {
-  assert.equal(effortNoteText({ requested: "high", effective: "high" }), null);
-  assert.equal(effortNoteText({ requested: "medium", effective: "low", note: "fallback" }), "这个模型没有「中」档，实际按「低」档");
-  assert.equal(effortNoteText({ requested: "high", effective: "off", note: "fallback" }), "这个模型调不了推理强度，实际按「关」");
-  assert.equal(effortNoteText({ requested: "off", effective: "low", note: "cannot-disable" }), "这个模型关不掉思考，实际按最低的「低」档");
-  assert.equal(effortNoteText({ requested: "high", effective: "off", note: "unknown" }), "这个服务调不了推理强度，由服务自己决定");
-  assert.equal(effortNoteText({ requested: "off", effective: "off", note: "unknown" }), null);
+  assert.equal(effortNoteText({ requested: "high", effective: "high" }, "zh"), null);
+  assert.equal(effortNoteText({ requested: "medium", effective: "low", note: "fallback" }, "zh"), "这个模型没有「中」档，实际按「低」档");
+  assert.equal(effortNoteText({ requested: "high", effective: "off", note: "fallback" }, "zh"), "这个模型调不了推理强度，实际按「关」");
+  assert.equal(effortNoteText({ requested: "off", effective: "low", note: "cannot-disable" }, "zh"), "这个模型关不掉思考，实际按最低的「低」档");
+  assert.equal(effortNoteText({ requested: "high", effective: "off", note: "unknown" }, "zh"), "这个服务调不了推理强度，由服务自己决定");
+  assert.equal(effortNoteText({ requested: "off", effective: "off", note: "unknown" }, "zh"), null);
 });
 
 test("推理强度旁边那一句和用量那一行选英文时是英文，数字按英文的写法分组", () => {

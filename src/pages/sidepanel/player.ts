@@ -15,7 +15,7 @@ export type PlayerReply<K extends ContentCommandName> = ContentReply<K> | { read
 
 export type PlayerFailure = ContentCommands[PanelCommandName]["refusal"] | "UNREACHABLE";
 
-export const playerFailureText = (code: PlayerFailure, lang: UiLang = "zh"): string => panelTextOf(lang).player[code];
+export const playerFailureText = (code: PlayerFailure, lang: UiLang): string => panelTextOf(lang).player[code];
 
 export interface PlayerTabs {
   sendMessage(tabId: number, message: unknown): Promise<unknown>;

@@ -49,8 +49,8 @@ const TRANSPORT_EN: TransportText = {
   retrying: (limited, seconds) => `${limited ? "The service is limiting requests" : "The service is busy"}. Retrying in ${seconds} s…`,
 };
 
-/** 指定语言那份说明。不传语言时是简体。 */
-export const transportText = (lang: OutputLang = "zh"): TransportText => inLang(lang, TRANSPORT_ZH, TRANSPORT_EN, TRANSPORT_HANT);
+/** 指定语言那份说明。 */
+export const transportText = (lang: OutputLang): TransportText => inLang(lang, TRANSPORT_ZH, TRANSPORT_EN, TRANSPORT_HANT);
 
 /** 一句说明的三种语言：pick 从说明表里挑出同一句。 */
 export function transportBoth(pick: (text: TransportText) => string): LangMessages {

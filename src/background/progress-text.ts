@@ -43,5 +43,5 @@ const PROGRESS_EN: ProgressText = {
   failed: "Generation failed",
 };
 
-/** 指定语言那份说法。不传语言时是中文。 */
-export const progressText = (lang: OutputLang = "zh"): ProgressText => inLang(lang, PROGRESS_ZH, PROGRESS_EN, PROGRESS_HANT);
+/** 指定语言那份说法。 */
+export const progressText = (lang: OutputLang): ProgressText => inLang(lang, PROGRESS_ZH, PROGRESS_EN, PROGRESS_HANT);

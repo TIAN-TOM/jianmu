@@ -34,8 +34,8 @@ export interface OptionsDeps {
   readonly download: (filename: string, chunks: readonly string[]) => void;
   readonly storageChanged?: { addListener(listener: StorageListener): void; removeListener(listener: StorageListener): void };
   readonly now?: () => Date;
-  /** 状态行用哪种语言写，缺省中文。页面传当前的界面语言。 */
-  readonly lang?: () => UiLang;
+  /** 状态行用哪种语言写，页面传当前的界面语言。 */
+  readonly lang: () => UiLang;
 }
 
 export interface OptionsState {
@@ -82,7 +82,7 @@ export interface OptionsState {
 }
 
 /** 后台回来的失败给用户看的一句话：模型服务的失败带着脱敏后的原话，其余按码。 */
-export function failureText(failure: Failure, lang: UiLang = "zh"): string {
+export function failureText(failure: Failure, lang: UiLang): string {
   if (Object.hasOwn(AI_ERROR_TEXT, failure.code) && failure.detail) return failure.detail;
   return describe(failure.code, failure.detail, lang);
 }
@@ -101,7 +101,7 @@ const pad = (value: number): string => String(value).padStart(2, "0");
 
 export function createOptionsState(deps: OptionsDeps): OptionsState {
   const { store, api } = deps;
-  const lang = deps.lang ?? ((): UiLang => "zh");
+  const lang = deps.lang;
   const copy = () => textOf(lang());
   const status = () => copy().status;
   const failText = (failure: Failure): string => failureText(failure, lang());

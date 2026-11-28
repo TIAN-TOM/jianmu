@@ -4,7 +4,7 @@ import type { AiWiring, TaskAi } from "../../src/background/ai.ts";
 import type { CompletionRequest, CompletionResult } from "../../src/core/ai/transport/index.ts";
 import { taskCanceledError } from "../../src/core/ai/transport/index.ts";
 import { fail, ok } from "../../src/core/errors.ts";
-import type { OutputLang } from "../../src/core/output-lang.ts";
+import { outputLangOf, type OutputLang } from "../../src/core/output-lang.ts";
 import type { FrozenGen } from "../../src/core/tasks.ts";
 import type { ConfigCheckView } from "../../src/shared/messages/ai.ts";
 import { FEATURE_MODEL_SLOTS, normalize } from "../../src/shared/settings-schema.ts";
@@ -83,14 +83,14 @@ export function createFakeAi(options: FakeAiOptions = {}): FakeAi {
     configCheck: async () => options.config ?? { ready: true, errors: [] },
     requestAiCompletion: (request) => complete(request),
     freeze: async (feature) => ({ feature, baseUrl: settings.aiBaseUrl, model, effort: "off", promptVersion: "fake-prompt", ...(options.outputLang ? { outputLang: options.outputLang } : {}) }),
-    forTask: (frozen): TaskAi => ({ requestAiCompletion: (request) => complete({ ...request, feature: frozen.feature }, frozen) }),
+    forTask: (frozen): TaskAi => ({ requestAiCompletion: (request) => complete({ lang: outputLangOf(frozen), ...request, feature: frozen.feature }, frozen) }),
     effortPreview: async () => ({
       items: FEATURE_MODEL_SLOTS.map(({ id }) => ({ feature: id, model, requested: "off" as const, effective: "off" as const })),
     }),
     listModels: async () => ok({ ids: [...(options.models ?? [model])] }),
     async testConnection(feature) {
       try {
-        const result = await complete({ feature, messages: [{ role: "user", content: "测试" }], maxTokens: 16 });
+        const result = await complete({ feature, messages: [{ role: "user", content: "测试" }], maxTokens: 16, lang: "zh" });
         return ok({ model: result.settings.aiModel, reply: result.text });
       } catch {
         return fail("AI_REQUEST_FAILED");

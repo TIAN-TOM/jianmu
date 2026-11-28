@@ -24,6 +24,6 @@ const FRAME_EN: FrameText = {
   cannotSee: (model) => `Frame explanation (${model}) can't read images. Under “Models per feature”, choose a model that can.`,
 };
 
-export const frameText = (lang: UiLang = "zh"): FrameText => inLang(lang, FRAME_ZH, FRAME_EN, FRAME_HANT);
+export const frameText = (lang: UiLang): FrameText => inLang(lang, FRAME_ZH, FRAME_EN, FRAME_HANT);
 
-export const frameSlotLabel = (lang: UiLang = "zh"): string => frameText(lang).slot;
+export const frameSlotLabel = (lang: UiLang): string => frameText(lang).slot;

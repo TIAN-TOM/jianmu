@@ -25,4 +25,4 @@ const YOUTUBE_EN: YoutubeText = {
   noPrompt: "The permission prompt can't be shown here. Turn it on in settings instead.",
 };
 
-export const youtubeText = (lang: UiLang = "zh"): YoutubeText => inLang(lang, YOUTUBE_ZH, YOUTUBE_EN, YOUTUBE_HANT);
+export const youtubeText = (lang: UiLang): YoutubeText => inLang(lang, YOUTUBE_ZH, YOUTUBE_EN, YOUTUBE_HANT);

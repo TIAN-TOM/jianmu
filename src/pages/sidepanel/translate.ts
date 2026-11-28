@@ -201,7 +201,7 @@ function createStream(api: Pick<PageApi, "connect">, purpose: TextPurpose | unde
   };
 }
 
-export function createTranslation({ api, lang = () => "zh" }: { readonly api: Pick<PageApi, "connect" | "send">; readonly lang?: () => UiLang }): Translation {
+export function createTranslation({ api, lang }: { readonly api: Pick<PageApi, "connect" | "send">; readonly lang: () => UiLang }): Translation {
   let boundVideo: VideoKey | null = null;
   let choiceVersion = 0;
   const mode = signal<TranscriptMode>("original");
@@ -234,7 +234,7 @@ export function createTranslation({ api, lang = () => "zh" }: { readonly api: Pi
   };
 }
 
-export function createTidy({ api, lang = () => "zh" }: { readonly api: Pick<PageApi, "connect">; readonly lang?: () => UiLang }): Tidy {
+export function createTidy({ api, lang }: { readonly api: Pick<PageApi, "connect">; readonly lang: () => UiLang }): Tidy {
   const show = signal(true);
   const stream = createStream(api, "tidy", tidyWords, lang);
   return {

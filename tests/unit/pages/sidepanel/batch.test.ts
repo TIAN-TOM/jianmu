@@ -11,19 +11,19 @@ const video = (n: number) => `bilibili:BV1Sample00${n}:p1` as VideoKey;
 const item = (n: number, state: WindowCountItem["state"]): WindowCountItem => ({ video: video(n), title: `视频 ${n}`, state });
 
 test("确认提示写清本窗口几个视频、跳过几个、要新生成几个", () => {
-  assert.equal(confirmText([]), "本窗口没有打开的视频。");
-  assert.equal(confirmText([item(1, "to-generate"), item(2, "to-generate")]), "本窗口有 2 个视频，要新生成 2 个。");
-  assert.equal(confirmText([item(1, "existing"), item(2, "to-generate")]), "本窗口有 2 个视频，跳过 1 个已有概览的，要新生成 1 个。");
+  assert.equal(confirmText([], "zh"), "本窗口没有打开的视频。");
+  assert.equal(confirmText([item(1, "to-generate"), item(2, "to-generate")], "zh"), "本窗口有 2 个视频，要新生成 2 个。");
+  assert.equal(confirmText([item(1, "existing"), item(2, "to-generate")], "zh"), "本窗口有 2 个视频，跳过 1 个已有概览的，要新生成 1 个。");
   assert.equal(
-    confirmText([item(1, "existing"), item(2, "running"), item(3, "to-generate")]),
+    confirmText([item(1, "existing"), item(2, "running"), item(3, "to-generate")], "zh"),
     "本窗口有 3 个视频，跳过 2 个（1 个已有概览、1 个正在生成），要新生成 1 个。",
   );
-  assert.equal(confirmText([item(1, "existing")]), "本窗口有 1 个视频，1 个已有概览，没有要新生成的。");
+  assert.equal(confirmText([item(1, "existing")], "zh"), "本窗口有 1 个视频，1 个已有概览，没有要新生成的。");
 });
 
 test("YouTube 标签页不进批量：另外说一句需逐个打开；只有 YouTube 时只说这一句", () => {
-  assert.equal(confirmText([item(1, "to-generate"), item(2, "open-each")]), "本窗口有 1 个视频，要新生成 1 个。另有 1 个 YouTube 视频需逐个打开，在视频页上点读取字幕。");
-  assert.equal(confirmText([item(1, "open-each"), item(2, "open-each")]), "本窗口的 2 个 YouTube 视频需逐个打开，在视频页上点读取字幕。");
+  assert.equal(confirmText([item(1, "to-generate"), item(2, "open-each")], "zh"), "本窗口有 1 个视频，要新生成 1 个。另有 1 个 YouTube 视频需逐个打开，在视频页上点读取字幕。");
+  assert.equal(confirmText([item(1, "open-each"), item(2, "open-each")], "zh"), "本窗口的 2 个 YouTube 视频需逐个打开，在视频页上点读取字幕。");
 });
 
 test("进度那一行：完成数、失败、停掉、跳过，整批提前停下时说原因", () => {
@@ -36,10 +36,10 @@ test("进度那一行：完成数、失败、停掉、跳过，整批提前停�
       { video: video(4), title: "四", status: "skipped" },
     ],
   };
-  assert.equal(progressText(run), "本窗口：已完成 1 / 3，失败 1，已停止 1，跳过 1");
-  assert.match(progressText({ ...run, stop: "rate-limited" }), /被 B 站限流/);
+  assert.equal(progressText(run, "zh"), "本窗口：已完成 1 / 3，失败 1，已停止 1，跳过 1");
+  assert.match(progressText({ ...run, stop: "rate-limited" }, "zh"), /被 B 站限流/);
   const partial: WindowRunView = { stopping: false, entries: [{ video: video(1), title: "一", status: "completed", partial: true }, { video: video(2), title: "二", status: "completed" }] };
-  assert.equal(progressText(partial), "本窗口：已完成 2 / 2，其中 1 个不完整");
+  assert.equal(progressText(partial, "zh"), "本窗口：已完成 2 / 2，其中 1 个不完整");
 });
 
 /** 读现在的阶段；不让断言把类型收窄，后面还要再读。 */
@@ -65,7 +65,7 @@ function fakeApi() {
 
 test("启用以后接上这个窗口的一批；清点、确认、全部停止、重试、收起都带窗口号", async () => {
   const fake = fakeApi();
-  const store = createWindowBatch({ api: fake.api as never, windowId: async () => 7 });
+  const store = createWindowBatch({ api: fake.api as never, windowId: async () => 7, lang: () => "zh" });
   store.count();
   assert.equal(fake.posted.length, 0, "没启用时什么都不发");
 
@@ -102,7 +102,7 @@ test("启用以后接上这个窗口的一批；清点、确认、全部停止�
 
 test("后台拒了确认时回到空闲并说原因；连接断了时说一句，回到能重新开始的样子", async () => {
   const fake = fakeApi();
-  const store = createWindowBatch({ api: fake.api as never, windowId: async () => 7 });
+  const store = createWindowBatch({ api: fake.api as never, windowId: async () => 7, lang: () => "zh" });
   store.setEnabled(true);
   assert.ok(await until(() => fake.posted.length === 1));
   store.count();

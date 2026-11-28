@@ -124,7 +124,7 @@ test("翻译批次模型没按 JSON 回：给中文说明和错误码，不显�
   const [end] = done(panel);
   assert.equal(end?.state, "failed");
   assert.deepEqual(end?.failure, { code: "TRANSLATE_PARSE_FAILED" }, "不带解析器的报错");
-  const text = describe("TRANSLATE_PARSE_FAILED");
+  const text = describe("TRANSLATE_PARSE_FAILED", undefined, "zh");
   assert.doesNotMatch(text, /JSON|SyntaxError|Unexpected|position/);
   assert.match(text, /按功能选模型/);
   assert.deepEqual(await h.store.byVideo(VIDEO), []);
@@ -352,7 +352,7 @@ test("模型漏了几段：译出来的照常存下，漏的那几段等一会�
   assert.deepEqual(Object.keys(panel.translated()), ["s0"], "译出来的先推给页面");
   h.timers.fire(TRANSLATE_RETRY_DELAY_MS);
   await running;
-  assert.deepEqual(batchOf(h.fake.calls[1]?.request ?? { messages: [], maxTokens: 0 }).map(({ id }) => id), ["s1", "s2", "s3"], "补轮只发漏的那几段");
+  assert.deepEqual(batchOf(h.fake.calls[1]?.request ?? { messages: [], maxTokens: 0, lang: "zh" }).map(({ id }) => id), ["s1", "s2", "s3"], "补轮只发漏的那几段");
   assert.equal(Object.keys(panel.translated()).length, 4);
   assert.deepEqual(done(panel).map(({ state, failedBatches }) => ({ state, failedBatches })), [{ state: "completed", failedBatches: 0 }]);
   assert.equal(Object.keys((await h.store.find(view.transcript.ref, "en"))?.segments ?? {}).length, 4);
@@ -438,7 +438,7 @@ test("从旧版带过来的译文存不下：照样直接用，不为它们再�
   await h.translate(panel);
   assert.equal(Object.keys(panel.of("translate.segments").find((event) => event.stored)?.translated ?? {}).length, FIVE.length, "没变的段直接交回");
   assert.equal(h.requests(), 1, "只为新加的那一段请求模型");
-  assert.deepEqual(batchOf(h.fake.calls[0]?.request ?? { messages: [], maxTokens: 0 }).map(({ text }) => text), ["第六句"]);
+  assert.deepEqual(batchOf(h.fake.calls[0]?.request ?? { messages: [], maxTokens: 0, lang: "zh" }).map(({ text }) => text), ["第六句"]);
 });
 
 test("面板关掉时还有一批在途：在途的不中止，之后的批次照常发完", async () => {
@@ -614,7 +614,7 @@ test("导入字幕文件还没做完就开始翻译：等导入做完再读，�
   assert.equal(done(panel)[0]?.state, "completed");
   const records = await h.driver.getAll();
   assert.deepEqual(records.map((record) => record.transcript.kind), ["imported"], "译文记在导入的那一版名下，旧字幕没有译文");
-  assert.ok(batchOf(h.fake.calls[0]?.request ?? { messages: [], maxTokens: 0 }).every(({ text }) => text.includes("导入的")));
+  assert.ok(batchOf(h.fake.calls[0]?.request ?? { messages: [], maxTokens: 0, lang: "zh" }).every(({ text }) => text.includes("导入的")));
 });
 
 test("翻译途中换过字幕文件：在途那批照常推给页面但不存，之后的批次不再发，任务让出来", async () => {
@@ -730,7 +730,7 @@ test("强制刷新后某一段原文变了：只丢那一段的译文", async ()
   const changed = Object.keys(first.translated()).filter((id) => !(id in (kept?.translated ?? {})));
   assert.equal(changed.length, 1, "只丢了一段");
   for (const [id, text] of Object.entries(kept?.translated ?? {})) assert.equal(text, first.translated()[id], "没变的段带过来了");
-  const asked = batchOf(h.fake.calls.at(-1)?.request ?? { messages: [], maxTokens: 0 });
+  const asked = batchOf(h.fake.calls.at(-1)?.request ?? { messages: [], maxTokens: 0, lang: "zh" });
   assert.equal(asked.length, 1, "只译变了的那段");
   assert.match(asked[0]?.text ?? "", /改过的最后一句/);
 });

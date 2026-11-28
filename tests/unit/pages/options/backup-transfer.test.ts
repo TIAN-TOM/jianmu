@@ -159,7 +159,7 @@ test("导入：文件里一条都没有就不发记录，计数是读文件时�
 test("导入完那一句和失败那一句：缺省中文，选英文时是英文；没有译文就不提，有跳过的照实说", () => {
   const count = (added: number, updated = 0, skipped = 0) => ({ added, updated, skipped });
   const reply = { counts: { notes: count(3, 1), overviews: count(0), qa: count(2), translations: count(0) }, promptsDropped: false };
-  assert.equal(importSummary(reply), "合并完成：笔记新增 3 条、更新 1 条，概览新增 0 份、更新 0 份，问答新增 2 条。");
+  assert.equal(importSummary(reply, "zh"), "合并完成：笔记新增 3 条、更新 1 条，概览新增 0 份、更新 0 份，问答新增 2 条。");
   assert.equal(importSummary(reply, "en"), "Merge complete. Notes: 3 added, 1 updated. Overviews: 0 added, 0 updated. Q&A: 2 added.");
   const skipped = { ...reply, counts: { ...reply.counts, notes: count(0, 0, 1), translations: count(1, 2) } };
   assert.equal(
@@ -167,6 +167,6 @@ test("导入完那一句和失败那一句：缺省中文，选英文时是英�
     "Merge complete. Notes: 0 added, 0 updated. Overviews: 0 added, 0 updated. Q&A: 2 added. Translations and tidied subtitles: 1 added, 2 filled in. Skipped 1 note in the backup because the format was wrong.",
   );
   const reason = () => "原因";
-  assert.equal(backupFailureText(fail("BACKGROUND_DROPPED"), "export", reason), "导出失败：简幕的后台中途断开了，没导出来，再点一次「导出备份」。");
+  assert.equal(backupFailureText(fail("BACKGROUND_DROPPED"), "export", reason, "zh"), "导出失败：简幕的后台中途断开了，没导出来，再点一次「导出备份」。");
   assert.equal(backupFailureText(fail("AI_NETWORK_ERROR"), "import", reason, "en"), "Restore failed: 原因");
 });

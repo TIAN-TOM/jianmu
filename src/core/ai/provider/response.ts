@@ -75,7 +75,7 @@ export function errorMessageOf(data: unknown): string {
 }
 
 export function parseErrorMessage(data: unknown, status: number): string {
-  return errorMessageOf(data) || providerText().statusOnly(status);
+  return errorMessageOf(data) || providerText("zh").statusOnly(status);
 }
 
 interface ModelEntry {

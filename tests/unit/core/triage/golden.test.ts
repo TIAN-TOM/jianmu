@@ -71,7 +71,7 @@ const FUNCTIONS: Readonly<Record<string, (args: unknown[]) => unknown>> = {
   officialStatusText: plain(officialStatusText),
   officialTodo: plain(officialTodo),
   progressText: plain(progressText),
-  toMarkdown: withBase(toMarkdown),
+  toMarkdown: withBase((first: Parameters<typeof toMarkdown>[0], baseUrl: string) => toMarkdown(first, baseUrl, "zh")),
   verdictSourceText: plain(verdictSourceText),
   verdictTodo: plain(verdictTodo),
   videoUrl: withBase(videoUrl),
