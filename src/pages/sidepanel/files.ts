@@ -1,4 +1,4 @@
-// 导出文件：在页面里拼好文本交给浏览器下载，不需要下载权限。文件名去掉系统不认的字符。
+// 导出文件：拼好要导出的文本和文件名，文件名去掉系统不认的字符。
 import { learningAsMarkdown, markdownFallbackName, notesAsMarkdown, type LearningInput } from "../../core/notes/markdown.ts";
 import type { NoteList } from "../../core/notes/records.ts";
 import type { OutputLang } from "../../core/output-lang.ts";
@@ -60,15 +60,4 @@ export function trackLabel(video: VideoKey | null, track: ShownTrack, lang: Outp
   if (own) return own;
   const ref = video ? parseVideoKey(video) : null;
   return (ref && siteRules[ref.platform]?.trackName?.(track.trackId, lang, kind)) ?? track.label;
-}
-
-export function downloadText(fileName: string, text: string, type: string): void {
-  const url = URL.createObjectURL(new Blob([text], { type: `${type};charset=utf-8` }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
