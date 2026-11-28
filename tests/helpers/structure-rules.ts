@@ -114,7 +114,6 @@ export const SCRIPT_ONLY: Readonly<Record<string, string>> = {
 // 第 9 条：暂时没有导入方也放行的模块，加一条要写原因。
 export const UNIMPORTED_ALLOWED: Readonly<Record<string, string>> = {
   "src/core/notes/filter.ts": "笔记过滤还没接进产品，去留待定",
-  "src/pages/shared/ui/time-rail.tsx": "时间轴组件还没接进产品，只有页面测试的样品页用，去留待定",
 };
 // 第 10 条：同一个顶层函数定义在两个以上的文件里各写一份。压完空白不到这么长的撞上了不说明问题，不算。
 const MIN_DEFINITION_CHARS = 70;

@@ -108,8 +108,8 @@ test("每套主题、每种明暗下，文字色和主按钮上的字都过 WCAG
   });
 });
 
-test("叠在底色上的选中文字、提示行、警告徽标，播放头、重点、时间轨和控件边框，五套主题乘两种明暗都够对比度", () => {
-  // 半透明的行底色先叠到页面底色和卡片上再算；播放头、重点圆点、章节段这类图形要 3:1。
+test("叠在底色上的选中文字、提示行、警告徽标，播放头、重点、进度条和控件边框，五套主题乘两种明暗都够对比度", () => {
+  // 半透明的行底色先叠到页面底色和卡片上再算；播放头、重点圆点、进度条走过的部分这类图形要 3:1。
   // 只查页面上真会出现的组合：带底色的状态徽标只有「信息不足」的警告一种，危险和完成的淡底上没有同色的字。
   const rows: readonly (readonly [string, string])[] = [
     ["--text-strong", "--accent-soft-strong"],
@@ -123,8 +123,7 @@ test("叠在底色上的选中文字、提示行、警告徽标，播放头、�
       for (const [text, row] of rows) assertContrast(`${label}：${text} 在 ${row} 叠 ${base} 上`, color(text), over(color(row), color(base)), 4.5);
     }
     for (const base of ["--bg", "--card", "--bg-hover"]) {
-      for (const shape of ["--mark", "--mark-key", "--rail-key", "--rail-played"]) assertContrast(`${label}：${shape} 在 ${base} 上`, color(shape), color(base), 3);
-      assertContrast(`${label}：--rail-seg 叠 ${base}`, over(color("--rail-seg"), color(base)), color(base), 3);
+      for (const shape of ["--mark", "--mark-key", "--accent"]) assertContrast(`${label}：${shape} 在 ${base} 上`, color(shape), color(base), 3);
     }
     // 输入框、下拉框的边框：和框里的底色、框所在的卡片都差 3:1。
     for (const base of ["--input", "--card"]) assertContrast(`${label}：--border-strong 在 ${base} 上`, color("--border-strong"), color(base), 3);

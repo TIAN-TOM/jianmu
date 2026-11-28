@@ -29,7 +29,7 @@ export interface ChapterListProps {
   readonly expanded?: readonly number[];
   readonly onToggle?: (index: number) => void;
   readonly onSeek?: (startSec: number) => void;
-  /** 悬停或当前章节，和时间轨同一个序号。 */
+  /** 悬停或当前章节的序号。 */
   readonly focusIndex?: number | null;
   readonly onHover?: (index: number | null) => void;
   readonly renderDetail?: (chapter: ChapterItem, index: number) => ComponentChildren;

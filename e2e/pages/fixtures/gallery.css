@@ -10,12 +10,6 @@
   font-size: var(--fs-display);
 }
 
-.gallery-rail-row {
-  display: flex;
-  gap: var(--space-2);
-  min-height: 12rem;
-}
-
 .gallery-grow {
   flex: 1;
   min-width: 0;

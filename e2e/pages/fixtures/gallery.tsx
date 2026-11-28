@@ -17,7 +17,6 @@ import type { NoticeEntry } from "../../../src/pages/shared/ui/notice.ts";
 import { Layer, Sheet } from "../../../src/pages/shared/ui/overlay.tsx";
 import { StateBlock } from "../../../src/pages/shared/ui/state-block.tsx";
 import { stateCopy } from "../../../src/pages/shared/ui/state.ts";
-import { TimeRail } from "../../../src/pages/shared/ui/time-rail.tsx";
 import { VerdictBlock } from "../../../src/pages/shared/ui/verdict-block.tsx";
 
 const DURATION_SEC = 600;
@@ -28,13 +27,6 @@ const CHAPTERS = [
   { startSec: 540, title: "样例收尾" },
 ];
 const KEY_STARTS = [120, 540];
-const POSITION_SEC = 210;
-const BLOCKS = [
-  { startSec: 0, endSec: 200, state: "done" as const },
-  { startSec: 200, endSec: 400, state: "writing" as const },
-  { startSec: 400, endSec: 500, state: "failed" as const },
-  { startSec: 500, endSec: 600, state: "pending" as const },
-];
 
 const mode = signal<Mode>("skim");
 const focus = signal<number | null>(null);
@@ -54,23 +46,20 @@ const toggle = (index: number): void => {
   expanded.value = expanded.value.includes(index) ? expanded.value.filter((item) => item !== index) : [...expanded.value, index];
 };
 
-function RailDemo({ id, keyStarts }: { readonly id: string; readonly keyStarts?: readonly number[] }) {
+function ChapterDemo({ id, keyStarts }: { readonly id: string; readonly keyStarts?: readonly number[] }) {
   return (
-    <section id={id} class="gallery-rail-row">
-      <TimeRail durationSec={DURATION_SEC} chapters={CHAPTERS} keyStarts={keyStarts} positionSec={POSITION_SEC} focusIndex={focus.value} onSeek={seek} onHover={(index) => (focus.value = index)} />
-      <div class="gallery-grow">
-        <ChapterList
-          chapters={CHAPTERS}
-          keyStarts={keyStarts}
-          totalSec={DURATION_SEC}
-          expanded={expanded.value}
-          onToggle={toggle}
-          onSeek={seek}
-          focusIndex={focus.value}
-          onHover={(index) => (focus.value = index)}
-          renderDetail={(chapter) => <p class="gallery-detail">这一章的要点（自造）：{chapter.title}</p>}
-        />
-      </div>
+    <section id={id}>
+      <ChapterList
+        chapters={CHAPTERS}
+        keyStarts={keyStarts}
+        totalSec={DURATION_SEC}
+        expanded={expanded.value}
+        onToggle={toggle}
+        onSeek={seek}
+        focusIndex={focus.value}
+        onHover={(index) => (focus.value = index)}
+        renderDetail={(chapter) => <p class="gallery-detail">这一章的要点（自造）：{chapter.title}</p>}
+      />
     </section>
   );
 }
@@ -115,17 +104,9 @@ function Gallery() {
         <p id="mode-value">{mode.value}</p>
       </section>
 
-      <RailDemo id="rail-key" keyStarts={KEY_STARTS} />
-      <RailDemo id="rail-plain" />
+      <ChapterDemo id="rail-key" keyStarts={KEY_STARTS} />
+      <ChapterDemo id="rail-plain" />
       <p id="seek-result">{seeks.value.join(",")}</p>
-
-      <section id="rail-blocks" class="gallery-rail-row">
-        <TimeRail durationSec={DURATION_SEC} blocks={BLOCKS} keyStarts={KEY_STARTS} positionSec={POSITION_SEC} />
-      </section>
-
-      <section id="rail-horizontal">
-        <TimeRail orientation="horizontal" durationSec={DURATION_SEC} chapters={CHAPTERS} keyStarts={KEY_STARTS} positionSec={POSITION_SEC} />
-      </section>
 
       <section id="verdicts" class="gallery-stack">
         <VerdictBlock label={5} text="样例结论：讲清了问题的来龙去脉，值得从头看。" basis="transcript" menu={<Menu label="更多操作" items={[{ label: "重新生成", hint: "会再调一次模型", onSelect: () => (picked.value = "重新生成") }]} />} />

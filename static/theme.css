@@ -6,7 +6,7 @@
  *   1. 主题：五套完整配色，每套一组原始色值，浅色 --l-*、深色 --d-*，外加这套主题的圆角，
  *      由 html 的 data-accent-theme 切换（取值和设置模块的主题表一致，单元测试核对）
  *   2. 语义变量：--bg、--card、--text 按明暗从原始色值里取
- *   3. 时间轨和判断档位
+ *   3. 进度条
  *   4. 字号、行高、间距、阴影、动效、版面尺寸；界面字号改根字号
  *   5. 浏览器自己画的部分：复选框、滚动条、选中色、搜索框清除按钮、自动填充、下拉框
  *
@@ -484,16 +484,10 @@
   --scrollbar-thumb: color-mix(in oklab, var(--text-faint) 80%, transparent);
 }
 
-/* ---------- 3. 时间轨和判断档位 ---------- */
+/* ---------- 3. 进度条 ---------- */
 
 :root {
-  /* 时间轨：把视频时长竖着摆在侧边栏左边，同时承担章节、生成进度、播放位置三件事 */
-  --rail-track: var(--border-strong); /* 还没有章节时的细线、还没写的块 */
-  --rail-seg: color-mix(in oklab, var(--text-faint) 78%, transparent); /* 章节段、写完的块 */
-  --rail-played: var(--accent); /* 已播放的部分、正在写的块 */
-  --rail-key: var(--mark-key); /* 重点章节 */
-  --rail-focus: var(--text); /* 悬停或当前章节 */
-  --rail-failed: var(--danger); /* 失败的块，画成斜纹 */
+  --rail-track: var(--border-strong); /* 进度条还没走到的底色：播放页卡片的生成进度、侧边栏的批量进度 */
 }
 
 /* ---------- 4. 字号、行高、间距、阴影、动效、版面尺寸 ---------- */
@@ -562,10 +556,7 @@
     background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
     opacity var(--dur-fast) var(--ease), text-decoration-color var(--dur-fast) var(--ease);
 
-  /* 版面尺寸。轨道粗细和播放头用 px，不随字号变 */
-  --rail-gutter: 1.25rem; /* 时间轨占的左边距 */
-  --rail-bar: 4px; /* 轨道粗细 */
-  --playhead: 10px; /* 播放头直径 */
+  /* 版面尺寸 */
   --panel-pad: var(--space-4); /* 侧边栏内容的左右留白 */
   --dock-h: 3.25rem; /* 底部工具条 */
   --notice-h: 2rem; /* 一行提示 */

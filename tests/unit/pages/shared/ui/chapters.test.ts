@@ -1,4 +1,4 @@
-// 章节列表和时间轨共用的重点规则、章节小标题。
+// 章节列表的重点规则、章节小标题。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chapterHeading, keyFlags, keyStartSet } from "../../../../../src/pages/shared/ui/chapters.ts";
