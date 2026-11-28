@@ -146,7 +146,7 @@ test("手动补失败块至少补上一块：打开就出结论从暂停里恢�
   let value: { fromCache: boolean; recoveredChunks?: number; canceled?: true } = { fromCache: false, recoveredChunks: 1 };
   const overview = { retryFailed: async () => ({ ok: true, value }) } as unknown as OverviewService;
   const routes = overviewRoutes({ overview, cardLimits: { redeemToken: () => null, admitRegenerate: () => true }, auto: { resume: async () => void (resumed += 1) } });
-  const retry = () => routes["overview.retryFailed"].handler({ taskId: "t", video: KEY }, { sender: senders.panel() } as unknown as Parameters<(typeof routes)["overview.retryFailed"]["handler"]>[1]);
+  const retry = () => routes["overview.retryFailed"].handler({ taskId: "t", video: KEY }, { sender: { kind: "panel" } } as unknown as Parameters<(typeof routes)["overview.retryFailed"]["handler"]>[1]);
 
   assert.equal((await retry()).ok, true);
   assert.equal(resumed, 1);

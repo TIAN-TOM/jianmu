@@ -67,7 +67,19 @@ test("claimTaskId：别的页面只认任务号，没带回 FORBIDDEN，带了�
   }
 });
 
-// 四条路由逐格对照：形状不对的在核对时就拒，不进处理、不兑换令牌；形状对的按发送方回。
+test("claimTaskId：内容脚本和认不出的扩展页面带什么都回 FORBIDDEN，不兑换令牌", () => {
+  const strangers: readonly SenderCtx[] = [{ kind: "content", tabId: 7 }, { kind: "page", page: "other" }, { kind: "page" }];
+  for (const sender of strangers) {
+    const { redeemed, limits } = redeemer();
+    const label = `${sender.kind} ${sender.page ?? ""}`;
+    assert.deepEqual(claimTaskId(sender, { taskId: "t" }, limits), { ok: false, code: "FORBIDDEN" }, `${label} 带任务号`);
+    assert.deepEqual(claimTaskId(sender, { token: GOOD }, limits), { ok: false, code: "FORBIDDEN" }, `${label} 带令牌`);
+    assert.deepEqual(claimTaskId(sender, {}, limits), { ok: false, code: "FORBIDDEN" }, `${label} 都不带`);
+    assert.deepEqual(redeemed, [], `${label} 不兑换令牌`);
+  }
+});
+
+// 四条路由逐格对照：形状不对的在核对时就拒，不进处理；形状对的按发送方回。别的页面只跑路由表放行的那几种。
 const SHAPES = {
   token: { video: KEY, token: GOOD },
   staleToken: { video: KEY, token: "stale" },
@@ -119,7 +131,10 @@ const TABLE: Record<"qa.ask" | "verdict.fromOfficial" | "overview.start" | "over
   "overview.retryFailed": BASE,
 };
 
-type AnyRoute = { validate(req: unknown, ctx: SenderCtx): boolean; handler(req: unknown, ctx: { sender: SenderCtx }): Promise<{ ok: boolean; code?: string; value?: unknown }> };
+type AnyRoute = {
+  readonly senders: readonly string[];
+  readonly pages?: readonly string[];
+  validate(req: unknown, ctx: SenderCtx): boolean; handler(req: unknown, ctx: { sender: SenderCtx }): Promise<{ ok: boolean; code?: string; value?: unknown }> };
 
 function routesWith(limits: Pick<CardLimits, "redeemToken" | "admitRegenerate">): Record<keyof typeof TABLE, AnyRoute> {
   // 服务替身把认领到的任务号原样交回。
@@ -135,21 +150,33 @@ function routesWith(limits: Pick<CardLimits, "redeemToken" | "admitRegenerate">)
 async function cell(name: keyof typeof TABLE, sender: SenderCtx, req: unknown): Promise<Cell> {
   const { redeemed, limits } = redeemer();
   const route = routesWith(limits)[name];
-  if (!route.validate(req, sender)) {
-    assert.equal(redeemed.length, 0, "核对不过不兑换令牌");
-    return "拒";
-  }
+  if (!route.validate(req, sender)) return "拒";
   const result = await route.handler(req, { sender });
   const outcome = result.ok ? `ok:${(result.value as { taskId: string }).taskId}` : String(result.code);
   return `${outcome} 兑换${redeemed.length}` as Cell;
 }
 
+/** 路由表放行的非卡片发送方：侧边栏，和 pages 里列着的扩展页面。 */
+function othersFor(name: keyof typeof TABLE): readonly SenderCtx[] {
+  const route = routesWith(redeemer().limits)[name];
+  return OTHERS.filter((sender) => route.senders.includes(sender.kind) && (sender.kind !== "page" || (route.pages ?? []).includes(sender.page ?? "")));
+}
+
+test("对照表里各条路由跑的别的页面和路由表一致", () => {
+  const kinds = (name: keyof typeof TABLE) => othersFor(name).map((sender) => sender.page ?? sender.kind);
+  assert.deepEqual(kinds("qa.ask"), ["panel", "options", "triage"]);
+  assert.deepEqual(kinds("verdict.fromOfficial"), ["panel"]);
+  assert.deepEqual(kinds("overview.start"), ["panel"]);
+  assert.deepEqual(kinds("overview.retryFailed"), ["panel", "options", "triage"]);
+});
+
 for (const [name, rows] of Object.entries(TABLE) as [keyof typeof TABLE, Partial<Record<Shape, Row>>][]) {
   test(`${name}：每种请求形状在卡片和别的页面上的结果`, async () => {
+    const others = othersFor(name);
     for (const [shape, req] of Object.entries(SHAPES) as [Shape, unknown][]) {
       const row = rows[shape] ?? { card: "拒", other: "拒" };
       assert.equal(await cell(name, CARD, req), row.card, `${shape}，卡片`);
-      for (const sender of OTHERS) assert.equal(await cell(name, sender, req), row.other, `${shape}，${sender.kind} ${sender.page ?? ""}`);
+      for (const sender of others) assert.equal(await cell(name, sender, req), row.other, `${shape}，${sender.kind} ${sender.page ?? ""}`);
     }
   });
 }
