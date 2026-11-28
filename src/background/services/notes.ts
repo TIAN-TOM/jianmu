@@ -7,17 +7,16 @@ import { NOTE_QUOTE } from "../../core/ai/schemas.ts";
 import type { ClearEpoch, ClearGuard } from "../../core/clear-guard.ts";
 import { fail, ok, trimFailure, type Failure, type Result } from "../../core/errors.ts";
 import { AUTHOR_MAX, TITLE_MAX, type Derived, type NoteRecord } from "../../core/notes/records.ts";
-import { budgetEffort, genInfo, type FrozenGen } from "../../core/tasks.ts";
+import { genInfo, type FrozenGen } from "../../core/tasks.ts";
 import { noteContextAt, type NoteContext } from "../../core/transcript/note-context.ts";
 import { parseVideoKey, type VideoKey, type VideoRef } from "../../core/video-ref.ts";
-import { keepAliveBudget, type KeepAlive } from "../../platform/keepalive.ts";
+import type { KeepAlive } from "../../platform/keepalive.ts";
 import { isQuotaError } from "../../platform/storage.ts";
 import type { Broadcast } from "../../shared/messages.ts";
 import type { EmptyRequest } from "../../shared/messages/core.ts";
 import type { NoteItemView, NoteListView, NoteSaveView, NoteUpdateView } from "../../shared/messages/notes.ts";
 import type { TranscriptReply, TranscriptView } from "../../shared/messages/transcript.ts";
-import { EFFORT_TIMEOUT_SECONDS } from "../../shared/settings-schema.ts";
-import type { AiWiring } from "../ai.ts";
+import { taskKeepAliveMs, type AiWiring } from "../ai.ts";
 import { errorLabel, type Log } from "../log.ts";
 import type { NoteStore, NoteView } from "../stores/notes.ts";
 import { promptMessages } from "./overview/chunks.ts";
@@ -73,9 +72,6 @@ interface Polish {
   readonly title: string;
   readonly view: TranscriptView;
 }
-
-
-const budgetOf = (gen: FrozenGen): number => keepAliveBudget(EFFORT_TIMEOUT_SECONDS[budgetEffort(gen)] * 1000);
 
 export function createNotesService(deps: NotesServiceDeps): NotesService {
   // 润色还在跑的笔记，只在内存里：后台被回收后不会留下一直「润色中」的笔记。
@@ -146,7 +142,7 @@ export function createNotesService(deps: NotesServiceDeps): NotesService {
   // 回复之前就撑着 worker：润色排在回复之后，中间不能被回收。润色写完（或没写成）通知页面刷新。
   function startPolish(job: Polish, gen: FrozenGen, since: ClearEpoch | undefined): void {
     polishing.set(job.note.id, since);
-    const release = deps.keepAlive.hold(budgetOf(gen));
+    const release = deps.keepAlive.hold(taskKeepAliveMs(gen));
     deps.defer(() => {
       polish(job, gen, since)
         .catch((error: unknown) => deps.log.warn("笔记润色没写回", errorLabel(error)))

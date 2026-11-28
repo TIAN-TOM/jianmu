@@ -5,7 +5,6 @@ import { outputLangOf } from "../core/output-lang.ts";
 import type { Basis } from "../core/notes/records.ts";
 import { equivalenceKey, kindHoldsKeyAfterCancel, mutexKey } from "../core/task-keys.ts";
 import {
-  budgetEffort,
   createTaskManager,
   type FrozenGen,
   type Task,
@@ -16,11 +15,10 @@ import {
   type TaskView,
 } from "../core/tasks.ts";
 import type { VideoKey } from "../core/video-ref.ts";
-import { keepAliveBudget, type KeepAlive } from "../platform/keepalive.ts";
+import type { KeepAlive } from "../platform/keepalive.ts";
 import type { Broadcast } from "../shared/messages.ts";
-import { EFFORT_TIMEOUT_SECONDS } from "../shared/settings-schema.ts";
 import { progressText } from "./progress-text.ts";
-import { aiFailure, type AiWiring, type TaskAi } from "./ai.ts";
+import { aiFailure, taskKeepAliveMs, type AiWiring, type TaskAi } from "./ai.ts";
 
 /**
  * 登记和开始生成是页面的两次来回。页面夹在中间关掉、重载，任务登记了却永远等不到开始，
@@ -131,13 +129,11 @@ interface Meta {
   vouched: boolean;
 }
 
-const defaultBudget = (gen: FrozenGen): number => keepAliveBudget(EFFORT_TIMEOUT_SECONDS[budgetEffort(gen)] * 1000);
-
 const SKIPPED = "同一个视频已经有任务在跑，这次跳过";
 
 export function createTaskRunner(deps: TaskRunnerDeps): TaskRunner {
   const { keepAlive, timers, newId } = deps;
-  const budgetFor = deps.budgetMs ?? defaultBudget;
+  const budgetFor = deps.budgetMs ?? taskKeepAliveMs;
   const metas = new Map<string, Meta>();
 
   // 互斥键是后台内部的，不给页面。
